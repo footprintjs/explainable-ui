@@ -12,6 +12,7 @@ export type { TimeTravelDebuggerProps } from "./components/TimeTravelDebugger";
 
 export { specToReactFlow } from "./components/FlowchartView/specToReactFlow";
 export type {
+  SpecNode,
   ExecutionOverlay,
   FlowchartColors,
 } from "./components/FlowchartView/specToReactFlow";

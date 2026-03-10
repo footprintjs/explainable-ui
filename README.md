@@ -184,15 +184,72 @@ Strip all built-in styles and bring your own. Components render semantic `data-f
 
 ### Flowchart Components (separate entry point)
 
-```tsx
-import { FlowchartView, TimeTravelDebugger } from "footprint-explainable-ui/flowchart";
+Requires `@xyflow/react` as a peer dependency. Import from `footprint-explainable-ui/flowchart`:
+
+```bash
+npm install @xyflow/react
 ```
 
-| Component | Description |
-|-----------|-------------|
+```tsx
+import {
+  FlowchartView,
+  StageNode,
+  specToReactFlow,
+  TimeTravelDebugger,
+} from "footprint-explainable-ui/flowchart";
+```
+
+| Export | Description |
+|--------|-------------|
 | `FlowchartView` | ReactFlow pipeline visualization with execution overlay |
-| `StageNode` | Custom node with state-aware coloring |
+| `StageNode` | Custom node with state-aware coloring, step badges, pulse rings |
+| `specToReactFlow` | Convert pipeline spec → ReactFlow nodes/edges with path overlay |
 | `TimeTravelDebugger` | Full debugger with flowchart + all panels |
+
+### `specToReactFlow` — Pipeline Spec to Flowchart
+
+Converts a `builder.toSpec()` structure into ReactFlow nodes and edges. Supports two modes:
+
+```tsx
+import { specToReactFlow } from "footprint-explainable-ui/flowchart";
+import type { ExecutionOverlay } from "footprint-explainable-ui/flowchart";
+
+// 1. Static flowchart (no execution state)
+const { nodes, edges } = specToReactFlow(spec);
+
+// 2. With execution overlay (Google Maps-style path)
+const overlay: ExecutionOverlay = {
+  doneStages: new Set(["ReceiveApp", "PullCredit"]),
+  activeStage: "CalculateDTI",
+  executedStages: new Set(["ReceiveApp", "PullCredit", "CalculateDTI"]),
+  executionOrder: ["ReceiveApp", "PullCredit", "CalculateDTI"],
+};
+const { nodes, edges } = specToReactFlow(spec, overlay);
+
+// 3. Custom edge colors (overrides theme defaults)
+const { nodes, edges } = specToReactFlow(spec, overlay, {
+  edgeExecuted: "#00ff88",
+  edgeActive: "#ff6b6b",
+});
+```
+
+Edge colors default to the library's theme tokens (`success` for executed, `primary` for active). Override per-call via the `colors` parameter.
+
+### `StageNode` — Theme-Aware Node
+
+`StageNode` reads all colors from `--fp-*` CSS variables:
+- **Default state**: uses `--fp-bg-secondary` background, `--fp-text-primary` text
+- **Active/done/error**: uses `--fp-color-primary` / `success` / `error` background
+- **Step badge**: shows execution order number on executed nodes
+- **Font**: uses `--fp-font-sans` for label text
+
+Wrap your flowchart in `FootprintTheme` and the nodes match automatically:
+
+```tsx
+<FootprintTheme tokens={warmDark}>
+  <ReactFlow nodes={nodes} edges={edges} nodeTypes={{ stage: StageNode }} />
+</FootprintTheme>
+```
 
 ## Adapters
 

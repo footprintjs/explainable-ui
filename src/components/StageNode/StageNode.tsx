@@ -9,17 +9,24 @@ export interface StageNodeData {
   done?: boolean;
   error?: boolean;
   linked?: boolean;
+  /** Step number in execution order (shown as badge) */
+  stepNumber?: number;
+  /** Node was not executed (dim it) */
+  dimmed?: boolean;
   [key: string]: unknown;
 }
 
 /**
  * Custom ReactFlow node for pipeline stages.
- * Shows execution state via color, icon, and optional pulse animation.
+ * All colors and fonts come from `--fp-*` CSS variables (via theme).
+ * Shows execution state via color, icon, step badge, and pulse animation.
  */
 export const StageNode = memo(function StageNode({
   data,
 }: NodeProps & { data: StageNodeData }) {
-  const { label, active, done, error, linked } = data;
+  const { label, active, done, error, linked, stepNumber, dimmed } = data;
+
+  const isOnPath = active || done;
 
   const bg = active
     ? theme.primary
@@ -29,6 +36,14 @@ export const StageNode = memo(function StageNode({
         ? theme.error
         : theme.bgSecondary;
 
+  const borderColor = active
+    ? theme.primary
+    : done
+      ? theme.success
+      : error
+        ? theme.error
+        : theme.border;
+
   const shadow = active
     ? `0 0 16px color-mix(in srgb, ${theme.primary} 40%, transparent)`
     : done
@@ -37,6 +52,7 @@ export const StageNode = memo(function StageNode({
         ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)`
         : `0 2px 8px rgba(0,0,0,0.15)`;
 
+  // Colored states use white for contrast; default uses consumer's text color.
   const textColor =
     active || done || error ? "#fff" : theme.textPrimary;
 
@@ -51,6 +67,33 @@ export const StageNode = memo(function StageNode({
           gap: 6,
         }}
       >
+        {/* Step number badge */}
+        {stepNumber != null && isOnPath && (
+          <div
+            style={{
+              position: "absolute",
+              top: -10,
+              left: -10,
+              width: 22,
+              height: 22,
+              borderRadius: "50%",
+              background: active ? theme.primary : theme.success,
+              color: "#fff",
+              fontSize: 11,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 10,
+              boxShadow: active
+                ? `0 0 8px color-mix(in srgb, ${theme.primary} 50%, transparent)`
+                : `0 0 8px color-mix(in srgb, ${theme.success} 40%, transparent)`,
+            }}
+          >
+            {stepNumber}
+          </div>
+        )}
+
         {/* Linked pulse ring */}
         {linked && (
           <div
@@ -65,19 +108,33 @@ export const StageNode = memo(function StageNode({
           />
         )}
 
+        {/* Active node pulse ring */}
+        {active && (
+          <div
+            style={{
+              position: "absolute",
+              inset: -6,
+              borderRadius: `calc(${theme.radius} + 4px)`,
+              border: `2px solid ${theme.primary}`,
+              opacity: 0.3,
+              animation: "fp-pulse 1.5s ease-out infinite",
+            }}
+          />
+        )}
+
         <div
           style={{
             background: bg,
-            border: `1px solid ${theme.border}`,
+            border: `2px solid ${borderColor}`,
             borderRadius: theme.radius,
-            padding: "8px 16px",
+            padding: "10px 20px",
             display: "flex",
             alignItems: "center",
             gap: 6,
             boxShadow: shadow,
             transition: "all 0.3s ease",
             fontFamily: theme.fontSans,
-            minWidth: 80,
+            minWidth: 100,
             justifyContent: "center",
           }}
         >
@@ -103,7 +160,7 @@ export const StageNode = memo(function StageNode({
 
           <span
             style={{
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 500,
               color: textColor,
               whiteSpace: "nowrap",

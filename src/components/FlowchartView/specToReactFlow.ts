@@ -8,8 +8,9 @@
  *    unvisited nodes stay gray
  */
 import type { Node, Edge } from "@xyflow/react";
+import { defaultTokens } from "../../theme/tokens";
 
-interface SpecNode {
+export interface SpecNode {
   name: string;
   id?: string;
   type?: "stage" | "decider" | "fork" | "streaming";
@@ -43,13 +44,14 @@ export interface FlowchartColors {
   pathGlow: string;
 }
 
+/** Default colors derived from theme tokens. Consumer can override per-call. */
 const DEFAULT_COLORS: FlowchartColors = {
-  edgeDefault: "#6e6480",
-  edgeExecuted: "#3dd68c",
-  edgeActive: "#7c6cf0",
-  labelDefault: "#a89eb4",
-  labelExecuted: "#3dd68c",
-  pathGlow: "rgba(61, 214, 140, 0.3)",
+  edgeDefault: defaultTokens.colors.textMuted,
+  edgeExecuted: defaultTokens.colors.success,
+  edgeActive: defaultTokens.colors.primary,
+  labelDefault: defaultTokens.colors.textSecondary,
+  labelExecuted: defaultTokens.colors.success,
+  pathGlow: `${defaultTokens.colors.success}4D`, // ~30% opacity hex
 };
 
 interface LayoutState {
