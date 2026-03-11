@@ -137,9 +137,34 @@ function PipelineChart({ spec }) {
 }
 ```
 
-### With execution overlay (time-travel)
+### Self-contained traced flowchart (recommended)
 
-The overlay highlights which stages have executed, which is active, and the execution path — like a Google Maps route overlay.
+`TracedFlowchartView` handles everything — overlay computation, subflow drill-down, breadcrumbs. Just pass `spec` + `snapshots`:
+
+```tsx
+import { TracedFlowchartView } from "footprint-explainable-ui/flowchart";
+
+function MyDebugger({ spec, snapshots }) {
+  const [idx, setIdx] = useState(0);
+
+  return (
+    <div style={{ height: 400 }}>
+      <TracedFlowchartView
+        spec={spec}
+        snapshots={snapshots}
+        snapshotIndex={idx}
+        onNodeClick={(i) => setIdx(i as number)}
+      />
+    </div>
+  );
+}
+```
+
+Without `snapshots`, it renders a plain static flowchart. With `snapshots`, it shows the execution trace path.
+
+### With execution overlay (manual control)
+
+For full control, use `specToReactFlow` directly. The overlay highlights which stages have executed, which is active, and the execution path — like a Google Maps route overlay.
 
 ```tsx
 import { specToReactFlow, type ExecutionOverlay } from "footprint-explainable-ui/flowchart";
@@ -348,7 +373,8 @@ interface ThemeTokens {
 
 | Export | Description |
 |---|---|
-| `FlowchartView` | ReactFlow pipeline visualization with execution overlay |
+| `TracedFlowchartView` | Self-contained flowchart with trace overlay, subflow drill-down, breadcrumbs |
+| `FlowchartView` | Lower-level ReactFlow wrapper with execution state coloring |
 | `StageNode` | Custom node with state-aware coloring, step badges, pulse rings |
 | `specToReactFlow` | Convert pipeline spec → ReactFlow nodes/edges with path overlay |
 | `TimeTravelDebugger` | Full debugger with flowchart + all panels |
@@ -371,6 +397,19 @@ All components accept a `size` prop: `"compact"`, `"default"`, or `"detailed"`.
 ```tsx
 <GanttTimeline snapshots={snapshots} size="compact" />
 <MemoryInspector snapshots={snapshots} size="detailed" />
+```
+
+### Collapsible GanttTimeline
+
+By default, the Gantt timeline collapses to 5 rows with an expand toggle. Auto-scrolls to keep the active stage visible:
+
+```tsx
+<GanttTimeline
+  snapshots={snapshots}
+  selectedIndex={idx}
+  onSelect={setIdx}
+  maxVisibleRows={5}     // default — set 0 to disable collapse
+/>
 ```
 
 ## Unstyled Mode

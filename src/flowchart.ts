@@ -17,6 +17,10 @@ export type {
   FlowchartColors,
 } from "./components/FlowchartView/specToReactFlow";
 
+// Self-contained traced flowchart (spec + snapshots → full visualization)
+export { TracedFlowchartView } from "./components/FlowchartView";
+export type { TracedFlowchartViewProps } from "./components/FlowchartView";
+
 // Subflow drill-down navigation
 export { SubflowBreadcrumb } from "./components/FlowchartView";
 export type { SubflowBreadcrumbProps } from "./components/FlowchartView";

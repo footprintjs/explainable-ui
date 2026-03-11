@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { theme, fontSize, padding } from "../../theme";
 
@@ -9,11 +9,14 @@ export interface GanttTimelineProps extends BaseComponentProps {
   selectedIndex?: number;
   /** Callback when a stage bar is clicked */
   onSelect?: (index: number) => void;
+  /** Max visible rows before collapsing (0 = no collapse). Default: 5 */
+  maxVisibleRows?: number;
 }
 
 /**
  * Horizontal Gantt-style timeline showing stage durations and overlap.
- * Great for performance analysis of pipeline execution.
+ * Collapses to `maxVisibleRows` with expand/collapse toggle.
+ * Auto-scrolls to keep the active stage visible when collapsed.
  */
 export function GanttTimeline({
   snapshots,
@@ -23,7 +26,12 @@ export function GanttTimeline({
   unstyled = false,
   className,
   style,
+  maxVisibleRows = 5,
 }: GanttTimelineProps) {
+  const [expanded, setExpanded] = useState(false);
+  const activeRowRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
   const totalWallTime = useMemo(
     () => Math.max(...snapshots.map((s) => s.startMs + s.durationMs), 1),
     [snapshots]
@@ -33,6 +41,20 @@ export function GanttTimeline({
   const pad = padding[size];
   const labelWidth = size === "compact" ? 50 : size === "detailed" ? 100 : 80;
   const msWidth = size === "compact" ? 28 : 36;
+  const rowHeight = size === "compact" ? 18 : 22;
+
+  const collapsible = maxVisibleRows > 0 && snapshots.length > maxVisibleRows;
+  const showAll = expanded || !collapsible;
+
+  // Auto-scroll to active row when collapsed
+  useEffect(() => {
+    if (!showAll && activeRowRef.current && scrollContainerRef.current) {
+      activeRowRef.current.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth",
+      });
+    }
+  }, [selectedIndex, showAll]);
 
   if (unstyled) {
     return (
@@ -59,23 +81,61 @@ export function GanttTimeline({
       style={{ padding: pad, fontFamily: theme.fontSans, ...style }}
       data-fp="gantt-timeline"
     >
-      <span
+      {/* Header with collapse toggle */}
+      <div
         style={{
-          fontSize: fs.label,
-          fontWeight: 600,
-          color: theme.textMuted,
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
         }}
       >
-        {size === "compact" ? "Timeline" : "Execution Timeline"}
-      </span>
+        <span
+          style={{
+            fontSize: fs.label,
+            fontWeight: 600,
+            color: theme.textMuted,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+          }}
+        >
+          {size === "compact" ? "Timeline" : "Execution Timeline"}
+        </span>
+        {collapsible && (
+          <button
+            onClick={() => setExpanded((e) => !e)}
+            style={{
+              background: "none",
+              border: `1px solid ${theme.border}`,
+              borderRadius: 4,
+              color: theme.textSecondary,
+              fontSize: fs.small,
+              padding: "2px 8px",
+              cursor: "pointer",
+              fontFamily: theme.fontSans,
+            }}
+          >
+            {expanded
+              ? "Collapse"
+              : `${snapshots.length - maxVisibleRows} more...`}
+          </button>
+        )}
+      </div>
+
+      {/* Scrollable rows container */}
       <div
+        ref={scrollContainerRef}
         style={{
           marginTop: 8,
           display: "flex",
           flexDirection: "column",
           gap: 4,
+          ...(showAll
+            ? {}
+            : {
+                maxHeight: maxVisibleRows * (rowHeight + 4),
+                overflowY: "auto",
+                scrollbarWidth: "thin",
+              }),
         }}
       >
         {snapshots.map((snap, idx) => {
@@ -87,6 +147,7 @@ export function GanttTimeline({
           return (
             <div
               key={snap.stageName}
+              ref={isSelected ? activeRowRef : undefined}
               onClick={() => onSelect?.(idx)}
               style={{
                 display: "flex",
@@ -95,6 +156,8 @@ export function GanttTimeline({
                 cursor: onSelect ? "pointer" : "default",
                 opacity: isVisible ? 1 : 0.3,
                 transition: "opacity 0.3s ease",
+                height: rowHeight,
+                flexShrink: 0,
               }}
             >
               <span
