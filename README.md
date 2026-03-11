@@ -1,6 +1,6 @@
 # footprint-explainable-ui
 
-Themeable React components for visualizing [FootPrint](https://github.com/sanjay1909/footPrint) pipeline execution — time-travel debugging, flowchart overlays, narrative traces, and scope diffs.
+Themeable React components for visualizing [FootPrint](https://github.com/footprintjs/footPrint) pipeline execution — time-travel debugging, flowchart overlays, subflow drill-down, narrative traces, and scope diffs.
 
 ## Install
 
@@ -8,16 +8,44 @@ Themeable React components for visualizing [FootPrint](https://github.com/sanjay
 npm install footprint-explainable-ui
 ```
 
-Peer dependencies: `react >= 18`. For flowchart components, also install `@xyflow/react`.
+**Peer dependencies:** `react >= 18`, `react-dom >= 18`
+
+For flowchart components, also install:
+
+```bash
+npm install @xyflow/react
+```
+
+## Entry Points
+
+| Import path | What it provides |
+|---|---|
+| `footprint-explainable-ui` | Core components, themes, adapters |
+| `footprint-explainable-ui/flowchart` | Flowchart visualization, subflow navigation (requires `@xyflow/react`) |
 
 ## Quick Start
 
-### All-in-One Shell
+### 1. Convert FootPrint execution data to snapshots
 
-The `ExplainableShell` gives you a tabbed UI (Result | Explainable | AI-Compatible) with time-travel controls, Gantt timeline, scope diffs, and progressive narrative — out of the box.
+```typescript
+import { FlowChartExecutor } from "footprint";
+import { toVisualizationSnapshots } from "footprint-explainable-ui";
+
+const executor = new FlowChartExecutor(chart);
+await executor.run();
+
+// Convert runtime snapshot → visualization snapshots
+const snapshots = toVisualizationSnapshots(executor.getSnapshot());
+```
+
+### 2. Render with the all-in-one shell
 
 ```tsx
-import { ExplainableShell, FootprintTheme, warmDark } from "footprint-explainable-ui";
+import {
+  ExplainableShell,
+  FootprintTheme,
+  warmDark,
+} from "footprint-explainable-ui";
 
 function App({ snapshots, narrative, result }) {
   return (
@@ -33,22 +61,21 @@ function App({ snapshots, narrative, result }) {
 }
 ```
 
-### Individual Components
-
-Every component works standalone. Mix and match:
+### 3. Or compose individual components
 
 ```tsx
 import {
-  NarrativeTrace,
+  TimeTravelControls,
+  MemoryInspector,
   ScopeDiff,
   GanttTimeline,
-  MemoryInspector,
-  TimeTravelControls,
-  ResultPanel,
+  NarrativeTrace,
 } from "footprint-explainable-ui";
 
 function MyDebugger({ snapshots }) {
   const [idx, setIdx] = useState(0);
+  const current = snapshots[idx];
+  const previous = idx > 0 ? snapshots[idx - 1] : null;
 
   return (
     <>
@@ -59,46 +86,200 @@ function MyDebugger({ snapshots }) {
       />
       <MemoryInspector snapshots={snapshots} selectedIndex={idx} />
       <ScopeDiff
-        previous={idx > 0 ? snapshots[idx - 1].memory : null}
-        current={snapshots[idx].memory}
+        previous={previous?.memory ?? null}
+        current={current.memory}
         hideUnchanged
       />
+      <NarrativeTrace narrative={snapshots.map(s => s.narrative)} />
       <GanttTimeline snapshots={snapshots} selectedIndex={idx} onSelect={setIdx} />
     </>
   );
 }
 ```
 
+---
+
+## Flowchart Visualization
+
+Import from `footprint-explainable-ui/flowchart`:
+
+```tsx
+import {
+  StageNode,
+  specToReactFlow,
+  useSubflowNavigation,
+  SubflowBreadcrumb,
+  type SpecNode,
+  type ExecutionOverlay,
+} from "footprint-explainable-ui/flowchart";
+```
+
+### Static flowchart from pipeline spec
+
+```tsx
+import { ReactFlow } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import { specToReactFlow, StageNode } from "footprint-explainable-ui/flowchart";
+
+const nodeTypes = { stage: StageNode };
+
+function PipelineChart({ spec }) {
+  const { nodes, edges } = specToReactFlow(spec);
+
+  return (
+    <ReactFlow
+      nodes={nodes}
+      edges={edges}
+      nodeTypes={nodeTypes}
+      fitView
+    />
+  );
+}
+```
+
+### With execution overlay (time-travel)
+
+The overlay highlights which stages have executed, which is active, and the execution path — like a Google Maps route overlay.
+
+```tsx
+import { specToReactFlow, type ExecutionOverlay } from "footprint-explainable-ui/flowchart";
+
+// Build overlay from your current time-travel position
+const overlay: ExecutionOverlay = {
+  doneStages: new Set(["LoadOrder", "ProcessPayment"]),
+  activeStage: "ShipOrder",
+  executedStages: new Set(["LoadOrder", "ProcessPayment", "ShipOrder"]),
+  executionOrder: ["LoadOrder", "ProcessPayment", "ShipOrder"],
+};
+
+const { nodes, edges } = specToReactFlow(spec, overlay);
+```
+
+**Tip:** Compute the overlay from your snapshots array and current index:
+
+```tsx
+function buildOverlay(snapshots, idx): ExecutionOverlay {
+  const executionOrder = snapshots.slice(0, idx + 1).map(s => s.stageLabel);
+  const doneStages = new Set(snapshots.slice(0, idx).map(s => s.stageLabel));
+  const activeStage = snapshots[idx]?.stageLabel ?? null;
+  const executedStages = new Set([...doneStages]);
+  if (activeStage) executedStages.add(activeStage);
+  return { doneStages, activeStage, executedStages, executionOrder };
+}
+```
+
+### Custom edge colors
+
+```tsx
+const { nodes, edges } = specToReactFlow(spec, overlay, {
+  edgeExecuted: "#00ff88",  // Completed path
+  edgeActive: "#ff6b6b",    // Currently executing
+});
+```
+
+### Subflow drill-down navigation
+
+For pipelines with nested subflows, `useSubflowNavigation` manages a breadcrumb stack. Clicking a subflow node drills into its internal flowchart.
+
+```tsx
+import {
+  useSubflowNavigation,
+  SubflowBreadcrumb,
+  specToReactFlow,
+  StageNode,
+} from "footprint-explainable-ui/flowchart";
+import { ReactFlow } from "@xyflow/react";
+
+const nodeTypes = { stage: StageNode };
+
+function DrillDownChart({ spec, overlay }) {
+  const subflowNav = useSubflowNavigation(spec);
+
+  // Get the current level's spec from breadcrumbs
+  const currentSpec = subflowNav.breadcrumbs[subflowNav.breadcrumbs.length - 1].spec;
+  const { nodes, edges } = specToReactFlow(currentSpec, overlay);
+
+  return (
+    <div>
+      {/* Breadcrumb bar: Pipeline > PaymentSubflow */}
+      {subflowNav.isInSubflow && (
+        <SubflowBreadcrumb
+          breadcrumbs={subflowNav.breadcrumbs}
+          onNavigate={subflowNav.navigateTo}
+        />
+      )}
+
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        onNodeClick={(_, node) => subflowNav.handleNodeClick(node.id)}
+        fitView
+      />
+    </div>
+  );
+}
+```
+
+**`useSubflowNavigation` returns:**
+
+| Property | Type | Description |
+|---|---|---|
+| `breadcrumbs` | `BreadcrumbEntry[]` | Stack from root to current level |
+| `nodes` | `Node[]` | ReactFlow nodes for current level |
+| `edges` | `Edge[]` | ReactFlow edges for current level |
+| `handleNodeClick` | `(nodeId) => boolean` | Drills into subflow if applicable |
+| `navigateTo` | `(level) => void` | Jump to breadcrumb level (0 = root) |
+| `isInSubflow` | `boolean` | Whether we're inside a subflow |
+| `currentSubflowNodeName` | `string \| null` | Name of the subflow node drilled into |
+
+### Extracting subflow execution data
+
+When drilled into a subflow, extract its execution snapshots from the parent's memory:
+
+```tsx
+import { toVisualizationSnapshots } from "footprint-explainable-ui";
+
+// Find the parent stage that contains the subflow result
+const parentSnap = parentSnapshots.find(s => s.stageLabel === subflowNav.currentSubflowNodeName);
+const sfResult = parentSnap?.memory?.subflowResult;
+const tc = sfResult?.treeContext;
+
+if (tc?.stageContexts) {
+  const subflowSnapshots = toVisualizationSnapshots({
+    sharedState: tc.globalContext,
+    executionTree: tc.stageContexts,
+    commitLog: tc.history ?? [],
+  });
+
+  // Strip builder's "subflowId/" prefix from stage names
+  const prefix = sfResult.subflowId ? `${sfResult.subflowId}/` : null;
+  if (prefix) {
+    for (const snap of subflowSnapshots) {
+      if (snap.stageLabel.startsWith(prefix))
+        snap.stageLabel = snap.stageLabel.slice(prefix.length);
+      if (snap.stageName.startsWith(prefix))
+        snap.stageName = snap.stageName.slice(prefix.length);
+    }
+  }
+}
+```
+
+---
+
 ## Theming
 
-### Option 1: ThemeProvider
-
-Wrap your app with `FootprintTheme` and pass a preset or custom tokens:
+### ThemeProvider
 
 ```tsx
 import { FootprintTheme, warmDark, warmLight, coolDark } from "footprint-explainable-ui";
 
-// Use a built-in preset
 <FootprintTheme tokens={warmDark}>
-  <MyApp />
-</FootprintTheme>
-
-// Or customize
-<FootprintTheme tokens={{
-  colors: {
-    primary: "#e91e63",
-    bgPrimary: "#121212",
-    textPrimary: "#ffffff",
-  },
-  radius: "12px",
-}}>
   <MyApp />
 </FootprintTheme>
 ```
 
-### Option 2: CSS Variables
-
-Set `--fp-*` CSS variables directly — no provider needed:
+### CSS Variables (no provider needed)
 
 ```css
 :root {
@@ -115,7 +296,7 @@ Set `--fp-*` CSS variables directly — no provider needed:
 ### Built-in Presets
 
 | Preset | Description |
-|--------|-------------|
+|---|---|
 | `coolDark` | Default — indigo/slate dark theme |
 | `warmDark` | Charcoal-purple with warm text |
 | `warmLight` | Cream/peach light theme |
@@ -125,25 +306,63 @@ Set `--fp-*` CSS variables directly — no provider needed:
 ```typescript
 interface ThemeTokens {
   colors?: {
-    primary?: string;    // Accent color (buttons, highlights)
-    success?: string;    // Completed stages
-    error?: string;      // Error states
-    warning?: string;    // Warnings
-    bgPrimary?: string;  // Main background
-    bgSecondary?: string;// Panel/card background
-    bgTertiary?: string; // Hover/active background
-    textPrimary?: string;// Main text
-    textSecondary?: string;// Secondary text
-    textMuted?: string;  // Dimmed text
-    border?: string;     // Borders
+    primary?: string;       // Accent (buttons, highlights)
+    success?: string;       // Completed stages
+    error?: string;         // Error states
+    warning?: string;       // Warnings
+    bgPrimary?: string;     // Main background
+    bgSecondary?: string;   // Panel/card background
+    bgTertiary?: string;    // Hover/active background
+    textPrimary?: string;   // Main text
+    textSecondary?: string; // Secondary text
+    textMuted?: string;     // Dimmed text
+    border?: string;        // Borders
   };
-  radius?: string;       // Border radius
+  radius?: string;
   fontFamily?: {
-    sans?: string;       // UI text font
-    mono?: string;       // Code/data font
+    sans?: string;          // UI text font
+    mono?: string;          // Code/data font
   };
 }
 ```
+
+---
+
+## Components Reference
+
+### Core Components
+
+| Component | Description |
+|---|---|
+| `ExplainableShell` | Tabbed container: Result / Explainable / AI-Compatible |
+| `TimeTravelControls` | Play/pause, prev/next, scrubber timeline |
+| `NarrativeTrace` | Collapsible stage groups with progressive reveal |
+| `NarrativeLog` | Simple timeline-style execution log |
+| `ScopeDiff` | Side-by-side scope changes (added/changed/removed) |
+| `ResultPanel` | Final pipeline output + console logs |
+| `MemoryInspector` | Accumulated memory state viewer |
+| `GanttTimeline` | Horizontal duration timeline |
+| `SnapshotPanel` | All-in-one inspector (scrubber + memory + narrative + Gantt) |
+
+### Flowchart Components (`footprint-explainable-ui/flowchart`)
+
+| Export | Description |
+|---|---|
+| `FlowchartView` | ReactFlow pipeline visualization with execution overlay |
+| `StageNode` | Custom node with state-aware coloring, step badges, pulse rings |
+| `specToReactFlow` | Convert pipeline spec → ReactFlow nodes/edges with path overlay |
+| `TimeTravelDebugger` | Full debugger with flowchart + all panels |
+| `SubflowBreadcrumb` | Breadcrumb bar for subflow drill-down |
+| `useSubflowNavigation` | Hook managing subflow drill-down navigation stack |
+
+### Adapters
+
+| Export | Description |
+|---|---|
+| `toVisualizationSnapshots` | Convert `FlowChartExecutor.getSnapshot()` → `StageSnapshot[]` |
+| `createSnapshots` | Build `StageSnapshot[]` from simple arrays (testing/custom data) |
+
+---
 
 ## Size Variants
 
@@ -156,7 +375,7 @@ All components accept a `size` prop: `"compact"`, `"default"`, or `"detailed"`.
 
 ## Unstyled Mode
 
-Strip all built-in styles and bring your own. Components render semantic `data-fp` attributes for CSS targeting:
+Strip all built-in styles for full CSS control. Components render semantic `data-fp` attributes:
 
 ```tsx
 <NarrativeTrace narrative={lines} unstyled className="my-narrative" />
@@ -168,121 +387,8 @@ Strip all built-in styles and bring your own. Components render semantic `data-f
 [data-fp="narrative-group"][data-latest="true"] { background: highlight; }
 ```
 
-## Components
+---
 
-| Component | Description |
-|-----------|-------------|
-| `ExplainableShell` | Tabbed container: Result / Explainable / AI-Compatible |
-| `TimeTravelControls` | Play/pause, prev/next, tick-mark timeline |
-| `NarrativeTrace` | Collapsible stage groups with progressive reveal |
-| `NarrativeLog` | Simple timeline-style execution log |
-| `ScopeDiff` | Side-by-side scope changes (added/changed/removed) |
-| `ResultPanel` | Final pipeline output + console logs |
-| `MemoryInspector` | Accumulated memory state viewer |
-| `GanttTimeline` | Horizontal duration timeline |
-| `SnapshotPanel` | All-in-one inspector (scrubber + memory + narrative + Gantt) |
+## License
 
-### Flowchart Components (separate entry point)
-
-Requires `@xyflow/react` as a peer dependency. Import from `footprint-explainable-ui/flowchart`:
-
-```bash
-npm install @xyflow/react
-```
-
-```tsx
-import {
-  FlowchartView,
-  StageNode,
-  specToReactFlow,
-  TimeTravelDebugger,
-} from "footprint-explainable-ui/flowchart";
-```
-
-| Export | Description |
-|--------|-------------|
-| `FlowchartView` | ReactFlow pipeline visualization with execution overlay |
-| `StageNode` | Custom node with state-aware coloring, step badges, pulse rings |
-| `specToReactFlow` | Convert pipeline spec → ReactFlow nodes/edges with path overlay |
-| `TimeTravelDebugger` | Full debugger with flowchart + all panels |
-
-### `specToReactFlow` — Pipeline Spec to Flowchart
-
-Converts a `builder.toSpec()` structure into ReactFlow nodes and edges. Supports two modes:
-
-```tsx
-import { specToReactFlow } from "footprint-explainable-ui/flowchart";
-import type { ExecutionOverlay } from "footprint-explainable-ui/flowchart";
-
-// 1. Static flowchart (no execution state)
-const { nodes, edges } = specToReactFlow(spec);
-
-// 2. With execution overlay (Google Maps-style path)
-const overlay: ExecutionOverlay = {
-  doneStages: new Set(["ReceiveApp", "PullCredit"]),
-  activeStage: "CalculateDTI",
-  executedStages: new Set(["ReceiveApp", "PullCredit", "CalculateDTI"]),
-  executionOrder: ["ReceiveApp", "PullCredit", "CalculateDTI"],
-};
-const { nodes, edges } = specToReactFlow(spec, overlay);
-
-// 3. Custom edge colors (overrides theme defaults)
-const { nodes, edges } = specToReactFlow(spec, overlay, {
-  edgeExecuted: "#00ff88",
-  edgeActive: "#ff6b6b",
-});
-```
-
-Edge colors default to the library's theme tokens (`success` for executed, `primary` for active). Override per-call via the `colors` parameter.
-
-### `StageNode` — Theme-Aware Node
-
-`StageNode` reads all colors from `--fp-*` CSS variables:
-- **Default state**: uses `--fp-bg-secondary` background, `--fp-text-primary` text
-- **Active/done/error**: uses `--fp-color-primary` / `success` / `error` background
-- **Step badge**: shows execution order number on executed nodes
-- **Font**: uses `--fp-font-sans` for label text
-
-Wrap your flowchart in `FootprintTheme` and the nodes match automatically:
-
-```tsx
-<FootprintTheme tokens={warmDark}>
-  <ReactFlow nodes={nodes} edges={edges} nodeTypes={{ stage: StageNode }} />
-</FootprintTheme>
-```
-
-## Adapters
-
-Convert FootPrint runtime snapshots to the `StageSnapshot[]` format:
-
-```typescript
-import { toVisualizationSnapshots } from "footprint-explainable-ui";
-
-const executor = new FlowChartExecutor(pipeline);
-await executor.run(scope);
-
-const snapshots = toVisualizationSnapshots(executor.getSnapshot());
-```
-
-## Rendering in Different Contexts
-
-The library is render-target agnostic. Use components in:
-
-- **Inline content** — drop into any React layout
-- **Modal/dialog** — wrap in your modal component
-- **Sidebar panel** — use `size="compact"` for narrow panels
-- **Full-page dashboard** — use `ExplainableShell` with all tabs
-- **Embedded widget** — use `unstyled` mode + custom CSS
-
-```tsx
-// In a modal
-<Dialog>
-  <ExplainableShell snapshots={snapshots} narrative={narrative} size="compact" />
-</Dialog>
-
-// In a sidebar
-<aside style={{ width: 320 }}>
-  <NarrativeTrace narrative={narrative} size="compact" />
-  <GanttTimeline snapshots={snapshots} size="compact" />
-</aside>
-```
+MIT
