@@ -9,10 +9,12 @@ export interface StageNodeData {
   done?: boolean;
   error?: boolean;
   linked?: boolean;
-  /** Step number in execution order (shown as badge) */
-  stepNumber?: number;
+  /** Step numbers in execution order (shown as badges — multiple when revisited via loops) */
+  stepNumbers?: number[];
   /** Node was not executed (dim it) */
   dimmed?: boolean;
+  /** Node is a subflow root (show nested indicator) */
+  isSubflow?: boolean;
   [key: string]: unknown;
 }
 
@@ -24,7 +26,7 @@ export interface StageNodeData {
 export const StageNode = memo(function StageNode({
   data,
 }: NodeProps & { data: StageNodeData }) {
-  const { label, active, done, error, linked, stepNumber, dimmed } = data;
+  const { label, active, done, error, linked, stepNumbers, dimmed, isSubflow } = data;
 
   const isOnPath = active || done;
 
@@ -67,30 +69,45 @@ export const StageNode = memo(function StageNode({
           gap: 6,
         }}
       >
-        {/* Step number badge */}
-        {stepNumber != null && isOnPath && (
+        {/* Step number badges — multiple when revisited via loops */}
+        {stepNumbers && stepNumbers.length > 0 && isOnPath && (
           <div
             style={{
               position: "absolute",
               top: -10,
               left: -10,
-              width: 22,
-              height: 22,
-              borderRadius: "50%",
-              background: active ? theme.primary : theme.success,
-              color: "#fff",
-              fontSize: 11,
-              fontWeight: 700,
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
+              gap: 3,
               zIndex: 10,
-              boxShadow: active
-                ? `0 0 8px color-mix(in srgb, ${theme.primary} 50%, transparent)`
-                : `0 0 8px color-mix(in srgb, ${theme.success} 40%, transparent)`,
             }}
           >
-            {stepNumber}
+            {stepNumbers.map((num, i) => {
+              const isLatest = i === stepNumbers.length - 1;
+              const badgeBg = isLatest && active ? theme.primary : theme.success;
+              const glow = isLatest && active
+                ? `color-mix(in srgb, ${theme.primary} 50%, transparent)`
+                : `color-mix(in srgb, ${theme.success} 40%, transparent)`;
+              return (
+                <div
+                  key={num}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: badgeBg,
+                    color: "#fff",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: `0 0 8px ${glow}`,
+                  }}
+                >
+                  {num}
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -168,9 +185,48 @@ export const StageNode = memo(function StageNode({
           >
             {label}
           </span>
+          {/* Subflow indicator — nested boxes icon */}
+          {isSubflow && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 16,
+                height: 16,
+                borderRadius: 3,
+                border: `1.5px solid ${textColor}`,
+                position: "relative",
+                opacity: 0.7,
+                flexShrink: 0,
+              }}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 2,
+                  border: `1px solid ${textColor}`,
+                }}
+              />
+            </span>
+          )}
         </div>
       </div>
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+      {/* Right-side handles for loop-back edges (so they don't overlap center edges) */}
+      <Handle
+        id="loop-source"
+        type="source"
+        position={Position.Right}
+        style={{ background: "transparent", border: "none", width: 6, height: 6 }}
+      />
+      <Handle
+        id="loop-target"
+        type="target"
+        position={Position.Right}
+        style={{ background: "transparent", border: "none", width: 6, height: 6 }}
+      />
     </>
   );
 });

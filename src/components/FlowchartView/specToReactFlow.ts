@@ -21,6 +21,10 @@ export interface SpecNode {
   hasDecider?: boolean;
   hasSelector?: boolean;
   loopTarget?: string;
+  isSubflowRoot?: boolean;
+  subflowId?: string;
+  subflowName?: string;
+  subflowStructure?: SpecNode;
 }
 
 export interface ExecutionOverlay {
@@ -39,8 +43,10 @@ export interface FlowchartColors {
   edgeDefault: string;
   edgeExecuted: string;
   edgeActive: string;
+  edgeLoop: string;
   labelDefault: string;
   labelExecuted: string;
+  labelLoop: string;
   pathGlow: string;
 }
 
@@ -49,8 +55,10 @@ const DEFAULT_COLORS: FlowchartColors = {
   edgeDefault: defaultTokens.colors.textMuted,
   edgeExecuted: defaultTokens.colors.success,
   edgeActive: defaultTokens.colors.primary,
+  edgeLoop: defaultTokens.colors.warning,
   labelDefault: defaultTokens.colors.textSecondary,
   labelExecuted: defaultTokens.colors.success,
+  labelLoop: defaultTokens.colors.warning,
   pathGlow: `${defaultTokens.colors.success}4D`, // ~30% opacity hex
 };
 
@@ -74,7 +82,8 @@ function addEdge(
   state: LayoutState,
   source: string,
   target: string,
-  label?: string
+  label?: string,
+  isLoop?: boolean
 ) {
   state.edgeCounter++;
   const o = state.overlay;
@@ -83,17 +92,51 @@ function addEdge(
     o && o.executedStages.has(source) && o.executedStages.has(target);
   const isLeadingEdge = o && source === o.activeStage && !o.doneStages.has(target);
 
+  // Loop edges — route via right-side handles so they don't overlap center edges
+  // Only mark as executed when the loop has actually fired:
+  // the target must appear AFTER the source in executionOrder
+  if (isLoop) {
+    let loopExecuted = false;
+    if (o?.executionOrder) {
+      const lastSourceIdx = o.executionOrder.lastIndexOf(source);
+      if (lastSourceIdx >= 0) {
+        loopExecuted = o.executionOrder.slice(lastSourceIdx + 1).includes(target);
+      }
+    }
+
+    state.edges.push({
+      id: `se${state.edgeCounter}`,
+      source,
+      target,
+      sourceHandle: "loop-source",
+      targetHandle: "loop-target",
+      label: label ?? "loop",
+      type: "smoothstep",
+      pathOptions: { offset: 40, borderRadius: 16 },
+      style: {
+        stroke: c.edgeLoop,
+        strokeWidth: loopExecuted ? 3 : 2,
+        strokeDasharray: "6 3",
+        opacity: o && !loopExecuted ? 0.35 : 1,
+      },
+      labelStyle: { fontSize: 10, fontWeight: 700, fill: c.labelLoop },
+      animated: loopExecuted,
+      zIndex: 2,
+    } as Edge);
+    return;
+  }
+
   if (executed) {
     // "Google Maps route" — thick glowing path for executed edges
-    // Background glow layer (wide, transparent)
+    // Background glow layer (subtle, behind the route line)
     state.edges.push({
       id: `se${state.edgeCounter}-glow`,
       source,
       target,
       style: {
         stroke: c.pathGlow,
-        strokeWidth: 12,
-        opacity: 0.6,
+        strokeWidth: 8,
+        opacity: 0.4,
       },
       zIndex: 0,
       selectable: false,
@@ -153,9 +196,15 @@ function walk(
   // When overlay is present, dim unvisited nodes
   const dimmed = o && !wasExecuted;
 
-  // Step number for executed nodes (1-based)
-  const stepNumber =
-    o?.executionOrder ? o.executionOrder.indexOf(id) + 1 || undefined : undefined;
+  // Step numbers for executed nodes (1-based) — multiple when revisited via loops
+  let stepNumbers: number[] | undefined;
+  if (o?.executionOrder) {
+    const nums: number[] = [];
+    for (let i = 0; i < o.executionOrder.length; i++) {
+      if (o.executionOrder[i] === id) nums.push(i + 1);
+    }
+    if (nums.length > 0) stepNumbers = nums;
+  }
 
   state.nodes.push({
     id,
@@ -169,7 +218,8 @@ function walk(
       isFork,
       description: node.description,
       dimmed,
-      stepNumber,
+      stepNumbers,
+      isSubflow: !!node.isSubflowRoot,
     },
     type: "stage",
     style: dimmed ? { opacity: 0.35 } : undefined,
@@ -199,20 +249,23 @@ function walk(
     bottomY = Math.max(...childResults.map((r) => r.bottomY));
   }
 
+  // Handle loop-back edge — visually distinct dashed orange arrow
+  // Must be added before processing `next`, since `next` returns early
+  if (node.loopTarget) {
+    addEdge(state, id, node.loopTarget, "loop", true);
+  }
+
   // Handle linear continuation
   if (node.next) {
     const nextY = bottomY + Y_STEP;
     const nextId = nid(node.next);
     for (const lid of lastIds) {
+      // Skip forward edge when a loop edge already connects to the same target
+      if (node.loopTarget && lid === id && node.loopTarget === nextId) continue;
       addEdge(state, lid, nextId);
     }
     const result = walk(node.next, state, x, nextY);
     return result;
-  }
-
-  // Handle loop-back edge
-  if (node.loopTarget) {
-    addEdge(state, id, node.loopTarget, "loop");
   }
 
   return { lastIds, bottomY };
