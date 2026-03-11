@@ -23,6 +23,8 @@ export interface SubflowNavigation {
   navigateTo: (level: number) => void;
   /** Whether we're currently inside a subflow (not at root) */
   isInSubflow: boolean;
+  /** Name of the subflow node we drilled into (for finding execution data) */
+  currentSubflowNodeName: string | null;
 }
 
 /**
@@ -43,12 +45,12 @@ export function useSubflowNavigation(
   const currentSpec = stack.length > 0 ? stack[stack.length - 1].spec : rootSpec;
 
   // Derive nodes/edges from current spec
+  // Overlay is always passed through — consumer provides the appropriate overlay
+  // (root overlay at root level, subflow overlay when drilled in)
   const { nodes, edges } = useMemo(() => {
     if (!currentSpec) return { nodes: [], edges: [] };
-    // Only apply overlay at root level (subflows don't have their own overlay yet)
-    const effectiveOverlay = stack.length === 0 ? overlay : undefined;
-    return specToReactFlow(currentSpec, effectiveOverlay, colors);
-  }, [currentSpec, stack.length, overlay, colors]);
+    return specToReactFlow(currentSpec, overlay, colors);
+  }, [currentSpec, overlay, colors]);
 
   // Build a lookup of subflow nodes at the current level
   const subflowMap = useMemo(() => {
@@ -110,5 +112,6 @@ export function useSubflowNavigation(
     handleNodeClick,
     navigateTo,
     isInSubflow: stack.length > 0,
+    currentSubflowNodeName: stack.length > 0 ? stack[0].label : null,
   };
 }
