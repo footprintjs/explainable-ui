@@ -389,6 +389,175 @@ Strip all built-in styles for full CSS control. Components render semantic `data
 
 ---
 
+## Example: Build a Pipeline Playground
+
+A complete example combining flowchart, time-travel controls, detail panel, and Gantt timeline — the same pattern used by the [FootPrint Playground](https://footprintjs.github.io/footprint-playground/).
+
+```tsx
+import { useState, useMemo } from "react";
+import { ReactFlow } from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import {
+  toVisualizationSnapshots,
+  GanttTimeline,
+  ScopeDiff,
+  NarrativeTrace,
+  MemoryInspector,
+  FootprintTheme,
+  warmDark,
+} from "footprint-explainable-ui";
+import {
+  StageNode,
+  specToReactFlow,
+  useSubflowNavigation,
+  SubflowBreadcrumb,
+  type ExecutionOverlay,
+  type SpecNode,
+} from "footprint-explainable-ui/flowchart";
+import { FlowChartExecutor } from "footprint";
+
+const nodeTypes = { stage: StageNode };
+
+// ─── Hook: time-travel + overlay + subflow drill-down ────────────────
+function useFlowchartData(spec: SpecNode | null, vizSnapshots: any[] | null) {
+  const [snapshotIdx, setSnapshotIdx] = useState(0);
+  const subflowNav = useSubflowNavigation(spec);
+
+  const activeSnapshots = vizSnapshots; // extend with subflow logic as needed
+
+  // Compute execution overlay from current scrubber position
+  const overlay = useMemo<ExecutionOverlay | undefined>(() => {
+    if (!activeSnapshots) return undefined;
+    const executionOrder = activeSnapshots
+      .slice(0, snapshotIdx + 1)
+      .map((s) => s.stageLabel);
+    const doneStages = new Set(
+      activeSnapshots.slice(0, snapshotIdx).map((s) => s.stageLabel)
+    );
+    const activeStage = activeSnapshots[snapshotIdx]?.stageLabel ?? null;
+    const executedStages = new Set([...doneStages]);
+    if (activeStage) executedStages.add(activeStage);
+    return { doneStages, activeStage, executedStages, executionOrder };
+  }, [activeSnapshots, snapshotIdx]);
+
+  // Derive ReactFlow nodes/edges with overlay applied
+  const currentSpec =
+    subflowNav.breadcrumbs[subflowNav.breadcrumbs.length - 1]?.spec ?? null;
+  const flowData = useMemo(() => {
+    if (!currentSpec || !activeSnapshots) return null;
+    return specToReactFlow(currentSpec, overlay);
+  }, [currentSpec, activeSnapshots, overlay]);
+
+  return {
+    subflowNav,
+    activeSnapshots,
+    snapshotIdx,
+    setSnapshotIdx,
+    currentSnap: activeSnapshots?.[snapshotIdx] ?? null,
+    flowData,
+  };
+}
+
+// ─── Main component ──────────────────────────────────────────────────
+function PipelinePlayground({ chart, spec }: { chart: any; spec: SpecNode }) {
+  const [snapshots, setSnapshots] = useState<any[] | null>(null);
+
+  async function run() {
+    const executor = new FlowChartExecutor(chart);
+    await executor.run();
+    setSnapshots(toVisualizationSnapshots(executor.getSnapshot()));
+  }
+
+  const { subflowNav, activeSnapshots, snapshotIdx, setSnapshotIdx, currentSnap, flowData } =
+    useFlowchartData(spec, snapshots);
+
+  return (
+    <FootprintTheme tokens={warmDark}>
+      <button onClick={run}>Run Pipeline</button>
+
+      {/* Flowchart with execution overlay */}
+      <div style={{ height: 400 }}>
+        {subflowNav.isInSubflow && (
+          <SubflowBreadcrumb
+            breadcrumbs={subflowNav.breadcrumbs}
+            onNavigate={subflowNav.navigateTo}
+          />
+        )}
+        {flowData && (
+          <ReactFlow
+            nodes={flowData.nodes}
+            edges={flowData.edges}
+            nodeTypes={nodeTypes}
+            onNodeClick={(_, node) => subflowNav.handleNodeClick(node.id)}
+            fitView
+          />
+        )}
+      </div>
+
+      {activeSnapshots && (
+        <>
+          {/* Time-travel scrubber */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              disabled={snapshotIdx <= 0}
+              onClick={() => setSnapshotIdx((i) => i - 1)}
+            >
+              Prev
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={activeSnapshots.length - 1}
+              value={snapshotIdx}
+              onChange={(e) => setSnapshotIdx(Number(e.target.value))}
+            />
+            <button
+              disabled={snapshotIdx >= activeSnapshots.length - 1}
+              onClick={() => setSnapshotIdx((i) => i + 1)}
+            >
+              Next
+            </button>
+            <span>
+              {currentSnap?.stageLabel} ({snapshotIdx + 1}/{activeSnapshots.length})
+            </span>
+          </div>
+
+          {/* Detail panels */}
+          <MemoryInspector
+            snapshots={activeSnapshots}
+            selectedIndex={snapshotIdx}
+          />
+          <ScopeDiff
+            previous={snapshotIdx > 0 ? activeSnapshots[snapshotIdx - 1].memory : null}
+            current={currentSnap?.memory ?? {}}
+            hideUnchanged
+          />
+          <NarrativeTrace
+            narrative={activeSnapshots.map((s) => s.narrative)}
+          />
+          <GanttTimeline
+            snapshots={activeSnapshots}
+            selectedIndex={snapshotIdx}
+            onSelect={setSnapshotIdx}
+          />
+        </>
+      )}
+    </FootprintTheme>
+  );
+}
+```
+
+This gives you:
+- Flowchart with Google Maps-style execution path overlay
+- Click subflow nodes to drill down (breadcrumb navigation back)
+- Prev/Next scrubber synced with flowchart highlighting
+- Memory inspector, scope diffs, narrative trace, and Gantt timeline
+- All themed via `FootprintTheme`
+
+See the full implementation in the [footprint-playground](https://github.com/footprintjs/footprint-playground) repo.
+
+---
+
 ## License
 
 MIT
