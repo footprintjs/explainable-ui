@@ -16,3 +16,9 @@ export type {
   ExecutionOverlay,
   FlowchartColors,
 } from "./components/FlowchartView/specToReactFlow";
+
+// Subflow drill-down navigation
+export { SubflowBreadcrumb } from "./components/FlowchartView";
+export type { SubflowBreadcrumbProps } from "./components/FlowchartView";
+export { useSubflowNavigation } from "./components/FlowchartView";
+export type { SubflowNavigation, BreadcrumbEntry } from "./components/FlowchartView";
