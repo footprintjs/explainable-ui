@@ -4,8 +4,9 @@ export type { StageSnapshot, Size, BaseComponentProps } from "./types";
 // Theme
 export { FootprintTheme, useFootprintTheme } from "./theme";
 export { tokensToCSSVars, defaultTokens } from "./theme";
-export { themePresets, coolDark, warmDark, warmLight } from "./theme";
-export type { ThemeTokens, ThemePresetName } from "./theme";
+export { themePresets, coolDark, coolLight, warmDark, warmLight } from "./theme";
+export { useDarkModeTokens } from "./theme";
+export type { ThemeTokens, ThemePresetName, DarkModeTokensOptions } from "./theme";
 
 // Core components (zero external deps beyond React)
 export { MemoryInspector } from "./components/MemoryInspector";
