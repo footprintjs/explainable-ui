@@ -36,7 +36,7 @@ export interface TracedFlowchartViewProps extends BaseComponentProps {
   onNodeClick?: (indexOrId: number | string) => void;
   /** Callback when subflow navigation changes (true = entered subflow) */
   onSubflowChange?: (isInSubflow: boolean, subflowNodeName: string | null) => void;
-  /** Show collapsible subflow tree sidebar (default: false) */
+  /** Show subflow directory sidebar when subflows exist (default: true) */
   showTree?: boolean;
   /** Width of the tree sidebar in pixels (default: 200) */
   treeWidth?: number;
@@ -50,7 +50,7 @@ export function TracedFlowchartView({
   snapshotIndex = 0,
   onNodeClick,
   onSubflowChange,
-  showTree = false,
+  showTree = true,
   treeWidth = 200,
   unstyled = false,
   className,

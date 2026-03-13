@@ -31,22 +31,72 @@ interface RuntimeSnapshot {
 }
 
 /**
+ * Matches CombinedNarrativeEntry from footprintjs (defined here to avoid hard dep).
+ * Pass from FlowChartExecutor.getNarrativeEntries().
+ */
+export interface NarrativeEntry {
+  type: 'stage' | 'step' | 'condition' | 'fork' | 'subflow' | 'loop' | 'break' | 'error';
+  text: string;
+  depth: number;
+  stageName?: string;
+  stepNumber?: number;
+}
+
+/**
  * Converts a FootPrint RuntimeSnapshot into a flat array of StageSnapshots
  * suitable for visualization components.
+ *
+ * The `narrativeEntries` parameter (from `executor.getNarrativeEntries()`)
+ * distributes the library's rich combined narrative per-stage.
+ * When narrative is not enabled, stages get "Narrative not available" —
+ * this adapter reflects what the library produces, nothing more.
  *
  * Usage:
  * ```ts
  * const executor = new FlowChartExecutor(chart);
  * await executor.run();
- * const snapshots = toVisualizationSnapshots(executor.getSnapshot());
+ * const snapshots = toVisualizationSnapshots(
+ *   executor.getSnapshot(),
+ *   executor.getNarrativeEntries(),
+ * );
  * ```
  */
 export function toVisualizationSnapshots(
-  runtime: RuntimeSnapshot
+  runtime: RuntimeSnapshot,
+  narrativeEntries?: NarrativeEntry[],
 ): StageSnapshot[] {
+  const stageNarrativeMap = narrativeEntries?.length
+    ? buildStageNarrativeMap(narrativeEntries)
+    : new Map<string, string[]>();
+
   const snapshots: StageSnapshot[] = [];
-  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {});
+  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap);
   return snapshots;
+}
+
+/**
+ * Groups narrative entries by stage name, preserving non-stage entries
+ * (conditions, forks) attached to the preceding stage.
+ */
+function buildStageNarrativeMap(entries: NarrativeEntry[]): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  let currentStageName: string | undefined;
+
+  for (const entry of entries) {
+    if (entry.stageName) {
+      currentStageName = entry.stageName;
+    }
+
+    if (currentStageName) {
+      if (!map.has(currentStageName)) {
+        map.set(currentStageName, []);
+      }
+      const indent = '  '.repeat(entry.depth);
+      map.get(currentStageName)!.push(`${indent}${entry.text}`);
+    }
+  }
+
+  return map;
 }
 
 function flattenTree(
@@ -56,17 +106,21 @@ function flattenTree(
   accumulatedMs: number = 0,
   subflowResults?: Record<string, unknown>,
   cumulativeMemory: Record<string, unknown> = {},
+  stageNarrativeMap: Map<string, string[]> = new Map(),
 ): number {
-  // Estimate duration from metrics if available
   const durationMs =
     typeof node.metrics?.durationMs === "number"
       ? node.metrics.durationMs
       : 1;
 
   const startMs = accumulatedMs;
+  const stageId = node.name || node.id;
 
-  // Build narrative from stage writes (actual memory mutations)
-  const narrative = buildNarrative(node);
+  // Narrative comes from the library — no fallback fabrication
+  const stageLines = stageNarrativeMap.get(stageId);
+  const narrative = stageLines
+    ? stageLines.join('\n')
+    : 'Narrative not part of this run.';
 
   // Build cumulative memory from stageWrites (actual setValue/updateValue calls)
   const memory = { ...cumulativeMemory };
@@ -80,8 +134,6 @@ function flattenTree(
     }
   }
 
-  // Attach subflow result from the proper channel (not from logs)
-  const stageId = node.name || node.id;
   const sfResult = subflowResults?.[node.subflowId ?? stageId];
 
   out.push({
@@ -103,7 +155,7 @@ function flattenTree(
   if (node.children && node.children.length > 0) {
     let maxChildEnd = nextMs;
     for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory);
+      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap);
       maxChildEnd = Math.max(maxChildEnd, childEnd);
     }
     nextMs = maxChildEnd;
@@ -111,36 +163,10 @@ function flattenTree(
 
   // Handle linear continuation
   if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory);
+    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap);
   }
 
   return nextMs;
-}
-
-function buildNarrative(node: RuntimeStageSnapshot): string {
-  const parts: string[] = [];
-
-  if (node.name) {
-    parts.push(`Stage "${node.name}" executed.`);
-  }
-
-  // Report actual memory writes (stageWrites) instead of diagnostic logs
-  if (node.stageWrites && Object.keys(node.stageWrites).length > 0) {
-    const keys = Object.keys(node.stageWrites);
-    parts.push(`Wrote ${keys.length} key(s): ${keys.join(", ")}.`);
-  }
-
-  if (node.errors && Object.keys(node.errors).length > 0) {
-    parts.push(`Errors: ${JSON.stringify(node.errors)}`);
-  }
-
-  if (node.isFork) {
-    parts.push(
-      `Forked into ${node.children?.length ?? 0} parallel branch(es).`
-    );
-  }
-
-  return parts.join(" ") || `Stage ${node.id} completed.`;
 }
 
 /**

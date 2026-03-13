@@ -254,21 +254,11 @@ export const SubflowTree = memo(function SubflowTree({
 }: SubflowTreeProps) {
   const tree = useMemo(() => specToTree(spec), [spec]);
 
-  // Split into main flowchart stages vs subflow entries
-  const mainStages = useMemo(() => tree.filter((e) => !e.isSubflow), [tree]);
+  // Only show subflow entries — the flowchart view handles main stages
   const subflowStages = useMemo(() => tree.filter((e) => e.isSubflow), [tree]);
 
-  const renderEntries = (entries: SubflowTreeEntry[]) =>
-    entries.map((entry, i) => (
-      <TreeNode
-        key={`${entry.name}-${i}`}
-        entry={entry}
-        depth={0}
-        activeStage={activeStage}
-        doneStages={doneStages}
-        onNodeSelect={onNodeSelect}
-      />
-    ));
+  // Don't render anything if there are no subflows
+  if (subflowStages.length === 0) return null;
 
   return (
     <div
@@ -289,18 +279,17 @@ export const SubflowTree = memo(function SubflowTree({
         ...style,
       }}
     >
-      {!unstyled && <SectionLabel>Flowchart</SectionLabel>}
-      {renderEntries(mainStages)}
-
-      {subflowStages.length > 0 && (
-        <>
-          {!unstyled && (
-            <div style={{ height: 1, background: theme.border, margin: "8px 12px" }} />
-          )}
-          {!unstyled && <SectionLabel>Subflows</SectionLabel>}
-          {renderEntries(subflowStages)}
-        </>
-      )}
+      {!unstyled && <SectionLabel>Subflows</SectionLabel>}
+      {subflowStages.map((entry, i) => (
+        <TreeNode
+          key={`${entry.name}-${i}`}
+          entry={entry}
+          depth={0}
+          activeStage={activeStage}
+          doneStages={doneStages}
+          onNodeSelect={onNodeSelect}
+        />
+      ))}
     </div>
   );
 });

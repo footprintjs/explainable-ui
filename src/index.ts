@@ -44,3 +44,4 @@ export type { SubflowTreeProps, SubflowTreeEntry } from "./components/FlowchartV
 
 // Adapters
 export { toVisualizationSnapshots, createSnapshots } from "./adapters/fromRuntimeSnapshot";
+export type { NarrativeEntry } from "./adapters/fromRuntimeSnapshot";
