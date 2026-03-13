@@ -90,17 +90,22 @@ describe("StageDetailPanel", () => {
       expect(html).toContain("temp");
     });
 
-    it("shows 'No changes' when memory is identical", () => {
+    it("shows unchanged keys when memory is identical", () => {
       const s1 = snap({ memory: { x: 1 } });
       const s2 = snap({ stageLabel: "Noop", memory: { x: 1 } });
       const html = render({ snapshots: [s1, s2], selectedIndex: 1, mode: "dev" });
-      expect(html).toContain("No changes");
+      // No changes, but the key still shows as unchanged
+      expect(html).toContain("memory-unchanged");
+      // Header shows key count only, no "X changed" when nothing changed
+      expect(html).toContain("1 key");
+      expect(html).not.toContain("0 changed");
     });
 
-    it("shows change count in header", () => {
+    it("shows key count and change count in header", () => {
       const html = render({ snapshots: [snap()], selectedIndex: 0, mode: "dev" });
-      // snap() has 2 keys: orderId, total → "(2)"
-      expect(html).toContain("(2)");
+      // snap() has 2 keys: orderId, total → "2 keys, 2 changed"
+      expect(html).toContain("2 keys");
+      expect(html).toContain("2 changed");
     });
 
     it("shows old → new for updated values", () => {

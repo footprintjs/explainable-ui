@@ -199,17 +199,50 @@ function SimpleView({
 // Dev Mode — memory story (browser DevTools style)
 // ---------------------------------------------------------------------------
 
+/** A row in the full memory ledger: either a changed key or an unchanged one. */
+type MemoryRow =
+  | { kind: "change"; change: MemoryChange }
+  | { kind: "unchanged"; key: string; value: unknown };
+
+function buildMemoryRows(
+  currMemory: Record<string, unknown>,
+  changes: MemoryChange[],
+): MemoryRow[] {
+  const changeMap = new Map(changes.map((c) => [c.key, c]));
+  const rows: MemoryRow[] = [];
+
+  // Changed keys first (ADD → UPD → DEL)
+  for (const change of changes) {
+    rows.push({ kind: "change", change });
+  }
+
+  // Then unchanged keys (sorted alphabetically)
+  const unchangedKeys = Object.keys(currMemory)
+    .filter((k) => !changeMap.has(k))
+    .sort();
+  for (const key of unchangedKeys) {
+    rows.push({ kind: "unchanged", key, value: currMemory[key] });
+  }
+
+  return rows;
+}
+
 function DevView({
   snapshot,
   changes,
+  currMemory,
   fs,
   pad,
 }: {
   snapshot: StageSnapshot;
   changes: MemoryChange[];
+  currMemory: Record<string, unknown>;
   fs: { label: number; body: number; small: number };
   pad: number;
 }) {
+  const rows = useMemo(() => buildMemoryRows(currMemory, changes), [currMemory, changes]);
+  const totalKeys = Object.keys(currMemory).length;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Stage header with label */}
@@ -237,7 +270,7 @@ function DevView({
         )}
       </div>
 
-      {/* Memory changes section header */}
+      {/* Memory state section header */}
       <div
         style={{
           fontSize: fs.label,
@@ -247,14 +280,15 @@ function DevView({
           letterSpacing: "0.08em",
         }}
       >
-        Memory Changes
-        {changes.length > 0 && (
-          <span style={{ fontWeight: 400, marginLeft: 6 }}>({changes.length})</span>
-        )}
+        Memory
+        <span style={{ fontWeight: 400, marginLeft: 6 }}>
+          ({totalKeys} key{totalKeys !== 1 ? "s" : ""}
+          {changes.length > 0 && `, ${changes.length} changed`})
+        </span>
       </div>
 
-      {/* Change entries */}
-      {changes.length === 0 ? (
+      {/* Full memory ledger */}
+      {rows.length === 0 ? (
         <div
           style={{
             fontSize: fs.body,
@@ -266,7 +300,7 @@ function DevView({
             borderRadius: theme.radius,
           }}
         >
-          No changes
+          Empty memory
         </div>
       ) : (
         <div
@@ -279,72 +313,107 @@ function DevView({
             overflow: "hidden",
           }}
         >
-          {changes.map((change) => {
-            const badge = changeBadge[change.type];
+          {rows.map((row) => {
+            if (row.kind === "change") {
+              const { change } = row;
+              const badge = changeBadge[change.type];
+              return (
+                <div
+                  key={change.key}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 8,
+                    padding: `6px ${pad}px`,
+                    borderBottom: `1px solid ${theme.border}`,
+                    background: badge.bg,
+                  }}
+                  data-fp="memory-change"
+                  data-type={change.type}
+                >
+                  <span
+                    style={{
+                      fontSize: fs.small,
+                      fontWeight: 700,
+                      color: badge.fg,
+                      width: 28,
+                      flexShrink: 0,
+                      textAlign: "center",
+                      lineHeight: 1.8,
+                    }}
+                  >
+                    {badge.label}
+                  </span>
+                  <span
+                    style={{
+                      color: theme.primary,
+                      fontWeight: 600,
+                      flexShrink: 0,
+                      lineHeight: 1.8,
+                    }}
+                  >
+                    {change.key}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0, lineHeight: 1.8 }}>
+                    {change.type === "updated" ? (
+                      <>
+                        <span
+                          style={{
+                            color: theme.error,
+                            textDecoration: "line-through",
+                            opacity: 0.7,
+                          }}
+                        >
+                          {fmt(change.oldValue)}
+                        </span>
+                        <span style={{ color: theme.textMuted, margin: "0 4px" }}>&rarr;</span>
+                        <span style={{ color: theme.success }}>{fmt(change.newValue)}</span>
+                      </>
+                    ) : change.type === "added" ? (
+                      <span style={{ color: theme.success }}>{fmt(change.newValue)}</span>
+                    ) : (
+                      <span style={{ color: theme.error, textDecoration: "line-through" }}>
+                        {fmt(change.oldValue)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            // Unchanged key — dimmed, no badge
             return (
               <div
-                key={change.key}
+                key={row.key}
                 style={{
                   display: "flex",
                   alignItems: "flex-start",
                   gap: 8,
                   padding: `6px ${pad}px`,
                   borderBottom: `1px solid ${theme.border}`,
-                  background: badge.bg,
+                  opacity: 0.5,
                 }}
-                data-fp="memory-change"
-                data-type={change.type}
+                data-fp="memory-unchanged"
               >
-                {/* Badge */}
                 <span
                   style={{
-                    fontSize: fs.small,
-                    fontWeight: 700,
-                    color: badge.fg,
                     width: 28,
                     flexShrink: 0,
-                    textAlign: "center",
                     lineHeight: 1.8,
                   }}
-                >
-                  {badge.label}
-                </span>
-
-                {/* Key */}
+                />
                 <span
                   style={{
-                    color: theme.primary,
-                    fontWeight: 600,
+                    color: theme.textSecondary,
+                    fontWeight: 500,
                     flexShrink: 0,
                     lineHeight: 1.8,
                   }}
                 >
-                  {change.key}
+                  {row.key}
                 </span>
-
-                {/* Value */}
-                <div style={{ flex: 1, minWidth: 0, lineHeight: 1.8 }}>
-                  {change.type === "updated" ? (
-                    <>
-                      <span
-                        style={{
-                          color: theme.error,
-                          textDecoration: "line-through",
-                          opacity: 0.7,
-                        }}
-                      >
-                        {fmt(change.oldValue)}
-                      </span>
-                      <span style={{ color: theme.textMuted, margin: "0 4px" }}>&rarr;</span>
-                      <span style={{ color: theme.success }}>{fmt(change.newValue)}</span>
-                    </>
-                  ) : change.type === "added" ? (
-                    <span style={{ color: theme.success }}>{fmt(change.newValue)}</span>
-                  ) : (
-                    <span style={{ color: theme.error, textDecoration: "line-through" }}>
-                      {fmt(change.oldValue)}
-                    </span>
-                  )}
+                <div style={{ flex: 1, minWidth: 0, lineHeight: 1.8, color: theme.textMuted }}>
+                  {fmt(row.value)}
                 </div>
               </div>
             );
@@ -377,30 +446,44 @@ function UnstyledSimpleView({ snapshot }: { snapshot: StageSnapshot }) {
 function UnstyledDevView({
   snapshot,
   changes,
+  currMemory,
 }: {
   snapshot: StageSnapshot;
   changes: MemoryChange[];
+  currMemory: Record<string, unknown>;
 }) {
+  const rows = useMemo(() => buildMemoryRows(currMemory, changes), [currMemory, changes]);
   return (
     <div data-fp="stage-detail-dev">
       <div data-fp="stage-label">{snapshot.stageLabel}</div>
-      {changes.map((c) => (
-        <div key={c.key} data-fp="memory-change" data-type={c.type}>
-          <span data-fp="change-key">{c.key}</span>
-          {c.type === "updated" && (
-            <>
-              <span data-fp="change-old">{fmt(c.oldValue)}</span>
-              <span data-fp="change-new">{fmt(c.newValue)}</span>
-            </>
-          )}
-          {c.type === "added" && (
-            <span data-fp="change-value">{fmt(c.newValue)}</span>
-          )}
-          {c.type === "removed" && (
-            <span data-fp="change-value">{fmt(c.oldValue)}</span>
-          )}
-        </div>
-      ))}
+      {rows.map((row) => {
+        if (row.kind === "change") {
+          const c = row.change;
+          return (
+            <div key={c.key} data-fp="memory-change" data-type={c.type}>
+              <span data-fp="change-key">{c.key}</span>
+              {c.type === "updated" && (
+                <>
+                  <span data-fp="change-old">{fmt(c.oldValue)}</span>
+                  <span data-fp="change-new">{fmt(c.newValue)}</span>
+                </>
+              )}
+              {c.type === "added" && (
+                <span data-fp="change-value">{fmt(c.newValue)}</span>
+              )}
+              {c.type === "removed" && (
+                <span data-fp="change-value">{fmt(c.oldValue)}</span>
+              )}
+            </div>
+          );
+        }
+        return (
+          <div key={row.key} data-fp="memory-unchanged">
+            <span data-fp="unchanged-key">{row.key}</span>
+            <span data-fp="unchanged-value">{fmt(row.value)}</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -523,7 +606,7 @@ export function StageDetailPanel({
         {activeMode === "simple" ? (
           <UnstyledSimpleView snapshot={snapshot} />
         ) : (
-          <UnstyledDevView snapshot={snapshot} changes={changes} />
+          <UnstyledDevView snapshot={snapshot} changes={changes} currMemory={currMemory} />
         )}
       </div>
     );
@@ -549,7 +632,7 @@ export function StageDetailPanel({
       {activeMode === "simple" ? (
         <SimpleView snapshot={snapshot} fs={fs} pad={pad} />
       ) : (
-        <DevView snapshot={snapshot} changes={changes} fs={fs} pad={pad} />
+        <DevView snapshot={snapshot} changes={changes} currMemory={currMemory} fs={fs} pad={pad} />
       )}
     </div>
   );
