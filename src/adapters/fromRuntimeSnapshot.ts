@@ -14,6 +14,8 @@ interface RuntimeStageSnapshot {
   metrics: Record<string, unknown>;
   evals: Record<string, unknown>;
   flowMessages?: unknown[];
+  description?: string;
+  subflowId?: string;
   next?: RuntimeStageSnapshot;
   children?: RuntimeStageSnapshot[];
 }
@@ -22,6 +24,8 @@ interface RuntimeSnapshot {
   sharedState: Record<string, unknown>;
   executionTree: RuntimeStageSnapshot;
   commitLog: unknown[];
+  /** Per-subflow execution results (keyed by subflowId). */
+  subflowResults?: Record<string, unknown>;
 }
 
 /**
@@ -39,7 +43,7 @@ export function toVisualizationSnapshots(
   runtime: RuntimeSnapshot
 ): StageSnapshot[] {
   const snapshots: StageSnapshot[] = [];
-  flattenTree(runtime.executionTree, snapshots, runtime.sharedState);
+  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults);
   return snapshots;
 }
 
@@ -47,7 +51,8 @@ function flattenTree(
   node: RuntimeStageSnapshot,
   out: StageSnapshot[],
   sharedState: Record<string, unknown>,
-  accumulatedMs: number = 0
+  accumulatedMs: number = 0,
+  subflowResults?: Record<string, unknown>,
 ): number {
   // Estimate duration from metrics if available
   const durationMs =
@@ -66,14 +71,21 @@ function flattenTree(
     Object.assign(memory, node.logs);
   }
 
+  // Attach subflow result from the proper channel (not from logs)
+  const stageId = node.name || node.id;
+  const sfResult = subflowResults?.[node.subflowId ?? stageId];
+
   out.push({
-    stageName: node.id,
-    stageLabel: node.name || node.id,
+    stageName: stageId,
+    stageLabel: stageId,
     memory,
     narrative,
     startMs,
     durationMs,
     status: "done",
+    ...(node.description ? { description: node.description } : undefined),
+    ...(node.subflowId ? { subflowId: node.subflowId } : undefined),
+    ...(sfResult ? { subflowResult: sfResult } : undefined),
   });
 
   let nextMs = startMs + durationMs;
@@ -82,7 +94,7 @@ function flattenTree(
   if (node.children && node.children.length > 0) {
     let maxChildEnd = nextMs;
     for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs);
+      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults);
       maxChildEnd = Math.max(maxChildEnd, childEnd);
     }
     nextMs = maxChildEnd;
@@ -90,7 +102,7 @@ function flattenTree(
 
   // Handle linear continuation
   if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs);
+    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults);
   }
 
   return nextMs;
@@ -132,6 +144,8 @@ export function createSnapshots(
     memory?: Record<string, unknown>;
     narrative?: string;
     durationMs?: number;
+    description?: string;
+    subflowId?: string;
   }>
 ): StageSnapshot[] {
   let accMs = 0;
@@ -145,6 +159,8 @@ export function createSnapshots(
       startMs: accMs,
       durationMs: duration,
       status: "done",
+      ...(s.description ? { description: s.description } : undefined),
+      ...(s.subflowId ? { subflowId: s.subflowId } : undefined),
     };
     accMs += duration;
     return snap;

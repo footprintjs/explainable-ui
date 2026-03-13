@@ -9,3 +9,6 @@ export type { SubflowBreadcrumbProps } from "./SubflowBreadcrumb";
 
 export { useSubflowNavigation } from "./useSubflowNavigation";
 export type { SubflowNavigation, BreadcrumbEntry } from "./useSubflowNavigation";
+
+export { SubflowTree } from "./SubflowTree";
+export type { SubflowTreeProps, SubflowTreeEntry } from "./SubflowTree";

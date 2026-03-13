@@ -217,6 +217,7 @@ function walk(
       isDecider,
       isFork,
       description: node.description,
+      subflowId: node.subflowId,
       dimmed,
       stepNumbers,
       isSubflow: !!node.isSubflowRoot,

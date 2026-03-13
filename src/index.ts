@@ -29,11 +29,18 @@ export type { ScopeDiffProps, DiffEntry } from "./components/ScopeDiff";
 export { ResultPanel } from "./components/ResultPanel";
 export type { ResultPanelProps } from "./components/ResultPanel";
 
+export { StageDetailPanel } from "./components/StageDetailPanel";
+export type { StageDetailPanelProps, StageDetailMode, MemoryChange } from "./components/StageDetailPanel";
+
 export { TimeTravelControls } from "./components/TimeTravelControls";
 export type { TimeTravelControlsProps } from "./components/TimeTravelControls";
 
 export { ExplainableShell } from "./components/ExplainableShell";
 export type { ExplainableShellProps, ShellTab } from "./components/ExplainableShell";
+
+// Subflow manifest tree (no ReactFlow dependency — works standalone)
+export { SubflowTree } from "./components/FlowchartView/SubflowTree";
+export type { SubflowTreeProps, SubflowTreeEntry } from "./components/FlowchartView/SubflowTree";
 
 // Adapters
 export { toVisualizationSnapshots, createSnapshots } from "./adapters/fromRuntimeSnapshot";

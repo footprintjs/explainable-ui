@@ -8,6 +8,8 @@ export interface BreadcrumbEntry {
   label: string;
   /** The spec node tree at this level */
   spec: SpecNode;
+  /** Human-readable description of this subflow */
+  description?: string;
 }
 
 export interface SubflowNavigation {
@@ -73,6 +75,7 @@ export function useSubflowNavigation(
     const root: BreadcrumbEntry = {
       label: rootSpec?.name || "Pipeline",
       spec: rootSpec!,
+      description: rootSpec?.description,
     };
     return [root, ...stack];
   }, [rootSpec, stack]);
@@ -87,6 +90,7 @@ export function useSubflowNavigation(
         {
           label: subflowNode.subflowName || subflowNode.name,
           spec: subflowNode.subflowStructure!,
+          description: subflowNode.description,
         },
       ]);
       return true;
@@ -112,6 +116,6 @@ export function useSubflowNavigation(
     handleNodeClick,
     navigateTo,
     isInSubflow: stack.length > 0,
-    currentSubflowNodeName: stack.length > 0 ? stack[0].label : null,
+    currentSubflowNodeName: stack.length > 0 ? stack[stack.length - 1].label : null,
   };
 }

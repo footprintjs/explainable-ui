@@ -26,6 +26,8 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "clean": "rm -rf dist",
     "release:patch": "bash scripts/release.sh patch",
     "release:minor": "bash scripts/release.sh minor",
@@ -43,11 +45,12 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@xyflow/react": "^12.10.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "@xyflow/react": "^12.10.1",
     "tsup": "^8.4.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.0"
   },
   "license": "MIT",
   "repository": {

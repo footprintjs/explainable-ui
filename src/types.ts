@@ -14,6 +14,12 @@ export interface StageSnapshot {
   durationMs: number;
   /** Execution status */
   status?: "pending" | "active" | "done" | "error";
+  /** Human-readable description of what this stage does */
+  description?: string;
+  /** Subflow identifier (when this stage is inside a subflow) */
+  subflowId?: string;
+  /** Subflow execution result — present on stages that ran a subflow. */
+  subflowResult?: unknown;
 }
 
 /** Component size variants */

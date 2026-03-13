@@ -15,6 +15,10 @@ export interface StageNodeData {
   dimmed?: boolean;
   /** Node is a subflow root (show nested indicator) */
   isSubflow?: boolean;
+  /** Human-readable description of what this stage does */
+  description?: string;
+  /** Subflow identifier — set when this node belongs to a subflow */
+  subflowId?: string;
   [key: string]: unknown;
 }
 
@@ -26,7 +30,7 @@ export interface StageNodeData {
 export const StageNode = memo(function StageNode({
   data,
 }: NodeProps & { data: StageNodeData }) {
-  const { label, active, done, error, linked, stepNumbers, dimmed, isSubflow } = data;
+  const { label, active, done, error, linked, stepNumbers, dimmed, isSubflow, description } = data;
 
   const isOnPath = active || done;
 
@@ -144,10 +148,11 @@ export const StageNode = memo(function StageNode({
             background: bg,
             border: `2px solid ${borderColor}`,
             borderRadius: theme.radius,
-            padding: "10px 20px",
+            padding: description ? "8px 16px" : "10px 20px",
             display: "flex",
+            flexDirection: "column",
             alignItems: "center",
-            gap: 6,
+            gap: description ? 2 : 0,
             boxShadow: shadow,
             transition: "all 0.3s ease",
             fontFamily: theme.fontSans,
@@ -155,60 +160,79 @@ export const StageNode = memo(function StageNode({
             justifyContent: "center",
           }}
         >
-          {/* State icon */}
-          {done && (
-            <span style={{ fontSize: 10, color: textColor }}>&#x2713;</span>
-          )}
-          {active && (
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "#fff",
-                animation: "fp-blink 1s ease-in-out infinite",
-                flexShrink: 0,
-              }}
-            />
-          )}
-          {error && (
-            <span style={{ fontSize: 10, color: textColor }}>&#x2717;</span>
-          )}
-
-          <span
-            style={{
-              fontSize: 13,
-              fontWeight: 500,
-              color: textColor,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {label}
-          </span>
-          {/* Subflow indicator — nested boxes icon */}
-          {isSubflow && (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 16,
-                height: 16,
-                borderRadius: 3,
-                border: `1.5px solid ${textColor}`,
-                position: "relative",
-                opacity: 0.7,
-                flexShrink: 0,
-              }}
-            >
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {/* State icon */}
+            {done && (
+              <span style={{ fontSize: 10, color: textColor }}>&#x2713;</span>
+            )}
+            {active && (
               <span
                 style={{
                   width: 8,
                   height: 8,
-                  borderRadius: 2,
-                  border: `1px solid ${textColor}`,
+                  borderRadius: "50%",
+                  background: "#fff",
+                  animation: "fp-blink 1s ease-in-out infinite",
+                  flexShrink: 0,
                 }}
               />
+            )}
+            {error && (
+              <span style={{ fontSize: 10, color: textColor }}>&#x2717;</span>
+            )}
+
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: textColor,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {label}
+            </span>
+            {/* Subflow indicator — nested boxes icon */}
+            {isSubflow && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 16,
+                  height: 16,
+                  borderRadius: 3,
+                  border: `1.5px solid ${textColor}`,
+                  position: "relative",
+                  opacity: 0.7,
+                  flexShrink: 0,
+                }}
+              >
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 2,
+                    border: `1px solid ${textColor}`,
+                  }}
+                />
+              </span>
+            )}
+          </div>
+          {/* Description subtitle */}
+          {description && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 400,
+                color: textColor,
+                opacity: 0.7,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                maxWidth: 160,
+              }}
+            >
+              {description}
             </span>
           )}
         </div>

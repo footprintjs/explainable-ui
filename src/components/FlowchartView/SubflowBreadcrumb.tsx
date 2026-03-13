@@ -35,20 +35,33 @@ export const SubflowBreadcrumb = memo(function SubflowBreadcrumb({
       {breadcrumbs.map((crumb, i) => {
         const isLast = i === breadcrumbs.length - 1;
         return (
-          <span key={i} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span key={`${crumb.label}-${i}`} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             {i > 0 && (
               <span style={{ color: theme.textMuted, fontSize: 10 }}>
                 ›
               </span>
             )}
             {isLast ? (
-              <span
-                style={{
-                  color: theme.primary,
-                  fontWeight: 600,
-                }}
-              >
-                {crumb.label}
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span
+                  style={{
+                    color: theme.primary,
+                    fontWeight: 600,
+                  }}
+                >
+                  {crumb.label}
+                </span>
+                {crumb.description && (
+                  <span
+                    style={{
+                      color: theme.textMuted,
+                      fontWeight: 400,
+                      fontSize: 11,
+                    }}
+                  >
+                    — {crumb.description}
+                  </span>
+                )}
               </span>
             ) : (
               <button

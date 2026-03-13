@@ -26,3 +26,7 @@ export { SubflowBreadcrumb } from "./components/FlowchartView";
 export type { SubflowBreadcrumbProps } from "./components/FlowchartView";
 export { useSubflowNavigation } from "./components/FlowchartView";
 export type { SubflowNavigation, BreadcrumbEntry } from "./components/FlowchartView";
+
+// Subflow manifest tree (no ReactFlow dependency — pure React)
+export { SubflowTree } from "./components/FlowchartView";
+export type { SubflowTreeProps, SubflowTreeEntry } from "./components/FlowchartView";
