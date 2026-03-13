@@ -9,6 +9,8 @@ interface RuntimeStageSnapshot {
   name?: string;
   isDecider?: boolean;
   isFork?: boolean;
+  /** User-level writes made by this stage (pre-namespace keys → values). */
+  stageWrites?: Record<string, unknown>;
   logs: Record<string, unknown>;
   errors: Record<string, unknown>;
   metrics: Record<string, unknown>;
@@ -43,7 +45,7 @@ export function toVisualizationSnapshots(
   runtime: RuntimeSnapshot
 ): StageSnapshot[] {
   const snapshots: StageSnapshot[] = [];
-  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults);
+  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {});
   return snapshots;
 }
 
@@ -53,6 +55,7 @@ function flattenTree(
   sharedState: Record<string, unknown>,
   accumulatedMs: number = 0,
   subflowResults?: Record<string, unknown>,
+  cumulativeMemory: Record<string, unknown> = {},
 ): number {
   // Estimate duration from metrics if available
   const durationMs =
@@ -62,13 +65,19 @@ function flattenTree(
 
   const startMs = accumulatedMs;
 
-  // Build narrative from logs
+  // Build narrative from stage writes (actual memory mutations)
   const narrative = buildNarrative(node);
 
-  // Build memory from logs (key-value pairs written during this stage)
-  const memory: Record<string, unknown> = {};
-  if (node.logs) {
-    Object.assign(memory, node.logs);
+  // Build cumulative memory from stageWrites (actual setValue/updateValue calls)
+  const memory = { ...cumulativeMemory };
+  if (node.stageWrites) {
+    for (const [key, value] of Object.entries(node.stageWrites)) {
+      if (value === undefined) {
+        delete memory[key];
+      } else {
+        memory[key] = value;
+      }
+    }
   }
 
   // Attach subflow result from the proper channel (not from logs)
@@ -94,7 +103,7 @@ function flattenTree(
   if (node.children && node.children.length > 0) {
     let maxChildEnd = nextMs;
     for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults);
+      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory);
       maxChildEnd = Math.max(maxChildEnd, childEnd);
     }
     nextMs = maxChildEnd;
@@ -102,7 +111,7 @@ function flattenTree(
 
   // Handle linear continuation
   if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults);
+    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory);
   }
 
   return nextMs;
@@ -115,8 +124,9 @@ function buildNarrative(node: RuntimeStageSnapshot): string {
     parts.push(`Stage "${node.name}" executed.`);
   }
 
-  if (node.logs && Object.keys(node.logs).length > 0) {
-    const keys = Object.keys(node.logs);
+  // Report actual memory writes (stageWrites) instead of diagnostic logs
+  if (node.stageWrites && Object.keys(node.stageWrites).length > 0) {
+    const keys = Object.keys(node.stageWrites);
     parts.push(`Wrote ${keys.length} key(s): ${keys.join(", ")}.`);
   }
 

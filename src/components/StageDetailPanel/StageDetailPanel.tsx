@@ -16,9 +16,7 @@ export interface MemoryChange {
 }
 
 /** Keys that are footprint engine internals — hidden by default in dev mode. */
-export const DEFAULT_EXCLUDED_KEYS = new Set([
-  "writeTrace",
-]);
+export const DEFAULT_EXCLUDED_KEYS = new Set<string>([]);
 
 export interface StageDetailPanelProps extends BaseComponentProps {
   /** Stage snapshots for time-travel */

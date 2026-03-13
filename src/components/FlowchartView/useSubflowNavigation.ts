@@ -73,7 +73,7 @@ export function useSubflowNavigation(
 
   const breadcrumbs: BreadcrumbEntry[] = useMemo(() => {
     const root: BreadcrumbEntry = {
-      label: rootSpec?.name || "Pipeline",
+      label: rootSpec?.name || "Flowchart",
       spec: rootSpec!,
       description: rootSpec?.description,
     };

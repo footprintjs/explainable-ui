@@ -70,7 +70,7 @@ describe('toVisualizationSnapshots', () => {
     const tree = makeRuntimeNode('Stage', {
       description: 'desc',
       subflowId: 'sf-1',
-      logs: { key: 'value' },
+      stageWrites: { key: 'value' },
       metrics: { durationMs: 42 },
     });
     const snaps = toVisualizationSnapshots(makeRuntime(tree));
@@ -80,6 +80,41 @@ describe('toVisualizationSnapshots', () => {
     expect(snaps[0].description).toBe('desc');
     expect(snaps[0].subflowId).toBe('sf-1');
     expect(snaps[0].status).toBe('done');
+  });
+
+  it('builds cumulative memory from stageWrites across linear chain', () => {
+    const tree = makeRuntimeNode('A', {
+      stageWrites: { creditScore: 720 },
+      next: makeRuntimeNode('B', {
+        stageWrites: { decision: 'approved' },
+      }),
+    });
+    const snaps = toVisualizationSnapshots(makeRuntime(tree));
+    // Stage A: only creditScore
+    expect(snaps[0].memory).toEqual({ creditScore: 720 });
+    // Stage B: cumulative — both creditScore and decision
+    expect(snaps[1].memory).toEqual({ creditScore: 720, decision: 'approved' });
+  });
+
+  it('does not include diagnostic logs in memory', () => {
+    const tree = makeRuntimeNode('Stage', {
+      logs: { deciderRationale: 'some debug info' },
+    });
+    const snaps = toVisualizationSnapshots(makeRuntime(tree));
+    // logs should NOT appear in memory — only stageWrites do
+    expect(snaps[0].memory).toEqual({});
+  });
+
+  it('handles value deletion (undefined) in stageWrites', () => {
+    const tree = makeRuntimeNode('A', {
+      stageWrites: { temp: 'data', keep: true },
+      next: makeRuntimeNode('B', {
+        stageWrites: { temp: undefined },
+      }),
+    });
+    const snaps = toVisualizationSnapshots(makeRuntime(tree));
+    expect(snaps[0].memory).toEqual({ temp: 'data', keep: true });
+    expect(snaps[1].memory).toEqual({ keep: true });
   });
 });
 

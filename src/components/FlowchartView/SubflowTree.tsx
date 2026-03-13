@@ -225,6 +225,24 @@ const TreeNode = memo(function TreeNode({
  *
  * All colors come from `--fp-*` CSS variables set by the consumer.
  */
+/** Section label used for "Flowchart" and "Subflows" headings. */
+const SectionLabel = memo(function SectionLabel({ children }: { children: string }) {
+  return (
+    <div
+      style={{
+        padding: "4px 12px 8px",
+        fontSize: 10,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+        color: theme.textMuted,
+      }}
+    >
+      {children}
+    </div>
+  );
+});
+
 export const SubflowTree = memo(function SubflowTree({
   spec,
   activeStage,
@@ -235,6 +253,22 @@ export const SubflowTree = memo(function SubflowTree({
   style,
 }: SubflowTreeProps) {
   const tree = useMemo(() => specToTree(spec), [spec]);
+
+  // Split into main flowchart stages vs subflow entries
+  const mainStages = useMemo(() => tree.filter((e) => !e.isSubflow), [tree]);
+  const subflowStages = useMemo(() => tree.filter((e) => e.isSubflow), [tree]);
+
+  const renderEntries = (entries: SubflowTreeEntry[]) =>
+    entries.map((entry, i) => (
+      <TreeNode
+        key={`${entry.name}-${i}`}
+        entry={entry}
+        depth={0}
+        activeStage={activeStage}
+        doneStages={doneStages}
+        onNodeSelect={onNodeSelect}
+      />
+    ));
 
   return (
     <div
@@ -255,30 +289,18 @@ export const SubflowTree = memo(function SubflowTree({
         ...style,
       }}
     >
-      {!unstyled && (
-        <div
-          style={{
-            padding: "4px 12px 8px",
-            fontSize: 10,
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            color: theme.textMuted,
-          }}
-        >
-          Pipeline
-        </div>
+      {!unstyled && <SectionLabel>Flowchart</SectionLabel>}
+      {renderEntries(mainStages)}
+
+      {subflowStages.length > 0 && (
+        <>
+          {!unstyled && (
+            <div style={{ height: 1, background: theme.border, margin: "8px 12px" }} />
+          )}
+          {!unstyled && <SectionLabel>Subflows</SectionLabel>}
+          {renderEntries(subflowStages)}
+        </>
       )}
-      {tree.map((entry, i) => (
-        <TreeNode
-          key={`${entry.name}-${i}`}
-          entry={entry}
-          depth={0}
-          activeStage={activeStage}
-          doneStages={doneStages}
-          onNodeSelect={onNodeSelect}
-        />
-      ))}
     </div>
   );
 });
