@@ -1,40 +1,142 @@
+/**
+ * ExplainableShell — Pure orchestrator for explainable pipeline visualization.
+ *
+ * Layout:
+ * ┌──────────────────────────────────────────────────────┐
+ * │  [◀ ▶ ▶]  ══════ time-travel slider ══════          │
+ * │  Breadcrumb (when drilled into subflow)              │
+ * ├───────┬──────────────────┬───────────────────────────┤
+ * │ Tree  │  Flowchart       │  [MEMORY]  [NARRATIVE]    │
+ * │       │  (always visible) │  (right panel swaps)     │
+ * ├───────┴──────────────────┴───────────────────────────┤
+ * │  Gantt Timeline                                       │
+ * └──────────────────────────────────────────────────────┘
+ *
+ * State owned here:
+ * - snapshotIdx (time-travel position)
+ * - drillDownStack (subflow navigation)
+ * - rightPanel (memory vs narrative)
+ *
+ * No rendering logic — delegates to MemoryPanel, NarrativePanel,
+ * TracedFlowchartView (via renderFlowchart), TimeTravelControls,
+ * GanttTimeline, SubflowTree, SubflowBreadcrumb.
+ */
 import { useState, useCallback, useMemo } from "react";
-import type { StageSnapshot, BaseComponentProps } from "../../types";
+import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme, fontSize, padding } from "../../theme";
+import { subflowResultToSnapshots } from "../../adapters/fromRuntimeSnapshot";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
-import { MemoryInspector } from "../MemoryInspector";
-import { NarrativeTrace } from "../NarrativeTrace";
-import { ScopeDiff } from "../ScopeDiff";
 import { TimeTravelControls } from "../TimeTravelControls";
+import { MemoryPanel } from "../MemoryPanel";
+import { NarrativePanel } from "../NarrativePanel";
+import { SubflowTree } from "../FlowchartView/SubflowTree";
+import { SubflowBreadcrumb } from "../FlowchartView/SubflowBreadcrumb";
+import type { SpecNode } from "../FlowchartView/specToReactFlow";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export type ShellTab = "result" | "explainable" | "ai-compatible";
+type RightPanel = "memory" | "narrative";
+
+interface DrillDownEntry {
+  subflowId: string;
+  label: string;
+  spec: SpecNode;
+  snapshots: StageSnapshot[];
+}
 
 export interface ExplainableShellProps extends BaseComponentProps {
-  /** Stage snapshots for time-travel visualization */
   snapshots: StageSnapshot[];
-  /** Final pipeline result data */
+  spec?: SpecNode | null;
   resultData?: Record<string, unknown> | null;
-  /** Console log lines */
   logs?: string[];
-  /** Combined narrative lines */
   narrative?: string[];
-  /** Which tabs to show (default: all three) */
+  narrativeEntries?: NarrativeEntry[];
   tabs?: ShellTab[];
-  /** Initially active tab */
   defaultTab?: ShellTab;
-  /** Hide console in result tab */
   hideConsole?: boolean;
-  /** Custom content to render in each tab slot */
   renderFlowchart?: (props: {
+    spec: SpecNode;
     snapshots: StageSnapshot[];
     selectedIndex: number;
-    onNodeClick?: (index: number) => void;
+    onNodeClick?: (indexOrId: number | string) => void;
   }) => React.ReactNode;
+}
+
+// ---------------------------------------------------------------------------
+// Subflow resolution helpers
+// ---------------------------------------------------------------------------
+
+function resolveSubflowLevel(
+  parentSpec: SpecNode,
+  parentSnapshots: StageSnapshot[],
+  subflowNodeName: string,
+  narrativeEntries?: NarrativeEntry[],
+): DrillDownEntry | null {
+  const specNode = findSubflowSpecNode(parentSpec, subflowNodeName);
+  if (!specNode?.subflowStructure) return null;
+  const parentSnap = parentSnapshots.find(
+    (s) => s.stageName === subflowNodeName || s.stageLabel === subflowNodeName
+  );
+  if (!parentSnap?.subflowResult) return null;
+
+  // Extract subflow-scoped narrative entries (between Entering/Exiting markers)
+  const sfNarrative = narrativeEntries
+    ? extractSubflowNarrative(narrativeEntries, subflowNodeName)
+    : undefined;
+
+  const sfSnapshots = subflowResultToSnapshots(parentSnap.subflowResult, sfNarrative);
+  if (sfSnapshots.length === 0) return null;
+  return {
+    subflowId: specNode.subflowId ?? subflowNodeName,
+    label: specNode.subflowName ?? specNode.name,
+    spec: specNode.subflowStructure,
+    snapshots: sfSnapshots,
+  };
+}
+
+/** Extract narrative entries between "Entering X subflow" and "Exiting X subflow" markers. */
+function extractSubflowNarrative(
+  entries: NarrativeEntry[],
+  subflowName: string,
+): NarrativeEntry[] {
+  const result: NarrativeEntry[] = [];
+  let inside = false;
+  for (const entry of entries) {
+    if (entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Entering")) {
+      inside = true;
+      continue;
+    }
+    if (inside && entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Exiting")) {
+      break;
+    }
+    if (inside) {
+      result.push(entry);
+    }
+  }
+  return result;
+}
+
+function findSubflowSpecNode(node: SpecNode, name: string): SpecNode | null {
+  if ((node.name === name || node.id === name) && node.isSubflowRoot) return node;
+  if (node.children) {
+    for (const child of node.children) {
+      const found = findSubflowSpecNode(child, name);
+      if (found) return found;
+    }
+  }
+  if (node.next) return findSubflowSpecNode(node.next, name);
+  return null;
+}
+
+function hasSubflowNodes(node: SpecNode): boolean {
+  if (node.isSubflowRoot) return true;
+  if (node.children?.some(hasSubflowNodes)) return true;
+  if (node.next && hasSubflowNodes(node.next)) return true;
+  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -43,9 +145,11 @@ export interface ExplainableShellProps extends BaseComponentProps {
 
 export function ExplainableShell({
   snapshots,
+  spec,
   resultData,
   logs = [],
-  narrative = [],
+  narrative,
+  narrativeEntries,
   tabs = ["result", "explainable", "ai-compatible"],
   defaultTab,
   hideConsole = false,
@@ -55,117 +159,157 @@ export function ExplainableShell({
   className,
   style,
 }: ExplainableShellProps) {
+  // ── State ──
   const [activeTab, setActiveTab] = useState<ShellTab>(defaultTab ?? tabs[0]);
   const [snapshotIdx, setSnapshotIdx] = useState(0);
+  const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
+  const [rightPanel, setRightPanel] = useState<RightPanel>("memory");
 
   const fs = fontSize[size];
   const pad = padding[size];
+  const isInSubflow = drillDownStack.length > 0;
 
-  const handleSnapshotChange = useCallback((idx: number) => {
-    setSnapshotIdx(Math.max(0, Math.min(idx, snapshots.length - 1)));
-  }, [snapshots.length]);
+  // ── Level resolution ──
+  const currentLevel = useMemo(() => {
+    if (drillDownStack.length > 0) {
+      const top = drillDownStack[drillDownStack.length - 1];
+      return { spec: top.spec, snapshots: top.snapshots };
+    }
+    return { spec: spec ?? null, snapshots };
+  }, [drillDownStack, spec, snapshots]);
 
-  // Progressive narrative reveal
-  const revealedCount = useMemo(() => {
-    if (snapshots.length === 0 || narrative.length === 0) return narrative.length;
+  const activeSnapshots = currentLevel.snapshots;
+  const activeSpec = currentLevel.spec;
 
-    const boundaries: number[] = [];
-    for (let i = 0; i < narrative.length; i++) {
-      const trimmed = narrative[i].trimStart();
-      if (
-        (trimmed.startsWith("Stage ") && !trimmed.match(/^Stage\s+\d+:\s*Step\s/)) ||
-        trimmed.startsWith("[")
-      ) {
-        boundaries.push(i);
+  const safeIdx = activeSnapshots.length > 0
+    ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1))
+    : 0;
+
+  // ── Level-aware narrative ──
+  const activeNarrative = useMemo<string[] | undefined>(() => {
+    if (!isInSubflow) return narrative;
+    const lines: string[] = [];
+    for (const snap of activeSnapshots) {
+      const stageLines = (snap.narrative ?? "").split("\n").filter(Boolean);
+      lines.push(...stageLines);
+    }
+    return lines.length > 0 ? lines : undefined;
+  }, [isInSubflow, narrative, activeSnapshots]);
+
+  const activeNarrativeEntries = isInSubflow ? undefined : narrativeEntries;
+
+  // ── Breadcrumbs ──
+  const breadcrumbs = useMemo(() => {
+    const root = { label: spec?.name || "Flowchart", spec: spec!, description: spec?.description };
+    return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: undefined as string | undefined }))];
+  }, [spec, drillDownStack]);
+
+  // ── Has subflows? ──
+  const showTreeSidebar = useMemo(() => !!spec && hasSubflowNodes(spec), [spec]);
+
+  // ── Root overlay for SubflowTree ──
+  const rootOverlay = useMemo(() => {
+    if (isInSubflow || !snapshots.length) return { activeStage: undefined, doneStages: undefined };
+    const doneStages = new Set(snapshots.slice(0, safeIdx).map((s) => s.stageLabel));
+    const activeStage = snapshots[safeIdx]?.stageLabel ?? null;
+    return { activeStage, doneStages };
+  }, [isInSubflow, snapshots, safeIdx]);
+
+  // ── Handlers ──
+  const handleTabChange = useCallback((tab: ShellTab) => {
+    setActiveTab(tab);
+    setDrillDownStack([]);
+    setSnapshotIdx(999);
+  }, []);
+
+  const handleSnapshotChange = useCallback((idx: number | string) => {
+    if (typeof idx === "number") setSnapshotIdx(idx);
+  }, []);
+
+  const handleDrillDown = useCallback(
+    (nodeName: string) => {
+      if (!activeSpec) return;
+      const entry = resolveSubflowLevel(activeSpec, activeSnapshots, nodeName, narrativeEntries);
+      if (entry) {
+        setDrillDownStack((prev) => [...prev, entry]);
+        setSnapshotIdx(0);
       }
-    }
+    },
+    [activeSpec, activeSnapshots, narrativeEntries]
+  );
 
-    if (boundaries.length === 0) {
-      const ratio = (snapshotIdx + 1) / snapshots.length;
-      return Math.max(1, Math.ceil(narrative.length * ratio));
-    }
+  const handleBreadcrumbNavigate = useCallback((level: number) => {
+    setDrillDownStack((prev) => level === 0 ? [] : prev.slice(0, level));
+    setSnapshotIdx(999);
+  }, []);
 
-    const groupsToShow = Math.max(
-      1,
-      Math.min(
-        Math.floor(((snapshotIdx + 1) / snapshots.length) * boundaries.length) || 1,
-        boundaries.length
-      )
-    );
+  const handleNodeClick = useCallback(
+    (indexOrId: number | string) => {
+      if (typeof indexOrId === "number") { setSnapshotIdx(indexOrId); return; }
+      if (activeSpec) {
+        const sfNode = findSubflowSpecNode(activeSpec, indexOrId);
+        if (sfNode?.subflowStructure) { handleDrillDown(indexOrId); return; }
+      }
+      const idx = activeSnapshots.findIndex((s) => s.stageLabel === indexOrId);
+      if (idx >= 0) setSnapshotIdx(idx);
+    },
+    [activeSpec, activeSnapshots, handleDrillDown]
+  );
 
-    const endIdx =
-      groupsToShow < boundaries.length ? boundaries[groupsToShow] : narrative.length;
+  const handleTreeNodeSelect = useCallback(
+    (name: string, isSubflow: boolean) => {
+      if (isSubflow && spec) {
+        setDrillDownStack([]);
+        const entry = resolveSubflowLevel(spec, snapshots, name, narrativeEntries);
+        if (entry) { setDrillDownStack([entry]); setSnapshotIdx(0); }
+      } else {
+        setDrillDownStack([]);
+        const idx = snapshots.findIndex((s) => s.stageLabel === name);
+        if (idx >= 0) setSnapshotIdx(idx);
+      }
+    },
+    [spec, snapshots, narrativeEntries]
+  );
 
-    return Math.max(1, endIdx);
-  }, [snapshots.length, snapshotIdx, narrative]);
-
-  // Scope diff data
-  const prevMemory = snapshotIdx > 0 ? snapshots[snapshotIdx - 1]?.memory : null;
-  const currMemory = snapshots[snapshotIdx]?.memory ?? {};
-
+  // ── Tab labels ──
   const tabLabels: Record<ShellTab, string> = {
     result: "Result",
     explainable: "Explainable",
     "ai-compatible": "AI-Compatible",
   };
 
+  const rightPanelLabels: Record<RightPanel, string> = {
+    memory: "Memory",
+    narrative: "Narrative",
+  };
+
+  // ── Unstyled mode ──
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="explainable-shell">
         <div data-fp="shell-tabs">
           {tabs.map((tab) => (
-            <button
-              key={tab}
-              data-fp="shell-tab"
-              data-active={tab === activeTab}
-              onClick={() => setActiveTab(tab)}
-            >
+            <button key={tab} data-fp="shell-tab" data-active={tab === activeTab} onClick={() => handleTabChange(tab)}>
               {tabLabels[tab]}
             </button>
           ))}
         </div>
         <div data-fp="shell-content" data-tab={activeTab}>
           {activeTab === "result" && (
-            <ResultPanel
-              data={resultData ?? null}
-              logs={logs}
-              hideConsole={hideConsole}
-              unstyled
-            />
+            <ResultPanel data={resultData ?? null} logs={logs} hideConsole={hideConsole} unstyled />
           )}
-          {activeTab === "explainable" && (
+          {(activeTab === "explainable" || activeTab === "ai-compatible") && (
             <>
-              <TimeTravelControls
-                snapshots={snapshots}
-                selectedIndex={snapshotIdx}
-                onIndexChange={handleSnapshotChange}
-                unstyled
-              />
-              {renderFlowchart?.({ snapshots, selectedIndex: snapshotIdx, onNodeClick: handleSnapshotChange })}
-              <MemoryInspector snapshots={snapshots} selectedIndex={snapshotIdx} unstyled />
-              <ScopeDiff previous={prevMemory} current={currMemory} unstyled />
-              <GanttTimeline
-                snapshots={snapshots}
-                selectedIndex={snapshotIdx}
-                onSelect={handleSnapshotChange}
-                unstyled
-              />
-            </>
-          )}
-          {activeTab === "ai-compatible" && (
-            <>
-              <TimeTravelControls
-                snapshots={snapshots}
-                selectedIndex={snapshotIdx}
-                onIndexChange={handleSnapshotChange}
-                unstyled
-              />
-              {renderFlowchart?.({ snapshots, selectedIndex: snapshotIdx, onNodeClick: handleSnapshotChange })}
-              <NarrativeTrace
-                narrative={narrative}
-                revealedCount={revealedCount}
-                unstyled
-              />
+              <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled />
+              {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
+              {activeSpec && renderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick })}
+              {activeTab === "explainable" && (
+                <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
+              )}
+              {activeTab === "ai-compatible" && (
+                <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} unstyled />
+              )}
+              <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
             </>
           )}
         </div>
@@ -174,6 +318,9 @@ export function ExplainableShell({
   }
 
   // ── Styled mode ──
+  // Result tab is separate, explainable/ai-compatible share the same layout
+  const isVisualizationTab = activeTab === "explainable" || activeTab === "ai-compatible";
+
   return (
     <div
       className={className}
@@ -204,7 +351,7 @@ export function ExplainableShell({
           return (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => handleTabChange(tab)}
               style={{
                 padding: `${pad - 4}px ${pad}px`,
                 fontSize: fs.label,
@@ -228,85 +375,126 @@ export function ExplainableShell({
       {/* Tab content */}
       <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
         {activeTab === "result" && (
-          <ResultPanel
-            data={resultData ?? null}
-            logs={logs}
-            hideConsole={hideConsole}
-            size={size}
-          />
+          <ResultPanel data={resultData ?? null} logs={logs} hideConsole={hideConsole} size={size} />
         )}
 
-        {activeTab === "explainable" && (
+        {isVisualizationTab && (
           <>
+            {/* Time-travel slider */}
             <TimeTravelControls
-              snapshots={snapshots}
-              selectedIndex={snapshotIdx}
+              snapshots={activeSnapshots}
+              selectedIndex={safeIdx}
               onIndexChange={handleSnapshotChange}
               size={size}
             />
+
+            {/* Breadcrumb (when drilled into subflow) */}
+            {isInSubflow && (
+              <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />
+            )}
+
+            {/* Main content area: Tree | Flowchart | Right panel */}
             <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-              {renderFlowchart && (
+              {/* SubflowTree sidebar */}
+              {showTreeSidebar && (
+                <SubflowTree
+                  spec={spec!}
+                  activeStage={rootOverlay.activeStage}
+                  doneStages={rootOverlay.doneStages}
+                  onNodeSelect={handleTreeNodeSelect}
+                  style={{ width: 200, flexShrink: 0, height: "100%" }}
+                />
+              )}
+
+              {/* Flowchart (always visible) */}
+              {renderFlowchart && activeSpec && (
                 <div style={{ flex: 1, overflow: "hidden", borderRight: `1px solid ${theme.border}` }}>
-                  {renderFlowchart({ snapshots, selectedIndex: snapshotIdx, onNodeClick: handleSnapshotChange })}
+                  {renderFlowchart({
+                    spec: activeSpec,
+                    snapshots: activeSnapshots,
+                    selectedIndex: safeIdx,
+                    onNodeClick: handleNodeClick,
+                  })}
                 </div>
               )}
+
+              {/* Right panel: swappable */}
               <div
                 style={{
-                  width: renderFlowchart ? "40%" : "100%",
+                  width: renderFlowchart ? "35%" : "100%",
                   minWidth: 280,
-                  overflow: "auto",
                   display: "flex",
                   flexDirection: "column",
+                  overflow: "hidden",
                 }}
               >
-                <MemoryInspector
-                  snapshots={snapshots}
-                  selectedIndex={snapshotIdx}
-                  size={size}
-                />
-                <div style={{ borderTop: `1px solid ${theme.border}` }}>
-                  <ScopeDiff
-                    previous={prevMemory}
-                    current={currMemory}
-                    hideUnchanged
-                    size={size}
-                  />
+                {/* Panel switcher */}
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 0,
+                    borderBottom: `1px solid ${theme.border}`,
+                    flexShrink: 0,
+                  }}
+                >
+                  {(["memory", "narrative"] as RightPanel[]).map((panel) => {
+                    const active = rightPanel === panel;
+                    return (
+                      <button
+                        key={panel}
+                        onClick={() => setRightPanel(panel)}
+                        style={{
+                          flex: 1,
+                          padding: `${pad - 6}px ${pad - 4}px`,
+                          fontSize: fs.small,
+                          fontWeight: active ? 600 : 400,
+                          color: active ? theme.primary : theme.textMuted,
+                          background: active
+                            ? `color-mix(in srgb, ${theme.primary} 8%, transparent)`
+                            : "transparent",
+                          border: "none",
+                          borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        {rightPanelLabels[panel]}
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {/* Panel content */}
+                {rightPanel === "memory" && (
+                  <MemoryPanel
+                    snapshots={activeSnapshots}
+                    selectedIndex={safeIdx}
+                    size={size}
+                    style={{ flex: 1 }}
+                  />
+                )}
+                {rightPanel === "narrative" && (
+                  <NarrativePanel
+                    snapshots={activeSnapshots}
+                    selectedIndex={safeIdx}
+                    narrativeEntries={activeNarrativeEntries}
+                    narrative={activeNarrative}
+                    size={size}
+                    style={{ flex: 1 }}
+                  />
+                )}
               </div>
             </div>
+
+            {/* Gantt timeline (always visible) */}
             <div style={{ borderTop: `1px solid ${theme.border}`, flexShrink: 0 }}>
               <GanttTimeline
-                snapshots={snapshots}
-                selectedIndex={snapshotIdx}
+                snapshots={activeSnapshots}
+                selectedIndex={safeIdx}
                 onSelect={handleSnapshotChange}
                 size={size}
-              />
-            </div>
-          </>
-        )}
-
-        {activeTab === "ai-compatible" && (
-          <>
-            <TimeTravelControls
-              snapshots={snapshots}
-              selectedIndex={snapshotIdx}
-              onIndexChange={handleSnapshotChange}
-              size={size}
-            />
-            <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-              {renderFlowchart && (
-                <div style={{ flex: 1, overflow: "hidden", borderRight: `1px solid ${theme.border}` }}>
-                  {renderFlowchart({ snapshots, selectedIndex: snapshotIdx, onNodeClick: handleSnapshotChange })}
-                </div>
-              )}
-              <NarrativeTrace
-                narrative={narrative}
-                revealedCount={revealedCount}
-                size={size}
-                style={{
-                  width: renderFlowchart ? "40%" : "100%",
-                  minWidth: 280,
-                }}
               />
             </div>
           </>

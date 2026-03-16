@@ -8,12 +8,16 @@
  *    unvisited nodes stay gray
  */
 import type { Node, Edge } from "@xyflow/react";
-import { defaultTokens } from "../../theme/tokens";
+import { rawDefaults } from "../../theme/tokens";
 
 export interface SpecNode {
   name: string;
   id?: string;
   type?: "stage" | "decider" | "fork" | "streaming";
+  /** Semantic icon hint — rendered by StageNode. Common values:
+   *  "llm", "tool", "rag", "search", "parse", "start", "end", "loop",
+   *  "agent", "swarm", "guard", "stream", "memory" */
+  icon?: string;
   description?: string;
   children?: SpecNode[];
   next?: SpecNode;
@@ -50,16 +54,16 @@ export interface FlowchartColors {
   pathGlow: string;
 }
 
-/** Default colors derived from theme tokens. Consumer can override per-call. */
+/** Default colors derived from raw theme defaults. Consumer can override per-call. */
 const DEFAULT_COLORS: FlowchartColors = {
-  edgeDefault: defaultTokens.colors.textMuted,
-  edgeExecuted: defaultTokens.colors.success,
-  edgeActive: defaultTokens.colors.primary,
-  edgeLoop: defaultTokens.colors.warning,
-  labelDefault: defaultTokens.colors.textSecondary,
-  labelExecuted: defaultTokens.colors.success,
-  labelLoop: defaultTokens.colors.warning,
-  pathGlow: `${defaultTokens.colors.success}4D`, // ~30% opacity hex
+  edgeDefault: rawDefaults.colors.textMuted,
+  edgeExecuted: rawDefaults.colors.success,
+  edgeActive: rawDefaults.colors.primary,
+  edgeLoop: rawDefaults.colors.warning,
+  labelDefault: rawDefaults.colors.textSecondary,
+  labelExecuted: rawDefaults.colors.success,
+  labelLoop: rawDefaults.colors.warning,
+  pathGlow: `${rawDefaults.colors.success}4D`, // ~30% opacity hex
 };
 
 interface LayoutState {
@@ -69,6 +73,8 @@ interface LayoutState {
   seen: Set<string>;
   overlay: ExecutionOverlay | null;
   colors: FlowchartColors;
+  /** Maps stage ID → stage name for resolving loopTarget references. */
+  idToName: Map<string, string>;
 }
 
 const Y_STEP = 100;
@@ -76,6 +82,13 @@ const X_SPREAD = 200;
 
 function nid(n: SpecNode): string {
   return n.name || n.id || `spec-${Math.random()}`;
+}
+
+/** Collect id→name mappings during the first pass of walk (no separate traversal). */
+function registerNode(state: LayoutState, node: SpecNode): void {
+  if (node.id && node.name) {
+    state.idToName.set(node.id, node.name);
+  }
 }
 
 function addEdge(
@@ -179,6 +192,8 @@ function walk(
   x: number,
   y: number
 ): { lastIds: string[]; bottomY: number } {
+  // Register id→name during traversal (no separate tree walk)
+  registerNode(state, node);
   const id = nid(node);
 
   if (state.seen.has(id)) {
@@ -217,6 +232,7 @@ function walk(
       isDecider,
       isFork,
       description: node.description,
+      icon: node.icon,
       subflowId: node.subflowId,
       dimmed,
       stepNumbers,
@@ -253,17 +269,27 @@ function walk(
   // Handle loop-back edge — visually distinct dashed orange arrow
   // Must be added before processing `next`, since `next` returns early
   if (node.loopTarget) {
-    addEdge(state, id, node.loopTarget, "loop", true);
+    // loopTarget stores stage ID (e.g., "call-llm"), resolve to node name used by nid()
+    const resolvedTarget = state.idToName.get(node.loopTarget) ?? node.loopTarget;
+    addEdge(state, id, resolvedTarget, "loop", true);
   }
 
   // Handle linear continuation
   if (node.next) {
+    // If this is a loop reference (next points back to an existing stage by ID),
+    // resolve to the actual node name and skip creating a duplicate node
+    const rawNextId = nid(node.next);
+    const resolvedNextId = state.idToName.get(rawNextId) ?? rawNextId;
+    const isLoopRef = node.loopTarget && state.seen.has(resolvedNextId);
+
+    if (isLoopRef) {
+      // Loop reference — don't walk further, edges already handled by loopTarget
+      return { lastIds, bottomY };
+    }
+
     const nextY = bottomY + Y_STEP;
-    const nextId = nid(node.next);
     for (const lid of lastIds) {
-      // Skip forward edge when a loop edge already connects to the same target
-      if (node.loopTarget && lid === id && node.loopTarget === nextId) continue;
-      addEdge(state, lid, nextId);
+      addEdge(state, lid, resolvedNextId);
     }
     const result = walk(node.next, state, x, nextY);
     return result;
@@ -291,6 +317,7 @@ export function specToReactFlow(
     seen: new Set(),
     overlay: overlay ?? null,
     colors: { ...DEFAULT_COLORS, ...colors },
+    idToName: new Map(),
   };
 
   walk(spec, state, 300, 0);

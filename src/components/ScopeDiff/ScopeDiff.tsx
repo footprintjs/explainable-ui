@@ -62,9 +62,9 @@ function fmt(v: unknown): string {
 }
 
 const diffColors: Record<DiffEntry["type"], { bg: string; fg: string; icon: string }> = {
-  added: { bg: "rgba(34,197,94,0.10)", fg: "#22c55e", icon: "+" },
-  removed: { bg: "rgba(239,68,68,0.10)", fg: "#ef4444", icon: "-" },
-  changed: { bg: "rgba(245,158,11,0.10)", fg: "#f59e0b", icon: "~" },
+  added: { bg: `color-mix(in srgb, ${theme.success} 10%, transparent)`, fg: theme.success, icon: "+" },
+  removed: { bg: `color-mix(in srgb, ${theme.error} 10%, transparent)`, fg: theme.error, icon: "-" },
+  changed: { bg: `color-mix(in srgb, ${theme.warning} 10%, transparent)`, fg: theme.warning, icon: "~" },
   unchanged: { bg: "transparent", fg: "", icon: " " },
 };
 

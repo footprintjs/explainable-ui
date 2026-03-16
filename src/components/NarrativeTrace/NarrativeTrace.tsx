@@ -101,9 +101,20 @@ export function NarrativeTrace({
               data-fp="narrative-header"
               data-collapsible={group.steps.length > 0}
               data-collapsed={collapsedSet.has(group.headerIdx)}
+              role={group.steps.length > 0 ? "button" : undefined}
+              tabIndex={group.steps.length > 0 ? 0 : undefined}
+              aria-expanded={group.steps.length > 0 ? !collapsedSet.has(group.headerIdx) : undefined}
+              aria-label={`Stage ${gi + 1}, ${group.steps.length} steps${gi === lastIdx ? ", current" : ""}`}
               onClick={() => {
                 if (group.steps.length > 0) toggle(group.headerIdx);
                 onStageClick?.(group.headerIdx);
+              }}
+              onKeyDown={(e: React.KeyboardEvent) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  if (group.steps.length > 0) toggle(group.headerIdx);
+                  onStageClick?.(group.headerIdx);
+                }
               }}
             >
               {group.header}
@@ -157,9 +168,20 @@ export function NarrativeTrace({
           >
             {/* Stage header */}
             <div
+              role={hasSteps ? "button" : undefined}
+              tabIndex={hasSteps ? 0 : undefined}
+              aria-expanded={hasSteps ? !isCollapsed : undefined}
+              aria-label={`Stage ${gi + 1}, ${group.steps.length} steps${isLatest ? ", current" : ", completed"}`}
               onClick={() => {
                 if (hasSteps) toggle(group.headerIdx);
                 onStageClick?.(group.headerIdx);
+              }}
+              onKeyDown={(e: React.KeyboardEvent) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  if (hasSteps) toggle(group.headerIdx);
+                  onStageClick?.(group.headerIdx);
+                }
               }}
               style={{
                 fontSize: fs.body,

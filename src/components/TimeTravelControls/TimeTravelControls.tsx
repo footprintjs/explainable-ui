@@ -60,20 +60,47 @@ export function TimeTravelControls({
     }
   }, [playing, selectedIndex, total, onIndexChange]);
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "ArrowLeft" && canPrev && !playing) {
+        e.preventDefault();
+        setPlaying(false);
+        onIndexChange(selectedIndex - 1);
+      } else if (e.key === "ArrowRight" && canNext && !playing) {
+        e.preventDefault();
+        setPlaying(false);
+        onIndexChange(selectedIndex + 1);
+      } else if (e.key === " " && autoPlayable) {
+        e.preventDefault();
+        togglePlay();
+      }
+    },
+    [canPrev, canNext, playing, selectedIndex, onIndexChange, autoPlayable, togglePlay]
+  );
+
   const fs = fontSize[size];
 
   if (unstyled) {
     return (
-      <div className={className} style={style} data-fp="time-travel-controls">
+      <div
+        className={className}
+        style={style}
+        data-fp="time-travel-controls"
+        role="toolbar"
+        aria-label="Time travel controls"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+      >
         <button
           data-fp="tt-prev"
           disabled={!canPrev || playing}
           onClick={() => { setPlaying(false); onIndexChange(selectedIndex - 1); }}
+          aria-label="Previous stage"
         >
           Prev
         </button>
         {autoPlayable && (
-          <button data-fp="tt-play" onClick={togglePlay}>
+          <button data-fp="tt-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
             {playing ? "Pause" : "Play"}
           </button>
         )}
@@ -81,6 +108,7 @@ export function TimeTravelControls({
           data-fp="tt-next"
           disabled={!canNext || playing}
           onClick={() => { setPlaying(false); onIndexChange(selectedIndex + 1); }}
+          aria-label="Next stage"
         >
           Next
         </button>
@@ -127,11 +155,16 @@ export function TimeTravelControls({
         ...style,
       }}
       data-fp="time-travel-controls"
+      role="toolbar"
+      aria-label="Time travel controls"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
     >
       <button
         style={btnStyle(!canPrev || playing)}
         disabled={!canPrev || playing}
         onClick={() => { setPlaying(false); onIndexChange(selectedIndex - 1); }}
+        aria-label="Previous stage"
       >
         &#9664;
       </button>
@@ -154,6 +187,7 @@ export function TimeTravelControls({
             flexShrink: 0,
           }}
           title={playing ? "Pause" : "Play"}
+          aria-label={playing ? "Pause" : "Play"}
         >
           {playing ? "\u23F8" : "\u25B6"}
         </button>
@@ -163,6 +197,7 @@ export function TimeTravelControls({
         style={btnStyle(!canNext || playing)}
         disabled={!canNext || playing}
         onClick={() => { setPlaying(false); onIndexChange(selectedIndex + 1); }}
+        aria-label="Next stage"
       >
         &#9654;
       </button>

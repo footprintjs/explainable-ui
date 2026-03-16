@@ -58,13 +58,16 @@ export function GanttTimeline({
 
   if (unstyled) {
     return (
-      <div className={className} style={style} data-fp="gantt-timeline">
+      <div className={className} style={style} data-fp="gantt-timeline" role="listbox" aria-label="Execution timeline">
         {snapshots.map((snap, idx) => (
           <div
             key={snap.stageName}
             data-fp="gantt-bar"
             data-selected={idx === selectedIndex}
             data-visible={idx <= selectedIndex}
+            role="option"
+            aria-selected={idx === selectedIndex}
+            aria-label={`${snap.stageLabel}, ${snap.durationMs}ms`}
             onClick={() => onSelect?.(idx)}
           >
             <span data-fp="gantt-label">{snap.stageLabel}</span>
@@ -124,6 +127,8 @@ export function GanttTimeline({
       {/* Scrollable rows container */}
       <div
         ref={scrollContainerRef}
+        role="listbox"
+        aria-label="Execution timeline"
         style={{
           marginTop: 8,
           display: "flex",
@@ -148,6 +153,9 @@ export function GanttTimeline({
             <div
               key={snap.stageName}
               ref={isSelected ? activeRowRef : undefined}
+              role="option"
+              aria-selected={isSelected}
+              aria-label={`${snap.stageLabel}, ${snap.durationMs}ms`}
               onClick={() => onSelect?.(idx)}
               style={{
                 display: "flex",
@@ -161,6 +169,7 @@ export function GanttTimeline({
               }}
             >
               <span
+                title={snap.stageLabel}
                 style={{
                   width: labelWidth,
                   fontSize: fs.small,

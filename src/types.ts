@@ -22,6 +22,15 @@ export interface StageSnapshot {
   subflowResult?: unknown;
 }
 
+/** Structured narrative entry — preserves type info for semantic rendering. */
+export interface NarrativeEntry {
+  type: 'stage' | 'step' | 'condition' | 'fork' | 'subflow' | 'loop' | 'break' | 'error';
+  text: string;
+  depth: number;
+  stageName?: string;
+  stepNumber?: number;
+}
+
 /** Component size variants */
 export type Size = "compact" | "default" | "detailed";
 

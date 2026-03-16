@@ -116,11 +116,22 @@ function flattenTree(
   const startMs = accumulatedMs;
   const stageId = node.name || node.id;
 
-  // Narrative comes from the library — no fallback fabrication
+  // Narrative comes from the library. When not available (e.g. subflow internals
+  // where the root recorder only captures enter/exit markers), build a basic
+  // narrative from the stage name, description, and data operations.
   const stageLines = stageNarrativeMap.get(stageId);
-  const narrative = stageLines
-    ? stageLines.join('\n')
-    : 'Narrative not part of this run.';
+  let narrative: string;
+  if (stageLines) {
+    narrative = stageLines.join('\n');
+  } else {
+    const parts: string[] = [`${stageId} executed.`];
+    if (node.description) parts.push(node.description);
+    if (node.stageWrites) {
+      const keys = Object.keys(node.stageWrites);
+      if (keys.length > 0) parts.push(`Wrote: ${keys.join(', ')}`);
+    }
+    narrative = parts.join('\n');
+  }
 
   // Build cumulative memory from stageWrites (actual setValue/updateValue calls)
   const memory = { ...cumulativeMemory };
@@ -167,6 +178,56 @@ function flattenTree(
   }
 
   return nextMs;
+}
+
+/**
+ * Converts a footprintjs SubflowResult (stored on StageSnapshot.subflowResult)
+ * into visualization snapshots for drill-down views.
+ *
+ * SubflowResult shape (from footprintjs):
+ *   { subflowId, subflowName, treeContext: { globalContext, stageContexts, history }, parentStageId }
+ *
+ * Returns empty array if the input is not a valid SubflowResult.
+ */
+export function subflowResultToSnapshots(
+  subflowResult: unknown,
+  narrativeEntries?: NarrativeEntry[],
+): StageSnapshot[] {
+  if (!subflowResult || typeof subflowResult !== 'object') return [];
+  const sf = subflowResult as {
+    subflowId?: string;
+    treeContext?: {
+      globalContext?: Record<string, unknown>;
+      stageContexts?: unknown;
+      history?: unknown[];
+    };
+  };
+  if (!sf.treeContext?.stageContexts) return [];
+
+  const runtime: RuntimeSnapshot = {
+    sharedState: sf.treeContext.globalContext ?? {},
+    executionTree: sf.treeContext.stageContexts as RuntimeStageSnapshot,
+    commitLog: sf.treeContext.history ?? [],
+  };
+
+  const snapshots = toVisualizationSnapshots(runtime, narrativeEntries);
+
+  // Strip subflow prefix from stage names so they match the spec node names.
+  // Runtime names are prefixed (e.g., "analyze/SeedScope") but spec nodes
+  // use unprefixed names (e.g., "SeedScope").
+  const prefix = sf.subflowId ? `${sf.subflowId}/` : '';
+  if (prefix) {
+    for (const snap of snapshots) {
+      if (snap.stageName.startsWith(prefix)) {
+        snap.stageName = snap.stageName.slice(prefix.length);
+      }
+      if (snap.stageLabel.startsWith(prefix)) {
+        snap.stageLabel = snap.stageLabel.slice(prefix.length);
+      }
+    }
+  }
+
+  return snapshots;
 }
 
 /**

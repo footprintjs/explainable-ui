@@ -1,9 +1,9 @@
 // Types
-export type { StageSnapshot, Size, BaseComponentProps } from "./types";
+export type { StageSnapshot, Size, BaseComponentProps, NarrativeEntry } from "./types";
 
 // Theme
 export { FootprintTheme, useFootprintTheme } from "./theme";
-export { tokensToCSSVars, defaultTokens } from "./theme";
+export { tokensToCSSVars, defaultTokens, rawDefaults } from "./theme";
 export { themePresets, coolDark, coolLight, warmDark, warmLight } from "./theme";
 export { useDarkModeTokens } from "./theme";
 export type { ThemeTokens, ThemePresetName, DarkModeTokensOptions } from "./theme";
@@ -39,10 +39,20 @@ export type { TimeTravelControlsProps } from "./components/TimeTravelControls";
 export { ExplainableShell } from "./components/ExplainableShell";
 export type { ExplainableShellProps, ShellTab } from "./components/ExplainableShell";
 
+// Composite panels (memory + narrative — self-contained right-panel views)
+export { MemoryPanel } from "./components/MemoryPanel";
+export type { MemoryPanelProps } from "./components/MemoryPanel";
+
+export { NarrativePanel } from "./components/NarrativePanel";
+export type { NarrativePanelProps } from "./components/NarrativePanel";
+
+export { StoryNarrative } from "./components/StoryNarrative";
+export type { StoryNarrativeProps } from "./components/StoryNarrative";
+
 // Subflow manifest tree (no ReactFlow dependency — works standalone)
 export { SubflowTree } from "./components/FlowchartView/SubflowTree";
 export type { SubflowTreeProps, SubflowTreeEntry } from "./components/FlowchartView/SubflowTree";
 
 // Adapters
-export { toVisualizationSnapshots, createSnapshots } from "./adapters/fromRuntimeSnapshot";
-export type { NarrativeEntry } from "./adapters/fromRuntimeSnapshot";
+export { toVisualizationSnapshots, createSnapshots, subflowResultToSnapshots } from "./adapters/fromRuntimeSnapshot";
+export type { NarrativeEntry as AdapterNarrativeEntry } from "./adapters/fromRuntimeSnapshot";

@@ -67,10 +67,10 @@ export function MemoryInspector({
 
   if (unstyled) {
     return (
-      <div className={className} style={style} data-fp="memory-inspector">
+      <div className={className} style={style} data-fp="memory-inspector" role="region" aria-label="Memory state">
         <div data-fp="memory-label">Memory State</div>
         <pre data-fp="memory-json">
-          {JSON.stringify(memory, null, 2)}
+          <code>{JSON.stringify(memory, null, 2)}</code>
         </pre>
       </div>
     );
@@ -85,6 +85,8 @@ export function MemoryInspector({
         ...style,
       }}
       data-fp="memory-inspector"
+      role="region"
+      aria-label="Memory state"
     >
       <span
         style={{

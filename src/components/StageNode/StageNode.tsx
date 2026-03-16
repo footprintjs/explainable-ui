@@ -1,7 +1,25 @@
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import { theme } from "../../theme";
+
+const KEYFRAMES_ID = "fp-stage-node-keyframes";
+const KEYFRAMES_CSS = `
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes fp-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0.15; transform: scale(1.06); }
+  }
+  @keyframes fp-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes fp-pulse { 0%, 100% { opacity: 0.3; } }
+  @keyframes fp-blink { 0%, 100% { opacity: 1; } }
+}
+`;
 
 export interface StageNodeData {
   label: string;
@@ -9,17 +27,190 @@ export interface StageNodeData {
   done?: boolean;
   error?: boolean;
   linked?: boolean;
+  /** Semantic icon hint (e.g., "llm", "tool", "rag", "start", "parse", "agent", "guard") */
+  icon?: string;
   /** Step numbers in execution order (shown as badges — multiple when revisited via loops) */
   stepNumbers?: number[];
   /** Node was not executed (dim it) */
   dimmed?: boolean;
   /** Node is a subflow root (show nested indicator) */
   isSubflow?: boolean;
+  /** Node is a decider (renders as diamond shape per flowchart convention) */
+  isDecider?: boolean;
+  /** Node is a fork (parallel fan-out) */
+  isFork?: boolean;
   /** Human-readable description of what this stage does */
   description?: string;
   /** Subflow identifier — set when this node belongs to a subflow */
   subflowId?: string;
   [key: string]: unknown;
+}
+
+// ── Stage icon SVGs ───────────────────────────────────────────────────────
+// Inline SVGs for crisp rendering at any size. Consumers pass a string key
+// via SpecNode.icon; StageNode renders the matching mini-icon.
+
+const ICON_SIZE = 16;
+
+function StageIcon({ type, color }: { type: string; color: string }) {
+  const s = ICON_SIZE;
+  const props = { width: s, height: s, viewBox: `0 0 ${s} ${s}`, fill: "none", style: { flexShrink: 0 } as const };
+
+  switch (type) {
+    // LLM / AI call — brain/sparkle
+    case "llm":
+    case "ai":
+      return (
+        <svg {...props}>
+          <circle cx="8" cy="8" r="6" stroke={color} strokeWidth="1.5" />
+          <path d="M5.5 8C5.5 6.5 6.5 5 8 5S10.5 6.5 10.5 8" stroke={color} strokeWidth="1.2" strokeLinecap="round" />
+          <circle cx="8" cy="9.5" r="1" fill={color} />
+          <line x1="8" y1="2" x2="8" y2="3.5" stroke={color} strokeWidth="1" strokeLinecap="round" />
+          <line x1="12.5" y1="4" x2="11.2" y2="5" stroke={color} strokeWidth="1" strokeLinecap="round" />
+          <line x1="3.5" y1="4" x2="4.8" y2="5" stroke={color} strokeWidth="1" strokeLinecap="round" />
+        </svg>
+      );
+
+    // Tool / function call — gear
+    case "tool":
+    case "function":
+      return (
+        <svg {...props}>
+          <circle cx="8" cy="8" r="3" stroke={color} strokeWidth="1.5" />
+          {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => {
+            const rad = (angle * Math.PI) / 180;
+            const x1 = 8 + Math.cos(rad) * 4.5;
+            const y1 = 8 + Math.sin(rad) * 4.5;
+            const x2 = 8 + Math.cos(rad) * 6;
+            const y2 = 8 + Math.sin(rad) * 6;
+            return <line key={angle} x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth="1.5" strokeLinecap="round" />;
+          })}
+        </svg>
+      );
+
+    // RAG / retrieval — magnifying glass + doc
+    case "rag":
+    case "search":
+    case "retrieval":
+      return (
+        <svg {...props}>
+          <circle cx="7" cy="7" r="4" stroke={color} strokeWidth="1.5" />
+          <line x1="10" y1="10" x2="13.5" y2="13.5" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+          <line x1="5.5" y1="6" x2="8.5" y2="6" stroke={color} strokeWidth="1" strokeLinecap="round" />
+          <line x1="5.5" y1="8" x2="7.5" y2="8" stroke={color} strokeWidth="1" strokeLinecap="round" />
+        </svg>
+      );
+
+    // Parse / process — diamond with arrows
+    case "parse":
+    case "process":
+    case "transform":
+      return (
+        <svg {...props}>
+          <rect x="4" y="4" width="8" height="8" rx="1.5" stroke={color} strokeWidth="1.5" transform="rotate(45 8 8)" />
+        </svg>
+      );
+
+    // Start / seed — play triangle
+    case "start":
+    case "seed":
+    case "init":
+      return (
+        <svg {...props}>
+          <path d="M5 3.5L12.5 8L5 12.5V3.5Z" fill={color} opacity="0.8" />
+        </svg>
+      );
+
+    // End / finalize — stop square
+    case "end":
+    case "finalize":
+    case "output":
+      return (
+        <svg {...props}>
+          <rect x="4" y="4" width="8" height="8" rx="1.5" fill={color} opacity="0.8" />
+        </svg>
+      );
+
+    // Agent — person silhouette
+    case "agent":
+    case "orchestrator":
+      return (
+        <svg {...props}>
+          <circle cx="8" cy="5" r="2.5" stroke={color} strokeWidth="1.5" />
+          <path d="M3.5 14C3.5 11 5.5 9 8 9S12.5 11 12.5 14" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      );
+
+    // Swarm — multi-agent
+    case "swarm":
+    case "multi-agent":
+      return (
+        <svg {...props}>
+          <circle cx="5" cy="5" r="2" stroke={color} strokeWidth="1.2" />
+          <circle cx="11" cy="5" r="2" stroke={color} strokeWidth="1.2" />
+          <circle cx="8" cy="11" r="2" stroke={color} strokeWidth="1.2" />
+          <line x1="5" y1="7" x2="8" y2="9" stroke={color} strokeWidth="1" opacity="0.5" />
+          <line x1="11" y1="7" x2="8" y2="9" stroke={color} strokeWidth="1" opacity="0.5" />
+        </svg>
+      );
+
+    // Guard / guardrail — shield
+    case "guard":
+    case "guardrail":
+    case "validate":
+      return (
+        <svg {...props}>
+          <path d="M8 2L3 5V9C3 11.5 5 13.5 8 14.5C11 13.5 13 11.5 13 9V5L8 2Z" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+          <path d="M6 8L7.5 9.5L10 6.5" stroke={color} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+
+    // Stream — wave
+    case "stream":
+    case "streaming":
+      return (
+        <svg {...props}>
+          <path d="M2 8C4 5 6 11 8 8S12 5 14 8" stroke={color} strokeWidth="1.5" strokeLinecap="round" fill="none" />
+          <path d="M2 11C4 8 6 14 8 11S12 8 14 11" stroke={color} strokeWidth="1" strokeLinecap="round" fill="none" opacity="0.5" />
+        </svg>
+      );
+
+    // Memory / state — database cylinder
+    case "memory":
+    case "state":
+    case "db":
+      return (
+        <svg {...props}>
+          <ellipse cx="8" cy="4.5" rx="5" ry="2" stroke={color} strokeWidth="1.3" />
+          <line x1="3" y1="4.5" x2="3" y2="11.5" stroke={color} strokeWidth="1.3" />
+          <line x1="13" y1="4.5" x2="13" y2="11.5" stroke={color} strokeWidth="1.3" />
+          <ellipse cx="8" cy="11.5" rx="5" ry="2" stroke={color} strokeWidth="1.3" />
+        </svg>
+      );
+
+    // Loop — circular arrow
+    case "loop":
+    case "retry":
+      return (
+        <svg {...props}>
+          <path d="M12 8A4 4 0 1 1 8 4" stroke={color} strokeWidth="1.5" strokeLinecap="round" fill="none" />
+          <path d="M8 1.5L10.5 4L8 6.5" stroke={color} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </svg>
+      );
+
+    // Decision — diamond (already handled by isDecider shape)
+    case "decision":
+    case "router":
+      return (
+        <svg {...props}>
+          <path d="M8 2L14 8L8 14L2 8Z" stroke={color} strokeWidth="1.5" fill="none" />
+          <circle cx="8" cy="8" r="1.5" fill={color} />
+        </svg>
+      );
+
+    default:
+      return null;
+  }
 }
 
 /**
@@ -30,7 +221,20 @@ export interface StageNodeData {
 export const StageNode = memo(function StageNode({
   data,
 }: NodeProps & { data: StageNodeData }) {
-  const { label, active, done, error, linked, stepNumbers, dimmed, isSubflow, description } = data;
+  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isDecider, isFork, description } = data;
+
+  // Inject keyframes once into document head
+  const injectedRef = useRef(false);
+  useEffect(() => {
+    if (injectedRef.current) return;
+    if (typeof document !== "undefined" && !document.getElementById(KEYFRAMES_ID)) {
+      const styleEl = document.createElement("style");
+      styleEl.id = KEYFRAMES_ID;
+      styleEl.textContent = KEYFRAMES_CSS;
+      document.head.appendChild(styleEl);
+    }
+    injectedRef.current = true;
+  }, []);
 
   const isOnPath = active || done;
 
@@ -121,7 +325,8 @@ export const StageNode = memo(function StageNode({
             style={{
               position: "absolute",
               inset: -6,
-              borderRadius: `calc(${theme.radius} + 4px)`,
+              borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
+              transform: isDecider ? "rotate(45deg)" : undefined,
               border: `2px solid ${theme.primary}`,
               opacity: 0.4,
               animation: "fp-pulse 2s ease-in-out infinite",
@@ -135,7 +340,8 @@ export const StageNode = memo(function StageNode({
             style={{
               position: "absolute",
               inset: -6,
-              borderRadius: `calc(${theme.radius} + 4px)`,
+              borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
+              transform: isDecider ? "rotate(45deg)" : undefined,
               border: `2px solid ${theme.primary}`,
               opacity: 0.3,
               animation: "fp-pulse 1.5s ease-out infinite",
@@ -143,99 +349,166 @@ export const StageNode = memo(function StageNode({
           />
         )}
 
-        <div
-          style={{
-            background: bg,
-            border: `2px solid ${borderColor}`,
-            borderRadius: theme.radius,
-            padding: description ? "8px 16px" : "10px 20px",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: description ? 2 : 0,
-            boxShadow: shadow,
-            transition: "all 0.3s ease",
-            fontFamily: theme.fontSans,
-            minWidth: 100,
-            justifyContent: "center",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {/* State icon */}
-            {done && (
-              <span style={{ fontSize: 10, color: textColor }}>&#x2713;</span>
-            )}
-            {active && (
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: "#fff",
-                  animation: "fp-blink 1s ease-in-out infinite",
-                  flexShrink: 0,
-                }}
-              />
-            )}
-            {error && (
-              <span style={{ fontSize: 10, color: textColor }}>&#x2717;</span>
-            )}
-
-            <span
+        {/* Diamond wrapper for decider nodes — rotated 45deg */}
+        {isDecider ? (
+          <div
+            style={{
+              background: bg,
+              border: `2px solid ${borderColor}`,
+              borderRadius: 4,
+              transform: "rotate(45deg)",
+              padding: 20,
+              boxShadow: shadow,
+              transition: "all 0.3s ease",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {/* Counter-rotate content so text/icons stay upright */}
+            <div
               style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: textColor,
-                whiteSpace: "nowrap",
+                transform: "rotate(-45deg)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 2,
+                fontFamily: theme.fontSans,
               }}
             >
-              {label}
-            </span>
-            {/* Subflow indicator — nested boxes icon */}
-            {isSubflow && (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 16,
-                  height: 16,
-                  borderRadius: 3,
-                  border: `1.5px solid ${textColor}`,
-                  position: "relative",
-                  opacity: 0.7,
-                  flexShrink: 0,
-                }}
-              >
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                {icon && <StageIcon type={icon} color={textColor} />}
+                {!icon && (
+                  <span style={{ fontSize: 10, color: textColor }}>&#x25C7;</span>
+                )}
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: textColor,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {label}
+                </span>
+              </div>
+              {description && (
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 400,
+                    color: textColor,
+                    opacity: 0.7,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    maxWidth: 130,
+                  }}
+                >
+                  {description}
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Standard rectangular node */
+          <div
+            style={{
+              background: bg,
+              border: `2px solid ${borderColor}`,
+              borderRadius: theme.radius,
+              padding: description ? "8px 16px" : "10px 20px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: description ? 2 : 0,
+              boxShadow: shadow,
+              transition: "all 0.3s ease",
+              fontFamily: theme.fontSans,
+              minWidth: 100,
+              justifyContent: "center",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {/* Semantic icon */}
+              {icon && <StageIcon type={icon} color={textColor} />}
+
+              {/* State icon */}
+              {done && !icon && (
+                <span style={{ fontSize: 10, color: textColor }}>&#x2713;</span>
+              )}
+              {active && !icon && (
                 <span
                   style={{
                     width: 8,
                     height: 8,
-                    borderRadius: 2,
-                    border: `1px solid ${textColor}`,
+                    borderRadius: "50%",
+                    background: "#fff",
+                    animation: "fp-blink 1s ease-in-out infinite",
+                    flexShrink: 0,
                   }}
                 />
+              )}
+              {error && !icon && (
+                <span style={{ fontSize: 10, color: textColor }}>&#x2717;</span>
+              )}
+
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: textColor,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {label}
+              </span>
+              {/* Subflow indicator — nested boxes icon */}
+              {isSubflow && (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 16,
+                    height: 16,
+                    borderRadius: 3,
+                    border: `1.5px solid ${textColor}`,
+                    position: "relative",
+                    opacity: 0.7,
+                    flexShrink: 0,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 2,
+                      border: `1px solid ${textColor}`,
+                    }}
+                  />
+                </span>
+              )}
+            </div>
+            {/* Description subtitle */}
+            {description && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 400,
+                  color: textColor,
+                  opacity: 0.7,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 160,
+                }}
+              >
+                {description}
               </span>
             )}
           </div>
-          {/* Description subtitle */}
-          {description && (
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 400,
-                color: textColor,
-                opacity: 0.7,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                maxWidth: 160,
-              }}
-            >
-              {description}
-            </span>
-          )}
-        </div>
+        )}
       </div>
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
       {/* Right-side handles for loop-back edges (so they don't overlap center edges) */}
