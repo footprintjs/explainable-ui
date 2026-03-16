@@ -9,11 +9,12 @@
  *   <TracedFlowchartView spec={spec} />                                        // static
  *   <TracedFlowchartView spec={spec} snapshots={snaps} snapshotIndex={idx} />  // traced
  */
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect } from "react";
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
+  useReactFlow,
 } from "@xyflow/react";
 import type { Node, NodeTypes } from "@xyflow/react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
@@ -35,6 +36,17 @@ export interface TracedFlowchartViewProps extends BaseComponentProps {
 }
 
 const defaultNodeTypes: NodeTypes = { stage: StageNode as any };
+
+/** Calls fitView when the container resizes (e.g. panel expand/collapse). */
+function FitViewOnResize() {
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    const handler = () => { requestAnimationFrame(() => fitView({ padding: 0.3 })); };
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, [fitView]);
+  return null;
+}
 
 export function TracedFlowchartView({
   spec,
@@ -103,6 +115,7 @@ export function TracedFlowchartView({
         nodesConnectable={false}
         elementsSelectable={!!onNodeClick}
       >
+        <FitViewOnResize />
         {!unstyled && (
           <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
         )}

@@ -1,29 +1,15 @@
 /**
  * ExplainableShell — Pure orchestrator for explainable pipeline visualization.
  *
- * Layout:
- * ┌──────────────────────────────────────────────────────┐
- * │  [◀ ▶ ▶]  ══════ time-travel slider ══════          │
- * │  Breadcrumb (when drilled into subflow)              │
- * ├───────┬──────────────────┬───────────────────────────┤
- * │ Tree  │  Flowchart       │  [MEMORY]  [NARRATIVE]    │
- * │       │  (always visible) │  (right panel swaps)     │
- * ├───────┴──────────────────┴───────────────────────────┤
- * │  Gantt Timeline                                       │
- * └──────────────────────────────────────────────────────┘
+ * Collapsible sections use the **line + centered pill** pattern:
+ * - Collapsed = thin divider line with a pill button sitting on it
+ * - Expanded = full content with a pill at the closing edge
  *
- * State owned here:
- * - snapshotIdx (time-travel position)
- * - drillDownStack (subflow navigation)
- * - rightPanel (memory vs narrative)
- *
- * No rendering logic — delegates to MemoryPanel, NarrativePanel,
- * TracedFlowchartView (via renderFlowchart), TimeTravelControls,
- * GanttTimeline, SubflowTree, SubflowBreadcrumb.
+ * Consumer controls theme via --fp-* CSS custom properties.
  */
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
-import { theme, fontSize, padding } from "../../theme";
+import { theme } from "../../theme";
 import { subflowResultToSnapshots } from "../../adapters/fromRuntimeSnapshot";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
@@ -41,16 +27,37 @@ import type { SpecNode } from "../FlowchartView/specToReactFlow";
 export type ShellTab = "result" | "explainable" | "ai-compatible";
 type RightPanel = "memory" | "narrative";
 
-interface DrillDownEntry {
+interface SubflowLevel {
   subflowId: string;
   label: string;
   spec: SpecNode;
   snapshots: StageSnapshot[];
 }
 
+interface DrillDownEntry extends SubflowLevel {
+  parentSnapshotIdx: number;
+}
+
+export interface PanelLabels {
+  /** Left panel pill label (subflow tree). Default: "Topology" */
+  topology?: string;
+  /** Right panel pill label (memory/narrative). Default: "Details" */
+  details?: string;
+  /** Bottom panel pill label (timeline). Default: "Timeline" */
+  timeline?: string;
+}
+
+/** Which panels start expanded. Default: `{ details: true }` (flowchart + memory). */
+export interface DefaultExpanded {
+  topology?: boolean;
+  details?: boolean;
+  timeline?: boolean;
+}
+
 export interface ExplainableShellProps extends BaseComponentProps {
   snapshots: StageSnapshot[];
   spec?: SpecNode | null;
+  title?: string;
   resultData?: Record<string, unknown> | null;
   logs?: string[];
   narrative?: string[];
@@ -58,12 +65,136 @@ export interface ExplainableShellProps extends BaseComponentProps {
   tabs?: ShellTab[];
   defaultTab?: ShellTab;
   hideConsole?: boolean;
+  /** Customize the labels on collapsible panel pills */
+  panelLabels?: PanelLabels;
+  /** Which panels start expanded. Default: `{ details: true }` */
+  defaultExpanded?: DefaultExpanded;
   renderFlowchart?: (props: {
     spec: SpecNode;
     snapshots: StageSnapshot[];
     selectedIndex: number;
     onNodeClick?: (indexOrId: number | string) => void;
   }) => React.ReactNode;
+}
+
+// ---------------------------------------------------------------------------
+// Line + Pill — collapsed state is just a line with a pill centered on it
+// ---------------------------------------------------------------------------
+
+/** Horizontal line with centered pill (for top/bottom edges) */
+function HLinePill({
+  label,
+  detail,
+  expanded,
+  onClick,
+}: {
+  label: string;
+  detail?: string;
+  expanded: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 0,
+      padding: "0",
+    }}>
+      {/* Left line */}
+      <div style={{ flex: 1, height: 1, background: theme.border }} />
+      {/* Pill */}
+      <button
+        onClick={onClick}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          padding: "3px 12px",
+          margin: "4px 0",
+          fontSize: 10,
+          fontWeight: 600,
+          fontFamily: "inherit",
+          color: theme.textMuted,
+          background: theme.bgSecondary,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 10,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          transition: "color 0.15s ease",
+        }}
+      >
+        <span style={{ fontSize: 7 }}>{expanded ? "▼" : "▶"}</span>
+        {label}
+        {detail && <span style={{ fontWeight: 400, opacity: 0.5, fontSize: 9 }}>{detail}</span>}
+      </button>
+      {/* Right line */}
+      <div style={{ flex: 1, height: 1, background: theme.border }} />
+    </div>
+  );
+}
+
+/** Vertical line with centered pill (for left/right edges).
+ *  `side` controls arrow direction:
+ *  - "right": expanded=▶ collapsed=◀ (panel is on right, collapses right)
+ *  - "left":  expanded=◀ collapsed=▶ (panel is on left, collapses left)
+ */
+function VLinePill({
+  label,
+  expanded,
+  side = "right",
+  onClick,
+}: {
+  label: string;
+  expanded: boolean;
+  side?: "left" | "right";
+  onClick: () => void;
+}) {
+  const arrow = side === "right"
+    ? (expanded ? "▶" : "◀")
+    : (expanded ? "◀" : "▶");
+  return (
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 0,
+      padding: "0",
+    }}>
+      {/* Top line */}
+      <div style={{ flex: 1, width: 1, background: theme.border }} />
+      {/* Pill */}
+      <button
+        onClick={onClick}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "10px 4px",
+          margin: "0 3px",
+          fontSize: 10,
+          fontWeight: 600,
+          fontFamily: "inherit",
+          color: theme.textMuted,
+          background: theme.bgSecondary,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 10,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          writingMode: "vertical-lr",
+          transition: "color 0.15s ease",
+        }}
+      >
+        <span style={{ fontSize: 7, writingMode: "horizontal-tb" }}>{arrow}</span>
+        {label}
+      </button>
+      {/* Bottom line */}
+      <div style={{ flex: 1, width: 1, background: theme.border }} />
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -75,19 +206,16 @@ function resolveSubflowLevel(
   parentSnapshots: StageSnapshot[],
   subflowNodeName: string,
   narrativeEntries?: NarrativeEntry[],
-): DrillDownEntry | null {
+): SubflowLevel | null {
   const specNode = findSubflowSpecNode(parentSpec, subflowNodeName);
   if (!specNode?.subflowStructure) return null;
   const parentSnap = parentSnapshots.find(
     (s) => s.stageName === subflowNodeName || s.stageLabel === subflowNodeName
   );
   if (!parentSnap?.subflowResult) return null;
-
-  // Extract subflow-scoped narrative entries (between Entering/Exiting markers)
   const sfNarrative = narrativeEntries
     ? extractSubflowNarrative(narrativeEntries, subflowNodeName)
     : undefined;
-
   const sfSnapshots = subflowResultToSnapshots(parentSnap.subflowResult, sfNarrative);
   if (sfSnapshots.length === 0) return null;
   return {
@@ -98,36 +226,20 @@ function resolveSubflowLevel(
   };
 }
 
-/** Extract narrative entries between "Entering X subflow" and "Exiting X subflow" markers. */
-function extractSubflowNarrative(
-  entries: NarrativeEntry[],
-  subflowName: string,
-): NarrativeEntry[] {
+function extractSubflowNarrative(entries: NarrativeEntry[], subflowName: string): NarrativeEntry[] {
   const result: NarrativeEntry[] = [];
   let inside = false;
   for (const entry of entries) {
-    if (entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Entering")) {
-      inside = true;
-      continue;
-    }
-    if (inside && entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Exiting")) {
-      break;
-    }
-    if (inside) {
-      result.push(entry);
-    }
+    if (entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Entering")) { inside = true; continue; }
+    if (inside && entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Exiting")) break;
+    if (inside) result.push(entry);
   }
   return result;
 }
 
 function findSubflowSpecNode(node: SpecNode, name: string): SpecNode | null {
   if ((node.name === name || node.id === name) && node.isSubflowRoot) return node;
-  if (node.children) {
-    for (const child of node.children) {
-      const found = findSubflowSpecNode(child, name);
-      if (found) return found;
-    }
-  }
+  if (node.children) { for (const child of node.children) { const f = findSubflowSpecNode(child, name); if (f) return f; } }
   if (node.next) return findSubflowSpecNode(node.next, name);
   return null;
 }
@@ -146,30 +258,66 @@ function hasSubflowNodes(node: SpecNode): boolean {
 export function ExplainableShell({
   snapshots,
   spec,
+  title,
   resultData,
   logs = [],
   narrative,
   narrativeEntries,
-  tabs = ["result", "explainable", "ai-compatible"],
+  tabs = ["result", "explainable"],
   defaultTab,
   hideConsole = false,
+  panelLabels,
+  defaultExpanded,
   renderFlowchart,
   size = "default",
   unstyled = false,
   className,
   style,
 }: ExplainableShellProps) {
-  // ── State ──
+  const leftLabel = panelLabels?.topology ?? "Topology";
+  const rightLabel = panelLabels?.details ?? "Details";
+  const bottomLabel = panelLabels?.timeline ?? "Timeline";
+
+  // Responsive: detect narrow container
+  const shellRef = useRef<HTMLDivElement>(null);
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setIsNarrow(entry.contentRect.width < 640);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   const [activeTab, setActiveTab] = useState<ShellTab>(defaultTab ?? tabs[0]);
   const [snapshotIdx, setSnapshotIdx] = useState(0);
   const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
   const [rightPanel, setRightPanel] = useState<RightPanel>("memory");
+  const [rightExpanded, setRightExpanded] = useState(defaultExpanded?.details ?? true);
+  const [leftExpanded, setLeftExpanded] = useState(defaultExpanded?.topology ?? false);
+  const [timelineExpanded, setTimelineExpanded] = useState(defaultExpanded?.timeline ?? false);
 
-  const fs = fontSize[size];
-  const pad = padding[size];
+  // Auto-collapse all panels when switching to narrow (mobile)
+  useEffect(() => {
+    if (isNarrow) {
+      setLeftExpanded(false);
+      setRightExpanded(false);
+      setTimelineExpanded(false);
+    }
+  }, [isNarrow]);
+
+  // Notify ReactFlow (and any ResizeObserver-based children) when panels toggle
+  const triggerReflow = useCallback(() => {
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  }, []);
+  const toggleLeft = useCallback((v: boolean) => { setLeftExpanded(v); triggerReflow(); }, [triggerReflow]);
+  const toggleRight = useCallback((v: boolean) => { setRightExpanded(v); triggerReflow(); }, [triggerReflow]);
+  const toggleTimeline = useCallback(() => { setTimelineExpanded((p) => !p); triggerReflow(); }, [triggerReflow]);
+
   const isInSubflow = drillDownStack.length > 0;
 
-  // ── Level resolution ──
   const currentLevel = useMemo(() => {
     if (drillDownStack.length > 0) {
       const top = drillDownStack[drillDownStack.length - 1];
@@ -180,12 +328,10 @@ export function ExplainableShell({
 
   const activeSnapshots = currentLevel.snapshots;
   const activeSpec = currentLevel.spec;
-
   const safeIdx = activeSnapshots.length > 0
     ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1))
     : 0;
 
-  // ── Level-aware narrative ──
   const activeNarrative = useMemo<string[] | undefined>(() => {
     if (!isInSubflow) return narrative;
     const lines: string[] = [];
@@ -198,16 +344,13 @@ export function ExplainableShell({
 
   const activeNarrativeEntries = isInSubflow ? undefined : narrativeEntries;
 
-  // ── Breadcrumbs ──
   const breadcrumbs = useMemo(() => {
-    const root = { label: spec?.name || "Flowchart", spec: spec!, description: spec?.description };
+    const root = { label: title || "Flowchart", spec: spec!, description: spec?.description };
     return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: undefined as string | undefined }))];
-  }, [spec, drillDownStack]);
+  }, [spec, title, drillDownStack]);
 
-  // ── Has subflows? ──
   const showTreeSidebar = useMemo(() => !!spec && hasSubflowNodes(spec), [spec]);
 
-  // ── Root overlay for SubflowTree ──
   const rootOverlay = useMemo(() => {
     if (isInSubflow || !snapshots.length) return { activeStage: undefined, doneStages: undefined };
     const doneStages = new Set(snapshots.slice(0, safeIdx).map((s) => s.stageLabel));
@@ -231,16 +374,19 @@ export function ExplainableShell({
       if (!activeSpec) return;
       const entry = resolveSubflowLevel(activeSpec, activeSnapshots, nodeName, narrativeEntries);
       if (entry) {
-        setDrillDownStack((prev) => [...prev, entry]);
+        setDrillDownStack((prev) => [...prev, { ...entry, parentSnapshotIdx: snapshotIdx }]);
         setSnapshotIdx(0);
       }
     },
-    [activeSpec, activeSnapshots, narrativeEntries]
+    [activeSpec, activeSnapshots, narrativeEntries, snapshotIdx]
   );
 
   const handleBreadcrumbNavigate = useCallback((level: number) => {
-    setDrillDownStack((prev) => level === 0 ? [] : prev.slice(0, level));
-    setSnapshotIdx(999);
+    setDrillDownStack((prev) => {
+      const popped = level === 0 ? prev[0] : prev[level];
+      if (popped) setSnapshotIdx(popped.parentSnapshotIdx);
+      return level === 0 ? [] : prev.slice(0, level);
+    });
   }, []);
 
   const handleNodeClick = useCallback(
@@ -261,17 +407,16 @@ export function ExplainableShell({
       if (isSubflow && spec) {
         setDrillDownStack([]);
         const entry = resolveSubflowLevel(spec, snapshots, name, narrativeEntries);
-        if (entry) { setDrillDownStack([entry]); setSnapshotIdx(0); }
+        if (entry) { setDrillDownStack([{ ...entry, parentSnapshotIdx: snapshotIdx }]); setSnapshotIdx(0); }
       } else {
         setDrillDownStack([]);
         const idx = snapshots.findIndex((s) => s.stageLabel === name);
         if (idx >= 0) setSnapshotIdx(idx);
       }
     },
-    [spec, snapshots, narrativeEntries]
+    [spec, snapshots, narrativeEntries, snapshotIdx]
   );
 
-  // ── Tab labels ──
   const tabLabels: Record<ShellTab, string> = {
     result: "Result",
     explainable: "Explainable",
@@ -289,26 +434,18 @@ export function ExplainableShell({
       <div className={className} style={style} data-fp="explainable-shell">
         <div data-fp="shell-tabs">
           {tabs.map((tab) => (
-            <button key={tab} data-fp="shell-tab" data-active={tab === activeTab} onClick={() => handleTabChange(tab)}>
-              {tabLabels[tab]}
-            </button>
+            <button key={tab} data-fp="shell-tab" data-active={tab === activeTab} onClick={() => handleTabChange(tab)}>{tabLabels[tab]}</button>
           ))}
         </div>
         <div data-fp="shell-content" data-tab={activeTab}>
-          {activeTab === "result" && (
-            <ResultPanel data={resultData ?? null} logs={logs} hideConsole={hideConsole} unstyled />
-          )}
+          {activeTab === "result" && <ResultPanel data={resultData ?? null} logs={logs} hideConsole={hideConsole} unstyled />}
           {(activeTab === "explainable" || activeTab === "ai-compatible") && (
             <>
               <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled />
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
               {activeSpec && renderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick })}
-              {activeTab === "explainable" && (
-                <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
-              )}
-              {activeTab === "ai-compatible" && (
-                <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} unstyled />
-              )}
+              <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
+              <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} unstyled />
               <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
             </>
           )}
@@ -318,11 +455,11 @@ export function ExplainableShell({
   }
 
   // ── Styled mode ──
-  // Result tab is separate, explainable/ai-compatible share the same layout
   const isVisualizationTab = activeTab === "explainable" || activeTab === "ai-compatible";
 
   return (
     <div
+      ref={shellRef}
       className={className}
       style={{
         height: "100%",
@@ -332,48 +469,48 @@ export function ExplainableShell({
         background: theme.bgPrimary,
         color: theme.textPrimary,
         fontFamily: theme.fontSans,
+        fontSize: 12,
         ...style,
       }}
       data-fp="explainable-shell"
     >
-      {/* Tab bar */}
-      <div
-        style={{
+      {/* Tab bar — only if multiple tabs */}
+      {tabs.length > 1 && (
+        <div style={{
           display: "flex",
-          gap: 0,
           borderBottom: `1px solid ${theme.border}`,
           background: theme.bgSecondary,
           flexShrink: 0,
-        }}
-      >
-        {tabs.map((tab) => {
-          const active = tab === activeTab;
-          return (
-            <button
-              key={tab}
-              onClick={() => handleTabChange(tab)}
-              style={{
-                padding: `${pad - 4}px ${pad}px`,
-                fontSize: fs.label,
-                fontWeight: active ? 700 : 500,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: active ? theme.primary : theme.textMuted,
-                background: "transparent",
-                border: "none",
-                borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
-                cursor: "pointer",
-                transition: "all 0.15s ease",
-              }}
-            >
-              {tabLabels[tab]}
-            </button>
-          );
-        })}
-      </div>
+        }}>
+          {tabs.map((tab) => {
+            const active = tab === activeTab;
+            return (
+              <button
+                key={tab}
+                onClick={() => handleTabChange(tab)}
+                style={{
+                  padding: "6px 14px",
+                  fontSize: 11,
+                  fontWeight: active ? 700 : 500,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  color: active ? theme.primary : theme.textMuted,
+                  background: "transparent",
+                  border: "none",
+                  borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {tabLabels[tab]}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Tab content */}
-      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+      {/* Content */}
+      <div style={{ flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }}>
         {activeTab === "result" && (
           <ResultPanel data={resultData ?? null} logs={logs} hideConsole={hideConsole} size={size} />
         )}
@@ -388,115 +525,165 @@ export function ExplainableShell({
               size={size}
             />
 
-            {/* Breadcrumb (when drilled into subflow) */}
+            {/* Breadcrumb */}
             {isInSubflow && (
               <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />
             )}
 
-            {/* Main content area: Tree | Flowchart | Right panel */}
-            <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-              {/* SubflowTree sidebar */}
-              {showTreeSidebar && (
-                <SubflowTree
-                  spec={spec!}
-                  activeStage={rootOverlay.activeStage}
-                  doneStages={rootOverlay.doneStages}
-                  onNodeSelect={handleTreeNodeSelect}
-                  style={{ width: 200, flexShrink: 0, height: "100%" }}
-                />
-              )}
-
-              {/* Flowchart (always visible) */}
-              {renderFlowchart && activeSpec && (
-                <div style={{ flex: 1, overflow: "hidden", borderRight: `1px solid ${theme.border}` }}>
-                  {renderFlowchart({
+            {/* ─── Main content ─── */}
+            {isNarrow ? (
+              /* ── Mobile: stacked vertical ── */
+              <>
+                {/* Flowchart — fills available space */}
+                <div style={{ height: 350, flexShrink: 0, overflow: "hidden" }}>
+                  {renderFlowchart && activeSpec && renderFlowchart({
                     spec: activeSpec,
                     snapshots: activeSnapshots,
                     selectedIndex: safeIdx,
                     onNodeClick: handleNodeClick,
                   })}
                 </div>
-              )}
 
-              {/* Right panel: swappable */}
-              <div
-                style={{
-                  width: renderFlowchart ? "35%" : "100%",
-                  minWidth: 280,
-                  display: "flex",
-                  flexDirection: "column",
-                  overflow: "hidden",
-                }}
-              >
-                {/* Panel switcher */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 0,
-                    borderBottom: `1px solid ${theme.border}`,
-                    flexShrink: 0,
-                  }}
-                >
-                  {(["memory", "narrative"] as RightPanel[]).map((panel) => {
-                    const active = rightPanel === panel;
-                    return (
-                      <button
-                        key={panel}
-                        onClick={() => setRightPanel(panel)}
-                        style={{
-                          flex: 1,
-                          padding: `${pad - 6}px ${pad - 4}px`,
-                          fontSize: fs.small,
-                          fontWeight: active ? 600 : 400,
-                          color: active ? theme.primary : theme.textMuted,
-                          background: active
-                            ? `color-mix(in srgb, ${theme.primary} 8%, transparent)`
-                            : "transparent",
-                          border: "none",
-                          borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
-                          cursor: "pointer",
-                          transition: "all 0.15s ease",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                        }}
-                      >
-                        {rightPanelLabels[panel]}
-                      </button>
-                    );
-                  })}
+                {/* Topology (subflow tree) — collapsible below flowchart */}
+                {showTreeSidebar && (
+                  <>
+                    <HLinePill label={leftLabel} expanded={leftExpanded} onClick={() => toggleLeft(!leftExpanded)} />
+                    {leftExpanded && (
+                      <div style={{ maxHeight: 180, overflow: "auto", flexShrink: 0 }}>
+                        <SubflowTree
+                          spec={spec!}
+                          activeStage={rootOverlay.activeStage}
+                          doneStages={rootOverlay.doneStages}
+                          onNodeSelect={handleTreeNodeSelect}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Details (memory/narrative) — collapsible */}
+                <HLinePill label={rightLabel} expanded={rightExpanded} onClick={() => toggleRight(!rightExpanded)} />
+                {rightExpanded && (
+                  <div style={{ maxHeight: 250, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                    {/* Tab switcher */}
+                    <div style={{ display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
+                      {(["memory", "narrative"] as RightPanel[]).map((panel) => {
+                        const active = rightPanel === panel;
+                        return (
+                          <button
+                            key={panel}
+                            onClick={() => setRightPanel(panel)}
+                            style={{
+                              flex: 1, padding: "6px 8px", fontSize: 11,
+                              fontWeight: active ? 600 : 400,
+                              color: active ? theme.primary : theme.textMuted,
+                              background: active ? `color-mix(in srgb, ${theme.primary} 8%, transparent)` : "transparent",
+                              border: "none",
+                              borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
+                              cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit",
+                            }}
+                          >
+                            {rightPanelLabels[panel]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div style={{ flex: 1, overflow: "auto" }}>
+                      {rightPanel === "memory" && <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} size={size} />}
+                      {rightPanel === "narrative" && <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} />}
+                    </div>
+                  </div>
+                )}
+
+                {/* Timeline */}
+                <HLinePill label={bottomLabel} detail={`${activeSnapshots.length} stages`} expanded={timelineExpanded} onClick={toggleTimeline} />
+                {timelineExpanded && (
+                  <div style={{ flexShrink: 0, overflow: "hidden" }}>
+                    <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />
+                  </div>
+                )}
+              </>
+            ) : (
+              /* ── Desktop: side-by-side ── */
+              <>
+                <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+
+                  {/* Left: SubflowTree with VLinePill handle */}
+                  {showTreeSidebar && (
+                    leftExpanded ? (
+                      <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
+                        <div style={{ flex: 1, overflow: "auto" }}>
+                          <SubflowTree
+                            spec={spec!}
+                            activeStage={rootOverlay.activeStage}
+                            doneStages={rootOverlay.doneStages}
+                            onNodeSelect={handleTreeNodeSelect}
+                          />
+                        </div>
+                        <VLinePill label={leftLabel} expanded={true} side="left" onClick={() => toggleLeft(false)} />
+                      </div>
+                    ) : (
+                      <VLinePill label={leftLabel} expanded={false} side="left" onClick={() => toggleLeft(true)} />
+                    )
+                  )}
+
+                  {/* Center: Flowchart */}
+                  <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                    {renderFlowchart && activeSpec && renderFlowchart({
+                      spec: activeSpec,
+                      snapshots: activeSnapshots,
+                      selectedIndex: safeIdx,
+                      onNodeClick: handleNodeClick,
+                    })}
+                  </div>
+
+                  {/* Right: VLinePill handle + Memory/Narrative */}
+                  {rightExpanded ? (
+                    <div style={{ width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }}>
+                      <VLinePill label={rightLabel} expanded={true} onClick={() => toggleRight(false)} />
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                        <div style={{ display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
+                          {(["memory", "narrative"] as RightPanel[]).map((panel) => {
+                            const active = rightPanel === panel;
+                            return (
+                              <button
+                                key={panel}
+                                onClick={() => setRightPanel(panel)}
+                                style={{
+                                  flex: 1, padding: "6px 8px", fontSize: 11,
+                                  fontWeight: active ? 600 : 400,
+                                  color: active ? theme.primary : theme.textMuted,
+                                  background: active ? `color-mix(in srgb, ${theme.primary} 8%, transparent)` : "transparent",
+                                  border: "none",
+                                  borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
+                                  cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit",
+                                }}
+                              >
+                                {rightPanelLabels[panel]}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div style={{ flex: 1, overflow: "auto" }}>
+                          {rightPanel === "memory" && <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} size={size} style={{ height: "100%" }} />}
+                          {rightPanel === "narrative" && <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} style={{ height: "100%" }} />}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <VLinePill label={rightLabel} expanded={false} onClick={() => toggleRight(true)} />
+                  )}
                 </div>
 
-                {/* Panel content */}
-                {rightPanel === "memory" && (
-                  <MemoryPanel
-                    snapshots={activeSnapshots}
-                    selectedIndex={safeIdx}
-                    size={size}
-                    style={{ flex: 1 }}
-                  />
+                {/* Bottom: Timeline */}
+                <HLinePill label={bottomLabel} detail={`${activeSnapshots.length} stages`} expanded={timelineExpanded} onClick={toggleTimeline} />
+                {timelineExpanded && (
+                  <div style={{ flexShrink: 0, overflow: "hidden" }}>
+                    <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />
+                  </div>
                 )}
-                {rightPanel === "narrative" && (
-                  <NarrativePanel
-                    snapshots={activeSnapshots}
-                    selectedIndex={safeIdx}
-                    narrativeEntries={activeNarrativeEntries}
-                    narrative={activeNarrative}
-                    size={size}
-                    style={{ flex: 1 }}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Gantt timeline (always visible) */}
-            <div style={{ borderTop: `1px solid ${theme.border}`, flexShrink: 0 }}>
-              <GanttTimeline
-                snapshots={activeSnapshots}
-                selectedIndex={safeIdx}
-                onSelect={handleSnapshotChange}
-                size={size}
-              />
-            </div>
+              </>
+            )}
           </>
         )}
       </div>
