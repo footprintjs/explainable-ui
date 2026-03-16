@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-03-16
+
+### Added
+- **Collapsible panel UX (line + pill pattern)** — `HLinePill` (horizontal) and `VLinePill` (vertical) components. Collapsed = thin line with centered pill button. Expanded = full panel with pill handle on closing edge.
+- **`panelLabels` prop** — semantic keys `{ topology?, details?, timeline? }` to customize pill labels. Defaults: "Topology" / "Details" / "Timeline". Consumers can override (e.g. "What Ran" / "What Happened" / "How Long").
+- **`defaultExpanded` prop** — `{ topology?, details?, timeline? }` controls which panels start open. Default: `{ details: true }` (flowchart + memory — the library's unique value).
+- **`title` prop** — sets breadcrumb root label (default: "Flowchart").
+- **`PanelLabels` and `DefaultExpanded` types exported** from package index.
+- **`FitViewOnResize`** — ReactFlow auto-calls `fitView()` when container resizes (panel expand/collapse).
+- **Mobile responsive layout** — `ResizeObserver` detects `<640px`, switches to stacked vertical layout with all panels auto-collapsed. Flowchart gets fixed 350px height, content scrolls.
+
+### Changed
+- **3-panel desktop layout** — SubflowTree (left, VLinePill handle) | Flowchart (center) | Memory/Narrative (right, VLinePill handle). Both side panels independently collapsible.
+- **`DrillDownEntry.parentSnapshotIdx`** — restores slider position when navigating back via breadcrumb.
+- **Tab bar hidden** when only 1 tab. AI-Compatible removed from default tabs.
+- **VLinePill `side` prop** — `"left"` or `"right"` for correct arrow direction per panel edge.
+
 ## [0.7.0] - 2026-03-16
 
 ### Changed
