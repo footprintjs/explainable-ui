@@ -106,7 +106,7 @@ const Y_STEP = 100;
 const X_SPREAD = 200;
 
 function nid(n: SpecNode): string {
-  return n.id || n.name || `spec-${Math.random()}`;
+  return n.name || n.id || `spec-${Math.random()}`;
 }
 
 interface WalkState {
