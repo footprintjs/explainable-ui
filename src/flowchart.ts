@@ -10,11 +10,14 @@ export type { StageNodeData } from "./components/StageNode";
 export { TimeTravelDebugger } from "./components/TimeTravelDebugger";
 export type { TimeTravelDebuggerProps } from "./components/TimeTravelDebugger";
 
-export { specToReactFlow } from "./components/FlowchartView/specToReactFlow";
+export { specToReactFlow, specToLayout, applyOverlay } from "./components/FlowchartView/specToReactFlow";
 export type {
   SpecNode,
   ExecutionOverlay,
   FlowchartColors,
+  SpecLayout,
+  LayoutNode,
+  LayoutEdge,
 } from "./components/FlowchartView/specToReactFlow";
 
 // Self-contained traced flowchart (spec + snapshots → full visualization)

@@ -127,16 +127,11 @@ export function NarrativeTrace({
               ))}
           </div>
         ))}
-        {futureGroups.map((group) => (
-          <div key={`f-${group.headerIdx}`} data-fp="narrative-group" data-future>
-            <div data-fp="narrative-header">{group.header}</div>
-            {group.steps.map((step) => (
-              <div key={`f-${step.idx}`} data-fp="narrative-step">
-                {step.text}
-              </div>
-            ))}
+        {futureGroups.length > 0 && (
+          <div data-fp="narrative-future-hint">
+            {futureGroups.length} more {futureGroups.length === 1 ? "stage" : "stages"} ahead...
           </div>
-        ))}
+        )}
       </div>
     );
   }
@@ -243,39 +238,16 @@ export function NarrativeTrace({
         );
       })}
 
-      {/* Dimmed future groups */}
+      {/* Future groups — show count hint only, skip full rendering for performance */}
       {futureGroups.length > 0 && (
-        <div style={{ opacity: 0.2 }}>
-          {futureGroups.map((group) => (
-            <div key={`f-${group.headerIdx}`} style={{ marginBottom: 2 }}>
-              <div
-                style={{
-                  fontSize: fs.body,
-                  lineHeight: 1.7,
-                  color: theme.textMuted,
-                  padding: `4px ${pad - 4}px`,
-                  borderLeft: `3px solid ${theme.border}`,
-                  fontWeight: 600,
-                  paddingLeft: pad + 12,
-                }}
-              >
-                {group.header}
-              </div>
-              {group.steps.map((step) => (
-                <div
-                  key={`f-${step.idx}`}
-                  style={{
-                    fontSize: fs.small,
-                    lineHeight: 1.6,
-                    color: theme.textMuted,
-                    padding: `2px ${pad - 4}px 2px ${pad + 20}px`,
-                  }}
-                >
-                  {step.text}
-                </div>
-              ))}
-            </div>
-          ))}
+        <div style={{
+          opacity: 0.3,
+          fontSize: fs.small,
+          color: theme.textMuted,
+          padding: `8px ${pad}px`,
+          fontStyle: "italic",
+        }}>
+          {futureGroups.length} more {futureGroups.length === 1 ? "stage" : "stages"} ahead...
         </div>
       )}
     </div>

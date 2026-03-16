@@ -203,7 +203,7 @@ const TreeNode = memo(function TreeNode({
         <div>
           {entry.children!.map((child, i) => (
             <TreeNode
-              key={`${child.name}-${i}`}
+              key={child.subflowId ?? `${child.name}-${i}`}
               entry={child}
               depth={depth + 1}
               activeStage={activeStage}
@@ -282,7 +282,7 @@ export const SubflowTree = memo(function SubflowTree({
       {!unstyled && <SectionLabel>Subflows</SectionLabel>}
       {subflowStages.map((entry, i) => (
         <TreeNode
-          key={`${entry.name}-${i}`}
+          key={entry.subflowId ?? `${entry.name}-${i}`}
           entry={entry}
           depth={0}
           activeStage={activeStage}

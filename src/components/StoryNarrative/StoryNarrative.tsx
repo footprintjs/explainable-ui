@@ -146,30 +146,16 @@ export function StoryNarrative({
         );
       })}
 
+      {/* Future entries — show count hint only, skip full rendering for performance */}
       {future.length > 0 && (
-        <div style={{ opacity: 0.2, marginTop: 8 }}>
-          {future.map((entry, i) => {
-            const meta = ENTRY_ICONS[entry.type] ?? ENTRY_ICONS.step;
-            const isStage = entry.type === "stage";
-            return (
-              <div
-                key={`f-${i}`}
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  padding: isStage ? `${pad - 4}px 0` : `2px 0`,
-                  marginLeft: entry.depth * 16,
-                }}
-              >
-                <span style={{ color: meta.color, width: 16, textAlign: "center", flexShrink: 0, fontSize: fs.small }}>
-                  {meta.icon}
-                </span>
-                <span style={{ fontSize: fs.small, color: theme.textMuted, lineHeight: 1.6 }}>
-                  {entry.text}
-                </span>
-              </div>
-            );
-          })}
+        <div style={{
+          opacity: 0.3,
+          fontSize: fs.small,
+          color: theme.textMuted,
+          padding: `8px 0`,
+          fontStyle: "italic",
+        }}>
+          {future.length} more {future.length === 1 ? "entry" : "entries"} ahead...
         </div>
       )}
     </div>

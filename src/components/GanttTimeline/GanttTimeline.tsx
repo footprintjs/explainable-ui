@@ -61,7 +61,7 @@ export function GanttTimeline({
       <div className={className} style={style} data-fp="gantt-timeline" role="listbox" aria-label="Execution timeline">
         {snapshots.map((snap, idx) => (
           <div
-            key={snap.stageName}
+            key={`${snap.stageName}-${idx}`}
             data-fp="gantt-bar"
             data-selected={idx === selectedIndex}
             data-visible={idx <= selectedIndex}
@@ -151,7 +151,7 @@ export function GanttTimeline({
 
           return (
             <div
-              key={snap.stageName}
+              key={`${snap.stageName}-${idx}`}
               ref={isSelected ? activeRowRef : undefined}
               role="option"
               aria-selected={isSelected}

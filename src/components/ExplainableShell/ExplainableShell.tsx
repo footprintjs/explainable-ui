@@ -5,9 +5,12 @@
  * - Collapsed = thin divider line with a pill button sitting on it
  * - Expanded = full content with a pill at the closing edge
  *
+ * Sub-components are memo'd to minimize re-renders when scrubbing the
+ * time-travel slider. Only components that depend on snapshotIdx re-render.
+ *
  * Consumer controls theme via --fp-* CSS custom properties.
  */
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme } from "../../theme";
 import { subflowResultToSnapshots } from "../../adapters/fromRuntimeSnapshot";
@@ -82,7 +85,7 @@ export interface ExplainableShellProps extends BaseComponentProps {
 // ---------------------------------------------------------------------------
 
 /** Horizontal line with centered pill (for top/bottom edges) */
-function HLinePill({
+const HLinePill = memo(function HLinePill({
   label,
   detail,
   expanded,
@@ -100,9 +103,7 @@ function HLinePill({
       gap: 0,
       padding: "0",
     }}>
-      {/* Left line */}
       <div style={{ flex: 1, height: 1, background: theme.border }} />
-      {/* Pill */}
       <button
         onClick={onClick}
         style={{
@@ -129,18 +130,17 @@ function HLinePill({
         {label}
         {detail && <span style={{ fontWeight: 400, opacity: 0.5, fontSize: 9 }}>{detail}</span>}
       </button>
-      {/* Right line */}
       <div style={{ flex: 1, height: 1, background: theme.border }} />
     </div>
   );
-}
+});
 
 /** Vertical line with centered pill (for left/right edges).
  *  `side` controls arrow direction:
  *  - "right": expanded=▶ collapsed=◀ (panel is on right, collapses right)
  *  - "left":  expanded=◀ collapsed=▶ (panel is on left, collapses left)
  */
-function VLinePill({
+const VLinePill = memo(function VLinePill({
   label,
   expanded,
   side = "right",
@@ -162,9 +162,7 @@ function VLinePill({
       gap: 0,
       padding: "0",
     }}>
-      {/* Top line */}
       <div style={{ flex: 1, width: 1, background: theme.border }} />
-      {/* Pill */}
       <button
         onClick={onClick}
         style={{
@@ -191,11 +189,73 @@ function VLinePill({
         <span style={{ fontSize: 7, writingMode: "horizontal-tb" }}>{arrow}</span>
         {label}
       </button>
-      {/* Bottom line */}
       <div style={{ flex: 1, width: 1, background: theme.border }} />
     </div>
   );
-}
+});
+
+// ---------------------------------------------------------------------------
+// DetailsContent — Memory/Narrative tab switcher + content (shared by mobile & desktop)
+// ---------------------------------------------------------------------------
+
+const RIGHT_PANEL_LABELS: Record<RightPanel, string> = {
+  memory: "Memory",
+  narrative: "Narrative",
+};
+
+const DetailsContent = memo(function DetailsContent({
+  snapshots,
+  selectedIndex,
+  narrativeEntries,
+  narrative,
+  size,
+  fillHeight,
+}: {
+  snapshots: StageSnapshot[];
+  selectedIndex: number;
+  narrativeEntries?: NarrativeEntry[];
+  narrative?: string[];
+  size: "compact" | "default" | "detailed";
+  fillHeight?: boolean;
+}) {
+  const [rightPanel, setRightPanel] = useState<RightPanel>("memory");
+
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      {/* Tab switcher */}
+      <div style={{ display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
+        {(["memory", "narrative"] as RightPanel[]).map((panel) => {
+          const active = rightPanel === panel;
+          return (
+            <button
+              key={panel}
+              onClick={() => setRightPanel(panel)}
+              style={{
+                flex: 1, padding: "6px 8px", fontSize: 11,
+                fontWeight: active ? 600 : 400,
+                color: active ? theme.primary : theme.textMuted,
+                background: active ? `color-mix(in srgb, ${theme.primary} 8%, transparent)` : "transparent",
+                border: "none",
+                borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
+                cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit",
+              }}
+            >
+              {RIGHT_PANEL_LABELS[panel]}
+            </button>
+          );
+        })}
+      </div>
+      <div style={{ flex: 1, overflow: "auto" }}>
+        {rightPanel === "memory" && (
+          <MemoryPanel snapshots={snapshots} selectedIndex={selectedIndex} size={size} style={fillHeight ? { height: "100%" } : undefined} />
+        )}
+        {rightPanel === "narrative" && (
+          <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={narrativeEntries} narrative={narrative} size={size} style={fillHeight ? { height: "100%" } : undefined} />
+        )}
+      </div>
+    </div>
+  );
+});
 
 // ---------------------------------------------------------------------------
 // Subflow resolution helpers
@@ -294,7 +354,6 @@ export function ExplainableShell({
   const [activeTab, setActiveTab] = useState<ShellTab>(defaultTab ?? tabs[0]);
   const [snapshotIdx, setSnapshotIdx] = useState(0);
   const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
-  const [rightPanel, setRightPanel] = useState<RightPanel>("memory");
   const [rightExpanded, setRightExpanded] = useState(defaultExpanded?.details ?? true);
   const [leftExpanded, setLeftExpanded] = useState(defaultExpanded?.topology ?? false);
   const [timelineExpanded, setTimelineExpanded] = useState(defaultExpanded?.timeline ?? false);
@@ -423,11 +482,6 @@ export function ExplainableShell({
     "ai-compatible": "AI-Compatible",
   };
 
-  const rightPanelLabels: Record<RightPanel, string> = {
-    memory: "Memory",
-    narrative: "Narrative",
-  };
-
   // ── Unstyled mode ──
   if (unstyled) {
     return (
@@ -534,7 +588,7 @@ export function ExplainableShell({
             {isNarrow ? (
               /* ── Mobile: stacked vertical ── */
               <>
-                {/* Flowchart — fills available space */}
+                {/* Flowchart — fixed height */}
                 <div style={{ height: 350, flexShrink: 0, overflow: "hidden" }}>
                   {renderFlowchart && activeSpec && renderFlowchart({
                     spec: activeSpec,
@@ -544,7 +598,7 @@ export function ExplainableShell({
                   })}
                 </div>
 
-                {/* Topology (subflow tree) — collapsible below flowchart */}
+                {/* Topology (subflow tree) — collapsible */}
                 {showTreeSidebar && (
                   <>
                     <HLinePill label={leftLabel} expanded={leftExpanded} onClick={() => toggleLeft(!leftExpanded)} />
@@ -565,33 +619,13 @@ export function ExplainableShell({
                 <HLinePill label={rightLabel} expanded={rightExpanded} onClick={() => toggleRight(!rightExpanded)} />
                 {rightExpanded && (
                   <div style={{ maxHeight: 250, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                    {/* Tab switcher */}
-                    <div style={{ display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-                      {(["memory", "narrative"] as RightPanel[]).map((panel) => {
-                        const active = rightPanel === panel;
-                        return (
-                          <button
-                            key={panel}
-                            onClick={() => setRightPanel(panel)}
-                            style={{
-                              flex: 1, padding: "6px 8px", fontSize: 11,
-                              fontWeight: active ? 600 : 400,
-                              color: active ? theme.primary : theme.textMuted,
-                              background: active ? `color-mix(in srgb, ${theme.primary} 8%, transparent)` : "transparent",
-                              border: "none",
-                              borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
-                              cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit",
-                            }}
-                          >
-                            {rightPanelLabels[panel]}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <div style={{ flex: 1, overflow: "auto" }}>
-                      {rightPanel === "memory" && <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} size={size} />}
-                      {rightPanel === "narrative" && <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} />}
-                    </div>
+                    <DetailsContent
+                      snapshots={activeSnapshots}
+                      selectedIndex={safeIdx}
+                      narrativeEntries={activeNarrativeEntries}
+                      narrative={activeNarrative}
+                      size={size}
+                    />
                   </div>
                 )}
 
@@ -641,34 +675,14 @@ export function ExplainableShell({
                   {rightExpanded ? (
                     <div style={{ width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }}>
                       <VLinePill label={rightLabel} expanded={true} onClick={() => toggleRight(false)} />
-                      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                        <div style={{ display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-                          {(["memory", "narrative"] as RightPanel[]).map((panel) => {
-                            const active = rightPanel === panel;
-                            return (
-                              <button
-                                key={panel}
-                                onClick={() => setRightPanel(panel)}
-                                style={{
-                                  flex: 1, padding: "6px 8px", fontSize: 11,
-                                  fontWeight: active ? 600 : 400,
-                                  color: active ? theme.primary : theme.textMuted,
-                                  background: active ? `color-mix(in srgb, ${theme.primary} 8%, transparent)` : "transparent",
-                                  border: "none",
-                                  borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
-                                  cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit",
-                                }}
-                              >
-                                {rightPanelLabels[panel]}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <div style={{ flex: 1, overflow: "auto" }}>
-                          {rightPanel === "memory" && <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} size={size} style={{ height: "100%" }} />}
-                          {rightPanel === "narrative" && <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} style={{ height: "100%" }} />}
-                        </div>
-                      </div>
+                      <DetailsContent
+                        snapshots={activeSnapshots}
+                        selectedIndex={safeIdx}
+                        narrativeEntries={activeNarrativeEntries}
+                        narrative={activeNarrative}
+                        size={size}
+                        fillHeight
+                      />
                     </div>
                   ) : (
                     <VLinePill label={rightLabel} expanded={false} onClick={() => toggleRight(true)} />

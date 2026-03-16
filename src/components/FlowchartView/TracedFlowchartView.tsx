@@ -19,7 +19,7 @@ import {
 import type { Node, NodeTypes } from "@xyflow/react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { StageNode } from "../StageNode";
-import { specToReactFlow } from "./specToReactFlow";
+import { specToLayout, applyOverlay } from "./specToReactFlow";
 import type { SpecNode, ExecutionOverlay } from "./specToReactFlow";
 
 export interface TracedFlowchartViewProps extends BaseComponentProps {
@@ -75,11 +75,17 @@ export function TracedFlowchartView({
     return { doneStages, activeStage, executedStages, executionOrder };
   }, [snapshots, snapshotIndex]);
 
-  // Derive nodes/edges with overlay applied
+  // Phase 1: static layout — only recomputes when spec changes
+  const layout = useMemo(() => {
+    if (!spec) return null;
+    return specToLayout(spec);
+  }, [spec]);
+
+  // Phase 2: apply overlay — cheap, runs per slider tick
   const { nodes, edges } = useMemo(() => {
-    if (!spec) return { nodes: [], edges: [] };
-    return specToReactFlow(spec, overlay);
-  }, [spec, overlay]);
+    if (!layout) return { nodes: [], edges: [] };
+    return applyOverlay(layout, overlay);
+  }, [layout, overlay]);
 
   // Handle node clicks — always send string node id.
   // The consumer (ExplainableShell) decides whether to drill into a subflow

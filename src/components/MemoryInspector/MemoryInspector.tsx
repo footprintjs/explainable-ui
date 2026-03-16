@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { theme, fontSize, padding } from "../../theme";
 
@@ -13,6 +13,13 @@ export interface MemoryInspectorProps extends BaseComponentProps {
   showTypes?: boolean;
   /** Highlight keys that are new at this step */
   highlightNew?: boolean;
+}
+
+/** Cache for incremental memory accumulation — avoids O(n) rebuild on every slider scrub. */
+interface MemoryCache {
+  snapshots: StageSnapshot[];
+  index: number;
+  accumulated: Record<string, unknown>;
 }
 
 /**
@@ -30,7 +37,9 @@ export function MemoryInspector({
   className,
   style,
 }: MemoryInspectorProps) {
-  // Compute accumulated memory from snapshots
+  // Incremental cache: accumulate forward from last known index instead of rebuilding from 0
+  const cacheRef = useRef<MemoryCache | null>(null);
+
   const { memory, newKeys } = useMemo(() => {
     if (data) {
       return { memory: data, newKeys: new Set<string>() };
@@ -39,22 +48,44 @@ export function MemoryInspector({
       return { memory: {}, newKeys: new Set<string>() };
     }
 
-    const merged: Record<string, unknown> = {};
-    for (let i = 0; i <= Math.min(selectedIndex, snapshots.length - 1); i++) {
-      Object.assign(merged, snapshots[i]?.memory);
+    const safeIdx = Math.min(selectedIndex, snapshots.length - 1);
+    let merged: Record<string, unknown>;
+    const cache = cacheRef.current;
+
+    if (cache && cache.snapshots === snapshots && cache.index <= safeIdx) {
+      // Forward scrub: extend from cached state
+      merged = { ...cache.accumulated };
+      for (let i = cache.index + 1; i <= safeIdx; i++) {
+        Object.assign(merged, snapshots[i]?.memory);
+      }
+    } else {
+      // Backward scrub or new snapshots: rebuild from scratch
+      merged = {};
+      for (let i = 0; i <= safeIdx; i++) {
+        Object.assign(merged, snapshots[i]?.memory);
+      }
     }
 
+    // Update cache
+    cacheRef.current = { snapshots, index: safeIdx, accumulated: merged };
+
     const nk = new Set<string>();
-    if (highlightNew && selectedIndex > 0) {
-      const prev: Record<string, unknown> = {};
-      for (let i = 0; i < selectedIndex; i++) {
-        Object.assign(prev, snapshots[i]?.memory);
+    if (highlightNew && safeIdx > 0) {
+      // Previous state is cache at safeIdx-1, or rebuild if needed
+      let prev: Record<string, unknown>;
+      if (cache && cache.snapshots === snapshots && cache.index === safeIdx - 1) {
+        prev = cache.accumulated;
+      } else {
+        prev = {};
+        for (let i = 0; i < safeIdx; i++) {
+          Object.assign(prev, snapshots[i]?.memory);
+        }
       }
-      const current = snapshots[selectedIndex]?.memory ?? {};
+      const current = snapshots[safeIdx]?.memory ?? {};
       for (const k of Object.keys(current)) {
         if (!(k in prev)) nk.add(k);
       }
-    } else if (highlightNew && selectedIndex === 0 && snapshots[0]) {
+    } else if (highlightNew && safeIdx === 0 && snapshots[0]) {
       for (const k of Object.keys(snapshots[0].memory)) nk.add(k);
     }
 
