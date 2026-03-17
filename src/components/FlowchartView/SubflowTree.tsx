@@ -29,10 +29,13 @@ export interface SubflowTreeProps extends BaseComponentProps {
 
 /** Extracts a flat-ish tree of entries from a SpecNode for display. */
 export function specToTree(node: SpecNode): SubflowTreeEntry[] {
+  if (!node) return [];
+
   const entries: SubflowTreeEntry[] = [];
   const seen = new Set<string>();
 
   function walk(n: SpecNode) {
+    if (!n) return;
     const id = n.name || n.id || "";
     if (seen.has(id)) return;
     seen.add(id);
@@ -54,7 +57,7 @@ export function specToTree(node: SpecNode): SubflowTreeEntry[] {
     // Walk children (fork/decider branches)
     if (n.children) {
       for (const child of n.children) {
-        walk(child);
+        if (child) walk(child);
       }
     }
 

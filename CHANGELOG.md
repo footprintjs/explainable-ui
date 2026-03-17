@@ -5,10 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.8.1] - 2026-03-17
+## [0.7.1] - 2026-03-17
 
 ### Fixed
 - **Trace overlay matching** — `stageLabel` now uses `node.id` (stable stage identifier) instead of `node.name` which may carry `[service-name]` display prefixes after multi-service run merging. Fixes flowchart nodes not highlighting during trace playback.
+- **Null guards for spec nodes** — Prevents crash when spec tree contains null/undefined nodes in children arrays or `hasSubflowNodes` traversal.
 
 ## [0.8.0] - 2026-03-16
 

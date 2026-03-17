@@ -129,6 +129,7 @@ function walkLayout(
   x: number,
   y: number,
 ): { lastIds: string[]; bottomY: number } {
+  if (!node) return { lastIds: [], bottomY: y };
   registerNode(state, node);
   const id = nid(node);
 
@@ -165,6 +166,7 @@ function walkLayout(
 
     for (let i = 0; i < node.children.length; i++) {
       const child = node.children[i];
+      if (!child) continue;
       const childX = startX + i * X_SPREAD;
       const edgeLabel = node.branchIds?.[i];
       state.edgeCounter++;

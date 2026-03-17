@@ -305,8 +305,9 @@ function findSubflowSpecNode(node: SpecNode, name: string): SpecNode | null {
 }
 
 function hasSubflowNodes(node: SpecNode): boolean {
+  if (!node) return false;
   if (node.isSubflowRoot) return true;
-  if (node.children?.some(hasSubflowNodes)) return true;
+  if (node.children?.some((c) => c && hasSubflowNodes(c))) return true;
   if (node.next && hasSubflowNodes(node.next)) return true;
   return false;
 }
