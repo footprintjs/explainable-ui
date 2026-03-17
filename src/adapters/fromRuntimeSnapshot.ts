@@ -114,7 +114,10 @@ function flattenTree(
       : 1;
 
   const startMs = accumulatedMs;
-  const stageId = node.name || node.id;
+  // Use id for matching (stable, matches spec node ids).
+  // name may carry display prefixes like "[service-name] STAGE".
+  const stageId = node.id || node.name || 'unknown';
+  const displayName = node.name || node.id || 'unknown';
 
   // Narrative comes from the library. When not available (e.g. subflow internals
   // where the root recorder only captures enter/exit markers), build a basic
@@ -124,7 +127,7 @@ function flattenTree(
   if (stageLines) {
     narrative = stageLines.join('\n');
   } else {
-    const parts: string[] = [`${stageId} executed.`];
+    const parts: string[] = [`${displayName} executed.`];
     if (node.description) parts.push(node.description);
     if (node.stageWrites) {
       const keys = Object.keys(node.stageWrites);
@@ -148,7 +151,7 @@ function flattenTree(
   const sfResult = subflowResults?.[node.subflowId ?? stageId];
 
   out.push({
-    stageName: stageId,
+    stageName: displayName,
     stageLabel: stageId,
     memory,
     narrative,
