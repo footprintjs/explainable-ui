@@ -478,6 +478,8 @@ interface NarrativeEntry {
     depth: number;
     stageName?: string;
     stepNumber?: number;
+    /** Subflow ID when this entry was generated inside a subflow. Undefined for root level. */
+    subflowId?: string;
 }
 /**
  * Converts a FootPrint RuntimeSnapshot into a flat array of StageSnapshots

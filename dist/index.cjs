@@ -3848,8 +3848,9 @@ function resolveSubflowLevel(parentSpec, parentSnapshots, subflowNodeName, narra
     (s) => s.stageName === subflowNodeName || s.stageLabel === subflowNodeName
   );
   if (!parentSnap?.subflowResult) return null;
-  const sfNarrativeName = specNode.subflowName ?? specNode.name ?? subflowNodeName;
-  const sfNarrative = narrativeEntries ? extractSubflowNarrative(narrativeEntries, sfNarrativeName) : void 0;
+  const sfId = specNode.subflowId ?? subflowNodeName;
+  const sfDisplayName = specNode.subflowName ?? specNode.name;
+  const sfNarrative = narrativeEntries ? extractSubflowNarrative(narrativeEntries, sfId, sfDisplayName) : void 0;
   const sfSnapshots = subflowResultToSnapshots(parentSnap.subflowResult, sfNarrative);
   if (sfSnapshots.length === 0) return null;
   return {
@@ -3859,15 +3860,21 @@ function resolveSubflowLevel(parentSpec, parentSnapshots, subflowNodeName, narra
     snapshots: sfSnapshots
   };
 }
-function extractSubflowNarrative(entries, subflowName) {
+function extractSubflowNarrative(entries, subflowId, subflowName) {
+  const prefix = subflowId + "/";
+  const byPrefix = entries.filter((e) => e.stageName?.startsWith(prefix));
+  if (byPrefix.length > 0) return byPrefix;
+  const byId = entries.filter((e) => e.subflowId === subflowId);
+  if (byId.length > 0) return byId;
   const result = [];
+  const searchName = subflowName ?? subflowId;
   let inside = false;
   for (const entry of entries) {
-    if (entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Entering")) {
+    if (entry.type === "subflow" && entry.text.includes(searchName) && entry.text.startsWith("Entering")) {
       inside = true;
       continue;
     }
-    if (inside && entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Exiting")) break;
+    if (inside && entry.type === "subflow" && entry.text.includes(searchName) && entry.text.startsWith("Exiting")) break;
     if (inside) result.push(entry);
   }
   return result;
