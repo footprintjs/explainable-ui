@@ -15,6 +15,8 @@ import {
   Background,
   BackgroundVariant,
   useReactFlow,
+  useNodesState,
+  useEdgesState,
 } from "@xyflow/react";
 import type { Node, NodeTypes } from "@xyflow/react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
@@ -72,6 +74,7 @@ export function TracedFlowchartView({
     const activeStage = snapshots[snapshotIndex]?.stageLabel ?? null;
     const executedStages = new Set([...doneStages]);
     if (activeStage) executedStages.add(activeStage);
+
     return { doneStages, activeStage, executedStages, executionOrder };
   }, [snapshots, snapshotIndex]);
 
@@ -82,14 +85,22 @@ export function TracedFlowchartView({
   }, [spec]);
 
   // Phase 2: apply overlay — cheap, runs per slider tick
-  const { nodes, edges } = useMemo(() => {
-    if (!layout) return { nodes: [], edges: [] };
+  const flowData = useMemo(() => {
+    if (!layout) return { nodes: [] as Node[], edges: [] as any[] };
     return applyOverlay(layout, overlay);
   }, [layout, overlay]);
 
+  // Explicit state sync — ReactFlow needs setNodes/setEdges to reliably
+  // update node data (colors, step numbers) on same-id nodes.
+  const [nodes, setNodes, onNodesChange] = useNodesState(flowData.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(flowData.edges);
+
+  useEffect(() => {
+    setNodes(flowData.nodes);
+    setEdges(flowData.edges);
+  }, [flowData, setNodes, setEdges]);
+
   // Handle node clicks — always send string node id.
-  // The consumer (ExplainableShell) decides whether to drill into a subflow
-  // or jump to a snapshot index based on the node name.
   const handleNodeClick = useCallback(
     (_: unknown, node: Node) => {
       if (!onNodeClick) return;
@@ -107,6 +118,8 @@ export function TracedFlowchartView({
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         onNodeClick={handleNodeClick}
         nodeTypes={nodeTypes}
         fitView

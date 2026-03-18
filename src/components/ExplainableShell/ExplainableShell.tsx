@@ -13,7 +13,7 @@
 import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme } from "../../theme";
-import { subflowResultToSnapshots } from "../../adapters/fromRuntimeSnapshot";
+import { toVisualizationSnapshots, subflowResultToSnapshots } from "../../adapters/fromRuntimeSnapshot";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
 import { TimeTravelControls } from "../TimeTravelControls";
@@ -21,6 +21,7 @@ import { MemoryPanel } from "../MemoryPanel";
 import { NarrativePanel } from "../NarrativePanel";
 import { SubflowTree } from "../FlowchartView/SubflowTree";
 import { SubflowBreadcrumb } from "../FlowchartView/SubflowBreadcrumb";
+import { TracedFlowchartView } from "../FlowchartView/TracedFlowchartView";
 import type { SpecNode } from "../FlowchartView/specToReactFlow";
 
 // ---------------------------------------------------------------------------
@@ -57,8 +58,31 @@ export interface DefaultExpanded {
   timeline?: boolean;
 }
 
+/**
+ * Raw runtime snapshot from FlowChartExecutor.getSnapshot().
+ * When provided, ExplainableShell converts it internally — zero boilerplate.
+ */
+export interface RuntimeSnapshotInput {
+  sharedState: Record<string, unknown>;
+  executionTree: unknown;
+  commitLog: unknown[];
+  subflowResults?: Record<string, unknown>;
+}
+
 export interface ExplainableShellProps extends BaseComponentProps {
-  snapshots: StageSnapshot[];
+  /**
+   * Pre-converted visualization snapshots. Use when you've already called
+   * toVisualizationSnapshots() yourself.
+   */
+  snapshots?: StageSnapshot[];
+  /**
+   * Raw runtime snapshot from executor.getSnapshot(). The shell converts it
+   * internally via toVisualizationSnapshots(). When provided, `snapshots`,
+   * `resultData`, and `narrative` are derived automatically.
+   *
+   * Usage: `<ExplainableShell runtimeSnapshot={executor.getSnapshot()} spec={spec} />`
+   */
+  runtimeSnapshot?: RuntimeSnapshotInput | null;
   spec?: SpecNode | null;
   title?: string;
   resultData?: Record<string, unknown> | null;
@@ -72,6 +96,10 @@ export interface ExplainableShellProps extends BaseComponentProps {
   panelLabels?: PanelLabels;
   /** Which panels start expanded. Default: `{ details: true }` */
   defaultExpanded?: DefaultExpanded;
+  /**
+   * Custom flowchart renderer. When omitted and `spec` is provided,
+   * ExplainableShell renders TracedFlowchartView by default.
+   */
   renderFlowchart?: (props: {
     spec: SpecNode;
     snapshots: StageSnapshot[];
@@ -316,13 +344,29 @@ function hasSubflowNodes(node: SpecNode): boolean {
 // Component
 // ---------------------------------------------------------------------------
 
+// Default flowchart renderer — used when renderFlowchart is not provided
+function defaultRenderFlowchart({ spec: s, snapshots: snaps, selectedIndex, onNodeClick }: {
+  spec: SpecNode; snapshots: StageSnapshot[]; selectedIndex: number;
+  onNodeClick?: (indexOrId: number | string) => void;
+}) {
+  return (
+    <TracedFlowchartView
+      spec={s}
+      snapshots={snaps}
+      snapshotIndex={selectedIndex}
+      onNodeClick={onNodeClick}
+    />
+  );
+}
+
 export function ExplainableShell({
-  snapshots,
+  snapshots: snapshotsProp,
+  runtimeSnapshot,
   spec,
   title,
-  resultData,
+  resultData: resultDataProp,
   logs = [],
-  narrative,
+  narrative: narrativeProp,
   narrativeEntries,
   tabs = ["result", "explainable"],
   defaultTab,
@@ -335,6 +379,29 @@ export function ExplainableShell({
   className,
   style,
 }: ExplainableShellProps) {
+  // Convert runtimeSnapshot → visualization snapshots (zero-boilerplate mode)
+  const derivedFromRuntime = useMemo(() => {
+    if (!runtimeSnapshot) return null;
+    try {
+      const snaps = toVisualizationSnapshots(runtimeSnapshot as any, narrativeEntries as any);
+      const narr: string[] = [];
+      for (const snap of snaps) {
+        const lines = (snap.narrative ?? "").split("\n").filter(Boolean);
+        narr.push(...lines);
+      }
+      return { snapshots: snaps, resultData: runtimeSnapshot.sharedState, narrative: narr };
+    } catch {
+      return null;
+    }
+  }, [runtimeSnapshot, narrativeEntries]);
+
+  // Use derived data when runtimeSnapshot is provided, otherwise use explicit props
+  const snapshots = snapshotsProp ?? derivedFromRuntime?.snapshots ?? [];
+  const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
+  const narrative = narrativeProp ?? derivedFromRuntime?.narrative;
+
+  // Default flowchart renderer when spec is provided
+  const effectiveRenderFlowchart = renderFlowchart ?? (spec ? defaultRenderFlowchart : undefined);
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
@@ -498,7 +565,7 @@ export function ExplainableShell({
             <>
               <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled />
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
-              {activeSpec && renderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick })}
+              {activeSpec && effectiveRenderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick })}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
               <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} unstyled />
               <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
@@ -591,7 +658,7 @@ export function ExplainableShell({
               <>
                 {/* Flowchart — fixed height */}
                 <div style={{ height: 350, flexShrink: 0, overflow: "hidden" }}>
-                  {renderFlowchart && activeSpec && renderFlowchart({
+                  {effectiveRenderFlowchart && activeSpec && effectiveRenderFlowchart({
                     spec: activeSpec,
                     snapshots: activeSnapshots,
                     selectedIndex: safeIdx,
@@ -664,7 +731,7 @@ export function ExplainableShell({
 
                   {/* Center: Flowchart */}
                   <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
-                    {renderFlowchart && activeSpec && renderFlowchart({
+                    {effectiveRenderFlowchart && activeSpec && effectiveRenderFlowchart({
                       spec: activeSpec,
                       snapshots: activeSnapshots,
                       selectedIndex: safeIdx,
