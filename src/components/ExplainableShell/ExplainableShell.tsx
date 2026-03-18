@@ -301,11 +301,11 @@ function resolveSubflowLevel(
     (s) => s.stageName === subflowNodeName || s.stageLabel === subflowNodeName
   );
   if (!parentSnap?.subflowResult) return null;
-  // Use the spec node's display name for narrative extraction — the narrative
-  // recorder uses node.name (e.g., "Auth Service"), not node.id (e.g., "auth")
-  const sfNarrativeName = specNode.subflowName ?? specNode.name ?? subflowNodeName;
+  // Extract subflow narrative: prefer subflowId (structured), fall back to display name (text scan)
+  const sfId = specNode.subflowId ?? subflowNodeName;
+  const sfDisplayName = specNode.subflowName ?? specNode.name;
   const sfNarrative = narrativeEntries
-    ? extractSubflowNarrative(narrativeEntries, sfNarrativeName)
+    ? extractSubflowNarrative(narrativeEntries, sfId, sfDisplayName)
     : undefined;
   const sfSnapshots = subflowResultToSnapshots(parentSnap.subflowResult, sfNarrative);
   if (sfSnapshots.length === 0) return null;
@@ -317,12 +317,24 @@ function resolveSubflowLevel(
   };
 }
 
-function extractSubflowNarrative(entries: NarrativeEntry[], subflowName: string): NarrativeEntry[] {
+function extractSubflowNarrative(entries: NarrativeEntry[], subflowId: string, subflowName?: string): NarrativeEntry[] {
+  // Primary: filter by stageName prefix (e.g., "auth/Validate Token" starts with "auth/")
+  // This works reliably even for parallel subflows (no shared stack corruption)
+  const prefix = subflowId + "/";
+  const byPrefix = entries.filter((e) => e.stageName?.startsWith(prefix));
+  if (byPrefix.length > 0) return byPrefix;
+
+  // Fallback: structured subflowId field (from CombinedNarrativeRecorder stack tagging)
+  const byId = entries.filter((e) => (e as any).subflowId === subflowId);
+  if (byId.length > 0) return byId;
+
+  // Last resort: scan for Entering/Exiting text markers
   const result: NarrativeEntry[] = [];
+  const searchName = subflowName ?? subflowId;
   let inside = false;
   for (const entry of entries) {
-    if (entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Entering")) { inside = true; continue; }
-    if (inside && entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Exiting")) break;
+    if (entry.type === "subflow" && entry.text.includes(searchName) && entry.text.startsWith("Entering")) { inside = true; continue; }
+    if (inside && entry.type === "subflow" && entry.text.includes(searchName) && entry.text.startsWith("Exiting")) break;
     if (inside) result.push(entry);
   }
   return result;

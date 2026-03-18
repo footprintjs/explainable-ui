@@ -40,6 +40,8 @@ export interface NarrativeEntry {
   depth: number;
   stageName?: string;
   stepNumber?: number;
+  /** Subflow ID when this entry was generated inside a subflow. Undefined for root level. */
+  subflowId?: string;
 }
 
 /**
@@ -95,6 +97,7 @@ function buildStageNarrativeMap(entries: NarrativeEntry[]): Map<string, string[]
       map.get(currentStageName)!.push(`${indent}${entry.text}`);
     }
   }
+
 
   return map;
 }
