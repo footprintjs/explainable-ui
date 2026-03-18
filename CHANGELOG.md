@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.2] - 2026-03-18
+
+### Added
+- **`isLazy` visual treatment for lazy subflow nodes** — Nodes with `isLazy: true` in the spec render with dashed borders and a cloud icon when unresolved. After execution, they appear as normal solid-bordered subflow nodes. Supports the graph-of-services pattern from footprintjs v0.15.0.
+  - `SpecNode.isLazy` — new optional field flows through `LayoutNode` → `StageNodeData`
+  - New icon cases: `lazy`, `service`, `cloud` — cloud outline SVG
+  - Dashed border applied to both rectangle and diamond node shapes
+
 ## [0.7.1] - 2026-03-17
 
 ### Fixed
