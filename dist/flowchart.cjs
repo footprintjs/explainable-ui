@@ -351,7 +351,7 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
                 position: "absolute",
                 inset: -6,
                 borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
-                transform: isDecider ? "rotate(45deg)" : void 0,
+                clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : void 0,
                 border: `2px solid ${theme.primary}`,
                 opacity: 0.4,
                 animation: "fp-pulse 2s ease-in-out infinite"
@@ -365,77 +365,95 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
                 position: "absolute",
                 inset: -6,
                 borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
-                transform: isDecider ? "rotate(45deg)" : void 0,
+                clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : void 0,
                 border: `2px solid ${theme.primary}`,
                 opacity: 0.3,
                 animation: "fp-pulse 1.5s ease-out infinite"
               }
             }
           ),
-          isDecider ? /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-            "div",
-            {
-              style: {
-                background: bg,
-                border: `2px ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
-                borderRadius: 4,
-                transform: "rotate(45deg)",
-                padding: 20,
-                boxShadow: shadow,
-                transition: "all 0.3s ease",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center"
-              },
-              children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
-                "div",
-                {
-                  style: {
-                    transform: "rotate(-45deg)",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 2,
-                    fontFamily: theme.fontSans
-                  },
-                  children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 5 }, children: [
-                      icon && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(StageIcon, { type: icon, color: textColor }),
-                      !icon && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { fontSize: 10, color: textColor }, children: "\u25C7" }),
-                      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-                        "span",
-                        {
-                          style: {
-                            fontSize: 12,
-                            fontWeight: 600,
-                            color: textColor,
-                            whiteSpace: "nowrap"
-                          },
-                          children: label
-                        }
-                      )
-                    ] }),
-                    description && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+          isDecider ? /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { position: "relative", width: 120, height: 72 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  inset: 0,
+                  background: bg,
+                  clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+                  border: "none",
+                  boxShadow: shadow,
+                  transition: "all 0.3s ease"
+                }
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  inset: -2,
+                  clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+                  background: borderColor,
+                  zIndex: -1,
+                  ...isLazyUnresolved ? {
+                    background: "transparent"
+                    // Dashed border via SVG for clip-path (CSS border doesn't work with clip-path)
+                  } : {}
+                }
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 1,
+                  fontFamily: theme.fontSans,
+                  zIndex: 1
+                },
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
+                    effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(StageIcon, { type: effectiveIcon, color: textColor }),
+                    !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { fontSize: 9, color: textColor }, children: "\u25C7" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
                       "span",
                       {
                         style: {
-                          fontSize: 9,
-                          fontWeight: 400,
+                          fontSize: 11,
+                          fontWeight: 600,
                           color: textColor,
-                          opacity: 0.7,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          maxWidth: 130
+                          whiteSpace: "nowrap"
                         },
-                        children: description
+                        children: label
                       }
                     )
-                  ]
-                }
-              )
-            }
-          ) : (
+                  ] }),
+                  description && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+                    "span",
+                    {
+                      style: {
+                        fontSize: 8,
+                        fontWeight: 400,
+                        color: textColor,
+                        opacity: 0.7,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: 100
+                      },
+                      children: description
+                    }
+                  )
+                ]
+              }
+            )
+          ] }) : (
             /* Standard rectangular node */
             /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
               "div",
