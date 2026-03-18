@@ -19,6 +19,11 @@
     },
     "./styles.css": "./dist/styles.css"
   },
+  "typesVersions": {
+    "*": {
+      "flowchart": ["./dist/flowchart.d.ts"]
+    }
+  },
   "files": [
     "dist"
   ],

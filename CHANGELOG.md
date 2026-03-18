@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.3] - 2026-03-18
+
+### Fixed
+- **TypeScript subpath resolution** — Added `typesVersions` field to package.json so `import ... from 'footprint-explainable-ui/flowchart'` resolves correctly in all TypeScript `moduleResolution` modes (bundler, node16, etc.).
+
 ## [0.7.2] - 2026-03-18
 
 ### Added
