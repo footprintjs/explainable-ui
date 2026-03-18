@@ -349,7 +349,7 @@ export const StageNode = memo(function StageNode({
               position: "absolute",
               inset: -6,
               borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
-              transform: isDecider ? "rotate(45deg)" : undefined,
+              clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : undefined,
               border: `2px solid ${theme.primary}`,
               opacity: 0.4,
               animation: "fp-pulse 2s ease-in-out infinite",
@@ -364,7 +364,7 @@ export const StageNode = memo(function StageNode({
               position: "absolute",
               inset: -6,
               borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
-              transform: isDecider ? "rotate(45deg)" : undefined,
+              clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : undefined,
               border: `2px solid ${theme.primary}`,
               opacity: 0.3,
               animation: "fp-pulse 1.5s ease-out infinite",
@@ -372,41 +372,57 @@ export const StageNode = memo(function StageNode({
           />
         )}
 
-        {/* Diamond wrapper for decider nodes — rotated 45deg */}
+        {/* Diamond for decider nodes — proper diamond via clip-path */}
         {isDecider ? (
-          <div
-            style={{
-              background: bg,
-              border: `2px ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
-              borderRadius: 4,
-              transform: "rotate(45deg)",
-              padding: 20,
-              boxShadow: shadow,
-              transition: "all 0.3s ease",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {/* Counter-rotate content so text/icons stay upright */}
+          <div style={{ position: "relative", width: 120, height: 72 }}>
+            {/* Diamond shape layer */}
             <div
               style={{
-                transform: "rotate(-45deg)",
+                position: "absolute",
+                inset: 0,
+                background: bg,
+                clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+                border: "none",
+                boxShadow: shadow,
+                transition: "all 0.3s ease",
+              }}
+            />
+            {/* Border layer — slightly larger diamond behind */}
+            <div
+              style={{
+                position: "absolute",
+                inset: -2,
+                clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+                background: borderColor,
+                zIndex: -1,
+                ...(isLazyUnresolved ? {
+                  background: "transparent",
+                  // Dashed border via SVG for clip-path (CSS border doesn't work with clip-path)
+                } : {}),
+              }}
+            />
+            {/* Content — centered on top of diamond */}
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 2,
+                justifyContent: "center",
+                gap: 1,
                 fontFamily: theme.fontSans,
+                zIndex: 1,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                {icon && <StageIcon type={icon} color={textColor} />}
-                {!icon && (
-                  <span style={{ fontSize: 10, color: textColor }}>&#x25C7;</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                {effectiveIcon && <StageIcon type={effectiveIcon} color={textColor} />}
+                {!effectiveIcon && (
+                  <span style={{ fontSize: 9, color: textColor }}>&#x25C7;</span>
                 )}
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: 600,
                     color: textColor,
                     whiteSpace: "nowrap",
@@ -418,14 +434,14 @@ export const StageNode = memo(function StageNode({
               {description && (
                 <span
                   style={{
-                    fontSize: 9,
+                    fontSize: 8,
                     fontWeight: 400,
                     color: textColor,
                     opacity: 0.7,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
-                    maxWidth: 130,
+                    maxWidth: 100,
                   }}
                 >
                   {description}
