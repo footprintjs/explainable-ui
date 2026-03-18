@@ -945,10 +945,16 @@ function TracedFlowchartView({
     if (!spec) return null;
     return specToLayout(spec);
   }, [spec]);
-  const { nodes, edges } = (0, import_react7.useMemo)(() => {
+  const flowData = (0, import_react7.useMemo)(() => {
     if (!layout) return { nodes: [], edges: [] };
     return applyOverlay(layout, overlay);
   }, [layout, overlay]);
+  const [nodes, setNodes, onNodesChange] = (0, import_react8.useNodesState)(flowData.nodes);
+  const [edges, setEdges, onEdgesChange] = (0, import_react8.useEdgesState)(flowData.edges);
+  (0, import_react7.useEffect)(() => {
+    setNodes(flowData.nodes);
+    setEdges(flowData.edges);
+  }, [flowData, setNodes, setEdges]);
   const handleNodeClick = (0, import_react7.useCallback)(
     (_, node) => {
       if (!onNodeClick) return;
@@ -967,6 +973,8 @@ function TracedFlowchartView({
         {
           nodes,
           edges,
+          onNodesChange,
+          onEdgesChange,
           onNodeClick: handleNodeClick,
           nodeTypes: nodeTypes2,
           fitView: true,

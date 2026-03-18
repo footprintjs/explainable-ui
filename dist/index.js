@@ -2201,7 +2201,7 @@ function TimeTravelControls({
 }
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-import { memo as memo3, useState as useState8, useCallback as useCallback5, useMemo as useMemo10, useRef as useRef6, useEffect as useEffect6 } from "react";
+import { memo as memo4, useState as useState8, useCallback as useCallback6, useMemo as useMemo11, useRef as useRef7, useEffect as useEffect8 } from "react";
 
 // src/adapters/fromRuntimeSnapshot.ts
 function toVisualizationSnapshots(runtime, narrativeEntries) {
@@ -2888,22 +2888,788 @@ var SubflowBreadcrumb = memo2(function SubflowBreadcrumb2({
   );
 });
 
-// src/components/ExplainableShell/ExplainableShell.tsx
+// src/components/FlowchartView/TracedFlowchartView.tsx
+import { useMemo as useMemo10, useCallback as useCallback5, useEffect as useEffect7 } from "react";
+import {
+  ReactFlow,
+  Background,
+  BackgroundVariant,
+  useReactFlow,
+  useNodesState,
+  useEdgesState
+} from "@xyflow/react";
+
+// src/components/StageNode/StageNode.tsx
+import { memo as memo3, useEffect as useEffect6, useRef as useRef6 } from "react";
+import { Handle, Position } from "@xyflow/react";
 import { Fragment as Fragment4, jsx as jsx16, jsxs as jsxs15 } from "react/jsx-runtime";
-var HLinePill = memo3(function HLinePill2({
+var KEYFRAMES_ID = "fp-stage-node-keyframes";
+var KEYFRAMES_CSS = `
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes fp-pulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0.15; transform: scale(1.06); }
+  }
+  @keyframes fp-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes fp-pulse { 0%, 100% { opacity: 0.3; } }
+  @keyframes fp-blink { 0%, 100% { opacity: 1; } }
+}
+`;
+var ICON_SIZE = 16;
+function StageIcon({ type, color }) {
+  const s = ICON_SIZE;
+  const props = { width: s, height: s, viewBox: `0 0 ${s} ${s}`, fill: "none", style: { flexShrink: 0 } };
+  switch (type) {
+    // LLM / AI call — brain/sparkle
+    case "llm":
+    case "ai":
+      return /* @__PURE__ */ jsxs15("svg", { ...props, children: [
+        /* @__PURE__ */ jsx16("circle", { cx: "8", cy: "8", r: "6", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ jsx16("path", { d: "M5.5 8C5.5 6.5 6.5 5 8 5S10.5 6.5 10.5 8", stroke: color, strokeWidth: "1.2", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx16("circle", { cx: "8", cy: "9.5", r: "1", fill: color }),
+        /* @__PURE__ */ jsx16("line", { x1: "8", y1: "2", x2: "8", y2: "3.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx16("line", { x1: "12.5", y1: "4", x2: "11.2", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx16("line", { x1: "3.5", y1: "4", x2: "4.8", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      ] });
+    // Tool / function call — gear
+    case "tool":
+    case "function":
+      return /* @__PURE__ */ jsxs15("svg", { ...props, children: [
+        /* @__PURE__ */ jsx16("circle", { cx: "8", cy: "8", r: "3", stroke: color, strokeWidth: "1.5" }),
+        [0, 45, 90, 135, 180, 225, 270, 315].map((angle) => {
+          const rad = angle * Math.PI / 180;
+          const x1 = 8 + Math.cos(rad) * 4.5;
+          const y1 = 8 + Math.sin(rad) * 4.5;
+          const x2 = 8 + Math.cos(rad) * 6;
+          const y2 = 8 + Math.sin(rad) * 6;
+          return /* @__PURE__ */ jsx16("line", { x1, y1, x2, y2, stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }, angle);
+        })
+      ] });
+    // RAG / retrieval — magnifying glass + doc
+    case "rag":
+    case "search":
+    case "retrieval":
+      return /* @__PURE__ */ jsxs15("svg", { ...props, children: [
+        /* @__PURE__ */ jsx16("circle", { cx: "7", cy: "7", r: "4", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ jsx16("line", { x1: "10", y1: "10", x2: "13.5", y2: "13.5", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx16("line", { x1: "5.5", y1: "6", x2: "8.5", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx16("line", { x1: "5.5", y1: "8", x2: "7.5", y2: "8", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      ] });
+    // Parse / process — diamond with arrows
+    case "parse":
+    case "process":
+    case "transform":
+      return /* @__PURE__ */ jsx16("svg", { ...props, children: /* @__PURE__ */ jsx16("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", stroke: color, strokeWidth: "1.5", transform: "rotate(45 8 8)" }) });
+    // Start / seed — play triangle
+    case "start":
+    case "seed":
+    case "init":
+      return /* @__PURE__ */ jsx16("svg", { ...props, children: /* @__PURE__ */ jsx16("path", { d: "M5 3.5L12.5 8L5 12.5V3.5Z", fill: color, opacity: "0.8" }) });
+    // End / finalize — stop square
+    case "end":
+    case "finalize":
+    case "output":
+      return /* @__PURE__ */ jsx16("svg", { ...props, children: /* @__PURE__ */ jsx16("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", fill: color, opacity: "0.8" }) });
+    // Agent — person silhouette
+    case "agent":
+    case "orchestrator":
+      return /* @__PURE__ */ jsxs15("svg", { ...props, children: [
+        /* @__PURE__ */ jsx16("circle", { cx: "8", cy: "5", r: "2.5", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ jsx16("path", { d: "M3.5 14C3.5 11 5.5 9 8 9S12.5 11 12.5 14", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" })
+      ] });
+    // Swarm — multi-agent
+    case "swarm":
+    case "multi-agent":
+      return /* @__PURE__ */ jsxs15("svg", { ...props, children: [
+        /* @__PURE__ */ jsx16("circle", { cx: "5", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ jsx16("circle", { cx: "11", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ jsx16("circle", { cx: "8", cy: "11", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ jsx16("line", { x1: "5", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" }),
+        /* @__PURE__ */ jsx16("line", { x1: "11", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" })
+      ] });
+    // Guard / guardrail — shield
+    case "guard":
+    case "guardrail":
+    case "validate":
+      return /* @__PURE__ */ jsxs15("svg", { ...props, children: [
+        /* @__PURE__ */ jsx16("path", { d: "M8 2L3 5V9C3 11.5 5 13.5 8 14.5C11 13.5 13 11.5 13 9V5L8 2Z", stroke: color, strokeWidth: "1.5", strokeLinejoin: "round" }),
+        /* @__PURE__ */ jsx16("path", { d: "M6 8L7.5 9.5L10 6.5", stroke: color, strokeWidth: "1.2", strokeLinecap: "round", strokeLinejoin: "round" })
+      ] });
+    // Stream — wave
+    case "stream":
+    case "streaming":
+      return /* @__PURE__ */ jsxs15("svg", { ...props, children: [
+        /* @__PURE__ */ jsx16("path", { d: "M2 8C4 5 6 11 8 8S12 5 14 8", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
+        /* @__PURE__ */ jsx16("path", { d: "M2 11C4 8 6 14 8 11S12 8 14 11", stroke: color, strokeWidth: "1", strokeLinecap: "round", fill: "none", opacity: "0.5" })
+      ] });
+    // Memory / state — database cylinder
+    case "memory":
+    case "state":
+    case "db":
+      return /* @__PURE__ */ jsxs15("svg", { ...props, children: [
+        /* @__PURE__ */ jsx16("ellipse", { cx: "8", cy: "4.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ jsx16("line", { x1: "3", y1: "4.5", x2: "3", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ jsx16("line", { x1: "13", y1: "4.5", x2: "13", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ jsx16("ellipse", { cx: "8", cy: "11.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" })
+      ] });
+    // Loop — circular arrow
+    case "loop":
+    case "retry":
+      return /* @__PURE__ */ jsxs15("svg", { ...props, children: [
+        /* @__PURE__ */ jsx16("path", { d: "M12 8A4 4 0 1 1 8 4", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
+        /* @__PURE__ */ jsx16("path", { d: "M8 1.5L10.5 4L8 6.5", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" })
+      ] });
+    // Lazy / service — cloud (deferred resolution, loaded on demand)
+    case "lazy":
+    case "service":
+    case "cloud":
+      return /* @__PURE__ */ jsx16("svg", { ...props, children: /* @__PURE__ */ jsx16(
+        "path",
+        {
+          d: "M4.5 12C2.8 12 1.5 10.7 1.5 9C1.5 7.5 2.5 6.3 3.8 6C4 4 5.8 2.5 8 2.5C9.8 2.5 11.3 3.5 11.9 5C13.9 5.2 15.5 6.8 15.5 8.8C15.5 10.8 13.9 12.5 11.8 12.5H4.5",
+          stroke: color,
+          strokeWidth: "1.3",
+          strokeLinecap: "round",
+          fill: "none"
+        }
+      ) });
+    // Decision — diamond (already handled by isDecider shape)
+    case "decision":
+    case "router":
+      return /* @__PURE__ */ jsxs15("svg", { ...props, children: [
+        /* @__PURE__ */ jsx16("path", { d: "M8 2L14 8L8 14L2 8Z", stroke: color, strokeWidth: "1.5", fill: "none" }),
+        /* @__PURE__ */ jsx16("circle", { cx: "8", cy: "8", r: "1.5", fill: color })
+      ] });
+    default:
+      return null;
+  }
+}
+var StageNode = memo3(function StageNode2({
+  data
+}) {
+  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description } = data;
+  const effectiveIcon = icon || (isLazy ? "lazy" : void 0);
+  const isLazyUnresolved = isLazy && !done && !active;
+  const injectedRef = useRef6(false);
+  useEffect6(() => {
+    if (injectedRef.current) return;
+    if (typeof document !== "undefined" && !document.getElementById(KEYFRAMES_ID)) {
+      const styleEl = document.createElement("style");
+      styleEl.id = KEYFRAMES_ID;
+      styleEl.textContent = KEYFRAMES_CSS;
+      document.head.appendChild(styleEl);
+    }
+    injectedRef.current = true;
+  }, []);
+  const isOnPath = active || done;
+  const bg = active ? theme.primary : done ? theme.success : error ? theme.error : theme.bgSecondary;
+  const borderColor = active ? theme.primary : done ? theme.success : error ? theme.error : theme.border;
+  const shadow = active ? `0 0 16px color-mix(in srgb, ${theme.primary} 40%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.success} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : `0 2px 8px rgba(0,0,0,0.15)`;
+  const textColor = active || done || error ? "#fff" : theme.textPrimary;
+  return /* @__PURE__ */ jsxs15(Fragment4, { children: [
+    /* @__PURE__ */ jsx16(Handle, { type: "target", position: Position.Top, style: { opacity: 0 } }),
+    /* @__PURE__ */ jsxs15(
+      "div",
+      {
+        style: {
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          gap: 6
+        },
+        children: [
+          stepNumbers && stepNumbers.length > 0 && isOnPath && /* @__PURE__ */ jsx16(
+            "div",
+            {
+              style: {
+                position: "absolute",
+                top: -10,
+                left: -10,
+                display: "flex",
+                gap: 3,
+                zIndex: 10
+              },
+              children: stepNumbers.map((num, i) => {
+                const isLatest = i === stepNumbers.length - 1;
+                const badgeBg = isLatest && active ? theme.primary : theme.success;
+                const glow = isLatest && active ? `color-mix(in srgb, ${theme.primary} 50%, transparent)` : `color-mix(in srgb, ${theme.success} 40%, transparent)`;
+                return /* @__PURE__ */ jsx16(
+                  "div",
+                  {
+                    style: {
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      background: badgeBg,
+                      color: "#fff",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: `0 0 8px ${glow}`
+                    },
+                    children: num
+                  },
+                  num
+                );
+              })
+            }
+          ),
+          linked && /* @__PURE__ */ jsx16(
+            "div",
+            {
+              style: {
+                position: "absolute",
+                inset: -6,
+                borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
+                clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : void 0,
+                border: `2px solid ${theme.primary}`,
+                opacity: 0.4,
+                animation: "fp-pulse 2s ease-in-out infinite"
+              }
+            }
+          ),
+          active && /* @__PURE__ */ jsx16(
+            "div",
+            {
+              style: {
+                position: "absolute",
+                inset: -6,
+                borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
+                clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : void 0,
+                border: `2px solid ${theme.primary}`,
+                opacity: 0.3,
+                animation: "fp-pulse 1.5s ease-out infinite"
+              }
+            }
+          ),
+          isDecider ? /* @__PURE__ */ jsxs15("div", { style: { position: "relative", width: 120, height: 72 }, children: [
+            /* @__PURE__ */ jsx16(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  inset: 0,
+                  background: bg,
+                  clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+                  border: "none",
+                  boxShadow: shadow,
+                  transition: "all 0.3s ease"
+                }
+              }
+            ),
+            /* @__PURE__ */ jsx16(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  inset: -2,
+                  clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+                  background: borderColor,
+                  zIndex: -1,
+                  ...isLazyUnresolved ? {
+                    background: "transparent"
+                    // Dashed border via SVG for clip-path (CSS border doesn't work with clip-path)
+                  } : {}
+                }
+              }
+            ),
+            /* @__PURE__ */ jsxs15(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 1,
+                  fontFamily: theme.fontSans,
+                  zIndex: 1
+                },
+                children: [
+                  /* @__PURE__ */ jsxs15("div", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
+                    effectiveIcon && /* @__PURE__ */ jsx16(StageIcon, { type: effectiveIcon, color: textColor }),
+                    !effectiveIcon && /* @__PURE__ */ jsx16("span", { style: { fontSize: 9, color: textColor }, children: "\u25C7" }),
+                    /* @__PURE__ */ jsx16(
+                      "span",
+                      {
+                        style: {
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: textColor,
+                          whiteSpace: "nowrap"
+                        },
+                        children: label
+                      }
+                    )
+                  ] }),
+                  description && /* @__PURE__ */ jsx16(
+                    "span",
+                    {
+                      style: {
+                        fontSize: 8,
+                        fontWeight: 400,
+                        color: textColor,
+                        opacity: 0.7,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: 100
+                      },
+                      children: description
+                    }
+                  )
+                ]
+              }
+            )
+          ] }) : (
+            /* Standard rectangular node */
+            /* @__PURE__ */ jsxs15(
+              "div",
+              {
+                style: {
+                  background: bg,
+                  border: `2px ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
+                  borderRadius: theme.radius,
+                  padding: description ? "8px 16px" : "10px 20px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: description ? 2 : 0,
+                  boxShadow: shadow,
+                  transition: "all 0.3s ease",
+                  fontFamily: theme.fontSans,
+                  minWidth: 100,
+                  justifyContent: "center"
+                },
+                children: [
+                  /* @__PURE__ */ jsxs15("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+                    effectiveIcon && /* @__PURE__ */ jsx16(StageIcon, { type: effectiveIcon, color: textColor }),
+                    done && !effectiveIcon && /* @__PURE__ */ jsx16("span", { style: { fontSize: 10, color: textColor }, children: "\u2713" }),
+                    active && !effectiveIcon && /* @__PURE__ */ jsx16(
+                      "span",
+                      {
+                        style: {
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: "#fff",
+                          animation: "fp-blink 1s ease-in-out infinite",
+                          flexShrink: 0
+                        }
+                      }
+                    ),
+                    error && !effectiveIcon && /* @__PURE__ */ jsx16("span", { style: { fontSize: 10, color: textColor }, children: "\u2717" }),
+                    /* @__PURE__ */ jsx16(
+                      "span",
+                      {
+                        style: {
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: textColor,
+                          whiteSpace: "nowrap"
+                        },
+                        children: label
+                      }
+                    ),
+                    isSubflow && /* @__PURE__ */ jsx16(
+                      "span",
+                      {
+                        style: {
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: 16,
+                          height: 16,
+                          borderRadius: 3,
+                          border: `1.5px solid ${textColor}`,
+                          position: "relative",
+                          opacity: 0.7,
+                          flexShrink: 0
+                        },
+                        children: /* @__PURE__ */ jsx16(
+                          "span",
+                          {
+                            style: {
+                              width: 8,
+                              height: 8,
+                              borderRadius: 2,
+                              border: `1px solid ${textColor}`
+                            }
+                          }
+                        )
+                      }
+                    )
+                  ] }),
+                  description && /* @__PURE__ */ jsx16(
+                    "span",
+                    {
+                      style: {
+                        fontSize: 10,
+                        fontWeight: 400,
+                        color: textColor,
+                        opacity: 0.7,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: 160
+                      },
+                      children: description
+                    }
+                  )
+                ]
+              }
+            )
+          )
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsx16(Handle, { type: "source", position: Position.Bottom, style: { opacity: 0 } }),
+    /* @__PURE__ */ jsx16(
+      Handle,
+      {
+        id: "loop-source",
+        type: "source",
+        position: Position.Right,
+        style: { background: "transparent", border: "none", width: 6, height: 6 }
+      }
+    ),
+    /* @__PURE__ */ jsx16(
+      Handle,
+      {
+        id: "loop-target",
+        type: "target",
+        position: Position.Right,
+        style: { background: "transparent", border: "none", width: 6, height: 6 }
+      }
+    )
+  ] });
+});
+
+// src/components/FlowchartView/specToReactFlow.ts
+var DEFAULT_COLORS = {
+  edgeDefault: rawDefaults.colors.textMuted,
+  edgeExecuted: rawDefaults.colors.success,
+  edgeActive: rawDefaults.colors.primary,
+  edgeLoop: rawDefaults.colors.warning,
+  labelDefault: rawDefaults.colors.textSecondary,
+  labelExecuted: rawDefaults.colors.success,
+  labelLoop: rawDefaults.colors.warning,
+  pathGlow: `${rawDefaults.colors.success}4D`
+  // ~30% opacity hex
+};
+var Y_STEP = 100;
+var X_SPREAD = 200;
+function nid(n) {
+  return n.id || n.name || `spec-${Math.random()}`;
+}
+function registerNode(state, node) {
+  if (node.id && node.name) {
+    state.idToName.set(node.id, node.name);
+  }
+}
+function walkLayout(node, state, x, y) {
+  if (!node) return { lastIds: [], bottomY: y };
+  registerNode(state, node);
+  const id = nid(node);
+  if (state.seen.has(id)) {
+    return { lastIds: [id], bottomY: y };
+  }
+  state.seen.add(id);
+  const isDecider = node.type === "decider" || !!node.hasDecider;
+  const isFork = node.type === "fork";
+  state.nodes.push({
+    id,
+    x,
+    y,
+    label: node.name,
+    isDecider,
+    isFork,
+    description: node.description,
+    icon: node.icon,
+    subflowId: node.subflowId,
+    isSubflow: !!node.isSubflowRoot,
+    isLazy: node.isLazy
+  });
+  let lastIds = [id];
+  let bottomY = y;
+  if (node.children && node.children.length > 0) {
+    const totalWidth = (node.children.length - 1) * X_SPREAD;
+    const startX = x - totalWidth / 2;
+    const childY = y + Y_STEP;
+    const childResults = [];
+    for (let i = 0; i < node.children.length; i++) {
+      const child = node.children[i];
+      if (!child) continue;
+      const childX = startX + i * X_SPREAD;
+      const edgeLabel = node.branchIds?.[i];
+      state.edgeCounter++;
+      state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: nid(child), label: edgeLabel, isLoop: false });
+      const result = walkLayout(child, state, childX, childY);
+      childResults.push(result);
+    }
+    lastIds = childResults.flatMap((r) => r.lastIds);
+    bottomY = Math.max(...childResults.map((r) => r.bottomY));
+  }
+  if (node.loopTarget) {
+    const resolvedTarget = state.idToName.get(node.loopTarget) ?? node.loopTarget;
+    state.edgeCounter++;
+    state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: resolvedTarget, label: "loop", isLoop: true });
+  }
+  if (node.next) {
+    const rawNextId = nid(node.next);
+    const resolvedNextId = state.idToName.get(rawNextId) ?? rawNextId;
+    const isLoopRef = node.loopTarget && state.seen.has(resolvedNextId);
+    if (isLoopRef) {
+      return { lastIds, bottomY };
+    }
+    const nextY = bottomY + Y_STEP;
+    for (const lid of lastIds) {
+      state.edgeCounter++;
+      state.edges.push({ id: `se${state.edgeCounter}`, source: lid, target: resolvedNextId, isLoop: false });
+    }
+    return walkLayout(node.next, state, x, nextY);
+  }
+  return { lastIds, bottomY };
+}
+function specToLayout(spec) {
+  const state = {
+    nodes: [],
+    edges: [],
+    edgeCounter: 0,
+    seen: /* @__PURE__ */ new Set(),
+    idToName: /* @__PURE__ */ new Map()
+  };
+  walkLayout(spec, state, 300, 0);
+  return { nodes: state.nodes, edges: state.edges, idToName: state.idToName };
+}
+function applyOverlay(layout, overlay, colors) {
+  const c = { ...DEFAULT_COLORS, ...colors };
+  const o = overlay ?? null;
+  const nodes = layout.nodes.map((ln) => {
+    const isDone = o ? o.doneStages.has(ln.id) : false;
+    const isActive = o ? o.activeStage === ln.id : false;
+    const wasExecuted = o ? o.executedStages.has(ln.id) : false;
+    const dimmed = o && !wasExecuted;
+    let stepNumbers;
+    if (o?.executionOrder) {
+      const nums = [];
+      for (let i = 0; i < o.executionOrder.length; i++) {
+        if (o.executionOrder[i] === ln.id) nums.push(i + 1);
+      }
+      if (nums.length > 0) stepNumbers = nums;
+    }
+    return {
+      id: ln.id,
+      position: { x: ln.x, y: ln.y },
+      data: {
+        label: ln.label,
+        active: isActive,
+        done: isDone,
+        error: false,
+        isDecider: ln.isDecider,
+        isFork: ln.isFork,
+        description: ln.description,
+        icon: ln.icon,
+        subflowId: ln.subflowId,
+        dimmed,
+        stepNumbers,
+        isSubflow: ln.isSubflow,
+        isLazy: ln.isLazy
+      },
+      type: "stage",
+      style: dimmed ? { opacity: 0.35 } : void 0
+    };
+  });
+  const edges = [];
+  for (const le of layout.edges) {
+    const executed = o && o.executedStages.has(le.source) && o.executedStages.has(le.target);
+    const isLeadingEdge = o && le.source === o.activeStage && !o.doneStages.has(le.target);
+    if (le.isLoop) {
+      let loopExecuted = false;
+      if (o?.executionOrder) {
+        const lastSourceIdx = o.executionOrder.lastIndexOf(le.source);
+        if (lastSourceIdx >= 0) {
+          loopExecuted = o.executionOrder.slice(lastSourceIdx + 1).includes(le.target);
+        }
+      }
+      edges.push({
+        id: le.id,
+        source: le.source,
+        target: le.target,
+        sourceHandle: "loop-source",
+        targetHandle: "loop-target",
+        label: le.label ?? "loop",
+        type: "smoothstep",
+        pathOptions: { offset: 40, borderRadius: 16 },
+        style: {
+          stroke: c.edgeLoop,
+          strokeWidth: loopExecuted ? 3 : 2,
+          strokeDasharray: "6 3",
+          opacity: o && !loopExecuted ? 0.35 : 1
+        },
+        labelStyle: { fontSize: 10, fontWeight: 700, fill: c.labelLoop },
+        animated: loopExecuted,
+        zIndex: 2
+      });
+    } else if (executed) {
+      edges.push({
+        id: `${le.id}-glow`,
+        source: le.source,
+        target: le.target,
+        style: { stroke: c.pathGlow, strokeWidth: 8, opacity: 0.4 },
+        zIndex: 0,
+        selectable: false,
+        focusable: false
+      });
+      edges.push({
+        id: le.id,
+        source: le.source,
+        target: le.target,
+        label: le.label,
+        style: {
+          stroke: isLeadingEdge ? c.edgeActive : c.edgeExecuted,
+          strokeWidth: 3.5
+        },
+        labelStyle: { fontSize: 10, fontWeight: 600, fill: c.labelExecuted },
+        animated: !!isLeadingEdge,
+        zIndex: 1
+      });
+    } else {
+      edges.push({
+        id: le.id,
+        source: le.source,
+        target: le.target,
+        label: le.label,
+        style: {
+          stroke: c.edgeDefault,
+          strokeWidth: 1.5,
+          opacity: o ? 0.3 : 1
+        },
+        labelStyle: { fontSize: 10, fill: c.labelDefault }
+      });
+    }
+  }
+  return { nodes, edges };
+}
+
+// src/components/FlowchartView/TracedFlowchartView.tsx
+import { jsx as jsx17, jsxs as jsxs16 } from "react/jsx-runtime";
+var defaultNodeTypes = { stage: StageNode };
+function FitViewOnResize() {
+  const { fitView } = useReactFlow();
+  useEffect7(() => {
+    const handler = () => {
+      requestAnimationFrame(() => fitView({ padding: 0.3 }));
+    };
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, [fitView]);
+  return null;
+}
+function TracedFlowchartView({
+  spec,
+  snapshots,
+  snapshotIndex = 0,
+  onNodeClick,
+  nodeTypes: customNodeTypes,
+  unstyled = false,
+  className,
+  style
+}) {
+  const nodeTypes = customNodeTypes ?? defaultNodeTypes;
+  const overlay = useMemo10(() => {
+    if (!snapshots || snapshots.length === 0) return void 0;
+    const executionOrder = snapshots.slice(0, snapshotIndex + 1).map((s) => s.stageLabel);
+    const doneStages = new Set(
+      snapshots.slice(0, snapshotIndex).map((s) => s.stageLabel)
+    );
+    const activeStage = snapshots[snapshotIndex]?.stageLabel ?? null;
+    const executedStages = /* @__PURE__ */ new Set([...doneStages]);
+    if (activeStage) executedStages.add(activeStage);
+    return { doneStages, activeStage, executedStages, executionOrder };
+  }, [snapshots, snapshotIndex]);
+  const layout = useMemo10(() => {
+    if (!spec) return null;
+    return specToLayout(spec);
+  }, [spec]);
+  const flowData = useMemo10(() => {
+    if (!layout) return { nodes: [], edges: [] };
+    return applyOverlay(layout, overlay);
+  }, [layout, overlay]);
+  const [nodes, setNodes, onNodesChange] = useNodesState(flowData.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(flowData.edges);
+  useEffect7(() => {
+    setNodes(flowData.nodes);
+    setEdges(flowData.edges);
+  }, [flowData, setNodes, setEdges]);
+  const handleNodeClick = useCallback5(
+    (_, node) => {
+      if (!onNodeClick) return;
+      onNodeClick(node.id);
+    },
+    [onNodeClick]
+  );
+  return /* @__PURE__ */ jsx17(
+    "div",
+    {
+      className,
+      style: { width: "100%", height: "100%", ...style },
+      "data-fp": "traced-flowchart",
+      children: /* @__PURE__ */ jsxs16(
+        ReactFlow,
+        {
+          nodes,
+          edges,
+          onNodesChange,
+          onEdgesChange,
+          onNodeClick: handleNodeClick,
+          nodeTypes,
+          fitView: true,
+          fitViewOptions: { padding: 0.3 },
+          proOptions: { hideAttribution: true },
+          panOnDrag: false,
+          zoomOnScroll: false,
+          zoomOnPinch: false,
+          zoomOnDoubleClick: false,
+          preventScrolling: false,
+          nodesDraggable: false,
+          nodesConnectable: false,
+          elementsSelectable: !!onNodeClick,
+          children: [
+            /* @__PURE__ */ jsx17(FitViewOnResize, {}),
+            !unstyled && /* @__PURE__ */ jsx17(Background, { variant: BackgroundVariant.Dots, gap: 16, size: 1 })
+          ]
+        }
+      )
+    }
+  );
+}
+
+// src/components/ExplainableShell/ExplainableShell.tsx
+import { Fragment as Fragment5, jsx as jsx18, jsxs as jsxs17 } from "react/jsx-runtime";
+var HLinePill = memo4(function HLinePill2({
   label,
   detail,
   expanded,
   onClick
 }) {
-  return /* @__PURE__ */ jsxs15("div", { style: {
+  return /* @__PURE__ */ jsxs17("div", { style: {
     display: "flex",
     alignItems: "center",
     gap: 0,
     padding: "0"
   }, children: [
-    /* @__PURE__ */ jsx16("div", { style: { flex: 1, height: 1, background: theme.border } }),
-    /* @__PURE__ */ jsxs15(
+    /* @__PURE__ */ jsx18("div", { style: { flex: 1, height: 1, background: theme.border } }),
+    /* @__PURE__ */ jsxs17(
       "button",
       {
         onClick,
@@ -2927,31 +3693,31 @@ var HLinePill = memo3(function HLinePill2({
           transition: "color 0.15s ease"
         },
         children: [
-          /* @__PURE__ */ jsx16("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
+          /* @__PURE__ */ jsx18("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
           label,
-          detail && /* @__PURE__ */ jsx16("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
+          detail && /* @__PURE__ */ jsx18("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
         ]
       }
     ),
-    /* @__PURE__ */ jsx16("div", { style: { flex: 1, height: 1, background: theme.border } })
+    /* @__PURE__ */ jsx18("div", { style: { flex: 1, height: 1, background: theme.border } })
   ] });
 });
-var VLinePill = memo3(function VLinePill2({
+var VLinePill = memo4(function VLinePill2({
   label,
   expanded,
   side = "right",
   onClick
 }) {
   const arrow = side === "right" ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25C0" : "\u25B6";
-  return /* @__PURE__ */ jsxs15("div", { style: {
+  return /* @__PURE__ */ jsxs17("div", { style: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     gap: 0,
     padding: "0"
   }, children: [
-    /* @__PURE__ */ jsx16("div", { style: { flex: 1, width: 1, background: theme.border } }),
-    /* @__PURE__ */ jsxs15(
+    /* @__PURE__ */ jsx18("div", { style: { flex: 1, width: 1, background: theme.border } }),
+    /* @__PURE__ */ jsxs17(
       "button",
       {
         onClick,
@@ -2976,19 +3742,19 @@ var VLinePill = memo3(function VLinePill2({
           transition: "color 0.15s ease"
         },
         children: [
-          /* @__PURE__ */ jsx16("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
+          /* @__PURE__ */ jsx18("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
           label
         ]
       }
     ),
-    /* @__PURE__ */ jsx16("div", { style: { flex: 1, width: 1, background: theme.border } })
+    /* @__PURE__ */ jsx18("div", { style: { flex: 1, width: 1, background: theme.border } })
   ] });
 });
 var RIGHT_PANEL_LABELS = {
   memory: "Memory",
   narrative: "Narrative"
 };
-var DetailsContent = memo3(function DetailsContent2({
+var DetailsContent = memo4(function DetailsContent2({
   snapshots,
   selectedIndex,
   narrativeEntries,
@@ -2997,10 +3763,10 @@ var DetailsContent = memo3(function DetailsContent2({
   fillHeight
 }) {
   const [rightPanel, setRightPanel] = useState8("memory");
-  return /* @__PURE__ */ jsxs15("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
-    /* @__PURE__ */ jsx16("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: ["memory", "narrative"].map((panel) => {
+  return /* @__PURE__ */ jsxs17("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
+    /* @__PURE__ */ jsx18("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: ["memory", "narrative"].map((panel) => {
       const active = rightPanel === panel;
-      return /* @__PURE__ */ jsx16(
+      return /* @__PURE__ */ jsx18(
         "button",
         {
           onClick: () => setRightPanel(panel),
@@ -3023,9 +3789,9 @@ var DetailsContent = memo3(function DetailsContent2({
         panel
       );
     }) }),
-    /* @__PURE__ */ jsxs15("div", { style: { flex: 1, overflow: "auto" }, children: [
-      rightPanel === "memory" && /* @__PURE__ */ jsx16(MemoryPanel, { snapshots, selectedIndex, size, style: fillHeight ? { height: "100%" } : void 0 }),
-      rightPanel === "narrative" && /* @__PURE__ */ jsx16(NarrativePanel, { snapshots, selectedIndex, narrativeEntries, narrative, size, style: fillHeight ? { height: "100%" } : void 0 })
+    /* @__PURE__ */ jsxs17("div", { style: { flex: 1, overflow: "auto" }, children: [
+      rightPanel === "memory" && /* @__PURE__ */ jsx18(MemoryPanel, { snapshots, selectedIndex, size, style: fillHeight ? { height: "100%" } : void 0 }),
+      rightPanel === "narrative" && /* @__PURE__ */ jsx18(NarrativePanel, { snapshots, selectedIndex, narrativeEntries, narrative, size, style: fillHeight ? { height: "100%" } : void 0 })
     ] })
   ] });
 });
@@ -3077,13 +3843,25 @@ function hasSubflowNodes(node) {
   if (node.next && hasSubflowNodes(node.next)) return true;
   return false;
 }
+function defaultRenderFlowchart({ spec: s, snapshots: snaps, selectedIndex, onNodeClick }) {
+  return /* @__PURE__ */ jsx18(
+    TracedFlowchartView,
+    {
+      spec: s,
+      snapshots: snaps,
+      snapshotIndex: selectedIndex,
+      onNodeClick
+    }
+  );
+}
 function ExplainableShell({
-  snapshots,
+  snapshots: snapshotsProp,
+  runtimeSnapshot,
   spec,
   title,
-  resultData,
+  resultData: resultDataProp,
   logs = [],
-  narrative,
+  narrative: narrativeProp,
   narrativeEntries,
   tabs = ["result", "explainable"],
   defaultTab,
@@ -3096,12 +3874,30 @@ function ExplainableShell({
   className,
   style
 }) {
+  const derivedFromRuntime = useMemo11(() => {
+    if (!runtimeSnapshot) return null;
+    try {
+      const snaps = toVisualizationSnapshots(runtimeSnapshot, narrativeEntries);
+      const narr = [];
+      for (const snap of snaps) {
+        const lines = (snap.narrative ?? "").split("\n").filter(Boolean);
+        narr.push(...lines);
+      }
+      return { snapshots: snaps, resultData: runtimeSnapshot.sharedState, narrative: narr };
+    } catch {
+      return null;
+    }
+  }, [runtimeSnapshot, narrativeEntries]);
+  const snapshots = snapshotsProp ?? derivedFromRuntime?.snapshots ?? [];
+  const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
+  const narrative = narrativeProp ?? derivedFromRuntime?.narrative;
+  const effectiveRenderFlowchart = renderFlowchart ?? (spec ? defaultRenderFlowchart : void 0);
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
-  const shellRef = useRef6(null);
+  const shellRef = useRef7(null);
   const [isNarrow, setIsNarrow] = useState8(false);
-  useEffect6(() => {
+  useEffect8(() => {
     const el = shellRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
@@ -3116,30 +3912,30 @@ function ExplainableShell({
   const [rightExpanded, setRightExpanded] = useState8(defaultExpanded?.details ?? true);
   const [leftExpanded, setLeftExpanded] = useState8(defaultExpanded?.topology ?? false);
   const [timelineExpanded, setTimelineExpanded] = useState8(defaultExpanded?.timeline ?? false);
-  useEffect6(() => {
+  useEffect8(() => {
     if (isNarrow) {
       setLeftExpanded(false);
       setRightExpanded(false);
       setTimelineExpanded(false);
     }
   }, [isNarrow]);
-  const triggerReflow = useCallback5(() => {
+  const triggerReflow = useCallback6(() => {
     requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
   }, []);
-  const toggleLeft = useCallback5((v2) => {
+  const toggleLeft = useCallback6((v2) => {
     setLeftExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleRight = useCallback5((v2) => {
+  const toggleRight = useCallback6((v2) => {
     setRightExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleTimeline = useCallback5(() => {
+  const toggleTimeline = useCallback6(() => {
     setTimelineExpanded((p) => !p);
     triggerReflow();
   }, [triggerReflow]);
   const isInSubflow = drillDownStack.length > 0;
-  const currentLevel = useMemo10(() => {
+  const currentLevel = useMemo11(() => {
     if (drillDownStack.length > 0) {
       const top = drillDownStack[drillDownStack.length - 1];
       return { spec: top.spec, snapshots: top.snapshots };
@@ -3149,7 +3945,7 @@ function ExplainableShell({
   const activeSnapshots = currentLevel.snapshots;
   const activeSpec = currentLevel.spec;
   const safeIdx = activeSnapshots.length > 0 ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1)) : 0;
-  const activeNarrative = useMemo10(() => {
+  const activeNarrative = useMemo11(() => {
     if (!isInSubflow) return narrative;
     const lines = [];
     for (const snap of activeSnapshots) {
@@ -3159,26 +3955,26 @@ function ExplainableShell({
     return lines.length > 0 ? lines : void 0;
   }, [isInSubflow, narrative, activeSnapshots]);
   const activeNarrativeEntries = isInSubflow ? void 0 : narrativeEntries;
-  const breadcrumbs = useMemo10(() => {
+  const breadcrumbs = useMemo11(() => {
     const root = { label: title || "Flowchart", spec, description: spec?.description };
     return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: void 0 }))];
   }, [spec, title, drillDownStack]);
-  const showTreeSidebar = useMemo10(() => !!spec && hasSubflowNodes(spec), [spec]);
-  const rootOverlay = useMemo10(() => {
+  const showTreeSidebar = useMemo11(() => !!spec && hasSubflowNodes(spec), [spec]);
+  const rootOverlay = useMemo11(() => {
     if (isInSubflow || !snapshots.length) return { activeStage: void 0, doneStages: void 0 };
     const doneStages = new Set(snapshots.slice(0, safeIdx).map((s) => s.stageLabel));
     const activeStage = snapshots[safeIdx]?.stageLabel ?? null;
     return { activeStage, doneStages };
   }, [isInSubflow, snapshots, safeIdx]);
-  const handleTabChange = useCallback5((tab) => {
+  const handleTabChange = useCallback6((tab) => {
     setActiveTab(tab);
     setDrillDownStack([]);
     setSnapshotIdx(999);
   }, []);
-  const handleSnapshotChange = useCallback5((idx) => {
+  const handleSnapshotChange = useCallback6((idx) => {
     if (typeof idx === "number") setSnapshotIdx(idx);
   }, []);
-  const handleDrillDown = useCallback5(
+  const handleDrillDown = useCallback6(
     (nodeName) => {
       if (!activeSpec) return;
       const entry = resolveSubflowLevel(activeSpec, activeSnapshots, nodeName, narrativeEntries);
@@ -3189,14 +3985,14 @@ function ExplainableShell({
     },
     [activeSpec, activeSnapshots, narrativeEntries, snapshotIdx]
   );
-  const handleBreadcrumbNavigate = useCallback5((level) => {
+  const handleBreadcrumbNavigate = useCallback6((level) => {
     setDrillDownStack((prev) => {
       const popped = level === 0 ? prev[0] : prev[level];
       if (popped) setSnapshotIdx(popped.parentSnapshotIdx);
       return level === 0 ? [] : prev.slice(0, level);
     });
   }, []);
-  const handleNodeClick = useCallback5(
+  const handleNodeClick = useCallback6(
     (indexOrId) => {
       if (typeof indexOrId === "number") {
         setSnapshotIdx(indexOrId);
@@ -3214,7 +4010,7 @@ function ExplainableShell({
     },
     [activeSpec, activeSnapshots, handleDrillDown]
   );
-  const handleTreeNodeSelect = useCallback5(
+  const handleTreeNodeSelect = useCallback6(
     (name, isSubflow) => {
       if (isSubflow && spec) {
         setDrillDownStack([]);
@@ -3237,23 +4033,23 @@ function ExplainableShell({
     "ai-compatible": "AI-Compatible"
   };
   if (unstyled) {
-    return /* @__PURE__ */ jsxs15("div", { className, style, "data-fp": "explainable-shell", children: [
-      /* @__PURE__ */ jsx16("div", { "data-fp": "shell-tabs", children: tabs.map((tab) => /* @__PURE__ */ jsx16("button", { "data-fp": "shell-tab", "data-active": tab === activeTab, onClick: () => handleTabChange(tab), children: tabLabels[tab] }, tab)) }),
-      /* @__PURE__ */ jsxs15("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
-        activeTab === "result" && /* @__PURE__ */ jsx16(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
-        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs15(Fragment4, { children: [
-          /* @__PURE__ */ jsx16(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true }),
-          isInSubflow && /* @__PURE__ */ jsx16(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-          activeSpec && renderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick }),
-          /* @__PURE__ */ jsx16(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
-          /* @__PURE__ */ jsx16(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, unstyled: true }),
-          /* @__PURE__ */ jsx16(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
+    return /* @__PURE__ */ jsxs17("div", { className, style, "data-fp": "explainable-shell", children: [
+      /* @__PURE__ */ jsx18("div", { "data-fp": "shell-tabs", children: tabs.map((tab) => /* @__PURE__ */ jsx18("button", { "data-fp": "shell-tab", "data-active": tab === activeTab, onClick: () => handleTabChange(tab), children: tabLabels[tab] }, tab)) }),
+      /* @__PURE__ */ jsxs17("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
+        activeTab === "result" && /* @__PURE__ */ jsx18(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
+        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs17(Fragment5, { children: [
+          /* @__PURE__ */ jsx18(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true }),
+          isInSubflow && /* @__PURE__ */ jsx18(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+          activeSpec && effectiveRenderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick }),
+          /* @__PURE__ */ jsx18(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
+          /* @__PURE__ */ jsx18(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, unstyled: true }),
+          /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
         ] })
       ] })
     ] });
   }
   const isVisualizationTab = activeTab === "explainable" || activeTab === "ai-compatible";
-  return /* @__PURE__ */ jsxs15(
+  return /* @__PURE__ */ jsxs17(
     "div",
     {
       ref: shellRef,
@@ -3271,14 +4067,14 @@ function ExplainableShell({
       },
       "data-fp": "explainable-shell",
       children: [
-        tabs.length > 1 && /* @__PURE__ */ jsx16("div", { style: {
+        tabs.length > 1 && /* @__PURE__ */ jsx18("div", { style: {
           display: "flex",
           borderBottom: `1px solid ${theme.border}`,
           background: theme.bgSecondary,
           flexShrink: 0
         }, children: tabs.map((tab) => {
           const active = tab === activeTab;
-          return /* @__PURE__ */ jsx16(
+          return /* @__PURE__ */ jsx18(
             "button",
             {
               onClick: () => handleTabChange(tab),
@@ -3300,10 +4096,10 @@ function ExplainableShell({
             tab
           );
         }) }),
-        /* @__PURE__ */ jsxs15("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: [
-          activeTab === "result" && /* @__PURE__ */ jsx16(ResultPanel, { data: resultData ?? null, logs, hideConsole, size }),
-          isVisualizationTab && /* @__PURE__ */ jsxs15(Fragment4, { children: [
-            /* @__PURE__ */ jsx16(
+        /* @__PURE__ */ jsxs17("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: [
+          activeTab === "result" && /* @__PURE__ */ jsx18(ResultPanel, { data: resultData ?? null, logs, hideConsole, size }),
+          isVisualizationTab && /* @__PURE__ */ jsxs17(Fragment5, { children: [
+            /* @__PURE__ */ jsx18(
               TimeTravelControls,
               {
                 snapshots: activeSnapshots,
@@ -3312,19 +4108,19 @@ function ExplainableShell({
                 size
               }
             ),
-            isInSubflow && /* @__PURE__ */ jsx16(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+            isInSubflow && /* @__PURE__ */ jsx18(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
             isNarrow ? (
               /* ── Mobile: stacked vertical ── */
-              /* @__PURE__ */ jsxs15(Fragment4, { children: [
-                /* @__PURE__ */ jsx16("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: renderFlowchart && activeSpec && renderFlowchart({
+              /* @__PURE__ */ jsxs17(Fragment5, { children: [
+                /* @__PURE__ */ jsx18("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart && activeSpec && effectiveRenderFlowchart({
                   spec: activeSpec,
                   snapshots: activeSnapshots,
                   selectedIndex: safeIdx,
                   onNodeClick: handleNodeClick
                 }) }),
-                showTreeSidebar && /* @__PURE__ */ jsxs15(Fragment4, { children: [
-                  /* @__PURE__ */ jsx16(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
-                  leftExpanded && /* @__PURE__ */ jsx16("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx16(
+                showTreeSidebar && /* @__PURE__ */ jsxs17(Fragment5, { children: [
+                  /* @__PURE__ */ jsx18(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
+                  leftExpanded && /* @__PURE__ */ jsx18("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx18(
                     SubflowTree,
                     {
                       spec,
@@ -3334,8 +4130,8 @@ function ExplainableShell({
                     }
                   ) })
                 ] }),
-                /* @__PURE__ */ jsx16(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-                rightExpanded && /* @__PURE__ */ jsx16("div", { style: { maxHeight: 250, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ jsx16(
+                /* @__PURE__ */ jsx18(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+                rightExpanded && /* @__PURE__ */ jsx18("div", { style: { maxHeight: 250, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ jsx18(
                   DetailsContent,
                   {
                     snapshots: activeSnapshots,
@@ -3345,15 +4141,15 @@ function ExplainableShell({
                     size
                   }
                 ) }),
-                /* @__PURE__ */ jsx16(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
-                timelineExpanded && /* @__PURE__ */ jsx16("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx16(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
+                /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
+                timelineExpanded && /* @__PURE__ */ jsx18("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
               ] })
             ) : (
               /* ── Desktop: side-by-side ── */
-              /* @__PURE__ */ jsxs15(Fragment4, { children: [
-                /* @__PURE__ */ jsxs15("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
-                  showTreeSidebar && (leftExpanded ? /* @__PURE__ */ jsxs15("div", { style: { width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
-                    /* @__PURE__ */ jsx16("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ jsx16(
+              /* @__PURE__ */ jsxs17(Fragment5, { children: [
+                /* @__PURE__ */ jsxs17("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
+                  showTreeSidebar && (leftExpanded ? /* @__PURE__ */ jsxs17("div", { style: { width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+                    /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ jsx18(
                       SubflowTree,
                       {
                         spec,
@@ -3362,17 +4158,17 @@ function ExplainableShell({
                         onNodeSelect: handleTreeNodeSelect
                       }
                     ) }),
-                    /* @__PURE__ */ jsx16(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
-                  ] }) : /* @__PURE__ */ jsx16(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
-                  /* @__PURE__ */ jsx16("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: renderFlowchart && activeSpec && renderFlowchart({
+                    /* @__PURE__ */ jsx18(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
+                  ] }) : /* @__PURE__ */ jsx18(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
+                  /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart && activeSpec && effectiveRenderFlowchart({
                     spec: activeSpec,
                     snapshots: activeSnapshots,
                     selectedIndex: safeIdx,
                     onNodeClick: handleNodeClick
                   }) }),
-                  rightExpanded ? /* @__PURE__ */ jsxs15("div", { style: { width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
-                    /* @__PURE__ */ jsx16(VLinePill, { label: rightLabel, expanded: true, onClick: () => toggleRight(false) }),
-                    /* @__PURE__ */ jsx16(
+                  rightExpanded ? /* @__PURE__ */ jsxs17("div", { style: { width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+                    /* @__PURE__ */ jsx18(VLinePill, { label: rightLabel, expanded: true, onClick: () => toggleRight(false) }),
+                    /* @__PURE__ */ jsx18(
                       DetailsContent,
                       {
                         snapshots: activeSnapshots,
@@ -3383,10 +4179,10 @@ function ExplainableShell({
                         fillHeight: true
                       }
                     )
-                  ] }) : /* @__PURE__ */ jsx16(VLinePill, { label: rightLabel, expanded: false, onClick: () => toggleRight(true) })
+                  ] }) : /* @__PURE__ */ jsx18(VLinePill, { label: rightLabel, expanded: false, onClick: () => toggleRight(true) })
                 ] }),
-                /* @__PURE__ */ jsx16(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
-                timelineExpanded && /* @__PURE__ */ jsx16("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx16(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
+                /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
+                timelineExpanded && /* @__PURE__ */ jsx18("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
               ] })
             )
           ] })

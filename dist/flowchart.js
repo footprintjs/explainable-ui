@@ -667,7 +667,9 @@ import {
   ReactFlow as ReactFlow2,
   Background as Background2,
   BackgroundVariant as BackgroundVariant2,
-  useReactFlow
+  useReactFlow,
+  useNodesState as useNodesState2,
+  useEdgesState as useEdgesState2
 } from "@xyflow/react";
 
 // src/components/FlowchartView/specToReactFlow.ts
@@ -921,10 +923,16 @@ function TracedFlowchartView({
     if (!spec) return null;
     return specToLayout(spec);
   }, [spec]);
-  const { nodes, edges } = useMemo2(() => {
+  const flowData = useMemo2(() => {
     if (!layout) return { nodes: [], edges: [] };
     return applyOverlay(layout, overlay);
   }, [layout, overlay]);
+  const [nodes, setNodes, onNodesChange] = useNodesState2(flowData.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState2(flowData.edges);
+  useEffect3(() => {
+    setNodes(flowData.nodes);
+    setEdges(flowData.edges);
+  }, [flowData, setNodes, setEdges]);
   const handleNodeClick = useCallback2(
     (_, node) => {
       if (!onNodeClick) return;
@@ -943,6 +951,8 @@ function TracedFlowchartView({
         {
           nodes,
           edges,
+          onNodesChange,
+          onEdgesChange,
           onNodeClick: handleNodeClick,
           nodeTypes: nodeTypes2,
           fitView: true,
