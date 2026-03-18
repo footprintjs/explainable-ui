@@ -301,8 +301,11 @@ function resolveSubflowLevel(
     (s) => s.stageName === subflowNodeName || s.stageLabel === subflowNodeName
   );
   if (!parentSnap?.subflowResult) return null;
+  // Use the spec node's display name for narrative extraction — the narrative
+  // recorder uses node.name (e.g., "Auth Service"), not node.id (e.g., "auth")
+  const sfNarrativeName = specNode.subflowName ?? specNode.name ?? subflowNodeName;
   const sfNarrative = narrativeEntries
-    ? extractSubflowNarrative(narrativeEntries, subflowNodeName)
+    ? extractSubflowNarrative(narrativeEntries, sfNarrativeName)
     : undefined;
   const sfSnapshots = subflowResultToSnapshots(parentSnap.subflowResult, sfNarrative);
   if (sfSnapshots.length === 0) return null;

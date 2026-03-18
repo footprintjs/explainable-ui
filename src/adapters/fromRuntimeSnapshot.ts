@@ -122,7 +122,9 @@ function flattenTree(
   // Narrative comes from the library. When not available (e.g. subflow internals
   // where the root recorder only captures enter/exit markers), build a basic
   // narrative from the stage name, description, and data operations.
-  const stageLines = stageNarrativeMap.get(stageId);
+  // Try id first, then name — narrative entries use node.name (may be prefixed)
+  // while snapshot uses node.id (stable). Both need to match for subflows.
+  const stageLines = stageNarrativeMap.get(stageId) ?? stageNarrativeMap.get(displayName);
   let narrative: string;
   if (stageLines) {
     narrative = stageLines.join('\n');
