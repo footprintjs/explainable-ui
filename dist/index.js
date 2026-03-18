@@ -2232,7 +2232,7 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
   const startMs = accumulatedMs;
   const stageId = node.id || node.name || "unknown";
   const displayName = node.name || node.id || "unknown";
-  const stageLines = stageNarrativeMap.get(stageId);
+  const stageLines = stageNarrativeMap.get(stageId) ?? stageNarrativeMap.get(displayName);
   let narrative;
   if (stageLines) {
     narrative = stageLines.join("\n");
@@ -3802,7 +3802,8 @@ function resolveSubflowLevel(parentSpec, parentSnapshots, subflowNodeName, narra
     (s) => s.stageName === subflowNodeName || s.stageLabel === subflowNodeName
   );
   if (!parentSnap?.subflowResult) return null;
-  const sfNarrative = narrativeEntries ? extractSubflowNarrative(narrativeEntries, subflowNodeName) : void 0;
+  const sfNarrativeName = specNode.subflowName ?? specNode.name ?? subflowNodeName;
+  const sfNarrative = narrativeEntries ? extractSubflowNarrative(narrativeEntries, sfNarrativeName) : void 0;
   const sfSnapshots = subflowResultToSnapshots(parentSnap.subflowResult, sfNarrative);
   if (sfSnapshots.length === 0) return null;
   return {
