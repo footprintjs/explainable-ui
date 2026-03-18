@@ -709,7 +709,7 @@ var DEFAULT_COLORS = {
 var Y_STEP = 100;
 var X_SPREAD = 200;
 function nid(n) {
-  return n.name || n.id || `spec-${Math.random()}`;
+  return n.id || n.name || `spec-${Math.random()}`;
 }
 function registerNode(state, node) {
   if (node.id && node.name) {
