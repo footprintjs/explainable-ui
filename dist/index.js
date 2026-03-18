@@ -1,0 +1,3428 @@
+// src/theme/ThemeProvider.tsx
+import { createContext, useContext } from "react";
+
+// src/theme/tokens.ts
+function tokensToCSSVars(tokens) {
+  const vars = {};
+  if (tokens.colors) {
+    const c = tokens.colors;
+    if (c.primary) vars["--fp-color-primary"] = c.primary;
+    if (c.success) vars["--fp-color-success"] = c.success;
+    if (c.error) vars["--fp-color-error"] = c.error;
+    if (c.warning) vars["--fp-color-warning"] = c.warning;
+    if (c.bgPrimary) vars["--fp-bg-primary"] = c.bgPrimary;
+    if (c.bgSecondary) vars["--fp-bg-secondary"] = c.bgSecondary;
+    if (c.bgTertiary) vars["--fp-bg-tertiary"] = c.bgTertiary;
+    if (c.textPrimary) vars["--fp-text-primary"] = c.textPrimary;
+    if (c.textSecondary) vars["--fp-text-secondary"] = c.textSecondary;
+    if (c.textMuted) vars["--fp-text-muted"] = c.textMuted;
+    if (c.border) vars["--fp-border"] = c.border;
+  }
+  if (tokens.radius) vars["--fp-radius"] = tokens.radius;
+  if (tokens.fontFamily?.sans) vars["--fp-font-sans"] = tokens.fontFamily.sans;
+  if (tokens.fontFamily?.mono) vars["--fp-font-mono"] = tokens.fontFamily.mono;
+  return vars;
+}
+var rawDefaults = {
+  colors: {
+    primary: "#6366f1",
+    success: "#22c55e",
+    error: "#ef4444",
+    warning: "#f59e0b",
+    bgPrimary: "#0f172a",
+    bgSecondary: "#1e293b",
+    bgTertiary: "#334155",
+    textPrimary: "#f8fafc",
+    textSecondary: "#94a3b8",
+    textMuted: "#64748b",
+    border: "#334155"
+  },
+  radius: "8px",
+  fontFamily: {
+    sans: "Inter, system-ui, -apple-system, sans-serif",
+    mono: "'JetBrains Mono', 'Fira Code', monospace"
+  }
+};
+var defaultTokens = {
+  colors: {
+    primary: `var(--fp-color-primary, ${rawDefaults.colors.primary})`,
+    success: `var(--fp-color-success, ${rawDefaults.colors.success})`,
+    error: `var(--fp-color-error, ${rawDefaults.colors.error})`,
+    warning: `var(--fp-color-warning, ${rawDefaults.colors.warning})`,
+    bgPrimary: `var(--fp-bg-primary, ${rawDefaults.colors.bgPrimary})`,
+    bgSecondary: `var(--fp-bg-secondary, ${rawDefaults.colors.bgSecondary})`,
+    bgTertiary: `var(--fp-bg-tertiary, ${rawDefaults.colors.bgTertiary})`,
+    textPrimary: `var(--fp-text-primary, ${rawDefaults.colors.textPrimary})`,
+    textSecondary: `var(--fp-text-secondary, ${rawDefaults.colors.textSecondary})`,
+    textMuted: `var(--fp-text-muted, ${rawDefaults.colors.textMuted})`,
+    border: `var(--fp-border, ${rawDefaults.colors.border})`
+  },
+  radius: `var(--fp-radius, ${rawDefaults.radius})`,
+  fontFamily: {
+    sans: `var(--fp-font-sans, ${rawDefaults.fontFamily.sans})`,
+    mono: `var(--fp-font-mono, ${rawDefaults.fontFamily.mono})`
+  }
+};
+
+// src/theme/ThemeProvider.tsx
+import { jsx } from "react/jsx-runtime";
+var ThemeContext = createContext({});
+function useFootprintTheme() {
+  return useContext(ThemeContext);
+}
+function FootprintTheme({ tokens = {}, children }) {
+  const cssVars = tokensToCSSVars(tokens);
+  return /* @__PURE__ */ jsx(ThemeContext.Provider, { value: tokens, children: /* @__PURE__ */ jsx("div", { style: cssVars, className: "fp-theme-root", children }) });
+}
+
+// src/theme/styles.ts
+function v(varName, fallback) {
+  return `var(${varName}, ${fallback})`;
+}
+var theme = {
+  primary: v("--fp-color-primary", "#6366f1"),
+  success: v("--fp-color-success", "#22c55e"),
+  error: v("--fp-color-error", "#ef4444"),
+  warning: v("--fp-color-warning", "#f59e0b"),
+  bgPrimary: v("--fp-bg-primary", "#0f172a"),
+  bgSecondary: v("--fp-bg-secondary", "#1e293b"),
+  bgTertiary: v("--fp-bg-tertiary", "#334155"),
+  textPrimary: v("--fp-text-primary", "#f8fafc"),
+  textSecondary: v("--fp-text-secondary", "#94a3b8"),
+  textMuted: v("--fp-text-muted", "#64748b"),
+  border: v("--fp-border", "#334155"),
+  radius: v("--fp-radius", "8px"),
+  fontSans: v("--fp-font-sans", "Inter, system-ui, -apple-system, sans-serif"),
+  fontMono: v("--fp-font-mono", "'JetBrains Mono', 'Fira Code', monospace")
+};
+var fontSize = {
+  compact: { label: 10, body: 11, small: 9 },
+  default: { label: 11, body: 12, small: 10 },
+  detailed: { label: 12, body: 13, small: 11 }
+};
+var padding = {
+  compact: 8,
+  default: 12,
+  detailed: 16
+};
+
+// src/theme/presets.ts
+var coolDark = {
+  colors: {
+    primary: "#6366f1",
+    success: "#22c55e",
+    error: "#ef4444",
+    warning: "#f59e0b",
+    bgPrimary: "#0f172a",
+    bgSecondary: "#1e293b",
+    bgTertiary: "#334155",
+    textPrimary: "#f8fafc",
+    textSecondary: "#94a3b8",
+    textMuted: "#64748b",
+    border: "#334155"
+  },
+  radius: "8px",
+  fontFamily: {
+    sans: "Inter, system-ui, -apple-system, sans-serif",
+    mono: "'JetBrains Mono', 'Fira Code', monospace"
+  }
+};
+var warmDark = {
+  colors: {
+    primary: "#7c6cf0",
+    success: "#3dd68c",
+    error: "#f06292",
+    warning: "#ffb74d",
+    bgPrimary: "#1e1a2e",
+    bgSecondary: "#2a2540",
+    bgTertiary: "#3a3455",
+    textPrimary: "#f0e6d6",
+    textSecondary: "#a89eb4",
+    textMuted: "#6e6480",
+    border: "#3a3455"
+  },
+  radius: "8px",
+  fontFamily: {
+    sans: "Inter, system-ui, -apple-system, sans-serif",
+    mono: "'JetBrains Mono', 'Fira Code', monospace"
+  }
+};
+var warmLight = {
+  colors: {
+    primary: "#7c6cf0",
+    success: "#22a860",
+    error: "#d94452",
+    warning: "#e09030",
+    bgPrimary: "#faf5ef",
+    bgSecondary: "#f0e6d6",
+    bgTertiary: "#e4d5c3",
+    textPrimary: "#2e2938",
+    textSecondary: "#5c5468",
+    textMuted: "#8a7e96",
+    border: "#d6c8b4"
+  },
+  radius: "8px",
+  fontFamily: {
+    sans: "Inter, system-ui, -apple-system, sans-serif",
+    mono: "'JetBrains Mono', 'Fira Code', monospace"
+  }
+};
+var coolLight = {
+  colors: {
+    primary: "#6366f1",
+    success: "#22c55e",
+    error: "#ef4444",
+    warning: "#f59e0b",
+    bgPrimary: "#ffffff",
+    bgSecondary: "#f9fafb",
+    bgTertiary: "#e5e7eb",
+    textPrimary: "#18181b",
+    textSecondary: "#52525b",
+    textMuted: "#a1a1aa",
+    border: "#e5e7eb"
+  },
+  radius: "8px",
+  fontFamily: {
+    sans: "Inter, system-ui, -apple-system, sans-serif",
+    mono: "'JetBrains Mono', 'Fira Code', monospace"
+  }
+};
+var themePresets = {
+  coolDark,
+  coolLight,
+  warmDark,
+  warmLight
+};
+
+// src/theme/useDarkModeTokens.ts
+import { useState, useEffect } from "react";
+function useDarkModeTokens(options) {
+  const lightTokens = options?.light ?? coolLight;
+  const darkTokens = options?.dark ?? coolDark;
+  const [isDark, setIsDark] = useState(
+    () => document.documentElement.classList.contains(options?.selector ?? "dark")
+  );
+  useEffect(() => {
+    const cls = options?.selector ?? "dark";
+    const obs = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains(cls));
+    });
+    obs.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"]
+    });
+    return () => obs.disconnect();
+  }, [options?.selector]);
+  return isDark ? darkTokens : lightTokens;
+}
+
+// src/components/MemoryInspector/MemoryInspector.tsx
+import { useMemo, useRef } from "react";
+import { jsx as jsx2, jsxs } from "react/jsx-runtime";
+function MemoryInspector({
+  data,
+  snapshots,
+  selectedIndex = 0,
+  showTypes = false,
+  highlightNew = true,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const cacheRef = useRef(null);
+  const { memory, newKeys } = useMemo(() => {
+    if (data) {
+      return { memory: data, newKeys: /* @__PURE__ */ new Set() };
+    }
+    if (!snapshots || snapshots.length === 0) {
+      return { memory: {}, newKeys: /* @__PURE__ */ new Set() };
+    }
+    const safeIdx = Math.min(selectedIndex, snapshots.length - 1);
+    let merged;
+    const cache = cacheRef.current;
+    if (cache && cache.snapshots === snapshots && cache.index <= safeIdx) {
+      merged = { ...cache.accumulated };
+      for (let i = cache.index + 1; i <= safeIdx; i++) {
+        Object.assign(merged, snapshots[i]?.memory);
+      }
+    } else {
+      merged = {};
+      for (let i = 0; i <= safeIdx; i++) {
+        Object.assign(merged, snapshots[i]?.memory);
+      }
+    }
+    cacheRef.current = { snapshots, index: safeIdx, accumulated: merged };
+    const nk = /* @__PURE__ */ new Set();
+    if (highlightNew && safeIdx > 0) {
+      let prev;
+      if (cache && cache.snapshots === snapshots && cache.index === safeIdx - 1) {
+        prev = cache.accumulated;
+      } else {
+        prev = {};
+        for (let i = 0; i < safeIdx; i++) {
+          Object.assign(prev, snapshots[i]?.memory);
+        }
+      }
+      const current = snapshots[safeIdx]?.memory ?? {};
+      for (const k of Object.keys(current)) {
+        if (!(k in prev)) nk.add(k);
+      }
+    } else if (highlightNew && safeIdx === 0 && snapshots[0]) {
+      for (const k of Object.keys(snapshots[0].memory)) nk.add(k);
+    }
+    return { memory: merged, newKeys: nk };
+  }, [data, snapshots, selectedIndex, highlightNew]);
+  const entries = Object.entries(memory);
+  const fs = fontSize[size];
+  const pad = padding[size];
+  if (unstyled) {
+    return /* @__PURE__ */ jsxs("div", { className, style, "data-fp": "memory-inspector", role: "region", "aria-label": "Memory state", children: [
+      /* @__PURE__ */ jsx2("div", { "data-fp": "memory-label", children: "Memory State" }),
+      /* @__PURE__ */ jsx2("pre", { "data-fp": "memory-json", children: /* @__PURE__ */ jsx2("code", { children: JSON.stringify(memory, null, 2) }) })
+    ] });
+  }
+  return /* @__PURE__ */ jsxs(
+    "div",
+    {
+      className,
+      style: {
+        padding: pad,
+        fontFamily: theme.fontSans,
+        ...style
+      },
+      "data-fp": "memory-inspector",
+      role: "region",
+      "aria-label": "Memory state",
+      children: [
+        /* @__PURE__ */ jsx2(
+          "span",
+          {
+            style: {
+              fontSize: fs.label,
+              fontWeight: 600,
+              color: theme.textMuted,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em"
+            },
+            children: "Memory State"
+          }
+        ),
+        /* @__PURE__ */ jsxs(
+          "div",
+          {
+            style: {
+              marginTop: 8,
+              background: theme.bgSecondary,
+              border: `1px solid ${theme.border}`,
+              borderRadius: theme.radius,
+              padding: `${pad}px ${pad + 4}px`,
+              fontFamily: theme.fontMono,
+              fontSize: fs.body,
+              lineHeight: 1.8
+            },
+            children: [
+              /* @__PURE__ */ jsx2("span", { style: { color: theme.textMuted }, children: "{" }),
+              entries.length === 0 && /* @__PURE__ */ jsx2(
+                "div",
+                {
+                  style: {
+                    paddingLeft: 16,
+                    color: theme.textMuted,
+                    fontStyle: "italic"
+                  },
+                  children: "// empty"
+                }
+              ),
+              entries.map(([key, value], i) => {
+                const isNew = newKeys.has(key);
+                const isLast = i === entries.length - 1;
+                return /* @__PURE__ */ jsxs(
+                  "div",
+                  {
+                    style: {
+                      paddingLeft: 16,
+                      background: isNew ? `color-mix(in srgb, ${theme.success} 10%, transparent)` : "transparent",
+                      borderRadius: 4,
+                      marginLeft: -4,
+                      marginRight: -4,
+                      paddingRight: 4
+                    },
+                    children: [
+                      /* @__PURE__ */ jsxs("span", { style: { color: theme.primary }, children: [
+                        '"',
+                        key,
+                        '"'
+                      ] }),
+                      /* @__PURE__ */ jsx2("span", { style: { color: theme.textMuted }, children: ": " }),
+                      /* @__PURE__ */ jsx2("span", { style: { color: theme.success }, children: formatValue(value) }),
+                      showTypes && /* @__PURE__ */ jsxs(
+                        "span",
+                        {
+                          style: {
+                            color: theme.textMuted,
+                            fontSize: fs.small,
+                            marginLeft: 8,
+                            opacity: 0.6
+                          },
+                          children: [
+                            "(",
+                            typeof value,
+                            ")"
+                          ]
+                        }
+                      ),
+                      !isLast && /* @__PURE__ */ jsx2("span", { style: { color: theme.textMuted }, children: "," })
+                    ]
+                  },
+                  key
+                );
+              }),
+              /* @__PURE__ */ jsx2("span", { style: { color: theme.textMuted }, children: "}" })
+            ]
+          }
+        )
+      ]
+    }
+  );
+}
+function formatValue(value) {
+  if (typeof value === "string") return `"${value}"`;
+  if (typeof value === "object" && value !== null) return JSON.stringify(value);
+  return String(value);
+}
+
+// src/components/NarrativeLog/NarrativeLog.tsx
+import { useMemo as useMemo2 } from "react";
+import { jsx as jsx3, jsxs as jsxs2 } from "react/jsx-runtime";
+function NarrativeLog({
+  snapshots,
+  selectedIndex,
+  narrative,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const entries = useMemo2(() => {
+    if (narrative) {
+      return [{ label: "Output", text: narrative, isCurrent: true }];
+    }
+    const idx = selectedIndex ?? snapshots.length - 1;
+    return snapshots.slice(0, idx + 1).map((s, i) => ({
+      label: s.stageLabel,
+      text: s.narrative,
+      isCurrent: i === idx
+    }));
+  }, [snapshots, selectedIndex, narrative]);
+  const fs = fontSize[size];
+  const pad = padding[size];
+  if (unstyled) {
+    return /* @__PURE__ */ jsx3("div", { className, style, "data-fp": "narrative-log", children: entries.map((entry, i) => /* @__PURE__ */ jsxs2("div", { "data-fp": "narrative-entry", "data-current": entry.isCurrent, children: [
+      /* @__PURE__ */ jsx3("strong", { children: entry.label }),
+      /* @__PURE__ */ jsx3("p", { children: entry.text })
+    ] }, i)) });
+  }
+  return /* @__PURE__ */ jsxs2(
+    "div",
+    {
+      className,
+      style: { padding: pad, fontFamily: theme.fontSans, ...style },
+      "data-fp": "narrative-log",
+      children: [
+        /* @__PURE__ */ jsx3(
+          "span",
+          {
+            style: {
+              fontSize: fs.label,
+              fontWeight: 600,
+              color: theme.textMuted,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em"
+            },
+            children: "Execution Log"
+          }
+        ),
+        /* @__PURE__ */ jsx3("div", { style: { marginTop: 8, display: "flex", flexDirection: "column" }, children: entries.map((entry, i) => /* @__PURE__ */ jsxs2(
+          "div",
+          {
+            style: {
+              display: "flex",
+              gap: 10,
+              padding: `${pad}px 0`,
+              borderBottom: i < entries.length - 1 ? `1px solid ${theme.border}` : "none"
+            },
+            children: [
+              /* @__PURE__ */ jsxs2(
+                "div",
+                {
+                  style: {
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    width: 12,
+                    flexShrink: 0,
+                    paddingTop: 5
+                  },
+                  children: [
+                    /* @__PURE__ */ jsx3(
+                      "div",
+                      {
+                        style: {
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: entry.isCurrent ? theme.primary : theme.success,
+                          flexShrink: 0
+                        }
+                      }
+                    ),
+                    i < entries.length - 1 && /* @__PURE__ */ jsx3(
+                      "div",
+                      {
+                        style: {
+                          width: 1,
+                          flex: 1,
+                          background: theme.border,
+                          marginTop: 4
+                        }
+                      }
+                    )
+                  ]
+                }
+              ),
+              /* @__PURE__ */ jsxs2("div", { style: { flex: 1, minWidth: 0 }, children: [
+                /* @__PURE__ */ jsx3(
+                  "span",
+                  {
+                    style: {
+                      fontSize: fs.label,
+                      fontWeight: 600,
+                      color: entry.isCurrent ? theme.primary : theme.textMuted
+                    },
+                    children: entry.label
+                  }
+                ),
+                /* @__PURE__ */ jsx3(
+                  "div",
+                  {
+                    style: {
+                      fontSize: fs.body,
+                      lineHeight: 1.5,
+                      color: entry.isCurrent ? theme.textPrimary : theme.textSecondary,
+                      marginTop: 2
+                    },
+                    children: entry.text
+                  }
+                )
+              ] })
+            ]
+          },
+          i
+        )) })
+      ]
+    }
+  );
+}
+
+// src/components/NarrativeTrace/NarrativeTrace.tsx
+import { useState as useState2, useCallback, useMemo as useMemo3, useEffect as useEffect2, useRef as useRef2 } from "react";
+import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
+function parseGroups(lines) {
+  const groups = [];
+  let current = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trimStart();
+    const isStep = trimmed.startsWith("Step ") || /^\s/.test(line);
+    if (!isStep || !current) {
+      current = { header: line, headerIdx: i, steps: [] };
+      groups.push(current);
+    } else {
+      current.steps.push({ text: trimmed, idx: i });
+    }
+  }
+  return groups;
+}
+function NarrativeTrace({
+  narrative,
+  revealedCount,
+  defaultCollapsed = false,
+  onStageClick,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const revealed = revealedCount != null ? narrative.slice(0, revealedCount) : narrative;
+  const future = revealedCount != null ? narrative.slice(revealedCount) : [];
+  const revealedGroups = useMemo3(() => parseGroups(revealed), [revealed]);
+  const futureGroups = useMemo3(() => parseGroups(future), [future]);
+  const [collapsedSet, setCollapsedSet] = useState2(() => {
+    if (!defaultCollapsed) return /* @__PURE__ */ new Set();
+    return new Set(parseGroups(narrative).map((g) => g.headerIdx));
+  });
+  const latestRef = useRef2(null);
+  useEffect2(() => {
+    latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [revealedGroups.length]);
+  const toggle = useCallback((idx) => {
+    setCollapsedSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  }, []);
+  const lastIdx = revealedGroups.length - 1;
+  const fs = fontSize[size];
+  const pad = padding[size];
+  if (unstyled) {
+    return /* @__PURE__ */ jsxs3("div", { className, style, "data-fp": "narrative-trace", children: [
+      revealedGroups.map((group, gi) => /* @__PURE__ */ jsxs3("div", { "data-fp": "narrative-group", "data-latest": gi === lastIdx, children: [
+        /* @__PURE__ */ jsx4(
+          "div",
+          {
+            "data-fp": "narrative-header",
+            "data-collapsible": group.steps.length > 0,
+            "data-collapsed": collapsedSet.has(group.headerIdx),
+            role: group.steps.length > 0 ? "button" : void 0,
+            tabIndex: group.steps.length > 0 ? 0 : void 0,
+            "aria-expanded": group.steps.length > 0 ? !collapsedSet.has(group.headerIdx) : void 0,
+            "aria-label": `Stage ${gi + 1}, ${group.steps.length} steps${gi === lastIdx ? ", current" : ""}`,
+            onClick: () => {
+              if (group.steps.length > 0) toggle(group.headerIdx);
+              onStageClick?.(group.headerIdx);
+            },
+            onKeyDown: (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                if (group.steps.length > 0) toggle(group.headerIdx);
+                onStageClick?.(group.headerIdx);
+              }
+            },
+            children: group.header
+          }
+        ),
+        !collapsedSet.has(group.headerIdx) && group.steps.map((step) => /* @__PURE__ */ jsx4("div", { "data-fp": "narrative-step", children: step.text }, step.idx))
+      ] }, group.headerIdx)),
+      futureGroups.length > 0 && /* @__PURE__ */ jsxs3("div", { "data-fp": "narrative-future-hint", children: [
+        futureGroups.length,
+        " more ",
+        futureGroups.length === 1 ? "stage" : "stages",
+        " ahead..."
+      ] })
+    ] });
+  }
+  return /* @__PURE__ */ jsxs3(
+    "div",
+    {
+      className,
+      style: {
+        flex: 1,
+        overflow: "auto",
+        padding: pad,
+        fontFamily: theme.fontMono,
+        ...style
+      },
+      "data-fp": "narrative-trace",
+      children: [
+        revealedGroups.map((group, gi) => {
+          const isLatest = gi === lastIdx;
+          const isCollapsed = collapsedSet.has(group.headerIdx);
+          const hasSteps = group.steps.length > 0;
+          return /* @__PURE__ */ jsxs3(
+            "div",
+            {
+              ref: isLatest ? latestRef : void 0,
+              style: { marginBottom: 2 },
+              "data-fp": "narrative-group",
+              children: [
+                /* @__PURE__ */ jsxs3(
+                  "div",
+                  {
+                    role: hasSteps ? "button" : void 0,
+                    tabIndex: hasSteps ? 0 : void 0,
+                    "aria-expanded": hasSteps ? !isCollapsed : void 0,
+                    "aria-label": `Stage ${gi + 1}, ${group.steps.length} steps${isLatest ? ", current" : ", completed"}`,
+                    onClick: () => {
+                      if (hasSteps) toggle(group.headerIdx);
+                      onStageClick?.(group.headerIdx);
+                    },
+                    onKeyDown: (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        if (hasSteps) toggle(group.headerIdx);
+                        onStageClick?.(group.headerIdx);
+                      }
+                    },
+                    style: {
+                      fontSize: fs.body,
+                      lineHeight: 1.7,
+                      color: isLatest ? theme.textPrimary : theme.textSecondary,
+                      padding: `4px ${pad - 4}px`,
+                      borderRadius: 4,
+                      background: isLatest ? theme.bgTertiary : "transparent",
+                      borderLeft: isLatest ? `3px solid ${theme.primary}` : `3px solid ${theme.success}`,
+                      cursor: hasSteps ? "pointer" : "default",
+                      fontWeight: 600,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      userSelect: "none",
+                      transition: "all 0.15s ease"
+                    },
+                    children: [
+                      hasSteps && /* @__PURE__ */ jsx4(
+                        "span",
+                        {
+                          style: {
+                            fontSize: fs.small - 1,
+                            color: theme.textMuted,
+                            transition: "transform 0.15s ease",
+                            transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                            display: "inline-block",
+                            width: 10,
+                            flexShrink: 0
+                          },
+                          children: "\u25BC"
+                        }
+                      ),
+                      !hasSteps && /* @__PURE__ */ jsx4("span", { style: { width: 10, flexShrink: 0 } }),
+                      /* @__PURE__ */ jsx4("span", { children: group.header })
+                    ]
+                  }
+                ),
+                !isCollapsed && group.steps.map((step) => /* @__PURE__ */ jsx4(
+                  "div",
+                  {
+                    style: {
+                      fontSize: fs.small,
+                      lineHeight: 1.6,
+                      color: isLatest ? theme.textSecondary : theme.textMuted,
+                      padding: `2px ${pad - 4}px 2px ${pad + 20}px`,
+                      opacity: isLatest ? 0.9 : 0.7,
+                      transition: "all 0.15s ease"
+                    },
+                    "data-fp": "narrative-step",
+                    children: step.text
+                  },
+                  step.idx
+                ))
+              ]
+            },
+            group.headerIdx
+          );
+        }),
+        futureGroups.length > 0 && /* @__PURE__ */ jsxs3("div", { style: {
+          opacity: 0.3,
+          fontSize: fs.small,
+          color: theme.textMuted,
+          padding: `8px ${pad}px`,
+          fontStyle: "italic"
+        }, children: [
+          futureGroups.length,
+          " more ",
+          futureGroups.length === 1 ? "stage" : "stages",
+          " ahead..."
+        ] })
+      ]
+    }
+  );
+}
+
+// src/components/GanttTimeline/GanttTimeline.tsx
+import { useState as useState3, useMemo as useMemo4, useRef as useRef3, useEffect as useEffect3 } from "react";
+import { jsx as jsx5, jsxs as jsxs4 } from "react/jsx-runtime";
+function GanttTimeline({
+  snapshots,
+  selectedIndex = 0,
+  onSelect,
+  size = "default",
+  unstyled = false,
+  className,
+  style,
+  maxVisibleRows = 5
+}) {
+  const [expanded, setExpanded] = useState3(false);
+  const activeRowRef = useRef3(null);
+  const scrollContainerRef = useRef3(null);
+  const totalWallTime = useMemo4(
+    () => Math.max(...snapshots.map((s) => s.startMs + s.durationMs), 1),
+    [snapshots]
+  );
+  const fs = fontSize[size];
+  const pad = padding[size];
+  const labelWidth = size === "compact" ? 50 : size === "detailed" ? 100 : 80;
+  const msWidth = size === "compact" ? 28 : 36;
+  const rowHeight = size === "compact" ? 18 : 22;
+  const collapsible = maxVisibleRows > 0 && snapshots.length > maxVisibleRows;
+  const showAll = expanded || !collapsible;
+  useEffect3(() => {
+    if (!showAll && activeRowRef.current && scrollContainerRef.current) {
+      activeRowRef.current.scrollIntoView({
+        block: "nearest",
+        behavior: "smooth"
+      });
+    }
+  }, [selectedIndex, showAll]);
+  if (unstyled) {
+    return /* @__PURE__ */ jsx5("div", { className, style, "data-fp": "gantt-timeline", role: "listbox", "aria-label": "Execution timeline", children: snapshots.map((snap, idx) => /* @__PURE__ */ jsxs4(
+      "div",
+      {
+        "data-fp": "gantt-bar",
+        "data-selected": idx === selectedIndex,
+        "data-visible": idx <= selectedIndex,
+        role: "option",
+        "aria-selected": idx === selectedIndex,
+        "aria-label": `${snap.stageLabel}, ${snap.durationMs}ms`,
+        onClick: () => onSelect?.(idx),
+        children: [
+          /* @__PURE__ */ jsx5("span", { "data-fp": "gantt-label", children: snap.stageLabel }),
+          /* @__PURE__ */ jsxs4("span", { "data-fp": "gantt-duration", children: [
+            snap.durationMs,
+            "ms"
+          ] })
+        ]
+      },
+      `${snap.stageName}-${idx}`
+    )) });
+  }
+  return /* @__PURE__ */ jsxs4(
+    "div",
+    {
+      className,
+      style: { padding: pad, fontFamily: theme.fontSans, ...style },
+      "data-fp": "gantt-timeline",
+      children: [
+        /* @__PURE__ */ jsxs4(
+          "div",
+          {
+            style: {
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between"
+            },
+            children: [
+              /* @__PURE__ */ jsx5(
+                "span",
+                {
+                  style: {
+                    fontSize: fs.label,
+                    fontWeight: 600,
+                    color: theme.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em"
+                  },
+                  children: size === "compact" ? "Timeline" : "Execution Timeline"
+                }
+              ),
+              collapsible && /* @__PURE__ */ jsx5(
+                "button",
+                {
+                  onClick: () => setExpanded((e) => !e),
+                  style: {
+                    background: "none",
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 4,
+                    color: theme.textSecondary,
+                    fontSize: fs.small,
+                    padding: "2px 8px",
+                    cursor: "pointer",
+                    fontFamily: theme.fontSans
+                  },
+                  children: expanded ? "Collapse" : `${snapshots.length - maxVisibleRows} more...`
+                }
+              )
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsx5(
+          "div",
+          {
+            ref: scrollContainerRef,
+            role: "listbox",
+            "aria-label": "Execution timeline",
+            style: {
+              marginTop: 8,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              ...showAll ? {} : {
+                maxHeight: maxVisibleRows * (rowHeight + 4),
+                overflowY: "auto",
+                scrollbarWidth: "thin"
+              }
+            },
+            children: snapshots.map((snap, idx) => {
+              const leftPct = snap.startMs / totalWallTime * 100;
+              const widthPct = Math.max(snap.durationMs / totalWallTime * 100, 1);
+              const isSelected = idx === selectedIndex;
+              const isVisible = idx <= selectedIndex;
+              return /* @__PURE__ */ jsxs4(
+                "div",
+                {
+                  ref: isSelected ? activeRowRef : void 0,
+                  role: "option",
+                  "aria-selected": isSelected,
+                  "aria-label": `${snap.stageLabel}, ${snap.durationMs}ms`,
+                  onClick: () => onSelect?.(idx),
+                  style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: size === "compact" ? 4 : 8,
+                    cursor: onSelect ? "pointer" : "default",
+                    opacity: isVisible ? 1 : 0.3,
+                    transition: "opacity 0.3s ease",
+                    height: rowHeight,
+                    flexShrink: 0
+                  },
+                  children: [
+                    /* @__PURE__ */ jsx5(
+                      "span",
+                      {
+                        title: snap.stageLabel,
+                        style: {
+                          width: labelWidth,
+                          fontSize: fs.small,
+                          color: isSelected ? theme.primary : theme.textMuted,
+                          fontWeight: isSelected ? 600 : 400,
+                          textAlign: "right",
+                          flexShrink: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap"
+                        },
+                        children: snap.stageLabel
+                      }
+                    ),
+                    /* @__PURE__ */ jsx5(
+                      "div",
+                      {
+                        style: {
+                          flex: 1,
+                          height: size === "compact" ? 6 : 8,
+                          position: "relative",
+                          background: theme.bgTertiary,
+                          borderRadius: 3
+                        },
+                        children: isVisible && /* @__PURE__ */ jsx5(
+                          "div",
+                          {
+                            style: {
+                              position: "absolute",
+                              left: `${leftPct}%`,
+                              top: 0,
+                              width: `${widthPct}%`,
+                              height: "100%",
+                              borderRadius: 3,
+                              background: isSelected ? theme.primary : theme.success,
+                              transition: "width 0.3s ease"
+                            }
+                          }
+                        )
+                      }
+                    ),
+                    /* @__PURE__ */ jsxs4(
+                      "span",
+                      {
+                        style: {
+                          fontSize: fs.small,
+                          color: theme.textMuted,
+                          fontFamily: theme.fontMono,
+                          width: msWidth,
+                          flexShrink: 0
+                        },
+                        children: [
+                          snap.durationMs,
+                          "ms"
+                        ]
+                      }
+                    )
+                  ]
+                },
+                `${snap.stageName}-${idx}`
+              );
+            })
+          }
+        ),
+        /* @__PURE__ */ jsxs4(
+          "div",
+          {
+            style: {
+              marginTop: 4,
+              marginLeft: labelWidth + (size === "compact" ? 4 : 8),
+              marginRight: msWidth + (size === "compact" ? 4 : 8),
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: fs.small - 1,
+              color: theme.textMuted,
+              fontFamily: theme.fontMono
+            },
+            children: [
+              /* @__PURE__ */ jsx5("span", { children: "0ms" }),
+              size !== "compact" && /* @__PURE__ */ jsxs4("span", { children: [
+                (totalWallTime / 2).toFixed(1),
+                "ms"
+              ] }),
+              /* @__PURE__ */ jsxs4("span", { children: [
+                totalWallTime.toFixed(1),
+                "ms"
+              ] })
+            ]
+          }
+        )
+      ]
+    }
+  );
+}
+
+// src/components/SnapshotPanel/SnapshotPanel.tsx
+import { useState as useState4 } from "react";
+import { jsx as jsx6, jsxs as jsxs5 } from "react/jsx-runtime";
+function SnapshotPanel({
+  snapshots,
+  showGantt = true,
+  showScrubber = true,
+  title = "Pipeline Inspector",
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const [selectedIndex, setSelectedIndex] = useState4(0);
+  const fs = fontSize[size];
+  const pad = padding[size];
+  if (snapshots.length === 0) {
+    return /* @__PURE__ */ jsx6(
+      "div",
+      {
+        className,
+        style: {
+          padding: pad * 2,
+          textAlign: "center",
+          color: unstyled ? void 0 : theme.textMuted,
+          fontSize: fs.body,
+          ...style
+        },
+        "data-fp": "snapshot-panel",
+        children: "No snapshots to display"
+      }
+    );
+  }
+  if (unstyled) {
+    return /* @__PURE__ */ jsxs5("div", { className, style, "data-fp": "snapshot-panel", children: [
+      /* @__PURE__ */ jsx6("h3", { children: title }),
+      showScrubber && /* @__PURE__ */ jsx6(
+        "input",
+        {
+          type: "range",
+          min: 0,
+          max: snapshots.length - 1,
+          value: selectedIndex,
+          onChange: (e) => setSelectedIndex(parseInt(e.target.value))
+        }
+      ),
+      /* @__PURE__ */ jsx6(
+        MemoryInspector,
+        {
+          snapshots,
+          selectedIndex,
+          unstyled: true
+        }
+      ),
+      /* @__PURE__ */ jsx6(
+        NarrativeLog,
+        {
+          snapshots,
+          selectedIndex,
+          unstyled: true
+        }
+      ),
+      showGantt && /* @__PURE__ */ jsx6(
+        GanttTimeline,
+        {
+          snapshots,
+          selectedIndex,
+          onSelect: setSelectedIndex,
+          unstyled: true
+        }
+      )
+    ] });
+  }
+  return /* @__PURE__ */ jsxs5(
+    "div",
+    {
+      className,
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        background: theme.bgPrimary,
+        fontFamily: theme.fontSans,
+        overflow: "hidden",
+        ...style
+      },
+      "data-fp": "snapshot-panel",
+      children: [
+        /* @__PURE__ */ jsxs5(
+          "div",
+          {
+            style: {
+              padding: `${pad}px ${pad + 4}px`,
+              borderBottom: `1px solid ${theme.border}`,
+              background: theme.bgSecondary,
+              flexShrink: 0
+            },
+            children: [
+              /* @__PURE__ */ jsxs5(
+                "div",
+                {
+                  style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    marginBottom: showScrubber ? 8 : 0
+                  },
+                  children: [
+                    /* @__PURE__ */ jsx6(
+                      "span",
+                      {
+                        style: {
+                          fontSize: fs.body + 2,
+                          fontWeight: 600,
+                          color: theme.textPrimary
+                        },
+                        children: title
+                      }
+                    ),
+                    /* @__PURE__ */ jsxs5(
+                      "span",
+                      {
+                        style: {
+                          fontSize: fs.small,
+                          color: theme.textMuted,
+                          fontFamily: theme.fontMono
+                        },
+                        children: [
+                          selectedIndex + 1,
+                          "/",
+                          snapshots.length
+                        ]
+                      }
+                    )
+                  ]
+                }
+              ),
+              showScrubber && /* @__PURE__ */ jsxs5("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
+                /* @__PURE__ */ jsx6(
+                  ScrubButton,
+                  {
+                    label: "\\u25C0",
+                    disabled: selectedIndex === 0,
+                    onClick: () => setSelectedIndex((i) => Math.max(0, i - 1))
+                  }
+                ),
+                /* @__PURE__ */ jsx6(
+                  "input",
+                  {
+                    type: "range",
+                    min: 0,
+                    max: snapshots.length - 1,
+                    value: selectedIndex,
+                    onChange: (e) => setSelectedIndex(parseInt(e.target.value)),
+                    style: {
+                      flex: 1,
+                      height: 4,
+                      accentColor: theme.primary,
+                      cursor: "pointer"
+                    }
+                  }
+                ),
+                /* @__PURE__ */ jsx6(
+                  ScrubButton,
+                  {
+                    label: "\\u25B6",
+                    disabled: selectedIndex === snapshots.length - 1,
+                    onClick: () => setSelectedIndex((i) => Math.min(snapshots.length - 1, i + 1))
+                  }
+                )
+              ] })
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxs5("div", { style: { flex: 1, overflow: "auto" }, children: [
+          /* @__PURE__ */ jsx6(
+            MemoryInspector,
+            {
+              snapshots,
+              selectedIndex,
+              size
+            }
+          ),
+          /* @__PURE__ */ jsx6(
+            "div",
+            {
+              style: {
+                height: 1,
+                background: theme.border,
+                margin: `0 ${pad}px`
+              }
+            }
+          ),
+          /* @__PURE__ */ jsx6(
+            NarrativeLog,
+            {
+              snapshots,
+              selectedIndex,
+              size
+            }
+          )
+        ] }),
+        showGantt && /* @__PURE__ */ jsx6(
+          "div",
+          {
+            style: {
+              borderTop: `1px solid ${theme.border}`,
+              background: theme.bgSecondary,
+              flexShrink: 0
+            },
+            children: /* @__PURE__ */ jsx6(
+              GanttTimeline,
+              {
+                snapshots,
+                selectedIndex,
+                onSelect: setSelectedIndex,
+                size
+              }
+            )
+          }
+        )
+      ]
+    }
+  );
+}
+function ScrubButton({
+  label,
+  disabled,
+  onClick
+}) {
+  return /* @__PURE__ */ jsx6(
+    "button",
+    {
+      onClick,
+      disabled,
+      style: {
+        background: theme.bgTertiary,
+        border: `1px solid ${theme.border}`,
+        color: disabled ? theme.textMuted : theme.textPrimary,
+        borderRadius: 6,
+        width: 28,
+        height: 28,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        fontSize: 12,
+        flexShrink: 0
+      },
+      children: label
+    }
+  );
+}
+
+// src/components/ScopeDiff/ScopeDiff.tsx
+import { useMemo as useMemo5 } from "react";
+import { Fragment, jsx as jsx7, jsxs as jsxs6 } from "react/jsx-runtime";
+function computeDiff(prev, curr) {
+  const entries = [];
+  const allKeys = /* @__PURE__ */ new Set([...Object.keys(prev ?? {}), ...Object.keys(curr)]);
+  for (const key of allKeys) {
+    const inPrev = prev != null && key in prev;
+    const inCurr = key in curr;
+    const oldVal = prev?.[key];
+    const newVal = curr[key];
+    if (!inPrev && inCurr) {
+      entries.push({ key, type: "added", newValue: newVal });
+    } else if (inPrev && !inCurr) {
+      entries.push({ key, type: "removed", oldValue: oldVal });
+    } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+      entries.push({ key, type: "changed", oldValue: oldVal, newValue: newVal });
+    } else {
+      entries.push({ key, type: "unchanged", newValue: newVal });
+    }
+  }
+  const order = { added: 0, changed: 1, removed: 2, unchanged: 3 };
+  entries.sort((a, b) => order[a.type] - order[b.type]);
+  return entries;
+}
+function fmt(v2) {
+  if (typeof v2 === "string") return `"${v2}"`;
+  if (typeof v2 === "object" && v2 !== null) return JSON.stringify(v2, null, 2);
+  return String(v2);
+}
+var diffColors = {
+  added: { bg: `color-mix(in srgb, ${theme.success} 10%, transparent)`, fg: theme.success, icon: "+" },
+  removed: { bg: `color-mix(in srgb, ${theme.error} 10%, transparent)`, fg: theme.error, icon: "-" },
+  changed: { bg: `color-mix(in srgb, ${theme.warning} 10%, transparent)`, fg: theme.warning, icon: "~" },
+  unchanged: { bg: "transparent", fg: "", icon: " " }
+};
+function ScopeDiff({
+  previous,
+  current,
+  hideUnchanged = false,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const entries = useMemo5(() => computeDiff(previous, current), [previous, current]);
+  const visible = hideUnchanged ? entries.filter((e) => e.type !== "unchanged") : entries;
+  const fs = fontSize[size];
+  const pad = padding[size];
+  if (unstyled) {
+    return /* @__PURE__ */ jsx7("div", { className, style, "data-fp": "scope-diff", children: visible.map((e) => /* @__PURE__ */ jsxs6("div", { "data-fp": "diff-entry", "data-type": e.type, children: [
+      /* @__PURE__ */ jsx7("span", { "data-fp": "diff-key", children: e.key }),
+      e.type === "changed" && /* @__PURE__ */ jsxs6(Fragment, { children: [
+        /* @__PURE__ */ jsx7("span", { "data-fp": "diff-old", children: fmt(e.oldValue) }),
+        /* @__PURE__ */ jsx7("span", { "data-fp": "diff-new", children: fmt(e.newValue) })
+      ] }),
+      (e.type === "added" || e.type === "unchanged") && /* @__PURE__ */ jsx7("span", { "data-fp": "diff-value", children: fmt(e.newValue) }),
+      e.type === "removed" && /* @__PURE__ */ jsx7("span", { "data-fp": "diff-value", children: fmt(e.oldValue) })
+    ] }, e.key)) });
+  }
+  return /* @__PURE__ */ jsxs6(
+    "div",
+    {
+      className,
+      style: { padding: pad, fontFamily: theme.fontMono, ...style },
+      "data-fp": "scope-diff",
+      children: [
+        visible.length === 0 && /* @__PURE__ */ jsx7("div", { style: { fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }, children: "No changes" }),
+        visible.map((entry) => {
+          const dc = diffColors[entry.type];
+          return /* @__PURE__ */ jsxs6(
+            "div",
+            {
+              style: {
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+                padding: `4px ${pad - 4}px`,
+                marginBottom: 2,
+                borderRadius: 4,
+                background: dc.bg,
+                fontSize: fs.body,
+                lineHeight: 1.5
+              },
+              "data-fp": "diff-entry",
+              children: [
+                /* @__PURE__ */ jsx7(
+                  "span",
+                  {
+                    style: {
+                      width: 16,
+                      flexShrink: 0,
+                      fontWeight: 700,
+                      color: dc.fg || theme.textMuted,
+                      textAlign: "center"
+                    },
+                    children: dc.icon
+                  }
+                ),
+                /* @__PURE__ */ jsx7("span", { style: { color: theme.primary, fontWeight: 600, flexShrink: 0 }, children: entry.key }),
+                /* @__PURE__ */ jsx7("span", { style: { color: theme.textMuted }, children: "=" }),
+                entry.type === "changed" ? /* @__PURE__ */ jsxs6("span", { children: [
+                  /* @__PURE__ */ jsx7(
+                    "span",
+                    {
+                      style: {
+                        color: theme.error,
+                        textDecoration: "line-through",
+                        opacity: 0.7
+                      },
+                      children: fmt(entry.oldValue)
+                    }
+                  ),
+                  /* @__PURE__ */ jsx7("span", { style: { color: theme.textMuted, margin: "0 4px" }, children: "\u2192" }),
+                  /* @__PURE__ */ jsx7("span", { style: { color: theme.success }, children: fmt(entry.newValue) })
+                ] }) : /* @__PURE__ */ jsx7(
+                  "span",
+                  {
+                    style: {
+                      color: entry.type === "added" ? theme.success : entry.type === "removed" ? theme.error : theme.textPrimary
+                    },
+                    children: fmt(entry.type === "removed" ? entry.oldValue : entry.newValue)
+                  }
+                )
+              ]
+            },
+            entry.key
+          );
+        })
+      ]
+    }
+  );
+}
+
+// src/components/ResultPanel/ResultPanel.tsx
+import { jsx as jsx8, jsxs as jsxs7 } from "react/jsx-runtime";
+function ResultPanel({
+  data,
+  logs = [],
+  hideConsole = false,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const fs = fontSize[size];
+  const pad = padding[size];
+  if (unstyled) {
+    return /* @__PURE__ */ jsxs7("div", { className, style, "data-fp": "result-panel", children: [
+      /* @__PURE__ */ jsx8("div", { "data-fp": "result-data", children: /* @__PURE__ */ jsx8("pre", { children: data ? JSON.stringify(data, null, 2) : "No data" }) }),
+      !hideConsole && /* @__PURE__ */ jsx8("div", { "data-fp": "result-console", children: logs.map((line, i) => /* @__PURE__ */ jsx8("div", { "data-fp": "console-line", "data-error": line.startsWith("ERROR"), children: line }, i)) })
+    ] });
+  }
+  return /* @__PURE__ */ jsxs7(
+    "div",
+    {
+      className,
+      style: {
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        ...style
+      },
+      "data-fp": "result-panel",
+      children: [
+        data && /* @__PURE__ */ jsxs7("div", { style: { flex: 1, overflow: "auto", padding: pad }, children: [
+          /* @__PURE__ */ jsx8(
+            "div",
+            {
+              style: {
+                fontSize: fs.label,
+                fontWeight: 600,
+                color: theme.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: 8
+              },
+              children: size === "compact" ? "Result" : "Business Result (Scope)"
+            }
+          ),
+          /* @__PURE__ */ jsx8(
+            "pre",
+            {
+              style: {
+                fontSize: fs.body,
+                fontFamily: theme.fontMono,
+                color: theme.textPrimary,
+                background: theme.bgSecondary,
+                padding: pad,
+                borderRadius: theme.radius,
+                overflow: "auto",
+                margin: 0
+              },
+              children: JSON.stringify(data, null, 2)
+            }
+          )
+        ] }),
+        !hideConsole && /* @__PURE__ */ jsxs7(
+          "div",
+          {
+            style: {
+              borderTop: `1px solid ${theme.border}`,
+              padding: pad,
+              overflow: "auto",
+              maxHeight: "40%",
+              flexShrink: 0
+            },
+            children: [
+              /* @__PURE__ */ jsx8(
+                "div",
+                {
+                  style: {
+                    fontSize: fs.label,
+                    fontWeight: 600,
+                    color: theme.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    marginBottom: 8
+                  },
+                  children: "Console"
+                }
+              ),
+              logs.length === 0 && /* @__PURE__ */ jsx8("div", { style: { fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }, children: "No console output" }),
+              logs.map((line, i) => /* @__PURE__ */ jsx8(
+                "div",
+                {
+                  style: {
+                    fontSize: fs.body,
+                    fontFamily: theme.fontMono,
+                    color: line.startsWith("ERROR") ? theme.error : theme.textPrimary,
+                    padding: "2px 0",
+                    borderBottom: `1px solid ${theme.bgSecondary}`,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word"
+                  },
+                  children: line
+                },
+                i
+              ))
+            ]
+          }
+        )
+      ]
+    }
+  );
+}
+
+// src/components/StageDetailPanel/StageDetailPanel.tsx
+import { useState as useState5, useMemo as useMemo6, useCallback as useCallback2 } from "react";
+import { Fragment as Fragment2, jsx as jsx9, jsxs as jsxs8 } from "react/jsx-runtime";
+function computeChanges(prev, curr) {
+  const changes = [];
+  const allKeys = /* @__PURE__ */ new Set([...Object.keys(prev ?? {}), ...Object.keys(curr)]);
+  for (const key of allKeys) {
+    const inPrev = prev != null && key in prev;
+    const inCurr = key in curr;
+    const oldVal = prev?.[key];
+    const newVal = curr[key];
+    if (!inPrev && inCurr) {
+      changes.push({ key, type: "added", newValue: newVal });
+    } else if (inPrev && !inCurr) {
+      changes.push({ key, type: "removed", oldValue: oldVal });
+    } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+      changes.push({ key, type: "updated", oldValue: oldVal, newValue: newVal });
+    }
+  }
+  const order = { added: 0, updated: 1, removed: 2 };
+  changes.sort((a, b) => order[a.type] - order[b.type]);
+  return changes;
+}
+function fmt2(v2) {
+  if (typeof v2 === "string") return `"${v2}"`;
+  if (typeof v2 === "object" && v2 !== null) return JSON.stringify(v2, null, 2);
+  return String(v2);
+}
+var changeBadge = {
+  added: { bg: "rgba(34,197,94,0.12)", fg: "#22c55e", label: "ADD" },
+  updated: { bg: "rgba(245,158,11,0.12)", fg: "#f59e0b", label: "UPD" },
+  removed: { bg: "rgba(239,68,68,0.12)", fg: "#ef4444", label: "DEL" }
+};
+function SimpleView({
+  snapshot,
+  fs,
+  pad
+}) {
+  return /* @__PURE__ */ jsxs8("div", { style: { display: "flex", flexDirection: "column", gap: 16 }, children: [
+    /* @__PURE__ */ jsxs8("div", { children: [
+      /* @__PURE__ */ jsx9(
+        "div",
+        {
+          style: {
+            fontSize: fs.label + 2,
+            fontWeight: 700,
+            color: theme.textPrimary
+          },
+          children: snapshot.stageLabel
+        }
+      ),
+      snapshot.description && /* @__PURE__ */ jsx9(
+        "div",
+        {
+          style: {
+            fontSize: fs.body,
+            color: theme.textSecondary,
+            marginTop: 4,
+            lineHeight: 1.5
+          },
+          children: snapshot.description
+        }
+      )
+    ] }),
+    snapshot.status && /* @__PURE__ */ jsxs8("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+      /* @__PURE__ */ jsx9(
+        "div",
+        {
+          style: {
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: snapshot.status === "done" ? theme.success : snapshot.status === "active" ? theme.primary : snapshot.status === "error" ? theme.error : theme.textMuted
+          }
+        }
+      ),
+      /* @__PURE__ */ jsx9(
+        "span",
+        {
+          style: {
+            fontSize: fs.small,
+            color: theme.textMuted,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em"
+          },
+          children: snapshot.status
+        }
+      )
+    ] }),
+    snapshot.narrative && /* @__PURE__ */ jsxs8("div", { children: [
+      /* @__PURE__ */ jsx9(
+        "div",
+        {
+          style: {
+            fontSize: fs.label,
+            fontWeight: 600,
+            color: theme.textMuted,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: 6
+          },
+          children: "What happened"
+        }
+      ),
+      /* @__PURE__ */ jsx9(
+        "div",
+        {
+          style: {
+            fontSize: fs.body,
+            lineHeight: 1.6,
+            color: theme.textPrimary,
+            background: theme.bgSecondary,
+            border: `1px solid ${theme.border}`,
+            borderRadius: theme.radius,
+            padding: pad
+          },
+          children: snapshot.narrative
+        }
+      )
+    ] }),
+    snapshot.durationMs > 0 && /* @__PURE__ */ jsxs8(
+      "div",
+      {
+        style: {
+          fontSize: fs.small,
+          color: theme.textMuted
+        },
+        children: [
+          "Completed in ",
+          snapshot.durationMs < 1 ? "<1" : snapshot.durationMs,
+          "ms"
+        ]
+      }
+    )
+  ] });
+}
+function buildMemoryRows(currMemory, changes) {
+  const changeMap = new Map(changes.map((c) => [c.key, c]));
+  const rows = [];
+  for (const change of changes) {
+    rows.push({ kind: "change", change });
+  }
+  const unchangedKeys = Object.keys(currMemory).filter((k) => !changeMap.has(k)).sort();
+  for (const key of unchangedKeys) {
+    rows.push({ kind: "unchanged", key, value: currMemory[key] });
+  }
+  return rows;
+}
+function DevView({
+  snapshot,
+  changes,
+  currMemory,
+  fs,
+  pad
+}) {
+  const rows = useMemo6(() => buildMemoryRows(currMemory, changes), [currMemory, changes]);
+  const totalKeys = Object.keys(currMemory).length;
+  return /* @__PURE__ */ jsxs8("div", { style: { display: "flex", flexDirection: "column", gap: 12 }, children: [
+    /* @__PURE__ */ jsxs8("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
+      /* @__PURE__ */ jsx9(
+        "span",
+        {
+          style: {
+            fontSize: fs.label + 2,
+            fontWeight: 700,
+            color: theme.textPrimary,
+            fontFamily: theme.fontMono
+          },
+          children: snapshot.stageLabel
+        }
+      ),
+      snapshot.durationMs > 0 && /* @__PURE__ */ jsxs8(
+        "span",
+        {
+          style: {
+            fontSize: fs.small,
+            color: theme.textMuted,
+            fontFamily: theme.fontMono
+          },
+          children: [
+            snapshot.durationMs,
+            "ms"
+          ]
+        }
+      )
+    ] }),
+    /* @__PURE__ */ jsxs8(
+      "div",
+      {
+        style: {
+          fontSize: fs.label,
+          fontWeight: 600,
+          color: theme.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em"
+        },
+        children: [
+          "Memory",
+          /* @__PURE__ */ jsxs8("span", { style: { fontWeight: 400, marginLeft: 6 }, children: [
+            "(",
+            totalKeys,
+            " key",
+            totalKeys !== 1 ? "s" : "",
+            changes.length > 0 && `, ${changes.length} changed`,
+            ")"
+          ] })
+        ]
+      }
+    ),
+    rows.length === 0 ? /* @__PURE__ */ jsx9(
+      "div",
+      {
+        style: {
+          fontSize: fs.body,
+          color: theme.textMuted,
+          fontStyle: "italic",
+          fontFamily: theme.fontMono,
+          padding: `${pad}px`,
+          background: theme.bgSecondary,
+          borderRadius: theme.radius
+        },
+        children: "Empty memory"
+      }
+    ) : /* @__PURE__ */ jsx9(
+      "div",
+      {
+        style: {
+          fontFamily: theme.fontMono,
+          fontSize: fs.body,
+          background: theme.bgSecondary,
+          border: `1px solid ${theme.border}`,
+          borderRadius: theme.radius,
+          overflow: "hidden"
+        },
+        children: rows.map((row) => {
+          if (row.kind === "change") {
+            const { change } = row;
+            const badge = changeBadge[change.type];
+            return /* @__PURE__ */ jsxs8(
+              "div",
+              {
+                style: {
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 8,
+                  padding: `6px ${pad}px`,
+                  borderBottom: `1px solid ${theme.border}`,
+                  background: badge.bg
+                },
+                "data-fp": "memory-change",
+                "data-type": change.type,
+                children: [
+                  /* @__PURE__ */ jsx9(
+                    "span",
+                    {
+                      style: {
+                        fontSize: fs.small,
+                        fontWeight: 700,
+                        color: badge.fg,
+                        width: 28,
+                        flexShrink: 0,
+                        textAlign: "center",
+                        lineHeight: 1.8
+                      },
+                      children: badge.label
+                    }
+                  ),
+                  /* @__PURE__ */ jsx9(
+                    "span",
+                    {
+                      style: {
+                        color: theme.primary,
+                        fontWeight: 600,
+                        flexShrink: 0,
+                        lineHeight: 1.8
+                      },
+                      children: change.key
+                    }
+                  ),
+                  /* @__PURE__ */ jsx9("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8 }, children: change.type === "updated" ? /* @__PURE__ */ jsxs8(Fragment2, { children: [
+                    /* @__PURE__ */ jsx9(
+                      "span",
+                      {
+                        style: {
+                          color: theme.error,
+                          textDecoration: "line-through",
+                          opacity: 0.7
+                        },
+                        children: fmt2(change.oldValue)
+                      }
+                    ),
+                    /* @__PURE__ */ jsx9("span", { style: { color: theme.textMuted, margin: "0 4px" }, children: "\u2192" }),
+                    /* @__PURE__ */ jsx9("span", { style: { color: theme.success }, children: fmt2(change.newValue) })
+                  ] }) : change.type === "added" ? /* @__PURE__ */ jsx9("span", { style: { color: theme.success }, children: fmt2(change.newValue) }) : /* @__PURE__ */ jsx9("span", { style: { color: theme.error, textDecoration: "line-through" }, children: fmt2(change.oldValue) }) })
+                ]
+              },
+              change.key
+            );
+          }
+          return /* @__PURE__ */ jsxs8(
+            "div",
+            {
+              style: {
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 8,
+                padding: `6px ${pad}px`,
+                borderBottom: `1px solid ${theme.border}`,
+                opacity: 0.5
+              },
+              "data-fp": "memory-unchanged",
+              children: [
+                /* @__PURE__ */ jsx9(
+                  "span",
+                  {
+                    style: {
+                      width: 28,
+                      flexShrink: 0,
+                      lineHeight: 1.8
+                    }
+                  }
+                ),
+                /* @__PURE__ */ jsx9(
+                  "span",
+                  {
+                    style: {
+                      color: theme.textSecondary,
+                      fontWeight: 500,
+                      flexShrink: 0,
+                      lineHeight: 1.8
+                    },
+                    children: row.key
+                  }
+                ),
+                /* @__PURE__ */ jsx9("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8, color: theme.textMuted }, children: fmt2(row.value) })
+              ]
+            },
+            row.key
+          );
+        })
+      }
+    )
+  ] });
+}
+function UnstyledSimpleView({ snapshot }) {
+  return /* @__PURE__ */ jsxs8("div", { "data-fp": "stage-detail-simple", children: [
+    /* @__PURE__ */ jsx9("div", { "data-fp": "stage-label", children: snapshot.stageLabel }),
+    snapshot.description && /* @__PURE__ */ jsx9("div", { "data-fp": "stage-description", children: snapshot.description }),
+    snapshot.status && /* @__PURE__ */ jsx9("div", { "data-fp": "stage-status", children: snapshot.status }),
+    snapshot.narrative && /* @__PURE__ */ jsx9("div", { "data-fp": "stage-narrative", children: snapshot.narrative })
+  ] });
+}
+function UnstyledDevView({
+  snapshot,
+  changes,
+  currMemory
+}) {
+  const rows = useMemo6(() => buildMemoryRows(currMemory, changes), [currMemory, changes]);
+  return /* @__PURE__ */ jsxs8("div", { "data-fp": "stage-detail-dev", children: [
+    /* @__PURE__ */ jsx9("div", { "data-fp": "stage-label", children: snapshot.stageLabel }),
+    rows.map((row) => {
+      if (row.kind === "change") {
+        const c = row.change;
+        return /* @__PURE__ */ jsxs8("div", { "data-fp": "memory-change", "data-type": c.type, children: [
+          /* @__PURE__ */ jsx9("span", { "data-fp": "change-key", children: c.key }),
+          c.type === "updated" && /* @__PURE__ */ jsxs8(Fragment2, { children: [
+            /* @__PURE__ */ jsx9("span", { "data-fp": "change-old", children: fmt2(c.oldValue) }),
+            /* @__PURE__ */ jsx9("span", { "data-fp": "change-new", children: fmt2(c.newValue) })
+          ] }),
+          c.type === "added" && /* @__PURE__ */ jsx9("span", { "data-fp": "change-value", children: fmt2(c.newValue) }),
+          c.type === "removed" && /* @__PURE__ */ jsx9("span", { "data-fp": "change-value", children: fmt2(c.oldValue) })
+        ] }, c.key);
+      }
+      return /* @__PURE__ */ jsxs8("div", { "data-fp": "memory-unchanged", children: [
+        /* @__PURE__ */ jsx9("span", { "data-fp": "unchanged-key", children: row.key }),
+        /* @__PURE__ */ jsx9("span", { "data-fp": "unchanged-value", children: fmt2(row.value) })
+      ] }, row.key);
+    })
+  ] });
+}
+function ModeToggle({
+  activeMode,
+  onToggle,
+  fs,
+  unstyled
+}) {
+  if (unstyled) {
+    return /* @__PURE__ */ jsx9("button", { "data-fp": "mode-toggle", "data-mode": activeMode, onClick: onToggle, children: activeMode === "simple" ? "Dev" : "Simple" });
+  }
+  return /* @__PURE__ */ jsx9(
+    "div",
+    {
+      style: {
+        display: "inline-flex",
+        borderRadius: 6,
+        border: `1px solid ${theme.border}`,
+        overflow: "hidden",
+        flexShrink: 0
+      },
+      "data-fp": "mode-toggle",
+      children: ["simple", "dev"].map((m) => /* @__PURE__ */ jsx9(
+        "button",
+        {
+          onClick: m !== activeMode ? onToggle : void 0,
+          style: {
+            padding: "4px 10px",
+            fontSize: fs.small,
+            fontWeight: m === activeMode ? 700 : 400,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            color: m === activeMode ? theme.textPrimary : theme.textMuted,
+            background: m === activeMode ? theme.bgTertiary : "transparent",
+            border: "none",
+            cursor: m === activeMode ? "default" : "pointer"
+          },
+          children: m === "simple" ? "Simple" : "Dev"
+        },
+        m
+      ))
+    }
+  );
+}
+function StageDetailPanel({
+  snapshots,
+  selectedIndex,
+  mode: controlledMode,
+  showToggle = false,
+  onModeChange,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const [internalMode, setInternalMode] = useState5(controlledMode ?? "simple");
+  const activeMode = controlledMode ?? internalMode;
+  const handleToggle = useCallback2(() => {
+    const next = activeMode === "simple" ? "dev" : "simple";
+    setInternalMode(next);
+    onModeChange?.(next);
+  }, [activeMode, onModeChange]);
+  const snapshot = snapshots[selectedIndex];
+  const prevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
+  const currMemory = snapshot?.memory ?? {};
+  const changes = useMemo6(
+    () => computeChanges(prevMemory, currMemory),
+    [prevMemory, currMemory]
+  );
+  const fs = fontSize[size];
+  const pad = padding[size];
+  if (!snapshot) {
+    return /* @__PURE__ */ jsx9("div", { className, style, "data-fp": "stage-detail-panel", children: /* @__PURE__ */ jsx9("div", { style: unstyled ? {} : { color: theme.textMuted, fontSize: fs.body, fontStyle: "italic", padding: pad }, children: "No stage selected" }) });
+  }
+  if (unstyled) {
+    return /* @__PURE__ */ jsxs8("div", { className, style, "data-fp": "stage-detail-panel", "data-mode": activeMode, children: [
+      showToggle && /* @__PURE__ */ jsx9(ModeToggle, { activeMode, onToggle: handleToggle, fs, unstyled: true }),
+      activeMode === "simple" ? /* @__PURE__ */ jsx9(UnstyledSimpleView, { snapshot }) : /* @__PURE__ */ jsx9(UnstyledDevView, { snapshot, changes, currMemory })
+    ] });
+  }
+  return /* @__PURE__ */ jsxs8(
+    "div",
+    {
+      className,
+      style: {
+        padding: pad,
+        fontFamily: theme.fontSans,
+        overflow: "auto",
+        ...style
+      },
+      "data-fp": "stage-detail-panel",
+      "data-mode": activeMode,
+      children: [
+        showToggle && /* @__PURE__ */ jsx9("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 }, children: /* @__PURE__ */ jsx9(ModeToggle, { activeMode, onToggle: handleToggle, fs, unstyled: false }) }),
+        activeMode === "simple" ? /* @__PURE__ */ jsx9(SimpleView, { snapshot, fs, pad }) : /* @__PURE__ */ jsx9(DevView, { snapshot, changes, currMemory, fs, pad })
+      ]
+    }
+  );
+}
+
+// src/components/TimeTravelControls/TimeTravelControls.tsx
+import { useState as useState6, useEffect as useEffect4, useRef as useRef4, useCallback as useCallback3 } from "react";
+import { jsx as jsx10, jsxs as jsxs9 } from "react/jsx-runtime";
+function TimeTravelControls({
+  snapshots,
+  selectedIndex,
+  onIndexChange,
+  autoPlayable = true,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const [playing, setPlaying] = useState6(false);
+  const playRef = useRef4(null);
+  const total = snapshots.length;
+  const canPrev = selectedIndex > 0;
+  const canNext = selectedIndex < total - 1;
+  useEffect4(() => {
+    if (!playing || !autoPlayable) return;
+    if (selectedIndex >= total - 1) {
+      setPlaying(false);
+      return;
+    }
+    const stageDur = snapshots[selectedIndex]?.durationMs ?? 1;
+    const totalDur = snapshots.reduce((s, snap) => s + snap.durationMs, 0) || 1;
+    const fraction = stageDur / totalDur;
+    const baseMs = 3e3;
+    const delay = Math.max(200, Math.min(fraction * baseMs, 2e3));
+    playRef.current = setTimeout(() => {
+      onIndexChange(selectedIndex + 1);
+    }, delay);
+    return () => {
+      if (playRef.current) clearTimeout(playRef.current);
+    };
+  }, [playing, selectedIndex, snapshots, total, onIndexChange, autoPlayable]);
+  const togglePlay = useCallback3(() => {
+    if (playing) {
+      setPlaying(false);
+    } else {
+      if (selectedIndex >= total - 1) onIndexChange(0);
+      setPlaying(true);
+    }
+  }, [playing, selectedIndex, total, onIndexChange]);
+  const handleKeyDown = useCallback3(
+    (e) => {
+      if (e.key === "ArrowLeft" && canPrev && !playing) {
+        e.preventDefault();
+        setPlaying(false);
+        onIndexChange(selectedIndex - 1);
+      } else if (e.key === "ArrowRight" && canNext && !playing) {
+        e.preventDefault();
+        setPlaying(false);
+        onIndexChange(selectedIndex + 1);
+      } else if (e.key === " " && autoPlayable) {
+        e.preventDefault();
+        togglePlay();
+      }
+    },
+    [canPrev, canNext, playing, selectedIndex, onIndexChange, autoPlayable, togglePlay]
+  );
+  const fs = fontSize[size];
+  if (unstyled) {
+    return /* @__PURE__ */ jsxs9(
+      "div",
+      {
+        className,
+        style,
+        "data-fp": "time-travel-controls",
+        role: "toolbar",
+        "aria-label": "Time travel controls",
+        tabIndex: 0,
+        onKeyDown: handleKeyDown,
+        children: [
+          /* @__PURE__ */ jsx10(
+            "button",
+            {
+              "data-fp": "tt-prev",
+              disabled: !canPrev || playing,
+              onClick: () => {
+                setPlaying(false);
+                onIndexChange(selectedIndex - 1);
+              },
+              "aria-label": "Previous stage",
+              children: "Prev"
+            }
+          ),
+          autoPlayable && /* @__PURE__ */ jsx10("button", { "data-fp": "tt-play", onClick: togglePlay, "aria-label": playing ? "Pause" : "Play", children: playing ? "Pause" : "Play" }),
+          /* @__PURE__ */ jsx10(
+            "button",
+            {
+              "data-fp": "tt-next",
+              disabled: !canNext || playing,
+              onClick: () => {
+                setPlaying(false);
+                onIndexChange(selectedIndex + 1);
+              },
+              "aria-label": "Next stage",
+              children: "Next"
+            }
+          ),
+          /* @__PURE__ */ jsx10("div", { "data-fp": "tt-ticks", children: snapshots.map((snap, i) => /* @__PURE__ */ jsx10(
+            "button",
+            {
+              "data-fp": "tt-tick",
+              "data-active": i === selectedIndex,
+              "data-done": i < selectedIndex,
+              onClick: () => {
+                setPlaying(false);
+                onIndexChange(i);
+              },
+              title: snap.stageLabel
+            },
+            i
+          )) })
+        ]
+      }
+    );
+  }
+  const btnStyle = (disabled) => ({
+    background: theme.bgTertiary,
+    border: `1px solid ${theme.border}`,
+    color: disabled ? theme.textMuted : theme.textPrimary,
+    borderRadius: "6px",
+    padding: "4px 12px",
+    fontSize: fs.body,
+    fontWeight: 600,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.5 : 1,
+    flexShrink: 0
+  });
+  return /* @__PURE__ */ jsxs9(
+    "div",
+    {
+      className,
+      style: {
+        padding: "6px 12px",
+        background: theme.bgSecondary,
+        borderBottom: `1px solid ${theme.border}`,
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        flexShrink: 0,
+        ...style
+      },
+      "data-fp": "time-travel-controls",
+      role: "toolbar",
+      "aria-label": "Time travel controls",
+      tabIndex: 0,
+      onKeyDown: handleKeyDown,
+      children: [
+        /* @__PURE__ */ jsx10(
+          "button",
+          {
+            style: btnStyle(!canPrev || playing),
+            disabled: !canPrev || playing,
+            onClick: () => {
+              setPlaying(false);
+              onIndexChange(selectedIndex - 1);
+            },
+            "aria-label": "Previous stage",
+            children: "\u25C0"
+          }
+        ),
+        autoPlayable && /* @__PURE__ */ jsx10(
+          "button",
+          {
+            onClick: togglePlay,
+            style: {
+              background: playing ? theme.primary : theme.bgTertiary,
+              border: `1px solid ${theme.border}`,
+              color: playing ? "white" : theme.textPrimary,
+              borderRadius: "6px",
+              width: 28,
+              height: 28,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              fontSize: 14,
+              flexShrink: 0
+            },
+            title: playing ? "Pause" : "Play",
+            "aria-label": playing ? "Pause" : "Play",
+            children: playing ? "\u23F8" : "\u25B6"
+          }
+        ),
+        /* @__PURE__ */ jsx10(
+          "button",
+          {
+            style: btnStyle(!canNext || playing),
+            disabled: !canNext || playing,
+            onClick: () => {
+              setPlaying(false);
+              onIndexChange(selectedIndex + 1);
+            },
+            "aria-label": "Next stage",
+            children: "\u25B6"
+          }
+        ),
+        /* @__PURE__ */ jsx10(
+          "div",
+          {
+            style: {
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              padding: "0 4px"
+            },
+            children: snapshots.map((snap, i) => {
+              const isActive = i === selectedIndex;
+              const isDone = i < selectedIndex;
+              return /* @__PURE__ */ jsx10(
+                "button",
+                {
+                  onClick: () => {
+                    setPlaying(false);
+                    onIndexChange(i);
+                  },
+                  title: snap.stageLabel,
+                  style: {
+                    flex: 1,
+                    height: isActive ? 14 : 8,
+                    borderRadius: 3,
+                    border: "none",
+                    cursor: "pointer",
+                    background: isActive ? theme.primary : isDone ? theme.success : theme.bgTertiary,
+                    opacity: isDone || isActive ? 1 : 0.4,
+                    transition: "all 0.15s ease"
+                  }
+                },
+                i
+              );
+            })
+          }
+        )
+      ]
+    }
+  );
+}
+
+// src/components/ExplainableShell/ExplainableShell.tsx
+import { memo as memo3, useState as useState8, useCallback as useCallback5, useMemo as useMemo10, useRef as useRef6, useEffect as useEffect6 } from "react";
+
+// src/adapters/fromRuntimeSnapshot.ts
+function toVisualizationSnapshots(runtime, narrativeEntries) {
+  const stageNarrativeMap = narrativeEntries?.length ? buildStageNarrativeMap(narrativeEntries) : /* @__PURE__ */ new Map();
+  const snapshots = [];
+  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap);
+  return snapshots;
+}
+function buildStageNarrativeMap(entries) {
+  const map = /* @__PURE__ */ new Map();
+  let currentStageName;
+  for (const entry of entries) {
+    if (entry.stageName) {
+      currentStageName = entry.stageName;
+    }
+    if (currentStageName) {
+      if (!map.has(currentStageName)) {
+        map.set(currentStageName, []);
+      }
+      const indent = "  ".repeat(entry.depth);
+      map.get(currentStageName).push(`${indent}${entry.text}`);
+    }
+  }
+  return map;
+}
+function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, cumulativeMemory = {}, stageNarrativeMap = /* @__PURE__ */ new Map()) {
+  const durationMs = typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 1;
+  const startMs = accumulatedMs;
+  const stageId = node.id || node.name || "unknown";
+  const displayName = node.name || node.id || "unknown";
+  const stageLines = stageNarrativeMap.get(stageId);
+  let narrative;
+  if (stageLines) {
+    narrative = stageLines.join("\n");
+  } else {
+    const parts = [`${displayName} executed.`];
+    if (node.description) parts.push(node.description);
+    if (node.stageWrites) {
+      const keys = Object.keys(node.stageWrites);
+      if (keys.length > 0) parts.push(`Wrote: ${keys.join(", ")}`);
+    }
+    narrative = parts.join("\n");
+  }
+  const memory = { ...cumulativeMemory };
+  if (node.stageWrites) {
+    for (const [key, value] of Object.entries(node.stageWrites)) {
+      if (value === void 0) {
+        delete memory[key];
+      } else {
+        memory[key] = value;
+      }
+    }
+  }
+  const sfResult = subflowResults?.[node.subflowId ?? stageId];
+  out.push({
+    stageName: displayName,
+    stageLabel: stageId,
+    memory,
+    narrative,
+    startMs,
+    durationMs,
+    status: "done",
+    ...node.description ? { description: node.description } : void 0,
+    ...node.subflowId ? { subflowId: node.subflowId } : void 0,
+    ...sfResult ? { subflowResult: sfResult } : void 0
+  });
+  let nextMs = startMs + durationMs;
+  if (node.children && node.children.length > 0) {
+    let maxChildEnd = nextMs;
+    for (const child of node.children) {
+      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap);
+      maxChildEnd = Math.max(maxChildEnd, childEnd);
+    }
+    nextMs = maxChildEnd;
+  }
+  if (node.next) {
+    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap);
+  }
+  return nextMs;
+}
+function subflowResultToSnapshots(subflowResult, narrativeEntries) {
+  if (!subflowResult || typeof subflowResult !== "object") return [];
+  const sf = subflowResult;
+  if (!sf.treeContext?.stageContexts) return [];
+  const runtime = {
+    sharedState: sf.treeContext.globalContext ?? {},
+    executionTree: sf.treeContext.stageContexts,
+    commitLog: sf.treeContext.history ?? []
+  };
+  const snapshots = toVisualizationSnapshots(runtime, narrativeEntries);
+  const prefix = sf.subflowId ? `${sf.subflowId}/` : "";
+  if (prefix) {
+    for (const snap of snapshots) {
+      if (snap.stageName.startsWith(prefix)) {
+        snap.stageName = snap.stageName.slice(prefix.length);
+      }
+      if (snap.stageLabel.startsWith(prefix)) {
+        snap.stageLabel = snap.stageLabel.slice(prefix.length);
+      }
+    }
+  }
+  return snapshots;
+}
+function createSnapshots(stages) {
+  let accMs = 0;
+  return stages.map((s) => {
+    const duration = s.durationMs ?? 1;
+    const snap = {
+      stageName: s.name,
+      stageLabel: s.label ?? s.name,
+      memory: s.memory ?? {},
+      narrative: s.narrative ?? `${s.label ?? s.name} completed.`,
+      startMs: accMs,
+      durationMs: duration,
+      status: "done",
+      ...s.description ? { description: s.description } : void 0,
+      ...s.subflowId ? { subflowId: s.subflowId } : void 0
+    };
+    accMs += duration;
+    return snap;
+  });
+}
+
+// src/components/MemoryPanel/MemoryPanel.tsx
+import { jsx as jsx11, jsxs as jsxs10 } from "react/jsx-runtime";
+function MemoryPanel({
+  snapshots,
+  selectedIndex,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const prevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
+  const currMemory = snapshots[selectedIndex]?.memory ?? {};
+  if (unstyled) {
+    return /* @__PURE__ */ jsxs10("div", { className, style, "data-fp": "memory-panel", children: [
+      /* @__PURE__ */ jsx11(MemoryInspector, { snapshots, selectedIndex, unstyled: true }),
+      /* @__PURE__ */ jsx11(ScopeDiff, { previous: prevMemory, current: currMemory, unstyled: true })
+    ] });
+  }
+  return /* @__PURE__ */ jsxs10(
+    "div",
+    {
+      className,
+      style: {
+        overflow: "auto",
+        display: "flex",
+        flexDirection: "column",
+        ...style
+      },
+      "data-fp": "memory-panel",
+      children: [
+        /* @__PURE__ */ jsx11(MemoryInspector, { snapshots, selectedIndex, size }),
+        /* @__PURE__ */ jsx11("div", { style: { borderTop: `1px solid ${theme.border}` }, children: /* @__PURE__ */ jsx11(ScopeDiff, { previous: prevMemory, current: currMemory, hideUnchanged: true, size }) })
+      ]
+    }
+  );
+}
+
+// src/components/NarrativePanel/NarrativePanel.tsx
+import { useMemo as useMemo8 } from "react";
+
+// src/components/StoryNarrative/StoryNarrative.tsx
+import { useMemo as useMemo7, useRef as useRef5, useEffect as useEffect5 } from "react";
+import { jsx as jsx12, jsxs as jsxs11 } from "react/jsx-runtime";
+var ENTRY_ICONS = {
+  stage: { icon: "\u25B8", color: theme.primary, label: "Stage" },
+  step: { icon: "\xB7", color: theme.textMuted, label: "Data operation" },
+  condition: { icon: "\u25C7", color: theme.warning, label: "Decision" },
+  fork: { icon: "\u2443", color: theme.primary, label: "Parallel" },
+  subflow: { icon: "\u21B3", color: theme.textSecondary, label: "Subflow" },
+  loop: { icon: "\u21BB", color: theme.warning, label: "Loop" },
+  break: { icon: "\u25A0", color: theme.error, label: "Break" },
+  error: { icon: "\u2717", color: theme.error, label: "Error" }
+};
+function StoryNarrative({
+  entries,
+  stageCount,
+  size = "default",
+  unstyled = false,
+  className,
+  style: outerStyle
+}) {
+  const fs = fontSize[size];
+  const pad = padding[size];
+  const revealedCount = useMemo7(() => {
+    let stagesSeen = 0;
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      const isBoundary = e.type === "stage" || e.type === "subflow" && e.text.startsWith("Entering");
+      if (isBoundary) stagesSeen++;
+      if (stagesSeen > stageCount) return i;
+    }
+    return entries.length;
+  }, [entries, stageCount]);
+  const revealed = entries.slice(0, revealedCount);
+  const future = entries.slice(revealedCount);
+  const latestRef = useRef5(null);
+  useEffect5(() => {
+    latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [revealed.length]);
+  if (unstyled) {
+    return /* @__PURE__ */ jsx12("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: revealed.map((entry, i) => /* @__PURE__ */ jsx12("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.text }, i)) });
+  }
+  return /* @__PURE__ */ jsxs11(
+    "div",
+    {
+      className,
+      style: {
+        flex: 1,
+        overflow: "auto",
+        padding: pad,
+        fontFamily: theme.fontSans,
+        ...outerStyle
+      },
+      "data-fp": "story-narrative",
+      role: "log",
+      "aria-label": "Execution narrative",
+      children: [
+        revealed.map((entry, i) => {
+          const meta = ENTRY_ICONS[entry.type] ?? ENTRY_ICONS.step;
+          const isStage = entry.type === "stage";
+          const isDecision = entry.type === "condition";
+          const isError = entry.type === "error";
+          const isLast = i === revealed.length - 1;
+          return /* @__PURE__ */ jsxs11(
+            "div",
+            {
+              ref: isLast ? latestRef : void 0,
+              style: {
+                display: "flex",
+                gap: 8,
+                padding: isStage ? `${pad - 4}px 0` : `2px 0`,
+                marginLeft: entry.depth * 16,
+                borderBottom: isStage ? `1px solid ${theme.border}` : void 0,
+                marginTop: isStage && i > 0 ? 8 : 0
+              },
+              children: [
+                /* @__PURE__ */ jsx12(
+                  "span",
+                  {
+                    style: {
+                      color: meta.color,
+                      fontWeight: 700,
+                      fontSize: isStage ? fs.body : fs.small,
+                      width: 16,
+                      textAlign: "center",
+                      flexShrink: 0
+                    },
+                    title: meta.label,
+                    "aria-label": meta.label,
+                    children: meta.icon
+                  }
+                ),
+                /* @__PURE__ */ jsx12(
+                  "span",
+                  {
+                    style: {
+                      fontSize: isStage ? fs.body : fs.small,
+                      fontWeight: isStage ? 600 : 400,
+                      color: isError ? theme.error : isDecision ? theme.warning : isStage ? theme.textPrimary : theme.textSecondary,
+                      lineHeight: 1.6,
+                      fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
+                    },
+                    children: entry.text
+                  }
+                )
+              ]
+            },
+            i
+          );
+        }),
+        future.length > 0 && /* @__PURE__ */ jsxs11("div", { style: {
+          opacity: 0.3,
+          fontSize: fs.small,
+          color: theme.textMuted,
+          padding: `8px 0`,
+          fontStyle: "italic"
+        }, children: [
+          future.length,
+          " more ",
+          future.length === 1 ? "entry" : "entries",
+          " ahead..."
+        ] })
+      ]
+    }
+  );
+}
+
+// src/components/NarrativePanel/NarrativePanel.tsx
+import { jsx as jsx13, jsxs as jsxs12 } from "react/jsx-runtime";
+function NarrativePanel({
+  snapshots,
+  selectedIndex,
+  narrativeEntries,
+  narrative: narrativeProp,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const fs = fontSize[size];
+  const pad = padding[size];
+  const narrative = useMemo8(() => {
+    if (narrativeProp && narrativeProp.length > 0) return narrativeProp;
+    const lines = [];
+    for (const snap of snapshots) {
+      const stageLines = (snap.narrative ?? "").split("\n").filter(Boolean);
+      lines.push(...stageLines);
+    }
+    return lines;
+  }, [narrativeProp, snapshots]);
+  const revealedCount = useMemo8(() => {
+    if (snapshots.length === 0 || narrative.length === 0) return narrative.length;
+    const stageBoundaries = [];
+    for (let i = 0; i < narrative.length; i++) {
+      const trimmed = narrative[i].trimStart();
+      if (trimmed.startsWith("Stage ") && !trimmed.match(/^Stage\s+\d+:\s*Step\s/)) {
+        stageBoundaries.push(i);
+      }
+    }
+    if (stageBoundaries.length === 0) {
+      const ratio = (selectedIndex + 1) / snapshots.length;
+      return Math.max(1, Math.ceil(narrative.length * ratio));
+    }
+    const groupsToShow = Math.min(selectedIndex + 1, stageBoundaries.length);
+    const endIdx = groupsToShow < stageBoundaries.length ? stageBoundaries[groupsToShow] : narrative.length;
+    return Math.max(1, endIdx);
+  }, [snapshots.length, selectedIndex, narrative]);
+  const hasStructured = narrativeEntries && narrativeEntries.length > 0;
+  if (unstyled) {
+    return /* @__PURE__ */ jsx13("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ jsx13(StoryNarrative, { entries: narrativeEntries, stageCount: selectedIndex + 1, unstyled: true }) : /* @__PURE__ */ jsx13(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
+  }
+  return /* @__PURE__ */ jsxs12(
+    "div",
+    {
+      className,
+      style: {
+        overflow: "auto",
+        display: "flex",
+        flexDirection: "column",
+        ...style
+      },
+      "data-fp": "narrative-panel",
+      children: [
+        /* @__PURE__ */ jsx13(
+          "div",
+          {
+            style: {
+              padding: `${pad - 4}px ${pad}px`,
+              fontSize: fs.small,
+              color: theme.textMuted,
+              fontStyle: "italic",
+              borderBottom: `1px solid ${theme.border}`,
+              flexShrink: 0
+            },
+            children: "What happened at each stage, what data flowed, what decisions were made, and why."
+          }
+        ),
+        hasStructured ? /* @__PURE__ */ jsx13(
+          StoryNarrative,
+          {
+            entries: narrativeEntries,
+            stageCount: selectedIndex + 1,
+            size,
+            style: { flex: 1 }
+          }
+        ) : /* @__PURE__ */ jsx13(
+          NarrativeTrace,
+          {
+            narrative,
+            revealedCount,
+            size,
+            style: { flex: 1 }
+          }
+        )
+      ]
+    }
+  );
+}
+
+// src/components/FlowchartView/SubflowTree.tsx
+import { memo, useState as useState7, useCallback as useCallback4, useMemo as useMemo9 } from "react";
+import { Fragment as Fragment3, jsx as jsx14, jsxs as jsxs13 } from "react/jsx-runtime";
+function specToTree(node) {
+  if (!node) return [];
+  const entries = [];
+  const seen = /* @__PURE__ */ new Set();
+  function walk(n) {
+    if (!n) return;
+    const id = n.name || n.id || "";
+    if (seen.has(id)) return;
+    seen.add(id);
+    const entry = {
+      name: n.name,
+      description: n.description,
+      subflowId: n.subflowId,
+      isSubflow: !!n.isSubflowRoot
+    };
+    if (n.isSubflowRoot && n.subflowStructure) {
+      entry.children = specToTree(n.subflowStructure);
+    }
+    entries.push(entry);
+    if (n.children) {
+      for (const child of n.children) {
+        if (child) walk(child);
+      }
+    }
+    if (n.next) {
+      walk(n.next);
+    }
+  }
+  walk(node);
+  return entries;
+}
+var TreeNode = memo(function TreeNode2({
+  entry,
+  depth,
+  activeStage,
+  doneStages,
+  onNodeSelect
+}) {
+  const [expanded, setExpanded] = useState7(true);
+  const hasChildren = entry.children && entry.children.length > 0;
+  const isActive = activeStage === entry.name;
+  const isDone = doneStages?.has(entry.name);
+  const handleClick = useCallback4(() => {
+    if (hasChildren) {
+      setExpanded((prev) => !prev);
+    }
+    onNodeSelect?.(entry.name, !!entry.isSubflow);
+  }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow]);
+  return /* @__PURE__ */ jsxs13(Fragment3, { children: [
+    /* @__PURE__ */ jsxs13(
+      "button",
+      {
+        onClick: handleClick,
+        "data-fp": "subflow-tree-node",
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          width: "100%",
+          border: "none",
+          background: isActive ? `color-mix(in srgb, ${theme.primary} 15%, transparent)` : "transparent",
+          cursor: "pointer",
+          padding: `4px 8px 4px ${8 + depth * 16}px`,
+          fontFamily: theme.fontSans,
+          fontSize: 12,
+          textAlign: "left",
+          borderRadius: 4,
+          transition: "background 0.15s"
+        },
+        onMouseEnter: (e) => {
+          if (!isActive) {
+            e.currentTarget.style.background = `color-mix(in srgb, ${theme.textMuted} 10%, transparent)`;
+          }
+        },
+        onMouseLeave: (e) => {
+          if (!isActive) {
+            e.currentTarget.style.background = "transparent";
+          }
+        },
+        children: [
+          hasChildren ? /* @__PURE__ */ jsx14(
+            "span",
+            {
+              style: {
+                fontSize: 10,
+                color: theme.textMuted,
+                width: 12,
+                textAlign: "center",
+                flexShrink: 0,
+                transition: "transform 0.15s",
+                transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
+                display: "inline-block"
+              },
+              children: "\u25B6"
+            }
+          ) : /* @__PURE__ */ jsx14("span", { style: { width: 12, flexShrink: 0 } }),
+          /* @__PURE__ */ jsx14(
+            "span",
+            {
+              style: {
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                flexShrink: 0,
+                background: isActive ? theme.primary : isDone ? theme.success : theme.border
+              }
+            }
+          ),
+          /* @__PURE__ */ jsxs13("span", { style: { display: "flex", flexDirection: "column", minWidth: 0 }, children: [
+            /* @__PURE__ */ jsxs13(
+              "span",
+              {
+                style: {
+                  color: isActive ? theme.primary : isDone ? theme.textPrimary : theme.textSecondary,
+                  fontWeight: isActive ? 600 : entry.isSubflow ? 500 : 400,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis"
+                },
+                children: [
+                  entry.name,
+                  entry.isSubflow && /* @__PURE__ */ jsx14("span", { style: { opacity: 0.5, marginLeft: 4, fontSize: 10 }, children: "\u229E" })
+                ]
+              }
+            ),
+            entry.description && /* @__PURE__ */ jsx14(
+              "span",
+              {
+                style: {
+                  color: theme.textMuted,
+                  fontSize: 10,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis"
+                },
+                children: entry.description
+              }
+            )
+          ] })
+        ]
+      }
+    ),
+    hasChildren && expanded && /* @__PURE__ */ jsx14("div", { children: entry.children.map((child, i) => /* @__PURE__ */ jsx14(
+      TreeNode2,
+      {
+        entry: child,
+        depth: depth + 1,
+        activeStage,
+        doneStages,
+        onNodeSelect
+      },
+      child.subflowId ?? `${child.name}-${i}`
+    )) })
+  ] });
+});
+var SectionLabel = memo(function SectionLabel2({ children }) {
+  return /* @__PURE__ */ jsx14(
+    "div",
+    {
+      style: {
+        padding: "4px 12px 8px",
+        fontSize: 10,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+        color: theme.textMuted
+      },
+      children
+    }
+  );
+});
+var SubflowTree = memo(function SubflowTree2({
+  spec,
+  activeStage,
+  doneStages,
+  onNodeSelect,
+  unstyled = false,
+  className,
+  style
+}) {
+  const tree = useMemo9(() => specToTree(spec), [spec]);
+  const subflowStages = useMemo9(() => tree.filter((e) => e.isSubflow), [tree]);
+  if (subflowStages.length === 0) return null;
+  return /* @__PURE__ */ jsxs13(
+    "div",
+    {
+      className,
+      "data-fp": "subflow-tree",
+      style: {
+        ...unstyled ? {} : {
+          fontFamily: theme.fontSans,
+          fontSize: 12,
+          background: theme.bgPrimary,
+          borderRight: `1px solid ${theme.border}`,
+          overflowY: "auto",
+          overflowX: "hidden",
+          padding: "8px 0"
+        },
+        ...style
+      },
+      children: [
+        !unstyled && /* @__PURE__ */ jsx14(SectionLabel, { children: "Subflows" }),
+        subflowStages.map((entry, i) => /* @__PURE__ */ jsx14(
+          TreeNode,
+          {
+            entry,
+            depth: 0,
+            activeStage,
+            doneStages,
+            onNodeSelect
+          },
+          entry.subflowId ?? `${entry.name}-${i}`
+        ))
+      ]
+    }
+  );
+});
+
+// src/components/FlowchartView/SubflowBreadcrumb.tsx
+import { memo as memo2 } from "react";
+import { jsx as jsx15, jsxs as jsxs14 } from "react/jsx-runtime";
+var SubflowBreadcrumb = memo2(function SubflowBreadcrumb2({
+  breadcrumbs,
+  onNavigate
+}) {
+  if (breadcrumbs.length <= 1) return null;
+  return /* @__PURE__ */ jsx15(
+    "div",
+    {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "6px 12px",
+        background: theme.bgSecondary,
+        borderBottom: `1px solid ${theme.border}`,
+        fontSize: 12,
+        fontFamily: theme.fontSans,
+        flexShrink: 0,
+        overflowX: "auto"
+      },
+      children: breadcrumbs.map((crumb, i) => {
+        const isLast = i === breadcrumbs.length - 1;
+        return /* @__PURE__ */ jsxs14("span", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
+          i > 0 && /* @__PURE__ */ jsx15("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" }),
+          isLast ? /* @__PURE__ */ jsxs14("span", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+            /* @__PURE__ */ jsx15(
+              "span",
+              {
+                style: {
+                  color: theme.primary,
+                  fontWeight: 600
+                },
+                children: crumb.label
+              }
+            ),
+            crumb.description && /* @__PURE__ */ jsxs14(
+              "span",
+              {
+                style: {
+                  color: theme.textMuted,
+                  fontWeight: 400,
+                  fontSize: 11
+                },
+                children: [
+                  "\u2014 ",
+                  crumb.description
+                ]
+              }
+            )
+          ] }) : /* @__PURE__ */ jsx15(
+            "button",
+            {
+              onClick: () => onNavigate(i),
+              style: {
+                background: "none",
+                border: "none",
+                color: theme.textSecondary,
+                cursor: "pointer",
+                padding: "2px 4px",
+                borderRadius: 4,
+                fontSize: 12,
+                fontFamily: "inherit",
+                fontWeight: 500,
+                transition: "color 0.15s"
+              },
+              onMouseEnter: (e) => {
+                e.currentTarget.style.color = `${theme.primary}`;
+              },
+              onMouseLeave: (e) => {
+                e.currentTarget.style.color = `${theme.textSecondary}`;
+              },
+              children: crumb.label
+            }
+          )
+        ] }, `${crumb.label}-${i}`);
+      })
+    }
+  );
+});
+
+// src/components/ExplainableShell/ExplainableShell.tsx
+import { Fragment as Fragment4, jsx as jsx16, jsxs as jsxs15 } from "react/jsx-runtime";
+var HLinePill = memo3(function HLinePill2({
+  label,
+  detail,
+  expanded,
+  onClick
+}) {
+  return /* @__PURE__ */ jsxs15("div", { style: {
+    display: "flex",
+    alignItems: "center",
+    gap: 0,
+    padding: "0"
+  }, children: [
+    /* @__PURE__ */ jsx16("div", { style: { flex: 1, height: 1, background: theme.border } }),
+    /* @__PURE__ */ jsxs15(
+      "button",
+      {
+        onClick,
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          padding: "3px 12px",
+          margin: "4px 0",
+          fontSize: 10,
+          fontWeight: 600,
+          fontFamily: "inherit",
+          color: theme.textMuted,
+          background: theme.bgSecondary,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 10,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          transition: "color 0.15s ease"
+        },
+        children: [
+          /* @__PURE__ */ jsx16("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
+          label,
+          detail && /* @__PURE__ */ jsx16("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsx16("div", { style: { flex: 1, height: 1, background: theme.border } })
+  ] });
+});
+var VLinePill = memo3(function VLinePill2({
+  label,
+  expanded,
+  side = "right",
+  onClick
+}) {
+  const arrow = side === "right" ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25C0" : "\u25B6";
+  return /* @__PURE__ */ jsxs15("div", { style: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 0,
+    padding: "0"
+  }, children: [
+    /* @__PURE__ */ jsx16("div", { style: { flex: 1, width: 1, background: theme.border } }),
+    /* @__PURE__ */ jsxs15(
+      "button",
+      {
+        onClick,
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "10px 4px",
+          margin: "0 3px",
+          fontSize: 10,
+          fontWeight: 600,
+          fontFamily: "inherit",
+          color: theme.textMuted,
+          background: theme.bgSecondary,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 10,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          writingMode: "vertical-lr",
+          transition: "color 0.15s ease"
+        },
+        children: [
+          /* @__PURE__ */ jsx16("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
+          label
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsx16("div", { style: { flex: 1, width: 1, background: theme.border } })
+  ] });
+});
+var RIGHT_PANEL_LABELS = {
+  memory: "Memory",
+  narrative: "Narrative"
+};
+var DetailsContent = memo3(function DetailsContent2({
+  snapshots,
+  selectedIndex,
+  narrativeEntries,
+  narrative,
+  size,
+  fillHeight
+}) {
+  const [rightPanel, setRightPanel] = useState8("memory");
+  return /* @__PURE__ */ jsxs15("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
+    /* @__PURE__ */ jsx16("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: ["memory", "narrative"].map((panel) => {
+      const active = rightPanel === panel;
+      return /* @__PURE__ */ jsx16(
+        "button",
+        {
+          onClick: () => setRightPanel(panel),
+          style: {
+            flex: 1,
+            padding: "6px 8px",
+            fontSize: 11,
+            fontWeight: active ? 600 : 400,
+            color: active ? theme.primary : theme.textMuted,
+            background: active ? `color-mix(in srgb, ${theme.primary} 8%, transparent)` : "transparent",
+            border: "none",
+            borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
+            cursor: "pointer",
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            fontFamily: "inherit"
+          },
+          children: RIGHT_PANEL_LABELS[panel]
+        },
+        panel
+      );
+    }) }),
+    /* @__PURE__ */ jsxs15("div", { style: { flex: 1, overflow: "auto" }, children: [
+      rightPanel === "memory" && /* @__PURE__ */ jsx16(MemoryPanel, { snapshots, selectedIndex, size, style: fillHeight ? { height: "100%" } : void 0 }),
+      rightPanel === "narrative" && /* @__PURE__ */ jsx16(NarrativePanel, { snapshots, selectedIndex, narrativeEntries, narrative, size, style: fillHeight ? { height: "100%" } : void 0 })
+    ] })
+  ] });
+});
+function resolveSubflowLevel(parentSpec, parentSnapshots, subflowNodeName, narrativeEntries) {
+  const specNode = findSubflowSpecNode(parentSpec, subflowNodeName);
+  if (!specNode?.subflowStructure) return null;
+  const parentSnap = parentSnapshots.find(
+    (s) => s.stageName === subflowNodeName || s.stageLabel === subflowNodeName
+  );
+  if (!parentSnap?.subflowResult) return null;
+  const sfNarrative = narrativeEntries ? extractSubflowNarrative(narrativeEntries, subflowNodeName) : void 0;
+  const sfSnapshots = subflowResultToSnapshots(parentSnap.subflowResult, sfNarrative);
+  if (sfSnapshots.length === 0) return null;
+  return {
+    subflowId: specNode.subflowId ?? subflowNodeName,
+    label: specNode.subflowName ?? specNode.name,
+    spec: specNode.subflowStructure,
+    snapshots: sfSnapshots
+  };
+}
+function extractSubflowNarrative(entries, subflowName) {
+  const result = [];
+  let inside = false;
+  for (const entry of entries) {
+    if (entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Entering")) {
+      inside = true;
+      continue;
+    }
+    if (inside && entry.type === "subflow" && entry.text.includes(subflowName) && entry.text.startsWith("Exiting")) break;
+    if (inside) result.push(entry);
+  }
+  return result;
+}
+function findSubflowSpecNode(node, name) {
+  if ((node.name === name || node.id === name) && node.isSubflowRoot) return node;
+  if (node.children) {
+    for (const child of node.children) {
+      const f = findSubflowSpecNode(child, name);
+      if (f) return f;
+    }
+  }
+  if (node.next) return findSubflowSpecNode(node.next, name);
+  return null;
+}
+function hasSubflowNodes(node) {
+  if (!node) return false;
+  if (node.isSubflowRoot) return true;
+  if (node.children?.some((c) => c && hasSubflowNodes(c))) return true;
+  if (node.next && hasSubflowNodes(node.next)) return true;
+  return false;
+}
+function ExplainableShell({
+  snapshots,
+  spec,
+  title,
+  resultData,
+  logs = [],
+  narrative,
+  narrativeEntries,
+  tabs = ["result", "explainable"],
+  defaultTab,
+  hideConsole = false,
+  panelLabels,
+  defaultExpanded,
+  renderFlowchart,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const leftLabel = panelLabels?.topology ?? "Topology";
+  const rightLabel = panelLabels?.details ?? "Details";
+  const bottomLabel = panelLabels?.timeline ?? "Timeline";
+  const shellRef = useRef6(null);
+  const [isNarrow, setIsNarrow] = useState8(false);
+  useEffect6(() => {
+    const el = shellRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setIsNarrow(entry.contentRect.width < 640);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const [activeTab, setActiveTab] = useState8(defaultTab ?? tabs[0]);
+  const [snapshotIdx, setSnapshotIdx] = useState8(0);
+  const [drillDownStack, setDrillDownStack] = useState8([]);
+  const [rightExpanded, setRightExpanded] = useState8(defaultExpanded?.details ?? true);
+  const [leftExpanded, setLeftExpanded] = useState8(defaultExpanded?.topology ?? false);
+  const [timelineExpanded, setTimelineExpanded] = useState8(defaultExpanded?.timeline ?? false);
+  useEffect6(() => {
+    if (isNarrow) {
+      setLeftExpanded(false);
+      setRightExpanded(false);
+      setTimelineExpanded(false);
+    }
+  }, [isNarrow]);
+  const triggerReflow = useCallback5(() => {
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  }, []);
+  const toggleLeft = useCallback5((v2) => {
+    setLeftExpanded(v2);
+    triggerReflow();
+  }, [triggerReflow]);
+  const toggleRight = useCallback5((v2) => {
+    setRightExpanded(v2);
+    triggerReflow();
+  }, [triggerReflow]);
+  const toggleTimeline = useCallback5(() => {
+    setTimelineExpanded((p) => !p);
+    triggerReflow();
+  }, [triggerReflow]);
+  const isInSubflow = drillDownStack.length > 0;
+  const currentLevel = useMemo10(() => {
+    if (drillDownStack.length > 0) {
+      const top = drillDownStack[drillDownStack.length - 1];
+      return { spec: top.spec, snapshots: top.snapshots };
+    }
+    return { spec: spec ?? null, snapshots };
+  }, [drillDownStack, spec, snapshots]);
+  const activeSnapshots = currentLevel.snapshots;
+  const activeSpec = currentLevel.spec;
+  const safeIdx = activeSnapshots.length > 0 ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1)) : 0;
+  const activeNarrative = useMemo10(() => {
+    if (!isInSubflow) return narrative;
+    const lines = [];
+    for (const snap of activeSnapshots) {
+      const stageLines = (snap.narrative ?? "").split("\n").filter(Boolean);
+      lines.push(...stageLines);
+    }
+    return lines.length > 0 ? lines : void 0;
+  }, [isInSubflow, narrative, activeSnapshots]);
+  const activeNarrativeEntries = isInSubflow ? void 0 : narrativeEntries;
+  const breadcrumbs = useMemo10(() => {
+    const root = { label: title || "Flowchart", spec, description: spec?.description };
+    return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: void 0 }))];
+  }, [spec, title, drillDownStack]);
+  const showTreeSidebar = useMemo10(() => !!spec && hasSubflowNodes(spec), [spec]);
+  const rootOverlay = useMemo10(() => {
+    if (isInSubflow || !snapshots.length) return { activeStage: void 0, doneStages: void 0 };
+    const doneStages = new Set(snapshots.slice(0, safeIdx).map((s) => s.stageLabel));
+    const activeStage = snapshots[safeIdx]?.stageLabel ?? null;
+    return { activeStage, doneStages };
+  }, [isInSubflow, snapshots, safeIdx]);
+  const handleTabChange = useCallback5((tab) => {
+    setActiveTab(tab);
+    setDrillDownStack([]);
+    setSnapshotIdx(999);
+  }, []);
+  const handleSnapshotChange = useCallback5((idx) => {
+    if (typeof idx === "number") setSnapshotIdx(idx);
+  }, []);
+  const handleDrillDown = useCallback5(
+    (nodeName) => {
+      if (!activeSpec) return;
+      const entry = resolveSubflowLevel(activeSpec, activeSnapshots, nodeName, narrativeEntries);
+      if (entry) {
+        setDrillDownStack((prev) => [...prev, { ...entry, parentSnapshotIdx: snapshotIdx }]);
+        setSnapshotIdx(0);
+      }
+    },
+    [activeSpec, activeSnapshots, narrativeEntries, snapshotIdx]
+  );
+  const handleBreadcrumbNavigate = useCallback5((level) => {
+    setDrillDownStack((prev) => {
+      const popped = level === 0 ? prev[0] : prev[level];
+      if (popped) setSnapshotIdx(popped.parentSnapshotIdx);
+      return level === 0 ? [] : prev.slice(0, level);
+    });
+  }, []);
+  const handleNodeClick = useCallback5(
+    (indexOrId) => {
+      if (typeof indexOrId === "number") {
+        setSnapshotIdx(indexOrId);
+        return;
+      }
+      if (activeSpec) {
+        const sfNode = findSubflowSpecNode(activeSpec, indexOrId);
+        if (sfNode?.subflowStructure) {
+          handleDrillDown(indexOrId);
+          return;
+        }
+      }
+      const idx = activeSnapshots.findIndex((s) => s.stageLabel === indexOrId);
+      if (idx >= 0) setSnapshotIdx(idx);
+    },
+    [activeSpec, activeSnapshots, handleDrillDown]
+  );
+  const handleTreeNodeSelect = useCallback5(
+    (name, isSubflow) => {
+      if (isSubflow && spec) {
+        setDrillDownStack([]);
+        const entry = resolveSubflowLevel(spec, snapshots, name, narrativeEntries);
+        if (entry) {
+          setDrillDownStack([{ ...entry, parentSnapshotIdx: snapshotIdx }]);
+          setSnapshotIdx(0);
+        }
+      } else {
+        setDrillDownStack([]);
+        const idx = snapshots.findIndex((s) => s.stageLabel === name);
+        if (idx >= 0) setSnapshotIdx(idx);
+      }
+    },
+    [spec, snapshots, narrativeEntries, snapshotIdx]
+  );
+  const tabLabels = {
+    result: "Result",
+    explainable: "Explainable",
+    "ai-compatible": "AI-Compatible"
+  };
+  if (unstyled) {
+    return /* @__PURE__ */ jsxs15("div", { className, style, "data-fp": "explainable-shell", children: [
+      /* @__PURE__ */ jsx16("div", { "data-fp": "shell-tabs", children: tabs.map((tab) => /* @__PURE__ */ jsx16("button", { "data-fp": "shell-tab", "data-active": tab === activeTab, onClick: () => handleTabChange(tab), children: tabLabels[tab] }, tab)) }),
+      /* @__PURE__ */ jsxs15("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
+        activeTab === "result" && /* @__PURE__ */ jsx16(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
+        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs15(Fragment4, { children: [
+          /* @__PURE__ */ jsx16(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true }),
+          isInSubflow && /* @__PURE__ */ jsx16(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+          activeSpec && renderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick }),
+          /* @__PURE__ */ jsx16(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
+          /* @__PURE__ */ jsx16(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, unstyled: true }),
+          /* @__PURE__ */ jsx16(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
+        ] })
+      ] })
+    ] });
+  }
+  const isVisualizationTab = activeTab === "explainable" || activeTab === "ai-compatible";
+  return /* @__PURE__ */ jsxs15(
+    "div",
+    {
+      ref: shellRef,
+      className,
+      style: {
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: theme.bgPrimary,
+        color: theme.textPrimary,
+        fontFamily: theme.fontSans,
+        fontSize: 12,
+        ...style
+      },
+      "data-fp": "explainable-shell",
+      children: [
+        tabs.length > 1 && /* @__PURE__ */ jsx16("div", { style: {
+          display: "flex",
+          borderBottom: `1px solid ${theme.border}`,
+          background: theme.bgSecondary,
+          flexShrink: 0
+        }, children: tabs.map((tab) => {
+          const active = tab === activeTab;
+          return /* @__PURE__ */ jsx16(
+            "button",
+            {
+              onClick: () => handleTabChange(tab),
+              style: {
+                padding: "6px 14px",
+                fontSize: 11,
+                fontWeight: active ? 700 : 500,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                color: active ? theme.primary : theme.textMuted,
+                background: "transparent",
+                border: "none",
+                borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
+                cursor: "pointer",
+                fontFamily: "inherit"
+              },
+              children: tabLabels[tab]
+            },
+            tab
+          );
+        }) }),
+        /* @__PURE__ */ jsxs15("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: [
+          activeTab === "result" && /* @__PURE__ */ jsx16(ResultPanel, { data: resultData ?? null, logs, hideConsole, size }),
+          isVisualizationTab && /* @__PURE__ */ jsxs15(Fragment4, { children: [
+            /* @__PURE__ */ jsx16(
+              TimeTravelControls,
+              {
+                snapshots: activeSnapshots,
+                selectedIndex: safeIdx,
+                onIndexChange: handleSnapshotChange,
+                size
+              }
+            ),
+            isInSubflow && /* @__PURE__ */ jsx16(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+            isNarrow ? (
+              /* ── Mobile: stacked vertical ── */
+              /* @__PURE__ */ jsxs15(Fragment4, { children: [
+                /* @__PURE__ */ jsx16("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: renderFlowchart && activeSpec && renderFlowchart({
+                  spec: activeSpec,
+                  snapshots: activeSnapshots,
+                  selectedIndex: safeIdx,
+                  onNodeClick: handleNodeClick
+                }) }),
+                showTreeSidebar && /* @__PURE__ */ jsxs15(Fragment4, { children: [
+                  /* @__PURE__ */ jsx16(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
+                  leftExpanded && /* @__PURE__ */ jsx16("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx16(
+                    SubflowTree,
+                    {
+                      spec,
+                      activeStage: rootOverlay.activeStage,
+                      doneStages: rootOverlay.doneStages,
+                      onNodeSelect: handleTreeNodeSelect
+                    }
+                  ) })
+                ] }),
+                /* @__PURE__ */ jsx16(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+                rightExpanded && /* @__PURE__ */ jsx16("div", { style: { maxHeight: 250, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ jsx16(
+                  DetailsContent,
+                  {
+                    snapshots: activeSnapshots,
+                    selectedIndex: safeIdx,
+                    narrativeEntries: activeNarrativeEntries,
+                    narrative: activeNarrative,
+                    size
+                  }
+                ) }),
+                /* @__PURE__ */ jsx16(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
+                timelineExpanded && /* @__PURE__ */ jsx16("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx16(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
+              ] })
+            ) : (
+              /* ── Desktop: side-by-side ── */
+              /* @__PURE__ */ jsxs15(Fragment4, { children: [
+                /* @__PURE__ */ jsxs15("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
+                  showTreeSidebar && (leftExpanded ? /* @__PURE__ */ jsxs15("div", { style: { width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+                    /* @__PURE__ */ jsx16("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ jsx16(
+                      SubflowTree,
+                      {
+                        spec,
+                        activeStage: rootOverlay.activeStage,
+                        doneStages: rootOverlay.doneStages,
+                        onNodeSelect: handleTreeNodeSelect
+                      }
+                    ) }),
+                    /* @__PURE__ */ jsx16(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
+                  ] }) : /* @__PURE__ */ jsx16(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
+                  /* @__PURE__ */ jsx16("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: renderFlowchart && activeSpec && renderFlowchart({
+                    spec: activeSpec,
+                    snapshots: activeSnapshots,
+                    selectedIndex: safeIdx,
+                    onNodeClick: handleNodeClick
+                  }) }),
+                  rightExpanded ? /* @__PURE__ */ jsxs15("div", { style: { width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+                    /* @__PURE__ */ jsx16(VLinePill, { label: rightLabel, expanded: true, onClick: () => toggleRight(false) }),
+                    /* @__PURE__ */ jsx16(
+                      DetailsContent,
+                      {
+                        snapshots: activeSnapshots,
+                        selectedIndex: safeIdx,
+                        narrativeEntries: activeNarrativeEntries,
+                        narrative: activeNarrative,
+                        size,
+                        fillHeight: true
+                      }
+                    )
+                  ] }) : /* @__PURE__ */ jsx16(VLinePill, { label: rightLabel, expanded: false, onClick: () => toggleRight(true) })
+                ] }),
+                /* @__PURE__ */ jsx16(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
+                timelineExpanded && /* @__PURE__ */ jsx16("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx16(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
+              ] })
+            )
+          ] })
+        ] })
+      ]
+    }
+  );
+}
+export {
+  ExplainableShell,
+  FootprintTheme,
+  GanttTimeline,
+  MemoryInspector,
+  MemoryPanel,
+  NarrativeLog,
+  NarrativePanel,
+  NarrativeTrace,
+  ResultPanel,
+  ScopeDiff,
+  SnapshotPanel,
+  StageDetailPanel,
+  StoryNarrative,
+  SubflowTree,
+  TimeTravelControls,
+  coolDark,
+  coolLight,
+  createSnapshots,
+  defaultTokens,
+  rawDefaults,
+  subflowResultToSnapshots,
+  themePresets,
+  toVisualizationSnapshots,
+  tokensToCSSVars,
+  useDarkModeTokens,
+  useFootprintTheme,
+  warmDark,
+  warmLight
+};
+//# sourceMappingURL=index.js.map
