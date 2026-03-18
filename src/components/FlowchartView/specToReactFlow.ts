@@ -30,6 +30,8 @@ export interface SpecNode {
   subflowId?: string;
   subflowName?: string;
   subflowStructure?: SpecNode;
+  /** True when this subflow uses lazy resolution (deferred until execution). */
+  isLazy?: boolean;
 }
 
 export interface ExecutionOverlay {
@@ -83,6 +85,7 @@ export interface LayoutNode {
   icon?: string;
   subflowId?: string;
   isSubflow: boolean;
+  isLazy?: boolean;
 }
 
 /** A positioned edge with source/target info. */
@@ -152,6 +155,7 @@ function walkLayout(
     icon: node.icon,
     subflowId: node.subflowId,
     isSubflow: !!node.isSubflowRoot,
+    isLazy: node.isLazy,
   });
 
   let lastIds = [id];
@@ -271,6 +275,7 @@ export function applyOverlay(
         dimmed,
         stepNumbers,
         isSubflow: ln.isSubflow,
+        isLazy: ln.isLazy,
       },
       type: "stage" as const,
       style: dimmed ? { opacity: 0.35 } : undefined,

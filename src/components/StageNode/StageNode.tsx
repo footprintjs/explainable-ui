@@ -35,6 +35,8 @@ export interface StageNodeData {
   dimmed?: boolean;
   /** Node is a subflow root (show nested indicator) */
   isSubflow?: boolean;
+  /** Node uses lazy resolution (dashed border + cloud icon when unresolved) */
+  isLazy?: boolean;
   /** Node is a decider (renders as diamond shape per flowchart convention) */
   isDecider?: boolean;
   /** Node is a fork (parallel fan-out) */
@@ -198,6 +200,22 @@ function StageIcon({ type, color }: { type: string; color: string }) {
         </svg>
       );
 
+    // Lazy / service — cloud (deferred resolution, loaded on demand)
+    case "lazy":
+    case "service":
+    case "cloud":
+      return (
+        <svg {...props}>
+          <path
+            d="M4.5 12C2.8 12 1.5 10.7 1.5 9C1.5 7.5 2.5 6.3 3.8 6C4 4 5.8 2.5 8 2.5C9.8 2.5 11.3 3.5 11.9 5C13.9 5.2 15.5 6.8 15.5 8.8C15.5 10.8 13.9 12.5 11.8 12.5H4.5"
+            stroke={color}
+            strokeWidth="1.3"
+            strokeLinecap="round"
+            fill="none"
+          />
+        </svg>
+      );
+
     // Decision — diamond (already handled by isDecider shape)
     case "decision":
     case "router":
@@ -221,7 +239,12 @@ function StageIcon({ type, color }: { type: string; color: string }) {
 export const StageNode = memo(function StageNode({
   data,
 }: NodeProps & { data: StageNodeData }) {
-  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isDecider, isFork, description } = data;
+  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description } = data;
+
+  // Lazy nodes show cloud icon by default (unless another icon is specified)
+  const effectiveIcon = icon || (isLazy ? "lazy" : undefined);
+  // Lazy + unresolved = dashed border
+  const isLazyUnresolved = isLazy && !done && !active;
 
   // Inject keyframes once into document head
   const injectedRef = useRef(false);
@@ -354,7 +377,7 @@ export const StageNode = memo(function StageNode({
           <div
             style={{
               background: bg,
-              border: `2px solid ${borderColor}`,
+              border: `2px ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
               borderRadius: 4,
               transform: "rotate(45deg)",
               padding: 20,
@@ -415,7 +438,7 @@ export const StageNode = memo(function StageNode({
           <div
             style={{
               background: bg,
-              border: `2px solid ${borderColor}`,
+              border: `2px ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
               borderRadius: theme.radius,
               padding: description ? "8px 16px" : "10px 20px",
               display: "flex",
@@ -430,14 +453,14 @@ export const StageNode = memo(function StageNode({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {/* Semantic icon */}
-              {icon && <StageIcon type={icon} color={textColor} />}
+              {/* Semantic icon (lazy nodes default to cloud icon) */}
+              {effectiveIcon && <StageIcon type={effectiveIcon} color={textColor} />}
 
               {/* State icon */}
-              {done && !icon && (
+              {done && !effectiveIcon && (
                 <span style={{ fontSize: 10, color: textColor }}>&#x2713;</span>
               )}
-              {active && !icon && (
+              {active && !effectiveIcon && (
                 <span
                   style={{
                     width: 8,
@@ -449,7 +472,7 @@ export const StageNode = memo(function StageNode({
                   }}
                 />
               )}
-              {error && !icon && (
+              {error && !effectiveIcon && (
                 <span style={{ fontSize: 10, color: textColor }}>&#x2717;</span>
               )}
 
