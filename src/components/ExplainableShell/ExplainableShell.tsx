@@ -28,7 +28,8 @@ import type { SpecNode } from "../FlowchartView/specToReactFlow";
 // Types
 // ---------------------------------------------------------------------------
 
-export type ShellTab = "result" | "explainable" | "ai-compatible";
+/** Tab ID — "result", "memory", "narrative", or any custom recorder view ID. */
+export type ShellTab = string;
 
 
 interface SubflowLevel {
@@ -477,7 +478,17 @@ export function ExplainableShell({
     return () => ro.disconnect();
   }, []);
 
-  const [activeTab, setActiveTab] = useState<ShellTab>(defaultTab ?? tabs[0]);
+  // Build unified tab list: Result + Memory + Narrative + custom recorder views
+  // (replaces the old nested Memory|Narrative tabs inside Explainable)
+  const builtInViews: Array<{ id: string; name: string }> = [
+    { id: "result", name: "Result" },
+    { id: "memory", name: "Memory" },
+    { id: "narrative", name: "Narrative" },
+  ];
+  const customViewIds = (recorderViews ?? []).map((v) => ({ id: v.id, name: v.name }));
+  const allTabs = [...builtInViews, ...customViewIds];
+
+  const [activeTab, setActiveTab] = useState<string>(defaultTab ?? "memory");
   const [snapshotIdx, setSnapshotIdx] = useState(0);
   const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
   const [rightExpanded, setRightExpanded] = useState(defaultExpanded?.details ?? true);
@@ -602,19 +613,16 @@ export function ExplainableShell({
     [spec, snapshots, narrativeEntries, snapshotIdx]
   );
 
-  const tabLabels: Record<ShellTab, string> = {
-    result: "Result",
-    explainable: "Explainable",
-    "ai-compatible": "AI-Compatible",
-  };
+  // Map tab id → label for rendering
+  const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
 
   // ── Unstyled mode ──
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="explainable-shell">
         <div data-fp="shell-tabs">
-          {tabs.map((tab) => (
-            <button key={tab} data-fp="shell-tab" data-active={tab === activeTab} onClick={() => handleTabChange(tab)}>{tabLabels[tab]}</button>
+          {allTabs.map((tab) => (
+            <button key={tab.id} data-fp="shell-tab" data-active={tab.id === activeTab} onClick={() => handleTabChange(tab.id)}>{tab.name}</button>
           ))}
         </div>
         <div data-fp="shell-content" data-tab={activeTab}>
@@ -635,7 +643,24 @@ export function ExplainableShell({
   }
 
   // ── Styled mode ──
-  const isVisualizationTab = activeTab === "explainable" || activeTab === "ai-compatible";
+  const isVisualizationTab = activeTab !== "result";
+
+  // Resolve the active recorder view's render function
+  const activeRecorderRender = useMemo(() => {
+    if (activeTab === "result") return null;
+    if (activeTab === "memory") {
+      return ({ snapshots: snaps, selectedIndex: idx }: { snapshots: StageSnapshot[]; selectedIndex: number }) => (
+        <MemoryPanel snapshots={snaps} selectedIndex={idx} size={size} style={{ height: "100%" }} />
+      );
+    }
+    if (activeTab === "narrative") {
+      return ({ snapshots: snaps, selectedIndex: idx }: { snapshots: StageSnapshot[]; selectedIndex: number }) => (
+        <NarrativePanel snapshots={snaps} selectedIndex={idx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} style={{ height: "100%" }} />
+      );
+    }
+    const customView = recorderViews?.find((v) => v.id === activeTab);
+    return customView?.render ?? null;
+  }, [activeTab, recorderViews, activeNarrativeEntries, activeNarrative, size]);
 
   return (
     <div
@@ -654,40 +679,40 @@ export function ExplainableShell({
       }}
       data-fp="explainable-shell"
     >
-      {/* Tab bar — only if multiple tabs */}
-      {tabs.length > 1 && (
-        <div style={{
-          display: "flex",
-          borderBottom: `1px solid ${theme.border}`,
-          background: theme.bgSecondary,
-          flexShrink: 0,
-        }}>
-          {tabs.map((tab) => {
-            const active = tab === activeTab;
-            return (
-              <button
-                key={tab}
-                onClick={() => handleTabChange(tab)}
-                style={{
-                  padding: "6px 14px",
-                  fontSize: 11,
-                  fontWeight: active ? 700 : 500,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  color: active ? theme.primary : theme.textMuted,
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {tabLabels[tab]}
-              </button>
-            );
-          })}
-        </div>
-      )}
+      {/* Tab bar — flat, one level: Result + recorder views */}
+      <div style={{
+        display: "flex",
+        borderBottom: `1px solid ${theme.border}`,
+        background: theme.bgSecondary,
+        flexShrink: 0,
+        overflowX: "auto",
+      }}>
+        {allTabs.map((tab) => {
+          const active = tab.id === activeTab;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleTabChange(tab.id as ShellTab)}
+              style={{
+                padding: "6px 14px",
+                fontSize: 11,
+                fontWeight: active ? 700 : 500,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                color: active ? theme.primary : theme.textMuted,
+                background: "transparent",
+                border: "none",
+                borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {tab.name}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }}>
@@ -741,18 +766,11 @@ export function ExplainableShell({
                   </>
                 )}
 
-                {/* Details (memory/narrative) — collapsible */}
+                {/* Details — active recorder view (collapsible on mobile) */}
                 <HLinePill label={rightLabel} expanded={rightExpanded} onClick={() => toggleRight(!rightExpanded)} />
-                {rightExpanded && (
-                  <div style={{ maxHeight: 250, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                    <DetailsContent
-                      snapshots={activeSnapshots}
-                      selectedIndex={safeIdx}
-                      narrativeEntries={activeNarrativeEntries}
-                      narrative={activeNarrative}
-                      size={size}
-                      extraViews={recorderViews}
-                    />
+                {rightExpanded && activeRecorderRender && (
+                  <div style={{ maxHeight: 250, flexShrink: 0, overflow: "auto" }}>
+                    {activeRecorderRender({ snapshots: activeSnapshots, selectedIndex: safeIdx })}
                   </div>
                 )}
 
@@ -798,19 +816,13 @@ export function ExplainableShell({
                     })}
                   </div>
 
-                  {/* Right: VLinePill handle + Memory/Narrative */}
-                  {rightExpanded ? (
+                  {/* Right: active recorder view (no nested tabs — tab is selected at top level) */}
+                  {rightExpanded && activeRecorderRender ? (
                     <div style={{ width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }}>
                       <VLinePill label={rightLabel} expanded={true} onClick={() => toggleRight(false)} />
-                      <DetailsContent
-                        snapshots={activeSnapshots}
-                        selectedIndex={safeIdx}
-                        narrativeEntries={activeNarrativeEntries}
-                        narrative={activeNarrative}
-                        size={size}
-                        fillHeight
-                        extraViews={recorderViews}
-                      />
+                      <div style={{ flex: 1, overflow: "auto" }}>
+                        {activeRecorderRender({ snapshots: activeSnapshots, selectedIndex: safeIdx })}
+                      </div>
                     </div>
                   ) : (
                     <VLinePill label={rightLabel} expanded={false} onClick={() => toggleRight(true)} />
