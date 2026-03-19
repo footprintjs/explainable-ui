@@ -352,6 +352,25 @@ interface RuntimeSnapshotInput {
     commitLog: unknown[];
     subflowResults?: Record<string, unknown>;
 }
+/**
+ * A recorder view that appears as a tab in the details panel.
+ * Each recorder provides its own per-stage rendering.
+ * Memory and Narrative are built-in defaults — add more via this prop.
+ */
+interface RecorderView {
+    /** Unique key for this view tab */
+    id: string;
+    /** Display label on the tab */
+    name: string;
+    /**
+     * Render function — receives the current snapshot index and all snapshots.
+     * Return a React node to display in the details panel.
+     */
+    render: (props: {
+        snapshots: StageSnapshot[];
+        selectedIndex: number;
+    }) => React.ReactNode;
+}
 interface ExplainableShellProps extends BaseComponentProps {
     /**
      * Pre-converted visualization snapshots. Use when you've already called
@@ -380,6 +399,17 @@ interface ExplainableShellProps extends BaseComponentProps {
     /** Which panels start expanded. Default: `{ details: true }` */
     defaultExpanded?: DefaultExpanded;
     /**
+     * Recorder views — each becomes a tab in the details panel.
+     * Default: Memory + Narrative. Pass additional recorder views
+     * to show tokens, cost, tools, permissions, or custom data.
+     *
+     * Usage:
+     *   recorderViews={[
+     *     { id: 'tokens', name: 'Tokens', render: ({ selectedIndex }) => <div>...</div> },
+     *   ]}
+     */
+    recorderViews?: RecorderView[];
+    /**
      * Custom flowchart renderer. When omitted and `spec` is provided,
      * ExplainableShell renders TracedFlowchartView by default.
      */
@@ -390,7 +420,7 @@ interface ExplainableShellProps extends BaseComponentProps {
         onNodeClick?: (indexOrId: number | string) => void;
     }) => React.ReactNode;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, spec, title, resultData: resultDataProp, logs, narrative: narrativeProp, narrativeEntries, tabs, defaultTab, hideConsole, panelLabels, defaultExpanded, renderFlowchart, size, unstyled, className, style, }: ExplainableShellProps): react_jsx_runtime.JSX.Element;
+declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, spec, title, resultData: resultDataProp, logs, narrative: narrativeProp, narrativeEntries, tabs, defaultTab, hideConsole, panelLabels, defaultExpanded, recorderViews, renderFlowchart, size, unstyled, className, style, }: ExplainableShellProps): react_jsx_runtime.JSX.Element;
 
 interface MemoryPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
@@ -525,4 +555,4 @@ declare function createSnapshots(stages: Array<{
     subflowId?: string;
 }>): StageSnapshot[];
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type DarkModeTokensOptions, type DefaultExpanded, type DiffEntry, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry$1 as NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, coolDark, coolLight, createSnapshots, defaultTokens, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type DarkModeTokensOptions, type DefaultExpanded, type DiffEntry, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry$1 as NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, coolDark, coolLight, createSnapshots, defaultTokens, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };

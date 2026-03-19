@@ -3750,28 +3750,39 @@ var VLinePill = memo4(function VLinePill2({
     /* @__PURE__ */ jsx18("div", { style: { flex: 1, width: 1, background: theme.border } })
   ] });
 });
-var RIGHT_PANEL_LABELS = {
-  memory: "Memory",
-  narrative: "Narrative"
-};
 var DetailsContent = memo4(function DetailsContent2({
   snapshots,
   selectedIndex,
   narrativeEntries,
   narrative,
   size,
-  fillHeight
+  fillHeight,
+  extraViews
 }) {
-  const [rightPanel, setRightPanel] = useState8("memory");
+  const builtInViews = [
+    {
+      id: "memory",
+      name: "Memory",
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx18(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: fillHeight ? { height: "100%" } : void 0 })
+    },
+    {
+      id: "narrative",
+      name: "Narrative",
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx18(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries, narrative, size, style: fillHeight ? { height: "100%" } : void 0 })
+    }
+  ];
+  const allViews = [...builtInViews, ...extraViews ?? []];
+  const [activeViewId, setActiveViewId] = useState8(allViews[0]?.id ?? "memory");
+  const activeView = allViews.find((v2) => v2.id === activeViewId) ?? allViews[0];
   return /* @__PURE__ */ jsxs17("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
-    /* @__PURE__ */ jsx18("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: ["memory", "narrative"].map((panel) => {
-      const active = rightPanel === panel;
+    /* @__PURE__ */ jsx18("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
+      const active = view.id === activeViewId;
       return /* @__PURE__ */ jsx18(
         "button",
         {
-          onClick: () => setRightPanel(panel),
+          onClick: () => setActiveViewId(view.id),
           style: {
-            flex: 1,
+            flex: allViews.length <= 3 ? 1 : void 0,
             padding: "6px 8px",
             fontSize: 11,
             fontWeight: active ? 600 : 400,
@@ -3782,17 +3793,15 @@ var DetailsContent = memo4(function DetailsContent2({
             cursor: "pointer",
             textTransform: "uppercase",
             letterSpacing: "0.06em",
-            fontFamily: "inherit"
+            fontFamily: "inherit",
+            whiteSpace: "nowrap"
           },
-          children: RIGHT_PANEL_LABELS[panel]
+          children: view.name
         },
-        panel
+        view.id
       );
     }) }),
-    /* @__PURE__ */ jsxs17("div", { style: { flex: 1, overflow: "auto" }, children: [
-      rightPanel === "memory" && /* @__PURE__ */ jsx18(MemoryPanel, { snapshots, selectedIndex, size, style: fillHeight ? { height: "100%" } : void 0 }),
-      rightPanel === "narrative" && /* @__PURE__ */ jsx18(NarrativePanel, { snapshots, selectedIndex, narrativeEntries, narrative, size, style: fillHeight ? { height: "100%" } : void 0 })
-    ] })
+    /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
   ] });
 });
 function resolveSubflowLevel(parentSpec, parentSnapshots, subflowNodeName, narrativeEntries) {
@@ -3876,6 +3885,7 @@ function ExplainableShell({
   hideConsole = false,
   panelLabels,
   defaultExpanded,
+  recorderViews,
   renderFlowchart,
   size = "default",
   unstyled = false,
@@ -4146,7 +4156,8 @@ function ExplainableShell({
                     selectedIndex: safeIdx,
                     narrativeEntries: activeNarrativeEntries,
                     narrative: activeNarrative,
-                    size
+                    size,
+                    extraViews: recorderViews
                   }
                 ) }),
                 /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
@@ -4184,7 +4195,8 @@ function ExplainableShell({
                         narrativeEntries: activeNarrativeEntries,
                         narrative: activeNarrative,
                         size,
-                        fillHeight: true
+                        fillHeight: true,
+                        extraViews: recorderViews
                       }
                     )
                   ] }) : /* @__PURE__ */ jsx18(VLinePill, { label: rightLabel, expanded: false, onClick: () => toggleRight(true) })

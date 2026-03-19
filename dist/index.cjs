@@ -3796,28 +3796,39 @@ var VLinePill = (0, import_react19.memo)(function VLinePill2({
     /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } })
   ] });
 });
-var RIGHT_PANEL_LABELS = {
-  memory: "Memory",
-  narrative: "Narrative"
-};
 var DetailsContent = (0, import_react19.memo)(function DetailsContent2({
   snapshots,
   selectedIndex,
   narrativeEntries,
   narrative,
   size,
-  fillHeight
+  fillHeight,
+  extraViews
 }) {
-  const [rightPanel, setRightPanel] = (0, import_react19.useState)("memory");
+  const builtInViews = [
+    {
+      id: "memory",
+      name: "Memory",
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: fillHeight ? { height: "100%" } : void 0 })
+    },
+    {
+      id: "narrative",
+      name: "Narrative",
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries, narrative, size, style: fillHeight ? { height: "100%" } : void 0 })
+    }
+  ];
+  const allViews = [...builtInViews, ...extraViews ?? []];
+  const [activeViewId, setActiveViewId] = (0, import_react19.useState)(allViews[0]?.id ?? "memory");
+  const activeView = allViews.find((v2) => v2.id === activeViewId) ?? allViews[0];
   return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: ["memory", "narrative"].map((panel) => {
-      const active = rightPanel === panel;
+    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
+      const active = view.id === activeViewId;
       return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
         "button",
         {
-          onClick: () => setRightPanel(panel),
+          onClick: () => setActiveViewId(view.id),
           style: {
-            flex: 1,
+            flex: allViews.length <= 3 ? 1 : void 0,
             padding: "6px 8px",
             fontSize: 11,
             fontWeight: active ? 600 : 400,
@@ -3828,17 +3839,15 @@ var DetailsContent = (0, import_react19.memo)(function DetailsContent2({
             cursor: "pointer",
             textTransform: "uppercase",
             letterSpacing: "0.06em",
-            fontFamily: "inherit"
+            fontFamily: "inherit",
+            whiteSpace: "nowrap"
           },
-          children: RIGHT_PANEL_LABELS[panel]
+          children: view.name
         },
-        panel
+        view.id
       );
     }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { flex: 1, overflow: "auto" }, children: [
-      rightPanel === "memory" && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(MemoryPanel, { snapshots, selectedIndex, size, style: fillHeight ? { height: "100%" } : void 0 }),
-      rightPanel === "narrative" && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(NarrativePanel, { snapshots, selectedIndex, narrativeEntries, narrative, size, style: fillHeight ? { height: "100%" } : void 0 })
-    ] })
+    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
   ] });
 });
 function resolveSubflowLevel(parentSpec, parentSnapshots, subflowNodeName, narrativeEntries) {
@@ -3922,6 +3931,7 @@ function ExplainableShell({
   hideConsole = false,
   panelLabels,
   defaultExpanded,
+  recorderViews,
   renderFlowchart,
   size = "default",
   unstyled = false,
@@ -4192,7 +4202,8 @@ function ExplainableShell({
                     selectedIndex: safeIdx,
                     narrativeEntries: activeNarrativeEntries,
                     narrative: activeNarrative,
-                    size
+                    size,
+                    extraViews: recorderViews
                   }
                 ) }),
                 /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
@@ -4230,7 +4241,8 @@ function ExplainableShell({
                         narrativeEntries: activeNarrativeEntries,
                         narrative: activeNarrative,
                         size,
-                        fillHeight: true
+                        fillHeight: true,
+                        extraViews: recorderViews
                       }
                     )
                   ] }) : /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(VLinePill, { label: rightLabel, expanded: false, onClick: () => toggleRight(true) })
