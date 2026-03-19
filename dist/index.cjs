@@ -3970,7 +3970,14 @@ function ExplainableShell({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const [activeTab, setActiveTab] = (0, import_react19.useState)(defaultTab ?? tabs[0]);
+  const builtInViews = [
+    { id: "result", name: "Result" },
+    { id: "memory", name: "Memory" },
+    { id: "narrative", name: "Narrative" }
+  ];
+  const customViewIds = (recorderViews ?? []).map((v2) => ({ id: v2.id, name: v2.name }));
+  const allTabs = [...builtInViews, ...customViewIds];
+  const [activeTab, setActiveTab] = (0, import_react19.useState)(defaultTab ?? "memory");
   const [snapshotIdx, setSnapshotIdx] = (0, import_react19.useState)(0);
   const [drillDownStack, setDrillDownStack] = (0, import_react19.useState)([]);
   const [rightExpanded, setRightExpanded] = (0, import_react19.useState)(defaultExpanded?.details ?? true);
@@ -4091,14 +4098,10 @@ function ExplainableShell({
     },
     [spec, snapshots, narrativeEntries, snapshotIdx]
   );
-  const tabLabels = {
-    result: "Result",
-    explainable: "Explainable",
-    "ai-compatible": "AI-Compatible"
-  };
+  const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
   if (unstyled) {
     return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className, style, "data-fp": "explainable-shell", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { "data-fp": "shell-tabs", children: tabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("button", { "data-fp": "shell-tab", "data-active": tab === activeTab, onClick: () => handleTabChange(tab), children: tabLabels[tab] }, tab)) }),
+      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { "data-fp": "shell-tabs", children: allTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
       /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
         activeTab === "result" && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
         (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
@@ -4112,7 +4115,18 @@ function ExplainableShell({
       ] })
     ] });
   }
-  const isVisualizationTab = activeTab === "explainable" || activeTab === "ai-compatible";
+  const isVisualizationTab = activeTab !== "result";
+  const activeRecorderRender = (0, import_react19.useMemo)(() => {
+    if (activeTab === "result") return null;
+    if (activeTab === "memory") {
+      return ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: { height: "100%" } });
+    }
+    if (activeTab === "narrative") {
+      return ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, size, style: { height: "100%" } });
+    }
+    const customView = recorderViews?.find((v2) => v2.id === activeTab);
+    return customView?.render ?? null;
+  }, [activeTab, recorderViews, activeNarrativeEntries, activeNarrative, size]);
   return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
     "div",
     {
@@ -4131,17 +4145,18 @@ function ExplainableShell({
       },
       "data-fp": "explainable-shell",
       children: [
-        tabs.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: {
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: {
           display: "flex",
           borderBottom: `1px solid ${theme.border}`,
           background: theme.bgSecondary,
-          flexShrink: 0
-        }, children: tabs.map((tab) => {
-          const active = tab === activeTab;
+          flexShrink: 0,
+          overflowX: "auto"
+        }, children: allTabs.map((tab) => {
+          const active = tab.id === activeTab;
           return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
             "button",
             {
-              onClick: () => handleTabChange(tab),
+              onClick: () => handleTabChange(tab.id),
               style: {
                 padding: "6px 14px",
                 fontSize: 11,
@@ -4153,11 +4168,12 @@ function ExplainableShell({
                 border: "none",
                 borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
                 cursor: "pointer",
-                fontFamily: "inherit"
+                fontFamily: "inherit",
+                whiteSpace: "nowrap"
               },
-              children: tabLabels[tab]
+              children: tab.name
             },
-            tab
+            tab.id
           );
         }) }),
         /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: [
@@ -4195,17 +4211,7 @@ function ExplainableShell({
                   ) })
                 ] }),
                 /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-                rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { maxHeight: 250, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
-                  DetailsContent,
-                  {
-                    snapshots: activeSnapshots,
-                    selectedIndex: safeIdx,
-                    narrativeEntries: activeNarrativeEntries,
-                    narrative: activeNarrative,
-                    size,
-                    extraViews: recorderViews
-                  }
-                ) }),
+                rightExpanded && activeRecorderRender && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { maxHeight: 250, flexShrink: 0, overflow: "auto" }, children: activeRecorderRender({ snapshots: activeSnapshots, selectedIndex: safeIdx }) }),
                 /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
                 timelineExpanded && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
               ] })
@@ -4231,20 +4237,9 @@ function ExplainableShell({
                     selectedIndex: safeIdx,
                     onNodeClick: handleNodeClick
                   }) }),
-                  rightExpanded ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+                  rightExpanded && activeRecorderRender ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
                     /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(VLinePill, { label: rightLabel, expanded: true, onClick: () => toggleRight(false) }),
-                    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
-                      DetailsContent,
-                      {
-                        snapshots: activeSnapshots,
-                        selectedIndex: safeIdx,
-                        narrativeEntries: activeNarrativeEntries,
-                        narrative: activeNarrative,
-                        size,
-                        fillHeight: true,
-                        extraViews: recorderViews
-                      }
-                    )
+                    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: activeRecorderRender({ snapshots: activeSnapshots, selectedIndex: safeIdx }) })
                   ] }) : /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(VLinePill, { label: rightLabel, expanded: false, onClick: () => toggleRight(true) })
                 ] }),
                 /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),

@@ -327,7 +327,8 @@ interface SpecNode {
     isLazy?: boolean;
 }
 
-type ShellTab = "result" | "explainable" | "ai-compatible";
+/** Tab ID — "result", "memory", "narrative", or any custom recorder view ID. */
+type ShellTab = string;
 interface PanelLabels {
     /** Left panel pill label (subflow tree). Default: "Topology" */
     topology?: string;
