@@ -558,7 +558,6 @@ export function ExplainableShell({
   const handleTabChange = useCallback((tab: ShellTab) => {
     setActiveTab(tab);
     setDrillDownStack([]);
-    setSnapshotIdx(999);
   }, []);
 
   const handleSnapshotChange = useCallback((idx: number | string) => {
