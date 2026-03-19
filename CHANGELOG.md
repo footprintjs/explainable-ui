@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.10.1] - 2026-03-19
+
+### Fixed
+- **Narrative position preserved on tab switch** — Removed `setSnapshotIdx(999)` from `handleTabChange` that was forcing the narrative to jump to the last stage every time the user switched between RESULT/MEMORY/NARRATIVE tabs.
+
 ## [0.7.3] - 2026-03-18
 
 ### Fixed
