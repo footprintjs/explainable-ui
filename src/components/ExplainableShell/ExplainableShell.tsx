@@ -29,7 +29,7 @@ import type { SpecNode } from "../FlowchartView/specToReactFlow";
 // ---------------------------------------------------------------------------
 
 export type ShellTab = "result" | "explainable" | "ai-compatible";
-type RightPanel = "memory" | "narrative";
+
 
 interface SubflowLevel {
   subflowId: string;
@@ -69,6 +69,23 @@ export interface RuntimeSnapshotInput {
   subflowResults?: Record<string, unknown>;
 }
 
+/**
+ * A recorder view that appears as a tab in the details panel.
+ * Each recorder provides its own per-stage rendering.
+ * Memory and Narrative are built-in defaults — add more via this prop.
+ */
+export interface RecorderView {
+  /** Unique key for this view tab */
+  id: string;
+  /** Display label on the tab */
+  name: string;
+  /**
+   * Render function — receives the current snapshot index and all snapshots.
+   * Return a React node to display in the details panel.
+   */
+  render: (props: { snapshots: StageSnapshot[]; selectedIndex: number }) => React.ReactNode;
+}
+
 export interface ExplainableShellProps extends BaseComponentProps {
   /**
    * Pre-converted visualization snapshots. Use when you've already called
@@ -96,6 +113,17 @@ export interface ExplainableShellProps extends BaseComponentProps {
   panelLabels?: PanelLabels;
   /** Which panels start expanded. Default: `{ details: true }` */
   defaultExpanded?: DefaultExpanded;
+  /**
+   * Recorder views — each becomes a tab in the details panel.
+   * Default: Memory + Narrative. Pass additional recorder views
+   * to show tokens, cost, tools, permissions, or custom data.
+   *
+   * Usage:
+   *   recorderViews={[
+   *     { id: 'tokens', name: 'Tokens', render: ({ selectedIndex }) => <div>...</div> },
+   *   ]}
+   */
+  recorderViews?: RecorderView[];
   /**
    * Custom flowchart renderer. When omitted and `spec` is provided,
    * ExplainableShell renders TracedFlowchartView by default.
@@ -223,13 +251,8 @@ const VLinePill = memo(function VLinePill({
 });
 
 // ---------------------------------------------------------------------------
-// DetailsContent — Memory/Narrative tab switcher + content (shared by mobile & desktop)
+// DetailsContent — Recorder-driven tab switcher (Memory + Narrative are defaults)
 // ---------------------------------------------------------------------------
-
-const RIGHT_PANEL_LABELS: Record<RightPanel, string> = {
-  memory: "Memory",
-  narrative: "Narrative",
-};
 
 const DetailsContent = memo(function DetailsContent({
   snapshots,
@@ -238,6 +261,7 @@ const DetailsContent = memo(function DetailsContent({
   narrative,
   size,
   fillHeight,
+  extraViews,
 }: {
   snapshots: StageSnapshot[];
   selectedIndex: number;
@@ -245,41 +269,59 @@ const DetailsContent = memo(function DetailsContent({
   narrative?: string[];
   size: "compact" | "default" | "detailed";
   fillHeight?: boolean;
+  extraViews?: RecorderView[];
 }) {
-  const [rightPanel, setRightPanel] = useState<RightPanel>("memory");
+  // Built-in views (always available)
+  const builtInViews: RecorderView[] = [
+    {
+      id: "memory",
+      name: "Memory",
+      render: ({ snapshots: snaps, selectedIndex: idx }) => (
+        <MemoryPanel snapshots={snaps} selectedIndex={idx} size={size} style={fillHeight ? { height: "100%" } : undefined} />
+      ),
+    },
+    {
+      id: "narrative",
+      name: "Narrative",
+      render: ({ snapshots: snaps, selectedIndex: idx }) => (
+        <NarrativePanel snapshots={snaps} selectedIndex={idx} narrativeEntries={narrativeEntries} narrative={narrative} size={size} style={fillHeight ? { height: "100%" } : undefined} />
+      ),
+    },
+  ];
+
+  const allViews = [...builtInViews, ...(extraViews ?? [])];
+  const [activeViewId, setActiveViewId] = useState(allViews[0]?.id ?? "memory");
+  const activeView = allViews.find((v) => v.id === activeViewId) ?? allViews[0];
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* Tab switcher */}
-      <div style={{ display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-        {(["memory", "narrative"] as RightPanel[]).map((panel) => {
-          const active = rightPanel === panel;
+      {/* Tab switcher — one per recorder view */}
+      <div style={{ display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }}>
+        {allViews.map((view) => {
+          const active = view.id === activeViewId;
           return (
             <button
-              key={panel}
-              onClick={() => setRightPanel(panel)}
+              key={view.id}
+              onClick={() => setActiveViewId(view.id)}
               style={{
-                flex: 1, padding: "6px 8px", fontSize: 11,
+                flex: allViews.length <= 3 ? 1 : undefined,
+                padding: "6px 8px", fontSize: 11,
                 fontWeight: active ? 600 : 400,
                 color: active ? theme.primary : theme.textMuted,
                 background: active ? `color-mix(in srgb, ${theme.primary} 8%, transparent)` : "transparent",
                 border: "none",
                 borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
                 cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit",
+                whiteSpace: "nowrap",
               }}
             >
-              {RIGHT_PANEL_LABELS[panel]}
+              {view.name}
             </button>
           );
         })}
       </div>
       <div style={{ flex: 1, overflow: "auto" }}>
-        {rightPanel === "memory" && (
-          <MemoryPanel snapshots={snapshots} selectedIndex={selectedIndex} size={size} style={fillHeight ? { height: "100%" } : undefined} />
-        )}
-        {rightPanel === "narrative" && (
-          <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={narrativeEntries} narrative={narrative} size={size} style={fillHeight ? { height: "100%" } : undefined} />
-        )}
+        {activeView?.render({ snapshots, selectedIndex })}
       </div>
     </div>
   );
@@ -388,6 +430,7 @@ export function ExplainableShell({
   hideConsole = false,
   panelLabels,
   defaultExpanded,
+  recorderViews,
   renderFlowchart,
   size = "default",
   unstyled = false,
@@ -708,6 +751,7 @@ export function ExplainableShell({
                       narrativeEntries={activeNarrativeEntries}
                       narrative={activeNarrative}
                       size={size}
+                      extraViews={recorderViews}
                     />
                   </div>
                 )}
@@ -765,6 +809,7 @@ export function ExplainableShell({
                         narrative={activeNarrative}
                         size={size}
                         fillHeight
+                        extraViews={recorderViews}
                       />
                     </div>
                   ) : (

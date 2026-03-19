@@ -37,7 +37,7 @@ export { TimeTravelControls } from "./components/TimeTravelControls";
 export type { TimeTravelControlsProps } from "./components/TimeTravelControls";
 
 export { ExplainableShell } from "./components/ExplainableShell";
-export type { ExplainableShellProps, RuntimeSnapshotInput, ShellTab, PanelLabels, DefaultExpanded } from "./components/ExplainableShell";
+export type { ExplainableShellProps, RuntimeSnapshotInput, RecorderView, ShellTab, PanelLabels, DefaultExpanded } from "./components/ExplainableShell";
 
 // Composite panels (memory + narrative — self-contained right-panel views)
 export { MemoryPanel } from "./components/MemoryPanel";
