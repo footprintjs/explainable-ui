@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.4] - 2026-03-20
+
+### Added
+- **Subflow group headers in narrative** — StoryNarrative shows subflow ID headers when `subflowId` changes between entries. Subflow entries are grouped consecutively and indented for readability in parallel execution flows.
+
 ## [0.11.3] - 2026-03-20
 
 ### Fixed
