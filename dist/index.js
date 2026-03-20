@@ -3955,7 +3955,7 @@ function ExplainableShell({
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
   const [activeTab, setActiveTab] = useState8(resolvedDefault);
-  const [snapshotIdx, setSnapshotIdx] = useState8(999);
+  const [snapshotIdx, setSnapshotIdx] = useState8(0);
   const [drillDownStack, setDrillDownStack] = useState8([]);
   const [rightExpanded, setRightExpanded] = useState8(defaultExpanded?.details ?? true);
   const [leftExpanded, setLeftExpanded] = useState8(defaultExpanded?.topology ?? false);

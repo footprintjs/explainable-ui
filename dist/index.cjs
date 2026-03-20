@@ -4001,7 +4001,7 @@ function ExplainableShell({
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
   const [activeTab, setActiveTab] = (0, import_react19.useState)(resolvedDefault);
-  const [snapshotIdx, setSnapshotIdx] = (0, import_react19.useState)(999);
+  const [snapshotIdx, setSnapshotIdx] = (0, import_react19.useState)(0);
   const [drillDownStack, setDrillDownStack] = (0, import_react19.useState)([]);
   const [rightExpanded, setRightExpanded] = (0, import_react19.useState)(defaultExpanded?.details ?? true);
   const [leftExpanded, setLeftExpanded] = (0, import_react19.useState)(defaultExpanded?.topology ?? false);
