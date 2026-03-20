@@ -68,13 +68,23 @@ export function NarrativePanel({
     return Math.max(1, endIdx);
   }, [snapshots.length, selectedIndex, narrative]);
 
+  // Build the set of revealed stage labels from snapshots up to selectedIndex
+  const revealedStages = useMemo(() => {
+    const labels = new Set<string>();
+    for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
+      if (snapshots[i].stageLabel) labels.add(snapshots[i].stageLabel!);
+      if (snapshots[i].stageName) labels.add(snapshots[i].stageName);
+    }
+    return labels;
+  }, [snapshots, selectedIndex]);
+
   const hasStructured = narrativeEntries && narrativeEntries.length > 0;
 
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="narrative-panel">
         {hasStructured ? (
-          <StoryNarrative entries={narrativeEntries!} stageCount={selectedIndex + 1} unstyled />
+          <StoryNarrative entries={narrativeEntries!} revealedStages={revealedStages} unstyled />
         ) : (
           <NarrativeTrace narrative={narrative} revealedCount={revealedCount} unstyled />
         )}
@@ -109,7 +119,7 @@ export function NarrativePanel({
       {hasStructured ? (
         <StoryNarrative
           entries={narrativeEntries!}
-          stageCount={selectedIndex + 1}
+          revealedStages={revealedStages}
           size={size}
           style={{ flex: 1 }}
         />

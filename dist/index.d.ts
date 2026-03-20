@@ -30,6 +30,8 @@ interface NarrativeEntry$1 {
     text: string;
     depth: number;
     stageName?: string;
+    /** Stable stage identifier (matches spec node id). Primary key for UI sync. */
+    stageId?: string;
     stepNumber?: number;
 }
 /** Component size variants */
@@ -448,10 +450,10 @@ declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, na
 interface StoryNarrativeProps extends BaseComponentProps {
     /** Structured narrative entries from CombinedNarrativeRecorder */
     entries: NarrativeEntry$1[];
-    /** Number of stages to reveal (maps to snapshotIdx + 1) */
-    stageCount: number;
+    /** Set of stage labels to reveal (from snapshots[0..selectedIndex]) */
+    revealedStages: Set<string>;
 }
-declare function StoryNarrative({ entries, stageCount, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): react_jsx_runtime.JSX.Element;
+declare function StoryNarrative({ entries, revealedStages, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): react_jsx_runtime.JSX.Element;
 
 interface SubflowTreeEntry {
     /** Node name / identifier */

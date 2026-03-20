@@ -28,6 +28,8 @@ export interface NarrativeEntry {
   text: string;
   depth: number;
   stageName?: string;
+  /** Stable stage identifier (matches spec node id). Primary key for UI sync. */
+  stageId?: string;
   stepNumber?: number;
 }
 

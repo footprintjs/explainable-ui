@@ -15,8 +15,8 @@ import { theme, fontSize, padding } from "../../theme";
 export interface StoryNarrativeProps extends BaseComponentProps {
   /** Structured narrative entries from CombinedNarrativeRecorder */
   entries: NarrativeEntry[];
-  /** Number of stages to reveal (maps to snapshotIdx + 1) */
-  stageCount: number;
+  /** Set of stage labels to reveal (from snapshots[0..selectedIndex]) */
+  revealedStages: Set<string>;
 }
 
 const ENTRY_ICONS: Record<string, { icon: string; color: string; label: string }> = {
@@ -32,7 +32,7 @@ const ENTRY_ICONS: Record<string, { icon: string; color: string; label: string }
 
 export function StoryNarrative({
   entries,
-  stageCount,
+  revealedStages,
   size = "default",
   unstyled = false,
   className,
@@ -41,21 +41,22 @@ export function StoryNarrative({
   const fs = fontSize[size];
   const pad = padding[size];
 
-  // Count stage boundaries to find the cut point.
-  // Both "stage" entries and subflow "Entering" entries count as boundaries,
-  // since each maps to a snapshot in the time-travel slider.
+  // Reveal entries whose stageName belongs to a revealed stage.
+  // Entries without stageName (fork, subflow markers) are shown if they
+  // appear before the first unrevealed stage entry.
   const revealedCount = useMemo(() => {
-    let stagesSeen = 0;
+    // Find the cut point: stop at the first entry whose stage is NOT revealed.
+    // Uses stageId (stable build-time id) as primary key, stageName as fallback.
+    // Entries without either key flow with their context.
     for (let i = 0; i < entries.length; i++) {
-      const e = entries[i];
-      const isBoundary =
-        e.type === "stage" ||
-        (e.type === "subflow" && e.text.startsWith("Entering"));
-      if (isBoundary) stagesSeen++;
-      if (stagesSeen > stageCount) return i;
+      const e = entries[i] as { stageId?: string; stageName?: string };
+      const key = e.stageId ?? e.stageName;
+      if (key && !revealedStages.has(key)) {
+        return i;
+      }
     }
     return entries.length;
-  }, [entries, stageCount]);
+  }, [entries, revealedStages]);
 
   const revealed = entries.slice(0, revealedCount);
   const future = entries.slice(revealedCount);

@@ -2380,7 +2380,7 @@ var ENTRY_ICONS = {
 };
 function StoryNarrative({
   entries,
-  stageCount,
+  revealedStages,
   size = "default",
   unstyled = false,
   className,
@@ -2389,15 +2389,15 @@ function StoryNarrative({
   const fs = fontSize[size];
   const pad = padding[size];
   const revealedCount = useMemo7(() => {
-    let stagesSeen = 0;
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i];
-      const isBoundary = e.type === "stage" || e.type === "subflow" && e.text.startsWith("Entering");
-      if (isBoundary) stagesSeen++;
-      if (stagesSeen > stageCount) return i;
+      const key = e.stageId ?? e.stageName;
+      if (key && !revealedStages.has(key)) {
+        return i;
+      }
     }
     return entries.length;
-  }, [entries, stageCount]);
+  }, [entries, revealedStages]);
   const revealed = entries.slice(0, revealedCount);
   const future = entries.slice(revealedCount);
   const latestRef = useRef5(null);
@@ -2532,9 +2532,17 @@ function NarrativePanel({
     const endIdx = groupsToShow < stageBoundaries.length ? stageBoundaries[groupsToShow] : narrative.length;
     return Math.max(1, endIdx);
   }, [snapshots.length, selectedIndex, narrative]);
+  const revealedStages = useMemo8(() => {
+    const labels = /* @__PURE__ */ new Set();
+    for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
+      if (snapshots[i].stageLabel) labels.add(snapshots[i].stageLabel);
+      if (snapshots[i].stageName) labels.add(snapshots[i].stageName);
+    }
+    return labels;
+  }, [snapshots, selectedIndex]);
   const hasStructured = narrativeEntries && narrativeEntries.length > 0;
   if (unstyled) {
-    return /* @__PURE__ */ jsx13("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ jsx13(StoryNarrative, { entries: narrativeEntries, stageCount: selectedIndex + 1, unstyled: true }) : /* @__PURE__ */ jsx13(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
+    return /* @__PURE__ */ jsx13("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ jsx13(StoryNarrative, { entries: narrativeEntries, revealedStages, unstyled: true }) : /* @__PURE__ */ jsx13(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
   }
   return /* @__PURE__ */ jsxs12(
     "div",
@@ -2566,7 +2574,7 @@ function NarrativePanel({
           StoryNarrative,
           {
             entries: narrativeEntries,
-            stageCount: selectedIndex + 1,
+            revealedStages,
             size,
             style: { flex: 1 }
           }
