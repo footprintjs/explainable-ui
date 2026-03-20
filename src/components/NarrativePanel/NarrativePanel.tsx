@@ -68,19 +68,52 @@ export function NarrativePanel({
     return Math.max(1, endIdx);
   }, [snapshots.length, selectedIndex, narrative]);
 
-  // Build the set of revealed identifiers from snapshots up to selectedIndex.
-  // Includes stageLabel (node.id), stageName, and subflowId so that entries
-  // inside subflows match when the mount node is revealed.
-  const revealedStages = useMemo(() => {
-    const labels = new Set<string>();
-    for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
-      const s = snapshots[i];
-      if (s.stageLabel) labels.add(s.stageLabel);
-      if (s.stageName) labels.add(s.stageName);
-      if (s.subflowId) labels.add(s.subflowId);
+  // Position-based sync: for each snapshot, find the range of entries that belong
+  // to it by matching snapshot stageLabel/stageName against entry stageId/stageName.
+  // Handles loops (same stageId at different positions) correctly because we walk
+  // entries sequentially and consume matches in order.
+  const revealedEntryCount = useMemo(() => {
+    if (!narrativeEntries?.length || snapshots.length === 0) return 0;
+
+    // For each snapshot up to selectedIndex, find entries that belong to it.
+    // Walk entries sequentially — each entry is consumed once.
+    let entryIdx = 0;
+    for (let si = 0; si <= selectedIndex && si < snapshots.length; si++) {
+      const snap = snapshots[si];
+      const keys = new Set<string>();
+      if (snap.stageLabel) keys.add(snap.stageLabel);
+      if (snap.stageName) keys.add(snap.stageName);
+      if (snap.subflowId) keys.add(snap.subflowId);
+
+      // Advance past entries that match this snapshot's keys
+      // First, find the start of this snapshot's entries
+      let found = false;
+      for (let j = entryIdx; j < narrativeEntries.length; j++) {
+        const e = narrativeEntries[j] as { stageId?: string; subflowId?: string; stageName?: string };
+        const eKey = e.stageId ?? e.subflowId ?? e.stageName;
+        if (eKey && keys.has(eKey)) {
+          found = true;
+          entryIdx = j;
+          break;
+        }
+        // Entries with no key belong to previous snapshot — include them
+        if (!eKey && !found) {
+          // Keep advancing
+        }
+      }
+
+      if (!found) continue;
+
+      // Now consume all consecutive entries that belong to this snapshot
+      while (entryIdx < narrativeEntries.length) {
+        const e = narrativeEntries[entryIdx] as { stageId?: string; subflowId?: string; stageName?: string };
+        const eKey = e.stageId ?? e.subflowId ?? e.stageName;
+        if (eKey && !keys.has(eKey)) break; // next snapshot's entry
+        entryIdx++;
+      }
     }
-    return labels;
-  }, [snapshots, selectedIndex]);
+    return entryIdx;
+  }, [narrativeEntries, snapshots, selectedIndex]);
 
   const hasStructured = narrativeEntries && narrativeEntries.length > 0;
 
@@ -88,7 +121,7 @@ export function NarrativePanel({
     return (
       <div className={className} style={style} data-fp="narrative-panel">
         {hasStructured ? (
-          <StoryNarrative entries={narrativeEntries!} revealedStages={revealedStages} unstyled />
+          <StoryNarrative entries={narrativeEntries!} revealedEntryCount={revealedEntryCount} unstyled />
         ) : (
           <NarrativeTrace narrative={narrative} revealedCount={revealedCount} unstyled />
         )}
@@ -123,7 +156,7 @@ export function NarrativePanel({
       {hasStructured ? (
         <StoryNarrative
           entries={narrativeEntries!}
-          revealedStages={revealedStages}
+          revealedEntryCount={revealedEntryCount}
           size={size}
           style={{ flex: 1 }}
         />

@@ -738,15 +738,18 @@ function walkLayout(node, state, x, y) {
     bottomY = Math.max(...childResults.map((r) => r.bottomY));
   }
   if (node.loopTarget) {
-    const resolvedTarget = state.idToName.get(node.loopTarget) ?? node.loopTarget;
     state.edgeCounter++;
-    state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: resolvedTarget, label: "loop", isLoop: true });
+    state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: node.loopTarget, label: "loop", isLoop: true });
   }
   if (node.next) {
     const rawNextId = nid(node.next);
     const resolvedNextId = state.idToName.get(rawNextId) ?? rawNextId;
     const isLoopRef = node.loopTarget && state.seen.has(resolvedNextId);
     if (isLoopRef) {
+      for (const lid of lastIds) {
+        state.edgeCounter++;
+        state.edges.push({ id: `se${state.edgeCounter}`, source: lid, target: resolvedNextId, label: "loop", isLoop: true });
+      }
       return { lastIds, bottomY };
     }
     const nextY = bottomY + Y_STEP;

@@ -185,9 +185,9 @@ function walkLayout(
 
   // Loop-back edge
   if (node.loopTarget) {
-    const resolvedTarget = state.idToName.get(node.loopTarget) ?? node.loopTarget;
+    // loopTarget is a stage ID — use it directly (ReactFlow node IDs = spec node IDs)
     state.edgeCounter++;
-    state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: resolvedTarget, label: "loop", isLoop: true });
+    state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: node.loopTarget, label: "loop", isLoop: true });
   }
 
   // Linear continuation
@@ -197,6 +197,11 @@ function walkLayout(
     const isLoopRef = node.loopTarget && state.seen.has(resolvedNextId);
 
     if (isLoopRef) {
+      // Add dotted back-edge for the loop reference
+      for (const lid of lastIds) {
+        state.edgeCounter++;
+        state.edges.push({ id: `se${state.edgeCounter}`, source: lid, target: resolvedNextId, label: "loop", isLoop: true });
+      }
       return { lastIds, bottomY };
     }
 

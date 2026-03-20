@@ -15,8 +15,8 @@ import { theme, fontSize, padding } from "../../theme";
 export interface StoryNarrativeProps extends BaseComponentProps {
   /** Structured narrative entries from CombinedNarrativeRecorder */
   entries: NarrativeEntry[];
-  /** Set of stage labels to reveal (from snapshots[0..selectedIndex]) */
-  revealedStages: Set<string>;
+  /** Number of entries to reveal (position-based sync from NarrativePanel) */
+  revealedEntryCount: number;
 }
 
 const ENTRY_ICONS: Record<string, { icon: string; color: string; label: string }> = {
@@ -32,7 +32,7 @@ const ENTRY_ICONS: Record<string, { icon: string; color: string; label: string }
 
 export function StoryNarrative({
   entries,
-  revealedStages,
+  revealedEntryCount,
   size = "default",
   unstyled = false,
   className,
@@ -41,43 +41,21 @@ export function StoryNarrative({
   const fs = fontSize[size];
   const pad = padding[size];
 
-  // Reveal entries whose stageName belongs to a revealed stage.
-  // Entries without stageName (fork, subflow markers) are shown if they
-  // appear before the first unrevealed stage entry.
-  const revealedCount = useMemo(() => {
-    // Entries with identifiers (stageId/subflowId/stageName) are checked against revealedStages.
-    // Entries WITHOUT identifiers (fork/subflow markers) belong to the previous revealed
-    // section — they're included as long as the last identified entry was revealed.
-    const isRevealed = (e: { stageId?: string; subflowId?: string; stageName?: string }) =>
-      (e.stageId && revealedStages.has(e.stageId))
-      || (e.subflowId && revealedStages.has(e.subflowId))
-      || (e.stageName && revealedStages.has(e.stageName));
+  // Position-based reveal: NarrativePanel computes the cut point based on
+  // section boundaries (stage entries). This handles loops (same stageId,
+  // different iterations) and subflow repeats correctly.
+  const revealedCount = revealedEntryCount;
 
-    let lastIdentifiedWasRevealed = true;
-    for (let i = 0; i < entries.length; i++) {
-      const e = entries[i] as { stageId?: string; subflowId?: string; stageName?: string };
-      const hasKey = e.stageId || e.subflowId || e.stageName;
-      if (hasKey) {
-        lastIdentifiedWasRevealed = !!isRevealed(e);
-        if (!lastIdentifiedWasRevealed) return i;
-      } else {
-        // No identifier — belongs to previous section
-        if (!lastIdentifiedWasRevealed) return i;
-      }
-    }
-    return entries.length;
-  }, [entries, revealedStages]);
-
-  // Filter revealed entries: show root-level entries only.
-  // Subflow internal entries and Entering/Exiting markers are hidden —
-  // [Selected] and [Parallel] entries already convey the subflow story.
-  // Internal stages appear in the drill-down view.
+  // Filter revealed entries: show root-level entries + subflow Entering/Exiting markers.
+  // Subflow internal entries (stage, step, condition inside a subflow) are hidden —
+  // they appear in the drill-down view.
   const revealed = useMemo(() => {
     const raw = entries.slice(0, revealedCount);
     return raw.filter((e) => {
       const sfId = (e as { subflowId?: string }).subflowId;
-      if (!sfId && e.type !== "subflow") return true; // root-level, non-subflow marker
-      return false; // subflow entries + markers — hide
+      if (!sfId) return true; // root-level — always show
+      if (e.type === "subflow") return true; // Entering/Exiting markers — show
+      return false; // internal subflow entries — hide (drill-down only)
     });
   }, [entries, revealedCount]);
   // Future count: only count entries that would actually be shown (same filter as revealed)
@@ -85,7 +63,7 @@ export function StoryNarrative({
     let count = 0;
     for (let i = revealedCount; i < entries.length; i++) {
       const e = entries[i] as { subflowId?: string };
-      if (!e.subflowId && entries[i].type !== "subflow") count++;
+      if (!e.subflowId || entries[i].type === "subflow") count++;
     }
     return count;
   }, [entries, revealedCount]);
@@ -95,12 +73,70 @@ export function StoryNarrative({
     latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [revealed.length]);
 
+  // Compute heading numbers and clean text for each revealed entry.
+  // Root stages/conditions count sequentially (1, 2, 3...).
+  // Subflow entries get sub-numbers (3.1, 3.2) under the parent counter.
+  const numberedEntries = useMemo(() => {
+    let rootCounter = 0;
+    let subflowChildCounter = 0;
+    let lastRootForSubflow = 0;
+
+    let prevType = "";
+    return revealed.map((entry) => {
+      const isStageHeading = entry.type === "stage";
+      const isConditionHeading = entry.type === "condition";
+      // First fork entry in a sequence = selector heading (don't count subsequent forks)
+      const isForkHeading = entry.type === "fork" && prevType !== "fork";
+      const isHeading = isStageHeading || isConditionHeading || isForkHeading;
+      const isSubflowMarker = entry.type === "subflow";
+
+      prevType = entry.type;
+
+      // Strip "Stage N: " prefix from text (generated by CombinedNarrativeRecorder)
+      let cleanText = entry.text;
+      cleanText = cleanText.replace(/^Stage \d+:\s*/, "");
+      // Strip "[Selected]: " and "[Parallel]: " prefixes for cleaner headings
+      cleanText = cleanText.replace(/^\[(Selected|Parallel)\]:\s*/, "");
+
+      if (isHeading) {
+        rootCounter++;
+        subflowChildCounter = 0;
+        lastRootForSubflow = rootCounter;
+
+        const typeLabel = isConditionHeading ? "Decider" : isForkHeading ? "Selector" : "Stage";
+        return { ...entry, heading: `${typeLabel} ${rootCounter}`, text: cleanText, isHeading: true };
+      }
+
+      // Subsequent fork entries (e.g. [Parallel] after [Selected]) — no heading, just show
+      if (entry.type === "fork") {
+        return { ...entry, heading: null, isHeading: false, text: cleanText };
+      }
+
+      if (isSubflowMarker && entry.text.startsWith("Entering")) {
+        subflowChildCounter++;
+        // Extract subflow name from "Entering the X subflow: description"
+        const sfMatch = entry.text.match(/Entering the (.+?) subflow/);
+        const sfName = sfMatch?.[1] ?? "Subflow";
+        const sfDesc = entry.text.replace(/^Entering the .+? subflow[.:]\s*/, "").replace(/\.$/, "");
+        return {
+          ...entry,
+          heading: `Subflow ${rootCounter + 1}.${subflowChildCounter}`,
+          text: sfDesc ? `${sfName} — ${sfDesc}` : sfName,
+          isHeading: true,
+          isSubflow: true,
+        };
+      }
+
+      return { ...entry, heading: null, isHeading: false };
+    });
+  }, [revealed]);
+
   if (unstyled) {
     return (
       <div className={className} style={outerStyle} data-fp="story-narrative" role="log">
-        {revealed.map((entry, i) => (
+        {numberedEntries.map((entry, i) => (
           <div key={i} data-fp="narrative-entry" data-type={entry.type}>
-            {entry.text}
+            {entry.heading ? `${entry.heading}: ${entry.text}` : entry.text}
           </div>
         ))}
       </div>
@@ -121,12 +157,15 @@ export function StoryNarrative({
       role="log"
       aria-label="Execution narrative"
     >
-      {revealed.map((entry, i) => {
+      {numberedEntries.map((entry, i) => {
         const meta = ENTRY_ICONS[entry.type] ?? ENTRY_ICONS.step;
-        const isStage = entry.type === "stage";
+        const isStage = entry.isHeading;
         const isDecision = entry.type === "condition";
         const isError = entry.type === "error";
-        const isLast = i === revealed.length - 1;
+        const isSubflow = (entry as any).isSubflow;
+        const isLast = i === numberedEntries.length - 1;
+        // Skip "Exiting" subflow markers — Entering is enough
+        if (entry.type === "subflow" && entry.text.startsWith("Exiting")) return null;
 
         return (
           <div
@@ -136,8 +175,8 @@ export function StoryNarrative({
               display: "flex",
               gap: 8,
               padding: isStage ? `${pad - 4}px 0` : `2px 0`,
-              marginLeft: entry.depth * 16,
-              borderBottom: isStage ? `1px solid ${theme.border}` : undefined,
+              marginLeft: isSubflow ? 16 : entry.depth * 16,
+              borderBottom: isStage && !isSubflow ? `1px solid ${theme.border}` : undefined,
               marginTop: isStage && i > 0 ? 8 : 0,
             }}
           >
@@ -170,7 +209,7 @@ export function StoryNarrative({
                 fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans,
               }}
             >
-              {entry.text}
+              {entry.heading ? <><strong>{entry.heading}:</strong> {entry.text}</> : entry.text}
             </span>
           </div>
         );

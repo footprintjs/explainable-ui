@@ -673,7 +673,7 @@ export function ExplainableShell({
   // ── Styled mode ──
 
   // Show topology when spec has subflows
-  const showTopology = !!effectiveRenderFlowchart && !!activeSpec && showTreeSidebar;
+  const showTopology = !!effectiveRenderFlowchart && !!activeSpec;
 
   // Render the active details tab content
   const detailsContent = useMemo(() => {
@@ -831,21 +831,23 @@ export function ExplainableShell({
           <>
             <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-              {/* Left: SubflowTree with VLinePill handle */}
-              {leftExpanded ? (
-                <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
-                  <div style={{ flex: 1, overflow: "auto" }}>
-                    <SubflowTree
-                      spec={spec!}
-                      activeStage={rootOverlay.activeStage}
-                      doneStages={rootOverlay.doneStages}
-                      onNodeSelect={handleTreeNodeSelect}
-                    />
+              {/* Left: SubflowTree with VLinePill handle — only when spec has subflows */}
+              {showTreeSidebar && (
+                leftExpanded ? (
+                  <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
+                    <div style={{ flex: 1, overflow: "auto" }}>
+                      <SubflowTree
+                        spec={spec!}
+                        activeStage={rootOverlay.activeStage}
+                        doneStages={rootOverlay.doneStages}
+                        onNodeSelect={handleTreeNodeSelect}
+                      />
+                    </div>
+                    <VLinePill label={leftLabel} expanded={true} side="left" onClick={() => toggleLeft(false)} />
                   </div>
-                  <VLinePill label={leftLabel} expanded={true} side="left" onClick={() => toggleLeft(false)} />
-                </div>
-              ) : (
-                <VLinePill label={leftLabel} expanded={false} side="left" onClick={() => toggleLeft(true)} />
+                ) : (
+                  <VLinePill label={leftLabel} expanded={false} side="left" onClick={() => toggleLeft(true)} />
+                )
               )}
 
               {/* Center: Flowchart */}

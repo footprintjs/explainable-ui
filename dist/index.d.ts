@@ -452,10 +452,10 @@ declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, na
 interface StoryNarrativeProps extends BaseComponentProps {
     /** Structured narrative entries from CombinedNarrativeRecorder */
     entries: NarrativeEntry$1[];
-    /** Set of stage labels to reveal (from snapshots[0..selectedIndex]) */
-    revealedStages: Set<string>;
+    /** Number of entries to reveal (position-based sync from NarrativePanel) */
+    revealedEntryCount: number;
 }
-declare function StoryNarrative({ entries, revealedStages, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): react_jsx_runtime.JSX.Element;
+declare function StoryNarrative({ entries, revealedEntryCount, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): react_jsx_runtime.JSX.Element;
 
 interface SubflowTreeEntry {
     /** Node name / identifier */

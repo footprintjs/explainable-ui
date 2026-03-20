@@ -2433,7 +2433,7 @@ var ENTRY_ICONS = {
 };
 function StoryNarrative({
   entries,
-  revealedStages,
+  revealedEntryCount,
   size = "default",
   unstyled = false,
   className,
@@ -2441,26 +2441,13 @@ function StoryNarrative({
 }) {
   const fs = fontSize[size];
   const pad = padding[size];
-  const revealedCount = (0, import_react11.useMemo)(() => {
-    const isRevealed = (e) => e.stageId && revealedStages.has(e.stageId) || e.subflowId && revealedStages.has(e.subflowId) || e.stageName && revealedStages.has(e.stageName);
-    let lastIdentifiedWasRevealed = true;
-    for (let i = 0; i < entries.length; i++) {
-      const e = entries[i];
-      const hasKey = e.stageId || e.subflowId || e.stageName;
-      if (hasKey) {
-        lastIdentifiedWasRevealed = !!isRevealed(e);
-        if (!lastIdentifiedWasRevealed) return i;
-      } else {
-        if (!lastIdentifiedWasRevealed) return i;
-      }
-    }
-    return entries.length;
-  }, [entries, revealedStages]);
+  const revealedCount = revealedEntryCount;
   const revealed = (0, import_react11.useMemo)(() => {
     const raw = entries.slice(0, revealedCount);
     return raw.filter((e) => {
       const sfId = e.subflowId;
-      if (!sfId && e.type !== "subflow") return true;
+      if (!sfId) return true;
+      if (e.type === "subflow") return true;
       return false;
     });
   }, [entries, revealedCount]);
@@ -2468,7 +2455,7 @@ function StoryNarrative({
     let count = 0;
     for (let i = revealedCount; i < entries.length; i++) {
       const e = entries[i];
-      if (!e.subflowId && entries[i].type !== "subflow") count++;
+      if (!e.subflowId || entries[i].type === "subflow") count++;
     }
     return count;
   }, [entries, revealedCount]);
@@ -2476,8 +2463,49 @@ function StoryNarrative({
   (0, import_react11.useEffect)(() => {
     latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [revealed.length]);
+  const numberedEntries = (0, import_react11.useMemo)(() => {
+    let rootCounter = 0;
+    let subflowChildCounter = 0;
+    let lastRootForSubflow = 0;
+    let prevType = "";
+    return revealed.map((entry) => {
+      const isStageHeading = entry.type === "stage";
+      const isConditionHeading = entry.type === "condition";
+      const isForkHeading = entry.type === "fork" && prevType !== "fork";
+      const isHeading = isStageHeading || isConditionHeading || isForkHeading;
+      const isSubflowMarker = entry.type === "subflow";
+      prevType = entry.type;
+      let cleanText = entry.text;
+      cleanText = cleanText.replace(/^Stage \d+:\s*/, "");
+      cleanText = cleanText.replace(/^\[(Selected|Parallel)\]:\s*/, "");
+      if (isHeading) {
+        rootCounter++;
+        subflowChildCounter = 0;
+        lastRootForSubflow = rootCounter;
+        const typeLabel = isConditionHeading ? "Decider" : isForkHeading ? "Selector" : "Stage";
+        return { ...entry, heading: `${typeLabel} ${rootCounter}`, text: cleanText, isHeading: true };
+      }
+      if (entry.type === "fork") {
+        return { ...entry, heading: null, isHeading: false, text: cleanText };
+      }
+      if (isSubflowMarker && entry.text.startsWith("Entering")) {
+        subflowChildCounter++;
+        const sfMatch = entry.text.match(/Entering the (.+?) subflow/);
+        const sfName = sfMatch?.[1] ?? "Subflow";
+        const sfDesc = entry.text.replace(/^Entering the .+? subflow[.:]\s*/, "").replace(/\.$/, "");
+        return {
+          ...entry,
+          heading: `Subflow ${rootCounter + 1}.${subflowChildCounter}`,
+          text: sfDesc ? `${sfName} \u2014 ${sfDesc}` : sfName,
+          isHeading: true,
+          isSubflow: true
+        };
+      }
+      return { ...entry, heading: null, isHeading: false };
+    });
+  }, [revealed]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: revealed.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.text }, i)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? `${entry.heading}: ${entry.text}` : entry.text }, i)) });
   }
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
     "div",
@@ -2494,12 +2522,14 @@ function StoryNarrative({
       role: "log",
       "aria-label": "Execution narrative",
       children: [
-        revealed.map((entry, i) => {
+        numberedEntries.map((entry, i) => {
           const meta = ENTRY_ICONS[entry.type] ?? ENTRY_ICONS.step;
-          const isStage = entry.type === "stage";
+          const isStage = entry.isHeading;
           const isDecision = entry.type === "condition";
           const isError = entry.type === "error";
-          const isLast = i === revealed.length - 1;
+          const isSubflow = entry.isSubflow;
+          const isLast = i === numberedEntries.length - 1;
+          if (entry.type === "subflow" && entry.text.startsWith("Exiting")) return null;
           return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
             "div",
             {
@@ -2508,8 +2538,8 @@ function StoryNarrative({
                 display: "flex",
                 gap: 8,
                 padding: isStage ? `${pad - 4}px 0` : `2px 0`,
-                marginLeft: entry.depth * 16,
-                borderBottom: isStage ? `1px solid ${theme.border}` : void 0,
+                marginLeft: isSubflow ? 16 : entry.depth * 16,
+                borderBottom: isStage && !isSubflow ? `1px solid ${theme.border}` : void 0,
                 marginTop: isStage && i > 0 ? 8 : 0
               },
               children: [
@@ -2539,7 +2569,14 @@ function StoryNarrative({
                       lineHeight: 1.6,
                       fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
                     },
-                    children: entry.text
+                    children: entry.heading ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("strong", { children: [
+                        entry.heading,
+                        ":"
+                      ] }),
+                      " ",
+                      entry.text
+                    ] }) : entry.text
                   }
                 )
               ]
@@ -2604,19 +2641,40 @@ function NarrativePanel({
     const endIdx = groupsToShow < stageBoundaries.length ? stageBoundaries[groupsToShow] : narrative.length;
     return Math.max(1, endIdx);
   }, [snapshots.length, selectedIndex, narrative]);
-  const revealedStages = (0, import_react12.useMemo)(() => {
-    const labels = /* @__PURE__ */ new Set();
-    for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
-      const s = snapshots[i];
-      if (s.stageLabel) labels.add(s.stageLabel);
-      if (s.stageName) labels.add(s.stageName);
-      if (s.subflowId) labels.add(s.subflowId);
+  const revealedEntryCount = (0, import_react12.useMemo)(() => {
+    if (!narrativeEntries?.length || snapshots.length === 0) return 0;
+    let entryIdx = 0;
+    for (let si = 0; si <= selectedIndex && si < snapshots.length; si++) {
+      const snap = snapshots[si];
+      const keys = /* @__PURE__ */ new Set();
+      if (snap.stageLabel) keys.add(snap.stageLabel);
+      if (snap.stageName) keys.add(snap.stageName);
+      if (snap.subflowId) keys.add(snap.subflowId);
+      let found = false;
+      for (let j = entryIdx; j < narrativeEntries.length; j++) {
+        const e = narrativeEntries[j];
+        const eKey = e.stageId ?? e.subflowId ?? e.stageName;
+        if (eKey && keys.has(eKey)) {
+          found = true;
+          entryIdx = j;
+          break;
+        }
+        if (!eKey && !found) {
+        }
+      }
+      if (!found) continue;
+      while (entryIdx < narrativeEntries.length) {
+        const e = narrativeEntries[entryIdx];
+        const eKey = e.stageId ?? e.subflowId ?? e.stageName;
+        if (eKey && !keys.has(eKey)) break;
+        entryIdx++;
+      }
     }
-    return labels;
-  }, [snapshots, selectedIndex]);
+    return entryIdx;
+  }, [narrativeEntries, snapshots, selectedIndex]);
   const hasStructured = narrativeEntries && narrativeEntries.length > 0;
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(StoryNarrative, { entries: narrativeEntries, revealedStages, unstyled: true }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, unstyled: true }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
   }
   return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
     "div",
@@ -2648,7 +2706,7 @@ function NarrativePanel({
           StoryNarrative,
           {
             entries: narrativeEntries,
-            revealedStages,
+            revealedEntryCount,
             size,
             style: { flex: 1 }
           }
@@ -3495,15 +3553,18 @@ function walkLayout(node, state, x, y) {
     bottomY = Math.max(...childResults.map((r) => r.bottomY));
   }
   if (node.loopTarget) {
-    const resolvedTarget = state.idToName.get(node.loopTarget) ?? node.loopTarget;
     state.edgeCounter++;
-    state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: resolvedTarget, label: "loop", isLoop: true });
+    state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: node.loopTarget, label: "loop", isLoop: true });
   }
   if (node.next) {
     const rawNextId = nid(node.next);
     const resolvedNextId = state.idToName.get(rawNextId) ?? rawNextId;
     const isLoopRef = node.loopTarget && state.seen.has(resolvedNextId);
     if (isLoopRef) {
+      for (const lid of lastIds) {
+        state.edgeCounter++;
+        state.edges.push({ id: `se${state.edgeCounter}`, source: lid, target: resolvedNextId, label: "loop", isLoop: true });
+      }
       return { lastIds, bottomY };
     }
     const nextY = bottomY + Y_STEP;
@@ -4167,7 +4228,7 @@ function ExplainableShell({
       ] })
     ] });
   }
-  const showTopology = !!effectiveRenderFlowchart && !!activeSpec && showTreeSidebar;
+  const showTopology = !!effectiveRenderFlowchart && !!activeSpec;
   const detailsContent = (0, import_react19.useMemo)(() => {
     if (activeTab === "result") {
       return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ResultPanel, { data: resultData ?? null, logs, hideConsole, size });
@@ -4280,7 +4341,7 @@ function ExplainableShell({
           /* ── Desktop with topology: side-by-side ── */
           /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
             /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
-              leftExpanded ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+              showTreeSidebar && (leftExpanded ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
                 /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
                   SubflowTree,
                   {
@@ -4291,7 +4352,7 @@ function ExplainableShell({
                   }
                 ) }),
                 /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
-              ] }) : /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) }),
+              ] }) : /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
               /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
                 spec: activeSpec,
                 snapshots: activeSnapshots,

@@ -2367,7 +2367,7 @@ import { useMemo as useMemo8 } from "react";
 
 // src/components/StoryNarrative/StoryNarrative.tsx
 import { useMemo as useMemo7, useRef as useRef5, useEffect as useEffect5 } from "react";
-import { jsx as jsx12, jsxs as jsxs11 } from "react/jsx-runtime";
+import { Fragment as Fragment3, jsx as jsx12, jsxs as jsxs11 } from "react/jsx-runtime";
 var ENTRY_ICONS = {
   stage: { icon: "\u25B8", color: theme.primary, label: "Stage" },
   step: { icon: "\xB7", color: theme.textMuted, label: "Data operation" },
@@ -2380,7 +2380,7 @@ var ENTRY_ICONS = {
 };
 function StoryNarrative({
   entries,
-  revealedStages,
+  revealedEntryCount,
   size = "default",
   unstyled = false,
   className,
@@ -2388,26 +2388,13 @@ function StoryNarrative({
 }) {
   const fs = fontSize[size];
   const pad = padding[size];
-  const revealedCount = useMemo7(() => {
-    const isRevealed = (e) => e.stageId && revealedStages.has(e.stageId) || e.subflowId && revealedStages.has(e.subflowId) || e.stageName && revealedStages.has(e.stageName);
-    let lastIdentifiedWasRevealed = true;
-    for (let i = 0; i < entries.length; i++) {
-      const e = entries[i];
-      const hasKey = e.stageId || e.subflowId || e.stageName;
-      if (hasKey) {
-        lastIdentifiedWasRevealed = !!isRevealed(e);
-        if (!lastIdentifiedWasRevealed) return i;
-      } else {
-        if (!lastIdentifiedWasRevealed) return i;
-      }
-    }
-    return entries.length;
-  }, [entries, revealedStages]);
+  const revealedCount = revealedEntryCount;
   const revealed = useMemo7(() => {
     const raw = entries.slice(0, revealedCount);
     return raw.filter((e) => {
       const sfId = e.subflowId;
-      if (!sfId && e.type !== "subflow") return true;
+      if (!sfId) return true;
+      if (e.type === "subflow") return true;
       return false;
     });
   }, [entries, revealedCount]);
@@ -2415,7 +2402,7 @@ function StoryNarrative({
     let count = 0;
     for (let i = revealedCount; i < entries.length; i++) {
       const e = entries[i];
-      if (!e.subflowId && entries[i].type !== "subflow") count++;
+      if (!e.subflowId || entries[i].type === "subflow") count++;
     }
     return count;
   }, [entries, revealedCount]);
@@ -2423,8 +2410,49 @@ function StoryNarrative({
   useEffect5(() => {
     latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [revealed.length]);
+  const numberedEntries = useMemo7(() => {
+    let rootCounter = 0;
+    let subflowChildCounter = 0;
+    let lastRootForSubflow = 0;
+    let prevType = "";
+    return revealed.map((entry) => {
+      const isStageHeading = entry.type === "stage";
+      const isConditionHeading = entry.type === "condition";
+      const isForkHeading = entry.type === "fork" && prevType !== "fork";
+      const isHeading = isStageHeading || isConditionHeading || isForkHeading;
+      const isSubflowMarker = entry.type === "subflow";
+      prevType = entry.type;
+      let cleanText = entry.text;
+      cleanText = cleanText.replace(/^Stage \d+:\s*/, "");
+      cleanText = cleanText.replace(/^\[(Selected|Parallel)\]:\s*/, "");
+      if (isHeading) {
+        rootCounter++;
+        subflowChildCounter = 0;
+        lastRootForSubflow = rootCounter;
+        const typeLabel = isConditionHeading ? "Decider" : isForkHeading ? "Selector" : "Stage";
+        return { ...entry, heading: `${typeLabel} ${rootCounter}`, text: cleanText, isHeading: true };
+      }
+      if (entry.type === "fork") {
+        return { ...entry, heading: null, isHeading: false, text: cleanText };
+      }
+      if (isSubflowMarker && entry.text.startsWith("Entering")) {
+        subflowChildCounter++;
+        const sfMatch = entry.text.match(/Entering the (.+?) subflow/);
+        const sfName = sfMatch?.[1] ?? "Subflow";
+        const sfDesc = entry.text.replace(/^Entering the .+? subflow[.:]\s*/, "").replace(/\.$/, "");
+        return {
+          ...entry,
+          heading: `Subflow ${rootCounter + 1}.${subflowChildCounter}`,
+          text: sfDesc ? `${sfName} \u2014 ${sfDesc}` : sfName,
+          isHeading: true,
+          isSubflow: true
+        };
+      }
+      return { ...entry, heading: null, isHeading: false };
+    });
+  }, [revealed]);
   if (unstyled) {
-    return /* @__PURE__ */ jsx12("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: revealed.map((entry, i) => /* @__PURE__ */ jsx12("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.text }, i)) });
+    return /* @__PURE__ */ jsx12("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => /* @__PURE__ */ jsx12("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? `${entry.heading}: ${entry.text}` : entry.text }, i)) });
   }
   return /* @__PURE__ */ jsxs11(
     "div",
@@ -2441,12 +2469,14 @@ function StoryNarrative({
       role: "log",
       "aria-label": "Execution narrative",
       children: [
-        revealed.map((entry, i) => {
+        numberedEntries.map((entry, i) => {
           const meta = ENTRY_ICONS[entry.type] ?? ENTRY_ICONS.step;
-          const isStage = entry.type === "stage";
+          const isStage = entry.isHeading;
           const isDecision = entry.type === "condition";
           const isError = entry.type === "error";
-          const isLast = i === revealed.length - 1;
+          const isSubflow = entry.isSubflow;
+          const isLast = i === numberedEntries.length - 1;
+          if (entry.type === "subflow" && entry.text.startsWith("Exiting")) return null;
           return /* @__PURE__ */ jsxs11(
             "div",
             {
@@ -2455,8 +2485,8 @@ function StoryNarrative({
                 display: "flex",
                 gap: 8,
                 padding: isStage ? `${pad - 4}px 0` : `2px 0`,
-                marginLeft: entry.depth * 16,
-                borderBottom: isStage ? `1px solid ${theme.border}` : void 0,
+                marginLeft: isSubflow ? 16 : entry.depth * 16,
+                borderBottom: isStage && !isSubflow ? `1px solid ${theme.border}` : void 0,
                 marginTop: isStage && i > 0 ? 8 : 0
               },
               children: [
@@ -2486,7 +2516,14 @@ function StoryNarrative({
                       lineHeight: 1.6,
                       fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
                     },
-                    children: entry.text
+                    children: entry.heading ? /* @__PURE__ */ jsxs11(Fragment3, { children: [
+                      /* @__PURE__ */ jsxs11("strong", { children: [
+                        entry.heading,
+                        ":"
+                      ] }),
+                      " ",
+                      entry.text
+                    ] }) : entry.text
                   }
                 )
               ]
@@ -2551,19 +2588,40 @@ function NarrativePanel({
     const endIdx = groupsToShow < stageBoundaries.length ? stageBoundaries[groupsToShow] : narrative.length;
     return Math.max(1, endIdx);
   }, [snapshots.length, selectedIndex, narrative]);
-  const revealedStages = useMemo8(() => {
-    const labels = /* @__PURE__ */ new Set();
-    for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
-      const s = snapshots[i];
-      if (s.stageLabel) labels.add(s.stageLabel);
-      if (s.stageName) labels.add(s.stageName);
-      if (s.subflowId) labels.add(s.subflowId);
+  const revealedEntryCount = useMemo8(() => {
+    if (!narrativeEntries?.length || snapshots.length === 0) return 0;
+    let entryIdx = 0;
+    for (let si = 0; si <= selectedIndex && si < snapshots.length; si++) {
+      const snap = snapshots[si];
+      const keys = /* @__PURE__ */ new Set();
+      if (snap.stageLabel) keys.add(snap.stageLabel);
+      if (snap.stageName) keys.add(snap.stageName);
+      if (snap.subflowId) keys.add(snap.subflowId);
+      let found = false;
+      for (let j = entryIdx; j < narrativeEntries.length; j++) {
+        const e = narrativeEntries[j];
+        const eKey = e.stageId ?? e.subflowId ?? e.stageName;
+        if (eKey && keys.has(eKey)) {
+          found = true;
+          entryIdx = j;
+          break;
+        }
+        if (!eKey && !found) {
+        }
+      }
+      if (!found) continue;
+      while (entryIdx < narrativeEntries.length) {
+        const e = narrativeEntries[entryIdx];
+        const eKey = e.stageId ?? e.subflowId ?? e.stageName;
+        if (eKey && !keys.has(eKey)) break;
+        entryIdx++;
+      }
     }
-    return labels;
-  }, [snapshots, selectedIndex]);
+    return entryIdx;
+  }, [narrativeEntries, snapshots, selectedIndex]);
   const hasStructured = narrativeEntries && narrativeEntries.length > 0;
   if (unstyled) {
-    return /* @__PURE__ */ jsx13("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ jsx13(StoryNarrative, { entries: narrativeEntries, revealedStages, unstyled: true }) : /* @__PURE__ */ jsx13(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
+    return /* @__PURE__ */ jsx13("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ jsx13(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, unstyled: true }) : /* @__PURE__ */ jsx13(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
   }
   return /* @__PURE__ */ jsxs12(
     "div",
@@ -2595,7 +2653,7 @@ function NarrativePanel({
           StoryNarrative,
           {
             entries: narrativeEntries,
-            revealedStages,
+            revealedEntryCount,
             size,
             style: { flex: 1 }
           }
@@ -2615,7 +2673,7 @@ function NarrativePanel({
 
 // src/components/FlowchartView/SubflowTree.tsx
 import { memo, useState as useState7, useCallback as useCallback4, useMemo as useMemo9 } from "react";
-import { Fragment as Fragment3, jsx as jsx14, jsxs as jsxs13 } from "react/jsx-runtime";
+import { Fragment as Fragment4, jsx as jsx14, jsxs as jsxs13 } from "react/jsx-runtime";
 function specToTree(node) {
   if (!node) return [];
   const entries = [];
@@ -2664,7 +2722,7 @@ var TreeNode = memo(function TreeNode2({
     }
     onNodeSelect?.(entry.name, !!entry.isSubflow);
   }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow]);
-  return /* @__PURE__ */ jsxs13(Fragment3, { children: [
+  return /* @__PURE__ */ jsxs13(Fragment4, { children: [
     /* @__PURE__ */ jsxs13(
       "button",
       {
@@ -2931,7 +2989,7 @@ import {
 // src/components/StageNode/StageNode.tsx
 import { memo as memo3, useEffect as useEffect6, useRef as useRef6 } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { Fragment as Fragment4, jsx as jsx16, jsxs as jsxs15 } from "react/jsx-runtime";
+import { Fragment as Fragment5, jsx as jsx16, jsxs as jsxs15 } from "react/jsx-runtime";
 var KEYFRAMES_ID = "fp-stage-node-keyframes";
 var KEYFRAMES_CSS = `
 @media (prefers-reduced-motion: no-preference) {
@@ -3100,7 +3158,7 @@ var StageNode = memo3(function StageNode2({
   const borderColor = active ? theme.primary : done ? theme.success : error ? theme.error : theme.border;
   const shadow = active ? `0 0 16px color-mix(in srgb, ${theme.primary} 40%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.success} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : `0 2px 8px rgba(0,0,0,0.15)`;
   const textColor = active || done || error ? "#fff" : theme.textPrimary;
-  return /* @__PURE__ */ jsxs15(Fragment4, { children: [
+  return /* @__PURE__ */ jsxs15(Fragment5, { children: [
     /* @__PURE__ */ jsx16(Handle, { type: "target", position: Position.Top, style: { opacity: 0 } }),
     /* @__PURE__ */ jsxs15(
       "div",
@@ -3449,15 +3507,18 @@ function walkLayout(node, state, x, y) {
     bottomY = Math.max(...childResults.map((r) => r.bottomY));
   }
   if (node.loopTarget) {
-    const resolvedTarget = state.idToName.get(node.loopTarget) ?? node.loopTarget;
     state.edgeCounter++;
-    state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: resolvedTarget, label: "loop", isLoop: true });
+    state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: node.loopTarget, label: "loop", isLoop: true });
   }
   if (node.next) {
     const rawNextId = nid(node.next);
     const resolvedNextId = state.idToName.get(rawNextId) ?? rawNextId;
     const isLoopRef = node.loopTarget && state.seen.has(resolvedNextId);
     if (isLoopRef) {
+      for (const lid of lastIds) {
+        state.edgeCounter++;
+        state.edges.push({ id: `se${state.edgeCounter}`, source: lid, target: resolvedNextId, label: "loop", isLoop: true });
+      }
       return { lastIds, bottomY };
     }
     const nextY = bottomY + Y_STEP;
@@ -3688,7 +3749,7 @@ function TracedFlowchartView({
 }
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-import { Fragment as Fragment5, jsx as jsx18, jsxs as jsxs17 } from "react/jsx-runtime";
+import { Fragment as Fragment6, jsx as jsx18, jsxs as jsxs17 } from "react/jsx-runtime";
 var HLinePill = memo4(function HLinePill2({
   label,
   detail,
@@ -4110,7 +4171,7 @@ function ExplainableShell({
       /* @__PURE__ */ jsx18("div", { "data-fp": "shell-tabs", children: allTabs.map((tab) => /* @__PURE__ */ jsx18("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
       /* @__PURE__ */ jsxs17("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
         activeTab === "result" && /* @__PURE__ */ jsx18(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
-        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs17(Fragment5, { children: [
+        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs17(Fragment6, { children: [
           /* @__PURE__ */ jsx18(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true }),
           isInSubflow && /* @__PURE__ */ jsx18(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
           activeSpec && effectiveRenderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick }),
@@ -4121,7 +4182,7 @@ function ExplainableShell({
       ] })
     ] });
   }
-  const showTopology = !!effectiveRenderFlowchart && !!activeSpec && showTreeSidebar;
+  const showTopology = !!effectiveRenderFlowchart && !!activeSpec;
   const detailsContent = useMemo11(() => {
     if (activeTab === "result") {
       return /* @__PURE__ */ jsx18(ResultPanel, { data: resultData ?? null, logs, hideConsole, size });
@@ -4206,14 +4267,14 @@ function ExplainableShell({
         isInSubflow && /* @__PURE__ */ jsx18(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
         /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
           /* ── Mobile: stacked vertical ── */
-          /* @__PURE__ */ jsxs17(Fragment5, { children: [
+          /* @__PURE__ */ jsxs17(Fragment6, { children: [
             showTopology && /* @__PURE__ */ jsx18("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
               spec: activeSpec,
               snapshots: activeSnapshots,
               selectedIndex: safeIdx,
               onNodeClick: handleNodeClick
             }) }),
-            showTreeSidebar && /* @__PURE__ */ jsxs17(Fragment5, { children: [
+            showTreeSidebar && /* @__PURE__ */ jsxs17(Fragment6, { children: [
               /* @__PURE__ */ jsx18(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
               leftExpanded && /* @__PURE__ */ jsx18("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx18(
                 SubflowTree,
@@ -4232,9 +4293,9 @@ function ExplainableShell({
           ] })
         ) : showTopology ? (
           /* ── Desktop with topology: side-by-side ── */
-          /* @__PURE__ */ jsxs17(Fragment5, { children: [
+          /* @__PURE__ */ jsxs17(Fragment6, { children: [
             /* @__PURE__ */ jsxs17("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
-              leftExpanded ? /* @__PURE__ */ jsxs17("div", { style: { width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+              showTreeSidebar && (leftExpanded ? /* @__PURE__ */ jsxs17("div", { style: { width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
                 /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ jsx18(
                   SubflowTree,
                   {
@@ -4245,7 +4306,7 @@ function ExplainableShell({
                   }
                 ) }),
                 /* @__PURE__ */ jsx18(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
-              ] }) : /* @__PURE__ */ jsx18(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) }),
+              ] }) : /* @__PURE__ */ jsx18(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
               /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
                 spec: activeSpec,
                 snapshots: activeSnapshots,
@@ -4262,7 +4323,7 @@ function ExplainableShell({
           ] })
         ) : (
           /* ── Desktop without topology: details panel takes full width ── */
-          /* @__PURE__ */ jsxs17(Fragment5, { children: [
+          /* @__PURE__ */ jsxs17(Fragment6, { children: [
             /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "hidden" }, children: detailsPanel }),
             /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
             timelineExpanded && /* @__PURE__ */ jsx18("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
