@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.1] - 2026-03-20
+
+### Fixed
+- **Flowchart starts at Stage 1** — Reverted `snapshotIdx` initial value to 0 so the flowchart loads at the first stage instead of jumping to the last.
+
 ## [0.11.0] - 2026-03-20
 
 ### Changed
