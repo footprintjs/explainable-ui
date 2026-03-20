@@ -2436,13 +2436,14 @@ function StoryNarrative({
         return { ...entry, heading: null, isHeading: false, text: cleanText };
       }
       if (isSubflowMarker && entry.text.startsWith("Entering")) {
+        if (subflowChildCounter === 0) rootCounter++;
         subflowChildCounter++;
         const sfMatch = entry.text.match(/Entering the (.+?) subflow/);
         const sfName = sfMatch?.[1] ?? "Subflow";
         const sfDesc = entry.text.replace(/^Entering the .+? subflow[.:]\s*/, "").replace(/\.$/, "");
         return {
           ...entry,
-          heading: `Subflow ${rootCounter + 1}.${subflowChildCounter}`,
+          heading: `Subflow ${rootCounter}.${subflowChildCounter}`,
           text: sfDesc ? `${sfName} \u2014 ${sfDesc}` : sfName,
           isHeading: true,
           isSubflow: true

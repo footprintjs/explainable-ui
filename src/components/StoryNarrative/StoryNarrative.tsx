@@ -113,6 +113,8 @@ export function StoryNarrative({
       }
 
       if (isSubflowMarker && entry.text.startsWith("Entering")) {
+        // First subflow bumps rootCounter so next root stage is numbered correctly
+        if (subflowChildCounter === 0) rootCounter++;
         subflowChildCounter++;
         // Extract subflow name from "Entering the X subflow: description"
         const sfMatch = entry.text.match(/Entering the (.+?) subflow/);
@@ -120,7 +122,7 @@ export function StoryNarrative({
         const sfDesc = entry.text.replace(/^Entering the .+? subflow[.:]\s*/, "").replace(/\.$/, "");
         return {
           ...entry,
-          heading: `Subflow ${rootCounter + 1}.${subflowChildCounter}`,
+          heading: `Subflow ${rootCounter}.${subflowChildCounter}`,
           text: sfDesc ? `${sfName} — ${sfDesc}` : sfName,
           isHeading: true,
           isSubflow: true,
