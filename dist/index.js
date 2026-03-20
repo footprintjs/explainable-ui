@@ -3571,7 +3571,11 @@ function FitViewOnResize() {
       requestAnimationFrame(() => fitView({ padding: 0.3 }));
     };
     window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    const timer = setTimeout(handler, 50);
+    return () => {
+      window.removeEventListener("resize", handler);
+      clearTimeout(timer);
+    };
   }, [fitView]);
   return null;
 }
@@ -3920,19 +3924,38 @@ function ExplainableShell({
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
       setIsNarrow(entry.contentRect.width < 640);
+      window.dispatchEvent(new Event("resize"));
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const builtInViews = [
-    { id: "result", name: "Result" },
-    { id: "memory", name: "Memory" },
-    { id: "narrative", name: "Narrative" }
-  ];
-  const customViewIds = (recorderViews ?? []).map((v2) => ({ id: v2.id, name: v2.name }));
-  const allTabs = [...builtInViews, ...customViewIds];
-  const [activeTab, setActiveTab] = useState8(defaultTab ?? "memory");
-  const [snapshotIdx, setSnapshotIdx] = useState8(0);
+  const autoRecorderViews = useMemo11(() => {
+    const recorders = runtimeSnapshot?.recorders;
+    if (!recorders?.length) return [];
+    const explicitIds = new Set((recorderViews ?? []).map((v2) => v2.id));
+    return recorders.filter((r) => !explicitIds.has(r.id)).map((r) => ({ id: r.id, name: r.name, data: r.data }));
+  }, [runtimeSnapshot, recorderViews]);
+  const hasNarrative = !!(narrative?.length || narrativeEntries?.length);
+  const allTabs = useMemo11(() => {
+    const tabs2 = [
+      { id: "result", name: "Result" },
+      { id: "memory", name: "Memory" }
+    ];
+    if (hasNarrative) {
+      tabs2.push({ id: "narrative", name: "Narrative" });
+    }
+    for (const v2 of recorderViews ?? []) {
+      tabs2.push({ id: v2.id, name: v2.name });
+    }
+    for (const v2 of autoRecorderViews) {
+      tabs2.push({ id: v2.id, name: v2.name });
+    }
+    return tabs2;
+  }, [hasNarrative, recorderViews, autoRecorderViews]);
+  const validTabIds = new Set(allTabs.map((t) => t.id));
+  const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
+  const [activeTab, setActiveTab] = useState8(resolvedDefault);
+  const [snapshotIdx, setSnapshotIdx] = useState8(999);
   const [drillDownStack, setDrillDownStack] = useState8([]);
   const [rightExpanded, setRightExpanded] = useState8(defaultExpanded?.details ?? true);
   const [leftExpanded, setLeftExpanded] = useState8(defaultExpanded?.topology ?? false);
@@ -3946,6 +3969,7 @@ function ExplainableShell({
   }, [isNarrow]);
   const triggerReflow = useCallback6(() => {
     requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+    setTimeout(() => window.dispatchEvent(new Event("resize")), 320);
   }, []);
   const toggleLeft = useCallback6((v2) => {
     setLeftExpanded(v2);
@@ -3994,7 +4018,6 @@ function ExplainableShell({
   const handleTabChange = useCallback6((tab) => {
     setActiveTab(tab);
     setDrillDownStack([]);
-    setSnapshotIdx(999);
   }, []);
   const handleSnapshotChange = useCallback6((idx) => {
     if (typeof idx === "number") setSnapshotIdx(idx);
@@ -4069,18 +4092,61 @@ function ExplainableShell({
       ] })
     ] });
   }
-  const isVisualizationTab = activeTab !== "result";
-  const activeRecorderRender = useMemo11(() => {
-    if (activeTab === "result") return null;
+  const showTopology = !!effectiveRenderFlowchart && !!activeSpec && showTreeSidebar;
+  const detailsContent = useMemo11(() => {
+    if (activeTab === "result") {
+      return /* @__PURE__ */ jsx18(ResultPanel, { data: resultData ?? null, logs, hideConsole, size });
+    }
     if (activeTab === "memory") {
-      return ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx18(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: { height: "100%" } });
+      return /* @__PURE__ */ jsx18(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, size, style: { height: "100%" } });
     }
     if (activeTab === "narrative") {
-      return ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx18(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, size, style: { height: "100%" } });
+      return /* @__PURE__ */ jsx18(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, size, style: { height: "100%" } });
     }
     const customView = recorderViews?.find((v2) => v2.id === activeTab);
-    return customView?.render ?? null;
-  }, [activeTab, recorderViews, activeNarrativeEntries, activeNarrative, size]);
+    if (customView?.render) {
+      return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
+    }
+    const autoView = autoRecorderViews.find((v2) => v2.id === activeTab);
+    if (autoView) {
+      return /* @__PURE__ */ jsx18("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof autoView.data === "string" ? autoView.data : JSON.stringify(autoView.data, null, 2) });
+    }
+    return null;
+  }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, activeNarrative, recorderViews, autoRecorderViews]);
+  const detailsPanel = /* @__PURE__ */ jsxs17("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
+    /* @__PURE__ */ jsx18("div", { style: {
+      display: "flex",
+      borderBottom: `1px solid ${theme.border}`,
+      background: theme.bgSecondary,
+      flexShrink: 0,
+      overflowX: "auto"
+    }, children: allTabs.map((tab) => {
+      const active = tab.id === activeTab;
+      return /* @__PURE__ */ jsx18(
+        "button",
+        {
+          onClick: () => handleTabChange(tab.id),
+          style: {
+            padding: "6px 14px",
+            fontSize: 11,
+            fontWeight: active ? 700 : 500,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            color: active ? theme.primary : theme.textMuted,
+            background: "transparent",
+            border: "none",
+            borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            whiteSpace: "nowrap"
+          },
+          children: tab.name
+        },
+        tab.id
+      );
+    }) }),
+    /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
+  ] });
   return /* @__PURE__ */ jsxs17(
     "div",
     {
@@ -4099,109 +4165,80 @@ function ExplainableShell({
       },
       "data-fp": "explainable-shell",
       children: [
-        /* @__PURE__ */ jsx18("div", { style: {
-          display: "flex",
-          borderBottom: `1px solid ${theme.border}`,
-          background: theme.bgSecondary,
-          flexShrink: 0,
-          overflowX: "auto"
-        }, children: allTabs.map((tab) => {
-          const active = tab.id === activeTab;
-          return /* @__PURE__ */ jsx18(
-            "button",
-            {
-              onClick: () => handleTabChange(tab.id),
-              style: {
-                padding: "6px 14px",
-                fontSize: 11,
-                fontWeight: active ? 700 : 500,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: active ? theme.primary : theme.textMuted,
-                background: "transparent",
-                border: "none",
-                borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                whiteSpace: "nowrap"
-              },
-              children: tab.name
-            },
-            tab.id
-          );
-        }) }),
-        /* @__PURE__ */ jsxs17("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: [
-          activeTab === "result" && /* @__PURE__ */ jsx18(ResultPanel, { data: resultData ?? null, logs, hideConsole, size }),
-          isVisualizationTab && /* @__PURE__ */ jsxs17(Fragment5, { children: [
-            /* @__PURE__ */ jsx18(
-              TimeTravelControls,
-              {
+        /* @__PURE__ */ jsx18(
+          TimeTravelControls,
+          {
+            snapshots: activeSnapshots,
+            selectedIndex: safeIdx,
+            onIndexChange: handleSnapshotChange,
+            size
+          }
+        ),
+        isInSubflow && /* @__PURE__ */ jsx18(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+        /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
+          /* ── Mobile: stacked vertical ── */
+          /* @__PURE__ */ jsxs17(Fragment5, { children: [
+            showTopology && /* @__PURE__ */ jsx18("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
+              spec: activeSpec,
+              snapshots: activeSnapshots,
+              selectedIndex: safeIdx,
+              onNodeClick: handleNodeClick
+            }) }),
+            showTreeSidebar && /* @__PURE__ */ jsxs17(Fragment5, { children: [
+              /* @__PURE__ */ jsx18(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
+              leftExpanded && /* @__PURE__ */ jsx18("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx18(
+                SubflowTree,
+                {
+                  spec,
+                  activeStage: rootOverlay.activeStage,
+                  doneStages: rootOverlay.doneStages,
+                  onNodeSelect: handleTreeNodeSelect
+                }
+              ) })
+            ] }),
+            /* @__PURE__ */ jsx18(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+            rightExpanded && /* @__PURE__ */ jsx18("div", { style: { maxHeight: 350, flexShrink: 0, overflow: "hidden" }, children: detailsPanel }),
+            /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
+            timelineExpanded && /* @__PURE__ */ jsx18("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
+          ] })
+        ) : showTopology ? (
+          /* ── Desktop with topology: side-by-side ── */
+          /* @__PURE__ */ jsxs17(Fragment5, { children: [
+            /* @__PURE__ */ jsxs17("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
+              leftExpanded ? /* @__PURE__ */ jsxs17("div", { style: { width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+                /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ jsx18(
+                  SubflowTree,
+                  {
+                    spec,
+                    activeStage: rootOverlay.activeStage,
+                    doneStages: rootOverlay.doneStages,
+                    onNodeSelect: handleTreeNodeSelect
+                  }
+                ) }),
+                /* @__PURE__ */ jsx18(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
+              ] }) : /* @__PURE__ */ jsx18(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) }),
+              /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
+                spec: activeSpec,
                 snapshots: activeSnapshots,
                 selectedIndex: safeIdx,
-                onIndexChange: handleSnapshotChange,
-                size
-              }
-            ),
-            isInSubflow && /* @__PURE__ */ jsx18(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-            isNarrow ? (
-              /* ── Mobile: stacked vertical ── */
-              /* @__PURE__ */ jsxs17(Fragment5, { children: [
-                /* @__PURE__ */ jsx18("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart && activeSpec && effectiveRenderFlowchart({
-                  spec: activeSpec,
-                  snapshots: activeSnapshots,
-                  selectedIndex: safeIdx,
-                  onNodeClick: handleNodeClick
-                }) }),
-                showTreeSidebar && /* @__PURE__ */ jsxs17(Fragment5, { children: [
-                  /* @__PURE__ */ jsx18(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
-                  leftExpanded && /* @__PURE__ */ jsx18("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx18(
-                    SubflowTree,
-                    {
-                      spec,
-                      activeStage: rootOverlay.activeStage,
-                      doneStages: rootOverlay.doneStages,
-                      onNodeSelect: handleTreeNodeSelect
-                    }
-                  ) })
-                ] }),
-                /* @__PURE__ */ jsx18(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-                rightExpanded && activeRecorderRender && /* @__PURE__ */ jsx18("div", { style: { maxHeight: 250, flexShrink: 0, overflow: "auto" }, children: activeRecorderRender({ snapshots: activeSnapshots, selectedIndex: safeIdx }) }),
-                /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
-                timelineExpanded && /* @__PURE__ */ jsx18("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
-              ] })
-            ) : (
-              /* ── Desktop: side-by-side ── */
-              /* @__PURE__ */ jsxs17(Fragment5, { children: [
-                /* @__PURE__ */ jsxs17("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
-                  showTreeSidebar && (leftExpanded ? /* @__PURE__ */ jsxs17("div", { style: { width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
-                    /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ jsx18(
-                      SubflowTree,
-                      {
-                        spec,
-                        activeStage: rootOverlay.activeStage,
-                        doneStages: rootOverlay.doneStages,
-                        onNodeSelect: handleTreeNodeSelect
-                      }
-                    ) }),
-                    /* @__PURE__ */ jsx18(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
-                  ] }) : /* @__PURE__ */ jsx18(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
-                  /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart && activeSpec && effectiveRenderFlowchart({
-                    spec: activeSpec,
-                    snapshots: activeSnapshots,
-                    selectedIndex: safeIdx,
-                    onNodeClick: handleNodeClick
-                  }) }),
-                  rightExpanded && activeRecorderRender ? /* @__PURE__ */ jsxs17("div", { style: { width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
-                    /* @__PURE__ */ jsx18(VLinePill, { label: rightLabel, expanded: true, onClick: () => toggleRight(false) }),
-                    /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "auto" }, children: activeRecorderRender({ snapshots: activeSnapshots, selectedIndex: safeIdx }) })
-                  ] }) : /* @__PURE__ */ jsx18(VLinePill, { label: rightLabel, expanded: false, onClick: () => toggleRight(true) })
-                ] }),
-                /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
-                timelineExpanded && /* @__PURE__ */ jsx18("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
-              ] })
-            )
+                onNodeClick: handleNodeClick
+              }) }),
+              rightExpanded ? /* @__PURE__ */ jsxs17("div", { style: { width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+                /* @__PURE__ */ jsx18(VLinePill, { label: rightLabel, expanded: true, onClick: () => toggleRight(false) }),
+                /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "hidden" }, children: detailsPanel })
+              ] }) : /* @__PURE__ */ jsx18(VLinePill, { label: rightLabel, expanded: false, onClick: () => toggleRight(true) })
+            ] }),
+            /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
+            timelineExpanded && /* @__PURE__ */ jsx18("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
           ] })
-        ] })
+        ) : (
+          /* ── Desktop without topology: details panel takes full width ── */
+          /* @__PURE__ */ jsxs17(Fragment5, { children: [
+            /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "hidden" }, children: detailsPanel }),
+            /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
+            timelineExpanded && /* @__PURE__ */ jsx18("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
+          ] })
+        ) })
       ]
     }
   );

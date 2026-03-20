@@ -68,6 +68,8 @@ export interface RuntimeSnapshotInput {
   executionTree: unknown;
   commitLog: unknown[];
   subflowResults?: Record<string, unknown>;
+  /** Recorder snapshots from FlowRecorder.toSnapshot() — auto-generates detail tabs. */
+  recorders?: Array<{ id: string; name: string; data: unknown }>;
 }
 
 /**
@@ -465,7 +467,7 @@ export function ExplainableShell({
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
 
-  // Responsive: detect narrow container
+  // Responsive: detect narrow container + notify children of size changes
   const shellRef = useRef<HTMLDivElement>(null);
   const [isNarrow, setIsNarrow] = useState(false);
   useEffect(() => {
@@ -473,23 +475,48 @@ export function ExplainableShell({
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
       setIsNarrow(entry.contentRect.width < 640);
+      // Notify ReactFlow (and other layout-sensitive children) that our container resized
+      window.dispatchEvent(new Event("resize"));
     });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  // Build unified tab list: Result + Memory + Narrative + custom recorder views
-  // (replaces the old nested Memory|Narrative tabs inside Explainable)
-  const builtInViews: Array<{ id: string; name: string }> = [
-    { id: "result", name: "Result" },
-    { id: "memory", name: "Memory" },
-    { id: "narrative", name: "Narrative" },
-  ];
-  const customViewIds = (recorderViews ?? []).map((v) => ({ id: v.id, name: v.name }));
-  const allTabs = [...builtInViews, ...customViewIds];
+  // Auto-detect recorder views from runtimeSnapshot.recorders
+  const autoRecorderViews = useMemo(() => {
+    const recorders = (runtimeSnapshot as any)?.recorders as Array<{ id: string; name: string; data: unknown }> | undefined;
+    if (!recorders?.length) return [];
+    // Don't auto-generate for IDs that have explicit recorderViews
+    const explicitIds = new Set((recorderViews ?? []).map((v) => v.id));
+    return recorders
+      .filter((r) => !explicitIds.has(r.id))
+      .map((r) => ({ id: r.id, name: r.name, data: r.data }));
+  }, [runtimeSnapshot, recorderViews]);
 
-  const [activeTab, setActiveTab] = useState<string>(defaultTab ?? "memory");
-  const [snapshotIdx, setSnapshotIdx] = useState(0);
+  // Build tab list: Result + Memory (always), Narrative (when data exists),
+  // explicit recorder views, auto-detected recorder views
+  const hasNarrative = !!(narrative?.length || narrativeEntries?.length);
+  const allTabs = useMemo(() => {
+    const tabs: Array<{ id: string; name: string }> = [
+      { id: "result", name: "Result" },
+      { id: "memory", name: "Memory" },
+    ];
+    if (hasNarrative) {
+      tabs.push({ id: "narrative", name: "Narrative" });
+    }
+    for (const v of recorderViews ?? []) {
+      tabs.push({ id: v.id, name: v.name });
+    }
+    for (const v of autoRecorderViews) {
+      tabs.push({ id: v.id, name: v.name });
+    }
+    return tabs;
+  }, [hasNarrative, recorderViews, autoRecorderViews]);
+
+  const validTabIds = new Set(allTabs.map((t) => t.id));
+  const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
+  const [activeTab, setActiveTab] = useState<string>(resolvedDefault);
+  const [snapshotIdx, setSnapshotIdx] = useState(999);
   const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
   const [rightExpanded, setRightExpanded] = useState(defaultExpanded?.details ?? true);
   const [leftExpanded, setLeftExpanded] = useState(defaultExpanded?.topology ?? false);
@@ -506,7 +533,9 @@ export function ExplainableShell({
 
   // Notify ReactFlow (and any ResizeObserver-based children) when panels toggle
   const triggerReflow = useCallback(() => {
+    // Fire twice: once immediately for fast response, once after CSS transition ends
     requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+    setTimeout(() => window.dispatchEvent(new Event("resize")), 320);
   }, []);
   const toggleLeft = useCallback((v: boolean) => { setLeftExpanded(v); triggerReflow(); }, [triggerReflow]);
   const toggleRight = useCallback((v: boolean) => { setRightExpanded(v); triggerReflow(); }, [triggerReflow]);
@@ -642,43 +671,41 @@ export function ExplainableShell({
   }
 
   // ── Styled mode ──
-  const isVisualizationTab = activeTab !== "result";
 
-  // Resolve the active recorder view's render function
-  const activeRecorderRender = useMemo(() => {
-    if (activeTab === "result") return null;
+  // Show topology when spec has subflows
+  const showTopology = !!effectiveRenderFlowchart && !!activeSpec && showTreeSidebar;
+
+  // Render the active details tab content
+  const detailsContent = useMemo(() => {
+    if (activeTab === "result") {
+      return <ResultPanel data={resultData ?? null} logs={logs} hideConsole={hideConsole} size={size} />;
+    }
     if (activeTab === "memory") {
-      return ({ snapshots: snaps, selectedIndex: idx }: { snapshots: StageSnapshot[]; selectedIndex: number }) => (
-        <MemoryPanel snapshots={snaps} selectedIndex={idx} size={size} style={{ height: "100%" }} />
-      );
+      return <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} size={size} style={{ height: "100%" }} />;
     }
     if (activeTab === "narrative") {
-      return ({ snapshots: snaps, selectedIndex: idx }: { snapshots: StageSnapshot[]; selectedIndex: number }) => (
-        <NarrativePanel snapshots={snaps} selectedIndex={idx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} style={{ height: "100%" }} />
-      );
+      return <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} style={{ height: "100%" }} />;
     }
     const customView = recorderViews?.find((v) => v.id === activeTab);
-    return customView?.render ?? null;
-  }, [activeTab, recorderViews, activeNarrativeEntries, activeNarrative, size]);
+    if (customView?.render) {
+      return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
+    }
+    // Auto-detected recorder view — render as formatted JSON
+    const autoView = autoRecorderViews.find((v) => v.id === activeTab);
+    if (autoView) {
+      return (
+        <div style={{ padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }}>
+          {typeof autoView.data === "string" ? autoView.data : JSON.stringify(autoView.data, null, 2)}
+        </div>
+      );
+    }
+    return null;
+  }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, activeNarrative, recorderViews, autoRecorderViews]);
 
-  return (
-    <div
-      ref={shellRef}
-      className={className}
-      style={{
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        background: theme.bgPrimary,
-        color: theme.textPrimary,
-        fontFamily: theme.fontSans,
-        fontSize: 12,
-        ...style,
-      }}
-      data-fp="explainable-shell"
-    >
-      {/* Tab bar — flat, one level: Result + recorder views */}
+  // Details panel with internal tabs
+  const detailsPanel = (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      {/* Tab bar inside details panel */}
       <div style={{
         display: "flex",
         borderBottom: `1px solid ${theme.border}`,
@@ -712,130 +739,159 @@ export function ExplainableShell({
           );
         })}
       </div>
+      {/* Tab content */}
+      <div style={{ flex: 1, overflow: "auto" }}>
+        {detailsContent}
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      ref={shellRef}
+      className={className}
+      style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: theme.bgPrimary,
+        color: theme.textPrimary,
+        fontFamily: theme.fontSans,
+        fontSize: 12,
+        ...style,
+      }}
+      data-fp="explainable-shell"
+    >
+      {/* Time-travel slider */}
+      <TimeTravelControls
+        snapshots={activeSnapshots}
+        selectedIndex={safeIdx}
+        onIndexChange={handleSnapshotChange}
+        size={size}
+      />
+
+      {/* Breadcrumb */}
+      {isInSubflow && (
+        <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />
+      )}
 
       {/* Content */}
       <div style={{ flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }}>
-        {activeTab === "result" && (
-          <ResultPanel data={resultData ?? null} logs={logs} hideConsole={hideConsole} size={size} />
-        )}
-
-        {isVisualizationTab && (
+        {isNarrow ? (
+          /* ── Mobile: stacked vertical ── */
           <>
-            {/* Time-travel slider */}
-            <TimeTravelControls
-              snapshots={activeSnapshots}
-              selectedIndex={safeIdx}
-              onIndexChange={handleSnapshotChange}
-              size={size}
-            />
-
-            {/* Breadcrumb */}
-            {isInSubflow && (
-              <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />
+            {/* Flowchart — only when topology is relevant */}
+            {showTopology && (
+              <div style={{ height: 350, flexShrink: 0, overflow: "hidden" }}>
+                {effectiveRenderFlowchart!({
+                  spec: activeSpec!,
+                  snapshots: activeSnapshots,
+                  selectedIndex: safeIdx,
+                  onNodeClick: handleNodeClick,
+                })}
+              </div>
             )}
 
-            {/* ─── Main content ─── */}
-            {isNarrow ? (
-              /* ── Mobile: stacked vertical ── */
+            {/* Topology (subflow tree) — collapsible */}
+            {showTreeSidebar && (
               <>
-                {/* Flowchart — fixed height */}
-                <div style={{ height: 350, flexShrink: 0, overflow: "hidden" }}>
-                  {effectiveRenderFlowchart && activeSpec && effectiveRenderFlowchart({
-                    spec: activeSpec,
-                    snapshots: activeSnapshots,
-                    selectedIndex: safeIdx,
-                    onNodeClick: handleNodeClick,
-                  })}
-                </div>
-
-                {/* Topology (subflow tree) — collapsible */}
-                {showTreeSidebar && (
-                  <>
-                    <HLinePill label={leftLabel} expanded={leftExpanded} onClick={() => toggleLeft(!leftExpanded)} />
-                    {leftExpanded && (
-                      <div style={{ maxHeight: 180, overflow: "auto", flexShrink: 0 }}>
-                        <SubflowTree
-                          spec={spec!}
-                          activeStage={rootOverlay.activeStage}
-                          doneStages={rootOverlay.doneStages}
-                          onNodeSelect={handleTreeNodeSelect}
-                        />
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* Details — active recorder view (collapsible on mobile) */}
-                <HLinePill label={rightLabel} expanded={rightExpanded} onClick={() => toggleRight(!rightExpanded)} />
-                {rightExpanded && activeRecorderRender && (
-                  <div style={{ maxHeight: 250, flexShrink: 0, overflow: "auto" }}>
-                    {activeRecorderRender({ snapshots: activeSnapshots, selectedIndex: safeIdx })}
-                  </div>
-                )}
-
-                {/* Timeline */}
-                <HLinePill label={bottomLabel} detail={`${activeSnapshots.length} stages`} expanded={timelineExpanded} onClick={toggleTimeline} />
-                {timelineExpanded && (
-                  <div style={{ flexShrink: 0, overflow: "hidden" }}>
-                    <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />
+                <HLinePill label={leftLabel} expanded={leftExpanded} onClick={() => toggleLeft(!leftExpanded)} />
+                {leftExpanded && (
+                  <div style={{ maxHeight: 180, overflow: "auto", flexShrink: 0 }}>
+                    <SubflowTree
+                      spec={spec!}
+                      activeStage={rootOverlay.activeStage}
+                      doneStages={rootOverlay.doneStages}
+                      onNodeSelect={handleTreeNodeSelect}
+                    />
                   </div>
                 )}
               </>
-            ) : (
-              /* ── Desktop: side-by-side ── */
-              <>
-                <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+            )}
 
-                  {/* Left: SubflowTree with VLinePill handle */}
-                  {showTreeSidebar && (
-                    leftExpanded ? (
-                      <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
-                        <div style={{ flex: 1, overflow: "auto" }}>
-                          <SubflowTree
-                            spec={spec!}
-                            activeStage={rootOverlay.activeStage}
-                            doneStages={rootOverlay.doneStages}
-                            onNodeSelect={handleTreeNodeSelect}
-                          />
-                        </div>
-                        <VLinePill label={leftLabel} expanded={true} side="left" onClick={() => toggleLeft(false)} />
-                      </div>
-                    ) : (
-                      <VLinePill label={leftLabel} expanded={false} side="left" onClick={() => toggleLeft(true)} />
-                    )
-                  )}
+            {/* Details panel with tabs */}
+            <HLinePill label={rightLabel} expanded={rightExpanded} onClick={() => toggleRight(!rightExpanded)} />
+            {rightExpanded && (
+              <div style={{ maxHeight: 350, flexShrink: 0, overflow: "hidden" }}>
+                {detailsPanel}
+              </div>
+            )}
 
-                  {/* Center: Flowchart */}
-                  <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
-                    {effectiveRenderFlowchart && activeSpec && effectiveRenderFlowchart({
-                      spec: activeSpec,
-                      snapshots: activeSnapshots,
-                      selectedIndex: safeIdx,
-                      onNodeClick: handleNodeClick,
-                    })}
+            {/* Timeline */}
+            <HLinePill label={bottomLabel} detail={`${activeSnapshots.length} stages`} expanded={timelineExpanded} onClick={toggleTimeline} />
+            {timelineExpanded && (
+              <div style={{ flexShrink: 0, overflow: "hidden" }}>
+                <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />
+              </div>
+            )}
+          </>
+        ) : showTopology ? (
+          /* ── Desktop with topology: side-by-side ── */
+          <>
+            <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+
+              {/* Left: SubflowTree with VLinePill handle */}
+              {leftExpanded ? (
+                <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
+                  <div style={{ flex: 1, overflow: "auto" }}>
+                    <SubflowTree
+                      spec={spec!}
+                      activeStage={rootOverlay.activeStage}
+                      doneStages={rootOverlay.doneStages}
+                      onNodeSelect={handleTreeNodeSelect}
+                    />
                   </div>
-
-                  {/* Right: active recorder view (no nested tabs — tab is selected at top level) */}
-                  {rightExpanded && activeRecorderRender ? (
-                    <div style={{ width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }}>
-                      <VLinePill label={rightLabel} expanded={true} onClick={() => toggleRight(false)} />
-                      <div style={{ flex: 1, overflow: "auto" }}>
-                        {activeRecorderRender({ snapshots: activeSnapshots, selectedIndex: safeIdx })}
-                      </div>
-                    </div>
-                  ) : (
-                    <VLinePill label={rightLabel} expanded={false} onClick={() => toggleRight(true)} />
-                  )}
+                  <VLinePill label={leftLabel} expanded={true} side="left" onClick={() => toggleLeft(false)} />
                 </div>
+              ) : (
+                <VLinePill label={leftLabel} expanded={false} side="left" onClick={() => toggleLeft(true)} />
+              )}
 
-                {/* Bottom: Timeline */}
-                <HLinePill label={bottomLabel} detail={`${activeSnapshots.length} stages`} expanded={timelineExpanded} onClick={toggleTimeline} />
-                {timelineExpanded && (
-                  <div style={{ flexShrink: 0, overflow: "hidden" }}>
-                    <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />
+              {/* Center: Flowchart */}
+              <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                {effectiveRenderFlowchart!({
+                  spec: activeSpec!,
+                  snapshots: activeSnapshots,
+                  selectedIndex: safeIdx,
+                  onNodeClick: handleNodeClick,
+                })}
+              </div>
+
+              {/* Right: Details panel with tabs */}
+              {rightExpanded ? (
+                <div style={{ width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }}>
+                  <VLinePill label={rightLabel} expanded={true} onClick={() => toggleRight(false)} />
+                  <div style={{ flex: 1, overflow: "hidden" }}>
+                    {detailsPanel}
                   </div>
-                )}
-              </>
+                </div>
+              ) : (
+                <VLinePill label={rightLabel} expanded={false} onClick={() => toggleRight(true)} />
+              )}
+            </div>
+
+            {/* Bottom: Timeline */}
+            <HLinePill label={bottomLabel} detail={`${activeSnapshots.length} stages`} expanded={timelineExpanded} onClick={toggleTimeline} />
+            {timelineExpanded && (
+              <div style={{ flexShrink: 0, overflow: "hidden" }}>
+                <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />
+              </div>
+            )}
+          </>
+        ) : (
+          /* ── Desktop without topology: details panel takes full width ── */
+          <>
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              {detailsPanel}
+            </div>
+
+            {/* Bottom: Timeline */}
+            <HLinePill label={bottomLabel} detail={`${activeSnapshots.length} stages`} expanded={timelineExpanded} onClick={toggleTimeline} />
+            {timelineExpanded && (
+              <div style={{ flexShrink: 0, overflow: "hidden" }}>
+                <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />
+              </div>
             )}
           </>
         )}

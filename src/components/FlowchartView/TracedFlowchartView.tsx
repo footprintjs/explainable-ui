@@ -45,7 +45,9 @@ function FitViewOnResize() {
   useEffect(() => {
     const handler = () => { requestAnimationFrame(() => fitView({ padding: 0.3 })); };
     window.addEventListener("resize", handler);
-    return () => window.removeEventListener("resize", handler);
+    // Also fit on mount after layout settles
+    const timer = setTimeout(handler, 50);
+    return () => { window.removeEventListener("resize", handler); clearTimeout(timer); };
   }, [fitView]);
   return null;
 }

@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.0] - 2026-03-20
+
+### Changed
+- **Tabs moved into details panel** — RESULT/MEMORY/NARRATIVE tabs are no longer top-level. They render inside the collapsible DETAILS panel on the right. Topology (flowchart) is always visible when the spec has subflows; otherwise the details panel takes full width.
+- **Dynamic tab list** — Result + Memory are always present. Narrative tab appears only when `narrativeEntries` or `narrative` data exists. Custom recorder views append via `recorderViews` prop.
+- **Auto-detected recorder tabs** — When `runtimeSnapshot.recorders[]` contains entries (from `FlowRecorder.toSnapshot()`), ExplainableShell auto-generates tabs with a JSON view. Explicit `recorderViews` take precedence on ID conflict.
+- **Default tab** — Falls back to first available tab when `defaultTab` doesn't match a valid tab ID.
+
+### Fixed
+- **Container resize detection** — `ResizeObserver` on the shell container dispatches `resize` events so ReactFlow refits when parent panels (e.g. code editor) collapse/expand.
+- **ReactFlow fitView on mount** — Added a delayed `fitView` call on mount to handle initial layout before container dimensions settle.
+
 ## [0.10.1] - 2026-03-19
 
 ### Fixed
