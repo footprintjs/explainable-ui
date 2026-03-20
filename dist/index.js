@@ -2403,7 +2403,29 @@ function StoryNarrative({
     }
     return entries.length;
   }, [entries, revealedStages]);
-  const revealed = entries.slice(0, revealedCount);
+  const revealed = useMemo7(() => {
+    const raw = entries.slice(0, revealedCount);
+    const root = [];
+    const groups = /* @__PURE__ */ new Map();
+    const groupOrder = [];
+    for (const e of raw) {
+      const sfId = e.subflowId;
+      if (sfId) {
+        if (!groups.has(sfId)) {
+          groups.set(sfId, []);
+          groupOrder.push(sfId);
+        }
+        groups.get(sfId).push(e);
+      } else {
+        root.push(e);
+      }
+    }
+    const result = [...root];
+    for (const sfId of groupOrder) {
+      result.push(...groups.get(sfId));
+    }
+    return result;
+  }, [entries, revealedCount]);
   const future = entries.slice(revealedCount);
   const latestRef = useRef5(null);
   useEffect5(() => {
@@ -2433,52 +2455,65 @@ function StoryNarrative({
           const isDecision = entry.type === "condition";
           const isError = entry.type === "error";
           const isLast = i === revealed.length - 1;
-          return /* @__PURE__ */ jsxs11(
-            "div",
-            {
-              ref: isLast ? latestRef : void 0,
-              style: {
-                display: "flex",
-                gap: 8,
-                padding: isStage ? `${pad - 4}px 0` : `2px 0`,
-                marginLeft: entry.depth * 16,
-                borderBottom: isStage ? `1px solid ${theme.border}` : void 0,
-                marginTop: isStage && i > 0 ? 8 : 0
-              },
-              children: [
-                /* @__PURE__ */ jsx12(
-                  "span",
-                  {
-                    style: {
-                      color: meta.color,
-                      fontWeight: 700,
-                      fontSize: isStage ? fs.body : fs.small,
-                      width: 16,
-                      textAlign: "center",
-                      flexShrink: 0
-                    },
-                    title: meta.label,
-                    "aria-label": meta.label,
-                    children: meta.icon
-                  }
-                ),
-                /* @__PURE__ */ jsx12(
-                  "span",
-                  {
-                    style: {
-                      fontSize: isStage ? fs.body : fs.small,
-                      fontWeight: isStage ? 600 : 400,
-                      color: isError ? theme.error : isDecision ? theme.warning : isStage ? theme.textPrimary : theme.textSecondary,
-                      lineHeight: 1.6,
-                      fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
-                    },
-                    children: entry.text
-                  }
-                )
-              ]
-            },
-            i
-          );
+          const sfId = entry.subflowId;
+          const prevSfId = i > 0 ? revealed[i - 1].subflowId : void 0;
+          const subflowChanged = sfId && sfId !== prevSfId;
+          return /* @__PURE__ */ jsxs11("div", { ref: isLast ? latestRef : void 0, children: [
+            subflowChanged && /* @__PURE__ */ jsx12("div", { style: {
+              fontSize: fs.small,
+              fontWeight: 600,
+              color: theme.textSecondary,
+              padding: `6px 0 2px`,
+              marginTop: 8,
+              borderTop: `1px solid ${theme.border}`,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em"
+            }, children: sfId }),
+            /* @__PURE__ */ jsxs11(
+              "div",
+              {
+                style: {
+                  display: "flex",
+                  gap: 8,
+                  padding: isStage ? `${pad - 4}px 0` : `2px 0`,
+                  marginLeft: sfId ? 12 : entry.depth * 16,
+                  borderBottom: isStage && !sfId ? `1px solid ${theme.border}` : void 0,
+                  marginTop: isStage && i > 0 && !subflowChanged ? 8 : 0
+                },
+                children: [
+                  /* @__PURE__ */ jsx12(
+                    "span",
+                    {
+                      style: {
+                        color: meta.color,
+                        fontWeight: 700,
+                        fontSize: isStage ? fs.body : fs.small,
+                        width: 16,
+                        textAlign: "center",
+                        flexShrink: 0
+                      },
+                      title: meta.label,
+                      "aria-label": meta.label,
+                      children: meta.icon
+                    }
+                  ),
+                  /* @__PURE__ */ jsx12(
+                    "span",
+                    {
+                      style: {
+                        fontSize: isStage ? fs.body : fs.small,
+                        fontWeight: isStage ? 600 : 400,
+                        color: isError ? theme.error : isDecision ? theme.warning : isStage ? theme.textPrimary : theme.textSecondary,
+                        lineHeight: 1.6,
+                        fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
+                      },
+                      children: entry.text
+                    }
+                  )
+                ]
+              }
+            )
+          ] }, i);
         }),
         future.length > 0 && /* @__PURE__ */ jsxs11("div", { style: {
           opacity: 0.3,

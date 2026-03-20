@@ -68,7 +68,30 @@ export function StoryNarrative({
     return entries.length;
   }, [entries, revealedStages]);
 
-  const revealed = entries.slice(0, revealedCount);
+  // Group revealed entries: root entries in order, then subflow entries grouped by subflowId
+  const revealed = useMemo(() => {
+    const raw = entries.slice(0, revealedCount);
+    const root: NarrativeEntry[] = [];
+    const groups = new Map<string, NarrativeEntry[]>();
+    const groupOrder: string[] = [];
+
+    for (const e of raw) {
+      const sfId = (e as { subflowId?: string }).subflowId;
+      if (sfId) {
+        if (!groups.has(sfId)) { groups.set(sfId, []); groupOrder.push(sfId); }
+        groups.get(sfId)!.push(e);
+      } else {
+        root.push(e);
+      }
+    }
+
+    // Reassemble: root entries first, then each subflow group consecutively
+    const result = [...root];
+    for (const sfId of groupOrder) {
+      result.push(...groups.get(sfId)!);
+    }
+    return result;
+  }, [entries, revealedCount]);
   const future = entries.slice(revealedCount);
 
   const latestRef = useRef<HTMLDivElement>(null);
@@ -108,18 +131,35 @@ export function StoryNarrative({
         const isDecision = entry.type === "condition";
         const isError = entry.type === "error";
         const isLast = i === revealed.length - 1;
+        const sfId = (entry as { subflowId?: string }).subflowId;
+        const prevSfId = i > 0 ? (revealed[i - 1] as { subflowId?: string }).subflowId : undefined;
+        const subflowChanged = sfId && sfId !== prevSfId;
 
         return (
+          <div key={i} ref={isLast ? latestRef : undefined}>
+            {/* Subflow group header when subflowId changes */}
+            {subflowChanged && (
+              <div style={{
+                fontSize: fs.small,
+                fontWeight: 600,
+                color: theme.textSecondary,
+                padding: `6px 0 2px`,
+                marginTop: 8,
+                borderTop: `1px solid ${theme.border}`,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}>
+                {sfId}
+              </div>
+            )}
           <div
-            key={i}
-            ref={isLast ? latestRef : undefined}
             style={{
               display: "flex",
               gap: 8,
               padding: isStage ? `${pad - 4}px 0` : `2px 0`,
-              marginLeft: entry.depth * 16,
-              borderBottom: isStage ? `1px solid ${theme.border}` : undefined,
-              marginTop: isStage && i > 0 ? 8 : 0,
+              marginLeft: sfId ? 12 : entry.depth * 16,
+              borderBottom: isStage && !sfId ? `1px solid ${theme.border}` : undefined,
+              marginTop: isStage && i > 0 && !subflowChanged ? 8 : 0,
             }}
           >
             <span
@@ -153,6 +193,7 @@ export function StoryNarrative({
             >
               {entry.text}
             </span>
+          </div>
           </div>
         );
       })}
