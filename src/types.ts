@@ -30,6 +30,8 @@ export interface NarrativeEntry {
   stageName?: string;
   /** Stable stage identifier (matches spec node id). Primary key for UI sync. */
   stageId?: string;
+  /** Subflow ID when this entry was generated inside a subflow. */
+  subflowId?: string;
   stepNumber?: number;
 }
 

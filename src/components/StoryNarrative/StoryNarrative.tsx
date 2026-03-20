@@ -45,14 +45,24 @@ export function StoryNarrative({
   // Entries without stageName (fork, subflow markers) are shown if they
   // appear before the first unrevealed stage entry.
   const revealedCount = useMemo(() => {
-    // Find the cut point: stop at the first entry whose stage is NOT revealed.
-    // Uses stageId (stable build-time id) as primary key, stageName as fallback.
-    // Entries without either key flow with their context.
+    // Entries with identifiers (stageId/subflowId/stageName) are checked against revealedStages.
+    // Entries WITHOUT identifiers (fork/subflow markers) belong to the previous revealed
+    // section — they're included as long as the last identified entry was revealed.
+    const isRevealed = (e: { stageId?: string; subflowId?: string; stageName?: string }) =>
+      (e.stageId && revealedStages.has(e.stageId))
+      || (e.subflowId && revealedStages.has(e.subflowId))
+      || (e.stageName && revealedStages.has(e.stageName));
+
+    let lastIdentifiedWasRevealed = true;
     for (let i = 0; i < entries.length; i++) {
-      const e = entries[i] as { stageId?: string; stageName?: string };
-      const key = e.stageId ?? e.stageName;
-      if (key && !revealedStages.has(key)) {
-        return i;
+      const e = entries[i] as { stageId?: string; subflowId?: string; stageName?: string };
+      const hasKey = e.stageId || e.subflowId || e.stageName;
+      if (hasKey) {
+        lastIdentifiedWasRevealed = !!isRevealed(e);
+        if (!lastIdentifiedWasRevealed) return i;
+      } else {
+        // No identifier — belongs to previous section
+        if (!lastIdentifiedWasRevealed) return i;
       }
     }
     return entries.length;

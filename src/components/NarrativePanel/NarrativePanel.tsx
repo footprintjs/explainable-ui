@@ -68,12 +68,16 @@ export function NarrativePanel({
     return Math.max(1, endIdx);
   }, [snapshots.length, selectedIndex, narrative]);
 
-  // Build the set of revealed stage labels from snapshots up to selectedIndex
+  // Build the set of revealed identifiers from snapshots up to selectedIndex.
+  // Includes stageLabel (node.id), stageName, and subflowId so that entries
+  // inside subflows match when the mount node is revealed.
   const revealedStages = useMemo(() => {
     const labels = new Set<string>();
     for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
-      if (snapshots[i].stageLabel) labels.add(snapshots[i].stageLabel!);
-      if (snapshots[i].stageName) labels.add(snapshots[i].stageName);
+      const s = snapshots[i];
+      if (s.stageLabel) labels.add(s.stageLabel);
+      if (s.stageName) labels.add(s.stageName);
+      if (s.subflowId) labels.add(s.subflowId);
     }
     return labels;
   }, [snapshots, selectedIndex]);

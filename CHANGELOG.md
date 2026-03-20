@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.3] - 2026-03-20
+
+### Fixed
+- **Narrative sync with stageId + subflowId** — StoryNarrative now matches entries using `stageId`, `subflowId`, and `stageName` against the revealed snapshot set. Entries without identifiers belong to the previous revealed section. Works correctly with selectors, forks, parallel branches, and subflows.
+- **NarrativeEntry type includes `stageId` and `subflowId`** — Matches footprintjs v0.17.2 `CombinedNarrativeEntry` shape.
+
 ## [0.11.2] - 2026-03-20
 
 ### Fixed

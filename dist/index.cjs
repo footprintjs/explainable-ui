@@ -2442,11 +2442,16 @@ function StoryNarrative({
   const fs = fontSize[size];
   const pad = padding[size];
   const revealedCount = (0, import_react11.useMemo)(() => {
+    const isRevealed = (e) => e.stageId && revealedStages.has(e.stageId) || e.subflowId && revealedStages.has(e.subflowId) || e.stageName && revealedStages.has(e.stageName);
+    let lastIdentifiedWasRevealed = true;
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i];
-      const key = e.stageId ?? e.stageName;
-      if (key && !revealedStages.has(key)) {
-        return i;
+      const hasKey = e.stageId || e.subflowId || e.stageName;
+      if (hasKey) {
+        lastIdentifiedWasRevealed = !!isRevealed(e);
+        if (!lastIdentifiedWasRevealed) return i;
+      } else {
+        if (!lastIdentifiedWasRevealed) return i;
       }
     }
     return entries.length;
@@ -2588,8 +2593,10 @@ function NarrativePanel({
   const revealedStages = (0, import_react12.useMemo)(() => {
     const labels = /* @__PURE__ */ new Set();
     for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
-      if (snapshots[i].stageLabel) labels.add(snapshots[i].stageLabel);
-      if (snapshots[i].stageName) labels.add(snapshots[i].stageName);
+      const s = snapshots[i];
+      if (s.stageLabel) labels.add(s.stageLabel);
+      if (s.stageName) labels.add(s.stageName);
+      if (s.subflowId) labels.add(s.subflowId);
     }
     return labels;
   }, [snapshots, selectedIndex]);
