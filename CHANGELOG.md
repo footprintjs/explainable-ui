@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.11.5] - 2026-03-20
+
+### Changed
+- **Narrative hides subflow internals** — StoryNarrative filters out subflow-internal entries (stages, steps, conditions inside subflows) and Entering/Exiting markers. The main narrative shows only root-level entries + [Selected]/[Parallel] markers. Internal stages appear in the drill-down view. Future count accurately reflects visible entries only.
+
 ## [0.11.4] - 2026-03-20
 
 ### Added

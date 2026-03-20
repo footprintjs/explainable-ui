@@ -2458,28 +2458,20 @@ function StoryNarrative({
   }, [entries, revealedStages]);
   const revealed = (0, import_react11.useMemo)(() => {
     const raw = entries.slice(0, revealedCount);
-    const root = [];
-    const groups = /* @__PURE__ */ new Map();
-    const groupOrder = [];
-    for (const e of raw) {
+    return raw.filter((e) => {
       const sfId = e.subflowId;
-      if (sfId) {
-        if (!groups.has(sfId)) {
-          groups.set(sfId, []);
-          groupOrder.push(sfId);
-        }
-        groups.get(sfId).push(e);
-      } else {
-        root.push(e);
-      }
-    }
-    const result = [...root];
-    for (const sfId of groupOrder) {
-      result.push(...groups.get(sfId));
-    }
-    return result;
+      if (!sfId && e.type !== "subflow") return true;
+      return false;
+    });
   }, [entries, revealedCount]);
-  const future = entries.slice(revealedCount);
+  const futureCount = (0, import_react11.useMemo)(() => {
+    let count = 0;
+    for (let i = revealedCount; i < entries.length; i++) {
+      const e = entries[i];
+      if (!e.subflowId && entries[i].type !== "subflow") count++;
+    }
+    return count;
+  }, [entries, revealedCount]);
   const latestRef = (0, import_react11.useRef)(null);
   (0, import_react11.useEffect)(() => {
     latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -2508,76 +2500,63 @@ function StoryNarrative({
           const isDecision = entry.type === "condition";
           const isError = entry.type === "error";
           const isLast = i === revealed.length - 1;
-          const sfId = entry.subflowId;
-          const prevSfId = i > 0 ? revealed[i - 1].subflowId : void 0;
-          const subflowChanged = sfId && sfId !== prevSfId;
-          return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { ref: isLast ? latestRef : void 0, children: [
-            subflowChanged && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: {
-              fontSize: fs.small,
-              fontWeight: 600,
-              color: theme.textSecondary,
-              padding: `6px 0 2px`,
-              marginTop: 8,
-              borderTop: `1px solid ${theme.border}`,
-              textTransform: "uppercase",
-              letterSpacing: "0.05em"
-            }, children: sfId }),
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
-              "div",
-              {
-                style: {
-                  display: "flex",
-                  gap: 8,
-                  padding: isStage ? `${pad - 4}px 0` : `2px 0`,
-                  marginLeft: sfId ? 12 : entry.depth * 16,
-                  borderBottom: isStage && !sfId ? `1px solid ${theme.border}` : void 0,
-                  marginTop: isStage && i > 0 && !subflowChanged ? 8 : 0
-                },
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
-                    "span",
-                    {
-                      style: {
-                        color: meta.color,
-                        fontWeight: 700,
-                        fontSize: isStage ? fs.body : fs.small,
-                        width: 16,
-                        textAlign: "center",
-                        flexShrink: 0
-                      },
-                      title: meta.label,
-                      "aria-label": meta.label,
-                      children: meta.icon
-                    }
-                  ),
-                  /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
-                    "span",
-                    {
-                      style: {
-                        fontSize: isStage ? fs.body : fs.small,
-                        fontWeight: isStage ? 600 : 400,
-                        color: isError ? theme.error : isDecision ? theme.warning : isStage ? theme.textPrimary : theme.textSecondary,
-                        lineHeight: 1.6,
-                        fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
-                      },
-                      children: entry.text
-                    }
-                  )
-                ]
-              }
-            )
-          ] }, i);
+          return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+            "div",
+            {
+              ref: isLast ? latestRef : void 0,
+              style: {
+                display: "flex",
+                gap: 8,
+                padding: isStage ? `${pad - 4}px 0` : `2px 0`,
+                marginLeft: entry.depth * 16,
+                borderBottom: isStage ? `1px solid ${theme.border}` : void 0,
+                marginTop: isStage && i > 0 ? 8 : 0
+              },
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+                  "span",
+                  {
+                    style: {
+                      color: meta.color,
+                      fontWeight: 700,
+                      fontSize: isStage ? fs.body : fs.small,
+                      width: 16,
+                      textAlign: "center",
+                      flexShrink: 0
+                    },
+                    title: meta.label,
+                    "aria-label": meta.label,
+                    children: meta.icon
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+                  "span",
+                  {
+                    style: {
+                      fontSize: isStage ? fs.body : fs.small,
+                      fontWeight: isStage ? 600 : 400,
+                      color: isError ? theme.error : isDecision ? theme.warning : isStage ? theme.textPrimary : theme.textSecondary,
+                      lineHeight: 1.6,
+                      fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
+                    },
+                    children: entry.text
+                  }
+                )
+              ]
+            },
+            i
+          );
         }),
-        future.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: {
+        futureCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: {
           opacity: 0.3,
           fontSize: fs.small,
           color: theme.textMuted,
           padding: `8px 0`,
           fontStyle: "italic"
         }, children: [
-          future.length,
+          futureCount,
           " more ",
-          future.length === 1 ? "entry" : "entries",
+          futureCount === 1 ? "entry" : "entries",
           " ahead..."
         ] })
       ]
