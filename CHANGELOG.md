@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.0] - 2026-03-20
+
+### Added
+- **Narrative headings** — Type-specific headings: `Stage N`, `Selector N`, `Decider N`, `Subflow N.M`. Stage numbering accounts for selectors and subflows (Stage 1 → Selector 2 → Subflow 3.1/3.2 → Stage 4).
+- **Position-based narrative sync** — Replaces set-based stageId matching with sequential position mapping. Correctly handles loops (same stageId at different iterations) and parallel subflows.
+- **Subflow filtering** — Main narrative hides subflow-internal entries (stages, steps inside subflows). Shows Entering markers, hides Exiting markers. Internal stages appear in drill-down view only.
+
+### Fixed
+- **Flowchart renders for all specs** — No longer requires subflows. SubflowTree sidebar only shows when spec has subflow nodes.
+- **Loop back-edge rendering** — Fixed edge target to use stageId instead of name. Dotted loop arrow now appears in the flowchart.
+- **Stage 4 numbering after subflows** — Root counter increments for subflow step so subsequent stages number correctly.
+
 ## [0.11.5] - 2026-03-20
 
 ### Changed
