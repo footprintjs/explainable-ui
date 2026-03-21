@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.12.1] - 2026-03-20
+
+### Added
+- **90 unit tests** — Comprehensive test coverage for narrative sync (position-based), heading numbering (Stage/Selector/Subflow N.M), entry filtering, and loop edge creation in specToReactFlow.
+
+### Fixed
+- **Stage 4 after Subflow 3.x** — Root counter increments for subflow step so subsequent stages number correctly.
+
 ## [0.12.0] - 2026-03-20
 
 ### Added
