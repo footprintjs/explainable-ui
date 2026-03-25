@@ -25,20 +25,26 @@ function computeNumberedEntries(revealed: NarrativeEntry[]): NumberedEntry[] {
     const isStageHeading = entry.type === "stage";
     const isConditionHeading = entry.type === "condition";
     const isForkHeading = entry.type === "fork" && prevType !== "fork";
-    const isHeading = isStageHeading || isConditionHeading || isForkHeading;
     const isSubflowMarker = entry.type === "subflow";
 
     prevType = entry.type;
 
     let cleanText = entry.text;
     cleanText = cleanText.replace(/^Stage \d+:\s*/, "");
+    // Detect fork type BEFORE stripping prefix
+    const isSelector = entry.type === "fork" && entry.text.includes("[Selected]");
     cleanText = cleanText.replace(/^\[(Selected|Parallel)\]:\s*/, "");
 
-    if (isHeading) {
+    // Condition entries are sub-headings of their parent stage — don't increment counter
+    if (isConditionHeading) {
+      return { ...entry, heading: `Decider ${rootCounter}`, text: cleanText, isHeading: true };
+    }
+
+    if (isStageHeading || isForkHeading) {
       rootCounter++;
       subflowChildCounter = 0;
 
-      const typeLabel = isConditionHeading ? "Decider" : isForkHeading ? "Selector" : "Stage";
+      const typeLabel = isForkHeading ? (isSelector ? "Selector" : "Fork") : "Stage";
       return { ...entry, heading: `${typeLabel} ${rootCounter}`, text: cleanText, isHeading: true };
     }
 
@@ -100,16 +106,29 @@ describe('Narrative heading numbering', () => {
     expect(numbered[0].text).toBe('The process began: Parse request.');
   });
 
-  it('condition entry gets Decider heading', () => {
+  it('condition entry gets Decider heading (same number as parent stage)', () => {
     const entries = [
       e('stage', 'Stage 1: First.'),
       e('condition', '[Condition]: Decided to go left.'),
     ];
     const numbered = computeNumberedEntries(entries);
-    expect(numbered[1].heading).toBe('Decider 2');
+    // Condition shares the parent stage counter — no increment
+    expect(numbered[1].heading).toBe('Decider 1');
   });
 
-  it('first fork entry gets Selector heading', () => {
+  it('decider does not double-count: next stage increments correctly', () => {
+    const entries = [
+      e('stage', 'Stage 1: Evaluate risk.'),
+      e('condition', '[Condition]: Risk is high, chose reject.'),
+      e('stage', 'Stage 2: Reject request.'),
+    ];
+    const numbered = computeNumberedEntries(entries);
+    expect(numbered[0].heading).toBe('Stage 1');
+    expect(numbered[1].heading).toBe('Decider 1');
+    expect(numbered[2].heading).toBe('Stage 2');
+  });
+
+  it('[Selected] fork gets Selector heading', () => {
     const entries = [
       e('stage', 'Stage 1: First.'),
       e('fork', '[Selected]: 2 of 3 selected: A, B.'),
@@ -120,6 +139,16 @@ describe('Narrative heading numbering', () => {
     expect(numbered[1].text).toBe('2 of 3 selected: A, B.');
     // Second fork entry has no heading
     expect(numbered[2].heading).toBeNull();
+  });
+
+  it('[Parallel] fork gets Fork heading (not Selector)', () => {
+    const entries = [
+      e('stage', 'Stage 1: First.'),
+      e('fork', '[Parallel]: Forking into 3 paths: A, B, C.'),
+    ];
+    const numbered = computeNumberedEntries(entries);
+    expect(numbered[1].heading).toBe('Fork 2');
+    expect(numbered[1].text).toBe('Forking into 3 paths: A, B, C.');
   });
 
   it('subflow entries get Subflow N.M heading', () => {
