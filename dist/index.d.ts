@@ -25,8 +25,8 @@ interface StageSnapshot {
     subflowResult?: unknown;
 }
 /** Structured narrative entry — preserves type info for semantic rendering. */
-interface NarrativeEntry$1 {
-    type: 'stage' | 'step' | 'condition' | 'fork' | 'subflow' | 'loop' | 'break' | 'error';
+interface NarrativeEntry {
+    type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error';
     text: string;
     depth: number;
     stageName?: string;
@@ -311,7 +311,7 @@ declare function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, a
 interface SpecNode {
     name: string;
     id?: string;
-    type?: "stage" | "decider" | "fork" | "streaming";
+    type?: "stage" | "decider" | "selector" | "fork" | "streaming";
     /** Semantic icon hint — rendered by StageNode. Common values:
      *  "llm", "tool", "rag", "search", "parse", "start", "end", "loop",
      *  "agent", "swarm", "guard", "stream", "memory" */
@@ -401,7 +401,7 @@ interface ExplainableShellProps extends BaseComponentProps {
     resultData?: Record<string, unknown> | null;
     logs?: string[];
     narrative?: string[];
-    narrativeEntries?: NarrativeEntry$1[];
+    narrativeEntries?: NarrativeEntry[];
     tabs?: ShellTab[];
     defaultTab?: ShellTab;
     hideConsole?: boolean;
@@ -443,7 +443,7 @@ interface NarrativePanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
     selectedIndex: number;
     /** Structured narrative entries (preferred — richer rendering) */
-    narrativeEntries?: NarrativeEntry$1[];
+    narrativeEntries?: NarrativeEntry[];
     /** Plain narrative lines (fallback) */
     narrative?: string[];
 }
@@ -451,7 +451,7 @@ declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, na
 
 interface StoryNarrativeProps extends BaseComponentProps {
     /** Structured narrative entries from CombinedNarrativeRecorder */
-    entries: NarrativeEntry$1[];
+    entries: NarrativeEntry[];
     /** Number of entries to reveal (position-based sync from NarrativePanel) */
     revealedEntryCount: number;
 }
@@ -502,26 +502,21 @@ interface RuntimeStageSnapshot {
     next?: RuntimeStageSnapshot;
     children?: RuntimeStageSnapshot[];
 }
+interface RecorderSnapshot {
+    id: string;
+    name: string;
+    data: unknown;
+}
 interface RuntimeSnapshot {
     sharedState: Record<string, unknown>;
     executionTree: RuntimeStageSnapshot;
     commitLog: unknown[];
     /** Per-subflow execution results (keyed by subflowId). */
     subflowResults?: Record<string, unknown>;
+    /** Snapshots from recorders that implement toSnapshot() (e.g. MetricRecorder). */
+    recorders?: RecorderSnapshot[];
 }
-/**
- * Matches CombinedNarrativeEntry from footprintjs (defined here to avoid hard dep).
- * Pass from FlowChartExecutor.getNarrativeEntries().
- */
-interface NarrativeEntry {
-    type: 'stage' | 'step' | 'condition' | 'fork' | 'subflow' | 'loop' | 'break' | 'error';
-    text: string;
-    depth: number;
-    stageName?: string;
-    stepNumber?: number;
-    /** Subflow ID when this entry was generated inside a subflow. Undefined for root level. */
-    subflowId?: string;
-}
+
 /**
  * Converts a FootPrint RuntimeSnapshot into a flat array of StageSnapshots
  * suitable for visualization components.
@@ -566,4 +561,4 @@ declare function createSnapshots(stages: Array<{
     subflowId?: string;
 }>): StageSnapshot[];
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type DarkModeTokensOptions, type DefaultExpanded, type DiffEntry, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry$1 as NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, coolDark, coolLight, createSnapshots, defaultTokens, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type DarkModeTokensOptions, type DefaultExpanded, type DiffEntry, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, coolDark, coolLight, createSnapshots, defaultTokens, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };

@@ -702,7 +702,7 @@ function walkLayout(node, state, x, y) {
     return { lastIds: [id], bottomY: y };
   }
   state.seen.add(id);
-  const isDecider = node.type === "decider" || !!node.hasDecider;
+  const isDecider = node.type === "decider" || node.type === "selector" || !!node.hasDecider || !!node.hasSelector;
   const isFork = node.type === "fork";
   state.nodes.push({
     id,

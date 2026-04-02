@@ -1,4 +1,4 @@
-import type { StageSnapshot } from "../types";
+import type { StageSnapshot, NarrativeEntry } from "../types";
 
 /**
  * Shape of FootPrint's RuntimeSnapshot (from FlowChartExecutor.getSnapshot()).
@@ -22,27 +22,25 @@ interface RuntimeStageSnapshot {
   children?: RuntimeStageSnapshot[];
 }
 
+interface RecorderSnapshot {
+  id: string;
+  name: string;
+  data: unknown;
+}
+
 interface RuntimeSnapshot {
   sharedState: Record<string, unknown>;
   executionTree: RuntimeStageSnapshot;
   commitLog: unknown[];
   /** Per-subflow execution results (keyed by subflowId). */
   subflowResults?: Record<string, unknown>;
+  /** Snapshots from recorders that implement toSnapshot() (e.g. MetricRecorder). */
+  recorders?: RecorderSnapshot[];
 }
 
-/**
- * Matches CombinedNarrativeEntry from footprintjs (defined here to avoid hard dep).
- * Pass from FlowChartExecutor.getNarrativeEntries().
- */
-export interface NarrativeEntry {
-  type: 'stage' | 'step' | 'condition' | 'fork' | 'subflow' | 'loop' | 'break' | 'error';
-  text: string;
-  depth: number;
-  stageName?: string;
-  stepNumber?: number;
-  /** Subflow ID when this entry was generated inside a subflow. Undefined for root level. */
-  subflowId?: string;
-}
+// NarrativeEntry: canonical definition lives in types.ts.
+// Re-export here for backward compatibility (index.ts re-exports as AdapterNarrativeEntry).
+export type { NarrativeEntry } from '../types';
 
 /**
  * Converts a FootPrint RuntimeSnapshot into a flat array of StageSnapshots
@@ -71,9 +69,34 @@ export function toVisualizationSnapshots(
     ? buildStageNarrativeMap(narrativeEntries)
     : new Map<string, string[]>();
 
+  // Extract per-stage timings from MetricRecorder if present in snapshot.recorders.
+  const stageTimings = extractStageTimings(runtime.recorders);
+
   const snapshots: StageSnapshot[] = [];
-  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap);
+  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap, stageTimings);
   return snapshots;
+}
+
+/**
+ * Extracts per-stage duration data from recorder snapshots.
+ * MetricRecorder serializes as { name: 'Metrics', data: { stages: { [stageName]: { totalDuration } } } }.
+ */
+function extractStageTimings(recorders?: RecorderSnapshot[]): Map<string, number> {
+  const timings = new Map<string, number>();
+  if (!recorders) return timings;
+  for (const rec of recorders) {
+    if (rec.name === 'Metrics' && rec.data && typeof rec.data === 'object') {
+      const data = rec.data as { stages?: Record<string, { totalDuration?: number }> };
+      if (data.stages) {
+        for (const [stageName, metrics] of Object.entries(data.stages)) {
+          if (typeof metrics.totalDuration === 'number' && metrics.totalDuration > 0) {
+            timings.set(stageName, Math.round(metrics.totalDuration));
+          }
+        }
+      }
+    }
+  }
+  return timings;
 }
 
 /**
@@ -110,11 +133,13 @@ function flattenTree(
   subflowResults?: Record<string, unknown>,
   cumulativeMemory: Record<string, unknown> = {},
   stageNarrativeMap: Map<string, string[]> = new Map(),
+  stageTimings: Map<string, number> = new Map(),
 ): number {
+  // Prefer MetricRecorder timing (real wall-clock), then scope.$metric('durationMs'), then 0.
+  const stageName = node.name ?? node.id;
   const durationMs =
-    typeof node.metrics?.durationMs === "number"
-      ? node.metrics.durationMs
-      : 1;
+    (stageName ? stageTimings.get(stageName) : undefined) ??
+    (typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 0);
 
   const startMs = accumulatedMs;
   // Use id for matching (stable, matches spec node ids).
@@ -174,7 +199,7 @@ function flattenTree(
   if (node.children && node.children.length > 0) {
     let maxChildEnd = nextMs;
     for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap);
+      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings);
       maxChildEnd = Math.max(maxChildEnd, childEnd);
     }
     nextMs = maxChildEnd;
@@ -182,7 +207,7 @@ function flattenTree(
 
   // Handle linear continuation
   if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap);
+    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings);
   }
 
   return nextMs;

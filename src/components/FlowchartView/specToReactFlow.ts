@@ -14,7 +14,7 @@ import { rawDefaults } from "../../theme/tokens";
 export interface SpecNode {
   name: string;
   id?: string;
-  type?: "stage" | "decider" | "fork" | "streaming";
+  type?: "stage" | "decider" | "selector" | "fork" | "streaming";
   /** Semantic icon hint — rendered by StageNode. Common values:
    *  "llm", "tool", "rag", "search", "parse", "start", "end", "loop",
    *  "agent", "swarm", "guard", "stream", "memory" */
@@ -141,7 +141,7 @@ function walkLayout(
   }
   state.seen.add(id);
 
-  const isDecider = node.type === "decider" || !!node.hasDecider;
+  const isDecider = node.type === "decider" || node.type === "selector" || !!node.hasDecider || !!node.hasSelector;
   const isFork = node.type === "fork";
 
   state.nodes.push({

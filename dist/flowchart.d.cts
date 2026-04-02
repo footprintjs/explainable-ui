@@ -72,7 +72,7 @@ declare function FlowchartView({ nodes: rawNodes, edges: rawEdges, snapshots, se
 interface SpecNode {
     name: string;
     id?: string;
-    type?: "stage" | "decider" | "fork" | "streaming";
+    type?: "stage" | "decider" | "selector" | "fork" | "streaming";
     /** Semantic icon hint — rendered by StageNode. Common values:
      *  "llm", "tool", "rag", "search", "parse", "start", "end", "loop",
      *  "agent", "swarm", "guard", "stream", "memory" */

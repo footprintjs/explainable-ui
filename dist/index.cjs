@@ -2259,9 +2259,27 @@ var import_react19 = require("react");
 // src/adapters/fromRuntimeSnapshot.ts
 function toVisualizationSnapshots(runtime, narrativeEntries) {
   const stageNarrativeMap = narrativeEntries?.length ? buildStageNarrativeMap(narrativeEntries) : /* @__PURE__ */ new Map();
+  const stageTimings = extractStageTimings(runtime.recorders);
   const snapshots = [];
-  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap);
+  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap, stageTimings);
   return snapshots;
+}
+function extractStageTimings(recorders) {
+  const timings = /* @__PURE__ */ new Map();
+  if (!recorders) return timings;
+  for (const rec of recorders) {
+    if (rec.name === "Metrics" && rec.data && typeof rec.data === "object") {
+      const data = rec.data;
+      if (data.stages) {
+        for (const [stageName, metrics] of Object.entries(data.stages)) {
+          if (typeof metrics.totalDuration === "number" && metrics.totalDuration > 0) {
+            timings.set(stageName, Math.round(metrics.totalDuration));
+          }
+        }
+      }
+    }
+  }
+  return timings;
 }
 function buildStageNarrativeMap(entries) {
   const map = /* @__PURE__ */ new Map();
@@ -2280,8 +2298,9 @@ function buildStageNarrativeMap(entries) {
   }
   return map;
 }
-function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, cumulativeMemory = {}, stageNarrativeMap = /* @__PURE__ */ new Map()) {
-  const durationMs = typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 1;
+function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, cumulativeMemory = {}, stageNarrativeMap = /* @__PURE__ */ new Map(), stageTimings = /* @__PURE__ */ new Map()) {
+  const stageName = node.name ?? node.id;
+  const durationMs = (stageName ? stageTimings.get(stageName) : void 0) ?? (typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 0);
   const startMs = accumulatedMs;
   const stageId = node.id || node.name || "unknown";
   const displayName = node.name || node.id || "unknown";
@@ -2325,13 +2344,13 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
   if (node.children && node.children.length > 0) {
     let maxChildEnd = nextMs;
     for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap);
+      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings);
       maxChildEnd = Math.max(maxChildEnd, childEnd);
     }
     nextMs = maxChildEnd;
   }
   if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap);
+    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings);
   }
   return nextMs;
 }
@@ -2426,6 +2445,7 @@ var ENTRY_ICONS = {
   step: { icon: "\xB7", color: theme.textMuted, label: "Data operation" },
   condition: { icon: "\u25C7", color: theme.warning, label: "Decision" },
   fork: { icon: "\u2443", color: theme.primary, label: "Parallel" },
+  selector: { icon: "\u2443", color: theme.primary, label: "Selector" },
   subflow: { icon: "\u21B3", color: theme.textSecondary, label: "Subflow" },
   loop: { icon: "\u21BB", color: theme.warning, label: "Loop" },
   break: { icon: "\u25A0", color: theme.error, label: "Break" },
@@ -2464,49 +2484,58 @@ function StoryNarrative({
     latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [revealed.length]);
   const numberedEntries = (0, import_react11.useMemo)(() => {
-    let rootCounter = 0;
-    let subflowChildCounter = 0;
-    let lastRootForSubflow = 0;
+    let counter = 0;
+    const subflowSeen = /* @__PURE__ */ new Set();
     let prevType = "";
     return revealed.map((entry) => {
-      const isStageHeading = entry.type === "stage";
-      const isConditionHeading = entry.type === "condition";
-      const isForkHeading = entry.type === "fork" && prevType !== "fork";
-      const isHeading = isStageHeading || isConditionHeading || isForkHeading;
-      const isSubflowMarker = entry.type === "subflow";
-      prevType = entry.type;
       let cleanText = entry.text;
       cleanText = cleanText.replace(/^Stage \d+:\s*/, "");
+      const isSelector = entry.type === "fork" && entry.text.includes("[Selected]");
       cleanText = cleanText.replace(/^\[(Selected|Parallel)\]:\s*/, "");
-      if (isHeading) {
-        rootCounter++;
-        subflowChildCounter = 0;
-        lastRootForSubflow = rootCounter;
-        const typeLabel = isConditionHeading ? "Decider" : isForkHeading ? "Selector" : "Stage";
-        return { ...entry, heading: `${typeLabel} ${rootCounter}`, text: cleanText, isHeading: true };
+      if (entry.type === "subflow") {
+        const toggleKey = entry.stageId ?? entry.text;
+        const isExit = subflowSeen.has(toggleKey);
+        if (!isExit) {
+          subflowSeen.add(toggleKey);
+          counter++;
+          return {
+            ...entry,
+            heading: `${counter}`,
+            headingType: "Subflow",
+            text: cleanText,
+            isHeading: true,
+            isSubflow: true
+          };
+        }
+        return { ...entry, heading: null, isHeading: false, isSubflowExit: true };
       }
-      if (entry.type === "fork") {
+      if (entry.type === "stage") {
+        counter++;
+        return { ...entry, heading: `${counter}`, headingType: "Stage", text: cleanText, isHeading: true };
+      }
+      if (entry.type === "condition") {
+        return { ...entry, heading: null, headingType: "Decision", text: cleanText, isHeading: false };
+      }
+      if (entry.type === "fork" || entry.type === "selector") {
+        const isForkHeading = prevType !== "fork" && prevType !== "selector";
+        prevType = entry.type;
+        if (isForkHeading) {
+          counter++;
+          const typeLabel = entry.type === "selector" || isSelector ? "Selector" : "Fork";
+          return { ...entry, heading: `${counter}`, headingType: typeLabel, text: cleanText, isHeading: true };
+        }
         return { ...entry, heading: null, isHeading: false, text: cleanText };
       }
-      if (isSubflowMarker && entry.text.startsWith("Entering")) {
-        if (subflowChildCounter === 0) rootCounter++;
-        subflowChildCounter++;
-        const sfMatch = entry.text.match(/Entering the (.+?) subflow/);
-        const sfName = sfMatch?.[1] ?? "Subflow";
-        const sfDesc = entry.text.replace(/^Entering the .+? subflow[.:]\s*/, "").replace(/\.$/, "");
-        return {
-          ...entry,
-          heading: `Subflow ${rootCounter}.${subflowChildCounter}`,
-          text: sfDesc ? `${sfName} \u2014 ${sfDesc}` : sfName,
-          isHeading: true,
-          isSubflow: true
-        };
-      }
+      prevType = entry.type;
       return { ...entry, heading: null, isHeading: false };
     });
   }, [revealed]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? `${entry.heading}: ${entry.text}` : entry.text }, i)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => {
+      if (entry.isSubflowExit) return null;
+      const ht = entry.headingType;
+      return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? entry.text.startsWith("[") ? `${entry.heading}. ${entry.text}` : `${entry.heading}. [${ht}: ${entry.stageName ?? ""}] ${entry.text}` : entry.text }, i);
+    }) });
   }
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
     "div",
@@ -2524,13 +2553,15 @@ function StoryNarrative({
       "aria-label": "Execution narrative",
       children: [
         numberedEntries.map((entry, i) => {
+          if (entry.isSubflowExit) return null;
           const meta = ENTRY_ICONS[entry.type] ?? ENTRY_ICONS.step;
-          const isStage = entry.isHeading;
+          const isHeading = entry.isHeading;
           const isDecision = entry.type === "condition";
           const isError = entry.type === "error";
+          const isBreak = entry.type === "break";
           const isSubflow = entry.isSubflow;
           const isLast = i === numberedEntries.length - 1;
-          if (entry.type === "subflow" && entry.text.startsWith("Exiting")) return null;
+          const headingType = entry.headingType;
           return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
             "div",
             {
@@ -2538,10 +2569,10 @@ function StoryNarrative({
               style: {
                 display: "flex",
                 gap: 8,
-                padding: isStage ? `${pad - 4}px 0` : `2px 0`,
-                marginLeft: isSubflow ? 16 : entry.depth * 16,
-                borderBottom: isStage && !isSubflow ? `1px solid ${theme.border}` : void 0,
-                marginTop: isStage && i > 0 ? 8 : 0
+                padding: isHeading ? `${pad - 4}px 0` : `2px 0`,
+                marginLeft: entry.depth * 16,
+                borderBottom: isHeading ? `1px solid ${theme.border}` : void 0,
+                marginTop: isHeading && i > 0 ? 8 : 0
               },
               children: [
                 /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
@@ -2550,7 +2581,7 @@ function StoryNarrative({
                     style: {
                       color: meta.color,
                       fontWeight: 700,
-                      fontSize: isStage ? fs.body : fs.small,
+                      fontSize: isHeading ? fs.body : fs.small,
                       width: 16,
                       textAlign: "center",
                       flexShrink: 0
@@ -2564,16 +2595,26 @@ function StoryNarrative({
                   "span",
                   {
                     style: {
-                      fontSize: isStage ? fs.body : fs.small,
-                      fontWeight: isStage ? 600 : 400,
-                      color: isError ? theme.error : isDecision ? theme.warning : isStage ? theme.textPrimary : theme.textSecondary,
+                      fontSize: isHeading ? fs.body : fs.small,
+                      fontWeight: isHeading ? 600 : 400,
+                      color: isError || isBreak ? theme.error : isDecision ? theme.warning : isHeading ? theme.textPrimary : theme.textSecondary,
                       lineHeight: 1.6,
                       fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
                     },
-                    children: entry.heading ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+                    children: entry.heading && headingType ? entry.text.startsWith("[") ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
                       /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("strong", { children: [
                         entry.heading,
-                        ":"
+                        "."
+                      ] }),
+                      " ",
+                      entry.text
+                    ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("strong", { children: [
+                        entry.heading,
+                        ". [",
+                        headingType,
+                        entry.stageName ? `: ${entry.stageName}` : "",
+                        "]"
                       ] }),
                       " ",
                       entry.text
@@ -2674,6 +2715,76 @@ function NarrativePanel({
     return entryIdx;
   }, [narrativeEntries, snapshots, selectedIndex]);
   const hasStructured = narrativeEntries && narrativeEntries.length > 0;
+  const [copied, setCopied] = (0, import_react12.useState)(false);
+  const buildLLMNarrative = (0, import_react12.useCallback)(() => {
+    if (!narrativeEntries?.length) {
+      return narrative.join("\n");
+    }
+    const root = [];
+    const subflows = /* @__PURE__ */ new Map();
+    const subflowNames = /* @__PURE__ */ new Map();
+    for (const entry of narrativeEntries) {
+      const sfId = entry.subflowId;
+      if (!sfId) {
+        root.push(entry);
+      } else {
+        if (entry.type === "subflow") {
+          const isExit = entry.text.startsWith("Done:") || entry.text.startsWith("Exiting");
+          if (!isExit) {
+            root.push(entry);
+          }
+          if (entry.stageName && !isExit) {
+            subflowNames.set(sfId, entry.stageName);
+          }
+        } else {
+          if (!subflows.has(sfId)) subflows.set(sfId, []);
+          subflows.get(sfId).push(entry);
+        }
+      }
+    }
+    const renderEntries = (entries, opts) => {
+      let counter = 0;
+      const lines = [];
+      for (const e of entries) {
+        if (opts?.inSubflow && e.type === "subflow") continue;
+        let text = e.text;
+        if (opts?.inSubflow) {
+          text = text.replace(new RegExp(`\\[${opts.inSubflow}/`), "[");
+        }
+        const isHeading = e.type === "stage" || e.type === "subflow" || e.type === "fork" || e.type === "selector";
+        if (isHeading) {
+          counter++;
+          const sfId = e.subflowId;
+          const idSuffix = e.type === "subflow" && sfId ? ` [\u2192 ${sfId}]` : "";
+          lines.push(`${counter}. ${text}${idSuffix}`);
+        } else {
+          lines.push(`  ${text}`);
+        }
+      }
+      return lines.join("\n");
+    };
+    const sections = [];
+    sections.push("## Execution Narrative\n");
+    sections.push(renderEntries(root));
+    if (subflows.size > 0) {
+      sections.push("\n\n## Subflow Details");
+      sections.push("Use the subflow IDs above to look up details below.\n");
+      for (const [sfId, entries] of subflows) {
+        const name = subflowNames.get(sfId) ?? sfId;
+        sections.push(`### ${name} (${sfId})
+`);
+        sections.push(renderEntries(entries, { inSubflow: sfId }));
+        sections.push("");
+      }
+    }
+    return sections.join("\n");
+  }, [narrativeEntries, narrative]);
+  const handleCopy = (0, import_react12.useCallback)(async () => {
+    const text = buildLLMNarrative();
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2e3);
+  }, [buildLLMNarrative]);
   if (unstyled) {
     return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, unstyled: true }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
   }
@@ -2689,18 +2800,42 @@ function NarrativePanel({
       },
       "data-fp": "narrative-panel",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
           "div",
           {
             style: {
               padding: `${pad - 4}px ${pad}px`,
               fontSize: fs.small,
               color: theme.textMuted,
-              fontStyle: "italic",
               borderBottom: `1px solid ${theme.border}`,
-              flexShrink: 0
+              flexShrink: 0,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
             },
-            children: "What happened at each stage, what data flowed, what decisions were made, and why."
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { style: { fontStyle: "italic" }, children: "What happened at each stage, what data flowed, what decisions were made, and why." }),
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+                "button",
+                {
+                  onClick: handleCopy,
+                  title: "Copy narrative as LLM-ready text (includes subflow details)",
+                  style: {
+                    background: copied ? theme.success : theme.bgSecondary,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 4,
+                    padding: "2px 8px",
+                    fontSize: fs.small,
+                    color: copied ? "#fff" : theme.textSecondary,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    marginLeft: 8,
+                    transition: "all 0.2s"
+                  },
+                  children: copied ? "Copied!" : "Copy for LLM"
+                }
+              )
+            ]
           }
         ),
         hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
@@ -3518,7 +3653,7 @@ function walkLayout(node, state, x, y) {
     return { lastIds: [id], bottomY: y };
   }
   state.seen.add(id);
-  const isDecider = node.type === "decider" || !!node.hasDecider;
+  const isDecider = node.type === "decider" || node.type === "selector" || !!node.hasDecider || !!node.hasSelector;
   const isFork = node.type === "fork";
   state.nodes.push({
     id,

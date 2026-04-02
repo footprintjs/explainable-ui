@@ -2201,14 +2201,32 @@ function TimeTravelControls({
 }
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-import { memo as memo4, useState as useState8, useCallback as useCallback6, useMemo as useMemo11, useRef as useRef7, useEffect as useEffect8 } from "react";
+import { memo as memo4, useState as useState9, useCallback as useCallback7, useMemo as useMemo11, useRef as useRef7, useEffect as useEffect8 } from "react";
 
 // src/adapters/fromRuntimeSnapshot.ts
 function toVisualizationSnapshots(runtime, narrativeEntries) {
   const stageNarrativeMap = narrativeEntries?.length ? buildStageNarrativeMap(narrativeEntries) : /* @__PURE__ */ new Map();
+  const stageTimings = extractStageTimings(runtime.recorders);
   const snapshots = [];
-  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap);
+  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap, stageTimings);
   return snapshots;
+}
+function extractStageTimings(recorders) {
+  const timings = /* @__PURE__ */ new Map();
+  if (!recorders) return timings;
+  for (const rec of recorders) {
+    if (rec.name === "Metrics" && rec.data && typeof rec.data === "object") {
+      const data = rec.data;
+      if (data.stages) {
+        for (const [stageName, metrics] of Object.entries(data.stages)) {
+          if (typeof metrics.totalDuration === "number" && metrics.totalDuration > 0) {
+            timings.set(stageName, Math.round(metrics.totalDuration));
+          }
+        }
+      }
+    }
+  }
+  return timings;
 }
 function buildStageNarrativeMap(entries) {
   const map = /* @__PURE__ */ new Map();
@@ -2227,8 +2245,9 @@ function buildStageNarrativeMap(entries) {
   }
   return map;
 }
-function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, cumulativeMemory = {}, stageNarrativeMap = /* @__PURE__ */ new Map()) {
-  const durationMs = typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 1;
+function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, cumulativeMemory = {}, stageNarrativeMap = /* @__PURE__ */ new Map(), stageTimings = /* @__PURE__ */ new Map()) {
+  const stageName = node.name ?? node.id;
+  const durationMs = (stageName ? stageTimings.get(stageName) : void 0) ?? (typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 0);
   const startMs = accumulatedMs;
   const stageId = node.id || node.name || "unknown";
   const displayName = node.name || node.id || "unknown";
@@ -2272,13 +2291,13 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
   if (node.children && node.children.length > 0) {
     let maxChildEnd = nextMs;
     for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap);
+      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings);
       maxChildEnd = Math.max(maxChildEnd, childEnd);
     }
     nextMs = maxChildEnd;
   }
   if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap);
+    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings);
   }
   return nextMs;
 }
@@ -2363,7 +2382,7 @@ function MemoryPanel({
 }
 
 // src/components/NarrativePanel/NarrativePanel.tsx
-import { useMemo as useMemo8 } from "react";
+import { useMemo as useMemo8, useState as useState7, useCallback as useCallback4 } from "react";
 
 // src/components/StoryNarrative/StoryNarrative.tsx
 import { useMemo as useMemo7, useRef as useRef5, useEffect as useEffect5 } from "react";
@@ -2373,6 +2392,7 @@ var ENTRY_ICONS = {
   step: { icon: "\xB7", color: theme.textMuted, label: "Data operation" },
   condition: { icon: "\u25C7", color: theme.warning, label: "Decision" },
   fork: { icon: "\u2443", color: theme.primary, label: "Parallel" },
+  selector: { icon: "\u2443", color: theme.primary, label: "Selector" },
   subflow: { icon: "\u21B3", color: theme.textSecondary, label: "Subflow" },
   loop: { icon: "\u21BB", color: theme.warning, label: "Loop" },
   break: { icon: "\u25A0", color: theme.error, label: "Break" },
@@ -2411,49 +2431,58 @@ function StoryNarrative({
     latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [revealed.length]);
   const numberedEntries = useMemo7(() => {
-    let rootCounter = 0;
-    let subflowChildCounter = 0;
-    let lastRootForSubflow = 0;
+    let counter = 0;
+    const subflowSeen = /* @__PURE__ */ new Set();
     let prevType = "";
     return revealed.map((entry) => {
-      const isStageHeading = entry.type === "stage";
-      const isConditionHeading = entry.type === "condition";
-      const isForkHeading = entry.type === "fork" && prevType !== "fork";
-      const isHeading = isStageHeading || isConditionHeading || isForkHeading;
-      const isSubflowMarker = entry.type === "subflow";
-      prevType = entry.type;
       let cleanText = entry.text;
       cleanText = cleanText.replace(/^Stage \d+:\s*/, "");
+      const isSelector = entry.type === "fork" && entry.text.includes("[Selected]");
       cleanText = cleanText.replace(/^\[(Selected|Parallel)\]:\s*/, "");
-      if (isHeading) {
-        rootCounter++;
-        subflowChildCounter = 0;
-        lastRootForSubflow = rootCounter;
-        const typeLabel = isConditionHeading ? "Decider" : isForkHeading ? "Selector" : "Stage";
-        return { ...entry, heading: `${typeLabel} ${rootCounter}`, text: cleanText, isHeading: true };
+      if (entry.type === "subflow") {
+        const toggleKey = entry.stageId ?? entry.text;
+        const isExit = subflowSeen.has(toggleKey);
+        if (!isExit) {
+          subflowSeen.add(toggleKey);
+          counter++;
+          return {
+            ...entry,
+            heading: `${counter}`,
+            headingType: "Subflow",
+            text: cleanText,
+            isHeading: true,
+            isSubflow: true
+          };
+        }
+        return { ...entry, heading: null, isHeading: false, isSubflowExit: true };
       }
-      if (entry.type === "fork") {
+      if (entry.type === "stage") {
+        counter++;
+        return { ...entry, heading: `${counter}`, headingType: "Stage", text: cleanText, isHeading: true };
+      }
+      if (entry.type === "condition") {
+        return { ...entry, heading: null, headingType: "Decision", text: cleanText, isHeading: false };
+      }
+      if (entry.type === "fork" || entry.type === "selector") {
+        const isForkHeading = prevType !== "fork" && prevType !== "selector";
+        prevType = entry.type;
+        if (isForkHeading) {
+          counter++;
+          const typeLabel = entry.type === "selector" || isSelector ? "Selector" : "Fork";
+          return { ...entry, heading: `${counter}`, headingType: typeLabel, text: cleanText, isHeading: true };
+        }
         return { ...entry, heading: null, isHeading: false, text: cleanText };
       }
-      if (isSubflowMarker && entry.text.startsWith("Entering")) {
-        if (subflowChildCounter === 0) rootCounter++;
-        subflowChildCounter++;
-        const sfMatch = entry.text.match(/Entering the (.+?) subflow/);
-        const sfName = sfMatch?.[1] ?? "Subflow";
-        const sfDesc = entry.text.replace(/^Entering the .+? subflow[.:]\s*/, "").replace(/\.$/, "");
-        return {
-          ...entry,
-          heading: `Subflow ${rootCounter}.${subflowChildCounter}`,
-          text: sfDesc ? `${sfName} \u2014 ${sfDesc}` : sfName,
-          isHeading: true,
-          isSubflow: true
-        };
-      }
+      prevType = entry.type;
       return { ...entry, heading: null, isHeading: false };
     });
   }, [revealed]);
   if (unstyled) {
-    return /* @__PURE__ */ jsx12("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => /* @__PURE__ */ jsx12("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? `${entry.heading}: ${entry.text}` : entry.text }, i)) });
+    return /* @__PURE__ */ jsx12("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => {
+      if (entry.isSubflowExit) return null;
+      const ht = entry.headingType;
+      return /* @__PURE__ */ jsx12("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? entry.text.startsWith("[") ? `${entry.heading}. ${entry.text}` : `${entry.heading}. [${ht}: ${entry.stageName ?? ""}] ${entry.text}` : entry.text }, i);
+    }) });
   }
   return /* @__PURE__ */ jsxs11(
     "div",
@@ -2471,13 +2500,15 @@ function StoryNarrative({
       "aria-label": "Execution narrative",
       children: [
         numberedEntries.map((entry, i) => {
+          if (entry.isSubflowExit) return null;
           const meta = ENTRY_ICONS[entry.type] ?? ENTRY_ICONS.step;
-          const isStage = entry.isHeading;
+          const isHeading = entry.isHeading;
           const isDecision = entry.type === "condition";
           const isError = entry.type === "error";
+          const isBreak = entry.type === "break";
           const isSubflow = entry.isSubflow;
           const isLast = i === numberedEntries.length - 1;
-          if (entry.type === "subflow" && entry.text.startsWith("Exiting")) return null;
+          const headingType = entry.headingType;
           return /* @__PURE__ */ jsxs11(
             "div",
             {
@@ -2485,10 +2516,10 @@ function StoryNarrative({
               style: {
                 display: "flex",
                 gap: 8,
-                padding: isStage ? `${pad - 4}px 0` : `2px 0`,
-                marginLeft: isSubflow ? 16 : entry.depth * 16,
-                borderBottom: isStage && !isSubflow ? `1px solid ${theme.border}` : void 0,
-                marginTop: isStage && i > 0 ? 8 : 0
+                padding: isHeading ? `${pad - 4}px 0` : `2px 0`,
+                marginLeft: entry.depth * 16,
+                borderBottom: isHeading ? `1px solid ${theme.border}` : void 0,
+                marginTop: isHeading && i > 0 ? 8 : 0
               },
               children: [
                 /* @__PURE__ */ jsx12(
@@ -2497,7 +2528,7 @@ function StoryNarrative({
                     style: {
                       color: meta.color,
                       fontWeight: 700,
-                      fontSize: isStage ? fs.body : fs.small,
+                      fontSize: isHeading ? fs.body : fs.small,
                       width: 16,
                       textAlign: "center",
                       flexShrink: 0
@@ -2511,16 +2542,26 @@ function StoryNarrative({
                   "span",
                   {
                     style: {
-                      fontSize: isStage ? fs.body : fs.small,
-                      fontWeight: isStage ? 600 : 400,
-                      color: isError ? theme.error : isDecision ? theme.warning : isStage ? theme.textPrimary : theme.textSecondary,
+                      fontSize: isHeading ? fs.body : fs.small,
+                      fontWeight: isHeading ? 600 : 400,
+                      color: isError || isBreak ? theme.error : isDecision ? theme.warning : isHeading ? theme.textPrimary : theme.textSecondary,
                       lineHeight: 1.6,
                       fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
                     },
-                    children: entry.heading ? /* @__PURE__ */ jsxs11(Fragment3, { children: [
+                    children: entry.heading && headingType ? entry.text.startsWith("[") ? /* @__PURE__ */ jsxs11(Fragment3, { children: [
                       /* @__PURE__ */ jsxs11("strong", { children: [
                         entry.heading,
-                        ":"
+                        "."
+                      ] }),
+                      " ",
+                      entry.text
+                    ] }) : /* @__PURE__ */ jsxs11(Fragment3, { children: [
+                      /* @__PURE__ */ jsxs11("strong", { children: [
+                        entry.heading,
+                        ". [",
+                        headingType,
+                        entry.stageName ? `: ${entry.stageName}` : "",
+                        "]"
                       ] }),
                       " ",
                       entry.text
@@ -2621,6 +2662,76 @@ function NarrativePanel({
     return entryIdx;
   }, [narrativeEntries, snapshots, selectedIndex]);
   const hasStructured = narrativeEntries && narrativeEntries.length > 0;
+  const [copied, setCopied] = useState7(false);
+  const buildLLMNarrative = useCallback4(() => {
+    if (!narrativeEntries?.length) {
+      return narrative.join("\n");
+    }
+    const root = [];
+    const subflows = /* @__PURE__ */ new Map();
+    const subflowNames = /* @__PURE__ */ new Map();
+    for (const entry of narrativeEntries) {
+      const sfId = entry.subflowId;
+      if (!sfId) {
+        root.push(entry);
+      } else {
+        if (entry.type === "subflow") {
+          const isExit = entry.text.startsWith("Done:") || entry.text.startsWith("Exiting");
+          if (!isExit) {
+            root.push(entry);
+          }
+          if (entry.stageName && !isExit) {
+            subflowNames.set(sfId, entry.stageName);
+          }
+        } else {
+          if (!subflows.has(sfId)) subflows.set(sfId, []);
+          subflows.get(sfId).push(entry);
+        }
+      }
+    }
+    const renderEntries = (entries, opts) => {
+      let counter = 0;
+      const lines = [];
+      for (const e of entries) {
+        if (opts?.inSubflow && e.type === "subflow") continue;
+        let text = e.text;
+        if (opts?.inSubflow) {
+          text = text.replace(new RegExp(`\\[${opts.inSubflow}/`), "[");
+        }
+        const isHeading = e.type === "stage" || e.type === "subflow" || e.type === "fork" || e.type === "selector";
+        if (isHeading) {
+          counter++;
+          const sfId = e.subflowId;
+          const idSuffix = e.type === "subflow" && sfId ? ` [\u2192 ${sfId}]` : "";
+          lines.push(`${counter}. ${text}${idSuffix}`);
+        } else {
+          lines.push(`  ${text}`);
+        }
+      }
+      return lines.join("\n");
+    };
+    const sections = [];
+    sections.push("## Execution Narrative\n");
+    sections.push(renderEntries(root));
+    if (subflows.size > 0) {
+      sections.push("\n\n## Subflow Details");
+      sections.push("Use the subflow IDs above to look up details below.\n");
+      for (const [sfId, entries] of subflows) {
+        const name = subflowNames.get(sfId) ?? sfId;
+        sections.push(`### ${name} (${sfId})
+`);
+        sections.push(renderEntries(entries, { inSubflow: sfId }));
+        sections.push("");
+      }
+    }
+    return sections.join("\n");
+  }, [narrativeEntries, narrative]);
+  const handleCopy = useCallback4(async () => {
+    const text = buildLLMNarrative();
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2e3);
+  }, [buildLLMNarrative]);
   if (unstyled) {
     return /* @__PURE__ */ jsx13("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ jsx13(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, unstyled: true }) : /* @__PURE__ */ jsx13(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
   }
@@ -2636,18 +2747,42 @@ function NarrativePanel({
       },
       "data-fp": "narrative-panel",
       children: [
-        /* @__PURE__ */ jsx13(
+        /* @__PURE__ */ jsxs12(
           "div",
           {
             style: {
               padding: `${pad - 4}px ${pad}px`,
               fontSize: fs.small,
               color: theme.textMuted,
-              fontStyle: "italic",
               borderBottom: `1px solid ${theme.border}`,
-              flexShrink: 0
+              flexShrink: 0,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
             },
-            children: "What happened at each stage, what data flowed, what decisions were made, and why."
+            children: [
+              /* @__PURE__ */ jsx13("span", { style: { fontStyle: "italic" }, children: "What happened at each stage, what data flowed, what decisions were made, and why." }),
+              /* @__PURE__ */ jsx13(
+                "button",
+                {
+                  onClick: handleCopy,
+                  title: "Copy narrative as LLM-ready text (includes subflow details)",
+                  style: {
+                    background: copied ? theme.success : theme.bgSecondary,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 4,
+                    padding: "2px 8px",
+                    fontSize: fs.small,
+                    color: copied ? "#fff" : theme.textSecondary,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    marginLeft: 8,
+                    transition: "all 0.2s"
+                  },
+                  children: copied ? "Copied!" : "Copy for LLM"
+                }
+              )
+            ]
           }
         ),
         hasStructured ? /* @__PURE__ */ jsx13(
@@ -2673,7 +2808,7 @@ function NarrativePanel({
 }
 
 // src/components/FlowchartView/SubflowTree.tsx
-import { memo, useState as useState7, useCallback as useCallback4, useMemo as useMemo9 } from "react";
+import { memo, useState as useState8, useCallback as useCallback5, useMemo as useMemo9 } from "react";
 import { Fragment as Fragment4, jsx as jsx14, jsxs as jsxs13 } from "react/jsx-runtime";
 function specToTree(node) {
   if (!node) return [];
@@ -2713,11 +2848,11 @@ var TreeNode = memo(function TreeNode2({
   doneStages,
   onNodeSelect
 }) {
-  const [expanded, setExpanded] = useState7(true);
+  const [expanded, setExpanded] = useState8(true);
   const hasChildren = entry.children && entry.children.length > 0;
   const isActive = activeStage === entry.name;
   const isDone = doneStages?.has(entry.name);
-  const handleClick = useCallback4(() => {
+  const handleClick = useCallback5(() => {
     if (hasChildren) {
       setExpanded((prev) => !prev);
     }
@@ -2977,7 +3112,7 @@ var SubflowBreadcrumb = memo2(function SubflowBreadcrumb2({
 });
 
 // src/components/FlowchartView/TracedFlowchartView.tsx
-import { useMemo as useMemo10, useCallback as useCallback5, useEffect as useEffect7 } from "react";
+import { useMemo as useMemo10, useCallback as useCallback6, useEffect as useEffect7 } from "react";
 import {
   ReactFlow,
   Background,
@@ -3472,7 +3607,7 @@ function walkLayout(node, state, x, y) {
     return { lastIds: [id], bottomY: y };
   }
   state.seen.add(id);
-  const isDecider = node.type === "decider" || !!node.hasDecider;
+  const isDecider = node.type === "decider" || node.type === "selector" || !!node.hasDecider || !!node.hasSelector;
   const isFork = node.type === "fork";
   state.nodes.push({
     id,
@@ -3706,7 +3841,7 @@ function TracedFlowchartView({
     setNodes(flowData.nodes);
     setEdges(flowData.edges);
   }, [flowData, setNodes, setEdges]);
-  const handleNodeClick = useCallback5(
+  const handleNodeClick = useCallback6(
     (_, node) => {
       if (!onNodeClick) return;
       onNodeClick(node.id);
@@ -3867,7 +4002,7 @@ var DetailsContent = memo4(function DetailsContent2({
     }
   ];
   const allViews = [...builtInViews, ...extraViews ?? []];
-  const [activeViewId, setActiveViewId] = useState8(allViews[0]?.id ?? "memory");
+  const [activeViewId, setActiveViewId] = useState9(allViews[0]?.id ?? "memory");
   const activeView = allViews.find((v2) => v2.id === activeViewId) ?? allViews[0];
   return /* @__PURE__ */ jsxs17("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
     /* @__PURE__ */ jsx18("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
@@ -4009,7 +4144,7 @@ function ExplainableShell({
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
   const shellRef = useRef7(null);
-  const [isNarrow, setIsNarrow] = useState8(false);
+  const [isNarrow, setIsNarrow] = useState9(false);
   useEffect8(() => {
     const el = shellRef.current;
     if (!el) return;
@@ -4045,12 +4180,12 @@ function ExplainableShell({
   }, [hasNarrative, recorderViews, autoRecorderViews]);
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
-  const [activeTab, setActiveTab] = useState8(resolvedDefault);
-  const [snapshotIdx, setSnapshotIdx] = useState8(0);
-  const [drillDownStack, setDrillDownStack] = useState8([]);
-  const [rightExpanded, setRightExpanded] = useState8(defaultExpanded?.details ?? true);
-  const [leftExpanded, setLeftExpanded] = useState8(defaultExpanded?.topology ?? false);
-  const [timelineExpanded, setTimelineExpanded] = useState8(defaultExpanded?.timeline ?? false);
+  const [activeTab, setActiveTab] = useState9(resolvedDefault);
+  const [snapshotIdx, setSnapshotIdx] = useState9(0);
+  const [drillDownStack, setDrillDownStack] = useState9([]);
+  const [rightExpanded, setRightExpanded] = useState9(defaultExpanded?.details ?? true);
+  const [leftExpanded, setLeftExpanded] = useState9(defaultExpanded?.topology ?? false);
+  const [timelineExpanded, setTimelineExpanded] = useState9(defaultExpanded?.timeline ?? false);
   useEffect8(() => {
     if (isNarrow) {
       setLeftExpanded(false);
@@ -4058,19 +4193,19 @@ function ExplainableShell({
       setTimelineExpanded(false);
     }
   }, [isNarrow]);
-  const triggerReflow = useCallback6(() => {
+  const triggerReflow = useCallback7(() => {
     requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
     setTimeout(() => window.dispatchEvent(new Event("resize")), 320);
   }, []);
-  const toggleLeft = useCallback6((v2) => {
+  const toggleLeft = useCallback7((v2) => {
     setLeftExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleRight = useCallback6((v2) => {
+  const toggleRight = useCallback7((v2) => {
     setRightExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleTimeline = useCallback6(() => {
+  const toggleTimeline = useCallback7(() => {
     setTimelineExpanded((p) => !p);
     triggerReflow();
   }, [triggerReflow]);
@@ -4106,14 +4241,14 @@ function ExplainableShell({
     const activeStage = snapshots[safeIdx]?.stageLabel ?? null;
     return { activeStage, doneStages };
   }, [isInSubflow, snapshots, safeIdx]);
-  const handleTabChange = useCallback6((tab) => {
+  const handleTabChange = useCallback7((tab) => {
     setActiveTab(tab);
     setDrillDownStack([]);
   }, []);
-  const handleSnapshotChange = useCallback6((idx) => {
+  const handleSnapshotChange = useCallback7((idx) => {
     if (typeof idx === "number") setSnapshotIdx(idx);
   }, []);
-  const handleDrillDown = useCallback6(
+  const handleDrillDown = useCallback7(
     (nodeName) => {
       if (!activeSpec) return;
       const entry = resolveSubflowLevel(activeSpec, activeSnapshots, nodeName, narrativeEntries);
@@ -4124,14 +4259,14 @@ function ExplainableShell({
     },
     [activeSpec, activeSnapshots, narrativeEntries, snapshotIdx]
   );
-  const handleBreadcrumbNavigate = useCallback6((level) => {
+  const handleBreadcrumbNavigate = useCallback7((level) => {
     setDrillDownStack((prev) => {
       const popped = level === 0 ? prev[0] : prev[level];
       if (popped) setSnapshotIdx(popped.parentSnapshotIdx);
       return level === 0 ? [] : prev.slice(0, level);
     });
   }, []);
-  const handleNodeClick = useCallback6(
+  const handleNodeClick = useCallback7(
     (indexOrId) => {
       if (typeof indexOrId === "number") {
         setSnapshotIdx(indexOrId);
@@ -4149,7 +4284,7 @@ function ExplainableShell({
     },
     [activeSpec, activeSnapshots, handleDrillDown]
   );
-  const handleTreeNodeSelect = useCallback6(
+  const handleTreeNodeSelect = useCallback7(
     (name, isSubflow) => {
       if (isSubflow && spec) {
         setDrillDownStack([]);

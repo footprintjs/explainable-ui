@@ -24,7 +24,7 @@ export interface StageSnapshot {
 
 /** Structured narrative entry — preserves type info for semantic rendering. */
 export interface NarrativeEntry {
-  type: 'stage' | 'step' | 'condition' | 'fork' | 'subflow' | 'loop' | 'break' | 'error';
+  type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error';
   text: string;
   depth: number;
   stageName?: string;
