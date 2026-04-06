@@ -112,6 +112,8 @@ export interface ExplainableShellProps extends BaseComponentProps {
   tabs?: ShellTab[];
   defaultTab?: ShellTab;
   hideConsole?: boolean;
+  /** Hide specific detail tabs (e.g., ['result', 'memory']). */
+  hideTabs?: string[];
   /** Customize the labels on collapsible panel pills */
   panelLabels?: PanelLabels;
   /** Which panels start expanded. Default: `{ details: true }` */
@@ -431,6 +433,7 @@ export function ExplainableShell({
   tabs = ["result", "explainable"],
   defaultTab,
   hideConsole = false,
+  hideTabs: hideTabsProp,
   panelLabels,
   defaultExpanded,
   recorderViews,
@@ -510,8 +513,10 @@ export function ExplainableShell({
     for (const v of autoRecorderViews) {
       tabs.push({ id: v.id, name: v.name });
     }
-    return tabs;
-  }, [hasNarrative, recorderViews, autoRecorderViews]);
+    // Filter hidden tabs
+    const hideSet = new Set(hideTabsProp ?? []);
+    return hideSet.size > 0 ? tabs.filter((t) => !hideSet.has(t.id)) : tabs;
+  }, [hasNarrative, recorderViews, autoRecorderViews, hideTabsProp]);
 
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";

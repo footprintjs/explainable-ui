@@ -4159,6 +4159,7 @@ function ExplainableShell({
   tabs = ["result", "explainable"],
   defaultTab,
   hideConsole = false,
+  hideTabs: hideTabsProp,
   panelLabels,
   defaultExpanded,
   recorderViews,
@@ -4222,8 +4223,9 @@ function ExplainableShell({
     for (const v2 of autoRecorderViews) {
       tabs2.push({ id: v2.id, name: v2.name });
     }
-    return tabs2;
-  }, [hasNarrative, recorderViews, autoRecorderViews]);
+    const hideSet = new Set(hideTabsProp ?? []);
+    return hideSet.size > 0 ? tabs2.filter((t) => !hideSet.has(t.id)) : tabs2;
+  }, [hasNarrative, recorderViews, autoRecorderViews, hideTabsProp]);
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
   const [activeTab, setActiveTab] = (0, import_react19.useState)(resolvedDefault);

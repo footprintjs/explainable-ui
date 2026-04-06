@@ -405,6 +405,8 @@ interface ExplainableShellProps extends BaseComponentProps {
     tabs?: ShellTab[];
     defaultTab?: ShellTab;
     hideConsole?: boolean;
+    /** Hide specific detail tabs (e.g., ['result', 'memory']). */
+    hideTabs?: string[];
     /** Customize the labels on collapsible panel pills */
     panelLabels?: PanelLabels;
     /** Which panels start expanded. Default: `{ details: true }` */
@@ -431,7 +433,7 @@ interface ExplainableShellProps extends BaseComponentProps {
         onNodeClick?: (indexOrId: number | string) => void;
     }) => React.ReactNode;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, spec, title, resultData: resultDataProp, logs, narrative: narrativeProp, narrativeEntries, tabs, defaultTab, hideConsole, panelLabels, defaultExpanded, recorderViews, renderFlowchart, size, unstyled, className, style, }: ExplainableShellProps): react_jsx_runtime.JSX.Element;
+declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, spec, title, resultData: resultDataProp, logs, narrative: narrativeProp, narrativeEntries, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, size, unstyled, className, style, }: ExplainableShellProps): react_jsx_runtime.JSX.Element;
 
 interface MemoryPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
