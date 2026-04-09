@@ -372,7 +372,10 @@ function KeyedRecorderView({
       )}
 
       <div style={{ padding: 12, flex: 1, overflow: "auto" }}>
-        {/* Per-step entries — progressive reveal synced with slider */}
+        {/* ── TRANSLATE — per-step detail ── */}
+        <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
+          Translate — per-step detail
+        </div>
         {visibleEntries.map((key) => {
           const entry = steps[key];
           const label = (entry.stageName as string) ?? key;
@@ -396,39 +399,41 @@ function KeyedRecorderView({
           </div>
         )}
 
-        {/* Running total (accumulate) */}
+        {/* ── ACCUMULATE — running total up to slider position ── */}
         {numFieldKey && visibleEntries.length > 0 && (
-          <div style={{ marginTop: 12, padding: "8px 12px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, fontSize: 12 }}>
-            <span style={{ color: theme.textMuted }}>Running total ({numFieldKey}):</span>
-            <span style={{ fontWeight: 700, marginLeft: 8, color: theme.primary }}>
+          <div style={{ marginTop: 16, padding: "8px 12px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, fontSize: 12 }}>
+            <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }}>
+              Accumulate — running total up to this step
+            </div>
+            <span style={{ fontWeight: 700, fontSize: 16, color: theme.primary }}>
               {runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1)}
             </span>
             <span style={{ color: theme.textMuted, marginLeft: 8, fontSize: 10 }}>
-              ({visibleEntries.length} of {allKeys.length} steps)
+              {numFieldKey} &middot; {visibleEntries.length} of {allKeys.length} steps
             </span>
           </div>
         )}
 
-        {/* Aggregate button — shown at end of time-travel */}
+        {/* ── AGGREGATE — grand total, only at end of time-travel ── */}
         {isAtEnd && numFieldKey && (
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 16 }}>
             {!showAggregate ? (
               <button
                 onClick={() => setShowAggregate(true)}
                 style={{
                   background: theme.primary, color: "#fff", border: "none", borderRadius: 6,
-                  padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  fontFamily: "inherit",
+                  padding: "10px 20px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  fontFamily: "inherit", width: "100%",
                 }}
               >
-                Aggregate ({numFieldKey})
+                Show Aggregate — Grand Total
               </button>
             ) : (
               <div style={{ padding: "10px 14px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 6, border: `1px solid ${theme.success}44` }}>
-                <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
-                  Aggregate — Grand Total
+                <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }}>
+                  Aggregate — grand total across all steps
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: theme.success }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: theme.success }}>
                   {grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1)}
                 </div>
                 <div style={{ fontSize: 10, color: theme.textMuted, marginTop: 2 }}>
