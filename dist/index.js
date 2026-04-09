@@ -4037,6 +4037,123 @@ var VLinePill = memo4(function VLinePill2({
     /* @__PURE__ */ jsx18("div", { style: { flex: 1, width: 1, background: theme.border } })
   ] });
 });
+function detectKeyedSteps(data) {
+  if (!data || typeof data !== "object") return null;
+  const obj = data;
+  for (const val of Object.values(obj)) {
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      const keys = Object.keys(val);
+      if (keys.length > 0 && keys.every((k) => k.includes("#"))) {
+        return val;
+      }
+    }
+  }
+  return null;
+}
+function findNumericField(entry) {
+  for (const [k, v2] of Object.entries(entry)) {
+    if (typeof v2 === "number") return { key: k, value: v2 };
+  }
+  return null;
+}
+function KeyedRecorderView({
+  data,
+  description,
+  snapshots,
+  selectedIndex
+}) {
+  const [showAggregate, setShowAggregate] = useState9(false);
+  const steps = useMemo11(() => detectKeyedSteps(data), [data]);
+  const visibleIds = useMemo11(() => {
+    const ids = /* @__PURE__ */ new Set();
+    for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
+      const id = snapshots[i].runtimeStageId;
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [snapshots, selectedIndex]);
+  const isAtEnd = selectedIndex >= snapshots.length - 1;
+  if (!steps) {
+    return /* @__PURE__ */ jsx18("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
+  }
+  const allKeys = Object.keys(steps);
+  const visibleEntries = allKeys.filter((k) => visibleIds.has(k));
+  const numField = allKeys.length > 0 ? findNumericField(steps[allKeys[0]]) : null;
+  const numFieldKey = numField?.key ?? "";
+  let runningTotal = 0;
+  if (numFieldKey) {
+    for (const k of visibleEntries) {
+      runningTotal += steps[k][numFieldKey] ?? 0;
+    }
+  }
+  let grandTotal = 0;
+  if (numFieldKey) {
+    for (const entry of Object.values(steps)) {
+      grandTotal += entry[numFieldKey] ?? 0;
+    }
+  }
+  return /* @__PURE__ */ jsxs17("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
+    description && /* @__PURE__ */ jsx18("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
+    /* @__PURE__ */ jsxs17("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
+      visibleEntries.map((key) => {
+        const entry = steps[key];
+        const label = entry.stageName ?? key;
+        const numVal = numFieldKey ? entry[numFieldKey] : void 0;
+        return /* @__PURE__ */ jsxs17("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
+          /* @__PURE__ */ jsx18("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
+          /* @__PURE__ */ jsx18("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
+          numVal !== void 0 && /* @__PURE__ */ jsx18("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
+        ] }, key);
+      }),
+      visibleEntries.length === 0 && /* @__PURE__ */ jsx18("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." }),
+      numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ jsxs17("div", { style: { marginTop: 12, padding: "8px 12px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, fontSize: 12 }, children: [
+        /* @__PURE__ */ jsxs17("span", { style: { color: theme.textMuted }, children: [
+          "Running total (",
+          numFieldKey,
+          "):"
+        ] }),
+        /* @__PURE__ */ jsx18("span", { style: { fontWeight: 700, marginLeft: 8, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
+        /* @__PURE__ */ jsxs17("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
+          "(",
+          visibleEntries.length,
+          " of ",
+          allKeys.length,
+          " steps)"
+        ] })
+      ] }),
+      isAtEnd && numFieldKey && /* @__PURE__ */ jsx18("div", { style: { marginTop: 12 }, children: !showAggregate ? /* @__PURE__ */ jsxs17(
+        "button",
+        {
+          onClick: () => setShowAggregate(true),
+          style: {
+            background: theme.primary,
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            padding: "8px 16px",
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            fontFamily: "inherit"
+          },
+          children: [
+            "Aggregate (",
+            numFieldKey,
+            ")"
+          ]
+        }
+      ) : /* @__PURE__ */ jsxs17("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 6, border: `1px solid ${theme.success}44` }, children: [
+        /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }, children: "Aggregate \u2014 Grand Total" }),
+        /* @__PURE__ */ jsx18("div", { style: { fontSize: 20, fontWeight: 700, color: theme.success }, children: grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1) }),
+        /* @__PURE__ */ jsxs17("div", { style: { fontSize: 10, color: theme.textMuted, marginTop: 2 }, children: [
+          allKeys.length,
+          " steps \xB7 ",
+          numFieldKey
+        ] })
+      ] }) })
+    ] })
+  ] });
+}
 var DetailsContent = memo4(function DetailsContent2({
   snapshots,
   selectedIndex,
@@ -4210,10 +4327,10 @@ function ExplainableShell({
   const allTabs = useMemo11(() => {
     const tabs2 = [
       { id: "result", name: "Result", description: "Final output and console logs" },
-      { id: "memory", name: "Memory", description: "Accumulated shared state at each stage" }
+      { id: "memory", name: "Memory", description: "Accumulator \u2014 progressive shared state at each stage" }
     ];
     if (hasNarrative) {
-      tabs2.push({ id: "narrative", name: "Narrative", description: "What happened, what data flowed, what decisions were made" });
+      tabs2.push({ id: "narrative", name: "Narrative", description: "Translator (SequenceRecorder) \u2014 interleaved flow + data narrative per execution step" });
     }
     for (const v2 of recorderViews ?? []) {
       tabs2.push({ id: v2.id, name: v2.name, description: v2.description });
@@ -4381,17 +4498,15 @@ function ExplainableShell({
     }
     const autoView = autoRecorderViews.find((v2) => v2.id === activeTab);
     if (autoView) {
-      return /* @__PURE__ */ jsxs17("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
-        autoView.description && /* @__PURE__ */ jsx18("div", { style: {
-          padding: "6px 12px",
-          fontSize: 11,
-          color: theme.textMuted,
-          fontStyle: "italic",
-          borderBottom: `1px solid ${theme.border}`,
-          flexShrink: 0
-        }, children: autoView.description }),
-        /* @__PURE__ */ jsx18("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", flex: 1 }, children: typeof autoView.data === "string" ? autoView.data : JSON.stringify(autoView.data, null, 2) })
-      ] });
+      return /* @__PURE__ */ jsx18(
+        KeyedRecorderView,
+        {
+          data: autoView.data,
+          description: autoView.description,
+          snapshots: activeSnapshots,
+          selectedIndex: safeIdx
+        }
+      );
     }
     return null;
   }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, activeNarrative, recorderViews, autoRecorderViews]);

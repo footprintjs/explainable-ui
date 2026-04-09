@@ -260,6 +260,175 @@ const VLinePill = memo(function VLinePill({
 });
 
 // ---------------------------------------------------------------------------
+// KeyedRecorderView — Time-travel aware renderer for auto-detected recorders
+// ---------------------------------------------------------------------------
+
+/**
+ * Detects if data has a keyed-recorder shape: an object property whose keys
+ * contain '#' (runtimeStageId pattern). Returns the steps object or null.
+ */
+function detectKeyedSteps(data: unknown): Record<string, Record<string, unknown>> | null {
+  if (!data || typeof data !== "object") return null;
+  const obj = data as Record<string, unknown>;
+  // Look for a property whose value is an object with runtimeStageId-style keys
+  for (const val of Object.values(obj)) {
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      const keys = Object.keys(val as Record<string, unknown>);
+      if (keys.length > 0 && keys.every((k) => k.includes("#"))) {
+        return val as Record<string, Record<string, unknown>>;
+      }
+    }
+  }
+  return null;
+}
+
+/** Find the first numeric value in an entry (for running totals). */
+function findNumericField(entry: Record<string, unknown>): { key: string; value: number } | null {
+  for (const [k, v] of Object.entries(entry)) {
+    if (typeof v === "number") return { key: k, value: v };
+  }
+  return null;
+}
+
+function KeyedRecorderView({
+  data,
+  description,
+  snapshots,
+  selectedIndex,
+}: {
+  data: unknown;
+  description?: string;
+  snapshots: StageSnapshot[];
+  selectedIndex: number;
+}) {
+  const [showAggregate, setShowAggregate] = useState(false);
+
+  const steps = useMemo(() => detectKeyedSteps(data), [data]);
+
+  // Visible runtimeStageIds up to slider position
+  const visibleIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
+      const id = snapshots[i].runtimeStageId;
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [snapshots, selectedIndex]);
+
+  const isAtEnd = selectedIndex >= snapshots.length - 1;
+
+  if (!steps) {
+    // Fallback: raw JSON for non-keyed data
+    return (
+      <div style={{ padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }}>
+        {typeof data === "string" ? data : JSON.stringify(data, null, 2)}
+      </div>
+    );
+  }
+
+  // Progressive entries (accumulate)
+  const allKeys = Object.keys(steps);
+  const visibleEntries = allKeys.filter((k) => visibleIds.has(k));
+  const numField = allKeys.length > 0 ? findNumericField(steps[allKeys[0]]) : null;
+  const numFieldKey = numField?.key ?? "";
+
+  // Running total
+  let runningTotal = 0;
+  if (numFieldKey) {
+    for (const k of visibleEntries) {
+      runningTotal += (steps[k][numFieldKey] as number) ?? 0;
+    }
+  }
+
+  // Grand total (all entries)
+  let grandTotal = 0;
+  if (numFieldKey) {
+    for (const entry of Object.values(steps)) {
+      grandTotal += (entry[numFieldKey] as number) ?? 0;
+    }
+  }
+
+  return (
+    <div style={{ overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }}>
+      {description && (
+        <div style={{ padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
+          {description}
+        </div>
+      )}
+
+      <div style={{ padding: 12, flex: 1, overflow: "auto" }}>
+        {/* Per-step entries — progressive reveal synced with slider */}
+        {visibleEntries.map((key) => {
+          const entry = steps[key];
+          const label = (entry.stageName as string) ?? key;
+          const numVal = numFieldKey ? (entry[numFieldKey] as number) : undefined;
+          return (
+            <div key={key} style={{ display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }}>
+              <span style={{ color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }}>{key}</span>
+              <span style={{ fontWeight: 600, flex: 1 }}>{label}</span>
+              {numVal !== undefined && (
+                <span style={{ color: theme.primary, fontWeight: 700, marginLeft: 8 }}>
+                  {numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1)}
+                </span>
+              )}
+            </div>
+          );
+        })}
+
+        {visibleEntries.length === 0 && (
+          <div style={{ color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }}>
+            Scrub the slider to reveal entries...
+          </div>
+        )}
+
+        {/* Running total (accumulate) */}
+        {numFieldKey && visibleEntries.length > 0 && (
+          <div style={{ marginTop: 12, padding: "8px 12px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, fontSize: 12 }}>
+            <span style={{ color: theme.textMuted }}>Running total ({numFieldKey}):</span>
+            <span style={{ fontWeight: 700, marginLeft: 8, color: theme.primary }}>
+              {runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1)}
+            </span>
+            <span style={{ color: theme.textMuted, marginLeft: 8, fontSize: 10 }}>
+              ({visibleEntries.length} of {allKeys.length} steps)
+            </span>
+          </div>
+        )}
+
+        {/* Aggregate button — shown at end of time-travel */}
+        {isAtEnd && numFieldKey && (
+          <div style={{ marginTop: 12 }}>
+            {!showAggregate ? (
+              <button
+                onClick={() => setShowAggregate(true)}
+                style={{
+                  background: theme.primary, color: "#fff", border: "none", borderRadius: 6,
+                  padding: "8px 16px", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                Aggregate ({numFieldKey})
+              </button>
+            ) : (
+              <div style={{ padding: "10px 14px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 6, border: `1px solid ${theme.success}44` }}>
+                <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+                  Aggregate — Grand Total
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: theme.success }}>
+                  {grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1)}
+                </div>
+                <div style={{ fontSize: 10, color: theme.textMuted, marginTop: 2 }}>
+                  {allKeys.length} steps &middot; {numFieldKey}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // DetailsContent — Recorder-driven tab switcher (Memory + Narrative are defaults)
 // ---------------------------------------------------------------------------
 
@@ -491,10 +660,10 @@ export function ExplainableShell({
   const allTabs = useMemo(() => {
     const tabs: Array<{ id: string; name: string; description?: string }> = [
       { id: "result", name: "Result", description: "Final output and console logs" },
-      { id: "memory", name: "Memory", description: "Accumulated shared state at each stage" },
+      { id: "memory", name: "Memory", description: "Accumulator — progressive shared state at each stage" },
     ];
     if (hasNarrative) {
-      tabs.push({ id: "narrative", name: "Narrative", description: "What happened, what data flowed, what decisions were made" });
+      tabs.push({ id: "narrative", name: "Narrative", description: "Translator (SequenceRecorder) — interleaved flow + data narrative per execution step" });
     }
     for (const v of recorderViews ?? []) {
       tabs.push({ id: v.id, name: v.name, description: v.description });
@@ -684,27 +853,16 @@ export function ExplainableShell({
     if (customView?.render) {
       return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
     }
-    // Auto-detected recorder view — render with description header + formatted JSON
+    // Auto-detected recorder view — time-travel aware for keyed recorders, JSON fallback
     const autoView = autoRecorderViews.find((v) => v.id === activeTab);
     if (autoView) {
       return (
-        <div style={{ overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }}>
-          {autoView.description && (
-            <div style={{
-              padding: "6px 12px",
-              fontSize: 11,
-              color: theme.textMuted,
-              fontStyle: "italic",
-              borderBottom: `1px solid ${theme.border}`,
-              flexShrink: 0,
-            }}>
-              {autoView.description}
-            </div>
-          )}
-          <div style={{ padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", flex: 1 }}>
-            {typeof autoView.data === "string" ? autoView.data : JSON.stringify(autoView.data, null, 2)}
-          </div>
-        </div>
+        <KeyedRecorderView
+          data={autoView.data}
+          description={autoView.description}
+          snapshots={activeSnapshots}
+          selectedIndex={safeIdx}
+        />
       );
     }
     return null;
