@@ -2278,6 +2278,7 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
   out.push({
     stageName: displayName,
     stageLabel: stageId,
+    runtimeStageId: node.runtimeStageId ?? void 0,
     memory,
     narrative,
     startMs,

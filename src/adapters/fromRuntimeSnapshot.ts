@@ -183,6 +183,7 @@ function flattenTree(
   out.push({
     stageName: displayName,
     stageLabel: stageId,
+    runtimeStageId: (node as any).runtimeStageId ?? undefined,
     memory,
     narrative,
     startMs,

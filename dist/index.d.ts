@@ -7,6 +7,8 @@ interface StageSnapshot {
     stageName: string;
     /** Human-readable label */
     stageLabel: string;
+    /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex. Key for recorder Map lookup. */
+    runtimeStageId?: string;
     /** Accumulated memory state after this stage ran */
     memory: Record<string, unknown>;
     /** Narrative text describing what happened */
