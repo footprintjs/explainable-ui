@@ -264,18 +264,25 @@ const VLinePill = memo(function VLinePill({
 // ---------------------------------------------------------------------------
 
 /**
- * Detects if data has a keyed-recorder shape: an object property whose keys
- * contain '#' (runtimeStageId pattern). Returns the steps object or null.
+ * Detects if data has a keyed-recorder shape: an object property whose values
+ * are objects with at least one numeric field. Returns { steps, keyType }.
+ * keyType: 'runtimeStageId' (keys contain '#') or 'stageName' (plain names).
  */
-function detectKeyedSteps(data: unknown): Record<string, Record<string, unknown>> | null {
+function detectKeyedSteps(data: unknown): { steps: Record<string, Record<string, unknown>>; keyType: "runtimeStageId" | "stageName" } | null {
   if (!data || typeof data !== "object") return null;
   const obj = data as Record<string, unknown>;
-  // Look for a property whose value is an object with runtimeStageId-style keys
   for (const val of Object.values(obj)) {
     if (val && typeof val === "object" && !Array.isArray(val)) {
-      const keys = Object.keys(val as Record<string, unknown>);
-      if (keys.length > 0 && keys.every((k) => k.includes("#"))) {
-        return val as Record<string, Record<string, unknown>>;
+      const entries = Object.entries(val as Record<string, unknown>);
+      if (entries.length === 0) continue;
+      // Check: values must be objects with at least one numeric field
+      const allObjectsWithNumbers = entries.every(([, v]) => {
+        if (!v || typeof v !== "object" || Array.isArray(v)) return false;
+        return Object.values(v as Record<string, unknown>).some((f) => typeof f === "number");
+      });
+      if (allObjectsWithNumbers) {
+        const keyType = entries.some(([k]) => k.includes("#")) ? "runtimeStageId" : "stageName";
+        return { steps: val as Record<string, Record<string, unknown>>, keyType };
       }
     }
   }
@@ -303,21 +310,27 @@ function KeyedRecorderView({
 }) {
   const [showAggregate, setShowAggregate] = useState(false);
 
-  const steps = useMemo(() => detectKeyedSteps(data), [data]);
+  const detected = useMemo(() => detectKeyedSteps(data), [data]);
 
-  // Visible runtimeStageIds up to slider position
-  const visibleIds = useMemo(() => {
-    const ids = new Set<string>();
+  // Visible keys up to slider position — match by runtimeStageId or stageName
+  const visibleKeys = useMemo(() => {
+    const keys = new Set<string>();
     for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
-      const id = snapshots[i].runtimeStageId;
-      if (id) ids.add(id);
+      const snap = snapshots[i];
+      if (detected?.keyType === "runtimeStageId") {
+        if (snap.runtimeStageId) keys.add(snap.runtimeStageId);
+      } else {
+        // Match by stageName or stageLabel
+        if (snap.stageName) keys.add(snap.stageName);
+        if (snap.stageLabel) keys.add(snap.stageLabel);
+      }
     }
-    return ids;
-  }, [snapshots, selectedIndex]);
+    return keys;
+  }, [snapshots, selectedIndex, detected?.keyType]);
 
   const isAtEnd = selectedIndex >= snapshots.length - 1;
 
-  if (!steps) {
+  if (!detected) {
     // Fallback: raw JSON for non-keyed data
     return (
       <div style={{ padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }}>
@@ -326,9 +339,11 @@ function KeyedRecorderView({
     );
   }
 
+  const steps = detected.steps;
+
   // Progressive entries (accumulate)
   const allKeys = Object.keys(steps);
-  const visibleEntries = allKeys.filter((k) => visibleIds.has(k));
+  const visibleEntries = allKeys.filter((k) => visibleKeys.has(k));
   const numField = allKeys.length > 0 ? findNumericField(steps[allKeys[0]]) : null;
   const numFieldKey = numField?.key ?? "";
 

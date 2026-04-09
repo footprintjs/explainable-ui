@@ -4042,9 +4042,15 @@ function detectKeyedSteps(data) {
   const obj = data;
   for (const val of Object.values(obj)) {
     if (val && typeof val === "object" && !Array.isArray(val)) {
-      const keys = Object.keys(val);
-      if (keys.length > 0 && keys.every((k) => k.includes("#"))) {
-        return val;
+      const entries = Object.entries(val);
+      if (entries.length === 0) continue;
+      const allObjectsWithNumbers = entries.every(([, v2]) => {
+        if (!v2 || typeof v2 !== "object" || Array.isArray(v2)) return false;
+        return Object.values(v2).some((f) => typeof f === "number");
+      });
+      if (allObjectsWithNumbers) {
+        const keyType = entries.some(([k]) => k.includes("#")) ? "runtimeStageId" : "stageName";
+        return { steps: val, keyType };
       }
     }
   }
@@ -4063,21 +4069,27 @@ function KeyedRecorderView({
   selectedIndex
 }) {
   const [showAggregate, setShowAggregate] = useState9(false);
-  const steps = useMemo11(() => detectKeyedSteps(data), [data]);
-  const visibleIds = useMemo11(() => {
-    const ids = /* @__PURE__ */ new Set();
+  const detected = useMemo11(() => detectKeyedSteps(data), [data]);
+  const visibleKeys = useMemo11(() => {
+    const keys = /* @__PURE__ */ new Set();
     for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
-      const id = snapshots[i].runtimeStageId;
-      if (id) ids.add(id);
+      const snap = snapshots[i];
+      if (detected?.keyType === "runtimeStageId") {
+        if (snap.runtimeStageId) keys.add(snap.runtimeStageId);
+      } else {
+        if (snap.stageName) keys.add(snap.stageName);
+        if (snap.stageLabel) keys.add(snap.stageLabel);
+      }
     }
-    return ids;
-  }, [snapshots, selectedIndex]);
+    return keys;
+  }, [snapshots, selectedIndex, detected?.keyType]);
   const isAtEnd = selectedIndex >= snapshots.length - 1;
-  if (!steps) {
+  if (!detected) {
     return /* @__PURE__ */ jsx18("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
   }
+  const steps = detected.steps;
   const allKeys = Object.keys(steps);
-  const visibleEntries = allKeys.filter((k) => visibleIds.has(k));
+  const visibleEntries = allKeys.filter((k) => visibleKeys.has(k));
   const numField = allKeys.length > 0 ? findNumericField(steps[allKeys[0]]) : null;
   const numFieldKey = numField?.key ?? "";
   let runningTotal = 0;
