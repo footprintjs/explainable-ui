@@ -11,6 +11,7 @@
 import { useMemo, useState, useCallback } from "react";
 import type { StageSnapshot, NarrativeEntry, BaseComponentProps } from "../../types";
 import { theme, fontSize, padding } from "../../theme";
+import { buildEntryRangeIndex, computeRevealedEntryCount } from "../../utils/narrativeSync";
 import { StoryNarrative } from "../StoryNarrative";
 import { NarrativeTrace } from "../NarrativeTrace";
 
@@ -68,52 +69,18 @@ export function NarrativePanel({
     return Math.max(1, endIdx);
   }, [snapshots.length, selectedIndex, narrative]);
 
-  // Position-based sync: for each snapshot, find the range of entries that belong
-  // to it by matching snapshot stageLabel/stageName against entry stageId/stageName.
-  // Handles loops (same stageId at different positions) correctly because we walk
-  // entries sequentially and consume matches in order.
-  const revealedEntryCount = useMemo(() => {
-    if (!narrativeEntries?.length || snapshots.length === 0) return 0;
+  // Precompute range index once when entries change — O(n) build, then O(1) per slider tick.
+  // Same shape as SequenceRecorder.getEntryRanges() in footprintjs.
+  const rangeIndex = useMemo(
+    () => narrativeEntries?.length ? buildEntryRangeIndex(narrativeEntries) : undefined,
+    [narrativeEntries],
+  );
 
-    // For each snapshot up to selectedIndex, find entries that belong to it.
-    // Walk entries sequentially — each entry is consumed once.
-    let entryIdx = 0;
-    for (let si = 0; si <= selectedIndex && si < snapshots.length; si++) {
-      const snap = snapshots[si];
-      const keys = new Set<string>();
-      if (snap.stageLabel) keys.add(snap.stageLabel);
-      if (snap.stageName) keys.add(snap.stageName);
-      if (snap.subflowId) keys.add(snap.subflowId);
-
-      // Advance past entries that match this snapshot's keys
-      // First, find the start of this snapshot's entries
-      let found = false;
-      for (let j = entryIdx; j < narrativeEntries.length; j++) {
-        const e = narrativeEntries[j] as { stageId?: string; subflowId?: string; stageName?: string };
-        const eKey = e.stageId ?? e.subflowId ?? e.stageName;
-        if (eKey && keys.has(eKey)) {
-          found = true;
-          entryIdx = j;
-          break;
-        }
-        // Entries with no key belong to previous snapshot — include them
-        if (!eKey && !found) {
-          // Keep advancing
-        }
-      }
-
-      if (!found) continue;
-
-      // Now consume all consecutive entries that belong to this snapshot
-      while (entryIdx < narrativeEntries.length) {
-        const e = narrativeEntries[entryIdx] as { stageId?: string; subflowId?: string; stageName?: string };
-        const eKey = e.stageId ?? e.subflowId ?? e.stageName;
-        if (eKey && !keys.has(eKey)) break; // next snapshot's entry
-        entryIdx++;
-      }
-    }
-    return entryIdx;
-  }, [narrativeEntries, snapshots, selectedIndex]);
+  // Exact sync via runtimeStageId — O(selectedIndex) with precomputed index.
+  const revealedEntryCount = useMemo(
+    () => narrativeEntries?.length ? computeRevealedEntryCount(narrativeEntries, snapshots, selectedIndex, rangeIndex) : 0,
+    [narrativeEntries, snapshots, selectedIndex, rangeIndex],
+  );
 
   const hasStructured = narrativeEntries && narrativeEntries.length > 0;
 
@@ -133,14 +100,14 @@ export function NarrativePanel({
     const subflowNames = new Map<string, string>(); // sfId → display name
 
     for (const entry of narrativeEntries) {
-      const sfId = (entry as { subflowId?: string }).subflowId;
+      const sfId = entry.subflowId;
       if (!sfId) {
         root.push(entry);
       } else {
         // Subflow ENTRY markers go in root (show WHEN the subflow ran).
-        // Exit markers ("Done: X") are noise — the next stage implies completion.
+        // Exit markers are noise — the next stage implies completion.
         if (entry.type === "subflow") {
-          const isExit = entry.text.startsWith("Done:") || entry.text.startsWith("Exiting");
+          const isExit = entry.direction === 'exit';
           if (!isExit) {
             root.push(entry);
           }
@@ -172,8 +139,13 @@ export function NarrativePanel({
         // Strip subflow path prefix from stage names inside subflow details.
         // e.g., "[sf-system-prompt/ResolvePrompt]" → "[ResolvePrompt]"
         // The section header already identifies the subflow.
+        // Uses literal string replacement (not regex) to avoid injection from special characters.
         if (opts?.inSubflow) {
-          text = text.replace(new RegExp(`\\[${opts.inSubflow}/`), "[");
+          const prefix = `[${opts.inSubflow}/`;
+          const idx = text.indexOf(prefix);
+          if (idx !== -1) {
+            text = text.slice(0, idx) + "[" + text.slice(idx + prefix.length);
+          }
         }
 
         const isHeading = e.type === "stage" || e.type === "subflow" || e.type === "fork" || e.type === "selector";

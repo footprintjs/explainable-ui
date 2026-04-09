@@ -26,15 +26,24 @@ export interface StageSnapshot {
 
 /** Structured narrative entry — preserves type info for semantic rendering. */
 export interface NarrativeEntry {
-  type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error';
+  type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume';
   text: string;
   depth: number;
   stageName?: string;
   /** Stable stage identifier (matches spec node id). Primary key for UI sync. */
   stageId?: string;
+  /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex.
+   *  Used for exact time-travel sync (preferred over stageId for progressive reveal). */
+  runtimeStageId?: string;
   /** Subflow ID when this entry was generated inside a subflow. */
   subflowId?: string;
+  /** Direction for subflow entries: 'entry' when entering, 'exit' when leaving. */
+  direction?: 'entry' | 'exit';
   stepNumber?: number;
+  /** Scope key that was read or written. Only present on 'step' entries. */
+  key?: string;
+  /** Raw value from the scope event. Only present on 'step' entries. */
+  rawValue?: unknown;
 }
 
 /** Component size variants */

@@ -35,10 +35,13 @@ __export(src_exports, {
   StoryNarrative: () => StoryNarrative,
   SubflowTree: () => SubflowTree,
   TimeTravelControls: () => TimeTravelControls,
+  buildEntryRangeIndex: () => buildEntryRangeIndex,
+  computeRevealedEntryCount: () => computeRevealedEntryCount,
   coolDark: () => coolDark,
   coolLight: () => coolLight,
   createSnapshots: () => createSnapshots,
   defaultTokens: () => defaultTokens,
+  extractSubflowNarrative: () => extractSubflowNarrative,
   rawDefaults: () => rawDefaults,
   subflowResultToSnapshots: () => subflowResultToSnapshots,
   themePresets: () => themePresets,
@@ -2256,6 +2259,81 @@ function TimeTravelControls({
 // src/components/ExplainableShell/ExplainableShell.tsx
 var import_react19 = require("react");
 
+// src/utils/narrativeSync.ts
+function buildEntryRangeIndex(entries) {
+  const ranges = /* @__PURE__ */ new Map();
+  let lastId;
+  for (let i = 0; i < entries.length; i++) {
+    const id = entries[i].runtimeStageId;
+    if (id) {
+      const existing = ranges.get(id);
+      if (!existing) {
+        ranges.set(id, { firstIdx: i, endIdx: i + 1 });
+      } else {
+        existing.endIdx = i + 1;
+      }
+      lastId = id;
+    } else if (lastId) {
+      ranges.get(lastId).endIdx = i + 1;
+    }
+  }
+  return ranges;
+}
+function computeRevealedEntryCount(narrativeEntries, snapshots, selectedIndex, rangeIndex) {
+  if (!narrativeEntries.length || snapshots.length === 0) return 0;
+  if (rangeIndex) {
+    let maxEndIdx = 0;
+    for (let si = 0; si <= selectedIndex && si < snapshots.length; si++) {
+      const targetId = snapshots[si].runtimeStageId;
+      if (!targetId) continue;
+      const range = rangeIndex.get(targetId);
+      if (range && range.endIdx > maxEndIdx) {
+        maxEndIdx = range.endIdx;
+      }
+    }
+    return maxEndIdx;
+  }
+  let entryIdx = 0;
+  for (let si = 0; si <= selectedIndex && si < snapshots.length; si++) {
+    const targetId = snapshots[si].runtimeStageId;
+    if (!targetId) continue;
+    let found = false;
+    for (let j = entryIdx; j < narrativeEntries.length; j++) {
+      if (narrativeEntries[j].runtimeStageId === targetId) {
+        found = true;
+        entryIdx = j;
+        break;
+      }
+    }
+    if (!found) continue;
+    while (entryIdx < narrativeEntries.length) {
+      const eId = narrativeEntries[entryIdx].runtimeStageId;
+      if (eId && eId !== targetId) break;
+      entryIdx++;
+    }
+  }
+  return entryIdx;
+}
+function extractSubflowNarrative(entries, subflowId, subflowName) {
+  const prefix = subflowId + "/";
+  const byPrefix = entries.filter((e) => e.stageName?.startsWith(prefix));
+  if (byPrefix.length > 0) return byPrefix;
+  const byId = entries.filter((e) => e.subflowId === subflowId);
+  if (byId.length > 0) return byId;
+  const result = [];
+  const searchName = subflowName ?? subflowId;
+  let inside = false;
+  for (const entry of entries) {
+    if (entry.type === "subflow" && entry.direction === "entry" && entry.stageName === searchName) {
+      inside = true;
+      continue;
+    }
+    if (inside && entry.type === "subflow" && entry.direction === "exit" && entry.stageName === searchName) break;
+    if (inside) result.push(entry);
+  }
+  return result;
+}
+
 // src/adapters/fromRuntimeSnapshot.ts
 function toVisualizationSnapshots(runtime, narrativeEntries) {
   const stageNarrativeMap = narrativeEntries?.length ? buildStageNarrativeMap(narrativeEntries) : /* @__PURE__ */ new Map();
@@ -2684,37 +2762,14 @@ function NarrativePanel({
     const endIdx = groupsToShow < stageBoundaries.length ? stageBoundaries[groupsToShow] : narrative.length;
     return Math.max(1, endIdx);
   }, [snapshots.length, selectedIndex, narrative]);
-  const revealedEntryCount = (0, import_react12.useMemo)(() => {
-    if (!narrativeEntries?.length || snapshots.length === 0) return 0;
-    let entryIdx = 0;
-    for (let si = 0; si <= selectedIndex && si < snapshots.length; si++) {
-      const snap = snapshots[si];
-      const keys = /* @__PURE__ */ new Set();
-      if (snap.stageLabel) keys.add(snap.stageLabel);
-      if (snap.stageName) keys.add(snap.stageName);
-      if (snap.subflowId) keys.add(snap.subflowId);
-      let found = false;
-      for (let j = entryIdx; j < narrativeEntries.length; j++) {
-        const e = narrativeEntries[j];
-        const eKey = e.stageId ?? e.subflowId ?? e.stageName;
-        if (eKey && keys.has(eKey)) {
-          found = true;
-          entryIdx = j;
-          break;
-        }
-        if (!eKey && !found) {
-        }
-      }
-      if (!found) continue;
-      while (entryIdx < narrativeEntries.length) {
-        const e = narrativeEntries[entryIdx];
-        const eKey = e.stageId ?? e.subflowId ?? e.stageName;
-        if (eKey && !keys.has(eKey)) break;
-        entryIdx++;
-      }
-    }
-    return entryIdx;
-  }, [narrativeEntries, snapshots, selectedIndex]);
+  const rangeIndex = (0, import_react12.useMemo)(
+    () => narrativeEntries?.length ? buildEntryRangeIndex(narrativeEntries) : void 0,
+    [narrativeEntries]
+  );
+  const revealedEntryCount = (0, import_react12.useMemo)(
+    () => narrativeEntries?.length ? computeRevealedEntryCount(narrativeEntries, snapshots, selectedIndex, rangeIndex) : 0,
+    [narrativeEntries, snapshots, selectedIndex, rangeIndex]
+  );
   const hasStructured = narrativeEntries && narrativeEntries.length > 0;
   const [copied, setCopied] = (0, import_react12.useState)(false);
   const buildLLMNarrative = (0, import_react12.useCallback)(() => {
@@ -2730,7 +2785,7 @@ function NarrativePanel({
         root.push(entry);
       } else {
         if (entry.type === "subflow") {
-          const isExit = entry.text.startsWith("Done:") || entry.text.startsWith("Exiting");
+          const isExit = entry.direction === "exit";
           if (!isExit) {
             root.push(entry);
           }
@@ -2750,7 +2805,11 @@ function NarrativePanel({
         if (opts?.inSubflow && e.type === "subflow") continue;
         let text = e.text;
         if (opts?.inSubflow) {
-          text = text.replace(new RegExp(`\\[${opts.inSubflow}/`), "[");
+          const prefix = `[${opts.inSubflow}/`;
+          const idx = text.indexOf(prefix);
+          if (idx !== -1) {
+            text = text.slice(0, idx) + "[" + text.slice(idx + prefix.length);
+          }
         }
         const isHeading = e.type === "stage" || e.type === "subflow" || e.type === "fork" || e.type === "selector";
         if (isHeading) {
@@ -4050,6 +4109,12 @@ var DetailsContent = (0, import_react19.memo)(function DetailsContent2({
   ];
   const allViews = [...builtInViews, ...extraViews ?? []];
   const [activeViewId, setActiveViewId] = (0, import_react19.useState)(allViews[0]?.id ?? "memory");
+  const viewIds = allViews.map((v2) => v2.id).join(",");
+  (0, import_react19.useEffect)(() => {
+    if (!allViews.find((v2) => v2.id === activeViewId)) {
+      setActiveViewId(allViews[0]?.id ?? "memory");
+    }
+  }, [viewIds]);
   const activeView = allViews.find((v2) => v2.id === activeViewId) ?? allViews[0];
   return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
     /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
@@ -4099,25 +4164,6 @@ function resolveSubflowLevel(parentSpec, parentSnapshots, subflowNodeName, narra
     spec: specNode.subflowStructure,
     snapshots: sfSnapshots
   };
-}
-function extractSubflowNarrative(entries, subflowId, subflowName) {
-  const prefix = subflowId + "/";
-  const byPrefix = entries.filter((e) => e.stageName?.startsWith(prefix));
-  if (byPrefix.length > 0) return byPrefix;
-  const byId = entries.filter((e) => e.subflowId === subflowId);
-  if (byId.length > 0) return byId;
-  const result = [];
-  const searchName = subflowName ?? subflowId;
-  let inside = false;
-  for (const entry of entries) {
-    if (entry.type === "subflow" && entry.text.includes(searchName) && entry.text.startsWith("Entering")) {
-      inside = true;
-      continue;
-    }
-    if (inside && entry.type === "subflow" && entry.text.includes(searchName) && entry.text.startsWith("Exiting")) break;
-    if (inside) result.push(entry);
-  }
-  return result;
 }
 function findSubflowSpecNode(node, name) {
   if ((node.name === name || node.id === name) && node.isSubflowRoot) return node;
@@ -4207,22 +4253,22 @@ function ExplainableShell({
     const recorders = runtimeSnapshot?.recorders;
     if (!recorders?.length) return [];
     const explicitIds = new Set((recorderViews ?? []).map((v2) => v2.id));
-    return recorders.filter((r) => !explicitIds.has(r.id)).map((r) => ({ id: r.id, name: r.name, data: r.data }));
+    return recorders.filter((r) => !explicitIds.has(r.id)).map((r) => ({ id: r.id, name: r.name, description: r.description, data: r.data }));
   }, [runtimeSnapshot, recorderViews]);
   const hasNarrative = !!(narrative?.length || narrativeEntries?.length);
   const allTabs = (0, import_react19.useMemo)(() => {
     const tabs2 = [
-      { id: "result", name: "Result" },
-      { id: "memory", name: "Memory" }
+      { id: "result", name: "Result", description: "Final output and console logs" },
+      { id: "memory", name: "Memory", description: "Accumulated shared state at each stage" }
     ];
     if (hasNarrative) {
-      tabs2.push({ id: "narrative", name: "Narrative" });
+      tabs2.push({ id: "narrative", name: "Narrative", description: "What happened, what data flowed, what decisions were made" });
     }
     for (const v2 of recorderViews ?? []) {
-      tabs2.push({ id: v2.id, name: v2.name });
+      tabs2.push({ id: v2.id, name: v2.name, description: v2.description });
     }
     for (const v2 of autoRecorderViews) {
-      tabs2.push({ id: v2.id, name: v2.name });
+      tabs2.push({ id: v2.id, name: v2.name, description: v2.description });
     }
     const hideSet = new Set(hideTabsProp ?? []);
     return hideSet.size > 0 ? tabs2.filter((t) => !hideSet.has(t.id)) : tabs2;
@@ -4384,7 +4430,17 @@ function ExplainableShell({
     }
     const autoView = autoRecorderViews.find((v2) => v2.id === activeTab);
     if (autoView) {
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof autoView.data === "string" ? autoView.data : JSON.stringify(autoView.data, null, 2) });
+      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
+        autoView.description && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: {
+          padding: "6px 12px",
+          fontSize: 11,
+          color: theme.textMuted,
+          fontStyle: "italic",
+          borderBottom: `1px solid ${theme.border}`,
+          flexShrink: 0
+        }, children: autoView.description }),
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", flex: 1 }, children: typeof autoView.data === "string" ? autoView.data : JSON.stringify(autoView.data, null, 2) })
+      ] });
     }
     return null;
   }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, activeNarrative, recorderViews, autoRecorderViews]);
@@ -4401,6 +4457,7 @@ function ExplainableShell({
         "button",
         {
           onClick: () => handleTabChange(tab.id),
+          title: tab.description,
           style: {
             padding: "6px 14px",
             fontSize: 11,
@@ -4535,10 +4592,13 @@ function ExplainableShell({
   StoryNarrative,
   SubflowTree,
   TimeTravelControls,
+  buildEntryRangeIndex,
+  computeRevealedEntryCount,
   coolDark,
   coolLight,
   createSnapshots,
   defaultTokens,
+  extractSubflowNarrative,
   rawDefaults,
   subflowResultToSnapshots,
   themePresets,

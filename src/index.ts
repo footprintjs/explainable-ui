@@ -56,3 +56,7 @@ export type { SubflowTreeProps, SubflowTreeEntry } from "./components/FlowchartV
 // Adapters
 export { toVisualizationSnapshots, createSnapshots, subflowResultToSnapshots } from "./adapters/fromRuntimeSnapshot";
 export type { NarrativeEntry as AdapterNarrativeEntry } from "./adapters/fromRuntimeSnapshot";
+
+// Utilities — narrative sync, subflow extraction
+export { buildEntryRangeIndex, computeRevealedEntryCount, extractSubflowNarrative } from "./utils/narrativeSync";
+export type { EntryRangeIndex } from "./utils/narrativeSync";

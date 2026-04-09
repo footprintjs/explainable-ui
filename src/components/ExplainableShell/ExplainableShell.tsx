@@ -13,6 +13,7 @@
 import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme } from "../../theme";
+import { extractSubflowNarrative } from "../../utils/narrativeSync";
 import { toVisualizationSnapshots, subflowResultToSnapshots } from "../../adapters/fromRuntimeSnapshot";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
@@ -82,6 +83,9 @@ export interface RecorderView {
   id: string;
   /** Display label on the tab */
   name: string;
+  /** Short description shown as tooltip and header for auto-detected views.
+   *  e.g., "Per-step timing and I/O counts (KeyedRecorder)" */
+  description?: string;
   /**
    * Render function — receives the current snapshot index and all snapshots.
    * Return a React node to display in the details panel.
@@ -296,6 +300,14 @@ const DetailsContent = memo(function DetailsContent({
 
   const allViews = [...builtInViews, ...(extraViews ?? [])];
   const [activeViewId, setActiveViewId] = useState(allViews[0]?.id ?? "memory");
+
+  // Reset tab when available views change (e.g., recorder toggled on/off)
+  const viewIds = allViews.map((v) => v.id).join(",");
+  useEffect(() => {
+    if (!allViews.find((v) => v.id === activeViewId)) {
+      setActiveViewId(allViews[0]?.id ?? "memory");
+    }
+  }, [viewIds]); // eslint-disable-line react-hooks/exhaustive-deps
   const activeView = allViews.find((v) => v.id === activeViewId) ?? allViews[0];
 
   return (
@@ -362,29 +374,6 @@ function resolveSubflowLevel(
     spec: specNode.subflowStructure,
     snapshots: sfSnapshots,
   };
-}
-
-function extractSubflowNarrative(entries: NarrativeEntry[], subflowId: string, subflowName?: string): NarrativeEntry[] {
-  // Primary: filter by stageName prefix (e.g., "auth/Validate Token" starts with "auth/")
-  // This works reliably even for parallel subflows (no shared stack corruption)
-  const prefix = subflowId + "/";
-  const byPrefix = entries.filter((e) => e.stageName?.startsWith(prefix));
-  if (byPrefix.length > 0) return byPrefix;
-
-  // Fallback: structured subflowId field (from CombinedNarrativeRecorder stack tagging)
-  const byId = entries.filter((e) => (e as any).subflowId === subflowId);
-  if (byId.length > 0) return byId;
-
-  // Last resort: scan for Entering/Exiting text markers
-  const result: NarrativeEntry[] = [];
-  const searchName = subflowName ?? subflowId;
-  let inside = false;
-  for (const entry of entries) {
-    if (entry.type === "subflow" && entry.text.includes(searchName) && entry.text.startsWith("Entering")) { inside = true; continue; }
-    if (inside && entry.type === "subflow" && entry.text.includes(searchName) && entry.text.startsWith("Exiting")) break;
-    if (inside) result.push(entry);
-  }
-  return result;
 }
 
 function findSubflowSpecNode(node: SpecNode, name: string): SpecNode | null {
@@ -487,31 +476,31 @@ export function ExplainableShell({
 
   // Auto-detect recorder views from runtimeSnapshot.recorders
   const autoRecorderViews = useMemo(() => {
-    const recorders = (runtimeSnapshot as any)?.recorders as Array<{ id: string; name: string; data: unknown }> | undefined;
+    const recorders = (runtimeSnapshot as any)?.recorders as Array<{ id: string; name: string; description?: string; data: unknown }> | undefined;
     if (!recorders?.length) return [];
     // Don't auto-generate for IDs that have explicit recorderViews
     const explicitIds = new Set((recorderViews ?? []).map((v) => v.id));
     return recorders
       .filter((r) => !explicitIds.has(r.id))
-      .map((r) => ({ id: r.id, name: r.name, data: r.data }));
+      .map((r) => ({ id: r.id, name: r.name, description: r.description, data: r.data }));
   }, [runtimeSnapshot, recorderViews]);
 
   // Build tab list: Result + Memory (always), Narrative (when data exists),
   // explicit recorder views, auto-detected recorder views
   const hasNarrative = !!(narrative?.length || narrativeEntries?.length);
   const allTabs = useMemo(() => {
-    const tabs: Array<{ id: string; name: string }> = [
-      { id: "result", name: "Result" },
-      { id: "memory", name: "Memory" },
+    const tabs: Array<{ id: string; name: string; description?: string }> = [
+      { id: "result", name: "Result", description: "Final output and console logs" },
+      { id: "memory", name: "Memory", description: "Accumulated shared state at each stage" },
     ];
     if (hasNarrative) {
-      tabs.push({ id: "narrative", name: "Narrative" });
+      tabs.push({ id: "narrative", name: "Narrative", description: "What happened, what data flowed, what decisions were made" });
     }
     for (const v of recorderViews ?? []) {
-      tabs.push({ id: v.id, name: v.name });
+      tabs.push({ id: v.id, name: v.name, description: v.description });
     }
     for (const v of autoRecorderViews) {
-      tabs.push({ id: v.id, name: v.name });
+      tabs.push({ id: v.id, name: v.name, description: v.description });
     }
     // Filter hidden tabs
     const hideSet = new Set(hideTabsProp ?? []);
@@ -695,12 +684,26 @@ export function ExplainableShell({
     if (customView?.render) {
       return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
     }
-    // Auto-detected recorder view — render as formatted JSON
+    // Auto-detected recorder view — render with description header + formatted JSON
     const autoView = autoRecorderViews.find((v) => v.id === activeTab);
     if (autoView) {
       return (
-        <div style={{ padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }}>
-          {typeof autoView.data === "string" ? autoView.data : JSON.stringify(autoView.data, null, 2)}
+        <div style={{ overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }}>
+          {autoView.description && (
+            <div style={{
+              padding: "6px 12px",
+              fontSize: 11,
+              color: theme.textMuted,
+              fontStyle: "italic",
+              borderBottom: `1px solid ${theme.border}`,
+              flexShrink: 0,
+            }}>
+              {autoView.description}
+            </div>
+          )}
+          <div style={{ padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", flex: 1 }}>
+            {typeof autoView.data === "string" ? autoView.data : JSON.stringify(autoView.data, null, 2)}
+          </div>
         </div>
       );
     }
@@ -724,6 +727,7 @@ export function ExplainableShell({
             <button
               key={tab.id}
               onClick={() => handleTabChange(tab.id as ShellTab)}
+              title={tab.description}
               style={{
                 padding: "6px 14px",
                 fontSize: 11,

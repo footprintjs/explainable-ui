@@ -28,15 +28,24 @@ interface StageSnapshot {
 }
 /** Structured narrative entry — preserves type info for semantic rendering. */
 interface NarrativeEntry {
-    type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error';
+    type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume';
     text: string;
     depth: number;
     stageName?: string;
     /** Stable stage identifier (matches spec node id). Primary key for UI sync. */
     stageId?: string;
+    /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex.
+     *  Used for exact time-travel sync (preferred over stageId for progressive reveal). */
+    runtimeStageId?: string;
     /** Subflow ID when this entry was generated inside a subflow. */
     subflowId?: string;
+    /** Direction for subflow entries: 'entry' when entering, 'exit' when leaving. */
+    direction?: 'entry' | 'exit';
     stepNumber?: number;
+    /** Scope key that was read or written. Only present on 'step' entries. */
+    key?: string;
+    /** Raw value from the scope event. Only present on 'step' entries. */
+    rawValue?: unknown;
 }
 /** Component size variants */
 type Size = "compact" | "default" | "detailed";
@@ -375,6 +384,9 @@ interface RecorderView {
     id: string;
     /** Display label on the tab */
     name: string;
+    /** Short description shown as tooltip and header for auto-detected views.
+     *  e.g., "Per-step timing and I/O counts (KeyedRecorder)" */
+    description?: string;
     /**
      * Render function — receives the current snapshot index and all snapshots.
      * Return a React node to display in the details panel.
@@ -565,4 +577,63 @@ declare function createSnapshots(stages: Array<{
     subflowId?: string;
 }>): StageSnapshot[];
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type DarkModeTokensOptions, type DefaultExpanded, type DiffEntry, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, coolDark, coolLight, createSnapshots, defaultTokens, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
+/**
+ * Narrative sync utilities — shared logic for mapping timeline position
+ * to narrative entries. Used by NarrativePanel and available to consumers
+ * building custom visualization shells.
+ */
+
+/**
+ * Range index: runtimeStageId → half-open range [firstIdx, endIdx) in entries array.
+ *
+ * This is the same shape as `SequenceRecorder.getEntryRanges()` in footprintjs.
+ * When you have recorder access, pass `recorder.getEntryRanges()` directly.
+ * When you only have the flat array, use `buildEntryRangeIndex()` to build it.
+ */
+type EntryRangeIndex = ReadonlyMap<string, {
+    readonly firstIdx: number;
+    readonly endIdx: number;
+}>;
+/**
+ * Build a range index from a flat entries array for O(1) per-step lookups.
+ * Equivalent to `SequenceRecorder.getEntryRanges()` but works on detached arrays.
+ *
+ * Call once when narrativeEntries changes, then pass to `computeRevealedEntryCount`.
+ *
+ * @param entries — structured entries (from CombinedNarrativeRecorder.getEntries() or getNarrativeEntries())
+ * @returns range index for fast slider sync
+ */
+declare function buildEntryRangeIndex(entries: Pick<NarrativeEntry, "runtimeStageId">[]): EntryRangeIndex;
+/**
+ * Compute how many narrative entries to reveal at a given slider position.
+ *
+ * **With range index (preferred):** O(selectedIndex) — one Map lookup per snapshot.
+ * **Without index (convenience):** O(entries) forward scan.
+ *
+ * The range index can come from:
+ * - `SequenceRecorder.getEntryRanges()` (when you have recorder access)
+ * - `buildEntryRangeIndex(entries)` (when you only have the flat array)
+ *
+ * @param narrativeEntries — structured entries from CombinedNarrativeRecorder
+ * @param snapshots — execution timeline (from adapter)
+ * @param selectedIndex — current slider position (0-based)
+ * @param rangeIndex — optional precomputed range index for O(1) lookups
+ * @returns number of entries to reveal (0 to narrativeEntries.length)
+ */
+declare function computeRevealedEntryCount(narrativeEntries: NarrativeEntry[], snapshots: Pick<StageSnapshot, "runtimeStageId">[], selectedIndex: number, rangeIndex?: EntryRangeIndex): number;
+/**
+ * Extract narrative entries belonging to a specific subflow.
+ *
+ * Three-tier matching (most reliable first):
+ * 1. `stageName` prefix match (e.g., entries with `stageName` starting with `"sf-pay/"`)
+ * 2. `subflowId` field match
+ * 3. `direction` field on subflow entry/exit markers (renderer-agnostic)
+ *
+ * @param entries — all narrative entries from the execution
+ * @param subflowId — subflow identifier to extract
+ * @param subflowName — optional display name for fallback matching
+ * @returns entries belonging to the subflow
+ */
+declare function extractSubflowNarrative(entries: NarrativeEntry[], subflowId: string, subflowName?: string): NarrativeEntry[];
+
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type DarkModeTokensOptions, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, buildEntryRangeIndex, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
