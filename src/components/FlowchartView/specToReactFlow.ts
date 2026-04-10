@@ -8,6 +8,7 @@
  *
  * `specToReactFlow(spec, overlay)` combines both for convenience.
  */
+import { MarkerType } from "@xyflow/react";
 import type { Node, Edge } from "@xyflow/react";
 import { rawDefaults } from "../../theme/tokens";
 
@@ -309,7 +310,8 @@ export function applyOverlay(
         targetHandle: "loop-target",
         label: le.label ?? "loop",
         type: "smoothstep",
-        pathOptions: { offset: 40, borderRadius: 16 },
+        pathOptions: { offset: 100, borderRadius: 24 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: c.edgeLoop, width: 16, height: 16 },
         style: {
           stroke: c.edgeLoop,
           strokeWidth: loopExecuted ? 3 : 2,

@@ -691,10 +691,11 @@ function FlowchartView({
 }
 
 // src/components/FlowchartView/TracedFlowchartView.tsx
-var import_react7 = require("react");
-var import_react8 = require("@xyflow/react");
+var import_react8 = require("react");
+var import_react9 = require("@xyflow/react");
 
 // src/components/FlowchartView/specToReactFlow.ts
+var import_react7 = require("@xyflow/react");
 var DEFAULT_COLORS = {
   edgeDefault: rawDefaults.colors.textMuted,
   edgeExecuted: rawDefaults.colors.success,
@@ -852,7 +853,8 @@ function applyOverlay(layout, overlay, colors) {
         targetHandle: "loop-target",
         label: le.label ?? "loop",
         type: "smoothstep",
-        pathOptions: { offset: 40, borderRadius: 16 },
+        pathOptions: { offset: 100, borderRadius: 24 },
+        markerEnd: { type: import_react7.MarkerType.ArrowClosed, color: c.edgeLoop, width: 16, height: 16 },
         style: {
           stroke: c.edgeLoop,
           strokeWidth: loopExecuted ? 3 : 2,
@@ -912,8 +914,8 @@ function specToReactFlow(spec, overlay, colors) {
 var import_jsx_runtime4 = require("react/jsx-runtime");
 var defaultNodeTypes = { stage: StageNode };
 function FitViewOnResize() {
-  const { fitView } = (0, import_react8.useReactFlow)();
-  (0, import_react7.useEffect)(() => {
+  const { fitView } = (0, import_react9.useReactFlow)();
+  (0, import_react8.useEffect)(() => {
     const handler = () => {
       requestAnimationFrame(() => fitView({ padding: 0.3 }));
     };
@@ -937,7 +939,7 @@ function TracedFlowchartView({
   style
 }) {
   const nodeTypes2 = customNodeTypes ?? defaultNodeTypes;
-  const overlay = (0, import_react7.useMemo)(() => {
+  const overlay = (0, import_react8.useMemo)(() => {
     if (!snapshots || snapshots.length === 0) return void 0;
     const executionOrder = snapshots.slice(0, snapshotIndex + 1).map((s) => s.stageLabel);
     const doneStages = new Set(
@@ -948,21 +950,21 @@ function TracedFlowchartView({
     if (activeStage) executedStages.add(activeStage);
     return { doneStages, activeStage, executedStages, executionOrder };
   }, [snapshots, snapshotIndex]);
-  const layout = (0, import_react7.useMemo)(() => {
+  const layout = (0, import_react8.useMemo)(() => {
     if (!spec) return null;
     return specToLayout(spec);
   }, [spec]);
-  const flowData = (0, import_react7.useMemo)(() => {
+  const flowData = (0, import_react8.useMemo)(() => {
     if (!layout) return { nodes: [], edges: [] };
     return applyOverlay(layout, overlay);
   }, [layout, overlay]);
-  const [nodes, setNodes, onNodesChange] = (0, import_react8.useNodesState)(flowData.nodes);
-  const [edges, setEdges, onEdgesChange] = (0, import_react8.useEdgesState)(flowData.edges);
-  (0, import_react7.useEffect)(() => {
+  const [nodes, setNodes, onNodesChange] = (0, import_react9.useNodesState)(flowData.nodes);
+  const [edges, setEdges, onEdgesChange] = (0, import_react9.useEdgesState)(flowData.edges);
+  (0, import_react8.useEffect)(() => {
     setNodes(flowData.nodes);
     setEdges(flowData.edges);
   }, [flowData, setNodes, setEdges]);
-  const handleNodeClick = (0, import_react7.useCallback)(
+  const handleNodeClick = (0, import_react8.useCallback)(
     (_, node) => {
       if (!onNodeClick) return;
       onNodeClick(node.id);
@@ -976,7 +978,7 @@ function TracedFlowchartView({
       style: { width: "100%", height: "100%", ...style },
       "data-fp": "traced-flowchart",
       children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
-        import_react8.ReactFlow,
+        import_react9.ReactFlow,
         {
           nodes,
           edges,
@@ -997,7 +999,7 @@ function TracedFlowchartView({
           elementsSelectable: !!onNodeClick,
           children: [
             /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(FitViewOnResize, {}),
-            !unstyled && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(import_react8.Background, { variant: import_react8.BackgroundVariant.Dots, gap: 16, size: 1 })
+            !unstyled && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(import_react9.Background, { variant: import_react9.BackgroundVariant.Dots, gap: 16, size: 1 })
           ]
         }
       )
@@ -1006,9 +1008,9 @@ function TracedFlowchartView({
 }
 
 // src/components/FlowchartView/SubflowBreadcrumb.tsx
-var import_react9 = require("react");
+var import_react10 = require("react");
 var import_jsx_runtime5 = require("react/jsx-runtime");
-var SubflowBreadcrumb = (0, import_react9.memo)(function SubflowBreadcrumb2({
+var SubflowBreadcrumb = (0, import_react10.memo)(function SubflowBreadcrumb2({
   breadcrumbs,
   onNavigate
 }) {
@@ -1089,15 +1091,15 @@ var SubflowBreadcrumb = (0, import_react9.memo)(function SubflowBreadcrumb2({
 });
 
 // src/components/FlowchartView/useSubflowNavigation.ts
-var import_react10 = require("react");
+var import_react11 = require("react");
 function useSubflowNavigation(rootSpec, overlay, colors) {
-  const [stack, setStack] = (0, import_react10.useState)([]);
+  const [stack, setStack] = (0, import_react11.useState)([]);
   const currentSpec = stack.length > 0 ? stack[stack.length - 1].spec : rootSpec;
-  const { nodes, edges } = (0, import_react10.useMemo)(() => {
+  const { nodes, edges } = (0, import_react11.useMemo)(() => {
     if (!currentSpec) return { nodes: [], edges: [] };
     return specToReactFlow(currentSpec, overlay, colors);
   }, [currentSpec, overlay, colors]);
-  const subflowMap = (0, import_react10.useMemo)(() => {
+  const subflowMap = (0, import_react11.useMemo)(() => {
     const map = /* @__PURE__ */ new Map();
     if (!currentSpec) return map;
     function collectSubflows(node) {
@@ -1111,7 +1113,7 @@ function useSubflowNavigation(rootSpec, overlay, colors) {
     collectSubflows(currentSpec);
     return map;
   }, [currentSpec]);
-  const breadcrumbs = (0, import_react10.useMemo)(() => {
+  const breadcrumbs = (0, import_react11.useMemo)(() => {
     const root = {
       label: rootSpec?.name || "Flowchart",
       spec: rootSpec,
@@ -1119,7 +1121,7 @@ function useSubflowNavigation(rootSpec, overlay, colors) {
     };
     return [root, ...stack];
   }, [rootSpec, stack]);
-  const handleNodeClick = (0, import_react10.useCallback)(
+  const handleNodeClick = (0, import_react11.useCallback)(
     (nodeId) => {
       const subflowNode = subflowMap.get(nodeId);
       if (!subflowNode?.subflowStructure) return false;
@@ -1135,7 +1137,7 @@ function useSubflowNavigation(rootSpec, overlay, colors) {
     },
     [subflowMap]
   );
-  const navigateTo = (0, import_react10.useCallback)(
+  const navigateTo = (0, import_react11.useCallback)(
     (level) => {
       if (level === 0) {
         setStack([]);
@@ -1157,7 +1159,7 @@ function useSubflowNavigation(rootSpec, overlay, colors) {
 }
 
 // src/components/FlowchartView/SubflowTree.tsx
-var import_react11 = require("react");
+var import_react12 = require("react");
 var import_jsx_runtime6 = require("react/jsx-runtime");
 function specToTree(node) {
   if (!node) return [];
@@ -1190,18 +1192,18 @@ function specToTree(node) {
   walk(node);
   return entries;
 }
-var TreeNode = (0, import_react11.memo)(function TreeNode2({
+var TreeNode = (0, import_react12.memo)(function TreeNode2({
   entry,
   depth,
   activeStage,
   doneStages,
   onNodeSelect
 }) {
-  const [expanded, setExpanded] = (0, import_react11.useState)(true);
+  const [expanded, setExpanded] = (0, import_react12.useState)(true);
   const hasChildren = entry.children && entry.children.length > 0;
   const isActive = activeStage === entry.name;
   const isDone = doneStages?.has(entry.name);
-  const handleClick = (0, import_react11.useCallback)(() => {
+  const handleClick = (0, import_react12.useCallback)(() => {
     if (hasChildren) {
       setExpanded((prev) => !prev);
     }
@@ -1314,7 +1316,7 @@ var TreeNode = (0, import_react11.memo)(function TreeNode2({
     )) })
   ] });
 });
-var SectionLabel = (0, import_react11.memo)(function SectionLabel2({ children }) {
+var SectionLabel = (0, import_react12.memo)(function SectionLabel2({ children }) {
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
     "div",
     {
@@ -1330,7 +1332,7 @@ var SectionLabel = (0, import_react11.memo)(function SectionLabel2({ children })
     }
   );
 });
-var SubflowTree = (0, import_react11.memo)(function SubflowTree2({
+var SubflowTree = (0, import_react12.memo)(function SubflowTree2({
   spec,
   activeStage,
   doneStages,
@@ -1339,8 +1341,8 @@ var SubflowTree = (0, import_react11.memo)(function SubflowTree2({
   className,
   style
 }) {
-  const tree = (0, import_react11.useMemo)(() => specToTree(spec), [spec]);
-  const subflowStages = (0, import_react11.useMemo)(() => tree.filter((e) => e.isSubflow), [tree]);
+  const tree = (0, import_react12.useMemo)(() => specToTree(spec), [spec]);
+  const subflowStages = (0, import_react12.useMemo)(() => tree.filter((e) => e.isSubflow), [tree]);
   if (subflowStages.length === 0) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
     "div",
@@ -1378,10 +1380,10 @@ var SubflowTree = (0, import_react11.memo)(function SubflowTree2({
 });
 
 // src/components/TimeTravelDebugger/TimeTravelDebugger.tsx
-var import_react15 = require("react");
+var import_react16 = require("react");
 
 // src/components/MemoryInspector/MemoryInspector.tsx
-var import_react12 = require("react");
+var import_react13 = require("react");
 var import_jsx_runtime7 = require("react/jsx-runtime");
 function MemoryInspector({
   data,
@@ -1394,8 +1396,8 @@ function MemoryInspector({
   className,
   style
 }) {
-  const cacheRef = (0, import_react12.useRef)(null);
-  const { memory, newKeys } = (0, import_react12.useMemo)(() => {
+  const cacheRef = (0, import_react13.useRef)(null);
+  const { memory, newKeys } = (0, import_react13.useMemo)(() => {
     if (data) {
       return { memory: data, newKeys: /* @__PURE__ */ new Set() };
     }
@@ -1557,7 +1559,7 @@ function formatValue(value) {
 }
 
 // src/components/NarrativeLog/NarrativeLog.tsx
-var import_react13 = require("react");
+var import_react14 = require("react");
 var import_jsx_runtime8 = require("react/jsx-runtime");
 function NarrativeLog({
   snapshots,
@@ -1568,7 +1570,7 @@ function NarrativeLog({
   className,
   style
 }) {
-  const entries = (0, import_react13.useMemo)(() => {
+  const entries = (0, import_react14.useMemo)(() => {
     if (narrative) {
       return [{ label: "Output", text: narrative, isCurrent: true }];
     }
@@ -1690,7 +1692,7 @@ function NarrativeLog({
 }
 
 // src/components/GanttTimeline/GanttTimeline.tsx
-var import_react14 = require("react");
+var import_react15 = require("react");
 var import_jsx_runtime9 = require("react/jsx-runtime");
 function GanttTimeline({
   snapshots,
@@ -1702,10 +1704,10 @@ function GanttTimeline({
   style,
   maxVisibleRows = 5
 }) {
-  const [expanded, setExpanded] = (0, import_react14.useState)(false);
-  const activeRowRef = (0, import_react14.useRef)(null);
-  const scrollContainerRef = (0, import_react14.useRef)(null);
-  const totalWallTime = (0, import_react14.useMemo)(
+  const [expanded, setExpanded] = (0, import_react15.useState)(false);
+  const activeRowRef = (0, import_react15.useRef)(null);
+  const scrollContainerRef = (0, import_react15.useRef)(null);
+  const totalWallTime = (0, import_react15.useMemo)(
     () => Math.max(...snapshots.map((s) => s.startMs + s.durationMs), 1),
     [snapshots]
   );
@@ -1716,7 +1718,7 @@ function GanttTimeline({
   const rowHeight = size === "compact" ? 18 : 22;
   const collapsible = maxVisibleRows > 0 && snapshots.length > maxVisibleRows;
   const showAll = expanded || !collapsible;
-  (0, import_react14.useEffect)(() => {
+  (0, import_react15.useEffect)(() => {
     if (!showAll && activeRowRef.current && scrollContainerRef.current) {
       activeRowRef.current.scrollIntoView({
         block: "nearest",
@@ -1949,7 +1951,7 @@ function TimeTravelDebugger({
   className,
   style
 }) {
-  const [selectedIndex, setSelectedIndex] = (0, import_react15.useState)(0);
+  const [selectedIndex, setSelectedIndex] = (0, import_react16.useState)(0);
   const fs = fontSize[size];
   const pad = padding[size];
   if (snapshots.length === 0) {

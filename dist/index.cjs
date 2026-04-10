@@ -2257,7 +2257,7 @@ function TimeTravelControls({
 }
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-var import_react19 = require("react");
+var import_react20 = require("react");
 
 // src/utils/narrativeSync.ts
 function buildEntryRangeIndex(entries) {
@@ -3225,8 +3225,8 @@ var SubflowBreadcrumb = (0, import_react14.memo)(function SubflowBreadcrumb2({
 });
 
 // src/components/FlowchartView/TracedFlowchartView.tsx
-var import_react17 = require("react");
-var import_react18 = require("@xyflow/react");
+var import_react18 = require("react");
+var import_react19 = require("@xyflow/react");
 
 // src/components/StageNode/StageNode.tsx
 var import_react15 = require("react");
@@ -3684,6 +3684,7 @@ var StageNode = (0, import_react15.memo)(function StageNode2({
 });
 
 // src/components/FlowchartView/specToReactFlow.ts
+var import_react17 = require("@xyflow/react");
 var DEFAULT_COLORS = {
   edgeDefault: rawDefaults.colors.textMuted,
   edgeExecuted: rawDefaults.colors.success,
@@ -3841,7 +3842,8 @@ function applyOverlay(layout, overlay, colors) {
         targetHandle: "loop-target",
         label: le.label ?? "loop",
         type: "smoothstep",
-        pathOptions: { offset: 40, borderRadius: 16 },
+        pathOptions: { offset: 100, borderRadius: 24 },
+        markerEnd: { type: import_react17.MarkerType.ArrowClosed, color: c.edgeLoop, width: 16, height: 16 },
         style: {
           stroke: c.edgeLoop,
           strokeWidth: loopExecuted ? 3 : 2,
@@ -3897,8 +3899,8 @@ function applyOverlay(layout, overlay, colors) {
 var import_jsx_runtime17 = require("react/jsx-runtime");
 var defaultNodeTypes = { stage: StageNode };
 function FitViewOnResize() {
-  const { fitView } = (0, import_react18.useReactFlow)();
-  (0, import_react17.useEffect)(() => {
+  const { fitView } = (0, import_react19.useReactFlow)();
+  (0, import_react18.useEffect)(() => {
     const handler = () => {
       requestAnimationFrame(() => fitView({ padding: 0.3 }));
     };
@@ -3922,7 +3924,7 @@ function TracedFlowchartView({
   style
 }) {
   const nodeTypes = customNodeTypes ?? defaultNodeTypes;
-  const overlay = (0, import_react17.useMemo)(() => {
+  const overlay = (0, import_react18.useMemo)(() => {
     if (!snapshots || snapshots.length === 0) return void 0;
     const executionOrder = snapshots.slice(0, snapshotIndex + 1).map((s) => s.stageLabel);
     const doneStages = new Set(
@@ -3933,21 +3935,21 @@ function TracedFlowchartView({
     if (activeStage) executedStages.add(activeStage);
     return { doneStages, activeStage, executedStages, executionOrder };
   }, [snapshots, snapshotIndex]);
-  const layout = (0, import_react17.useMemo)(() => {
+  const layout = (0, import_react18.useMemo)(() => {
     if (!spec) return null;
     return specToLayout(spec);
   }, [spec]);
-  const flowData = (0, import_react17.useMemo)(() => {
+  const flowData = (0, import_react18.useMemo)(() => {
     if (!layout) return { nodes: [], edges: [] };
     return applyOverlay(layout, overlay);
   }, [layout, overlay]);
-  const [nodes, setNodes, onNodesChange] = (0, import_react18.useNodesState)(flowData.nodes);
-  const [edges, setEdges, onEdgesChange] = (0, import_react18.useEdgesState)(flowData.edges);
-  (0, import_react17.useEffect)(() => {
+  const [nodes, setNodes, onNodesChange] = (0, import_react19.useNodesState)(flowData.nodes);
+  const [edges, setEdges, onEdgesChange] = (0, import_react19.useEdgesState)(flowData.edges);
+  (0, import_react18.useEffect)(() => {
     setNodes(flowData.nodes);
     setEdges(flowData.edges);
   }, [flowData, setNodes, setEdges]);
-  const handleNodeClick = (0, import_react17.useCallback)(
+  const handleNodeClick = (0, import_react18.useCallback)(
     (_, node) => {
       if (!onNodeClick) return;
       onNodeClick(node.id);
@@ -3961,7 +3963,7 @@ function TracedFlowchartView({
       style: { width: "100%", height: "100%", ...style },
       "data-fp": "traced-flowchart",
       children: /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
-        import_react18.ReactFlow,
+        import_react19.ReactFlow,
         {
           nodes,
           edges,
@@ -3982,7 +3984,7 @@ function TracedFlowchartView({
           elementsSelectable: !!onNodeClick,
           children: [
             /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(FitViewOnResize, {}),
-            !unstyled && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(import_react18.Background, { variant: import_react18.BackgroundVariant.Dots, gap: 16, size: 1 })
+            !unstyled && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(import_react19.Background, { variant: import_react19.BackgroundVariant.Dots, gap: 16, size: 1 })
           ]
         }
       )
@@ -3992,7 +3994,7 @@ function TracedFlowchartView({
 
 // src/components/ExplainableShell/ExplainableShell.tsx
 var import_jsx_runtime18 = require("react/jsx-runtime");
-var HLinePill = (0, import_react19.memo)(function HLinePill2({
+var HLinePill = (0, import_react20.memo)(function HLinePill2({
   label,
   detail,
   expanded,
@@ -4038,7 +4040,7 @@ var HLinePill = (0, import_react19.memo)(function HLinePill2({
     /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } })
   ] });
 });
-var VLinePill = (0, import_react19.memo)(function VLinePill2({
+var VLinePill = (0, import_react20.memo)(function VLinePill2({
   label,
   expanded,
   side = "right",
@@ -4120,9 +4122,9 @@ function KeyedRecorderView({
   snapshots,
   selectedIndex
 }) {
-  const [showAggregate, setShowAggregate] = (0, import_react19.useState)(false);
-  const detected = (0, import_react19.useMemo)(() => detectKeyedSteps(data), [data]);
-  const visibleKeys = (0, import_react19.useMemo)(() => {
+  const [showAggregate, setShowAggregate] = (0, import_react20.useState)(false);
+  const detected = (0, import_react20.useMemo)(() => detectKeyedSteps(data), [data]);
+  const visibleKeys = (0, import_react20.useMemo)(() => {
     const keys = /* @__PURE__ */ new Set();
     for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
       const snap = snapshots[i];
@@ -4232,7 +4234,7 @@ function KeyedRecorderView({
     ] })
   ] });
 }
-var DetailsContent = (0, import_react19.memo)(function DetailsContent2({
+var DetailsContent = (0, import_react20.memo)(function DetailsContent2({
   snapshots,
   selectedIndex,
   narrativeEntries,
@@ -4254,9 +4256,9 @@ var DetailsContent = (0, import_react19.memo)(function DetailsContent2({
     }
   ];
   const allViews = [...builtInViews, ...extraViews ?? []];
-  const [activeViewId, setActiveViewId] = (0, import_react19.useState)(allViews[0]?.id ?? "memory");
+  const [activeViewId, setActiveViewId] = (0, import_react20.useState)(allViews[0]?.id ?? "memory");
   const viewIds = allViews.map((v2) => v2.id).join(",");
-  (0, import_react19.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     if (!allViews.find((v2) => v2.id === activeViewId)) {
       setActiveViewId(allViews[0]?.id ?? "memory");
     }
@@ -4362,7 +4364,7 @@ function ExplainableShell({
   className,
   style
 }) {
-  const derivedFromRuntime = (0, import_react19.useMemo)(() => {
+  const derivedFromRuntime = (0, import_react20.useMemo)(() => {
     if (!runtimeSnapshot) return null;
     try {
       const snaps = toVisualizationSnapshots(runtimeSnapshot, narrativeEntries);
@@ -4383,9 +4385,9 @@ function ExplainableShell({
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
-  const shellRef = (0, import_react19.useRef)(null);
-  const [isNarrow, setIsNarrow] = (0, import_react19.useState)(false);
-  (0, import_react19.useEffect)(() => {
+  const shellRef = (0, import_react20.useRef)(null);
+  const [isNarrow, setIsNarrow] = (0, import_react20.useState)(false);
+  (0, import_react20.useEffect)(() => {
     const el = shellRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
@@ -4395,14 +4397,14 @@ function ExplainableShell({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const autoRecorderViews = (0, import_react19.useMemo)(() => {
+  const autoRecorderViews = (0, import_react20.useMemo)(() => {
     const recorders = runtimeSnapshot?.recorders;
     if (!recorders?.length) return [];
     const explicitIds = new Set((recorderViews ?? []).map((v2) => v2.id));
     return recorders.filter((r) => !explicitIds.has(r.id)).map((r) => ({ id: r.id, name: r.name, description: r.description, preferredOperation: r.preferredOperation, data: r.data }));
   }, [runtimeSnapshot, recorderViews]);
   const hasNarrative = !!(narrative?.length || narrativeEntries?.length);
-  const allTabs = (0, import_react19.useMemo)(() => {
+  const allTabs = (0, import_react20.useMemo)(() => {
     const tabs2 = [
       { id: "result", name: "Result", description: "Final output and console logs" },
       { id: "memory", name: "Memory", description: "Accumulator \u2014 progressive shared state at each stage" }
@@ -4421,37 +4423,37 @@ function ExplainableShell({
   }, [hasNarrative, recorderViews, autoRecorderViews, hideTabsProp]);
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
-  const [activeTab, setActiveTab] = (0, import_react19.useState)(resolvedDefault);
-  const [snapshotIdx, setSnapshotIdx] = (0, import_react19.useState)(0);
-  const [drillDownStack, setDrillDownStack] = (0, import_react19.useState)([]);
-  const [rightExpanded, setRightExpanded] = (0, import_react19.useState)(defaultExpanded?.details ?? true);
-  const [leftExpanded, setLeftExpanded] = (0, import_react19.useState)(defaultExpanded?.topology ?? false);
-  const [timelineExpanded, setTimelineExpanded] = (0, import_react19.useState)(defaultExpanded?.timeline ?? false);
-  (0, import_react19.useEffect)(() => {
+  const [activeTab, setActiveTab] = (0, import_react20.useState)(resolvedDefault);
+  const [snapshotIdx, setSnapshotIdx] = (0, import_react20.useState)(0);
+  const [drillDownStack, setDrillDownStack] = (0, import_react20.useState)([]);
+  const [rightExpanded, setRightExpanded] = (0, import_react20.useState)(defaultExpanded?.details ?? true);
+  const [leftExpanded, setLeftExpanded] = (0, import_react20.useState)(defaultExpanded?.topology ?? false);
+  const [timelineExpanded, setTimelineExpanded] = (0, import_react20.useState)(defaultExpanded?.timeline ?? false);
+  (0, import_react20.useEffect)(() => {
     if (isNarrow) {
       setLeftExpanded(false);
       setRightExpanded(false);
       setTimelineExpanded(false);
     }
   }, [isNarrow]);
-  const triggerReflow = (0, import_react19.useCallback)(() => {
+  const triggerReflow = (0, import_react20.useCallback)(() => {
     requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
     setTimeout(() => window.dispatchEvent(new Event("resize")), 320);
   }, []);
-  const toggleLeft = (0, import_react19.useCallback)((v2) => {
+  const toggleLeft = (0, import_react20.useCallback)((v2) => {
     setLeftExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleRight = (0, import_react19.useCallback)((v2) => {
+  const toggleRight = (0, import_react20.useCallback)((v2) => {
     setRightExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleTimeline = (0, import_react19.useCallback)(() => {
+  const toggleTimeline = (0, import_react20.useCallback)(() => {
     setTimelineExpanded((p) => !p);
     triggerReflow();
   }, [triggerReflow]);
   const isInSubflow = drillDownStack.length > 0;
-  const currentLevel = (0, import_react19.useMemo)(() => {
+  const currentLevel = (0, import_react20.useMemo)(() => {
     if (drillDownStack.length > 0) {
       const top = drillDownStack[drillDownStack.length - 1];
       return { spec: top.spec, snapshots: top.snapshots };
@@ -4461,7 +4463,7 @@ function ExplainableShell({
   const activeSnapshots = currentLevel.snapshots;
   const activeSpec = currentLevel.spec;
   const safeIdx = activeSnapshots.length > 0 ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1)) : 0;
-  const activeNarrative = (0, import_react19.useMemo)(() => {
+  const activeNarrative = (0, import_react20.useMemo)(() => {
     if (!isInSubflow) return narrative;
     const lines = [];
     for (const snap of activeSnapshots) {
@@ -4471,25 +4473,25 @@ function ExplainableShell({
     return lines.length > 0 ? lines : void 0;
   }, [isInSubflow, narrative, activeSnapshots]);
   const activeNarrativeEntries = isInSubflow ? void 0 : narrativeEntries;
-  const breadcrumbs = (0, import_react19.useMemo)(() => {
+  const breadcrumbs = (0, import_react20.useMemo)(() => {
     const root = { label: title || "Flowchart", spec, description: spec?.description };
     return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: void 0 }))];
   }, [spec, title, drillDownStack]);
-  const showTreeSidebar = (0, import_react19.useMemo)(() => !!spec && hasSubflowNodes(spec), [spec]);
-  const rootOverlay = (0, import_react19.useMemo)(() => {
+  const showTreeSidebar = (0, import_react20.useMemo)(() => !!spec && hasSubflowNodes(spec), [spec]);
+  const rootOverlay = (0, import_react20.useMemo)(() => {
     if (isInSubflow || !snapshots.length) return { activeStage: void 0, doneStages: void 0 };
     const doneStages = new Set(snapshots.slice(0, safeIdx).map((s) => s.stageLabel));
     const activeStage = snapshots[safeIdx]?.stageLabel ?? null;
     return { activeStage, doneStages };
   }, [isInSubflow, snapshots, safeIdx]);
-  const handleTabChange = (0, import_react19.useCallback)((tab) => {
+  const handleTabChange = (0, import_react20.useCallback)((tab) => {
     setActiveTab(tab);
     setDrillDownStack([]);
   }, []);
-  const handleSnapshotChange = (0, import_react19.useCallback)((idx) => {
+  const handleSnapshotChange = (0, import_react20.useCallback)((idx) => {
     if (typeof idx === "number") setSnapshotIdx(idx);
   }, []);
-  const handleDrillDown = (0, import_react19.useCallback)(
+  const handleDrillDown = (0, import_react20.useCallback)(
     (nodeName) => {
       if (!activeSpec) return;
       const entry = resolveSubflowLevel(activeSpec, activeSnapshots, nodeName, narrativeEntries);
@@ -4500,14 +4502,14 @@ function ExplainableShell({
     },
     [activeSpec, activeSnapshots, narrativeEntries, snapshotIdx]
   );
-  const handleBreadcrumbNavigate = (0, import_react19.useCallback)((level) => {
+  const handleBreadcrumbNavigate = (0, import_react20.useCallback)((level) => {
     setDrillDownStack((prev) => {
       const popped = level === 0 ? prev[0] : prev[level];
       if (popped) setSnapshotIdx(popped.parentSnapshotIdx);
       return level === 0 ? [] : prev.slice(0, level);
     });
   }, []);
-  const handleNodeClick = (0, import_react19.useCallback)(
+  const handleNodeClick = (0, import_react20.useCallback)(
     (indexOrId) => {
       if (typeof indexOrId === "number") {
         setSnapshotIdx(indexOrId);
@@ -4525,7 +4527,7 @@ function ExplainableShell({
     },
     [activeSpec, activeSnapshots, handleDrillDown]
   );
-  const handleTreeNodeSelect = (0, import_react19.useCallback)(
+  const handleTreeNodeSelect = (0, import_react20.useCallback)(
     (name, isSubflow) => {
       if (isSubflow && spec) {
         setDrillDownStack([]);
@@ -4560,7 +4562,7 @@ function ExplainableShell({
     ] });
   }
   const showTopology = !!effectiveRenderFlowchart && !!activeSpec;
-  const detailsContent = (0, import_react19.useMemo)(() => {
+  const detailsContent = (0, import_react20.useMemo)(() => {
     if (activeTab === "result") {
       return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ResultPanel, { data: resultData ?? null, logs, hideConsole, size });
     }

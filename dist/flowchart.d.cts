@@ -60,17 +60,6 @@ interface FlowchartViewProps extends BaseComponentProps {
  */
 declare function FlowchartView({ nodes: rawNodes, edges: rawEdges, snapshots, selectedIndex, onNodeClick, unstyled, className, style, }: FlowchartViewProps): react_jsx_runtime.JSX.Element;
 
-/**
- * Converts a SerializedPipelineStructure (from builder.toSpec()) into
- * ReactFlow nodes and edges with auto-layout.
- *
- * Two-phase approach for performance:
- * 1. `specToLayout(spec)` — tree walk + positioning (expensive, cached on spec)
- * 2. `applyOverlay(layout, overlay)` — color nodes/edges (cheap, runs per slider tick)
- *
- * `specToReactFlow(spec, overlay)` combines both for convenience.
- */
-
 interface SpecNode {
     name: string;
     id?: string;

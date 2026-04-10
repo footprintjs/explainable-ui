@@ -673,6 +673,7 @@ import {
 } from "@xyflow/react";
 
 // src/components/FlowchartView/specToReactFlow.ts
+import { MarkerType } from "@xyflow/react";
 var DEFAULT_COLORS = {
   edgeDefault: rawDefaults.colors.textMuted,
   edgeExecuted: rawDefaults.colors.success,
@@ -830,7 +831,8 @@ function applyOverlay(layout, overlay, colors) {
         targetHandle: "loop-target",
         label: le.label ?? "loop",
         type: "smoothstep",
-        pathOptions: { offset: 40, borderRadius: 16 },
+        pathOptions: { offset: 100, borderRadius: 24 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: c.edgeLoop, width: 16, height: 16 },
         style: {
           stroke: c.edgeLoop,
           strokeWidth: loopExecuted ? 3 : 2,
