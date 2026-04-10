@@ -4109,11 +4109,11 @@ function KeyedRecorderView({
     description && /* @__PURE__ */ jsx18("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
     /* @__PURE__ */ jsxs17("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
       preferredOperation === "aggregate" ? (
-        /* AGGREGATE primary: show grand total prominently, per-step expandable */
+        /* AGGREGATE primary: collect silently during scrub, reveal grand total at end */
         /* @__PURE__ */ jsxs17(Fragment6, { children: [
-          isAtEnd ? /* @__PURE__ */ jsxs17("div", { style: { padding: "12px 14px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 6, border: `1px solid ${theme.success}44`, marginBottom: 16 }, children: [
-            /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
-            numFieldKey && /* @__PURE__ */ jsxs17("div", { style: { fontSize: 22, fontWeight: 700, color: theme.success }, children: [
+          isAtEnd ? /* @__PURE__ */ jsxs17("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44`, marginBottom: 16 }, children: [
+            /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
+            numFieldKey && /* @__PURE__ */ jsxs17("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
               grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1),
               /* @__PURE__ */ jsxs17("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
                 numFieldKey,
@@ -4122,16 +4122,13 @@ function KeyedRecorderView({
                 " steps"
               ] })
             ] })
-          ] }) : /* @__PURE__ */ jsxs17("div", { style: { padding: "8px 12px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
-            /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total" }),
-            numFieldKey && /* @__PURE__ */ jsxs17("span", { style: { fontWeight: 700, fontSize: 16, color: theme.primary }, children: [
-              runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1),
-              /* @__PURE__ */ jsxs17("span", { style: { fontSize: 10, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
-                visibleEntries.length,
-                " of ",
-                allKeys.length,
-                " steps"
-              ] })
+          ] }) : /* @__PURE__ */ jsxs17("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
+            /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
+            /* @__PURE__ */ jsxs17("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
+              visibleEntries.length,
+              " of ",
+              allKeys.length,
+              " steps collected. Scrub to end for aggregate total."
             ] })
           ] }),
           /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
