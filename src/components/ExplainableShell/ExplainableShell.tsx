@@ -380,17 +380,32 @@ function KeyedRecorderView({
         {/* ── Primary: depends on preferredOperation ── */}
 
         {preferredOperation === "aggregate" ? (
-          /* AGGREGATE primary: collect silently during scrub, reveal grand total at end */
+          /* AGGREGATE: collect silently during scrub, button at end to reveal total */
           <>
             {isAtEnd ? (
-              <div style={{ padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44`, marginBottom: 16 }}>
-                <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
-                  Aggregate — grand total
-                </div>
-                {numFieldKey && (
-                  <div style={{ fontSize: 26, fontWeight: 700, color: theme.success }}>
-                    {grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1)}
-                    <span style={{ fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }}>{numFieldKey} &middot; {allKeys.length} steps</span>
+              <div style={{ marginBottom: 16 }}>
+                {!showAggregate ? (
+                  <button
+                    onClick={() => setShowAggregate(true)}
+                    style={{
+                      background: theme.primary, color: "#fff", border: "none", borderRadius: 8,
+                      padding: "12px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                      fontFamily: "inherit", width: "100%",
+                    }}
+                  >
+                    Aggregate — Show Grand Total
+                  </button>
+                ) : (
+                  <div style={{ padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }}>
+                    <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
+                      Aggregate — grand total
+                    </div>
+                    {numFieldKey && (
+                      <div style={{ fontSize: 26, fontWeight: 700, color: theme.success }}>
+                        {grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1)}
+                        <span style={{ fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }}>{numFieldKey} &middot; {allKeys.length} steps</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -400,7 +415,7 @@ function KeyedRecorderView({
                   Collecting data...
                 </div>
                 <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 4 }}>
-                  {visibleEntries.length} of {allKeys.length} steps collected. Scrub to end for aggregate total.
+                  {visibleEntries.length} of {allKeys.length} steps collected. Scrub to end to aggregate.
                 </div>
               </div>
             )}
@@ -409,7 +424,7 @@ function KeyedRecorderView({
             </div>
           </>
         ) : preferredOperation === "accumulate" ? (
-          /* ACCUMULATE primary: running total prominent, per-step listed */
+          /* ACCUMULATE: running total grows with slider — IS the total at end, no button */
           <>
             {numFieldKey && visibleEntries.length > 0 && (
               <div style={{ padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }}>
@@ -429,7 +444,7 @@ function KeyedRecorderView({
             </div>
           </>
         ) : (
-          /* TRANSLATE primary: per-step entries prominent */
+          /* TRANSLATE: per-step entries prominent, no totals */
           <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
             Translate — per-step detail
           </div>
@@ -459,35 +474,6 @@ function KeyedRecorderView({
           </div>
         )}
 
-        {/* ── Aggregate button for accumulate mode — shown at end ── */}
-        {preferredOperation === "accumulate" && isAtEnd && numFieldKey && (
-          <div style={{ marginTop: 16 }}>
-            {!showAggregate ? (
-              <button
-                onClick={() => setShowAggregate(true)}
-                style={{
-                  background: theme.primary, color: "#fff", border: "none", borderRadius: 6,
-                  padding: "10px 20px", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  fontFamily: "inherit", width: "100%",
-                }}
-              >
-                Show Aggregate — Grand Total
-              </button>
-            ) : (
-              <div style={{ padding: "10px 14px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 6, border: `1px solid ${theme.success}44` }}>
-                <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }}>
-                  Aggregate — grand total
-                </div>
-                <div style={{ fontSize: 22, fontWeight: 700, color: theme.success }}>
-                  {grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1)}
-                </div>
-                <div style={{ fontSize: 10, color: theme.textMuted, marginTop: 2 }}>
-                  {allKeys.length} steps &middot; {numFieldKey}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

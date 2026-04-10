@@ -4106,9 +4106,27 @@ function KeyedRecorderView({
     description && /* @__PURE__ */ jsx18("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
     /* @__PURE__ */ jsxs17("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
       preferredOperation === "aggregate" ? (
-        /* AGGREGATE primary: collect silently during scrub, reveal grand total at end */
+        /* AGGREGATE: collect silently during scrub, button at end to reveal total */
         /* @__PURE__ */ jsxs17(Fragment6, { children: [
-          isAtEnd ? /* @__PURE__ */ jsxs17("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44`, marginBottom: 16 }, children: [
+          isAtEnd ? /* @__PURE__ */ jsx18("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ jsx18(
+            "button",
+            {
+              onClick: () => setShowAggregate(true),
+              style: {
+                background: theme.primary,
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "12px 20px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                width: "100%"
+              },
+              children: "Aggregate \u2014 Show Grand Total"
+            }
+          ) : /* @__PURE__ */ jsxs17("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
             /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
             numFieldKey && /* @__PURE__ */ jsxs17("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
               grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1),
@@ -4119,19 +4137,19 @@ function KeyedRecorderView({
                 " steps"
               ] })
             ] })
-          ] }) : /* @__PURE__ */ jsxs17("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
+          ] }) }) : /* @__PURE__ */ jsxs17("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
             /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
             /* @__PURE__ */ jsxs17("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
               visibleEntries.length,
               " of ",
               allKeys.length,
-              " steps collected. Scrub to end for aggregate total."
+              " steps collected. Scrub to end to aggregate."
             ] })
           ] }),
           /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
         ] })
       ) : preferredOperation === "accumulate" ? (
-        /* ACCUMULATE primary: running total prominent, per-step listed */
+        /* ACCUMULATE: running total grows with slider — IS the total at end, no button */
         /* @__PURE__ */ jsxs17(Fragment6, { children: [
           numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ jsxs17("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
             /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
@@ -4148,7 +4166,7 @@ function KeyedRecorderView({
           /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
         ] })
       ) : (
-        /* TRANSLATE primary: per-step entries prominent */
+        /* TRANSLATE: per-step entries prominent, no totals */
         /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
       ),
       visibleEntries.map((key) => {
@@ -4161,34 +4179,7 @@ function KeyedRecorderView({
           numVal !== void 0 && /* @__PURE__ */ jsx18("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
         ] }, key);
       }),
-      visibleEntries.length === 0 && /* @__PURE__ */ jsx18("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." }),
-      preferredOperation === "accumulate" && isAtEnd && numFieldKey && /* @__PURE__ */ jsx18("div", { style: { marginTop: 16 }, children: !showAggregate ? /* @__PURE__ */ jsx18(
-        "button",
-        {
-          onClick: () => setShowAggregate(true),
-          style: {
-            background: theme.primary,
-            color: "#fff",
-            border: "none",
-            borderRadius: 6,
-            padding: "10px 20px",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-            fontFamily: "inherit",
-            width: "100%"
-          },
-          children: "Show Aggregate \u2014 Grand Total"
-        }
-      ) : /* @__PURE__ */ jsxs17("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 6, border: `1px solid ${theme.success}44` }, children: [
-        /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
-        /* @__PURE__ */ jsx18("div", { style: { fontSize: 22, fontWeight: 700, color: theme.success }, children: grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1) }),
-        /* @__PURE__ */ jsxs17("div", { style: { fontSize: 10, color: theme.textMuted, marginTop: 2 }, children: [
-          allKeys.length,
-          " steps \xB7 ",
-          numFieldKey
-        ] })
-      ] }) })
+      visibleEntries.length === 0 && /* @__PURE__ */ jsx18("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." })
     ] })
   ] });
 }
