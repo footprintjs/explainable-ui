@@ -69,8 +69,14 @@ export interface RuntimeSnapshotInput {
   executionTree: unknown;
   commitLog: unknown[];
   subflowResults?: Record<string, unknown>;
-  /** Recorder snapshots from FlowRecorder.toSnapshot() — auto-generates detail tabs. */
-  recorders?: Array<{ id: string; name: string; data: unknown }>;
+  /** Recorder snapshots from toSnapshot() — auto-generates detail tabs. */
+  recorders?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    preferredOperation?: 'translate' | 'accumulate' | 'aggregate';
+    data: unknown;
+  }>;
 }
 
 /**
@@ -300,11 +306,13 @@ function findNumericField(entry: Record<string, unknown>): { key: string; value:
 function KeyedRecorderView({
   data,
   description,
+  preferredOperation = "accumulate",
   snapshots,
   selectedIndex,
 }: {
   data: unknown;
   description?: string;
+  preferredOperation?: "translate" | "accumulate" | "aggregate";
   snapshots: StageSnapshot[];
   selectedIndex: number;
 }) {
@@ -372,10 +380,68 @@ function KeyedRecorderView({
       )}
 
       <div style={{ padding: 12, flex: 1, overflow: "auto" }}>
-        {/* ── TRANSLATE — per-step detail ── */}
-        <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
-          Translate — per-step detail
-        </div>
+        {/* ── Primary: depends on preferredOperation ── */}
+
+        {preferredOperation === "aggregate" ? (
+          /* AGGREGATE primary: show grand total prominently, per-step expandable */
+          <>
+            {isAtEnd ? (
+              <div style={{ padding: "12px 14px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 6, border: `1px solid ${theme.success}44`, marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }}>
+                  Aggregate — grand total
+                </div>
+                {numFieldKey && (
+                  <div style={{ fontSize: 22, fontWeight: 700, color: theme.success }}>
+                    {grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1)}
+                    <span style={{ fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }}>{numFieldKey} &middot; {allKeys.length} steps</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ padding: "8px 12px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }}>
+                  Accumulate — running total
+                </div>
+                {numFieldKey && (
+                  <span style={{ fontWeight: 700, fontSize: 16, color: theme.primary }}>
+                    {runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1)}
+                    <span style={{ fontSize: 10, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }}>{visibleEntries.length} of {allKeys.length} steps</span>
+                  </span>
+                )}
+              </div>
+            )}
+            <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
+              Per-step detail
+            </div>
+          </>
+        ) : preferredOperation === "accumulate" ? (
+          /* ACCUMULATE primary: running total prominent, per-step listed */
+          <>
+            {numFieldKey && visibleEntries.length > 0 && (
+              <div style={{ padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }}>
+                <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }}>
+                  Accumulate — running total up to this step
+                </div>
+                <span style={{ fontWeight: 700, fontSize: 18, color: theme.primary }}>
+                  {runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1)}
+                </span>
+                <span style={{ color: theme.textMuted, marginLeft: 8, fontSize: 10 }}>
+                  {numFieldKey} &middot; {visibleEntries.length} of {allKeys.length} steps
+                </span>
+              </div>
+            )}
+            <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
+              Per-step detail
+            </div>
+          </>
+        ) : (
+          /* TRANSLATE primary: per-step entries prominent */
+          <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
+            Translate — per-step detail
+          </div>
+        )}
+
+        {/* ── Per-step entries (always shown) ── */}
         {visibleEntries.map((key) => {
           const entry = steps[key];
           const label = (entry.stageName as string) ?? key;
@@ -399,23 +465,8 @@ function KeyedRecorderView({
           </div>
         )}
 
-        {/* ── ACCUMULATE — running total up to slider position ── */}
-        {numFieldKey && visibleEntries.length > 0 && (
-          <div style={{ marginTop: 16, padding: "8px 12px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, fontSize: 12 }}>
-            <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }}>
-              Accumulate — running total up to this step
-            </div>
-            <span style={{ fontWeight: 700, fontSize: 16, color: theme.primary }}>
-              {runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1)}
-            </span>
-            <span style={{ color: theme.textMuted, marginLeft: 8, fontSize: 10 }}>
-              {numFieldKey} &middot; {visibleEntries.length} of {allKeys.length} steps
-            </span>
-          </div>
-        )}
-
-        {/* ── AGGREGATE — grand total, only at end of time-travel ── */}
-        {isAtEnd && numFieldKey && (
+        {/* ── Aggregate button for accumulate mode — shown at end ── */}
+        {preferredOperation === "accumulate" && isAtEnd && numFieldKey && (
           <div style={{ marginTop: 16 }}>
             {!showAggregate ? (
               <button
@@ -431,7 +482,7 @@ function KeyedRecorderView({
             ) : (
               <div style={{ padding: "10px 14px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 6, border: `1px solid ${theme.success}44` }}>
                 <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }}>
-                  Aggregate — grand total across all steps
+                  Aggregate — grand total
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 700, color: theme.success }}>
                   {grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1)}
@@ -665,13 +716,13 @@ export function ExplainableShell({
 
   // Auto-detect recorder views from runtimeSnapshot.recorders
   const autoRecorderViews = useMemo(() => {
-    const recorders = (runtimeSnapshot as any)?.recorders as Array<{ id: string; name: string; description?: string; data: unknown }> | undefined;
+    const recorders = (runtimeSnapshot as any)?.recorders as Array<{ id: string; name: string; description?: string; preferredOperation?: string; data: unknown }> | undefined;
     if (!recorders?.length) return [];
     // Don't auto-generate for IDs that have explicit recorderViews
     const explicitIds = new Set((recorderViews ?? []).map((v) => v.id));
     return recorders
       .filter((r) => !explicitIds.has(r.id))
-      .map((r) => ({ id: r.id, name: r.name, description: r.description, data: r.data }));
+      .map((r) => ({ id: r.id, name: r.name, description: r.description, preferredOperation: r.preferredOperation, data: r.data }));
   }, [runtimeSnapshot, recorderViews]);
 
   // Build tab list: Result + Memory (always), Narrative (when data exists),
@@ -880,6 +931,7 @@ export function ExplainableShell({
         <KeyedRecorderView
           data={autoView.data}
           description={autoView.description}
+          preferredOperation={autoView.preferredOperation as "translate" | "accumulate" | "aggregate" | undefined}
           snapshots={activeSnapshots}
           selectedIndex={safeIdx}
         />

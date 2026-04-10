@@ -4114,6 +4114,7 @@ function findNumericField(entry) {
 function KeyedRecorderView({
   data,
   description,
+  preferredOperation = "accumulate",
   snapshots,
   selectedIndex
 }) {
@@ -4156,7 +4157,55 @@ function KeyedRecorderView({
   return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
     description && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
     /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" }),
+      preferredOperation === "aggregate" ? (
+        /* AGGREGATE primary: show grand total prominently, per-step expandable */
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
+          isAtEnd ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { padding: "12px 14px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 6, border: `1px solid ${theme.success}44`, marginBottom: 16 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
+            numFieldKey && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { fontSize: 22, fontWeight: 700, color: theme.success }, children: [
+              grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
+                numFieldKey,
+                " \xB7 ",
+                allKeys.length,
+                " steps"
+              ] })
+            ] })
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { padding: "8px 12px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total" }),
+            numFieldKey && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: { fontWeight: 700, fontSize: 16, color: theme.primary }, children: [
+              runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1),
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: { fontSize: 10, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
+                visibleEntries.length,
+                " of ",
+                allKeys.length,
+                " steps"
+              ] })
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+        ] })
+      ) : preferredOperation === "accumulate" ? (
+        /* ACCUMULATE primary: running total prominent, per-step listed */
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
+          numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
+              numFieldKey,
+              " \xB7 ",
+              visibleEntries.length,
+              " of ",
+              allKeys.length,
+              " steps"
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+        ] })
+      ) : (
+        /* TRANSLATE primary: per-step entries prominent */
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
+      ),
       visibleEntries.map((key) => {
         const entry = steps[key];
         const label = entry.stageName ?? key;
@@ -4168,19 +4217,7 @@ function KeyedRecorderView({
         ] }, key);
       }),
       visibleEntries.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." }),
-      numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { marginTop: 16, padding: "8px 12px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, fontSize: 12 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { style: { fontWeight: 700, fontSize: 16, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
-          numFieldKey,
-          " \xB7 ",
-          visibleEntries.length,
-          " of ",
-          allKeys.length,
-          " steps"
-        ] })
-      ] }),
-      isAtEnd && numFieldKey && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { marginTop: 16 }, children: !showAggregate ? /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+      preferredOperation === "accumulate" && isAtEnd && numFieldKey && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { marginTop: 16 }, children: !showAggregate ? /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
         "button",
         {
           onClick: () => setShowAggregate(true),
@@ -4199,7 +4236,7 @@ function KeyedRecorderView({
           children: "Show Aggregate \u2014 Grand Total"
         }
       ) : /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 6, border: `1px solid ${theme.success}44` }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Aggregate \u2014 grand total across all steps" }),
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
         /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 22, fontWeight: 700, color: theme.success }, children: grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1) }),
         /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { fontSize: 10, color: theme.textMuted, marginTop: 2 }, children: [
           allKeys.length,
@@ -4377,7 +4414,7 @@ function ExplainableShell({
     const recorders = runtimeSnapshot?.recorders;
     if (!recorders?.length) return [];
     const explicitIds = new Set((recorderViews ?? []).map((v2) => v2.id));
-    return recorders.filter((r) => !explicitIds.has(r.id)).map((r) => ({ id: r.id, name: r.name, description: r.description, data: r.data }));
+    return recorders.filter((r) => !explicitIds.has(r.id)).map((r) => ({ id: r.id, name: r.name, description: r.description, preferredOperation: r.preferredOperation, data: r.data }));
   }, [runtimeSnapshot, recorderViews]);
   const hasNarrative = !!(narrative?.length || narrativeEntries?.length);
   const allTabs = (0, import_react19.useMemo)(() => {
@@ -4559,6 +4596,7 @@ function ExplainableShell({
         {
           data: autoView.data,
           description: autoView.description,
+          preferredOperation: autoView.preferredOperation,
           snapshots: activeSnapshots,
           selectedIndex: safeIdx
         }

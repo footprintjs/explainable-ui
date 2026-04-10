@@ -367,10 +367,12 @@ interface RuntimeSnapshotInput {
     executionTree: unknown;
     commitLog: unknown[];
     subflowResults?: Record<string, unknown>;
-    /** Recorder snapshots from FlowRecorder.toSnapshot() — auto-generates detail tabs. */
+    /** Recorder snapshots from toSnapshot() — auto-generates detail tabs. */
     recorders?: Array<{
         id: string;
         name: string;
+        description?: string;
+        preferredOperation?: 'translate' | 'accumulate' | 'aggregate';
         data: unknown;
     }>;
 }
