@@ -3843,14 +3843,14 @@ function applyOverlay(layout, overlay, colors) {
         label: le.label ?? "loop",
         type: "smoothstep",
         pathOptions: { offset: 60, borderRadius: 20 },
-        markerEnd: { type: import_react17.MarkerType.ArrowClosed, color: c.edgeLoop, width: 16, height: 16 },
+        markerEnd: { type: import_react17.MarkerType.ArrowClosed, color: loopExecuted ? c.edgeActive : c.edgeLoop, width: 16, height: 16 },
         style: {
-          stroke: c.edgeLoop,
-          strokeWidth: loopExecuted ? 3 : 2,
-          strokeDasharray: "6 3",
+          stroke: loopExecuted ? c.edgeActive : c.edgeLoop,
+          strokeWidth: loopExecuted ? 4 : 2,
+          strokeDasharray: loopExecuted ? void 0 : "6 3",
           opacity: o && !loopExecuted ? 0.35 : 1
         },
-        labelStyle: { fontSize: 10, fontWeight: 700, fill: c.labelLoop },
+        labelStyle: { fontSize: 10, fontWeight: 700, fill: loopExecuted ? c.edgeActive : c.labelLoop },
         animated: loopExecuted,
         zIndex: 2
       });
