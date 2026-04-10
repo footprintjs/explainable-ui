@@ -295,10 +295,12 @@ function detectKeyedSteps(data: unknown): { steps: Record<string, Record<string,
   return null;
 }
 
-/** Find the first numeric value in an entry (for running totals). */
-function findNumericField(entry: Record<string, unknown>): { key: string; value: number } | null {
-  for (const [k, v] of Object.entries(entry)) {
-    if (typeof v === "number") return { key: k, value: v };
+/** Extract render hints from recorder data: numericField name + grandTotal. */
+function extractRenderHints(data: unknown): { numericField: string; grandTotal: number } | null {
+  if (!data || typeof data !== "object") return null;
+  const obj = data as Record<string, unknown>;
+  if (typeof obj.numericField === "string" && typeof obj.grandTotal === "number") {
+    return { numericField: obj.numericField, grandTotal: obj.grandTotal };
   }
   return null;
 }
@@ -348,14 +350,14 @@ function KeyedRecorderView({
   }
 
   const steps = detected.steps;
+  const hints = extractRenderHints(data);
+  const numFieldKey = hints?.numericField ?? "";
 
   // Progressive entries (accumulate)
   const allKeys = Object.keys(steps);
   const visibleEntries = allKeys.filter((k) => visibleKeys.has(k));
-  const numField = allKeys.length > 0 ? findNumericField(steps[allKeys[0]]) : null;
-  const numFieldKey = numField?.key ?? "";
 
-  // Running total
+  // Running total — computed from visible entries using the declared numeric field
   let runningTotal = 0;
   if (numFieldKey) {
     for (const k of visibleEntries) {
@@ -363,13 +365,8 @@ function KeyedRecorderView({
     }
   }
 
-  // Grand total (all entries)
-  let grandTotal = 0;
-  if (numFieldKey) {
-    for (const entry of Object.values(steps)) {
-      grandTotal += (entry[numFieldKey] as number) ?? 0;
-    }
-  }
+  // Grand total — provided by the recorder, not recomputed
+  const grandTotal = hints?.grandTotal ?? 0;
 
   return (
     <div style={{ overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }}>

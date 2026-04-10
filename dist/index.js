@@ -4056,9 +4056,11 @@ function detectKeyedSteps(data) {
   }
   return null;
 }
-function findNumericField(entry) {
-  for (const [k, v2] of Object.entries(entry)) {
-    if (typeof v2 === "number") return { key: k, value: v2 };
+function extractRenderHints(data) {
+  if (!data || typeof data !== "object") return null;
+  const obj = data;
+  if (typeof obj.numericField === "string" && typeof obj.grandTotal === "number") {
+    return { numericField: obj.numericField, grandTotal: obj.grandTotal };
   }
   return null;
 }
@@ -4089,22 +4091,17 @@ function KeyedRecorderView({
     return /* @__PURE__ */ jsx18("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
   }
   const steps = detected.steps;
+  const hints = extractRenderHints(data);
+  const numFieldKey = hints?.numericField ?? "";
   const allKeys = Object.keys(steps);
   const visibleEntries = allKeys.filter((k) => visibleKeys.has(k));
-  const numField = allKeys.length > 0 ? findNumericField(steps[allKeys[0]]) : null;
-  const numFieldKey = numField?.key ?? "";
   let runningTotal = 0;
   if (numFieldKey) {
     for (const k of visibleEntries) {
       runningTotal += steps[k][numFieldKey] ?? 0;
     }
   }
-  let grandTotal = 0;
-  if (numFieldKey) {
-    for (const entry of Object.values(steps)) {
-      grandTotal += entry[numFieldKey] ?? 0;
-    }
-  }
+  const grandTotal = hints?.grandTotal ?? 0;
   return /* @__PURE__ */ jsxs17("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
     description && /* @__PURE__ */ jsx18("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
     /* @__PURE__ */ jsxs17("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
