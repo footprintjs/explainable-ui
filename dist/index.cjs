@@ -3667,8 +3667,8 @@ var StageNode = (0, import_react15.memo)(function StageNode2({
       {
         id: "loop-source",
         type: "source",
-        position: import_react16.Position.Right,
-        style: { background: "transparent", border: "none", width: 6, height: 6 }
+        position: import_react16.Position.Bottom,
+        style: { background: "transparent", border: "none", width: 6, height: 6, left: "75%" }
       }
     ),
     /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
@@ -3842,7 +3842,7 @@ function applyOverlay(layout, overlay, colors) {
         targetHandle: "loop-target",
         label: le.label ?? "loop",
         type: "smoothstep",
-        pathOptions: { offset: 100, borderRadius: 24 },
+        pathOptions: { offset: 60, borderRadius: 20 },
         markerEnd: { type: import_react17.MarkerType.ArrowClosed, color: c.edgeLoop, width: 16, height: 16 },
         style: {
           stroke: c.edgeLoop,

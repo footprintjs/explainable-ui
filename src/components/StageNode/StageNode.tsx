@@ -550,12 +550,13 @@ export const StageNode = memo(function StageNode({
         )}
       </div>
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
-      {/* Right-side handles for loop-back edges (so they don't overlap center edges) */}
+      {/* Loop handles: source exits bottom-right, target enters from right.
+          Creates a clockwise arc: down → right → up → back into right side. */}
       <Handle
         id="loop-source"
         type="source"
-        position={Position.Right}
-        style={{ background: "transparent", border: "none", width: 6, height: 6 }}
+        position={Position.Bottom}
+        style={{ background: "transparent", border: "none", width: 6, height: 6, left: "75%" }}
       />
       <Handle
         id="loop-target"

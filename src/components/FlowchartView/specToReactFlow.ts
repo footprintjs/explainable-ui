@@ -310,7 +310,7 @@ export function applyOverlay(
         targetHandle: "loop-target",
         label: le.label ?? "loop",
         type: "smoothstep",
-        pathOptions: { offset: 100, borderRadius: 24 },
+        pathOptions: { offset: 60, borderRadius: 20 },
         markerEnd: { type: MarkerType.ArrowClosed, color: c.edgeLoop, width: 16, height: 16 },
         style: {
           stroke: c.edgeLoop,
