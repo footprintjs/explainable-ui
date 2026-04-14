@@ -60,3 +60,21 @@ export type { NarrativeEntry as AdapterNarrativeEntry } from "./adapters/fromRun
 // Utilities — narrative sync, subflow extraction
 export { buildEntryRangeIndex, computeRevealedEntryCount, extractSubflowNarrative } from "./utils/narrativeSync";
 export type { EntryRangeIndex } from "./utils/narrativeSync";
+
+// ── New components (v2 layout) ──────────────────────────────────────
+
+// Inspector: State + Data Trace
+export { InspectorPanel } from "./components/InspectorPanel/InspectorPanel";
+export type { InspectorPanelProps } from "./components/InspectorPanel/InspectorPanel";
+
+// Data Trace: backward causal chain visualization
+export { DataTracePanel } from "./components/DataTracePanel/DataTracePanel";
+export type { DataTracePanelProps, CausalFrame } from "./components/DataTracePanel/DataTracePanel";
+
+// Insights: recorder tabs / grid (was "Recorders")
+export { InsightPanel } from "./components/InsightPanel/InsightPanel";
+export type { InsightPanelProps, InsightConfig } from "./components/InsightPanel/InsightPanel";
+
+// Compact Timeline: dot line → Gantt toggle
+export { CompactTimeline } from "./components/CompactTimeline/CompactTimeline";
+export type { CompactTimelineProps } from "./components/CompactTimeline/CompactTimeline";
