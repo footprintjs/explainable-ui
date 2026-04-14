@@ -24,6 +24,9 @@ import { SubflowTree } from "../FlowchartView/SubflowTree";
 import { SubflowBreadcrumb } from "../FlowchartView/SubflowBreadcrumb";
 import { TracedFlowchartView } from "../FlowchartView/TracedFlowchartView";
 import type { SpecNode } from "../FlowchartView/specToReactFlow";
+import { InspectorPanel } from "../InspectorPanel/InspectorPanel";
+import { InsightPanel } from "../InsightPanel/InsightPanel";
+import { CompactTimeline } from "../CompactTimeline/CompactTimeline";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -615,6 +618,18 @@ function hasSubflowNodes(node: SpecNode): boolean {
 // Component
 // ---------------------------------------------------------------------------
 
+/** Map internal recorder names to user-facing Insight names. */
+function insightName(name: string): string {
+  const map: Record<string, string> = {
+    "Narrative": "Story",
+    "Memory": "State",
+    "Metrics": "Performance",
+    "Quality": "Quality",
+    "Cost": "Cost",
+  };
+  return map[name] ?? name;
+}
+
 // Default flowchart renderer — used when renderFlowchart is not provided
 function defaultRenderFlowchart({ spec: s, snapshots: snaps, selectedIndex, onNodeClick }: {
   spec: SpecNode; snapshots: StageSnapshot[]; selectedIndex: number;
@@ -1045,22 +1060,22 @@ export function ExplainableShell({
               </div>
             )}
           </>
-        ) : showTopology ? (
-          /* ── Desktop with topology: side-by-side ── */
+        ) : (
+          /* ── Desktop: three-column layout ── */
           <>
             <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-              {/* Left: SubflowTree with VLinePill handle — only when spec has subflows */}
-              {showTreeSidebar && (
+              {/* Left: Flowchart (compact, collapsible) */}
+              {showTopology && (
                 leftExpanded ? (
-                  <div style={{ width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
-                    <div style={{ flex: 1, overflow: "auto" }}>
-                      <SubflowTree
-                        spec={spec!}
-                        activeStage={rootOverlay.activeStage}
-                        doneStages={rootOverlay.doneStages}
-                        onNodeSelect={handleTreeNodeSelect}
-                      />
+                  <div style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
+                    <div style={{ flex: 1, overflow: "hidden" }}>
+                      {effectiveRenderFlowchart!({
+                        spec: activeSpec!,
+                        snapshots: activeSnapshots,
+                        selectedIndex: safeIdx,
+                        onNodeClick: handleNodeClick,
+                      })}
                     </div>
                     <VLinePill label={leftLabel} expanded={true} side="left" onClick={() => toggleLeft(false)} />
                   </div>
@@ -1069,51 +1084,48 @@ export function ExplainableShell({
                 )
               )}
 
-              {/* Center: Flowchart */}
-              <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
-                {effectiveRenderFlowchart!({
-                  spec: activeSpec!,
-                  snapshots: activeSnapshots,
-                  selectedIndex: safeIdx,
-                  onNodeClick: handleNodeClick,
-                })}
+              {/* Center: Inspector (State + Data Trace) */}
+              <div style={{ width: 300, flexShrink: 0, overflow: "hidden", borderRight: `1px solid ${theme.border}` }}>
+                <InspectorPanel
+                  snapshots={activeSnapshots}
+                  selectedIndex={safeIdx}
+                  dataTraceFrames={[]}
+                  selectedStageId={activeSnapshots[safeIdx]?.runtimeStageId}
+                  onNavigateToStage={(id) => {
+                    const idx = activeSnapshots.findIndex((s) => s.runtimeStageId === id);
+                    if (idx >= 0) setSnapshotIdx(idx);
+                  }}
+                />
               </div>
 
-              {/* Right: Details panel with tabs */}
-              {rightExpanded ? (
-                <div style={{ width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }}>
-                  <VLinePill label={rightLabel} expanded={true} onClick={() => toggleRight(false)} />
-                  <div style={{ flex: 1, overflow: "hidden" }}>
-                    {detailsPanel}
-                  </div>
-                </div>
-              ) : (
-                <VLinePill label={rightLabel} expanded={false} onClick={() => toggleRight(true)} />
-              )}
+              {/* Right: Insights (tabs or grid) */}
+              <div style={{ flex: 1, overflow: "hidden" }}>
+                <InsightPanel
+                  mode={leftExpanded ? "tabs" : "grid"}
+                  expandedId={activeTab}
+                  insights={allTabs.filter((t) => t.id !== "result").map((tab) => ({
+                    id: tab.id,
+                    name: insightName(tab.name),
+                    render: () => {
+                      if (tab.id === "memory") return <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} size={size} style={{ height: "100%" }} />;
+                      if (tab.id === "narrative") return <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} style={{ height: "100%" }} />;
+                      const customView = recorderViews?.find((v) => v.id === tab.id);
+                      if (customView?.render) return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
+                      const autoView = autoRecorderViews.find((v) => v.id === tab.id);
+                      if (autoView) return <KeyedRecorderView data={autoView.data} description={autoView.description} preferredOperation={autoView.preferredOperation as any} snapshots={activeSnapshots} selectedIndex={safeIdx} />;
+                      return null;
+                    },
+                  }))}
+                />
+              </div>
             </div>
 
-            {/* Bottom: Timeline */}
-            <HLinePill label={bottomLabel} detail={`${activeSnapshots.length} stages`} expanded={timelineExpanded} onClick={toggleTimeline} />
-            {timelineExpanded && (
-              <div style={{ flexShrink: 0, overflow: "hidden" }}>
-                <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />
-              </div>
-            )}
-          </>
-        ) : (
-          /* ── Desktop without topology: details panel takes full width ── */
-          <>
-            <div style={{ flex: 1, overflow: "hidden" }}>
-              {detailsPanel}
-            </div>
-
-            {/* Bottom: Timeline */}
-            <HLinePill label={bottomLabel} detail={`${activeSnapshots.length} stages`} expanded={timelineExpanded} onClick={toggleTimeline} />
-            {timelineExpanded && (
-              <div style={{ flexShrink: 0, overflow: "hidden" }}>
-                <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />
-              </div>
-            )}
+            {/* Bottom: Compact Timeline */}
+            <CompactTimeline
+              snapshots={activeSnapshots}
+              selectedIndex={safeIdx}
+              defaultExpanded={timelineExpanded}
+            />
           </>
         )}
       </div>

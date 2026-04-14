@@ -627,4 +627,69 @@ declare function computeRevealedEntryCount(narrativeEntries: NarrativeEntry[], s
  */
 declare function extractSubflowNarrative(entries: NarrativeEntry[], subflowId: string, subflowName?: string): NarrativeEntry[];
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type DarkModeTokensOptions, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, buildEntryRangeIndex, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
+/** A node in the causal DAG (matches footprintjs CausalNode shape). */
+interface CausalFrame {
+    runtimeStageId: string;
+    stageId: string;
+    stageName: string;
+    keysWritten: string[];
+    linkedBy: string;
+    depth: number;
+}
+interface DataTracePanelProps {
+    /** Flattened causal chain frames (BFS order from causalChain + flattenCausalDAG). */
+    frames: CausalFrame[];
+    /** Currently selected stage's runtimeStageId. */
+    selectedStageId?: string;
+    /** Callback when a frame is clicked — navigate time-travel to that stage. */
+    onFrameClick?: (runtimeStageId: string) => void;
+    /** Optional: stage name for the "tracing from" header. */
+    fromStageName?: string;
+}
+/**
+ * Render the backward causal chain as a stack trace.
+ * Each frame shows: stage name, what it wrote, linked by which key.
+ * Click a frame to navigate the time-travel slider.
+ */
+declare const DataTracePanel: react.NamedExoticComponent<DataTracePanelProps>;
+
+interface InspectorPanelProps {
+    snapshots: StageSnapshot[];
+    selectedIndex: number;
+    /** Causal chain frames for the selected node (empty = no trace available). */
+    dataTraceFrames: CausalFrame[];
+    /** Currently selected runtimeStageId. */
+    selectedStageId?: string;
+    /** Navigate to a stage when clicking a Data Trace frame. */
+    onNavigateToStage?: (runtimeStageId: string) => void;
+}
+declare const InspectorPanel: react.NamedExoticComponent<InspectorPanelProps>;
+
+interface InsightConfig {
+    /** Unique ID (matches recorder id). */
+    id: string;
+    /** User-facing name (Story, Performance, Quality, Cost). */
+    name: string;
+    /** Aggregate summary for collapsed header (e.g., "1.2ms 3R 3W"). */
+    summary?: string;
+    /** Render the insight content. */
+    render: () => React.ReactNode;
+}
+interface InsightPanelProps {
+    insights: InsightConfig[];
+    /** Which insight is expanded by default (by id). */
+    expandedId?: string;
+    /** Display mode: tabs (one at a time) or grid (all visible). */
+    mode: "tabs" | "grid";
+}
+declare const InsightPanel: react.NamedExoticComponent<InsightPanelProps>;
+
+interface CompactTimelineProps {
+    snapshots: StageSnapshot[];
+    selectedIndex: number;
+    /** Start expanded or collapsed. Default: collapsed. */
+    defaultExpanded?: boolean;
+}
+declare const CompactTimeline: react.NamedExoticComponent<CompactTimelineProps>;
+
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, buildEntryRangeIndex, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };

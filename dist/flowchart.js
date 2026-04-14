@@ -818,9 +818,14 @@ function applyOverlay(layout, overlay, colors) {
     if (le.isLoop) {
       let loopExecuted = false;
       if (o?.executionOrder) {
-        const lastSourceIdx = o.executionOrder.lastIndexOf(le.source);
-        if (lastSourceIdx >= 0) {
-          loopExecuted = o.executionOrder.slice(lastSourceIdx + 1).includes(le.target);
+        if (le.source === le.target) {
+          const count = o.executionOrder.filter((id) => id === le.source).length;
+          loopExecuted = count > 1;
+        } else {
+          const lastSourceIdx = o.executionOrder.lastIndexOf(le.source);
+          if (lastSourceIdx >= 0) {
+            loopExecuted = o.executionOrder.slice(lastSourceIdx + 1).includes(le.target);
+          }
         }
       }
       edges.push({

@@ -2201,7 +2201,7 @@ function TimeTravelControls({
 }
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-import { memo as memo4, useState as useState9, useCallback as useCallback7, useMemo as useMemo11, useRef as useRef7, useEffect as useEffect8 } from "react";
+import { memo as memo8, useState as useState12, useCallback as useCallback7, useMemo as useMemo12, useRef as useRef7, useEffect as useEffect8 } from "react";
 
 // src/utils/narrativeSync.ts
 function buildEntryRangeIndex(entries) {
@@ -3780,9 +3780,14 @@ function applyOverlay(layout, overlay, colors) {
     if (le.isLoop) {
       let loopExecuted = false;
       if (o?.executionOrder) {
-        const lastSourceIdx = o.executionOrder.lastIndexOf(le.source);
-        if (lastSourceIdx >= 0) {
-          loopExecuted = o.executionOrder.slice(lastSourceIdx + 1).includes(le.target);
+        if (le.source === le.target) {
+          const count = o.executionOrder.filter((id) => id === le.source).length;
+          loopExecuted = count > 1;
+        } else {
+          const lastSourceIdx = o.executionOrder.lastIndexOf(le.source);
+          if (lastSourceIdx >= 0) {
+            loopExecuted = o.executionOrder.slice(lastSourceIdx + 1).includes(le.target);
+          }
         }
       }
       edges.push({
@@ -3943,22 +3948,490 @@ function TracedFlowchartView({
   );
 }
 
+// src/components/InspectorPanel/InspectorPanel.tsx
+import { memo as memo5, useState as useState9 } from "react";
+
+// src/components/DataTracePanel/DataTracePanel.tsx
+import { memo as memo4 } from "react";
+import { jsx as jsx18, jsxs as jsxs17 } from "react/jsx-runtime";
+var DataTracePanel = memo4(function DataTracePanel2({
+  frames,
+  selectedStageId,
+  onFrameClick,
+  fromStageName
+}) {
+  if (frames.length === 0) {
+    return /* @__PURE__ */ jsx18("div", { style: { padding: 12, color: theme.textMuted, fontSize: 13 }, children: "Select a stage to see its data dependency chain." });
+  }
+  return /* @__PURE__ */ jsxs17("div", { style: { padding: "8px 0", fontSize: 13 }, children: [
+    fromStageName && /* @__PURE__ */ jsxs17(
+      "div",
+      {
+        style: {
+          padding: "4px 12px 8px",
+          fontSize: 11,
+          color: theme.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+          fontWeight: 600
+        },
+        children: [
+          "Data trace from ",
+          fromStageName
+        ]
+      }
+    ),
+    frames.map((frame, i) => /* @__PURE__ */ jsx18(
+      DataTraceFrame,
+      {
+        frame,
+        isFirst: i === 0,
+        isLast: i === frames.length - 1,
+        isSelected: frame.runtimeStageId === selectedStageId,
+        onClick: onFrameClick
+      },
+      frame.runtimeStageId
+    ))
+  ] });
+});
+var DataTraceFrame = memo4(function DataTraceFrame2({
+  frame,
+  isFirst,
+  isLast,
+  isSelected,
+  onClick
+}) {
+  return /* @__PURE__ */ jsxs17(
+    "button",
+    {
+      onClick: () => onClick?.(frame.runtimeStageId),
+      style: {
+        display: "block",
+        width: "100%",
+        textAlign: "left",
+        border: "none",
+        background: isSelected ? "var(--fp-accent-bg, rgba(99,102,241,0.12))" : "transparent",
+        padding: "6px 12px 6px 16px",
+        cursor: onClick ? "pointer" : "default",
+        borderLeft: isSelected ? "3px solid var(--fp-accent, #6366f1)" : "3px solid transparent",
+        color: "inherit",
+        fontSize: 13
+      },
+      children: [
+        /* @__PURE__ */ jsxs17("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+          !isFirst && /* @__PURE__ */ jsx18("span", { style: { color: theme.textMuted, fontSize: 11 }, children: "\u2191" }),
+          /* @__PURE__ */ jsx18(
+            "span",
+            {
+              style: {
+                fontWeight: isFirst ? 600 : 400,
+                color: isFirst ? "var(--fp-accent, #6366f1)" : theme.textPrimary
+              },
+              children: frame.stageName
+            }
+          ),
+          isLast && !isFirst && /* @__PURE__ */ jsx18(
+            "span",
+            {
+              style: {
+                fontSize: 10,
+                color: theme.textMuted,
+                fontStyle: "italic"
+              },
+              children: "(origin)"
+            }
+          )
+        ] }),
+        frame.keysWritten.length > 0 && /* @__PURE__ */ jsxs17(
+          "div",
+          {
+            style: {
+              fontSize: 11,
+              color: theme.textMuted,
+              paddingLeft: isFirst ? 0 : 18,
+              marginTop: 2
+            },
+            children: [
+              "wrote:",
+              " ",
+              /* @__PURE__ */ jsx18("span", { style: { color: theme.textSecondary }, children: frame.keysWritten.join(", ") })
+            ]
+          }
+        ),
+        frame.linkedBy && /* @__PURE__ */ jsxs17(
+          "div",
+          {
+            style: {
+              fontSize: 11,
+              color: "var(--fp-accent, #6366f1)",
+              paddingLeft: 18,
+              marginTop: 1
+            },
+            children: [
+              "\u2190 via ",
+              frame.linkedBy
+            ]
+          }
+        )
+      ]
+    }
+  );
+});
+
+// src/components/InspectorPanel/InspectorPanel.tsx
+import { jsx as jsx19, jsxs as jsxs18 } from "react/jsx-runtime";
+var InspectorPanel = memo5(function InspectorPanel2({
+  snapshots,
+  selectedIndex,
+  dataTraceFrames,
+  selectedStageId,
+  onNavigateToStage
+}) {
+  const [tab, setTab] = useState9("state");
+  const currentSnapshot = snapshots[selectedIndex];
+  return /* @__PURE__ */ jsxs18(
+    "div",
+    {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        overflow: "hidden"
+      },
+      children: [
+        /* @__PURE__ */ jsxs18(
+          "div",
+          {
+            style: {
+              display: "flex",
+              borderBottom: `1px solid ${theme.border}`,
+              flexShrink: 0
+            },
+            children: [
+              /* @__PURE__ */ jsx19(
+                TabButton,
+                {
+                  active: tab === "state",
+                  onClick: () => setTab("state"),
+                  label: "State"
+                }
+              ),
+              /* @__PURE__ */ jsx19(
+                TabButton,
+                {
+                  active: tab === "trace",
+                  onClick: () => setTab("trace"),
+                  label: "Data Trace",
+                  badge: dataTraceFrames.length > 0 ? String(dataTraceFrames.length) : void 0
+                }
+              )
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsxs18("div", { style: { flex: 1, overflow: "auto" }, children: [
+          tab === "state" && /* @__PURE__ */ jsx19(
+            MemoryPanel,
+            {
+              snapshots,
+              selectedIndex
+            }
+          ),
+          tab === "trace" && /* @__PURE__ */ jsx19(
+            DataTracePanel,
+            {
+              frames: dataTraceFrames,
+              selectedStageId,
+              onFrameClick: onNavigateToStage,
+              fromStageName: currentSnapshot?.stageName
+            }
+          )
+        ] })
+      ]
+    }
+  );
+});
+function TabButton({
+  active,
+  onClick,
+  label,
+  badge
+}) {
+  return /* @__PURE__ */ jsxs18(
+    "button",
+    {
+      onClick,
+      style: {
+        padding: "8px 14px",
+        border: "none",
+        borderBottom: active ? "2px solid var(--fp-accent, #6366f1)" : "2px solid transparent",
+        background: "transparent",
+        color: active ? "var(--fp-accent, #6366f1)" : theme.textMuted,
+        fontWeight: active ? 600 : 400,
+        fontSize: 12,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: 4
+      },
+      children: [
+        label,
+        badge && /* @__PURE__ */ jsx19(
+          "span",
+          {
+            style: {
+              fontSize: 10,
+              background: active ? "var(--fp-accent, #6366f1)" : theme.textMuted,
+              color: "#fff",
+              borderRadius: 8,
+              padding: "1px 5px",
+              fontWeight: 600
+            },
+            children: badge
+          }
+        )
+      ]
+    }
+  );
+}
+
+// src/components/InsightPanel/InsightPanel.tsx
+import { memo as memo6, useState as useState10 } from "react";
+import { jsx as jsx20, jsxs as jsxs19 } from "react/jsx-runtime";
+var InsightPanel = memo6(function InsightPanel2({
+  insights,
+  expandedId,
+  mode
+}) {
+  if (insights.length === 0) {
+    return /* @__PURE__ */ jsx20("div", { style: { padding: 12, color: theme.textMuted, fontSize: 13 }, children: "No insights available. Attach recorders to see data." });
+  }
+  if (mode === "grid") {
+    return /* @__PURE__ */ jsx20(InsightGrid, { insights });
+  }
+  return /* @__PURE__ */ jsx20(InsightTabs, { insights, defaultId: expandedId });
+});
+var InsightTabs = memo6(function InsightTabs2({
+  insights,
+  defaultId
+}) {
+  const [activeId, setActiveId] = useState10(defaultId ?? insights[0]?.id);
+  const active = insights.find((i) => i.id === activeId) ?? insights[0];
+  return /* @__PURE__ */ jsxs19(
+    "div",
+    {
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        overflow: "hidden"
+      },
+      children: [
+        /* @__PURE__ */ jsx20(
+          "div",
+          {
+            style: {
+              display: "flex",
+              borderBottom: `1px solid ${theme.border}`,
+              flexShrink: 0,
+              overflowX: "auto"
+            },
+            children: insights.map((insight) => /* @__PURE__ */ jsx20(
+              "button",
+              {
+                onClick: () => setActiveId(insight.id),
+                style: {
+                  padding: "8px 12px",
+                  border: "none",
+                  borderBottom: activeId === insight.id ? "2px solid var(--fp-accent, #6366f1)" : "2px solid transparent",
+                  background: "transparent",
+                  color: activeId === insight.id ? "var(--fp-accent, #6366f1)" : theme.textMuted,
+                  fontWeight: activeId === insight.id ? 600 : 400,
+                  fontSize: 12,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap"
+                },
+                children: insight.name
+              },
+              insight.id
+            ))
+          }
+        ),
+        /* @__PURE__ */ jsx20("div", { style: { flex: 1, overflow: "auto" }, children: active?.render() })
+      ]
+    }
+  );
+});
+var InsightGrid = memo6(function InsightGrid2({
+  insights
+}) {
+  const cols = insights.length <= 2 ? 1 : 2;
+  return /* @__PURE__ */ jsx20(
+    "div",
+    {
+      style: {
+        display: "grid",
+        gridTemplateColumns: `repeat(${cols}, 1fr)`,
+        height: "100%",
+        overflow: "auto",
+        gap: 1,
+        background: theme.border
+      },
+      children: insights.map((insight) => /* @__PURE__ */ jsxs19(
+        "div",
+        {
+          style: {
+            background: "var(--fp-bg, #1a1b26)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden"
+          },
+          children: [
+            /* @__PURE__ */ jsxs19(
+              "div",
+              {
+                style: {
+                  padding: "6px 10px",
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: theme.textMuted,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                  borderBottom: `1px solid ${theme.border}`,
+                  flexShrink: 0
+                },
+                children: [
+                  insight.name,
+                  insight.summary && /* @__PURE__ */ jsx20(
+                    "span",
+                    {
+                      style: {
+                        marginLeft: 8,
+                        fontWeight: 400,
+                        fontSize: 10,
+                        color: theme.textMuted
+                      },
+                      children: insight.summary
+                    }
+                  )
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsx20("div", { style: { flex: 1, overflow: "auto" }, children: insight.render() })
+          ]
+        },
+        insight.id
+      ))
+    }
+  );
+});
+
+// src/components/CompactTimeline/CompactTimeline.tsx
+import { memo as memo7, useState as useState11 } from "react";
+import { jsx as jsx21, jsxs as jsxs20 } from "react/jsx-runtime";
+var CompactTimeline = memo7(function CompactTimeline2({
+  snapshots,
+  selectedIndex,
+  defaultExpanded = false
+}) {
+  const [expanded, setExpanded] = useState11(defaultExpanded);
+  if (snapshots.length === 0) return null;
+  return /* @__PURE__ */ jsxs20("div", { style: { borderTop: `1px solid ${theme.border}` }, children: [
+    /* @__PURE__ */ jsxs20(
+      "button",
+      {
+        onClick: () => setExpanded((e) => !e),
+        style: {
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "6px 12px",
+          border: "none",
+          background: "transparent",
+          cursor: "pointer",
+          fontSize: 11,
+          color: theme.textMuted,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.5px"
+        },
+        children: [
+          /* @__PURE__ */ jsx21("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
+          "Timeline",
+          /* @__PURE__ */ jsxs20("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
+            snapshots.length,
+            " stages"
+          ] }),
+          !expanded && /* @__PURE__ */ jsxs20(
+            "div",
+            {
+              style: {
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                gap: 2,
+                marginLeft: 8
+              },
+              children: [
+                snapshots.map((snap, i) => /* @__PURE__ */ jsx21(
+                  "div",
+                  {
+                    style: {
+                      width: i === selectedIndex ? 8 : 5,
+                      height: i === selectedIndex ? 8 : 5,
+                      borderRadius: "50%",
+                      background: i < selectedIndex ? "var(--fp-success, #22c55e)" : i === selectedIndex ? "var(--fp-accent, #6366f1)" : theme.textMuted + "40",
+                      transition: "all 0.15s",
+                      flexShrink: 0
+                    },
+                    title: snap.stageName
+                  },
+                  i
+                )),
+                /* @__PURE__ */ jsx21(
+                  "div",
+                  {
+                    style: {
+                      flex: 1,
+                      height: 1,
+                      background: theme.textMuted + "30",
+                      marginLeft: -2,
+                      marginRight: 4
+                    }
+                  }
+                )
+              ]
+            }
+          )
+        ]
+      }
+    ),
+    expanded && /* @__PURE__ */ jsx21("div", { style: { padding: "0 12px 8px" }, children: /* @__PURE__ */ jsx21(
+      GanttTimeline,
+      {
+        snapshots,
+        selectedIndex
+      }
+    ) })
+  ] });
+});
+
 // src/components/ExplainableShell/ExplainableShell.tsx
-import { Fragment as Fragment6, jsx as jsx18, jsxs as jsxs17 } from "react/jsx-runtime";
-var HLinePill = memo4(function HLinePill2({
+import { Fragment as Fragment6, jsx as jsx22, jsxs as jsxs21 } from "react/jsx-runtime";
+var HLinePill = memo8(function HLinePill2({
   label,
   detail,
   expanded,
   onClick
 }) {
-  return /* @__PURE__ */ jsxs17("div", { style: {
+  return /* @__PURE__ */ jsxs21("div", { style: {
     display: "flex",
     alignItems: "center",
     gap: 0,
     padding: "0"
   }, children: [
-    /* @__PURE__ */ jsx18("div", { style: { flex: 1, height: 1, background: theme.border } }),
-    /* @__PURE__ */ jsxs17(
+    /* @__PURE__ */ jsx22("div", { style: { flex: 1, height: 1, background: theme.border } }),
+    /* @__PURE__ */ jsxs21(
       "button",
       {
         onClick,
@@ -3982,31 +4455,31 @@ var HLinePill = memo4(function HLinePill2({
           transition: "color 0.15s ease"
         },
         children: [
-          /* @__PURE__ */ jsx18("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
+          /* @__PURE__ */ jsx22("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
           label,
-          detail && /* @__PURE__ */ jsx18("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
+          detail && /* @__PURE__ */ jsx22("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
         ]
       }
     ),
-    /* @__PURE__ */ jsx18("div", { style: { flex: 1, height: 1, background: theme.border } })
+    /* @__PURE__ */ jsx22("div", { style: { flex: 1, height: 1, background: theme.border } })
   ] });
 });
-var VLinePill = memo4(function VLinePill2({
+var VLinePill = memo8(function VLinePill2({
   label,
   expanded,
   side = "right",
   onClick
 }) {
   const arrow = side === "right" ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25C0" : "\u25B6";
-  return /* @__PURE__ */ jsxs17("div", { style: {
+  return /* @__PURE__ */ jsxs21("div", { style: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     gap: 0,
     padding: "0"
   }, children: [
-    /* @__PURE__ */ jsx18("div", { style: { flex: 1, width: 1, background: theme.border } }),
-    /* @__PURE__ */ jsxs17(
+    /* @__PURE__ */ jsx22("div", { style: { flex: 1, width: 1, background: theme.border } }),
+    /* @__PURE__ */ jsxs21(
       "button",
       {
         onClick,
@@ -4031,12 +4504,12 @@ var VLinePill = memo4(function VLinePill2({
           transition: "color 0.15s ease"
         },
         children: [
-          /* @__PURE__ */ jsx18("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
+          /* @__PURE__ */ jsx22("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
           label
         ]
       }
     ),
-    /* @__PURE__ */ jsx18("div", { style: { flex: 1, width: 1, background: theme.border } })
+    /* @__PURE__ */ jsx22("div", { style: { flex: 1, width: 1, background: theme.border } })
   ] });
 });
 function detectKeyedSteps(data) {
@@ -4073,9 +4546,9 @@ function KeyedRecorderView({
   snapshots,
   selectedIndex
 }) {
-  const [showAggregate, setShowAggregate] = useState9(false);
-  const detected = useMemo11(() => detectKeyedSteps(data), [data]);
-  const visibleKeys = useMemo11(() => {
+  const [showAggregate, setShowAggregate] = useState12(false);
+  const detected = useMemo12(() => detectKeyedSteps(data), [data]);
+  const visibleKeys = useMemo12(() => {
     const keys = /* @__PURE__ */ new Set();
     for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
       const snap = snapshots[i];
@@ -4090,7 +4563,7 @@ function KeyedRecorderView({
   }, [snapshots, selectedIndex, detected?.keyType]);
   const isAtEnd = selectedIndex >= snapshots.length - 1;
   if (!detected) {
-    return /* @__PURE__ */ jsx18("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
+    return /* @__PURE__ */ jsx22("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
   }
   const steps = detected.steps;
   const hints = extractRenderHints(data);
@@ -4104,13 +4577,13 @@ function KeyedRecorderView({
     }
   }
   const grandTotal = hints?.grandTotal ?? 0;
-  return /* @__PURE__ */ jsxs17("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
-    description && /* @__PURE__ */ jsx18("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
-    /* @__PURE__ */ jsxs17("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
+  return /* @__PURE__ */ jsxs21("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
+    description && /* @__PURE__ */ jsx22("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
+    /* @__PURE__ */ jsxs21("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
       preferredOperation === "aggregate" ? (
         /* AGGREGATE: collect silently during scrub, button at end to reveal total */
-        /* @__PURE__ */ jsxs17(Fragment6, { children: [
-          isAtEnd ? /* @__PURE__ */ jsx18("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ jsx18(
+        /* @__PURE__ */ jsxs21(Fragment6, { children: [
+          isAtEnd ? /* @__PURE__ */ jsx22("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ jsx22(
             "button",
             {
               onClick: () => setShowAggregate(true),
@@ -4128,35 +4601,35 @@ function KeyedRecorderView({
               },
               children: "Aggregate \u2014 Show Grand Total"
             }
-          ) : /* @__PURE__ */ jsxs17("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
-            /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
-            numFieldKey && /* @__PURE__ */ jsxs17("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
+          ) : /* @__PURE__ */ jsxs21("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
+            /* @__PURE__ */ jsx22("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
+            numFieldKey && /* @__PURE__ */ jsxs21("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
               grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1),
-              /* @__PURE__ */ jsxs17("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
+              /* @__PURE__ */ jsxs21("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
                 numFieldKey,
                 " \xB7 ",
                 allKeys.length,
                 " steps"
               ] })
             ] })
-          ] }) }) : /* @__PURE__ */ jsxs17("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
-            /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
-            /* @__PURE__ */ jsxs17("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
+          ] }) }) : /* @__PURE__ */ jsxs21("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
+            /* @__PURE__ */ jsx22("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
+            /* @__PURE__ */ jsxs21("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
               visibleEntries.length,
               " of ",
               allKeys.length,
               " steps collected. Scrub to end to aggregate."
             ] })
           ] }),
-          /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+          /* @__PURE__ */ jsx22("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
         ] })
       ) : preferredOperation === "accumulate" ? (
         /* ACCUMULATE: running total grows with slider — IS the total at end, no button */
-        /* @__PURE__ */ jsxs17(Fragment6, { children: [
-          numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ jsxs17("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
-            /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
-            /* @__PURE__ */ jsx18("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
-            /* @__PURE__ */ jsxs17("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
+        /* @__PURE__ */ jsxs21(Fragment6, { children: [
+          numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ jsxs21("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
+            /* @__PURE__ */ jsx22("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
+            /* @__PURE__ */ jsx22("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
+            /* @__PURE__ */ jsxs21("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
               numFieldKey,
               " \xB7 ",
               visibleEntries.length,
@@ -4165,27 +4638,27 @@ function KeyedRecorderView({
               " steps"
             ] })
           ] }),
-          /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+          /* @__PURE__ */ jsx22("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
         ] })
       ) : (
         /* TRANSLATE: per-step entries prominent, no totals */
-        /* @__PURE__ */ jsx18("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
+        /* @__PURE__ */ jsx22("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
       ),
       visibleEntries.map((key) => {
         const entry = steps[key];
         const label = entry.stageName ?? key;
         const numVal = numFieldKey ? entry[numFieldKey] : void 0;
-        return /* @__PURE__ */ jsxs17("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
-          /* @__PURE__ */ jsx18("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
-          /* @__PURE__ */ jsx18("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
-          numVal !== void 0 && /* @__PURE__ */ jsx18("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
+        return /* @__PURE__ */ jsxs21("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
+          /* @__PURE__ */ jsx22("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
+          /* @__PURE__ */ jsx22("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
+          numVal !== void 0 && /* @__PURE__ */ jsx22("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
         ] }, key);
       }),
-      visibleEntries.length === 0 && /* @__PURE__ */ jsx18("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." })
+      visibleEntries.length === 0 && /* @__PURE__ */ jsx22("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." })
     ] })
   ] });
 }
-var DetailsContent = memo4(function DetailsContent2({
+var DetailsContent = memo8(function DetailsContent2({
   snapshots,
   selectedIndex,
   narrativeEntries,
@@ -4198,16 +4671,16 @@ var DetailsContent = memo4(function DetailsContent2({
     {
       id: "memory",
       name: "Memory",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx18(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: fillHeight ? { height: "100%" } : void 0 })
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx22(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: fillHeight ? { height: "100%" } : void 0 })
     },
     {
       id: "narrative",
       name: "Narrative",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx18(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries, narrative, size, style: fillHeight ? { height: "100%" } : void 0 })
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx22(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries, narrative, size, style: fillHeight ? { height: "100%" } : void 0 })
     }
   ];
   const allViews = [...builtInViews, ...extraViews ?? []];
-  const [activeViewId, setActiveViewId] = useState9(allViews[0]?.id ?? "memory");
+  const [activeViewId, setActiveViewId] = useState12(allViews[0]?.id ?? "memory");
   const viewIds = allViews.map((v2) => v2.id).join(",");
   useEffect8(() => {
     if (!allViews.find((v2) => v2.id === activeViewId)) {
@@ -4215,10 +4688,10 @@ var DetailsContent = memo4(function DetailsContent2({
     }
   }, [viewIds]);
   const activeView = allViews.find((v2) => v2.id === activeViewId) ?? allViews[0];
-  return /* @__PURE__ */ jsxs17("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
-    /* @__PURE__ */ jsx18("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
+  return /* @__PURE__ */ jsxs21("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
+    /* @__PURE__ */ jsx22("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
       const active = view.id === activeViewId;
-      return /* @__PURE__ */ jsx18(
+      return /* @__PURE__ */ jsx22(
         "button",
         {
           onClick: () => setActiveViewId(view.id),
@@ -4242,7 +4715,7 @@ var DetailsContent = memo4(function DetailsContent2({
         view.id
       );
     }) }),
-    /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
+    /* @__PURE__ */ jsx22("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
   ] });
 });
 function resolveSubflowLevel(parentSpec, parentSnapshots, subflowNodeName, narrativeEntries) {
@@ -4282,8 +4755,18 @@ function hasSubflowNodes(node) {
   if (node.next && hasSubflowNodes(node.next)) return true;
   return false;
 }
+function insightName(name) {
+  const map = {
+    "Narrative": "Story",
+    "Memory": "State",
+    "Metrics": "Performance",
+    "Quality": "Quality",
+    "Cost": "Cost"
+  };
+  return map[name] ?? name;
+}
 function defaultRenderFlowchart({ spec: s, snapshots: snaps, selectedIndex, onNodeClick }) {
-  return /* @__PURE__ */ jsx18(
+  return /* @__PURE__ */ jsx22(
     TracedFlowchartView,
     {
       spec: s,
@@ -4315,7 +4798,7 @@ function ExplainableShell({
   className,
   style
 }) {
-  const derivedFromRuntime = useMemo11(() => {
+  const derivedFromRuntime = useMemo12(() => {
     if (!runtimeSnapshot) return null;
     try {
       const snaps = toVisualizationSnapshots(runtimeSnapshot, narrativeEntries);
@@ -4337,7 +4820,7 @@ function ExplainableShell({
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
   const shellRef = useRef7(null);
-  const [isNarrow, setIsNarrow] = useState9(false);
+  const [isNarrow, setIsNarrow] = useState12(false);
   useEffect8(() => {
     const el = shellRef.current;
     if (!el) return;
@@ -4348,14 +4831,14 @@ function ExplainableShell({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const autoRecorderViews = useMemo11(() => {
+  const autoRecorderViews = useMemo12(() => {
     const recorders = runtimeSnapshot?.recorders;
     if (!recorders?.length) return [];
     const explicitIds = new Set((recorderViews ?? []).map((v2) => v2.id));
     return recorders.filter((r) => !explicitIds.has(r.id)).map((r) => ({ id: r.id, name: r.name, description: r.description, preferredOperation: r.preferredOperation, data: r.data }));
   }, [runtimeSnapshot, recorderViews]);
   const hasNarrative = !!(narrative?.length || narrativeEntries?.length);
-  const allTabs = useMemo11(() => {
+  const allTabs = useMemo12(() => {
     const tabs2 = [
       { id: "result", name: "Result", description: "Final output and console logs" },
       { id: "memory", name: "Memory", description: "Accumulator \u2014 progressive shared state at each stage" }
@@ -4374,12 +4857,12 @@ function ExplainableShell({
   }, [hasNarrative, recorderViews, autoRecorderViews, hideTabsProp]);
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
-  const [activeTab, setActiveTab] = useState9(resolvedDefault);
-  const [snapshotIdx, setSnapshotIdx] = useState9(0);
-  const [drillDownStack, setDrillDownStack] = useState9([]);
-  const [rightExpanded, setRightExpanded] = useState9(defaultExpanded?.details ?? true);
-  const [leftExpanded, setLeftExpanded] = useState9(defaultExpanded?.topology ?? false);
-  const [timelineExpanded, setTimelineExpanded] = useState9(defaultExpanded?.timeline ?? false);
+  const [activeTab, setActiveTab] = useState12(resolvedDefault);
+  const [snapshotIdx, setSnapshotIdx] = useState12(0);
+  const [drillDownStack, setDrillDownStack] = useState12([]);
+  const [rightExpanded, setRightExpanded] = useState12(defaultExpanded?.details ?? true);
+  const [leftExpanded, setLeftExpanded] = useState12(defaultExpanded?.topology ?? false);
+  const [timelineExpanded, setTimelineExpanded] = useState12(defaultExpanded?.timeline ?? false);
   useEffect8(() => {
     if (isNarrow) {
       setLeftExpanded(false);
@@ -4404,7 +4887,7 @@ function ExplainableShell({
     triggerReflow();
   }, [triggerReflow]);
   const isInSubflow = drillDownStack.length > 0;
-  const currentLevel = useMemo11(() => {
+  const currentLevel = useMemo12(() => {
     if (drillDownStack.length > 0) {
       const top = drillDownStack[drillDownStack.length - 1];
       return { spec: top.spec, snapshots: top.snapshots };
@@ -4414,7 +4897,7 @@ function ExplainableShell({
   const activeSnapshots = currentLevel.snapshots;
   const activeSpec = currentLevel.spec;
   const safeIdx = activeSnapshots.length > 0 ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1)) : 0;
-  const activeNarrative = useMemo11(() => {
+  const activeNarrative = useMemo12(() => {
     if (!isInSubflow) return narrative;
     const lines = [];
     for (const snap of activeSnapshots) {
@@ -4424,12 +4907,12 @@ function ExplainableShell({
     return lines.length > 0 ? lines : void 0;
   }, [isInSubflow, narrative, activeSnapshots]);
   const activeNarrativeEntries = isInSubflow ? void 0 : narrativeEntries;
-  const breadcrumbs = useMemo11(() => {
+  const breadcrumbs = useMemo12(() => {
     const root = { label: title || "Flowchart", spec, description: spec?.description };
     return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: void 0 }))];
   }, [spec, title, drillDownStack]);
-  const showTreeSidebar = useMemo11(() => !!spec && hasSubflowNodes(spec), [spec]);
-  const rootOverlay = useMemo11(() => {
+  const showTreeSidebar = useMemo12(() => !!spec && hasSubflowNodes(spec), [spec]);
+  const rootOverlay = useMemo12(() => {
     if (isInSubflow || !snapshots.length) return { activeStage: void 0, doneStages: void 0 };
     const doneStages = new Set(snapshots.slice(0, safeIdx).map((s) => s.stageLabel));
     const activeStage = snapshots[safeIdx]?.stageLabel ?? null;
@@ -4497,31 +4980,31 @@ function ExplainableShell({
   );
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
   if (unstyled) {
-    return /* @__PURE__ */ jsxs17("div", { className, style, "data-fp": "explainable-shell", children: [
-      /* @__PURE__ */ jsx18("div", { "data-fp": "shell-tabs", children: allTabs.map((tab) => /* @__PURE__ */ jsx18("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
-      /* @__PURE__ */ jsxs17("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
-        activeTab === "result" && /* @__PURE__ */ jsx18(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
-        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs17(Fragment6, { children: [
-          /* @__PURE__ */ jsx18(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true }),
-          isInSubflow && /* @__PURE__ */ jsx18(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+    return /* @__PURE__ */ jsxs21("div", { className, style, "data-fp": "explainable-shell", children: [
+      /* @__PURE__ */ jsx22("div", { "data-fp": "shell-tabs", children: allTabs.map((tab) => /* @__PURE__ */ jsx22("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
+      /* @__PURE__ */ jsxs21("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
+        activeTab === "result" && /* @__PURE__ */ jsx22(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
+        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs21(Fragment6, { children: [
+          /* @__PURE__ */ jsx22(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true }),
+          isInSubflow && /* @__PURE__ */ jsx22(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
           activeSpec && effectiveRenderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick }),
-          /* @__PURE__ */ jsx18(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
-          /* @__PURE__ */ jsx18(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, unstyled: true }),
-          /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
+          /* @__PURE__ */ jsx22(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
+          /* @__PURE__ */ jsx22(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, unstyled: true }),
+          /* @__PURE__ */ jsx22(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
         ] })
       ] })
     ] });
   }
   const showTopology = !!effectiveRenderFlowchart && !!activeSpec;
-  const detailsContent = useMemo11(() => {
+  const detailsContent = useMemo12(() => {
     if (activeTab === "result") {
-      return /* @__PURE__ */ jsx18(ResultPanel, { data: resultData ?? null, logs, hideConsole, size });
+      return /* @__PURE__ */ jsx22(ResultPanel, { data: resultData ?? null, logs, hideConsole, size });
     }
     if (activeTab === "memory") {
-      return /* @__PURE__ */ jsx18(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, size, style: { height: "100%" } });
+      return /* @__PURE__ */ jsx22(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, size, style: { height: "100%" } });
     }
     if (activeTab === "narrative") {
-      return /* @__PURE__ */ jsx18(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, size, style: { height: "100%" } });
+      return /* @__PURE__ */ jsx22(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, size, style: { height: "100%" } });
     }
     const customView = recorderViews?.find((v2) => v2.id === activeTab);
     if (customView?.render) {
@@ -4529,7 +5012,7 @@ function ExplainableShell({
     }
     const autoView = autoRecorderViews.find((v2) => v2.id === activeTab);
     if (autoView) {
-      return /* @__PURE__ */ jsx18(
+      return /* @__PURE__ */ jsx22(
         KeyedRecorderView,
         {
           data: autoView.data,
@@ -4542,8 +5025,8 @@ function ExplainableShell({
     }
     return null;
   }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, activeNarrative, recorderViews, autoRecorderViews]);
-  const detailsPanel = /* @__PURE__ */ jsxs17("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
-    /* @__PURE__ */ jsx18("div", { style: {
+  const detailsPanel = /* @__PURE__ */ jsxs21("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
+    /* @__PURE__ */ jsx22("div", { style: {
       display: "flex",
       borderBottom: `1px solid ${theme.border}`,
       background: theme.bgSecondary,
@@ -4551,7 +5034,7 @@ function ExplainableShell({
       overflowX: "auto"
     }, children: allTabs.map((tab) => {
       const active = tab.id === activeTab;
-      return /* @__PURE__ */ jsx18(
+      return /* @__PURE__ */ jsx22(
         "button",
         {
           onClick: () => handleTabChange(tab.id),
@@ -4575,9 +5058,9 @@ function ExplainableShell({
         tab.id
       );
     }) }),
-    /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
+    /* @__PURE__ */ jsx22("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
   ] });
-  return /* @__PURE__ */ jsxs17(
+  return /* @__PURE__ */ jsxs21(
     "div",
     {
       ref: shellRef,
@@ -4595,7 +5078,7 @@ function ExplainableShell({
       },
       "data-fp": "explainable-shell",
       children: [
-        /* @__PURE__ */ jsx18(
+        /* @__PURE__ */ jsx22(
           TimeTravelControls,
           {
             snapshots: activeSnapshots,
@@ -4604,19 +5087,19 @@ function ExplainableShell({
             size
           }
         ),
-        isInSubflow && /* @__PURE__ */ jsx18(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-        /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
+        isInSubflow && /* @__PURE__ */ jsx22(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+        /* @__PURE__ */ jsx22("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
           /* ── Mobile: stacked vertical ── */
-          /* @__PURE__ */ jsxs17(Fragment6, { children: [
-            showTopology && /* @__PURE__ */ jsx18("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
+          /* @__PURE__ */ jsxs21(Fragment6, { children: [
+            showTopology && /* @__PURE__ */ jsx22("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
               spec: activeSpec,
               snapshots: activeSnapshots,
               selectedIndex: safeIdx,
               onNodeClick: handleNodeClick
             }) }),
-            showTreeSidebar && /* @__PURE__ */ jsxs17(Fragment6, { children: [
-              /* @__PURE__ */ jsx18(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
-              leftExpanded && /* @__PURE__ */ jsx18("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx18(
+            showTreeSidebar && /* @__PURE__ */ jsxs21(Fragment6, { children: [
+              /* @__PURE__ */ jsx22(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
+              leftExpanded && /* @__PURE__ */ jsx22("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx22(
                 SubflowTree,
                 {
                   spec,
@@ -4626,47 +5109,66 @@ function ExplainableShell({
                 }
               ) })
             ] }),
-            /* @__PURE__ */ jsx18(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-            rightExpanded && /* @__PURE__ */ jsx18("div", { style: { maxHeight: 350, flexShrink: 0, overflow: "hidden" }, children: detailsPanel }),
-            /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
-            timelineExpanded && /* @__PURE__ */ jsx18("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
-          ] })
-        ) : showTopology ? (
-          /* ── Desktop with topology: side-by-side ── */
-          /* @__PURE__ */ jsxs17(Fragment6, { children: [
-            /* @__PURE__ */ jsxs17("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
-              showTreeSidebar && (leftExpanded ? /* @__PURE__ */ jsxs17("div", { style: { width: 220, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
-                /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ jsx18(
-                  SubflowTree,
-                  {
-                    spec,
-                    activeStage: rootOverlay.activeStage,
-                    doneStages: rootOverlay.doneStages,
-                    onNodeSelect: handleTreeNodeSelect
-                  }
-                ) }),
-                /* @__PURE__ */ jsx18(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
-              ] }) : /* @__PURE__ */ jsx18(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
-              /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
-                spec: activeSpec,
-                snapshots: activeSnapshots,
-                selectedIndex: safeIdx,
-                onNodeClick: handleNodeClick
-              }) }),
-              rightExpanded ? /* @__PURE__ */ jsxs17("div", { style: { width: "38%", minWidth: 300, maxWidth: 500, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
-                /* @__PURE__ */ jsx18(VLinePill, { label: rightLabel, expanded: true, onClick: () => toggleRight(false) }),
-                /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "hidden" }, children: detailsPanel })
-              ] }) : /* @__PURE__ */ jsx18(VLinePill, { label: rightLabel, expanded: false, onClick: () => toggleRight(true) })
-            ] }),
-            /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
-            timelineExpanded && /* @__PURE__ */ jsx18("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
+            /* @__PURE__ */ jsx22(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+            rightExpanded && /* @__PURE__ */ jsx22("div", { style: { maxHeight: 350, flexShrink: 0, overflow: "hidden" }, children: detailsPanel }),
+            /* @__PURE__ */ jsx22(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
+            timelineExpanded && /* @__PURE__ */ jsx22("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx22(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
           ] })
         ) : (
-          /* ── Desktop without topology: details panel takes full width ── */
-          /* @__PURE__ */ jsxs17(Fragment6, { children: [
-            /* @__PURE__ */ jsx18("div", { style: { flex: 1, overflow: "hidden" }, children: detailsPanel }),
-            /* @__PURE__ */ jsx18(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
-            timelineExpanded && /* @__PURE__ */ jsx18("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx18(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
+          /* ── Desktop: three-column layout ── */
+          /* @__PURE__ */ jsxs21(Fragment6, { children: [
+            /* @__PURE__ */ jsxs21("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
+              showTopology && (leftExpanded ? /* @__PURE__ */ jsxs21("div", { style: { width: 280, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+                /* @__PURE__ */ jsx22("div", { style: { flex: 1, overflow: "hidden" }, children: effectiveRenderFlowchart({
+                  spec: activeSpec,
+                  snapshots: activeSnapshots,
+                  selectedIndex: safeIdx,
+                  onNodeClick: handleNodeClick
+                }) }),
+                /* @__PURE__ */ jsx22(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
+              ] }) : /* @__PURE__ */ jsx22(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
+              /* @__PURE__ */ jsx22("div", { style: { width: 300, flexShrink: 0, overflow: "hidden", borderRight: `1px solid ${theme.border}` }, children: /* @__PURE__ */ jsx22(
+                InspectorPanel,
+                {
+                  snapshots: activeSnapshots,
+                  selectedIndex: safeIdx,
+                  dataTraceFrames: [],
+                  selectedStageId: activeSnapshots[safeIdx]?.runtimeStageId,
+                  onNavigateToStage: (id) => {
+                    const idx = activeSnapshots.findIndex((s) => s.runtimeStageId === id);
+                    if (idx >= 0) setSnapshotIdx(idx);
+                  }
+                }
+              ) }),
+              /* @__PURE__ */ jsx22("div", { style: { flex: 1, overflow: "hidden" }, children: /* @__PURE__ */ jsx22(
+                InsightPanel,
+                {
+                  mode: leftExpanded ? "tabs" : "grid",
+                  expandedId: activeTab,
+                  insights: allTabs.filter((t) => t.id !== "result").map((tab) => ({
+                    id: tab.id,
+                    name: insightName(tab.name),
+                    render: () => {
+                      if (tab.id === "memory") return /* @__PURE__ */ jsx22(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, size, style: { height: "100%" } });
+                      if (tab.id === "narrative") return /* @__PURE__ */ jsx22(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, size, style: { height: "100%" } });
+                      const customView = recorderViews?.find((v2) => v2.id === tab.id);
+                      if (customView?.render) return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
+                      const autoView = autoRecorderViews.find((v2) => v2.id === tab.id);
+                      if (autoView) return /* @__PURE__ */ jsx22(KeyedRecorderView, { data: autoView.data, description: autoView.description, preferredOperation: autoView.preferredOperation, snapshots: activeSnapshots, selectedIndex: safeIdx });
+                      return null;
+                    }
+                  }))
+                }
+              ) })
+            ] }),
+            /* @__PURE__ */ jsx22(
+              CompactTimeline,
+              {
+                snapshots: activeSnapshots,
+                selectedIndex: safeIdx,
+                defaultExpanded: timelineExpanded
+              }
+            )
           ] })
         ) })
       ]
@@ -4674,9 +5176,13 @@ function ExplainableShell({
   );
 }
 export {
+  CompactTimeline,
+  DataTracePanel,
   ExplainableShell,
   FootprintTheme,
   GanttTimeline,
+  InsightPanel,
+  InspectorPanel,
   MemoryInspector,
   MemoryPanel,
   NarrativeLog,
