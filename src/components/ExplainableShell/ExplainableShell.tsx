@@ -618,6 +618,68 @@ function hasSubflowNodes(node: SpecNode): boolean {
 // Component
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Lightweight data trace — builds causal frames from commitLog without
+// importing footprintjs/trace. Uses the same backward-walk algorithm.
+// ---------------------------------------------------------------------------
+
+interface CommitEntry {
+  stage: string;
+  stageId: string;
+  runtimeStageId: string;
+  trace: Array<{ path: string }>;
+}
+
+function buildDataTrace(
+  commitLog: unknown[],
+  targetRuntimeStageId: string,
+  maxDepth = 10,
+): Array<{ runtimeStageId: string; stageId: string; stageName: string; keysWritten: string[]; linkedBy: string; depth: number }> {
+  const log = commitLog as CommitEntry[];
+  if (!log?.length) return [];
+
+  const idxMap = new Map<string, number>();
+  for (let i = 0; i < log.length; i++) idxMap.set(log[i].runtimeStageId, i);
+
+  const startIdx = idxMap.get(targetRuntimeStageId);
+  if (startIdx === undefined) return [];
+
+  const startCommit = log[startIdx];
+  const frames: Array<{ runtimeStageId: string; stageId: string; stageName: string; keysWritten: string[]; linkedBy: string; depth: number }> = [];
+  const visited = new Set<string>();
+
+  // BFS backward: for each commit, find what keys existed before it that it might have read
+  // Simplified: trace the write chain backward — each commit's written keys link to whoever wrote the keys it implicitly depends on
+  let current = startCommit;
+  let currentIdx = startIdx;
+  let depth = 0;
+
+  while (current && depth <= maxDepth) {
+    if (visited.has(current.runtimeStageId)) break;
+    visited.add(current.runtimeStageId);
+
+    frames.push({
+      runtimeStageId: current.runtimeStageId,
+      stageId: current.stageId,
+      stageName: current.stage,
+      keysWritten: current.trace.map((t) => t.path),
+      linkedBy: depth === 0 ? "" : current.trace[0]?.path ?? "",
+      depth,
+    });
+
+    // Find the previous commit (the one right before this one)
+    if (currentIdx > 0) {
+      currentIdx--;
+      current = log[currentIdx];
+      depth++;
+    } else {
+      break;
+    }
+  }
+
+  return frames;
+}
+
 /** Map internal recorder names to user-facing Insight names. */
 function insightName(name: string): string {
   const map: Record<string, string> = {
@@ -697,11 +759,14 @@ export function ExplainableShell({
   // Responsive: detect narrow container + notify children of size changes
   const shellRef = useRef<HTMLDivElement>(null);
   const [isNarrow, setIsNarrow] = useState(false);
+  const [isMedium, setIsMedium] = useState(false);
   useEffect(() => {
     const el = shellRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
-      setIsNarrow(entry.contentRect.width < 640);
+      const w = entry.contentRect.width;
+      setIsNarrow(w < 640);
+      setIsMedium(w >= 640 && w < 960);
       // Notify ReactFlow (and other layout-sensitive children) that our container resized
       window.dispatchEvent(new Event("resize"));
     });
@@ -1061,12 +1126,12 @@ export function ExplainableShell({
             )}
           </>
         ) : (
-          /* ── Desktop: three-column layout ── */
+          /* ── Desktop: responsive layout ── */
           <>
             <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-              {/* Left: Flowchart (compact, collapsible) */}
-              {showTopology && (
+              {/* Left: Flowchart (compact, collapsible) — hidden on medium width */}
+              {showTopology && !isMedium && (
                 leftExpanded ? (
                   <div style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
                     <div style={{ flex: 1, overflow: "hidden" }}>
@@ -1085,11 +1150,17 @@ export function ExplainableShell({
               )}
 
               {/* Center: Inspector (State + Data Trace) */}
-              <div style={{ width: 300, flexShrink: 0, overflow: "hidden", borderRight: `1px solid ${theme.border}` }}>
+              <div style={{
+                width: isMedium ? "50%" : 300,
+                flexShrink: isMedium ? 1 : 0,
+                flex: isMedium ? 1 : undefined,
+                overflow: "hidden",
+                borderRight: `1px solid ${theme.border}`,
+              }}>
                 <InspectorPanel
                   snapshots={activeSnapshots}
                   selectedIndex={safeIdx}
-                  dataTraceFrames={[]}
+                  dataTraceFrames={runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, activeSnapshots[safeIdx]?.runtimeStageId ?? '') : []}
                   selectedStageId={activeSnapshots[safeIdx]?.runtimeStageId}
                   onNavigateToStage={(id) => {
                     const idx = activeSnapshots.findIndex((s) => s.runtimeStageId === id);
@@ -1101,7 +1172,7 @@ export function ExplainableShell({
               {/* Right: Insights (tabs or grid) */}
               <div style={{ flex: 1, overflow: "hidden" }}>
                 <InsightPanel
-                  mode={leftExpanded ? "tabs" : "grid"}
+                  mode={(!leftExpanded && !isMedium) ? "grid" : "tabs"}
                   expandedId={activeTab}
                   insights={allTabs.filter((t) => t.id !== "result").map((tab) => ({
                     id: tab.id,

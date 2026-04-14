@@ -4755,6 +4755,40 @@ function hasSubflowNodes(node) {
   if (node.next && hasSubflowNodes(node.next)) return true;
   return false;
 }
+function buildDataTrace(commitLog, targetRuntimeStageId, maxDepth = 10) {
+  const log = commitLog;
+  if (!log?.length) return [];
+  const idxMap = /* @__PURE__ */ new Map();
+  for (let i = 0; i < log.length; i++) idxMap.set(log[i].runtimeStageId, i);
+  const startIdx = idxMap.get(targetRuntimeStageId);
+  if (startIdx === void 0) return [];
+  const startCommit = log[startIdx];
+  const frames = [];
+  const visited = /* @__PURE__ */ new Set();
+  let current = startCommit;
+  let currentIdx = startIdx;
+  let depth = 0;
+  while (current && depth <= maxDepth) {
+    if (visited.has(current.runtimeStageId)) break;
+    visited.add(current.runtimeStageId);
+    frames.push({
+      runtimeStageId: current.runtimeStageId,
+      stageId: current.stageId,
+      stageName: current.stage,
+      keysWritten: current.trace.map((t) => t.path),
+      linkedBy: depth === 0 ? "" : current.trace[0]?.path ?? "",
+      depth
+    });
+    if (currentIdx > 0) {
+      currentIdx--;
+      current = log[currentIdx];
+      depth++;
+    } else {
+      break;
+    }
+  }
+  return frames;
+}
 function insightName(name) {
   const map = {
     "Narrative": "Story",
@@ -4821,11 +4855,14 @@ function ExplainableShell({
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
   const shellRef = useRef7(null);
   const [isNarrow, setIsNarrow] = useState12(false);
+  const [isMedium, setIsMedium] = useState12(false);
   useEffect8(() => {
     const el = shellRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
-      setIsNarrow(entry.contentRect.width < 640);
+      const w = entry.contentRect.width;
+      setIsNarrow(w < 640);
+      setIsMedium(w >= 640 && w < 960);
       window.dispatchEvent(new Event("resize"));
     });
     ro.observe(el);
@@ -5115,10 +5152,10 @@ function ExplainableShell({
             timelineExpanded && /* @__PURE__ */ jsx22("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx22(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
           ] })
         ) : (
-          /* ── Desktop: three-column layout ── */
+          /* ── Desktop: responsive layout ── */
           /* @__PURE__ */ jsxs21(Fragment6, { children: [
             /* @__PURE__ */ jsxs21("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
-              showTopology && (leftExpanded ? /* @__PURE__ */ jsxs21("div", { style: { width: 280, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+              showTopology && !isMedium && (leftExpanded ? /* @__PURE__ */ jsxs21("div", { style: { width: 280, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
                 /* @__PURE__ */ jsx22("div", { style: { flex: 1, overflow: "hidden" }, children: effectiveRenderFlowchart({
                   spec: activeSpec,
                   snapshots: activeSnapshots,
@@ -5127,12 +5164,18 @@ function ExplainableShell({
                 }) }),
                 /* @__PURE__ */ jsx22(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
               ] }) : /* @__PURE__ */ jsx22(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
-              /* @__PURE__ */ jsx22("div", { style: { width: 300, flexShrink: 0, overflow: "hidden", borderRight: `1px solid ${theme.border}` }, children: /* @__PURE__ */ jsx22(
+              /* @__PURE__ */ jsx22("div", { style: {
+                width: isMedium ? "50%" : 300,
+                flexShrink: isMedium ? 1 : 0,
+                flex: isMedium ? 1 : void 0,
+                overflow: "hidden",
+                borderRight: `1px solid ${theme.border}`
+              }, children: /* @__PURE__ */ jsx22(
                 InspectorPanel,
                 {
                   snapshots: activeSnapshots,
                   selectedIndex: safeIdx,
-                  dataTraceFrames: [],
+                  dataTraceFrames: runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, activeSnapshots[safeIdx]?.runtimeStageId ?? "") : [],
                   selectedStageId: activeSnapshots[safeIdx]?.runtimeStageId,
                   onNavigateToStage: (id) => {
                     const idx = activeSnapshots.findIndex((s) => s.runtimeStageId === id);
@@ -5143,7 +5186,7 @@ function ExplainableShell({
               /* @__PURE__ */ jsx22("div", { style: { flex: 1, overflow: "hidden" }, children: /* @__PURE__ */ jsx22(
                 InsightPanel,
                 {
-                  mode: leftExpanded ? "tabs" : "grid",
+                  mode: !leftExpanded && !isMedium ? "grid" : "tabs",
                   expandedId: activeTab,
                   insights: allTabs.filter((t) => t.id !== "result").map((tab) => ({
                     id: tab.id,
