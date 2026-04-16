@@ -4014,26 +4014,56 @@ var DataTracePanel = (0, import_react20.memo)(function DataTracePanel2({
   fromStageName
 }) {
   if (frames.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { padding: 12, color: theme.textMuted, fontSize: 13 }, children: "Select a stage to see its data dependency chain." });
+    return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { padding: "14px 14px 12px", fontSize: 13, lineHeight: 1.55 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+        "div",
+        {
+          style: {
+            fontSize: 11,
+            color: theme.textMuted,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            fontWeight: 600,
+            marginBottom: 6
+          },
+          children: "Backward causal chain"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { color: theme.textSecondary, marginBottom: 10 }, children: "Trace any value back to the stage that created it \u2014 and everything upstream that influenced it." }),
+      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { color: theme.textMuted, fontSize: 12 }, children: "Select a stage above to see its dependency chain." })
+    ] });
   }
   return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { padding: "8px 0", fontSize: 13 }, children: [
-    fromStageName && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
-      "div",
-      {
-        style: {
-          padding: "4px 12px 8px",
-          fontSize: 11,
-          color: theme.textMuted,
-          textTransform: "uppercase",
-          letterSpacing: "0.5px",
-          fontWeight: 600
-        },
-        children: [
-          "Data trace from ",
-          fromStageName
-        ]
-      }
-    ),
+    fromStageName && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { padding: "4px 12px 8px" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+        "div",
+        {
+          style: {
+            fontSize: 11,
+            color: theme.textMuted,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            fontWeight: 600
+          },
+          children: [
+            "Data trace from ",
+            fromStageName
+          ]
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+        "div",
+        {
+          style: {
+            fontSize: 11,
+            color: theme.textMuted,
+            fontStyle: "italic",
+            marginTop: 3
+          },
+          children: "Every value here was derived from the stages below."
+        }
+      )
+    ] }),
     frames.map((frame, i) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
       DataTraceFrame,
       {
@@ -4842,6 +4872,79 @@ function buildDataTrace(commitLog, targetRuntimeStageId, maxDepth = 10) {
   }
   return frames;
 }
+var RightPanel = (0, import_react24.memo)(function RightPanel2({
+  mode,
+  onModeChange,
+  snapshots,
+  selectedIndex,
+  runtimeSnapshot,
+  activeTab,
+  allTabs,
+  activeNarrativeEntries,
+  activeNarrative,
+  recorderViews,
+  autoRecorderViews,
+  size,
+  onNavigateToStage
+}) {
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: {
+      display: "flex",
+      borderBottom: `1px solid ${theme.border}`,
+      flexShrink: 0,
+      background: theme.bgSecondary
+    }, children: ["insights", "what"].map((m) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      "button",
+      {
+        onClick: () => onModeChange(m),
+        style: {
+          flex: 1,
+          padding: "7px 12px",
+          fontSize: 11,
+          fontWeight: mode === m ? 700 : 500,
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          color: mode === m ? theme.primary : theme.textMuted,
+          background: "transparent",
+          border: "none",
+          borderBottom: mode === m ? `2px solid ${theme.primary}` : "2px solid transparent",
+          cursor: "pointer",
+          fontFamily: "inherit"
+        },
+        children: m === "insights" ? "Insights" : "Inspector"
+      },
+      m
+    )) }),
+    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "insights" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      InsightPanel,
+      {
+        mode: "tabs",
+        expandedId: activeTab,
+        insights: allTabs.filter((t) => t.id !== "result" && t.id !== "memory").map((tab) => ({
+          id: tab.id,
+          name: insightName(tab.name),
+          render: () => {
+            if (tab.id === "narrative") return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NarrativePanel, { snapshots, selectedIndex, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, size, style: { height: "100%" } });
+            const customView = recorderViews?.find((v2) => v2.id === tab.id);
+            if (customView?.render) return customView.render({ snapshots, selectedIndex });
+            const autoView = autoRecorderViews.find((v2) => v2.id === tab.id);
+            if (autoView) return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(KeyedRecorderView, { data: autoView.data, description: autoView.description, preferredOperation: autoView.preferredOperation, snapshots, selectedIndex });
+            return null;
+          }
+        }))
+      }
+    ) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      InspectorPanel,
+      {
+        snapshots,
+        selectedIndex,
+        dataTraceFrames: runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, snapshots[selectedIndex]?.runtimeStageId ?? "") : [],
+        selectedStageId: snapshots[selectedIndex]?.runtimeStageId,
+        onNavigateToStage
+      }
+    ) })
+  ] });
+});
 function insightName(name) {
   const map = {
     "Narrative": "Story",
@@ -4951,6 +5054,7 @@ function ExplainableShell({
   const [snapshotIdx, setSnapshotIdx] = (0, import_react24.useState)(0);
   const [drillDownStack, setDrillDownStack] = (0, import_react24.useState)([]);
   const [rightExpanded, setRightExpanded] = (0, import_react24.useState)(defaultExpanded?.details ?? true);
+  const [rightPanelMode, setRightPanelMode] = (0, import_react24.useState)("insights");
   const [leftExpanded, setLeftExpanded] = (0, import_react24.useState)(defaultExpanded?.topology ?? false);
   const [timelineExpanded, setTimelineExpanded] = (0, import_react24.useState)(defaultExpanded?.timeline ?? false);
   (0, import_react24.useEffect)(() => {
@@ -5205,55 +5309,47 @@ function ExplainableShell({
             timelineExpanded && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
           ] })
         ) : (
-          /* ── Desktop: responsive layout ── */
+          /* ── Desktop: two-column — Flowchart | Right Panel ── */
           /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
             /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
-              showTopology && !isMedium && (leftExpanded ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { width: 280, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "hidden" }, children: effectiveRenderFlowchart({
-                  spec: activeSpec,
-                  snapshots: activeSnapshots,
-                  selectedIndex: safeIdx,
-                  onNodeClick: handleNodeClick
-                }) }),
-                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
-              ] }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: {
-                width: isMedium ? "50%" : 300,
-                flexShrink: isMedium ? 1 : 0,
-                flex: isMedium ? 1 : void 0,
-                overflow: "hidden",
-                borderRight: `1px solid ${theme.border}`
-              }, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
-                InspectorPanel,
+              showTreeSidebar && (leftExpanded ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+                  SubflowTree,
+                  {
+                    spec,
+                    activeStage: rootOverlay.activeStage,
+                    doneStages: rootOverlay.doneStages,
+                    onNodeSelect: handleTreeNodeSelect
+                  }
+                ) }),
+                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(VLinePill, { label: "Topology", expanded: true, side: "left", onClick: () => toggleLeft(false) })
+              ] }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(VLinePill, { label: "Topology", expanded: false, side: "left", onClick: () => toggleLeft(true) })),
+              showTopology ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
+                spec: activeSpec,
+                snapshots: activeSnapshots,
+                selectedIndex: safeIdx,
+                onNodeClick: handleNodeClick
+              }) }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1 } }),
+              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(VLinePill, { label: "Details", expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+              rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+                RightPanel,
                 {
+                  mode: rightPanelMode,
+                  onModeChange: setRightPanelMode,
                   snapshots: activeSnapshots,
                   selectedIndex: safeIdx,
-                  dataTraceFrames: runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, activeSnapshots[safeIdx]?.runtimeStageId ?? "") : [],
-                  selectedStageId: activeSnapshots[safeIdx]?.runtimeStageId,
+                  runtimeSnapshot,
+                  activeTab,
+                  allTabs,
+                  activeNarrativeEntries,
+                  activeNarrative,
+                  recorderViews,
+                  autoRecorderViews,
+                  size,
                   onNavigateToStage: (id) => {
                     const idx = activeSnapshots.findIndex((s) => s.runtimeStageId === id);
                     if (idx >= 0) setSnapshotIdx(idx);
                   }
-                }
-              ) }),
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
-                InsightPanel,
-                {
-                  mode: !leftExpanded && !isMedium ? "grid" : "tabs",
-                  expandedId: activeTab,
-                  insights: allTabs.filter((t) => t.id !== "result").map((tab) => ({
-                    id: tab.id,
-                    name: insightName(tab.name),
-                    render: () => {
-                      if (tab.id === "memory") return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, size, style: { height: "100%" } });
-                      if (tab.id === "narrative") return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, size, style: { height: "100%" } });
-                      const customView = recorderViews?.find((v2) => v2.id === tab.id);
-                      if (customView?.render) return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
-                      const autoView = autoRecorderViews.find((v2) => v2.id === tab.id);
-                      if (autoView) return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(KeyedRecorderView, { data: autoView.data, description: autoView.description, preferredOperation: autoView.preferredOperation, snapshots: activeSnapshots, selectedIndex: safeIdx });
-                      return null;
-                    }
-                  }))
                 }
               ) })
             ] }),

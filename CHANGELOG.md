@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.16.0] - 2026-04-16
+
+### Added
+- **RightPanel with two modes** — Insights and What Happened. Memoized toggle between high-level analytics (recorder views, quality scores) and event-level detail (narrative entries, raw log). Replaces the single-view right column with a mode-switched layout in `ExplainableShell`.
+- **Data Trace discoverability** — the panel now teaches its own capability. Empty state explains *"Backward causal chain — trace any value back to the stage that created it."* When frames exist, the header gains an italic subtitle *"Every value here was derived from the stages below."* — surfacing the differentiator at the moment of first encounter.
+
 ## [0.12.1] - 2026-03-20
 
 ### Added

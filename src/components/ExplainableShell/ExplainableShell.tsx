@@ -680,6 +680,107 @@ function buildDataTrace(
   return frames;
 }
 
+// ---------------------------------------------------------------------------
+// RightPanel — two-mode panel: Insights vs What Happened
+// ---------------------------------------------------------------------------
+
+type RightPanelMode = "insights" | "what";
+
+const RightPanel = memo(function RightPanel({
+  mode,
+  onModeChange,
+  snapshots,
+  selectedIndex,
+  runtimeSnapshot,
+  activeTab,
+  allTabs,
+  activeNarrativeEntries,
+  activeNarrative,
+  recorderViews,
+  autoRecorderViews,
+  size,
+  onNavigateToStage,
+}: {
+  mode: RightPanelMode;
+  onModeChange: (mode: RightPanelMode) => void;
+  snapshots: StageSnapshot[];
+  selectedIndex: number;
+  runtimeSnapshot?: RuntimeSnapshotInput | null;
+  activeTab: string;
+  allTabs: Array<{ id: string; name: string; description?: string }>;
+  activeNarrativeEntries?: NarrativeEntry[];
+  activeNarrative?: string[];
+  recorderViews?: RecorderView[];
+  autoRecorderViews: Array<{ id: string; name: string; description?: string; preferredOperation?: string; data: unknown }>;
+  size: "compact" | "default" | "detailed";
+  onNavigateToStage: (id: string) => void;
+}) {
+  return (
+    <>
+      {/* Mode toggle */}
+      <div style={{
+        display: "flex",
+        borderBottom: `1px solid ${theme.border}`,
+        flexShrink: 0,
+        background: theme.bgSecondary,
+      }}>
+        {(["insights", "what"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => onModeChange(m)}
+            style={{
+              flex: 1,
+              padding: "7px 12px",
+              fontSize: 11,
+              fontWeight: mode === m ? 700 : 500,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              color: mode === m ? theme.primary : theme.textMuted,
+              background: "transparent",
+              border: "none",
+              borderBottom: mode === m ? `2px solid ${theme.primary}` : "2px solid transparent",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {m === "insights" ? "Insights" : "Inspector"}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      <div style={{ flex: 1, overflow: "hidden" }}>
+        {mode === "insights" ? (
+          <InsightPanel
+            mode="tabs"
+            expandedId={activeTab}
+            insights={allTabs.filter((t) => t.id !== "result" && t.id !== "memory").map((tab) => ({
+              id: tab.id,
+              name: insightName(tab.name),
+              render: () => {
+                if (tab.id === "narrative") return <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} style={{ height: "100%" }} />;
+                const customView = recorderViews?.find((v) => v.id === tab.id);
+                if (customView?.render) return customView.render({ snapshots, selectedIndex });
+                const autoView = autoRecorderViews.find((v) => v.id === tab.id);
+                if (autoView) return <KeyedRecorderView data={autoView.data} description={autoView.description} preferredOperation={autoView.preferredOperation as any} snapshots={snapshots} selectedIndex={selectedIndex} />;
+                return null;
+              },
+            }))}
+          />
+        ) : (
+          <InspectorPanel
+            snapshots={snapshots}
+            selectedIndex={selectedIndex}
+            dataTraceFrames={runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, snapshots[selectedIndex]?.runtimeStageId ?? '') : []}
+            selectedStageId={snapshots[selectedIndex]?.runtimeStageId}
+            onNavigateToStage={onNavigateToStage}
+          />
+        )}
+      </div>
+    </>
+  );
+});
+
 /** Map internal recorder names to user-facing Insight names. */
 function insightName(name: string): string {
   const map: Record<string, string> = {
@@ -813,6 +914,7 @@ export function ExplainableShell({
   const [snapshotIdx, setSnapshotIdx] = useState(0);
   const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
   const [rightExpanded, setRightExpanded] = useState(defaultExpanded?.details ?? true);
+  const [rightPanelMode, setRightPanelMode] = useState<"insights" | "what">("insights");
   const [leftExpanded, setLeftExpanded] = useState(defaultExpanded?.topology ?? false);
   const [timelineExpanded, setTimelineExpanded] = useState(defaultExpanded?.timeline ?? false);
 
@@ -1126,69 +1228,69 @@ export function ExplainableShell({
             )}
           </>
         ) : (
-          /* ── Desktop: responsive layout ── */
+          /* ── Desktop: two-column — Flowchart | Right Panel ── */
           <>
             <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-              {/* Left: Flowchart (compact, collapsible) — hidden on medium width */}
-              {showTopology && !isMedium && (
+              {/* SubflowTree sidebar (only when subflows exist) */}
+              {showTreeSidebar && (
                 leftExpanded ? (
-                  <div style={{ width: 280, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
-                    <div style={{ flex: 1, overflow: "hidden" }}>
-                      {effectiveRenderFlowchart!({
-                        spec: activeSpec!,
-                        snapshots: activeSnapshots,
-                        selectedIndex: safeIdx,
-                        onNodeClick: handleNodeClick,
-                      })}
+                  <div style={{ width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
+                    <div style={{ flex: 1, overflow: "auto" }}>
+                      <SubflowTree
+                        spec={spec!}
+                        activeStage={rootOverlay.activeStage}
+                        doneStages={rootOverlay.doneStages}
+                        onNodeSelect={handleTreeNodeSelect}
+                      />
                     </div>
-                    <VLinePill label={leftLabel} expanded={true} side="left" onClick={() => toggleLeft(false)} />
+                    <VLinePill label="Topology" expanded={true} side="left" onClick={() => toggleLeft(false)} />
                   </div>
                 ) : (
-                  <VLinePill label={leftLabel} expanded={false} side="left" onClick={() => toggleLeft(true)} />
+                  <VLinePill label="Topology" expanded={false} side="left" onClick={() => toggleLeft(true)} />
                 )
               )}
 
-              {/* Center: Inspector (State + Data Trace) */}
-              <div style={{
-                width: isMedium ? "50%" : 300,
-                flexShrink: isMedium ? 1 : 0,
-                flex: isMedium ? 1 : undefined,
-                overflow: "hidden",
-                borderRight: `1px solid ${theme.border}`,
-              }}>
-                <InspectorPanel
+              {/* Center: Flowchart — always visible, primary time-travel visual */}
+              {showTopology ? (
+                <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
+                  {effectiveRenderFlowchart!({
+                    spec: activeSpec!,
+                    snapshots: activeSnapshots,
+                    selectedIndex: safeIdx,
+                    onNodeClick: handleNodeClick,
+                  })}
+                </div>
+              ) : (
+                <div style={{ flex: 1 }} />
+              )}
+
+              {/* VLinePill divider between flowchart and right panel */}
+              <VLinePill label="Details" expanded={rightExpanded} onClick={() => toggleRight(!rightExpanded)} />
+
+              {/* Right: Two-mode panel — Insights vs Inspector */}
+              {rightExpanded && (
+              <div style={{ width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <RightPanel
+                  mode={rightPanelMode}
+                  onModeChange={setRightPanelMode}
                   snapshots={activeSnapshots}
                   selectedIndex={safeIdx}
-                  dataTraceFrames={runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, activeSnapshots[safeIdx]?.runtimeStageId ?? '') : []}
-                  selectedStageId={activeSnapshots[safeIdx]?.runtimeStageId}
+                  runtimeSnapshot={runtimeSnapshot}
+                  activeTab={activeTab}
+                  allTabs={allTabs}
+                  activeNarrativeEntries={activeNarrativeEntries}
+                  activeNarrative={activeNarrative}
+                  recorderViews={recorderViews}
+                  autoRecorderViews={autoRecorderViews}
+                  size={size}
                   onNavigateToStage={(id) => {
                     const idx = activeSnapshots.findIndex((s) => s.runtimeStageId === id);
                     if (idx >= 0) setSnapshotIdx(idx);
                   }}
                 />
               </div>
-
-              {/* Right: Insights (tabs or grid) */}
-              <div style={{ flex: 1, overflow: "hidden" }}>
-                <InsightPanel
-                  mode={(!leftExpanded && !isMedium) ? "grid" : "tabs"}
-                  expandedId={activeTab}
-                  insights={allTabs.filter((t) => t.id !== "result").map((tab) => ({
-                    id: tab.id,
-                    name: insightName(tab.name),
-                    render: () => {
-                      if (tab.id === "memory") return <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} size={size} style={{ height: "100%" }} />;
-                      if (tab.id === "narrative") return <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} style={{ height: "100%" }} />;
-                      const customView = recorderViews?.find((v) => v.id === tab.id);
-                      if (customView?.render) return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
-                      const autoView = autoRecorderViews.find((v) => v.id === tab.id);
-                      if (autoView) return <KeyedRecorderView data={autoView.data} description={autoView.description} preferredOperation={autoView.preferredOperation as any} snapshots={activeSnapshots} selectedIndex={safeIdx} />;
-                      return null;
-                    },
-                  }))}
-                />
-              </div>
+              )}
             </div>
 
             {/* Bottom: Compact Timeline */}

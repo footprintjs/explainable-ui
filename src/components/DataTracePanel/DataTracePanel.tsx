@@ -49,8 +49,26 @@ export const DataTracePanel = memo(function DataTracePanel({
 }: DataTracePanelProps) {
   if (frames.length === 0) {
     return (
-      <div style={{ padding: 12, color: theme.textMuted, fontSize: 13 }}>
-        Select a stage to see its data dependency chain.
+      <div style={{ padding: "14px 14px 12px", fontSize: 13, lineHeight: 1.55 }}>
+        <div
+          style={{
+            fontSize: 11,
+            color: theme.textMuted,
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            fontWeight: 600,
+            marginBottom: 6,
+          }}
+        >
+          Backward causal chain
+        </div>
+        <div style={{ color: theme.textSecondary, marginBottom: 10 }}>
+          Trace any value back to the stage that created it — and everything upstream that
+          influenced it.
+        </div>
+        <div style={{ color: theme.textMuted, fontSize: 12 }}>
+          Select a stage above to see its dependency chain.
+        </div>
       </div>
     );
   }
@@ -58,17 +76,28 @@ export const DataTracePanel = memo(function DataTracePanel({
   return (
     <div style={{ padding: "8px 0", fontSize: 13 }}>
       {fromStageName && (
-        <div
-          style={{
-            padding: "4px 12px 8px",
-            fontSize: 11,
-            color: theme.textMuted,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            fontWeight: 600,
-          }}
-        >
-          Data trace from {fromStageName}
+        <div style={{ padding: "4px 12px 8px" }}>
+          <div
+            style={{
+              fontSize: 11,
+              color: theme.textMuted,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              fontWeight: 600,
+            }}
+          >
+            Data trace from {fromStageName}
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: theme.textMuted,
+              fontStyle: "italic",
+              marginTop: 3,
+            }}
+          >
+            Every value here was derived from the stages below.
+          </div>
         </div>
       )}
       {frames.map((frame, i) => (
