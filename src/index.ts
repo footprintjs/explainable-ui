@@ -39,6 +39,10 @@ export type { TimeTravelControlsProps } from "./components/TimeTravelControls";
 export { ExplainableShell } from "./components/ExplainableShell";
 export type { ExplainableShellProps, RuntimeSnapshotInput, RecorderView, ShellTab, PanelLabels, DefaultExpanded } from "./components/ExplainableShell";
 
+// Drop-in viewer for `agentfootprint.exportTrace()` JSON
+export { TraceViewer } from "./components/TraceViewer/TraceViewer";
+export type { TraceViewerProps, AgentfootprintTrace, TraceParseError } from "./components/TraceViewer/TraceViewer";
+
 // Composite panels (memory + narrative — self-contained right-panel views)
 export { MemoryPanel } from "./components/MemoryPanel";
 export type { MemoryPanelProps } from "./components/MemoryPanel";

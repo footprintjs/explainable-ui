@@ -1,7 +1,9 @@
 "use strict";
+var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -15,6 +17,14 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/index.ts
@@ -39,6 +49,7 @@ __export(src_exports, {
   StoryNarrative: () => StoryNarrative,
   SubflowTree: () => SubflowTree,
   TimeTravelControls: () => TimeTravelControls,
+  TraceViewer: () => TraceViewer,
   buildEntryRangeIndex: () => buildEntryRangeIndex,
   computeRevealedEntryCount: () => computeRevealedEntryCount,
   coolDark: () => coolDark,
@@ -5367,6 +5378,108 @@ function ExplainableShell({
     }
   );
 }
+
+// src/components/TraceViewer/TraceViewer.tsx
+var React = __toESM(require("react"), 1);
+var import_react25 = require("react");
+var import_jsx_runtime23 = require("react/jsx-runtime");
+function parseTrace(input) {
+  if (input == null) {
+    return {
+      ok: false,
+      error: { kind: "invalid-json", message: "No trace provided." }
+    };
+  }
+  let candidate = input;
+  if (typeof input === "string") {
+    if (!input.trim()) {
+      return { ok: false, error: { kind: "invalid-json", message: "Empty input." } };
+    }
+    try {
+      candidate = JSON.parse(input);
+    } catch (err) {
+      return {
+        ok: false,
+        error: { kind: "invalid-json", message: err.message }
+      };
+    }
+  }
+  if (!candidate || typeof candidate !== "object") {
+    return {
+      ok: false,
+      error: { kind: "not-object", message: "Trace must be a JSON object." }
+    };
+  }
+  const t = candidate;
+  if (typeof t.schemaVersion !== "number") {
+    return {
+      ok: false,
+      error: {
+        kind: "missing-version",
+        message: "Trace is missing required field `schemaVersion`. Did you pass an exportTrace() output?"
+      }
+    };
+  }
+  if (t.schemaVersion !== 1) {
+    return {
+      ok: false,
+      error: {
+        kind: "unsupported-version",
+        message: `Unsupported schemaVersion ${t.schemaVersion}. This TraceViewer renders schemaVersion 1.`,
+        version: t.schemaVersion
+      }
+    };
+  }
+  return { ok: true, trace: t };
+}
+var DEFAULT_TABS = ["explainable"];
+function TraceViewer({
+  trace,
+  onError,
+  fallback,
+  tabs = DEFAULT_TABS,
+  defaultTab = "narrative",
+  hideTabs,
+  size,
+  panelLabels,
+  recorderViews,
+  renderFlowchart
+}) {
+  const parsed = (0, import_react25.useMemo)(() => parseTrace(trace), [trace]);
+  React.useEffect(() => {
+    if (!parsed.ok && onError) onError(parsed.error);
+  }, [parsed, onError]);
+  const snapshots = (0, import_react25.useMemo)(() => {
+    if (!parsed.ok || !parsed.trace.snapshot) return [];
+    try {
+      return toVisualizationSnapshots(
+        parsed.trace.snapshot,
+        parsed.trace.narrativeEntries ?? void 0
+      );
+    } catch {
+      return [];
+    }
+  }, [parsed]);
+  if (!parsed.ok || snapshots.length === 0) {
+    return fallback ?? null;
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+    ExplainableShell,
+    {
+      snapshots,
+      spec: parsed.trace.spec,
+      narrative: parsed.trace.narrative,
+      narrativeEntries: parsed.trace.narrativeEntries,
+      tabs,
+      defaultTab,
+      hideTabs,
+      size,
+      panelLabels,
+      recorderViews,
+      renderFlowchart
+    }
+  );
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   CompactTimeline,
@@ -5388,6 +5501,7 @@ function ExplainableShell({
   StoryNarrative,
   SubflowTree,
   TimeTravelControls,
+  TraceViewer,
   buildEntryRangeIndex,
   computeRevealedEntryCount,
   coolDark,

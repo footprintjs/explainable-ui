@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.17.0] - 2026-04-18
+
+### Added
+- **`<TraceViewer>`** — drop-in component that renders an `agentfootprint.exportTrace()` JSON as a fully interactive Behind-the-Scenes view. Accepts a parsed `AgentfootprintTrace` object or a raw JSON string; validates `schemaVersion === 1`; surfaces parse / validation errors via an optional `onError` callback. Internally a thin shell over `toVisualizationSnapshots` + `<ExplainableShell />` — same composition consumers would write by hand. Drop into any React app to give users a "paste a trace, debug visually" workflow without re-executing the agent.
+  ```tsx
+  import { TraceViewer } from 'footprint-explainable-ui';
+
+  <TraceViewer trace={pastedJsonString} fallback={<div>Paste a trace</div>} />
+  ```
+- **`AgentfootprintTrace` + `TraceParseError` types** exported from the main entry. Pin consumers to `schemaVersion: 1`; future shape changes ship as new schema versions with multi-version dispatch.
+- **11 new tests** (5 patterns) covering parse + validation surface, JSDOM `ResizeObserver` polyfill added to `test/setup.ts`.
+
 ## [0.16.0] - 2026-04-16
 
 ### Added

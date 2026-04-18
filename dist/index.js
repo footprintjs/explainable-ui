@@ -5314,6 +5314,108 @@ function ExplainableShell({
     }
   );
 }
+
+// src/components/TraceViewer/TraceViewer.tsx
+import * as React from "react";
+import { useMemo as useMemo13 } from "react";
+import { jsx as jsx23 } from "react/jsx-runtime";
+function parseTrace(input) {
+  if (input == null) {
+    return {
+      ok: false,
+      error: { kind: "invalid-json", message: "No trace provided." }
+    };
+  }
+  let candidate = input;
+  if (typeof input === "string") {
+    if (!input.trim()) {
+      return { ok: false, error: { kind: "invalid-json", message: "Empty input." } };
+    }
+    try {
+      candidate = JSON.parse(input);
+    } catch (err) {
+      return {
+        ok: false,
+        error: { kind: "invalid-json", message: err.message }
+      };
+    }
+  }
+  if (!candidate || typeof candidate !== "object") {
+    return {
+      ok: false,
+      error: { kind: "not-object", message: "Trace must be a JSON object." }
+    };
+  }
+  const t = candidate;
+  if (typeof t.schemaVersion !== "number") {
+    return {
+      ok: false,
+      error: {
+        kind: "missing-version",
+        message: "Trace is missing required field `schemaVersion`. Did you pass an exportTrace() output?"
+      }
+    };
+  }
+  if (t.schemaVersion !== 1) {
+    return {
+      ok: false,
+      error: {
+        kind: "unsupported-version",
+        message: `Unsupported schemaVersion ${t.schemaVersion}. This TraceViewer renders schemaVersion 1.`,
+        version: t.schemaVersion
+      }
+    };
+  }
+  return { ok: true, trace: t };
+}
+var DEFAULT_TABS = ["explainable"];
+function TraceViewer({
+  trace,
+  onError,
+  fallback,
+  tabs = DEFAULT_TABS,
+  defaultTab = "narrative",
+  hideTabs,
+  size,
+  panelLabels,
+  recorderViews,
+  renderFlowchart
+}) {
+  const parsed = useMemo13(() => parseTrace(trace), [trace]);
+  React.useEffect(() => {
+    if (!parsed.ok && onError) onError(parsed.error);
+  }, [parsed, onError]);
+  const snapshots = useMemo13(() => {
+    if (!parsed.ok || !parsed.trace.snapshot) return [];
+    try {
+      return toVisualizationSnapshots(
+        parsed.trace.snapshot,
+        parsed.trace.narrativeEntries ?? void 0
+      );
+    } catch {
+      return [];
+    }
+  }, [parsed]);
+  if (!parsed.ok || snapshots.length === 0) {
+    return fallback ?? null;
+  }
+  return /* @__PURE__ */ jsx23(
+    ExplainableShell,
+    {
+      snapshots,
+      spec: parsed.trace.spec,
+      narrative: parsed.trace.narrative,
+      narrativeEntries: parsed.trace.narrativeEntries,
+      tabs,
+      defaultTab,
+      hideTabs,
+      size,
+      panelLabels,
+      recorderViews,
+      renderFlowchart
+    }
+  );
+}
 export {
   CompactTimeline,
   DataTracePanel,
@@ -5334,6 +5436,7 @@ export {
   StoryNarrative,
   SubflowTree,
   TimeTravelControls,
+  TraceViewer,
   buildEntryRangeIndex,
   computeRevealedEntryCount,
   coolDark,

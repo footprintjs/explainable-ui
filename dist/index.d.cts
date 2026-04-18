@@ -440,6 +440,97 @@ interface ExplainableShellProps extends BaseComponentProps {
 }
 declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, spec, title, resultData: resultDataProp, logs, narrative: narrativeProp, narrativeEntries, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, size, unstyled, className, style, }: ExplainableShellProps): react_jsx_runtime.JSX.Element;
 
+/**
+ * TraceViewer — drop-in component that renders an `agentfootprint.exportTrace()`
+ * JSON as a fully interactive Behind-the-Scenes view.
+ *
+ * The pattern:
+ *   1. Producer side calls `agentfootprint.exportTrace(runner)` to capture
+ *      a portable JSON `AgentfootprintTrace` (schemaVersion 1).
+ *   2. The JSON is shipped anywhere — file, HTTP, clipboard, database.
+ *   3. Consumer side passes it to `<TraceViewer trace={...} />` and gets
+ *      the full BTS view: flowchart topology, narrative timeline, snapshot
+ *      memory state, recorder data — without re-executing anything.
+ *
+ * Accepts EITHER a parsed object OR a raw JSON string. Validates
+ * `schemaVersion === 1` and surfaces parse / validation errors via the
+ * optional `onError` callback. When the trace is invalid, renders the
+ * `fallback` prop (or nothing if not provided).
+ *
+ * @example
+ * ```tsx
+ * import { TraceViewer } from 'footprint-explainable-ui';
+ *
+ * function MyDebugPage({ trace }: { trace: unknown }) {
+ *   return <TraceViewer trace={trace} />;
+ * }
+ * ```
+ *
+ * @example Paste-from-clipboard pattern (the playground viewer)
+ * ```tsx
+ * const [raw, setRaw] = useState('');
+ * <textarea value={raw} onChange={(e) => setRaw(e.target.value)} />
+ * <TraceViewer
+ *   trace={raw}
+ *   onError={(err) => setStatus(err)}
+ *   fallback={<div>Paste a trace JSON to begin.</div>}
+ * />
+ * ```
+ *
+ * The component is a thin shell over `toVisualizationSnapshots` +
+ * `<ExplainableShell />` — exactly the composition consumers would write
+ * by hand. Source is short on purpose; read it as the reference.
+ */
+
+/**
+ * Schema-versioned trace shape produced by `agentfootprint.exportTrace`.
+ * Pinned to `schemaVersion: 1`; future shape changes will bump the version
+ * and TraceViewer will gain a multi-version dispatch table.
+ */
+interface AgentfootprintTrace {
+    readonly schemaVersion: 1;
+    readonly exportedAt?: string;
+    readonly redacted?: boolean;
+    readonly snapshot?: unknown;
+    readonly narrativeEntries?: unknown[];
+    readonly narrative?: string[];
+    readonly spec?: unknown;
+}
+/**
+ * Result of parsing + validating raw input. Internal — exposed via
+ * `onError` so consumers can show their own error UI.
+ */
+type TraceParseError = {
+    kind: 'invalid-json';
+    message: string;
+} | {
+    kind: 'not-object';
+    message: string;
+} | {
+    kind: 'missing-version';
+    message: string;
+} | {
+    kind: 'unsupported-version';
+    message: string;
+    version: number;
+};
+interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart'> {
+    /**
+     * Trace to render. Accepts a parsed `AgentfootprintTrace` object or a
+     * raw JSON string (the component parses + validates it). `null` /
+     * `undefined` / empty-string render the `fallback`.
+     */
+    readonly trace?: AgentfootprintTrace | string | null;
+    /**
+     * Called on parse / validation errors. If you need to show your own
+     * error UI, capture the error here and render alongside.
+     */
+    readonly onError?: (error: TraceParseError) => void;
+    /** Element rendered when no valid trace is available. */
+    readonly fallback?: react.ReactNode;
+}
+declare function TraceViewer({ trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, }: TraceViewerProps): react.ReactElement | null;
+
 interface MemoryPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
     selectedIndex: number;
@@ -692,4 +783,4 @@ interface CompactTimelineProps {
 }
 declare const CompactTimeline: react.NamedExoticComponent<CompactTimelineProps>;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, buildEntryRangeIndex, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
+export { type NarrativeEntry as AdapterNarrativeEntry, type AgentfootprintTrace, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, type TraceParseError, TraceViewer, type TraceViewerProps, buildEntryRangeIndex, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
