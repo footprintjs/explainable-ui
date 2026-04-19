@@ -2361,13 +2361,20 @@ function extractStageTimings(recorders) {
   const timings = /* @__PURE__ */ new Map();
   if (!recorders) return timings;
   for (const rec of recorders) {
-    if (rec.name === "Metrics" && rec.data && typeof rec.data === "object") {
-      const data = rec.data;
-      if (data.stages) {
-        for (const [stageName, metrics] of Object.entries(data.stages)) {
-          if (typeof metrics.totalDuration === "number" && metrics.totalDuration > 0) {
-            timings.set(stageName, Math.round(metrics.totalDuration));
-          }
+    if (rec.name !== "Metrics" || !rec.data || typeof rec.data !== "object") continue;
+    const data = rec.data;
+    if (data.steps) {
+      for (const step of Object.values(data.steps)) {
+        const name = step?.stageName;
+        const d = step?.duration;
+        if (!name || typeof d !== "number" || d <= 0) continue;
+        timings.set(name, Math.round((timings.get(name) ?? 0) + d));
+      }
+    }
+    if (data.stages) {
+      for (const [stageName, metrics] of Object.entries(data.stages)) {
+        if (typeof metrics.totalDuration === "number" && metrics.totalDuration > 0) {
+          timings.set(stageName, Math.round(metrics.totalDuration));
         }
       }
     }
@@ -2739,11 +2746,37 @@ function StoryNarrative({
 
 // src/components/NarrativePanel/NarrativePanel.tsx
 var import_jsx_runtime13 = require("react/jsx-runtime");
+function safeJsonStringify(value) {
+  const seen = /* @__PURE__ */ new WeakSet();
+  const MAX_CHARS = 5e5;
+  try {
+    let text = JSON.stringify(
+      value,
+      (_key, v2) => {
+        if (typeof v2 === "object" && v2 !== null) {
+          if (seen.has(v2)) return "[Circular]";
+          seen.add(v2);
+        }
+        return v2;
+      },
+      2
+    );
+    if (text && text.length > MAX_CHARS) {
+      text = text.slice(0, MAX_CHARS) + `
+... [truncated at ${MAX_CHARS} chars]`;
+    }
+    return text ?? "undefined";
+  } catch (err) {
+    return `[stringify error: ${err instanceof Error ? err.message : String(err)}]`;
+  }
+}
 function NarrativePanel({
   snapshots,
   selectedIndex,
   narrativeEntries,
   narrative: narrativeProp,
+  runtimeSnapshot,
+  spec,
   size = "default",
   unstyled = false,
   className,
@@ -2852,8 +2885,53 @@ function NarrativePanel({
         sections.push("");
       }
     }
+    if (runtimeSnapshot) {
+      const snap = runtimeSnapshot;
+      if (snap.sharedState !== void 0) {
+        sections.push("\n\n## Final Shared State");
+        sections.push("```json");
+        sections.push(safeJsonStringify(snap.sharedState));
+        sections.push("```");
+      }
+      if (Array.isArray(snap.commitLog) && snap.commitLog.length > 0) {
+        sections.push("\n\n## Commit Log");
+        sections.push(
+          "Each entry = one stage execution's writes to shared state. `rsid` is the runtimeStageId (use it to correlate with narrative + executionTree).\n"
+        );
+        sections.push("```json");
+        sections.push(safeJsonStringify(snap.commitLog));
+        sections.push("```");
+      }
+      if (snap.recorders && typeof snap.recorders === "object") {
+        sections.push("\n\n## Recorder Snapshots");
+        sections.push(
+          "Per-recorder data captured DURING the run (metrics, tokens, instructions, emit events).\n"
+        );
+        sections.push("```json");
+        sections.push(safeJsonStringify(snap.recorders));
+        sections.push("```");
+      }
+      if (snap.subflowResults && typeof snap.subflowResults === "object") {
+        const keys = Object.keys(snap.subflowResults);
+        if (keys.length > 0) {
+          sections.push("\n\n## Subflow Results");
+          sections.push("```json");
+          sections.push(safeJsonStringify(snap.subflowResults));
+          sections.push("```");
+        }
+      }
+    }
+    if (spec) {
+      sections.push("\n\n## Flowchart Spec (topology)");
+      sections.push(
+        "Node + edge metadata for the chart that ran. Useful for 'where in the graph did step N happen?' questions.\n"
+      );
+      sections.push("```json");
+      sections.push(safeJsonStringify(spec));
+      sections.push("```");
+    }
     return sections.join("\n");
-  }, [narrativeEntries, narrative]);
+  }, [narrativeEntries, narrative, runtimeSnapshot, spec]);
   const handleCopy = (0, import_react12.useCallback)(async () => {
     const text = buildLLMNarrative();
     await navigator.clipboard.writeText(text);
@@ -4889,6 +4967,7 @@ var RightPanel = (0, import_react24.memo)(function RightPanel2({
   snapshots,
   selectedIndex,
   runtimeSnapshot,
+  spec,
   activeTab,
   allTabs,
   activeNarrativeEntries,
@@ -4935,7 +5014,7 @@ var RightPanel = (0, import_react24.memo)(function RightPanel2({
           id: tab.id,
           name: insightName(tab.name),
           render: () => {
-            if (tab.id === "narrative") return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NarrativePanel, { snapshots, selectedIndex, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, size, style: { height: "100%" } });
+            if (tab.id === "narrative") return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NarrativePanel, { snapshots, selectedIndex, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, runtimeSnapshot, spec, size, style: { height: "100%" } });
             const customView = recorderViews?.find((v2) => v2.id === tab.id);
             if (customView?.render) return customView.render({ snapshots, selectedIndex });
             const autoView = autoRecorderViews.find((v2) => v2.id === tab.id);
@@ -5350,6 +5429,7 @@ function ExplainableShell({
                   snapshots: activeSnapshots,
                   selectedIndex: safeIdx,
                   runtimeSnapshot,
+                  spec,
                   activeTab,
                   allTabs,
                   activeNarrativeEntries,

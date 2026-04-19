@@ -692,6 +692,7 @@ const RightPanel = memo(function RightPanel({
   snapshots,
   selectedIndex,
   runtimeSnapshot,
+  spec,
   activeTab,
   allTabs,
   activeNarrativeEntries,
@@ -706,6 +707,7 @@ const RightPanel = memo(function RightPanel({
   snapshots: StageSnapshot[];
   selectedIndex: number;
   runtimeSnapshot?: RuntimeSnapshotInput | null;
+  spec?: SpecNode | null;
   activeTab: string;
   allTabs: Array<{ id: string; name: string; description?: string }>;
   activeNarrativeEntries?: NarrativeEntry[];
@@ -758,7 +760,7 @@ const RightPanel = memo(function RightPanel({
               id: tab.id,
               name: insightName(tab.name),
               render: () => {
-                if (tab.id === "narrative") return <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} style={{ height: "100%" }} />;
+                if (tab.id === "narrative") return <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} runtimeSnapshot={runtimeSnapshot} spec={spec} size={size} style={{ height: "100%" }} />;
                 const customView = recorderViews?.find((v) => v.id === tab.id);
                 if (customView?.render) return customView.render({ snapshots, selectedIndex });
                 const autoView = autoRecorderViews.find((v) => v.id === tab.id);
@@ -1277,6 +1279,7 @@ export function ExplainableShell({
                   snapshots={activeSnapshots}
                   selectedIndex={safeIdx}
                   runtimeSnapshot={runtimeSnapshot}
+                  spec={spec}
                   activeTab={activeTab}
                   allTabs={allTabs}
                   activeNarrativeEntries={activeNarrativeEntries}

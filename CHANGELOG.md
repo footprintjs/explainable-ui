@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.18.0] - 2026-04-19
+
+### Added
+- **`<NarrativePanel>` "Copy for LLM" now exports the full debug
+  bundle** when optional `runtimeSnapshot` + `spec` props are provided.
+  The copied Markdown now includes: rendered narrative, **Final Shared
+  State**, **Commit Log** (per-stage writes keyed by `runtimeStageId`),
+  **Recorder Snapshots** (metrics, tokens, instructions, emit events),
+  **Subflow Results**, and the flowchart **Spec** (topology).
+  Previously only the rendered text was copied, which told the story
+  but not the payloads. Paste into Claude and ask "why did iter N
+  fail?" — the model now has everything it needs.
+- `ExplainableShell` forwards `runtimeSnapshot` + `spec` through to
+  the Narrative tab's RightPanel → NarrativePanel so the enhanced
+  copy bundle works in the standard zero-boilerplate setup.
+- Safe JSON serialization helper (`safeJsonStringify`) in NarrativePanel
+  handles circular references + caps output at 500KB so clipboard
+  pastes stay responsive on very long runs.
+
+### Fixed
+- **GanttTimeline showed 0ms durations for every stage.**
+  `extractStageTimings` in `adapters/fromRuntimeSnapshot.ts` still
+  read the legacy `MetricRecorder.data.stages[stageName].totalDuration`
+  shape, but MetricRecorder now emits
+  `data.steps[runtimeStageId] = {stageName, duration, ...}`
+  per-execution. Adapter now iterates `data.steps`, extracts
+  `{stageName, duration}` per entry, and sums durations by
+  `stageName` so looped stages (e.g. CallLLM × N iters) show
+  cumulative wall time. Legacy `data.stages` shape still accepted
+  for back-compat with older snapshots.
+
 ## [0.17.0] - 2026-04-18
 
 ### Added

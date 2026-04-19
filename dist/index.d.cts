@@ -544,8 +544,23 @@ interface NarrativePanelProps extends BaseComponentProps {
     narrativeEntries?: NarrativeEntry[];
     /** Plain narrative lines (fallback) */
     narrative?: string[];
+    /**
+     * Full runtime snapshot from the runner (executor.getSnapshot() /
+     * agent.getSnapshot()). When present, "Copy for LLM" includes the
+     * commit log, final shared state, and recorder snapshots alongside
+     * the rendered narrative. Without it, only the rendered text is
+     * copied — useful but misses the tool-call payloads and state
+     * transitions needed to debug why a run failed.
+     */
+    runtimeSnapshot?: any;
+    /**
+     * Flowchart spec from the runner (executor.getSpec() / agent.getSpec()).
+     * When present, "Copy for LLM" appends the topology so the LLM can
+     * see which node was running at each step — not just the narrative.
+     */
+    spec?: any;
 }
-declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, narrative: narrativeProp, size, unstyled, className, style, }: NarrativePanelProps): react_jsx_runtime.JSX.Element;
+declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, narrative: narrativeProp, runtimeSnapshot, spec, size, unstyled, className, style, }: NarrativePanelProps): react_jsx_runtime.JSX.Element;
 
 interface StoryNarrativeProps extends BaseComponentProps {
     /** Structured narrative entries from CombinedNarrativeRecorder */

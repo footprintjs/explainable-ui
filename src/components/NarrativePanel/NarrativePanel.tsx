@@ -15,6 +15,36 @@ import { buildEntryRangeIndex, computeRevealedEntryCount } from "../../utils/nar
 import { StoryNarrative } from "../StoryNarrative";
 import { NarrativeTrace } from "../NarrativeTrace";
 
+/**
+ * JSON.stringify with a circular-ref sentinel and a size cap — snapshots
+ * can contain cycles (runtime stages reference each other) and can grow
+ * multi-megabyte. A strict JSON.stringify would throw; the clipboard cap
+ * stops "Copy for LLM" from dumping 20MB of tool history into a paste.
+ */
+function safeJsonStringify(value: unknown): string {
+  const seen = new WeakSet<object>();
+  const MAX_CHARS = 500_000;
+  try {
+    let text = JSON.stringify(
+      value,
+      (_key, v) => {
+        if (typeof v === "object" && v !== null) {
+          if (seen.has(v as object)) return "[Circular]";
+          seen.add(v as object);
+        }
+        return v;
+      },
+      2,
+    );
+    if (text && text.length > MAX_CHARS) {
+      text = text.slice(0, MAX_CHARS) + `\n... [truncated at ${MAX_CHARS} chars]`;
+    }
+    return text ?? "undefined";
+  } catch (err) {
+    return `[stringify error: ${err instanceof Error ? err.message : String(err)}]`;
+  }
+}
+
 export interface NarrativePanelProps extends BaseComponentProps {
   snapshots: StageSnapshot[];
   selectedIndex: number;
@@ -22,6 +52,23 @@ export interface NarrativePanelProps extends BaseComponentProps {
   narrativeEntries?: NarrativeEntry[];
   /** Plain narrative lines (fallback) */
   narrative?: string[];
+  /**
+   * Full runtime snapshot from the runner (executor.getSnapshot() /
+   * agent.getSnapshot()). When present, "Copy for LLM" includes the
+   * commit log, final shared state, and recorder snapshots alongside
+   * the rendered narrative. Without it, only the rendered text is
+   * copied — useful but misses the tool-call payloads and state
+   * transitions needed to debug why a run failed.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  runtimeSnapshot?: any;
+  /**
+   * Flowchart spec from the runner (executor.getSpec() / agent.getSpec()).
+   * When present, "Copy for LLM" appends the topology so the LLM can
+   * see which node was running at each step — not just the narrative.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  spec?: any;
 }
 
 export function NarrativePanel({
@@ -29,6 +76,8 @@ export function NarrativePanel({
   selectedIndex,
   narrativeEntries,
   narrative: narrativeProp,
+  runtimeSnapshot,
+  spec,
   size = "default",
   unstyled = false,
   className,
@@ -181,8 +230,71 @@ export function NarrativePanel({
       }
     }
 
+    // ── Append the full debug bundle when caller provided snapshot/spec ──
+    // Everything below the narrative is for LLM debugging: final state,
+    // per-stage commit log (shows EXACTLY what each stage wrote), spec
+    // topology, and any recorder snapshots (metrics, tokens, instructions,
+    // emit events). Without these the story has no payloads to reason over.
+    if (runtimeSnapshot) {
+      const snap = runtimeSnapshot as {
+        sharedState?: unknown;
+        commitLog?: unknown;
+        recorders?: unknown;
+        subflowResults?: unknown;
+      };
+
+      if (snap.sharedState !== undefined) {
+        sections.push("\n\n## Final Shared State");
+        sections.push("```json");
+        sections.push(safeJsonStringify(snap.sharedState));
+        sections.push("```");
+      }
+
+      if (Array.isArray(snap.commitLog) && snap.commitLog.length > 0) {
+        sections.push("\n\n## Commit Log");
+        sections.push(
+          "Each entry = one stage execution's writes to shared state. " +
+            "`rsid` is the runtimeStageId (use it to correlate with narrative + executionTree).\n",
+        );
+        sections.push("```json");
+        sections.push(safeJsonStringify(snap.commitLog));
+        sections.push("```");
+      }
+
+      if (snap.recorders && typeof snap.recorders === "object") {
+        sections.push("\n\n## Recorder Snapshots");
+        sections.push(
+          "Per-recorder data captured DURING the run (metrics, tokens, instructions, emit events).\n",
+        );
+        sections.push("```json");
+        sections.push(safeJsonStringify(snap.recorders));
+        sections.push("```");
+      }
+
+      if (snap.subflowResults && typeof snap.subflowResults === "object") {
+        const keys = Object.keys(snap.subflowResults as Record<string, unknown>);
+        if (keys.length > 0) {
+          sections.push("\n\n## Subflow Results");
+          sections.push("```json");
+          sections.push(safeJsonStringify(snap.subflowResults));
+          sections.push("```");
+        }
+      }
+    }
+
+    if (spec) {
+      sections.push("\n\n## Flowchart Spec (topology)");
+      sections.push(
+        "Node + edge metadata for the chart that ran. Useful for 'where in " +
+          "the graph did step N happen?' questions.\n",
+      );
+      sections.push("```json");
+      sections.push(safeJsonStringify(spec));
+      sections.push("```");
+    }
+
     return sections.join("\n");
-  }, [narrativeEntries, narrative]);
+  }, [narrativeEntries, narrative, runtimeSnapshot, spec]);
 
   const handleCopy = useCallback(async () => {
     const text = buildLLMNarrative();

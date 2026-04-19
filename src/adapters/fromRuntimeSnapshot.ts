@@ -79,19 +79,40 @@ export function toVisualizationSnapshots(
 
 /**
  * Extracts per-stage duration data from recorder snapshots.
- * MetricRecorder serializes as { name: 'Metrics', data: { stages: { [stageName]: { totalDuration } } } }.
+ *
+ * Post-KeyedRecorder MetricRecorder serializes as
+ *   { name: 'Metrics', data: { steps: { [runtimeStageId]: { stageName, duration, ... } } } }
+ *
+ * Older versions emitted `data.stages[stageName].totalDuration` directly;
+ * we still accept that shape for back-compat when loading old snapshots.
+ *
+ * Stages that ran multiple times (e.g. CallLLM inside a loop) have one
+ * entry per invocation keyed by runtimeStageId — sum their durations by
+ * stageName so the GanttTimeline shows cumulative wall time per stage.
  */
 function extractStageTimings(recorders?: RecorderSnapshot[]): Map<string, number> {
   const timings = new Map<string, number>();
   if (!recorders) return timings;
   for (const rec of recorders) {
-    if (rec.name === 'Metrics' && rec.data && typeof rec.data === 'object') {
-      const data = rec.data as { stages?: Record<string, { totalDuration?: number }> };
-      if (data.stages) {
-        for (const [stageName, metrics] of Object.entries(data.stages)) {
-          if (typeof metrics.totalDuration === 'number' && metrics.totalDuration > 0) {
-            timings.set(stageName, Math.round(metrics.totalDuration));
-          }
+    if (rec.name !== 'Metrics' || !rec.data || typeof rec.data !== 'object') continue;
+    const data = rec.data as {
+      steps?: Record<string, { stageName?: string; duration?: number }>;
+      stages?: Record<string, { totalDuration?: number }>;
+    };
+    // New shape: data.steps[runtimeStageId] = { stageName, duration, ... }
+    if (data.steps) {
+      for (const step of Object.values(data.steps)) {
+        const name = step?.stageName;
+        const d = step?.duration;
+        if (!name || typeof d !== 'number' || d <= 0) continue;
+        timings.set(name, Math.round((timings.get(name) ?? 0) + d));
+      }
+    }
+    // Legacy shape: data.stages[stageName].totalDuration
+    if (data.stages) {
+      for (const [stageName, metrics] of Object.entries(data.stages)) {
+        if (typeof metrics.totalDuration === 'number' && metrics.totalDuration > 0) {
+          timings.set(stageName, Math.round(metrics.totalDuration));
         }
       }
     }
