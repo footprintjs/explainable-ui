@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.18.1] - 2026-04-20
+
+### Fixed
+- **`FootprintTheme` wrapper div uses `display: contents`** so its
+  box is invisible to the host's layout. Previously the wrapper
+  participated in flex/grid layout as a block-level div that auto-
+  sized to its content — which silently collapsed descendants that
+  relied on `flex: 1` / `height: 100%` to fill the theme root. The
+  bug manifested as "tabpanel / card / scroller height = 0" inside
+  themed trees; host apps had to add workaround CSS like
+  `.tab-content > .fp-theme-root { flex: 1; display: flex; }` to
+  cope. With `display: contents`, CSS custom property inheritance
+  still flows (vars cascade via the DOM, not the render tree) while
+  the layout box is removed. Consumers no longer need workaround
+  CSS. One caveat: `display: contents` elements are removed from
+  the accessibility tree in Safari <15.4 — the wrapper is purely
+  presentational so this is acceptable.
+
 ## [0.18.0] - 2026-04-19
 
 ### Added
