@@ -1288,6 +1288,9 @@ function styleEdge(edge, colors) {
 }
 var DEFAULT_NODE_TYPES = { stageNode: StageNode };
 function toStageNode(node) {
+  if (node.type !== void 0 && node.type !== "stage") {
+    return node;
+  }
   const data = node.data;
   const stageData = {
     label: data.label,
@@ -1384,7 +1387,7 @@ function TraceFlow(props) {
         minHeight: 300,
         ...props.style
       },
-      children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
         import_react9.ReactFlow,
         {
           nodes: reactFlowNodes,
@@ -1394,7 +1397,10 @@ function TraceFlow(props) {
           onNodeClick: handleNodeClick,
           fitView: true,
           proOptions: { hideAttribution: true },
-          children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_react9.Background, { variant: import_react9.BackgroundVariant.Dots, gap: 20, size: 1 })
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_react9.Background, { variant: import_react9.BackgroundVariant.Dots, gap: 20, size: 1 }),
+            props.children
+          ]
         }
       )
     }
@@ -1734,6 +1740,9 @@ var DEFAULT_COLORS = {
   loop: rawDefaults.colors.warning
 };
 function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds) {
+  if (node.type !== void 0 && node.type !== "stage") {
+    return node;
+  }
   const isDone = doneStageIds.has(node.id);
   const isActive = activeStageId === node.id;
   const wasExecuted = isDone || isActive;
@@ -1809,6 +1818,7 @@ function TracedFlow({
   onSubflowChange,
   nodeTypes: userNodeTypes,
   edgeTypes: userEdgeTypes,
+  children,
   className,
   style
 }) {
@@ -1899,7 +1909,7 @@ function TracedFlow({
             onNavigate: drill.setCurrentSubflowId
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
           import_react13.ReactFlow,
           {
             nodes: reactFlowNodes,
@@ -1910,7 +1920,10 @@ function TracedFlow({
             onInit: setRfInstance,
             fitView: true,
             proOptions: { hideAttribution: true },
-            children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(import_react13.Background, { variant: import_react13.BackgroundVariant.Dots, gap: 20, size: 1 })
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(import_react13.Background, { variant: import_react13.BackgroundVariant.Dots, gap: 20, size: 1 }),
+              children
+            ]
           }
         ) })
       ]

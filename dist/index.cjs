@@ -4101,6 +4101,9 @@ var DEFAULT_COLORS = {
   loop: rawDefaults.colors.warning
 };
 function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds) {
+  if (node.type !== void 0 && node.type !== "stage") {
+    return node;
+  }
   const isDone = doneStageIds.has(node.id);
   const isActive = activeStageId === node.id;
   const wasExecuted = isDone || isActive;
@@ -4176,6 +4179,7 @@ function TracedFlow({
   onSubflowChange,
   nodeTypes: userNodeTypes,
   edgeTypes: userEdgeTypes,
+  children,
   className,
   style
 }) {
@@ -4266,7 +4270,7 @@ function TracedFlow({
             onNavigate: drill.setCurrentSubflowId
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
           import_react22.ReactFlow,
           {
             nodes: reactFlowNodes,
@@ -4277,7 +4281,10 @@ function TracedFlow({
             onInit: setRfInstance,
             fitView: true,
             proOptions: { hideAttribution: true },
-            children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(import_react22.Background, { variant: import_react22.BackgroundVariant.Dots, gap: 20, size: 1 })
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(import_react22.Background, { variant: import_react22.BackgroundVariant.Dots, gap: 20, size: 1 }),
+              children
+            ]
           }
         ) })
       ]

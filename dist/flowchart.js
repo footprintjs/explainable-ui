@@ -1138,7 +1138,7 @@ import {
   BackgroundVariant,
   MarkerType
 } from "@xyflow/react";
-import { jsx as jsx6 } from "react/jsx-runtime";
+import { jsx as jsx6, jsxs as jsxs5 } from "react/jsx-runtime";
 var Y_STEP = 100;
 var X_SPREAD = 200;
 var defaultTraceFlowLayout = (graph) => {
@@ -1239,6 +1239,9 @@ function styleEdge(edge, colors) {
 }
 var DEFAULT_NODE_TYPES = { stageNode: StageNode };
 function toStageNode(node) {
+  if (node.type !== void 0 && node.type !== "stage") {
+    return node;
+  }
   const data = node.data;
   const stageData = {
     label: data.label,
@@ -1335,7 +1338,7 @@ function TraceFlow(props) {
         minHeight: 300,
         ...props.style
       },
-      children: /* @__PURE__ */ jsx6(
+      children: /* @__PURE__ */ jsxs5(
         ReactFlow,
         {
           nodes: reactFlowNodes,
@@ -1345,7 +1348,10 @@ function TraceFlow(props) {
           onNodeClick: handleNodeClick,
           fitView: true,
           proOptions: { hideAttribution: true },
-          children: /* @__PURE__ */ jsx6(Background, { variant: BackgroundVariant.Dots, gap: 20, size: 1 })
+          children: [
+            /* @__PURE__ */ jsx6(Background, { variant: BackgroundVariant.Dots, gap: 20, size: 1 }),
+            props.children
+          ]
         }
       )
     }
@@ -1627,7 +1633,7 @@ function useChartAutoRefit(wrapperRef, rfInstance, options = {}) {
 }
 
 // src/components/FlowchartView/SubflowBreadcrumbBar.tsx
-import { jsx as jsx7, jsxs as jsxs5 } from "react/jsx-runtime";
+import { jsx as jsx7, jsxs as jsxs6 } from "react/jsx-runtime";
 function SubflowBreadcrumbBar({ entries, onNavigate }) {
   return /* @__PURE__ */ jsx7(
     "div",
@@ -1645,7 +1651,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
       "aria-label": "Subflow breadcrumb",
       children: entries.map((entry, i) => {
         const isLast = i === entries.length - 1;
-        return /* @__PURE__ */ jsxs5(
+        return /* @__PURE__ */ jsxs6(
           "span",
           {
             style: { display: "inline-flex", alignItems: "center", gap: 6 },
@@ -1681,7 +1687,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-import { jsx as jsx8, jsxs as jsxs6 } from "react/jsx-runtime";
+import { jsx as jsx8, jsxs as jsxs7 } from "react/jsx-runtime";
 var DEFAULT_COLORS = {
   default: rawDefaults.colors.textMuted,
   done: rawDefaults.colors.success,
@@ -1690,6 +1696,9 @@ var DEFAULT_COLORS = {
   loop: rawDefaults.colors.warning
 };
 function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds) {
+  if (node.type !== void 0 && node.type !== "stage") {
+    return node;
+  }
   const isDone = doneStageIds.has(node.id);
   const isActive = activeStageId === node.id;
   const wasExecuted = isDone || isActive;
@@ -1765,6 +1774,7 @@ function TracedFlow({
   onSubflowChange,
   nodeTypes: userNodeTypes,
   edgeTypes: userEdgeTypes,
+  children,
   className,
   style
 }) {
@@ -1834,7 +1844,7 @@ function TracedFlow({
   const wrapperRef = useRef5(null);
   const [rfInstance, setRfInstance] = useState4(null);
   useChartAutoRefit(wrapperRef, rfInstance);
-  return /* @__PURE__ */ jsxs6(
+  return /* @__PURE__ */ jsxs7(
     "div",
     {
       ref: wrapperRef,
@@ -1855,7 +1865,7 @@ function TracedFlow({
             onNavigate: drill.setCurrentSubflowId
           }
         ),
-        /* @__PURE__ */ jsx8("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ jsx8(
+        /* @__PURE__ */ jsx8("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ jsxs7(
           ReactFlow2,
           {
             nodes: reactFlowNodes,
@@ -1866,7 +1876,10 @@ function TracedFlow({
             onInit: setRfInstance,
             fitView: true,
             proOptions: { hideAttribution: true },
-            children: /* @__PURE__ */ jsx8(Background2, { variant: BackgroundVariant2.Dots, gap: 20, size: 1 })
+            children: [
+              /* @__PURE__ */ jsx8(Background2, { variant: BackgroundVariant2.Dots, gap: 20, size: 1 }),
+              children
+            ]
           }
         ) })
       ]
@@ -1875,7 +1888,7 @@ function TracedFlow({
 }
 
 // src/components/TimeTravelDebugger/TimeTravelDebugger.tsx
-import { jsx as jsx9, jsxs as jsxs7 } from "react/jsx-runtime";
+import { jsx as jsx9, jsxs as jsxs8 } from "react/jsx-runtime";
 function TimeTravelDebugger({
   snapshots,
   graph,
@@ -1923,7 +1936,7 @@ function TimeTravelDebugger({
     }
   ) : /* @__PURE__ */ jsx9(TraceFlow, { graph, onNodeClick: handleNodeClick });
   if (unstyled) {
-    return /* @__PURE__ */ jsxs7("div", { className, style, "data-fp": "time-travel-debugger", children: [
+    return /* @__PURE__ */ jsxs8("div", { className, style, "data-fp": "time-travel-debugger", children: [
       /* @__PURE__ */ jsx9("h3", { children: title }),
       /* @__PURE__ */ jsx9(
         "input",
@@ -1963,7 +1976,7 @@ function TimeTravelDebugger({
       )
     ] });
   }
-  return /* @__PURE__ */ jsxs7(
+  return /* @__PURE__ */ jsxs8(
     "div",
     {
       className,
@@ -1978,7 +1991,7 @@ function TimeTravelDebugger({
       },
       "data-fp": "time-travel-debugger",
       children: [
-        /* @__PURE__ */ jsxs7(
+        /* @__PURE__ */ jsxs8(
           "div",
           {
             style: {
@@ -1988,7 +2001,7 @@ function TimeTravelDebugger({
               flexShrink: 0
             },
             children: [
-              /* @__PURE__ */ jsxs7(
+              /* @__PURE__ */ jsxs8(
                 "div",
                 {
                   style: {
@@ -2022,7 +2035,7 @@ function TimeTravelDebugger({
                   ]
                 }
               ),
-              /* @__PURE__ */ jsxs7("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
+              /* @__PURE__ */ jsxs8("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
                 /* @__PURE__ */ jsx9(
                   ScrubButton,
                   {
@@ -2055,7 +2068,7 @@ function TimeTravelDebugger({
                     onClick: () => setSelectedIndex((i) => Math.min(snapshots.length - 1, i + 1))
                   }
                 ),
-                /* @__PURE__ */ jsxs7(
+                /* @__PURE__ */ jsxs8(
                   "span",
                   {
                     style: {
@@ -2075,7 +2088,7 @@ function TimeTravelDebugger({
             ]
           }
         ),
-        /* @__PURE__ */ jsxs7(
+        /* @__PURE__ */ jsxs8(
           "div",
           {
             style: {
@@ -2097,7 +2110,7 @@ function TimeTravelDebugger({
                   children: chart
                 }
               ),
-              /* @__PURE__ */ jsxs7("div", { style: { flex: 1, overflow: "auto" }, children: [
+              /* @__PURE__ */ jsxs8("div", { style: { flex: 1, overflow: "auto" }, children: [
                 /* @__PURE__ */ jsx9(
                   MemoryInspector,
                   {
@@ -2183,7 +2196,7 @@ function ScrubButton({
 
 // src/components/FlowchartView/SubflowBreadcrumb.tsx
 import { memo as memo2 } from "react";
-import { jsx as jsx10, jsxs as jsxs8 } from "react/jsx-runtime";
+import { jsx as jsx10, jsxs as jsxs9 } from "react/jsx-runtime";
 var SubflowBreadcrumb = memo2(function SubflowBreadcrumb2({
   breadcrumbs,
   onNavigate
@@ -2206,9 +2219,9 @@ var SubflowBreadcrumb = memo2(function SubflowBreadcrumb2({
       },
       children: breadcrumbs.map((crumb, i) => {
         const isLast = i === breadcrumbs.length - 1;
-        return /* @__PURE__ */ jsxs8("span", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
+        return /* @__PURE__ */ jsxs9("span", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
           i > 0 && /* @__PURE__ */ jsx10("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" }),
-          isLast ? /* @__PURE__ */ jsxs8("span", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+          isLast ? /* @__PURE__ */ jsxs9("span", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
             /* @__PURE__ */ jsx10(
               "span",
               {
@@ -2219,7 +2232,7 @@ var SubflowBreadcrumb = memo2(function SubflowBreadcrumb2({
                 children: crumb.label
               }
             ),
-            crumb.description && /* @__PURE__ */ jsxs8(
+            crumb.description && /* @__PURE__ */ jsxs9(
               "span",
               {
                 style: {
@@ -2332,7 +2345,7 @@ function useSubflowNavigation(rootGraph) {
 
 // src/components/FlowchartView/SubflowTree.tsx
 import { memo as memo3, useState as useState7, useCallback as useCallback5, useMemo as useMemo7 } from "react";
-import { Fragment as Fragment2, jsx as jsx11, jsxs as jsxs9 } from "react/jsx-runtime";
+import { Fragment as Fragment2, jsx as jsx11, jsxs as jsxs10 } from "react/jsx-runtime";
 function graphToSubflowEntries(graph) {
   if (!graph?.nodes?.length) return [];
   const entries = [];
@@ -2365,8 +2378,8 @@ var TreeNode = memo3(function TreeNode2({
     }
     onNodeSelect?.(entry.name, !!entry.isSubflow);
   }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow]);
-  return /* @__PURE__ */ jsxs9(Fragment2, { children: [
-    /* @__PURE__ */ jsxs9(
+  return /* @__PURE__ */ jsxs10(Fragment2, { children: [
+    /* @__PURE__ */ jsxs10(
       "button",
       {
         onClick: handleClick,
@@ -2425,8 +2438,8 @@ var TreeNode = memo3(function TreeNode2({
               }
             }
           ),
-          /* @__PURE__ */ jsxs9("span", { style: { display: "flex", flexDirection: "column", minWidth: 0 }, children: [
-            /* @__PURE__ */ jsxs9(
+          /* @__PURE__ */ jsxs10("span", { style: { display: "flex", flexDirection: "column", minWidth: 0 }, children: [
+            /* @__PURE__ */ jsxs10(
               "span",
               {
                 style: {
@@ -2499,7 +2512,7 @@ var SubflowTree = memo3(function SubflowTree2({
 }) {
   const subflowStages = useMemo7(() => graphToSubflowEntries(graph), [graph]);
   if (subflowStages.length === 0) return null;
-  return /* @__PURE__ */ jsxs9(
+  return /* @__PURE__ */ jsxs10(
     "div",
     {
       className,
@@ -3323,7 +3336,7 @@ function bfsWalk(index, startId, neighborsOf, options) {
 
 // src/components/FlowchartView/NodeInspector.tsx
 import { useMemo as useMemo9 } from "react";
-import { Fragment as Fragment3, jsx as jsx12, jsxs as jsxs10 } from "react/jsx-runtime";
+import { Fragment as Fragment3, jsx as jsx12, jsxs as jsxs11 } from "react/jsx-runtime";
 function NodeInspector({
   index,
   selectedId,
@@ -3356,7 +3369,7 @@ function NodeInspector({
       }
     );
   }
-  return /* @__PURE__ */ jsxs10(
+  return /* @__PURE__ */ jsxs11(
     "div",
     {
       className,
@@ -3368,9 +3381,9 @@ function NodeInspector({
         ...style
       },
       children: [
-        /* @__PURE__ */ jsxs10("div", { style: { marginBottom: 16 }, children: [
+        /* @__PURE__ */ jsxs11("div", { style: { marginBottom: 16 }, children: [
           /* @__PURE__ */ jsx12("div", { style: { fontSize: 16, fontWeight: 700, color: theme.textPrimary }, children: view.label }),
-          /* @__PURE__ */ jsxs10("div", { style: { fontSize: 11, fontFamily: "monospace", color: theme.textMuted, marginTop: 2 }, children: [
+          /* @__PURE__ */ jsxs11("div", { style: { fontSize: 11, fontFamily: "monospace", color: theme.textMuted, marginTop: 2 }, children: [
             view.stageId,
             " \xB7 ",
             view.type,
@@ -3382,9 +3395,9 @@ function NodeInspector({
           ] }),
           view.description && /* @__PURE__ */ jsx12("div", { style: { fontSize: 12, color: theme.textSecondary, marginTop: 6 }, children: view.description })
         ] }),
-        /* @__PURE__ */ jsxs10(Section, { title: "Runtime", children: [
+        /* @__PURE__ */ jsxs11(Section, { title: "Runtime", children: [
           /* @__PURE__ */ jsx12(Row, { label: "Visited", value: view.visitedInRun ? "yes" : "no" }),
-          view.visitedInRun && /* @__PURE__ */ jsxs10(Fragment3, { children: [
+          view.visitedInRun && /* @__PURE__ */ jsxs11(Fragment3, { children: [
             /* @__PURE__ */ jsx12(Row, { label: "Executions", value: String(view.executionCount) }),
             view.firstExecutedAt !== null && /* @__PURE__ */ jsx12(Row, { label: "First at", value: `${view.firstExecutedAt.toFixed(1)}ms` }),
             view.lastExecutedAt !== null && /* @__PURE__ */ jsx12(Row, { label: "Last at", value: `${view.lastExecutedAt.toFixed(1)}ms` }),
@@ -3414,7 +3427,7 @@ function NodeInspector({
   );
 }
 function Section({ title, children }) {
-  return /* @__PURE__ */ jsxs10("div", { style: { marginBottom: 14 }, children: [
+  return /* @__PURE__ */ jsxs11("div", { style: { marginBottom: 14 }, children: [
     /* @__PURE__ */ jsx12(
       "div",
       {
@@ -3433,14 +3446,14 @@ function Section({ title, children }) {
   ] });
 }
 function Row({ label, value, valueColor }) {
-  return /* @__PURE__ */ jsxs10("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0" }, children: [
+  return /* @__PURE__ */ jsxs11("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0" }, children: [
     /* @__PURE__ */ jsx12("span", { style: { color: theme.textMuted }, children: label }),
     /* @__PURE__ */ jsx12("span", { style: { color: valueColor ?? theme.textSecondary, fontFamily: "monospace" }, children: value })
   ] });
 }
 function Crumbs({ nodes, onClick }) {
   if (nodes.length === 0) return null;
-  return /* @__PURE__ */ jsx12("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: nodes.map((n, i) => /* @__PURE__ */ jsxs10("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
+  return /* @__PURE__ */ jsx12("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: nodes.map((n, i) => /* @__PURE__ */ jsxs11("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
     /* @__PURE__ */ jsx12(
       "button",
       {
@@ -3464,7 +3477,7 @@ function Crumbs({ nodes, onClick }) {
 
 // src/components/FlowchartView/CommitInspector.tsx
 import { useMemo as useMemo10 } from "react";
-import { jsx as jsx13, jsxs as jsxs11 } from "react/jsx-runtime";
+import { jsx as jsx13, jsxs as jsxs12 } from "react/jsx-runtime";
 function CommitInspector({
   index,
   selectedRuntimeStageId,
@@ -3492,7 +3505,7 @@ function CommitInspector({
       }
     );
   }
-  return /* @__PURE__ */ jsxs11(
+  return /* @__PURE__ */ jsxs12(
     "div",
     {
       className,
@@ -3504,9 +3517,9 @@ function CommitInspector({
         ...style
       },
       children: [
-        /* @__PURE__ */ jsxs11("div", { style: { marginBottom: 16 }, children: [
+        /* @__PURE__ */ jsxs12("div", { style: { marginBottom: 16 }, children: [
           /* @__PURE__ */ jsx13("div", { style: { fontSize: 16, fontWeight: 700, color: theme.textPrimary }, children: view.stageId }),
-          /* @__PURE__ */ jsxs11(
+          /* @__PURE__ */ jsxs12(
             "div",
             {
               style: {
@@ -3529,9 +3542,9 @@ function CommitInspector({
         view.runtimeNextIds.length > 0 && /* @__PURE__ */ jsx13(Section2, { title: "Runtime next (this execution)", children: /* @__PURE__ */ jsx13(RuntimeRefs, { refs: view.runtimeNextIds, onClick: onNavigate }) }),
         Object.keys(view.updates).length > 0 && /* @__PURE__ */ jsx13(Section2, { title: `Updates (${Object.keys(view.updates).length})`, children: /* @__PURE__ */ jsx13(KeyValueGrid, { entries: Object.entries(view.updates) }) }),
         view.reads.length > 0 && /* @__PURE__ */ jsx13(Section2, { title: `Reads (${view.reads.length})`, children: /* @__PURE__ */ jsx13(PlainTags, { labels: view.reads }) }),
-        view.dataDependencies.length > 0 && /* @__PURE__ */ jsx13(Section2, { title: `Data dependencies (${view.dataDependencies.length})`, children: /* @__PURE__ */ jsx13("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ jsx13("tbody", { children: view.dataDependencies.map((dep) => /* @__PURE__ */ jsxs11("tr", { children: [
+        view.dataDependencies.length > 0 && /* @__PURE__ */ jsx13(Section2, { title: `Data dependencies (${view.dataDependencies.length})`, children: /* @__PURE__ */ jsx13("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ jsx13("tbody", { children: view.dataDependencies.map((dep) => /* @__PURE__ */ jsxs12("tr", { children: [
           /* @__PURE__ */ jsx13("td", { style: { color: theme.textSecondary, padding: "2px 8px 2px 0" }, children: dep.key }),
-          /* @__PURE__ */ jsx13("td", { style: { color: dep.sourceRuntimeStageId ? theme.textPrimary : theme.textMuted }, children: dep.sourceRuntimeStageId ? /* @__PURE__ */ jsxs11(
+          /* @__PURE__ */ jsx13("td", { style: { color: dep.sourceRuntimeStageId ? theme.textPrimary : theme.textMuted }, children: dep.sourceRuntimeStageId ? /* @__PURE__ */ jsxs12(
             "button",
             {
               onClick: onNavigate ? () => onNavigate(dep.sourceRuntimeStageId) : void 0,
@@ -3543,7 +3556,7 @@ function CommitInspector({
             }
           ) : /* @__PURE__ */ jsx13("em", { children: "(no prior writer \u2014 default or external)" }) })
         ] }, dep.key)) }) }) }),
-        lineage.length > 1 && /* @__PURE__ */ jsx13(Section2, { title: `Lineage chain (${lineage.length - 1} ancestor commits)`, children: /* @__PURE__ */ jsx13("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: lineage.slice(0, -1).map((c, i) => /* @__PURE__ */ jsxs11("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
+        lineage.length > 1 && /* @__PURE__ */ jsx13(Section2, { title: `Lineage chain (${lineage.length - 1} ancestor commits)`, children: /* @__PURE__ */ jsx13("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: lineage.slice(0, -1).map((c, i) => /* @__PURE__ */ jsxs12("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
           /* @__PURE__ */ jsx13(
             "button",
             {
@@ -3559,7 +3572,7 @@ function CommitInspector({
   );
 }
 function Section2({ title, children }) {
-  return /* @__PURE__ */ jsxs11("div", { style: { marginBottom: 14 }, children: [
+  return /* @__PURE__ */ jsxs12("div", { style: { marginBottom: 14 }, children: [
     /* @__PURE__ */ jsx13(
       "div",
       {
@@ -3609,7 +3622,7 @@ function RuntimeRefs({
   )) });
 }
 function KeyValueGrid({ entries }) {
-  return /* @__PURE__ */ jsx13("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ jsx13("tbody", { children: entries.map(([k, v2]) => /* @__PURE__ */ jsxs11("tr", { children: [
+  return /* @__PURE__ */ jsx13("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ jsx13("tbody", { children: entries.map(([k, v2]) => /* @__PURE__ */ jsxs12("tr", { children: [
     /* @__PURE__ */ jsx13("td", { style: { color: theme.textSecondary, padding: "2px 8px 2px 0", verticalAlign: "top" }, children: k }),
     /* @__PURE__ */ jsx13("td", { style: { color: theme.textPrimary, wordBreak: "break-word" }, children: typeof v2 === "object" ? JSON.stringify(v2) : String(v2) })
   ] }, k)) }) });
@@ -3778,7 +3791,7 @@ function decorate(node, commitsByStageId) {
 }
 
 // src/components/FlowchartView/CommitChainView.tsx
-import { Fragment as Fragment4, jsx as jsx14, jsxs as jsxs12 } from "react/jsx-runtime";
+import { Fragment as Fragment4, jsx as jsx14, jsxs as jsxs13 } from "react/jsx-runtime";
 function CommitChainView({
   chain,
   selectedRuntimeStageId = null,
@@ -3847,7 +3860,7 @@ function ChainShell({ node, renderLeaf }) {
           alignItems: "center",
           gap: 0
         },
-        children: node.items.map((child, i) => /* @__PURE__ */ jsxs12(
+        children: node.items.map((child, i) => /* @__PURE__ */ jsxs13(
           "div",
           {
             style: { display: "flex", flexDirection: "column", alignItems: "center" },
@@ -3861,7 +3874,7 @@ function ChainShell({ node, renderLeaf }) {
       }
     );
   }
-  return /* @__PURE__ */ jsxs12(
+  return /* @__PURE__ */ jsxs13(
     "div",
     {
       style: {
@@ -3935,7 +3948,7 @@ function Leaf({
   const label = resolveLabel ? resolveLabel(leaf.stageId) : leaf.stageId;
   const commits = "commits" in leaf ? leaf.commits : [];
   if (commits.length === 0) {
-    return /* @__PURE__ */ jsxs12(
+    return /* @__PURE__ */ jsxs13(
       "div",
       {
         style: {
@@ -3956,7 +3969,7 @@ function Leaf({
     const isSelected = c.runtimeStageId === selectedRuntimeStageId;
     const clickable = onSelectCommit !== void 0;
     const isRevealed = revealedThroughCommitIdx === null || c.commitIdx <= revealedThroughCommitIdx;
-    return /* @__PURE__ */ jsxs12(
+    return /* @__PURE__ */ jsxs13(
       "button",
       {
         type: "button",
@@ -3977,16 +3990,16 @@ function Leaf({
         "aria-current": isSelected ? "true" : void 0,
         title: c.runtimeStageId,
         children: [
-          /* @__PURE__ */ jsxs12("div", { style: { fontWeight: 600 }, children: [
+          /* @__PURE__ */ jsxs13("div", { style: { fontWeight: 600 }, children: [
             label,
-            commits.length > 1 && /* @__PURE__ */ jsxs12("span", { style: { color: theme.textMuted, fontWeight: 400, marginLeft: 6 }, children: [
+            commits.length > 1 && /* @__PURE__ */ jsxs13("span", { style: { color: theme.textMuted, fontWeight: 400, marginLeft: 6 }, children: [
               "iter ",
               i + 1,
               "/",
               commits.length
             ] })
           ] }),
-          /* @__PURE__ */ jsxs12(
+          /* @__PURE__ */ jsxs13(
             "div",
             {
               style: {
@@ -4063,7 +4076,7 @@ import { useMemo as useMemo12, useState as useState8, useCallback as useCallback
 
 // src/components/FlowchartView/RunSlider.tsx
 import { useCallback as useCallback6, useMemo as useMemo11 } from "react";
-import { jsx as jsx15, jsxs as jsxs13 } from "react/jsx-runtime";
+import { jsx as jsx15, jsxs as jsxs14 } from "react/jsx-runtime";
 function RunSlider({
   index,
   cursorRuntimeStageId,
@@ -4098,7 +4111,7 @@ function RunSlider({
         index
       });
     if (total === 0) return /* @__PURE__ */ jsx15("span", { style: { color: theme.textMuted }, children: "No commits yet" });
-    return /* @__PURE__ */ jsxs13("span", { style: { fontFamily: "monospace", fontSize: 11, color: theme.textSecondary }, children: [
+    return /* @__PURE__ */ jsxs14("span", { style: { fontFamily: "monospace", fontSize: 11, color: theme.textSecondary }, children: [
       "#",
       cursorCommitIdx + 1,
       " / ",
@@ -4108,7 +4121,7 @@ function RunSlider({
     ] });
   }, [renderLabel, cursorCommitIdx, total, index, cursorRuntimeStageId]);
   const disabled = total < 2;
-  return /* @__PURE__ */ jsxs13(
+  return /* @__PURE__ */ jsxs14(
     "div",
     {
       className,
@@ -4161,7 +4174,7 @@ function RunSlider({
 }
 
 // src/components/FlowchartView/TraceExplorerShell.tsx
-import { jsx as jsx16, jsxs as jsxs14 } from "react/jsx-runtime";
+import { jsx as jsx16, jsxs as jsxs15 } from "react/jsx-runtime";
 function TraceExplorerShell({
   bundle,
   selectedRuntimeStageId: controlledSel,
@@ -4234,7 +4247,7 @@ function TraceExplorerShell({
     () => SliderPane ? SHELL_STYLE_WITH_SLIDER : SHELL_STYLE_NO_SLIDER,
     [SliderPane]
   );
-  return /* @__PURE__ */ jsxs14("div", { className, style: { ...layoutStyle, ...style }, children: [
+  return /* @__PURE__ */ jsxs15("div", { className, style: { ...layoutStyle, ...style }, children: [
     SliderPane && /* @__PURE__ */ jsx16(Pane, { area: "slider", children: /* @__PURE__ */ jsx16(
       SliderPane,
       {

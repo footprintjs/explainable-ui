@@ -34,6 +34,7 @@
  * ```
  */
 
+import type * as React from "react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
@@ -93,6 +94,16 @@ function toStageNodeWithOverlay(
   errorMessage: string | undefined,
   executedOrderIds: readonly string[],
 ): Node {
+  // Pass-through contract — see TraceFlow.toStageNode for rationale.
+  // If consumer pushed a node with a non-default `type`, return it
+  // unchanged so xyflow's nodeTypes registry routes to the consumer's
+  // component instead of the built-in StageNode. The runtime overlay
+  // (done/active/error) is intentionally NOT applied to consumer
+  // custom nodes — the consumer's component owns its visual state.
+  if (node.type !== undefined && node.type !== "stage") {
+    return node as Node;
+  }
+
   const isDone = doneStageIds.has(node.id);
   const isActive = activeStageId === node.id;
   const wasExecuted = isDone || isActive;
@@ -210,6 +221,13 @@ export interface TracedFlowProps extends BaseComponentProps {
    * components for edges you push into the graph with `type: 'myEdge'`.
    */
   edgeTypes?: EdgeTypes;
+  /**
+   * Children rendered INSIDE the `<ReactFlow>` element, after the
+   * built-in `<Background>`. Use this slot to mount xyflow
+   * accessory components like `<Controls />`, `<MiniMap />`, or a
+   * custom legend. If unset, only the default Background is rendered.
+   */
+  children?: React.ReactNode;
 }
 
 const DEFAULT_NODE_TYPES: NodeTypes = { stageNode: StageNode };
@@ -224,6 +242,7 @@ export function TracedFlow({
   onSubflowChange,
   nodeTypes: userNodeTypes,
   edgeTypes: userEdgeTypes,
+  children,
   className,
   style,
 }: TracedFlowProps) {
@@ -337,6 +356,7 @@ export function TracedFlow({
           proOptions={{ hideAttribution: true }}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+          {children}
         </ReactFlow>
       </div>
     </div>

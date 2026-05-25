@@ -3742,7 +3742,7 @@ var StageNode = memo3(function StageNode2({
 });
 
 // src/components/FlowchartView/TraceFlow.tsx
-import { jsx as jsx17 } from "react/jsx-runtime";
+import { jsx as jsx17, jsxs as jsxs16 } from "react/jsx-runtime";
 var Y_STEP = 100;
 var X_SPREAD = 200;
 var defaultTraceFlowLayout = (graph) => {
@@ -3977,7 +3977,7 @@ function useChartAutoRefit(wrapperRef, rfInstance, options = {}) {
 }
 
 // src/components/FlowchartView/SubflowBreadcrumbBar.tsx
-import { jsx as jsx18, jsxs as jsxs16 } from "react/jsx-runtime";
+import { jsx as jsx18, jsxs as jsxs17 } from "react/jsx-runtime";
 function SubflowBreadcrumbBar({ entries, onNavigate }) {
   return /* @__PURE__ */ jsx18(
     "div",
@@ -3995,7 +3995,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
       "aria-label": "Subflow breadcrumb",
       children: entries.map((entry, i) => {
         const isLast = i === entries.length - 1;
-        return /* @__PURE__ */ jsxs16(
+        return /* @__PURE__ */ jsxs17(
           "span",
           {
             style: { display: "inline-flex", alignItems: "center", gap: 6 },
@@ -4031,7 +4031,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-import { jsx as jsx19, jsxs as jsxs17 } from "react/jsx-runtime";
+import { jsx as jsx19, jsxs as jsxs18 } from "react/jsx-runtime";
 var DEFAULT_COLORS = {
   default: rawDefaults.colors.textMuted,
   done: rawDefaults.colors.success,
@@ -4040,6 +4040,9 @@ var DEFAULT_COLORS = {
   loop: rawDefaults.colors.warning
 };
 function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds) {
+  if (node.type !== void 0 && node.type !== "stage") {
+    return node;
+  }
   const isDone = doneStageIds.has(node.id);
   const isActive = activeStageId === node.id;
   const wasExecuted = isDone || isActive;
@@ -4115,6 +4118,7 @@ function TracedFlow({
   onSubflowChange,
   nodeTypes: userNodeTypes,
   edgeTypes: userEdgeTypes,
+  children,
   className,
   style
 }) {
@@ -4184,7 +4188,7 @@ function TracedFlow({
   const wrapperRef = useRef8(null);
   const [rfInstance, setRfInstance] = useState10(null);
   useChartAutoRefit(wrapperRef, rfInstance);
-  return /* @__PURE__ */ jsxs17(
+  return /* @__PURE__ */ jsxs18(
     "div",
     {
       ref: wrapperRef,
@@ -4205,7 +4209,7 @@ function TracedFlow({
             onNavigate: drill.setCurrentSubflowId
           }
         ),
-        /* @__PURE__ */ jsx19("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ jsx19(
+        /* @__PURE__ */ jsx19("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ jsxs18(
           ReactFlow2,
           {
             nodes: reactFlowNodes,
@@ -4216,7 +4220,10 @@ function TracedFlow({
             onInit: setRfInstance,
             fitView: true,
             proOptions: { hideAttribution: true },
-            children: /* @__PURE__ */ jsx19(Background2, { variant: BackgroundVariant2.Dots, gap: 20, size: 1 })
+            children: [
+              /* @__PURE__ */ jsx19(Background2, { variant: BackgroundVariant2.Dots, gap: 20, size: 1 }),
+              children
+            ]
           }
         ) })
       ]
@@ -4229,7 +4236,7 @@ import { memo as memo5, useState as useState11 } from "react";
 
 // src/components/DataTracePanel/DataTracePanel.tsx
 import { memo as memo4 } from "react";
-import { jsx as jsx20, jsxs as jsxs18 } from "react/jsx-runtime";
+import { jsx as jsx20, jsxs as jsxs19 } from "react/jsx-runtime";
 var DataTracePanel = memo4(function DataTracePanel2({
   frames,
   selectedStageId,
@@ -4237,7 +4244,7 @@ var DataTracePanel = memo4(function DataTracePanel2({
   fromStageName
 }) {
   if (frames.length === 0) {
-    return /* @__PURE__ */ jsxs18("div", { style: { padding: "14px 14px 12px", fontSize: 13, lineHeight: 1.55 }, children: [
+    return /* @__PURE__ */ jsxs19("div", { style: { padding: "14px 14px 12px", fontSize: 13, lineHeight: 1.55 }, children: [
       /* @__PURE__ */ jsx20(
         "div",
         {
@@ -4256,9 +4263,9 @@ var DataTracePanel = memo4(function DataTracePanel2({
       /* @__PURE__ */ jsx20("div", { style: { color: theme.textMuted, fontSize: 12 }, children: "Select a stage above to see its dependency chain." })
     ] });
   }
-  return /* @__PURE__ */ jsxs18("div", { style: { padding: "8px 0", fontSize: 13 }, children: [
-    fromStageName && /* @__PURE__ */ jsxs18("div", { style: { padding: "4px 12px 8px" }, children: [
-      /* @__PURE__ */ jsxs18(
+  return /* @__PURE__ */ jsxs19("div", { style: { padding: "8px 0", fontSize: 13 }, children: [
+    fromStageName && /* @__PURE__ */ jsxs19("div", { style: { padding: "4px 12px 8px" }, children: [
+      /* @__PURE__ */ jsxs19(
         "div",
         {
           style: {
@@ -4307,7 +4314,7 @@ var DataTraceFrame = memo4(function DataTraceFrame2({
   isSelected,
   onClick
 }) {
-  return /* @__PURE__ */ jsxs18(
+  return /* @__PURE__ */ jsxs19(
     "button",
     {
       onClick: () => onClick?.(frame.runtimeStageId),
@@ -4324,7 +4331,7 @@ var DataTraceFrame = memo4(function DataTraceFrame2({
         fontSize: 13
       },
       children: [
-        /* @__PURE__ */ jsxs18("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+        /* @__PURE__ */ jsxs19("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
           !isFirst && /* @__PURE__ */ jsx20("span", { style: { color: theme.textMuted, fontSize: 11 }, children: "\u2191" }),
           /* @__PURE__ */ jsx20(
             "span",
@@ -4348,7 +4355,7 @@ var DataTraceFrame = memo4(function DataTraceFrame2({
             }
           )
         ] }),
-        frame.keysWritten.length > 0 && /* @__PURE__ */ jsxs18(
+        frame.keysWritten.length > 0 && /* @__PURE__ */ jsxs19(
           "div",
           {
             style: {
@@ -4364,7 +4371,7 @@ var DataTraceFrame = memo4(function DataTraceFrame2({
             ]
           }
         ),
-        frame.linkedBy && /* @__PURE__ */ jsxs18(
+        frame.linkedBy && /* @__PURE__ */ jsxs19(
           "div",
           {
             style: {
@@ -4385,7 +4392,7 @@ var DataTraceFrame = memo4(function DataTraceFrame2({
 });
 
 // src/components/InspectorPanel/InspectorPanel.tsx
-import { jsx as jsx21, jsxs as jsxs19 } from "react/jsx-runtime";
+import { jsx as jsx21, jsxs as jsxs20 } from "react/jsx-runtime";
 var InspectorPanel = memo5(function InspectorPanel2({
   snapshots,
   selectedIndex,
@@ -4395,7 +4402,7 @@ var InspectorPanel = memo5(function InspectorPanel2({
 }) {
   const [tab, setTab] = useState11("state");
   const currentSnapshot = snapshots[selectedIndex];
-  return /* @__PURE__ */ jsxs19(
+  return /* @__PURE__ */ jsxs20(
     "div",
     {
       style: {
@@ -4405,7 +4412,7 @@ var InspectorPanel = memo5(function InspectorPanel2({
         overflow: "hidden"
       },
       children: [
-        /* @__PURE__ */ jsxs19(
+        /* @__PURE__ */ jsxs20(
           "div",
           {
             style: {
@@ -4434,7 +4441,7 @@ var InspectorPanel = memo5(function InspectorPanel2({
             ]
           }
         ),
-        /* @__PURE__ */ jsxs19("div", { style: { flex: 1, overflow: "auto" }, children: [
+        /* @__PURE__ */ jsxs20("div", { style: { flex: 1, overflow: "auto" }, children: [
           tab === "state" && /* @__PURE__ */ jsx21(
             MemoryPanel,
             {
@@ -4462,7 +4469,7 @@ function TabButton({
   label,
   badge
 }) {
-  return /* @__PURE__ */ jsxs19(
+  return /* @__PURE__ */ jsxs20(
     "button",
     {
       onClick,
@@ -4502,7 +4509,7 @@ function TabButton({
 
 // src/components/InsightPanel/InsightPanel.tsx
 import { memo as memo6, useState as useState12 } from "react";
-import { jsx as jsx22, jsxs as jsxs20 } from "react/jsx-runtime";
+import { jsx as jsx22, jsxs as jsxs21 } from "react/jsx-runtime";
 var InsightPanel = memo6(function InsightPanel2({
   insights,
   expandedId,
@@ -4522,7 +4529,7 @@ var InsightTabs = memo6(function InsightTabs2({
 }) {
   const [activeId, setActiveId] = useState12(defaultId ?? insights[0]?.id);
   const active = insights.find((i) => i.id === activeId) ?? insights[0];
-  return /* @__PURE__ */ jsxs20(
+  return /* @__PURE__ */ jsxs21(
     "div",
     {
       style: {
@@ -4582,7 +4589,7 @@ var InsightGrid = memo6(function InsightGrid2({
         gap: 1,
         background: theme.border
       },
-      children: insights.map((insight) => /* @__PURE__ */ jsxs20(
+      children: insights.map((insight) => /* @__PURE__ */ jsxs21(
         "div",
         {
           style: {
@@ -4592,7 +4599,7 @@ var InsightGrid = memo6(function InsightGrid2({
             overflow: "hidden"
           },
           children: [
-            /* @__PURE__ */ jsxs20(
+            /* @__PURE__ */ jsxs21(
               "div",
               {
                 style: {
@@ -4633,7 +4640,7 @@ var InsightGrid = memo6(function InsightGrid2({
 
 // src/components/CompactTimeline/CompactTimeline.tsx
 import { memo as memo7, useState as useState13 } from "react";
-import { jsx as jsx23, jsxs as jsxs21 } from "react/jsx-runtime";
+import { jsx as jsx23, jsxs as jsxs22 } from "react/jsx-runtime";
 var CompactTimeline = memo7(function CompactTimeline2({
   snapshots,
   selectedIndex,
@@ -4641,8 +4648,8 @@ var CompactTimeline = memo7(function CompactTimeline2({
 }) {
   const [expanded, setExpanded] = useState13(defaultExpanded);
   if (snapshots.length === 0) return null;
-  return /* @__PURE__ */ jsxs21("div", { style: { borderTop: `1px solid ${theme.border}` }, children: [
-    /* @__PURE__ */ jsxs21(
+  return /* @__PURE__ */ jsxs22("div", { style: { borderTop: `1px solid ${theme.border}` }, children: [
+    /* @__PURE__ */ jsxs22(
       "button",
       {
         onClick: () => setExpanded((e) => !e),
@@ -4664,11 +4671,11 @@ var CompactTimeline = memo7(function CompactTimeline2({
         children: [
           /* @__PURE__ */ jsx23("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
           "Timeline",
-          /* @__PURE__ */ jsxs21("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
+          /* @__PURE__ */ jsxs22("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
             snapshots.length,
             " stages"
           ] }),
-          !expanded && /* @__PURE__ */ jsxs21(
+          !expanded && /* @__PURE__ */ jsxs22(
             "div",
             {
               style: {
@@ -4723,21 +4730,21 @@ var CompactTimeline = memo7(function CompactTimeline2({
 });
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-import { Fragment as Fragment6, jsx as jsx24, jsxs as jsxs22 } from "react/jsx-runtime";
+import { Fragment as Fragment6, jsx as jsx24, jsxs as jsxs23 } from "react/jsx-runtime";
 var HLinePill = memo8(function HLinePill2({
   label,
   detail,
   expanded,
   onClick
 }) {
-  return /* @__PURE__ */ jsxs22("div", { style: {
+  return /* @__PURE__ */ jsxs23("div", { style: {
     display: "flex",
     alignItems: "center",
     gap: 0,
     padding: "0"
   }, children: [
     /* @__PURE__ */ jsx24("div", { style: { flex: 1, height: 1, background: theme.border } }),
-    /* @__PURE__ */ jsxs22(
+    /* @__PURE__ */ jsxs23(
       "button",
       {
         onClick,
@@ -4777,7 +4784,7 @@ var VLinePill = memo8(function VLinePill2({
   onClick
 }) {
   const arrow = side === "right" ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25C0" : "\u25B6";
-  return /* @__PURE__ */ jsxs22("div", { style: {
+  return /* @__PURE__ */ jsxs23("div", { style: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
@@ -4785,7 +4792,7 @@ var VLinePill = memo8(function VLinePill2({
     padding: "0"
   }, children: [
     /* @__PURE__ */ jsx24("div", { style: { flex: 1, width: 1, background: theme.border } }),
-    /* @__PURE__ */ jsxs22(
+    /* @__PURE__ */ jsxs23(
       "button",
       {
         onClick,
@@ -4883,12 +4890,12 @@ function KeyedRecorderView({
     }
   }
   const grandTotal = hints?.grandTotal ?? 0;
-  return /* @__PURE__ */ jsxs22("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
+  return /* @__PURE__ */ jsxs23("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
     description && /* @__PURE__ */ jsx24("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
-    /* @__PURE__ */ jsxs22("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
+    /* @__PURE__ */ jsxs23("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
       preferredOperation === "aggregate" ? (
         /* AGGREGATE: collect silently during scrub, button at end to reveal total */
-        /* @__PURE__ */ jsxs22(Fragment6, { children: [
+        /* @__PURE__ */ jsxs23(Fragment6, { children: [
           isAtEnd ? /* @__PURE__ */ jsx24("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ jsx24(
             "button",
             {
@@ -4907,20 +4914,20 @@ function KeyedRecorderView({
               },
               children: "Aggregate \u2014 Show Grand Total"
             }
-          ) : /* @__PURE__ */ jsxs22("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
+          ) : /* @__PURE__ */ jsxs23("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
             /* @__PURE__ */ jsx24("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
-            numFieldKey && /* @__PURE__ */ jsxs22("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
+            numFieldKey && /* @__PURE__ */ jsxs23("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
               grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1),
-              /* @__PURE__ */ jsxs22("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
+              /* @__PURE__ */ jsxs23("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
                 numFieldKey,
                 " \xB7 ",
                 allKeys.length,
                 " steps"
               ] })
             ] })
-          ] }) }) : /* @__PURE__ */ jsxs22("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
+          ] }) }) : /* @__PURE__ */ jsxs23("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
             /* @__PURE__ */ jsx24("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
-            /* @__PURE__ */ jsxs22("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
+            /* @__PURE__ */ jsxs23("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
               visibleEntries.length,
               " of ",
               allKeys.length,
@@ -4931,11 +4938,11 @@ function KeyedRecorderView({
         ] })
       ) : preferredOperation === "accumulate" ? (
         /* ACCUMULATE: running total grows with slider — IS the total at end, no button */
-        /* @__PURE__ */ jsxs22(Fragment6, { children: [
-          numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ jsxs22("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
+        /* @__PURE__ */ jsxs23(Fragment6, { children: [
+          numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ jsxs23("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
             /* @__PURE__ */ jsx24("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
             /* @__PURE__ */ jsx24("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
-            /* @__PURE__ */ jsxs22("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
+            /* @__PURE__ */ jsxs23("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
               numFieldKey,
               " \xB7 ",
               visibleEntries.length,
@@ -4954,7 +4961,7 @@ function KeyedRecorderView({
         const entry = steps[key];
         const label = entry.stageName ?? key;
         const numVal = numFieldKey ? entry[numFieldKey] : void 0;
-        return /* @__PURE__ */ jsxs22("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
+        return /* @__PURE__ */ jsxs23("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
           /* @__PURE__ */ jsx24("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
           /* @__PURE__ */ jsx24("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
           numVal !== void 0 && /* @__PURE__ */ jsx24("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
@@ -4993,7 +5000,7 @@ var DetailsContent = memo8(function DetailsContent2({
     }
   }, [viewIds]);
   const activeView = allViews.find((v2) => v2.id === activeViewId) ?? allViews[0];
-  return /* @__PURE__ */ jsxs22("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
+  return /* @__PURE__ */ jsxs23("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
     /* @__PURE__ */ jsx24("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
       const active = view.id === activeViewId;
       return /* @__PURE__ */ jsx24(
@@ -5109,7 +5116,7 @@ var RightPanel = memo8(function RightPanel2({
   size,
   onNavigateToStage
 }) {
-  return /* @__PURE__ */ jsxs22(Fragment6, { children: [
+  return /* @__PURE__ */ jsxs23(Fragment6, { children: [
     /* @__PURE__ */ jsx24("div", { style: {
       display: "flex",
       borderBottom: `1px solid ${theme.border}`,
@@ -5402,11 +5409,11 @@ function ExplainableShell({
   );
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
   if (unstyled) {
-    return /* @__PURE__ */ jsxs22("div", { className, style, "data-fp": "explainable-shell", children: [
+    return /* @__PURE__ */ jsxs23("div", { className, style, "data-fp": "explainable-shell", children: [
       /* @__PURE__ */ jsx24("div", { "data-fp": "shell-tabs", children: allTabs.map((tab) => /* @__PURE__ */ jsx24("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
-      /* @__PURE__ */ jsxs22("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
+      /* @__PURE__ */ jsxs23("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
         activeTab === "result" && /* @__PURE__ */ jsx24(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
-        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs22(Fragment6, { children: [
+        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs23(Fragment6, { children: [
           /* @__PURE__ */ jsx24(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true }),
           isInSubflow && /* @__PURE__ */ jsx24(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
           activeSpec && effectiveRenderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId }),
@@ -5447,7 +5454,7 @@ function ExplainableShell({
     }
     return null;
   }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, recorderViews, autoRecorderViews]);
-  const detailsPanel = /* @__PURE__ */ jsxs22("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
+  const detailsPanel = /* @__PURE__ */ jsxs23("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
     /* @__PURE__ */ jsx24("div", { style: {
       display: "flex",
       borderBottom: `1px solid ${theme.border}`,
@@ -5482,7 +5489,7 @@ function ExplainableShell({
     }) }),
     /* @__PURE__ */ jsx24("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
   ] });
-  return /* @__PURE__ */ jsxs22(
+  return /* @__PURE__ */ jsxs23(
     "div",
     {
       ref: shellRef,
@@ -5512,7 +5519,7 @@ function ExplainableShell({
         isInSubflow && /* @__PURE__ */ jsx24(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
         /* @__PURE__ */ jsx24("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
           /* ── Mobile: stacked vertical ── */
-          /* @__PURE__ */ jsxs22(Fragment6, { children: [
+          /* @__PURE__ */ jsxs23(Fragment6, { children: [
             showTopology && /* @__PURE__ */ jsx24("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
               spec: activeSpec,
               snapshots: activeSnapshots,
@@ -5520,7 +5527,7 @@ function ExplainableShell({
               onNodeClick: handleNodeClick,
               showStageId
             }) }),
-            showTreeSidebar && /* @__PURE__ */ jsxs22(Fragment6, { children: [
+            showTreeSidebar && /* @__PURE__ */ jsxs23(Fragment6, { children: [
               /* @__PURE__ */ jsx24(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
               leftExpanded && /* @__PURE__ */ jsx24("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx24(
                 SubflowTree,
@@ -5539,9 +5546,9 @@ function ExplainableShell({
           ] })
         ) : (
           /* ── Desktop: two-column — Flowchart | Right Panel ── */
-          /* @__PURE__ */ jsxs22(Fragment6, { children: [
-            /* @__PURE__ */ jsxs22("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
-              showTreeSidebar && (leftExpanded ? /* @__PURE__ */ jsxs22("div", { style: { width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+          /* @__PURE__ */ jsxs23(Fragment6, { children: [
+            /* @__PURE__ */ jsxs23("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
+              showTreeSidebar && (leftExpanded ? /* @__PURE__ */ jsxs23("div", { style: { width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
                 /* @__PURE__ */ jsx24("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ jsx24(
                   SubflowTree,
                   {

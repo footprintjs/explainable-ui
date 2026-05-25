@@ -37,6 +37,7 @@
  * ```
  */
 
+import type * as React from "react";
 import { useMemo, useCallback, useSyncExternalStore } from "react";
 import {
   ReactFlow,
@@ -282,15 +283,45 @@ export type TraceFlowProps = BaseComponentProps &
      * components for nodes/edges you build with `type: 'myEdge'`.
      */
     edgeTypes?: EdgeTypes;
+    /**
+     * Children rendered INSIDE the `<ReactFlow>` element, after the
+     * built-in `<Background>`. Use this slot to mount xyflow
+     * accessory components like `<Controls />`, `<MiniMap />`, or a
+     * custom legend. If unset, only the default Background is rendered.
+     *
+     * @example
+     * ```tsx
+     * import { Controls, MiniMap } from '@xyflow/react';
+     * <TraceFlow recorder={r}>
+     *   <Controls />
+     *   <MiniMap />
+     * </TraceFlow>
+     * ```
+     */
+    children?: React.ReactNode;
   };
 
 const DEFAULT_NODE_TYPES: NodeTypes = { stageNode: StageNode };
 
 /**
  * Convert a `TraceNode` (with `TraceNodeData`) to the `StageNode`-typed
- * node shape so the existing `<StageNode>` renderer works.
+ * node shape so the built-in `<StageNode>` renderer works.
+ *
+ * Pass-through contract: if the consumer pushed a node with a custom
+ * `type` (anything OTHER than the recorder's default `'stage'`), this
+ * function returns the node UNCHANGED so xyflow's `nodeTypes` lookup
+ * sees the consumer's chosen key. This is what makes the `nodeTypes`
+ * extension point useful — without it every node would be force-typed
+ * to `'stageNode'` and consumer registrations would never route.
  */
 function toStageNode(node: TraceNode): Node {
+  // Consumer-supplied custom type — pass through unchanged.
+  // Recorders produce nodes with `type: 'stage'` (the recorder's
+  // default); anything else is consumer-authored and must be respected.
+  if (node.type !== undefined && node.type !== "stage") {
+    return node as Node;
+  }
+
   const data = node.data;
   const stageData: StageNodeData = {
     label: data.label,
@@ -424,6 +455,7 @@ export function TraceFlow(props: TraceFlowProps) {
         proOptions={{ hideAttribution: true }}
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+        {props.children}
       </ReactFlow>
     </div>
   );

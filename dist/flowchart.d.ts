@@ -769,6 +769,22 @@ type TraceFlowProps = BaseComponentProps & TraceFlowSource & {
      * components for nodes/edges you build with `type: 'myEdge'`.
      */
     edgeTypes?: EdgeTypes;
+    /**
+     * Children rendered INSIDE the `<ReactFlow>` element, after the
+     * built-in `<Background>`. Use this slot to mount xyflow
+     * accessory components like `<Controls />`, `<MiniMap />`, or a
+     * custom legend. If unset, only the default Background is rendered.
+     *
+     * @example
+     * ```tsx
+     * import { Controls, MiniMap } from '@xyflow/react';
+     * <TraceFlow recorder={r}>
+     *   <Controls />
+     *   <MiniMap />
+     * </TraceFlow>
+     * ```
+     */
+    children?: react.ReactNode;
 };
 declare function TraceFlow(props: TraceFlowProps): react_jsx_runtime.JSX.Element;
 
@@ -818,8 +834,15 @@ interface TracedFlowProps extends BaseComponentProps {
      * components for edges you push into the graph with `type: 'myEdge'`.
      */
     edgeTypes?: EdgeTypes;
+    /**
+     * Children rendered INSIDE the `<ReactFlow>` element, after the
+     * built-in `<Background>`. Use this slot to mount xyflow
+     * accessory components like `<Controls />`, `<MiniMap />`, or a
+     * custom legend. If unset, only the default Background is rendered.
+     */
+    children?: react.ReactNode;
 }
-declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, className, style, }: TracedFlowProps): react_jsx_runtime.JSX.Element;
+declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, children, className, style, }: TracedFlowProps): react_jsx_runtime.JSX.Element;
 
 /**
  * createNodeViewRecorder — per-stage summary translator.
