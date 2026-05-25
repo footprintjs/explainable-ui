@@ -1,6 +1,6 @@
 import * as react from 'react';
 import * as _xyflow_react from '@xyflow/react';
-import { Node, Edge } from '@xyflow/react';
+import { Node, Edge, NodeTypes, EdgeTypes } from '@xyflow/react';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 
 interface StageNodeData {
@@ -294,8 +294,16 @@ interface MinimalStructureRecorder {
     onSubflowMounted?(event: SubflowMountedEvent): void;
 }
 /**
- * Per-node data attached to the xyflow `Node`. Consumed by the
- * `StageNode` renderer (shape mirrors what the renderer expects).
+ * Per-node data attached to the xyflow `Node`. The built-in `StageNode`
+ * renderer reads the named fields below.
+ *
+ * Consumer extension: this type EXTENDS `Record<string, unknown>` so
+ * you can attach custom fields without TypeScript fighting you. Pair
+ * this with `<TraceFlow nodeTypes={{ stageNode: MyNode }} />` (or push
+ * nodes with `type: 'myCustomKind'`) to render those custom fields
+ * however you want. The built-in `StageNode` ignores fields it doesn't
+ * recognize, so adding consumer fields is non-breaking even if you
+ * keep the default renderer.
  */
 interface TraceNodeData extends Record<string, unknown> {
     label: string;
@@ -355,7 +363,14 @@ interface TraceNodeData extends Record<string, unknown> {
     prevIds: StageId[];
     nextIds: StageId[];
 }
-/** Per-edge data attached to the xyflow `Edge`. */
+/**
+ * Per-edge data attached to the xyflow `Edge`. The default edge
+ * renderer reads `kind` (and `label`).
+ *
+ * Consumer extension: same pattern as `TraceNodeData` — extra fields
+ * pass through unchanged. Pair with `<TraceFlow edgeTypes={...} />`
+ * to render custom edges (e.g., a "retried" edge with a count badge).
+ */
 interface TraceEdgeData extends Record<string, unknown> {
     kind: EdgeKind | "loop";
     label?: string;
@@ -739,6 +754,21 @@ type TraceFlowProps = BaseComponentProps & TraceFlowSource & {
     edgeColors?: Partial<TraceFlowEdgeColors>;
     /** Node click handler — receives the node id. */
     onNodeClick?: (id: string) => void;
+    /**
+     * Consumer-supplied xyflow node types. Merged with the built-in
+     * `{ stageNode: StageNode }` registry — keys you supply OVERRIDE
+     * the default for that node type. Pass `{ stageNode: MyNode }` to
+     * replace the default stage renderer entirely, or add new keys
+     * for nodes you build yourself (any nodes you push into the
+     * graph with `type: 'customKey'` will use your component).
+     */
+    nodeTypes?: NodeTypes;
+    /**
+     * Consumer-supplied xyflow edge types. Merged with no built-in
+     * defaults — pass `{ myEdge: MyEdge }` to register custom edge
+     * components for nodes/edges you build with `type: 'myEdge'`.
+     */
+    edgeTypes?: EdgeTypes;
 };
 declare function TraceFlow(props: TraceFlowProps): react_jsx_runtime.JSX.Element;
 
@@ -774,8 +804,22 @@ interface TracedFlowProps extends BaseComponentProps {
      * their data panels in lock-step with the chart's drill state.
      */
     onSubflowChange?: (mountStageId: string | null) => void;
+    /**
+     * Consumer-supplied xyflow node types. Merged with the built-in
+     * `{ stageNode: StageNode }` registry — keys you supply OVERRIDE
+     * the default for that node type. Pass `{ stageNode: MyNode }` to
+     * replace the default stage renderer entirely, or add new keys
+     * for custom node components you push into the graph.
+     */
+    nodeTypes?: NodeTypes;
+    /**
+     * Consumer-supplied xyflow edge types. Merged with no built-in
+     * defaults — pass `{ myEdge: MyEdge }` to register custom edge
+     * components for edges you push into the graph with `type: 'myEdge'`.
+     */
+    edgeTypes?: EdgeTypes;
 }
-declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, className, style, }: TracedFlowProps): react_jsx_runtime.JSX.Element;
+declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, className, style, }: TracedFlowProps): react_jsx_runtime.JSX.Element;
 
 /**
  * createNodeViewRecorder — per-stage summary translator.

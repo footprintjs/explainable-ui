@@ -41,7 +41,7 @@ import {
   BackgroundVariant,
   MarkerType,
 } from "@xyflow/react";
-import type { Node, Edge, ReactFlowInstance } from "@xyflow/react";
+import type { Node, Edge, NodeTypes, EdgeTypes, ReactFlowInstance } from "@xyflow/react";
 import type { TraceGraph, TraceNode, TraceEdge } from "./traceStructureRecorder";
 import type { TraceFlowLayout } from "./TraceFlow";
 import { defaultTraceFlowLayout } from "./TraceFlow";
@@ -196,9 +196,23 @@ export interface TracedFlowProps extends BaseComponentProps {
    * their data panels in lock-step with the chart's drill state.
    */
   onSubflowChange?: (mountStageId: string | null) => void;
+  /**
+   * Consumer-supplied xyflow node types. Merged with the built-in
+   * `{ stageNode: StageNode }` registry — keys you supply OVERRIDE
+   * the default for that node type. Pass `{ stageNode: MyNode }` to
+   * replace the default stage renderer entirely, or add new keys
+   * for custom node components you push into the graph.
+   */
+  nodeTypes?: NodeTypes;
+  /**
+   * Consumer-supplied xyflow edge types. Merged with no built-in
+   * defaults — pass `{ myEdge: MyEdge }` to register custom edge
+   * components for edges you push into the graph with `type: 'myEdge'`.
+   */
+  edgeTypes?: EdgeTypes;
 }
 
-const nodeTypes = { stageNode: StageNode };
+const DEFAULT_NODE_TYPES: NodeTypes = { stageNode: StageNode };
 
 export function TracedFlow({
   graph,
@@ -208,6 +222,8 @@ export function TracedFlow({
   colors: colorOverrides,
   onNodeClick,
   onSubflowChange,
+  nodeTypes: userNodeTypes,
+  edgeTypes: userEdgeTypes,
   className,
   style,
 }: TracedFlowProps) {
@@ -215,6 +231,10 @@ export function TracedFlow({
   const colors = useMemo<TracedFlowColors>(
     () => ({ ...DEFAULT_COLORS, ...(colorOverrides ?? {}) }),
     [colorOverrides],
+  );
+  const mergedNodeTypes = useMemo<NodeTypes>(
+    () => (userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES),
+    [userNodeTypes],
   );
 
   // ── Drill state + visibility derivations ──────────────────────────
@@ -309,7 +329,8 @@ export function TracedFlow({
         <ReactFlow
           nodes={reactFlowNodes}
           edges={reactFlowEdges}
-          nodeTypes={nodeTypes}
+          nodeTypes={mergedNodeTypes}
+          {...(userEdgeTypes && { edgeTypes: userEdgeTypes })}
           onNodeClick={handleNodeClick}
           onInit={setRfInstance}
           fitView

@@ -447,8 +447,16 @@ type StageId = string & {
 
 type EdgeKind = "next" | "fork-branch" | "decision-branch";
 /**
- * Per-node data attached to the xyflow `Node`. Consumed by the
- * `StageNode` renderer (shape mirrors what the renderer expects).
+ * Per-node data attached to the xyflow `Node`. The built-in `StageNode`
+ * renderer reads the named fields below.
+ *
+ * Consumer extension: this type EXTENDS `Record<string, unknown>` so
+ * you can attach custom fields without TypeScript fighting you. Pair
+ * this with `<TraceFlow nodeTypes={{ stageNode: MyNode }} />` (or push
+ * nodes with `type: 'myCustomKind'`) to render those custom fields
+ * however you want. The built-in `StageNode` ignores fields it doesn't
+ * recognize, so adding consumer fields is non-breaking even if you
+ * keep the default renderer.
  */
 interface TraceNodeData extends Record<string, unknown> {
     label: string;
@@ -508,7 +516,14 @@ interface TraceNodeData extends Record<string, unknown> {
     prevIds: StageId[];
     nextIds: StageId[];
 }
-/** Per-edge data attached to the xyflow `Edge`. */
+/**
+ * Per-edge data attached to the xyflow `Edge`. The default edge
+ * renderer reads `kind` (and `label`).
+ *
+ * Consumer extension: same pattern as `TraceNodeData` — extra fields
+ * pass through unchanged. Pair with `<TraceFlow edgeTypes={...} />`
+ * to render custom edges (e.g., a "retried" edge with a count badge).
+ */
 interface TraceEdgeData extends Record<string, unknown> {
     kind: EdgeKind | "loop";
     label?: string;

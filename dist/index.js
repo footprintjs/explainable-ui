@@ -4104,7 +4104,7 @@ function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors) {
   }
   return styled;
 }
-var nodeTypes = { stageNode: StageNode };
+var DEFAULT_NODE_TYPES = { stageNode: StageNode };
 function TracedFlow({
   graph,
   overlay,
@@ -4113,6 +4113,8 @@ function TracedFlow({
   colors: colorOverrides,
   onNodeClick,
   onSubflowChange,
+  nodeTypes: userNodeTypes,
+  edgeTypes: userEdgeTypes,
   className,
   style
 }) {
@@ -4120,6 +4122,10 @@ function TracedFlow({
   const colors = useMemo11(
     () => ({ ...DEFAULT_COLORS, ...colorOverrides ?? {} }),
     [colorOverrides]
+  );
+  const mergedNodeTypes = useMemo11(
+    () => userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES,
+    [userNodeTypes]
   );
   const drill = useSubflowDrill(graph, onSubflowChange);
   const filteredGraph = useMemo11(
@@ -4204,7 +4210,8 @@ function TracedFlow({
           {
             nodes: reactFlowNodes,
             edges: reactFlowEdges,
-            nodeTypes,
+            nodeTypes: mergedNodeTypes,
+            ...userEdgeTypes && { edgeTypes: userEdgeTypes },
             onNodeClick: handleNodeClick,
             onInit: setRfInstance,
             fitView: true,

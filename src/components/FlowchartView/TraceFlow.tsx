@@ -44,7 +44,7 @@ import {
   BackgroundVariant,
   MarkerType,
 } from "@xyflow/react";
-import type { Node, Edge } from "@xyflow/react";
+import type { Node, Edge, NodeTypes, EdgeTypes } from "@xyflow/react";
 import type {
   TraceGraph,
   TraceNode,
@@ -267,9 +267,24 @@ export type TraceFlowProps = BaseComponentProps &
     edgeColors?: Partial<TraceFlowEdgeColors>;
     /** Node click handler — receives the node id. */
     onNodeClick?: (id: string) => void;
+    /**
+     * Consumer-supplied xyflow node types. Merged with the built-in
+     * `{ stageNode: StageNode }` registry — keys you supply OVERRIDE
+     * the default for that node type. Pass `{ stageNode: MyNode }` to
+     * replace the default stage renderer entirely, or add new keys
+     * for nodes you build yourself (any nodes you push into the
+     * graph with `type: 'customKey'` will use your component).
+     */
+    nodeTypes?: NodeTypes;
+    /**
+     * Consumer-supplied xyflow edge types. Merged with no built-in
+     * defaults — pass `{ myEdge: MyEdge }` to register custom edge
+     * components for nodes/edges you build with `type: 'myEdge'`.
+     */
+    edgeTypes?: EdgeTypes;
   };
 
-const nodeTypes = { stageNode: StageNode };
+const DEFAULT_NODE_TYPES: NodeTypes = { stageNode: StageNode };
 
 /**
  * Convert a `TraceNode` (with `TraceNodeData`) to the `StageNode`-typed
@@ -383,6 +398,12 @@ export function TraceFlow(props: TraceFlowProps) {
     [onNodeClickRef],
   );
 
+  const { nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes } = props;
+  const mergedNodeTypes = useMemo<NodeTypes>(
+    () => (userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES),
+    [userNodeTypes],
+  );
+
   return (
     <div
       className={props.className}
@@ -396,7 +417,8 @@ export function TraceFlow(props: TraceFlowProps) {
       <ReactFlow
         nodes={reactFlowNodes}
         edges={reactFlowEdges}
-        nodeTypes={nodeTypes}
+        nodeTypes={mergedNodeTypes}
+        {...(userEdgeTypes && { edgeTypes: userEdgeTypes })}
         onNodeClick={handleNodeClick}
         fitView
         proOptions={{ hideAttribution: true }}

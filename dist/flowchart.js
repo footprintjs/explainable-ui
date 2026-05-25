@@ -1237,7 +1237,7 @@ function styleEdge(edge, colors) {
   }
   return styled;
 }
-var nodeTypes = { stageNode: StageNode };
+var DEFAULT_NODE_TYPES = { stageNode: StageNode };
 function toStageNode(node) {
   const data = node.data;
   const stageData = {
@@ -1320,6 +1320,11 @@ function TraceFlow(props) {
     },
     [onNodeClickRef]
   );
+  const { nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes } = props;
+  const mergedNodeTypes = useMemo4(
+    () => userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES,
+    [userNodeTypes]
+  );
   return /* @__PURE__ */ jsx6(
     "div",
     {
@@ -1335,7 +1340,8 @@ function TraceFlow(props) {
         {
           nodes: reactFlowNodes,
           edges: reactFlowEdges,
-          nodeTypes,
+          nodeTypes: mergedNodeTypes,
+          ...userEdgeTypes && { edgeTypes: userEdgeTypes },
           onNodeClick: handleNodeClick,
           fitView: true,
           proOptions: { hideAttribution: true },
@@ -1748,7 +1754,7 @@ function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors) {
   }
   return styled;
 }
-var nodeTypes2 = { stageNode: StageNode };
+var DEFAULT_NODE_TYPES2 = { stageNode: StageNode };
 function TracedFlow({
   graph,
   overlay,
@@ -1757,6 +1763,8 @@ function TracedFlow({
   colors: colorOverrides,
   onNodeClick,
   onSubflowChange,
+  nodeTypes: userNodeTypes,
+  edgeTypes: userEdgeTypes,
   className,
   style
 }) {
@@ -1764,6 +1772,10 @@ function TracedFlow({
   const colors = useMemo5(
     () => ({ ...DEFAULT_COLORS, ...colorOverrides ?? {} }),
     [colorOverrides]
+  );
+  const mergedNodeTypes = useMemo5(
+    () => userNodeTypes ? { ...DEFAULT_NODE_TYPES2, ...userNodeTypes } : DEFAULT_NODE_TYPES2,
+    [userNodeTypes]
   );
   const drill = useSubflowDrill(graph, onSubflowChange);
   const filteredGraph = useMemo5(
@@ -1848,7 +1860,8 @@ function TracedFlow({
           {
             nodes: reactFlowNodes,
             edges: reactFlowEdges,
-            nodeTypes: nodeTypes2,
+            nodeTypes: mergedNodeTypes,
+            ...userEdgeTypes && { edgeTypes: userEdgeTypes },
             onNodeClick: handleNodeClick,
             onInit: setRfInstance,
             fitView: true,

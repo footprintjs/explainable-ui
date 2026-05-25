@@ -1286,7 +1286,7 @@ function styleEdge(edge, colors) {
   }
   return styled;
 }
-var nodeTypes = { stageNode: StageNode };
+var DEFAULT_NODE_TYPES = { stageNode: StageNode };
 function toStageNode(node) {
   const data = node.data;
   const stageData = {
@@ -1369,6 +1369,11 @@ function TraceFlow(props) {
     },
     [onNodeClickRef]
   );
+  const { nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes } = props;
+  const mergedNodeTypes = (0, import_react8.useMemo)(
+    () => userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES,
+    [userNodeTypes]
+  );
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
     "div",
     {
@@ -1384,7 +1389,8 @@ function TraceFlow(props) {
         {
           nodes: reactFlowNodes,
           edges: reactFlowEdges,
-          nodeTypes,
+          nodeTypes: mergedNodeTypes,
+          ...userEdgeTypes && { edgeTypes: userEdgeTypes },
           onNodeClick: handleNodeClick,
           fitView: true,
           proOptions: { hideAttribution: true },
@@ -1792,7 +1798,7 @@ function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors) {
   }
   return styled;
 }
-var nodeTypes2 = { stageNode: StageNode };
+var DEFAULT_NODE_TYPES2 = { stageNode: StageNode };
 function TracedFlow({
   graph,
   overlay,
@@ -1801,6 +1807,8 @@ function TracedFlow({
   colors: colorOverrides,
   onNodeClick,
   onSubflowChange,
+  nodeTypes: userNodeTypes,
+  edgeTypes: userEdgeTypes,
   className,
   style
 }) {
@@ -1808,6 +1816,10 @@ function TracedFlow({
   const colors = (0, import_react12.useMemo)(
     () => ({ ...DEFAULT_COLORS, ...colorOverrides ?? {} }),
     [colorOverrides]
+  );
+  const mergedNodeTypes = (0, import_react12.useMemo)(
+    () => userNodeTypes ? { ...DEFAULT_NODE_TYPES2, ...userNodeTypes } : DEFAULT_NODE_TYPES2,
+    [userNodeTypes]
   );
   const drill = useSubflowDrill(graph, onSubflowChange);
   const filteredGraph = (0, import_react12.useMemo)(
@@ -1892,7 +1904,8 @@ function TracedFlow({
           {
             nodes: reactFlowNodes,
             edges: reactFlowEdges,
-            nodeTypes: nodeTypes2,
+            nodeTypes: mergedNodeTypes,
+            ...userEdgeTypes && { edgeTypes: userEdgeTypes },
             onNodeClick: handleNodeClick,
             onInit: setRfInstance,
             fitView: true,
