@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.20.0]
+
+Consumer-controlled rendering extension points on `<TraceFlow>` and
+`<TracedFlow>`. Additive only — no breaking changes.
+
+### Added
+
+- **`nodeTypes?: NodeTypes` prop** on `<TraceFlow>` and `<TracedFlow>`
+  — consumer-supplied xyflow node types, merged with the built-in
+  `{ stageNode: StageNode }` registry. Consumer keys OVERRIDE the
+  default. Pass `{ stageNode: MyNode }` to replace the default stage
+  renderer entirely, or add new keys for nodes you push into the
+  graph with a custom `type` field (e.g.,
+  `nodeTypes={{ stageNode: StageNode, myKind: MyNode }}` and push
+  nodes with `type: 'myKind'`).
+- **`edgeTypes?: EdgeTypes` prop** — pass-through to xyflow with no
+  built-in defaults. Register custom edge components for edges you
+  push with `type: 'myEdge'`.
+- **`children?: React.ReactNode` slot** rendered INSIDE `<ReactFlow>`,
+  after the built-in `<Background>`. Use this to mount accessory
+  components like `<Controls />`, `<MiniMap />`, or custom legends.
+- Documented escape-hatch contract on `TraceNodeData` and `TraceEdgeData`
+  (both already structurally extend `Record<string, unknown>`).
+  Consumers can attach arbitrary fields without TypeScript friction;
+  the default `StageNode` renderer ignores fields it doesn't recognize,
+  so adding consumer fields is non-breaking even with the default
+  renderer.
+
+### Changed
+
+- `toStageNode` / `toStageNodeWithOverlay` now respect consumer-supplied
+  `node.type`. If a node has a `type` OTHER than the recorder's
+  default `"stage"`, it passes through unchanged with its data
+  intact. Previously every node was force-typed to `"stageNode"`,
+  which meant consumer registrations in `nodeTypes` never routed.
+  The runtime overlay (done / active / error decoration) is
+  intentionally NOT applied to consumer custom nodes — the
+  consumer's component owns its visual state.
+
+### Consumer use cases unblocked
+
+- `agentfootprint-lens` can now consume `<TraceFlow>` instead of
+  maintaining its own `<ReactFlow>` wrapper — pass dagre-laid-out
+  nodes via `layout="passthrough"`, register the agent renderers via
+  `nodeTypes={{ lensStage, lensUser }}`, add `<Controls />` via the
+  children slot.
+- Custom node payload extensions (badges, retry counts, model names,
+  domain semantic labels) now flow end-to-end through the recorder
+  pipeline without TS fighting consumers.
+
+### Tests
+
+- 338 / 338 passing. Build clean (tsup CJS + ESM + types).
+
 ## [0.19.0]
 
 Tracks footprintjs v6.0.0 + a substantial UI/tracing rewrite that
