@@ -1,6 +1,31 @@
+/**
+ * SubflowTree — collapsible sidebar listing mounted subflows.
+ *
+ * Recorder-driven (v6+): derives the tree from a `TraceGraph` produced
+ * by `createTraceStructureRecorder`. Filters nodes by
+ * `data.isSubflow === true` and lists them as `SubflowTreeEntry[]`
+ * keyed by `subflowId`.
+ *
+ * Limitation (intentional — recorder graph is flat / mount-only):
+ *   Subflow-within-subflow nesting is NOT represented. The
+ *   StructureRecorder records the MOUNT of each subflow in the parent
+ *   chart, not the inner structure of each child chart. Rendering the
+ *   nested tree requires a separate recorder attached to each child
+ *   chart instance (deferred — see TODO below).
+ *
+ * Shared navigation layer — humans click through the tree just like
+ * LLMs call getSubflowManifest() / getSubflowSpec().
+ *
+ * TODO(recorder-driven-nesting): when child charts attach their own
+ * `traceStructureRecorder` and surface those graphs via a parent
+ * registry, accept `Map<subflowId, TraceGraph>` and recurse to
+ * restore the nested rendering the legacy SpecNode-walk supported.
+ *
+ * All colors come from `--fp-*` CSS variables set by the consumer.
+ */
 import { memo, useState, useCallback, useMemo } from "react";
 import { theme } from "../../theme";
-import type { SpecNode } from "./specToReactFlow";
+import type { TraceGraph } from "./traceStructureRecorder";
 import type { BaseComponentProps } from "../../types";
 
 export interface SubflowTreeEntry {
@@ -12,13 +37,14 @@ export interface SubflowTreeEntry {
   subflowId?: string;
   /** Whether this node is a subflow root (has nested structure) */
   isSubflow?: boolean;
-  /** Nested children (subflow stages) */
+  /** Nested children (subflow stages) — always undefined in the
+   *  current recorder-driven implementation; see file-level TODO. */
   children?: SubflowTreeEntry[];
 }
 
 export interface SubflowTreeProps extends BaseComponentProps {
-  /** Pipeline spec to derive the tree from */
-  spec: SpecNode;
+  /** Recorder-captured graph from `createTraceStructureRecorder().getGraph()`. */
+  graph: TraceGraph;
   /** Currently active stage name (highlights in tree) */
   activeStage?: string | null;
   /** Set of completed stage names */
@@ -27,47 +53,20 @@ export interface SubflowTreeProps extends BaseComponentProps {
   onNodeSelect?: (name: string, isSubflow: boolean) => void;
 }
 
-/** Extracts a flat-ish tree of entries from a SpecNode for display. */
-export function specToTree(node: SpecNode): SubflowTreeEntry[] {
-  if (!node) return [];
-
+/** Extracts subflow entries from a recorder graph. Insertion-order preserving. */
+export function graphToSubflowEntries(graph: TraceGraph): SubflowTreeEntry[] {
+  if (!graph?.nodes?.length) return [];
   const entries: SubflowTreeEntry[] = [];
-  const seen = new Set<string>();
-
-  function walk(n: SpecNode) {
-    if (!n) return;
-    const id = n.name || n.id || "";
-    if (seen.has(id)) return;
-    seen.add(id);
-
+  for (const node of graph.nodes) {
+    if (!node.data?.isSubflow) continue;
     const entry: SubflowTreeEntry = {
-      name: n.name,
-      description: n.description,
-      subflowId: n.subflowId,
-      isSubflow: !!n.isSubflowRoot,
+      name: typeof node.data.label === "string" ? node.data.label : node.id,
+      isSubflow: true,
     };
-
-    // If this is a subflow with nested structure, recurse into it
-    if (n.isSubflowRoot && n.subflowStructure) {
-      entry.children = specToTree(n.subflowStructure);
-    }
-
+    if (typeof node.data.description === "string") entry.description = node.data.description;
+    if (typeof node.data.subflowId === "string") entry.subflowId = node.data.subflowId;
     entries.push(entry);
-
-    // Walk children (fork/decider branches)
-    if (n.children) {
-      for (const child of n.children) {
-        if (child) walk(child);
-      }
-    }
-
-    // Walk linear continuation
-    if (n.next) {
-      walk(n.next);
-    }
   }
-
-  walk(node);
   return entries;
 }
 
@@ -220,14 +219,6 @@ const TreeNode = memo(function TreeNode({
   );
 });
 
-/**
- * Collapsible tree sidebar showing the full subflow manifest.
- *
- * Shared navigation layer — humans click through the tree just like
- * LLMs call getSubflowManifest() / getSubflowSpec().
- *
- * All colors come from `--fp-*` CSS variables set by the consumer.
- */
 /** Section label used for "Flowchart" and "Subflows" headings. */
 const SectionLabel = memo(function SectionLabel({ children }: { children: string }) {
   return (
@@ -247,7 +238,7 @@ const SectionLabel = memo(function SectionLabel({ children }: { children: string
 });
 
 export const SubflowTree = memo(function SubflowTree({
-  spec,
+  graph,
   activeStage,
   doneStages,
   onNodeSelect,
@@ -255,10 +246,7 @@ export const SubflowTree = memo(function SubflowTree({
   className,
   style,
 }: SubflowTreeProps) {
-  const tree = useMemo(() => specToTree(spec), [spec]);
-
-  // Only show subflow entries — the flowchart view handles main stages
-  const subflowStages = useMemo(() => tree.filter((e) => e.isSubflow), [tree]);
+  const subflowStages = useMemo(() => graphToSubflowEntries(graph), [graph]);
 
   // Don't render anything if there are no subflows
   if (subflowStages.length === 0) return null;

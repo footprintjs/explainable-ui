@@ -45,6 +45,19 @@ export interface StageNodeData {
   description?: string;
   /** Subflow identifier — set when this node belongs to a subflow */
   subflowId?: string;
+  /**
+   * Stable stage identifier from the spec (`SpecNode.id`). Renderable as a
+   * small monospace caption under the label when `showStageId` is true —
+   * useful for teaching the runtimeStageId convention and for debugging
+   * which node a recorder event belongs to.
+   */
+  stageId?: string;
+  /**
+   * When true, render the `stageId` as a small monospace caption beneath
+   * the label. Default false. Drives the "Show IDs" toggle in
+   * ExplainableShell.
+   */
+  showStageId?: boolean;
   [key: string]: unknown;
 }
 
@@ -239,7 +252,7 @@ function StageIcon({ type, color }: { type: string; color: string }) {
 export const StageNode = memo(function StageNode({
   data,
 }: NodeProps & { data: StageNodeData }) {
-  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description } = data;
+  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId } = data;
 
   // Lazy nodes show cloud icon by default (unless another icon is specified)
   const effectiveIcon = icon || (isLazy ? "lazy" : undefined);
@@ -447,6 +460,23 @@ export const StageNode = memo(function StageNode({
                   {description}
                 </span>
               )}
+              {showStageId && stageId && (
+                <span
+                  style={{
+                    fontSize: 8,
+                    fontFamily: "ui-monospace, monospace",
+                    color: textColor,
+                    opacity: 0.55,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    maxWidth: 100,
+                  }}
+                  title={`stageId: ${stageId}`}
+                >
+                  {stageId}
+                </span>
+              )}
             </div>
           </div>
         ) : (
@@ -544,6 +574,27 @@ export const StageNode = memo(function StageNode({
                 }}
               >
                 {description}
+              </span>
+            )}
+            {/* Stage ID caption — toggled by `showStageId`. Teaches the
+                runtimeStageId convention; recorders key their data by
+                this ID so consumers can render any recorder's per-stage
+                output by lookup. */}
+            {showStageId && stageId && (
+              <span
+                style={{
+                  fontSize: 9,
+                  fontFamily: "ui-monospace, monospace",
+                  color: textColor,
+                  opacity: 0.55,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  maxWidth: 160,
+                }}
+                title={`stageId: ${stageId}`}
+              >
+                {stageId}
               </span>
             )}
           </div>

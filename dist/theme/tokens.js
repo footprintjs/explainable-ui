@@ -34,8 +34,8 @@ export function tokensToCSSVars(tokens) {
         vars["--fp-font-mono"] = tokens.fontFamily.mono;
     return vars;
 }
-/** Default dark theme values (used as CSS variable fallbacks). */
-export const defaultTokens = {
+/** Raw fallback values — used by tokensToCSSVars() and anywhere a real color is needed. */
+export const rawDefaults = {
     colors: {
         primary: "#6366f1",
         success: "#22c55e",
@@ -53,6 +53,27 @@ export const defaultTokens = {
     fontFamily: {
         sans: "Inter, system-ui, -apple-system, sans-serif",
         mono: "'JetBrains Mono', 'Fira Code', monospace",
+    },
+};
+/** Default dark theme values with CSS variable references (consumers can override via CSS). */
+export const defaultTokens = {
+    colors: {
+        primary: `var(--fp-color-primary, ${rawDefaults.colors.primary})`,
+        success: `var(--fp-color-success, ${rawDefaults.colors.success})`,
+        error: `var(--fp-color-error, ${rawDefaults.colors.error})`,
+        warning: `var(--fp-color-warning, ${rawDefaults.colors.warning})`,
+        bgPrimary: `var(--fp-bg-primary, ${rawDefaults.colors.bgPrimary})`,
+        bgSecondary: `var(--fp-bg-secondary, ${rawDefaults.colors.bgSecondary})`,
+        bgTertiary: `var(--fp-bg-tertiary, ${rawDefaults.colors.bgTertiary})`,
+        textPrimary: `var(--fp-text-primary, ${rawDefaults.colors.textPrimary})`,
+        textSecondary: `var(--fp-text-secondary, ${rawDefaults.colors.textSecondary})`,
+        textMuted: `var(--fp-text-muted, ${rawDefaults.colors.textMuted})`,
+        border: `var(--fp-border, ${rawDefaults.colors.border})`,
+    },
+    radius: `var(--fp-radius, ${rawDefaults.radius})`,
+    fontFamily: {
+        sans: `var(--fp-font-sans, ${rawDefaults.fontFamily.sans})`,
+        mono: `var(--fp-font-mono, ${rawDefaults.fontFamily.mono})`,
     },
 };
 //# sourceMappingURL=tokens.js.map

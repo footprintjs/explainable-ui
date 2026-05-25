@@ -143,7 +143,14 @@ function useFootprintTheme() {
 }
 function FootprintTheme({ tokens = {}, children }) {
   const cssVars = tokensToCSSVars(tokens);
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ThemeContext.Provider, { value: tokens, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: cssVars, className: "fp-theme-root", children }) });
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(ThemeContext.Provider, { value: tokens, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+    "div",
+    {
+      style: { ...cssVars, display: "contents" },
+      className: "fp-theme-root",
+      children
+    }
+  ) });
 }
 
 // src/theme/styles.ts
@@ -2272,7 +2279,7 @@ function TimeTravelControls({
 }
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-var import_react24 = require("react");
+var import_react27 = require("react");
 
 // src/utils/narrativeSync.ts
 function buildEntryRangeIndex(entries) {
@@ -2774,7 +2781,6 @@ function NarrativePanel({
   snapshots,
   selectedIndex,
   narrativeEntries,
-  narrative: narrativeProp,
   runtimeSnapshot,
   spec,
   size = "default",
@@ -2785,14 +2791,13 @@ function NarrativePanel({
   const fs = fontSize[size];
   const pad = padding[size];
   const narrative = (0, import_react12.useMemo)(() => {
-    if (narrativeProp && narrativeProp.length > 0) return narrativeProp;
     const lines = [];
     for (const snap of snapshots) {
       const stageLines = (snap.narrative ?? "").split("\n").filter(Boolean);
       lines.push(...stageLines);
     }
     return lines;
-  }, [narrativeProp, snapshots]);
+  }, [snapshots]);
   const revealedCount = (0, import_react12.useMemo)(() => {
     if (snapshots.length === 0 || narrative.length === 0) return narrative.length;
     const stageBoundaries = [];
@@ -3016,35 +3021,19 @@ function NarrativePanel({
 // src/components/FlowchartView/SubflowTree.tsx
 var import_react13 = require("react");
 var import_jsx_runtime14 = require("react/jsx-runtime");
-function specToTree(node) {
-  if (!node) return [];
+function graphToSubflowEntries(graph) {
+  if (!graph?.nodes?.length) return [];
   const entries = [];
-  const seen = /* @__PURE__ */ new Set();
-  function walk(n) {
-    if (!n) return;
-    const id = n.name || n.id || "";
-    if (seen.has(id)) return;
-    seen.add(id);
+  for (const node of graph.nodes) {
+    if (!node.data?.isSubflow) continue;
     const entry = {
-      name: n.name,
-      description: n.description,
-      subflowId: n.subflowId,
-      isSubflow: !!n.isSubflowRoot
+      name: typeof node.data.label === "string" ? node.data.label : node.id,
+      isSubflow: true
     };
-    if (n.isSubflowRoot && n.subflowStructure) {
-      entry.children = specToTree(n.subflowStructure);
-    }
+    if (typeof node.data.description === "string") entry.description = node.data.description;
+    if (typeof node.data.subflowId === "string") entry.subflowId = node.data.subflowId;
     entries.push(entry);
-    if (n.children) {
-      for (const child of n.children) {
-        if (child) walk(child);
-      }
-    }
-    if (n.next) {
-      walk(n.next);
-    }
   }
-  walk(node);
   return entries;
 }
 var TreeNode = (0, import_react13.memo)(function TreeNode2({
@@ -3188,7 +3177,7 @@ var SectionLabel = (0, import_react13.memo)(function SectionLabel2({ children })
   );
 });
 var SubflowTree = (0, import_react13.memo)(function SubflowTree2({
-  spec,
+  graph,
   activeStage,
   doneStages,
   onNodeSelect,
@@ -3196,8 +3185,7 @@ var SubflowTree = (0, import_react13.memo)(function SubflowTree2({
   className,
   style
 }) {
-  const tree = (0, import_react13.useMemo)(() => specToTree(spec), [spec]);
-  const subflowStages = (0, import_react13.useMemo)(() => tree.filter((e) => e.isSubflow), [tree]);
+  const subflowStages = (0, import_react13.useMemo)(() => graphToSubflowEntries(graph), [graph]);
   if (subflowStages.length === 0) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
     "div",
@@ -3317,9 +3305,13 @@ var SubflowBreadcrumb = (0, import_react14.memo)(function SubflowBreadcrumb2({
   );
 });
 
-// src/components/FlowchartView/TracedFlowchartView.tsx
-var import_react18 = require("react");
-var import_react19 = require("@xyflow/react");
+// src/components/FlowchartView/TracedFlow.tsx
+var import_react21 = require("react");
+var import_react22 = require("@xyflow/react");
+
+// src/components/FlowchartView/TraceFlow.tsx
+var import_react17 = require("react");
+var import_react18 = require("@xyflow/react");
 
 // src/components/StageNode/StageNode.tsx
 var import_react15 = require("react");
@@ -3474,7 +3466,7 @@ function StageIcon({ type, color }) {
 var StageNode = (0, import_react15.memo)(function StageNode2({
   data
 }) {
-  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description } = data;
+  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId } = data;
   const effectiveIcon = icon || (isLazy ? "lazy" : void 0);
   const isLazyUnresolved = isLazy && !done && !active;
   const injectedRef = (0, import_react15.useRef)(false);
@@ -3648,6 +3640,23 @@ var StageNode = (0, import_react15.memo)(function StageNode2({
                       },
                       children: description
                     }
+                  ),
+                  showStageId && stageId && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+                    "span",
+                    {
+                      style: {
+                        fontSize: 8,
+                        fontFamily: "ui-monospace, monospace",
+                        color: textColor,
+                        opacity: 0.55,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: 100
+                      },
+                      title: `stageId: ${stageId}`,
+                      children: stageId
+                    }
                   )
                 ]
               }
@@ -3746,6 +3755,23 @@ var StageNode = (0, import_react15.memo)(function StageNode2({
                       },
                       children: description
                     }
+                  ),
+                  showStageId && stageId && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+                    "span",
+                    {
+                      style: {
+                        fontSize: 9,
+                        fontFamily: "ui-monospace, monospace",
+                        color: textColor,
+                        opacity: 0.55,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        maxWidth: 160
+                      },
+                      title: `stageId: ${stageId}`,
+                      children: stageId
+                    }
                   )
                 ]
               }
@@ -3776,335 +3802,497 @@ var StageNode = (0, import_react15.memo)(function StageNode2({
   ] });
 });
 
-// src/components/FlowchartView/specToReactFlow.ts
-var import_react17 = require("@xyflow/react");
-var DEFAULT_COLORS = {
-  edgeDefault: rawDefaults.colors.textMuted,
-  edgeExecuted: rawDefaults.colors.success,
-  edgeActive: rawDefaults.colors.primary,
-  edgeLoop: rawDefaults.colors.warning,
-  labelDefault: rawDefaults.colors.textSecondary,
-  labelExecuted: rawDefaults.colors.success,
-  labelLoop: rawDefaults.colors.warning,
-  pathGlow: `${rawDefaults.colors.success}4D`
-  // ~30% opacity hex
-};
+// src/components/FlowchartView/TraceFlow.tsx
+var import_jsx_runtime17 = require("react/jsx-runtime");
 var Y_STEP = 100;
 var X_SPREAD = 200;
-function nid(n) {
-  return n.id || n.name || `spec-${Math.random()}`;
-}
-function registerNode(state, node) {
-  if (node.id && node.name) {
-    state.idToName.set(node.id, node.name);
-  }
-}
-function walkLayout(node, state, x, y) {
-  if (!node) return { lastIds: [], bottomY: y };
-  registerNode(state, node);
-  const id = nid(node);
-  if (state.seen.has(id)) {
-    return { lastIds: [id], bottomY: y };
-  }
-  state.seen.add(id);
-  const isDecider = node.type === "decider" || node.type === "selector" || !!node.hasDecider || !!node.hasSelector;
-  const isFork = node.type === "fork";
-  state.nodes.push({
-    id,
-    x,
-    y,
-    label: node.name,
-    isDecider,
-    isFork,
-    description: node.description,
-    icon: node.icon,
-    subflowId: node.subflowId,
-    isSubflow: !!node.isSubflowRoot,
-    isLazy: node.isLazy
-  });
-  let lastIds = [id];
-  let bottomY = y;
-  if (node.children && node.children.length > 0) {
-    const totalWidth = (node.children.length - 1) * X_SPREAD;
-    const startX = x - totalWidth / 2;
-    const childY = y + Y_STEP;
-    const childResults = [];
-    for (let i = 0; i < node.children.length; i++) {
-      const child = node.children[i];
-      if (!child) continue;
-      const childX = startX + i * X_SPREAD;
-      const edgeLabel = node.branchIds?.[i];
-      state.edgeCounter++;
-      state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: nid(child), label: edgeLabel, isLoop: false });
-      const result = walkLayout(child, state, childX, childY);
-      childResults.push(result);
-    }
-    lastIds = childResults.flatMap((r) => r.lastIds);
-    bottomY = Math.max(...childResults.map((r) => r.bottomY));
-  }
-  if (node.loopTarget) {
-    state.edgeCounter++;
-    state.edges.push({ id: `se${state.edgeCounter}`, source: id, target: node.loopTarget, label: "loop", isLoop: true });
-  }
-  if (node.next) {
-    const rawNextId = nid(node.next);
-    const resolvedNextId = state.idToName.get(rawNextId) ?? rawNextId;
-    const isLoopRef = node.loopTarget && state.seen.has(resolvedNextId);
-    if (isLoopRef) {
-      for (const lid of lastIds) {
-        state.edgeCounter++;
-        state.edges.push({ id: `se${state.edgeCounter}`, source: lid, target: resolvedNextId, label: "loop", isLoop: true });
-      }
-      return { lastIds, bottomY };
-    }
-    const nextY = bottomY + Y_STEP;
-    for (const lid of lastIds) {
-      state.edgeCounter++;
-      state.edges.push({ id: `se${state.edgeCounter}`, source: lid, target: resolvedNextId, isLoop: false });
-    }
-    return walkLayout(node.next, state, x, nextY);
-  }
-  return { lastIds, bottomY };
-}
-function specToLayout(spec) {
-  const state = {
-    nodes: [],
-    edges: [],
-    edgeCounter: 0,
-    seen: /* @__PURE__ */ new Set(),
-    idToName: /* @__PURE__ */ new Map()
-  };
-  walkLayout(spec, state, 300, 0);
-  return { nodes: state.nodes, edges: state.edges, idToName: state.idToName };
-}
-function applyOverlay(layout, overlay, colors) {
-  const c = { ...DEFAULT_COLORS, ...colors };
-  const o = overlay ?? null;
-  const nodes = layout.nodes.map((ln) => {
-    const isDone = o ? o.doneStages.has(ln.id) : false;
-    const isActive = o ? o.activeStage === ln.id : false;
-    const wasExecuted = o ? o.executedStages.has(ln.id) : false;
-    const dimmed = o && !wasExecuted;
-    let stepNumbers;
-    if (o?.executionOrder) {
-      const nums = [];
-      for (let i = 0; i < o.executionOrder.length; i++) {
-        if (o.executionOrder[i] === ln.id) nums.push(i + 1);
-      }
-      if (nums.length > 0) stepNumbers = nums;
-    }
-    return {
-      id: ln.id,
-      position: { x: ln.x, y: ln.y },
-      data: {
-        label: ln.label,
-        active: isActive,
-        done: isDone,
-        error: false,
-        isDecider: ln.isDecider,
-        isFork: ln.isFork,
-        description: ln.description,
-        icon: ln.icon,
-        subflowId: ln.subflowId,
-        dimmed,
-        stepNumbers,
-        isSubflow: ln.isSubflow,
-        isLazy: ln.isLazy
-      },
-      type: "stage",
-      style: dimmed ? { opacity: 0.35 } : void 0
-    };
-  });
-  const edges = [];
-  for (const le of layout.edges) {
-    const executed = o && o.executedStages.has(le.source) && o.executedStages.has(le.target);
-    const isLeadingEdge = o && le.source === o.activeStage && !o.doneStages.has(le.target);
-    if (le.isLoop) {
-      let loopExecuted = false;
-      if (o?.executionOrder) {
-        if (le.source === le.target) {
-          const count = o.executionOrder.filter((id) => id === le.source).length;
-          loopExecuted = count > 1;
-        } else {
-          const lastSourceIdx = o.executionOrder.lastIndexOf(le.source);
-          if (lastSourceIdx >= 0) {
-            loopExecuted = o.executionOrder.slice(lastSourceIdx + 1).includes(le.target);
-          }
-        }
-      }
-      edges.push({
-        id: le.id,
-        source: le.source,
-        target: le.target,
-        sourceHandle: "loop-source",
-        targetHandle: "loop-target",
-        label: le.label ?? "loop",
-        type: "smoothstep",
-        pathOptions: { offset: 60, borderRadius: 20 },
-        markerEnd: { type: import_react17.MarkerType.ArrowClosed, color: loopExecuted ? c.edgeActive : c.edgeLoop, width: 16, height: 16 },
-        style: {
-          stroke: loopExecuted ? c.edgeActive : c.edgeLoop,
-          strokeWidth: loopExecuted ? 4 : 2,
-          strokeDasharray: loopExecuted ? void 0 : "6 3",
-          opacity: o && !loopExecuted ? 0.35 : 1
-        },
-        labelStyle: { fontSize: 10, fontWeight: 700, fill: loopExecuted ? c.edgeActive : c.labelLoop },
-        animated: loopExecuted,
-        zIndex: 2
-      });
-    } else if (executed) {
-      edges.push({
-        id: `${le.id}-glow`,
-        source: le.source,
-        target: le.target,
-        style: { stroke: c.pathGlow, strokeWidth: 8, opacity: 0.4 },
-        zIndex: 0,
-        selectable: false,
-        focusable: false
-      });
-      edges.push({
-        id: le.id,
-        source: le.source,
-        target: le.target,
-        label: le.label,
-        style: {
-          stroke: isLeadingEdge ? c.edgeActive : c.edgeExecuted,
-          strokeWidth: 3.5
-        },
-        labelStyle: { fontSize: 10, fontWeight: 600, fill: c.labelExecuted },
-        animated: !!isLeadingEdge,
-        zIndex: 1
-      });
+var defaultTraceFlowLayout = (graph) => {
+  if (graph.nodes.length === 0) return { nodes: [], edges: graph.edges };
+  const branchChildrenOf = /* @__PURE__ */ new Map();
+  const nextChildrenOf = /* @__PURE__ */ new Map();
+  const hasIncomingForward = /* @__PURE__ */ new Set();
+  for (const e of graph.edges) {
+    const kind = e.data?.kind;
+    if (kind === "loop") continue;
+    hasIncomingForward.add(e.target);
+    if (kind === "fork-branch" || kind === "decision-branch") {
+      const arr = branchChildrenOf.get(e.source) ?? [];
+      arr.push(e.target);
+      branchChildrenOf.set(e.source, arr);
     } else {
-      edges.push({
-        id: le.id,
-        source: le.source,
-        target: le.target,
-        label: le.label,
-        style: {
-          stroke: c.edgeDefault,
-          strokeWidth: 1.5,
-          opacity: o ? 0.3 : 1
-        },
-        labelStyle: { fontSize: 10, fill: c.labelDefault }
-      });
+      const arr = nextChildrenOf.get(e.source) ?? [];
+      arr.push(e.target);
+      nextChildrenOf.set(e.source, arr);
     }
   }
-  return { nodes, edges };
+  const seed = graph.nodes.find((n) => !hasIncomingForward.has(n.id)) ?? graph.nodes[0];
+  const positions = /* @__PURE__ */ new Map();
+  function layoutSubtree(nodeId, x, y) {
+    if (positions.has(nodeId)) {
+      return positions.get(nodeId).y;
+    }
+    positions.set(nodeId, { x, y });
+    let deepestBranchY = y;
+    const branches = branchChildrenOf.get(nodeId) ?? [];
+    if (branches.length > 0) {
+      const childY = y + Y_STEP;
+      const totalWidth = (branches.length - 1) * X_SPREAD;
+      const startX = x - totalWidth / 2;
+      for (let i = 0; i < branches.length; i++) {
+        const childId = branches[i];
+        const childX = startX + i * X_SPREAD;
+        const subtreeBottom = layoutSubtree(childId, childX, childY);
+        if (subtreeBottom > deepestBranchY) deepestBranchY = subtreeBottom;
+      }
+    }
+    const nextChildren = nextChildrenOf.get(nodeId) ?? [];
+    if (nextChildren.length > 0) {
+      const nextY = branches.length > 0 ? deepestBranchY + Y_STEP : y + Y_STEP;
+      const totalWidth = (nextChildren.length - 1) * X_SPREAD;
+      const startX = x - totalWidth / 2;
+      let deepestNextY = nextY;
+      for (let i = 0; i < nextChildren.length; i++) {
+        const childId = nextChildren[i];
+        const childX = startX + i * X_SPREAD;
+        const subtreeBottom = layoutSubtree(childId, childX, nextY);
+        if (subtreeBottom > deepestNextY) deepestNextY = subtreeBottom;
+      }
+      return deepestNextY;
+    }
+    return deepestBranchY;
+  }
+  layoutSubtree(seed.id, 0, 0);
+  let maxY = 0;
+  for (const p of positions.values()) {
+    if (p.y > maxY) maxY = p.y;
+  }
+  let orphanY = maxY + Y_STEP;
+  for (const n of graph.nodes) {
+    if (!positions.has(n.id)) {
+      positions.set(n.id, { x: 0, y: orphanY });
+      orphanY += Y_STEP;
+    }
+  }
+  return {
+    nodes: graph.nodes.map((n) => ({
+      ...n,
+      position: positions.get(n.id) ?? n.position
+    })),
+    edges: graph.edges
+  };
+};
+var DEFAULT_EDGE_COLORS = {
+  next: rawDefaults.colors.textMuted,
+  forkBranch: rawDefaults.colors.textMuted,
+  decisionBranch: rawDefaults.colors.primary,
+  loop: rawDefaults.colors.warning
+};
+
+// src/components/FlowchartView/createTraceRuntimeOverlay.ts
+function sliceOverlay(overlay, index) {
+  const order = overlay.executionOrder;
+  if (order.length === 0) {
+    return {
+      doneStageIds: /* @__PURE__ */ new Set(),
+      activeStageId: null,
+      executedStageIds: /* @__PURE__ */ new Set(),
+      executedOrderIds: [],
+      errors: overlay.errors
+    };
+  }
+  const clampedIndex = Math.max(0, Math.min(index, order.length - 1));
+  const doneStageIds = /* @__PURE__ */ new Set();
+  for (let i = 0; i < clampedIndex; i++) {
+    doneStageIds.add(order[i].stageId);
+  }
+  const activeStep = order[clampedIndex];
+  const activeStageId = activeStep ? activeStep.stageId : null;
+  const executedStageIds = new Set(doneStageIds);
+  if (activeStageId) executedStageIds.add(activeStageId);
+  const executedOrderIds = order.slice(0, clampedIndex + 1).map((s) => s.stageId);
+  return {
+    doneStageIds,
+    activeStageId,
+    executedStageIds,
+    executedOrderIds,
+    errors: overlay.errors
+  };
 }
 
-// src/components/FlowchartView/TracedFlowchartView.tsx
-var import_jsx_runtime17 = require("react/jsx-runtime");
-var defaultNodeTypes = { stage: StageNode };
-function FitViewOnResize() {
-  const { fitView } = (0, import_react19.useReactFlow)();
-  (0, import_react18.useEffect)(() => {
-    const handler = () => {
-      requestAnimationFrame(() => fitView({ padding: 0.3 }));
-    };
-    window.addEventListener("resize", handler);
-    const timer = setTimeout(handler, 50);
-    return () => {
-      window.removeEventListener("resize", handler);
-      clearTimeout(timer);
-    };
-  }, [fitView]);
-  return null;
+// src/components/FlowchartView/_internal/subflowDrill.ts
+function filterGraphForDrill(graph, currentSubflowId) {
+  if (graph.nodes.length === 0) return graph;
+  const matchesScope = (subflowOf) => currentSubflowId === null ? subflowOf === void 0 : subflowOf === currentSubflowId;
+  const visibleIds = /* @__PURE__ */ new Set();
+  for (const n of graph.nodes) {
+    if (matchesScope(n.data?.subflowOf)) visibleIds.add(n.id);
+  }
+  if (visibleIds.size === graph.nodes.length) return graph;
+  return {
+    nodes: graph.nodes.filter((n) => visibleIds.has(n.id)),
+    edges: graph.edges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
+  };
 }
-function TracedFlowchartView({
-  spec,
-  snapshots,
-  snapshotIndex = 0,
+function buildSubflowBreadcrumb(graph, currentSubflowId) {
+  const out = [{ subflowId: null, label: "Chart" }];
+  if (currentSubflowId !== null) {
+    const mount = graph.nodes.find((n) => n.data?.subflowId === currentSubflowId);
+    out.push({
+      subflowId: currentSubflowId,
+      label: mount?.data?.label ?? currentSubflowId
+    });
+  }
+  return out;
+}
+
+// src/components/FlowchartView/_internal/overlayProjection.ts
+function leafId(id) {
+  const i = id.lastIndexOf("/");
+  return i >= 0 ? id.slice(i + 1) : id;
+}
+function normalizeSliceLeafIds(slice) {
+  return {
+    doneStageIds: new Set(Array.from(slice.doneStageIds).map(leafId)),
+    activeStageId: slice.activeStageId ? leafId(slice.activeStageId) : null,
+    executedStageIds: new Set(Array.from(slice.executedStageIds).map(leafId)),
+    executedOrderIds: slice.executedOrderIds.map(leafId),
+    errors: new Map(Array.from(slice.errors).map(([k, v2]) => [leafId(k), v2]))
+  };
+}
+function aggregateMountStatus(slice, graph, currentSubflowId) {
+  if (graph.nodes.length === 0) return slice;
+  const mounts = graph.nodes.filter((n) => n.data?.isSubflow && n.data?.subflowId);
+  if (mounts.length === 0) return slice;
+  const doneIds = new Set(slice.doneStageIds);
+  let activeId = slice.activeStageId;
+  for (const mount of mounts) {
+    const sfId = mount.data.subflowId;
+    const members = graph.nodes.filter((n) => n.data?.subflowOf === sfId);
+    if (members.length === 0) continue;
+    const anyActive = members.some((m) => m.id === slice.activeStageId);
+    const anyDone = members.some((m) => slice.doneStageIds.has(m.id));
+    const allDone = members.every((m) => slice.doneStageIds.has(m.id));
+    if (allDone) doneIds.add(mount.id);
+    else if ((anyActive || anyDone) && currentSubflowId === null) {
+      activeId = mount.id;
+    }
+  }
+  return { ...slice, doneStageIds: doneIds, activeStageId: activeId };
+}
+
+// src/components/FlowchartView/_internal/useSubflowDrill.ts
+var import_react19 = require("react");
+function useSubflowDrill(graph, onSubflowChange) {
+  const [currentSubflowId, setCurrentSubflowId] = (0, import_react19.useState)(null);
+  const lastGraphRef = (0, import_react19.useRef)(null);
+  if (lastGraphRef.current !== graph) {
+    lastGraphRef.current = graph;
+    if (currentSubflowId !== null && !graph.nodes.some((n) => n.data?.subflowId === currentSubflowId)) {
+      queueMicrotask(() => setCurrentSubflowId(null));
+    }
+  }
+  const lastNotifiedRef = (0, import_react19.useRef)(void 0);
+  (0, import_react19.useEffect)(() => {
+    if (lastNotifiedRef.current === currentSubflowId) return;
+    lastNotifiedRef.current = currentSubflowId;
+    if (currentSubflowId === null) {
+      onSubflowChange?.(null);
+    } else {
+      const mount = graph.nodes.find((n) => n.data?.subflowId === currentSubflowId);
+      if (mount) onSubflowChange?.(mount.id);
+    }
+  }, [currentSubflowId, graph, onSubflowChange]);
+  const drillInto = (0, import_react19.useCallback)((subflowId) => {
+    setCurrentSubflowId(subflowId);
+  }, []);
+  const drillUp = (0, import_react19.useCallback)(() => {
+    setCurrentSubflowId(null);
+  }, []);
+  return { currentSubflowId, drillInto, drillUp, setCurrentSubflowId };
+}
+
+// src/components/FlowchartView/_internal/useChartAutoRefit.ts
+var import_react20 = require("react");
+function useChartAutoRefit(wrapperRef, rfInstance, options = {}) {
+  const duration = options.duration ?? 200;
+  const padding2 = options.padding ?? 0.1;
+  (0, import_react20.useEffect)(() => {
+    const el = wrapperRef.current;
+    if (!el || !rfInstance) return;
+    let raf = 0;
+    const refit = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        rfInstance.fitView({ duration, padding: padding2 });
+      });
+    };
+    const ro = new ResizeObserver(refit);
+    ro.observe(el);
+    window.addEventListener("resize", refit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", refit);
+      cancelAnimationFrame(raf);
+    };
+  }, [rfInstance, wrapperRef, duration, padding2]);
+}
+
+// src/components/FlowchartView/SubflowBreadcrumbBar.tsx
+var import_jsx_runtime18 = require("react/jsx-runtime");
+function SubflowBreadcrumbBar({ entries, onNavigate }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+    "div",
+    {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "6px 12px",
+        fontSize: 11,
+        background: rawDefaults.colors.bgSecondary,
+        borderBottom: `1px solid ${rawDefaults.colors.border}`,
+        flexShrink: 0
+      },
+      "aria-label": "Subflow breadcrumb",
+      children: entries.map((entry, i) => {
+        const isLast = i === entries.length - 1;
+        return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+          "span",
+          {
+            style: { display: "inline-flex", alignItems: "center", gap: 6 },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                "button",
+                {
+                  type: "button",
+                  onClick: () => onNavigate(entry.subflowId),
+                  disabled: isLast,
+                  style: {
+                    background: "transparent",
+                    border: "none",
+                    padding: 0,
+                    fontSize: 11,
+                    fontWeight: isLast ? 600 : 500,
+                    color: isLast ? rawDefaults.colors.textPrimary : rawDefaults.colors.primary,
+                    cursor: isLast ? "default" : "pointer",
+                    textDecoration: isLast ? "none" : "underline",
+                    fontFamily: "inherit"
+                  },
+                  children: entry.label
+                }
+              ),
+              !isLast && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { style: { color: rawDefaults.colors.textMuted }, children: "\u203A" })
+            ]
+          },
+          entry.subflowId ?? "__top__"
+        );
+      })
+    }
+  );
+}
+
+// src/components/FlowchartView/TracedFlow.tsx
+var import_jsx_runtime19 = require("react/jsx-runtime");
+var DEFAULT_COLORS = {
+  default: rawDefaults.colors.textMuted,
+  done: rawDefaults.colors.success,
+  active: rawDefaults.colors.primary,
+  error: rawDefaults.colors.error,
+  loop: rawDefaults.colors.warning
+};
+function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds) {
+  const isDone = doneStageIds.has(node.id);
+  const isActive = activeStageId === node.id;
+  const wasExecuted = isDone || isActive;
+  const hasError = !!errorMessage;
+  const dimmed = !wasExecuted && executedOrderIds.length > 0;
+  let stepNumbers;
+  if (executedOrderIds.length > 0) {
+    const nums = [];
+    for (let i = 0; i < executedOrderIds.length; i++) {
+      if (executedOrderIds[i] === node.id) nums.push(i + 1);
+    }
+    if (nums.length > 0) stepNumbers = nums;
+  }
+  const stageData = {
+    label: node.data.label,
+    isDecider: node.data.isDecider,
+    isFork: node.data.isFork,
+    isSubflow: node.data.isSubflow,
+    active: isActive,
+    done: isDone,
+    error: hasError,
+    ...node.data.description !== void 0 && { description: node.data.description },
+    ...node.data.icon !== void 0 && { icon: node.data.icon },
+    ...node.data.subflowId !== void 0 && { subflowId: node.data.subflowId },
+    ...node.data.isLazy === true && { isLazy: true },
+    ...dimmed && { dimmed: true },
+    ...stepNumbers && { stepNumbers },
+    ...errorMessage && { errorMessage }
+  };
+  return {
+    ...node,
+    type: "stageNode",
+    data: stageData,
+    ...dimmed && { style: { opacity: 0.35 } }
+  };
+}
+function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors) {
+  const kind = edge.data?.kind ?? "next";
+  const sourceExecuted = doneStageIds.has(edge.source) || activeStageId === edge.source;
+  const targetExecuted = doneStageIds.has(edge.target) || activeStageId === edge.target;
+  const traversed = sourceExecuted && targetExecuted;
+  const isLeadingEdge = activeStageId === edge.source && !doneStageIds.has(edge.target);
+  let color = colors.default;
+  if (kind === "loop") color = colors.loop;
+  else if (isLeadingEdge) color = colors.active;
+  else if (traversed) color = colors.done;
+  const styled = {
+    ...edge,
+    type: "smoothstep",
+    animated: isLeadingEdge,
+    style: { stroke: color, strokeWidth: traversed ? 2 : 1.5 },
+    markerEnd: { type: import_react22.MarkerType.ArrowClosed, color, width: 16, height: 16 }
+  };
+  if (kind === "loop") {
+    styled.style = { ...styled.style, strokeDasharray: "4 3" };
+    styled.data = {
+      ...styled.data ?? {},
+      pathOptions: { borderRadius: 14, offset: 36 }
+    };
+    styled.sourceHandle = "loop-source";
+    styled.targetHandle = "loop-target";
+  }
+  return styled;
+}
+var nodeTypes = { stageNode: StageNode };
+function TracedFlow({
+  graph,
+  overlay,
+  scrubIndex,
+  layout: layoutProp,
+  colors: colorOverrides,
   onNodeClick,
-  nodeTypes: customNodeTypes,
-  unstyled = false,
+  onSubflowChange,
   className,
   style
 }) {
-  const nodeTypes = customNodeTypes ?? defaultNodeTypes;
-  const overlay = (0, import_react18.useMemo)(() => {
-    if (!snapshots || snapshots.length === 0) return void 0;
-    const executionOrder = snapshots.slice(0, snapshotIndex + 1).map((s) => s.stageLabel);
-    const doneStages = new Set(
-      snapshots.slice(0, snapshotIndex).map((s) => s.stageLabel)
-    );
-    const activeStage = snapshots[snapshotIndex]?.stageLabel ?? null;
-    const executedStages = /* @__PURE__ */ new Set([...doneStages]);
-    if (activeStage) executedStages.add(activeStage);
-    return { doneStages, activeStage, executedStages, executionOrder };
-  }, [snapshots, snapshotIndex]);
-  const layout = (0, import_react18.useMemo)(() => {
-    if (!spec) return null;
-    return specToLayout(spec);
-  }, [spec]);
-  const flowData = (0, import_react18.useMemo)(() => {
-    if (!layout) return { nodes: [], edges: [] };
-    return applyOverlay(layout, overlay);
-  }, [layout, overlay]);
-  const [nodes, setNodes, onNodesChange] = (0, import_react19.useNodesState)(flowData.nodes);
-  const [edges, setEdges, onEdgesChange] = (0, import_react19.useEdgesState)(flowData.edges);
-  (0, import_react18.useEffect)(() => {
-    setNodes(flowData.nodes);
-    setEdges(flowData.edges);
-  }, [flowData, setNodes, setEdges]);
-  const handleNodeClick = (0, import_react18.useCallback)(
-    (_, node) => {
-      if (!onNodeClick) return;
-      onNodeClick(node.id);
-    },
-    [onNodeClick]
+  const layout = layoutProp ?? defaultTraceFlowLayout;
+  const colors = (0, import_react21.useMemo)(
+    () => ({ ...DEFAULT_COLORS, ...colorOverrides ?? {} }),
+    [colorOverrides]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+  const drill = useSubflowDrill(graph, onSubflowChange);
+  const filteredGraph = (0, import_react21.useMemo)(
+    () => filterGraphForDrill(graph, drill.currentSubflowId),
+    [graph, drill.currentSubflowId]
+  );
+  const breadcrumb = (0, import_react21.useMemo)(
+    () => buildSubflowBreadcrumb(graph, drill.currentSubflowId),
+    [graph, drill.currentSubflowId]
+  );
+  const positioned = (0, import_react21.useMemo)(
+    () => layout === "passthrough" ? filteredGraph : layout(filteredGraph),
+    [filteredGraph, layout]
+  );
+  const slice = (0, import_react21.useMemo)(() => {
+    const empty = {
+      doneStageIds: /* @__PURE__ */ new Set(),
+      activeStageId: null,
+      executedStageIds: /* @__PURE__ */ new Set(),
+      executedOrderIds: [],
+      errors: /* @__PURE__ */ new Map()
+    };
+    if (!overlay) return empty;
+    const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
+    const normalized = normalizeSliceLeafIds(sliceOverlay(overlay, idx));
+    return aggregateMountStatus(normalized, graph, drill.currentSubflowId);
+  }, [overlay, scrubIndex, graph, drill.currentSubflowId]);
+  const reactFlowNodes = (0, import_react21.useMemo)(
+    () => positioned.nodes.map(
+      (n) => toStageNodeWithOverlay(
+        n,
+        slice.doneStageIds,
+        slice.activeStageId,
+        slice.errors.get(n.id),
+        slice.executedOrderIds
+      )
+    ),
+    [positioned.nodes, slice]
+  );
+  const reactFlowEdges = (0, import_react21.useMemo)(
+    () => positioned.edges.map(
+      (e) => styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors)
+    ),
+    [positioned.edges, slice, colors]
+  );
+  const handleNodeClick = (0, import_react21.useCallback)(
+    (_, node) => {
+      const data = node.data ?? {};
+      if (data.isSubflow && data.subflowId) {
+        drill.drillInto(data.subflowId);
+      }
+      onNodeClick?.(node.id);
+    },
+    [drill, onNodeClick]
+  );
+  const wrapperRef = (0, import_react21.useRef)(null);
+  const [rfInstance, setRfInstance] = (0, import_react21.useState)(null);
+  useChartAutoRefit(wrapperRef, rfInstance);
+  return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
     "div",
     {
+      ref: wrapperRef,
       className,
-      style: { width: "100%", height: "100%", ...style },
-      "data-fp": "traced-flowchart",
-      children: /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
-        import_react19.ReactFlow,
-        {
-          nodes,
-          edges,
-          onNodesChange,
-          onEdgesChange,
-          onNodeClick: handleNodeClick,
-          nodeTypes,
-          fitView: true,
-          fitViewOptions: { padding: 0.3 },
-          proOptions: { hideAttribution: true },
-          panOnDrag: false,
-          zoomOnScroll: false,
-          zoomOnPinch: false,
-          zoomOnDoubleClick: false,
-          preventScrolling: false,
-          nodesDraggable: false,
-          nodesConnectable: false,
-          elementsSelectable: !!onNodeClick,
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(FitViewOnResize, {}),
-            !unstyled && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(import_react19.Background, { variant: import_react19.BackgroundVariant.Dots, gap: 16, size: 1 })
-          ]
-        }
-      )
+      style: {
+        width: "100%",
+        height: "100%",
+        minHeight: 300,
+        display: "flex",
+        flexDirection: "column",
+        ...style
+      },
+      children: [
+        breadcrumb.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          SubflowBreadcrumbBar,
+          {
+            entries: breadcrumb,
+            onNavigate: drill.setCurrentSubflowId
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          import_react22.ReactFlow,
+          {
+            nodes: reactFlowNodes,
+            edges: reactFlowEdges,
+            nodeTypes,
+            onNodeClick: handleNodeClick,
+            onInit: setRfInstance,
+            fitView: true,
+            proOptions: { hideAttribution: true },
+            children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(import_react22.Background, { variant: import_react22.BackgroundVariant.Dots, gap: 20, size: 1 })
+          }
+        ) })
+      ]
     }
   );
 }
 
 // src/components/InspectorPanel/InspectorPanel.tsx
-var import_react21 = require("react");
+var import_react24 = require("react");
 
 // src/components/DataTracePanel/DataTracePanel.tsx
-var import_react20 = require("react");
-var import_jsx_runtime18 = require("react/jsx-runtime");
-var DataTracePanel = (0, import_react20.memo)(function DataTracePanel2({
+var import_react23 = require("react");
+var import_jsx_runtime20 = require("react/jsx-runtime");
+var DataTracePanel = (0, import_react23.memo)(function DataTracePanel2({
   frames,
   selectedStageId,
   onFrameClick,
   fromStageName
 }) {
   if (frames.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { padding: "14px 14px 12px", fontSize: 13, lineHeight: 1.55 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { style: { padding: "14px 14px 12px", fontSize: 13, lineHeight: 1.55 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
         "div",
         {
           style: {
@@ -4118,13 +4306,13 @@ var DataTracePanel = (0, import_react20.memo)(function DataTracePanel2({
           children: "Backward causal chain"
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { color: theme.textSecondary, marginBottom: 10 }, children: "Trace any value back to the stage that created it \u2014 and everything upstream that influenced it." }),
-      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { color: theme.textMuted, fontSize: 12 }, children: "Select a stage above to see its dependency chain." })
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { style: { color: theme.textSecondary, marginBottom: 10 }, children: "Trace any value back to the stage that created it \u2014 and everything upstream that influenced it." }),
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { style: { color: theme.textMuted, fontSize: 12 }, children: "Select a stage above to see its dependency chain." })
     ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { padding: "8px 0", fontSize: 13 }, children: [
-    fromStageName && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { padding: "4px 12px 8px" }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { style: { padding: "8px 0", fontSize: 13 }, children: [
+    fromStageName && /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { style: { padding: "4px 12px 8px" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
         "div",
         {
           style: {
@@ -4140,7 +4328,7 @@ var DataTracePanel = (0, import_react20.memo)(function DataTracePanel2({
           ]
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
         "div",
         {
           style: {
@@ -4153,7 +4341,7 @@ var DataTracePanel = (0, import_react20.memo)(function DataTracePanel2({
         }
       )
     ] }),
-    frames.map((frame, i) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+    frames.map((frame, i) => /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
       DataTraceFrame,
       {
         frame,
@@ -4166,14 +4354,14 @@ var DataTracePanel = (0, import_react20.memo)(function DataTracePanel2({
     ))
   ] });
 });
-var DataTraceFrame = (0, import_react20.memo)(function DataTraceFrame2({
+var DataTraceFrame = (0, import_react23.memo)(function DataTraceFrame2({
   frame,
   isFirst,
   isLast,
   isSelected,
   onClick
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
     "button",
     {
       onClick: () => onClick?.(frame.runtimeStageId),
@@ -4190,9 +4378,9 @@ var DataTraceFrame = (0, import_react20.memo)(function DataTraceFrame2({
         fontSize: 13
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-          !isFirst && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { style: { color: theme.textMuted, fontSize: 11 }, children: "\u2191" }),
-          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+          !isFirst && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { style: { color: theme.textMuted, fontSize: 11 }, children: "\u2191" }),
+          /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
             "span",
             {
               style: {
@@ -4202,7 +4390,7 @@ var DataTraceFrame = (0, import_react20.memo)(function DataTraceFrame2({
               children: frame.stageName
             }
           ),
-          isLast && !isFirst && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+          isLast && !isFirst && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
             "span",
             {
               style: {
@@ -4214,7 +4402,7 @@ var DataTraceFrame = (0, import_react20.memo)(function DataTraceFrame2({
             }
           )
         ] }),
-        frame.keysWritten.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+        frame.keysWritten.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
           "div",
           {
             style: {
@@ -4226,11 +4414,11 @@ var DataTraceFrame = (0, import_react20.memo)(function DataTraceFrame2({
             children: [
               "wrote:",
               " ",
-              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { style: { color: theme.textSecondary }, children: frame.keysWritten.join(", ") })
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { style: { color: theme.textSecondary }, children: frame.keysWritten.join(", ") })
             ]
           }
         ),
-        frame.linkedBy && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+        frame.linkedBy && /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
           "div",
           {
             style: {
@@ -4251,17 +4439,17 @@ var DataTraceFrame = (0, import_react20.memo)(function DataTraceFrame2({
 });
 
 // src/components/InspectorPanel/InspectorPanel.tsx
-var import_jsx_runtime19 = require("react/jsx-runtime");
-var InspectorPanel = (0, import_react21.memo)(function InspectorPanel2({
+var import_jsx_runtime21 = require("react/jsx-runtime");
+var InspectorPanel = (0, import_react24.memo)(function InspectorPanel2({
   snapshots,
   selectedIndex,
   dataTraceFrames,
   selectedStageId,
   onNavigateToStage
 }) {
-  const [tab, setTab] = (0, import_react21.useState)("state");
+  const [tab, setTab] = (0, import_react24.useState)("state");
   const currentSnapshot = snapshots[selectedIndex];
-  return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
     "div",
     {
       style: {
@@ -4271,7 +4459,7 @@ var InspectorPanel = (0, import_react21.memo)(function InspectorPanel2({
         overflow: "hidden"
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
           "div",
           {
             style: {
@@ -4280,7 +4468,7 @@ var InspectorPanel = (0, import_react21.memo)(function InspectorPanel2({
               flexShrink: 0
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
                 TabButton,
                 {
                   active: tab === "state",
@@ -4288,7 +4476,7 @@ var InspectorPanel = (0, import_react21.memo)(function InspectorPanel2({
                   label: "State"
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
                 TabButton,
                 {
                   active: tab === "trace",
@@ -4300,15 +4488,15 @@ var InspectorPanel = (0, import_react21.memo)(function InspectorPanel2({
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { style: { flex: 1, overflow: "auto" }, children: [
-          tab === "state" && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { style: { flex: 1, overflow: "auto" }, children: [
+          tab === "state" && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
             MemoryPanel,
             {
               snapshots,
               selectedIndex
             }
           ),
-          tab === "trace" && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+          tab === "trace" && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
             DataTracePanel,
             {
               frames: dataTraceFrames,
@@ -4328,7 +4516,7 @@ function TabButton({
   label,
   badge
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
     "button",
     {
       onClick,
@@ -4347,7 +4535,7 @@ function TabButton({
       },
       children: [
         label,
-        badge && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+        badge && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
           "span",
           {
             style: {
@@ -4367,28 +4555,28 @@ function TabButton({
 }
 
 // src/components/InsightPanel/InsightPanel.tsx
-var import_react22 = require("react");
-var import_jsx_runtime20 = require("react/jsx-runtime");
-var InsightPanel = (0, import_react22.memo)(function InsightPanel2({
+var import_react25 = require("react");
+var import_jsx_runtime22 = require("react/jsx-runtime");
+var InsightPanel = (0, import_react25.memo)(function InsightPanel2({
   insights,
   expandedId,
   mode
 }) {
   if (insights.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { style: { padding: 12, color: theme.textMuted, fontSize: 13 }, children: "No insights available. Attach recorders to see data." });
+    return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { padding: 12, color: theme.textMuted, fontSize: 13 }, children: "No insights available. Attach recorders to see data." });
   }
   if (mode === "grid") {
-    return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(InsightGrid, { insights });
+    return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(InsightGrid, { insights });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(InsightTabs, { insights, defaultId: expandedId });
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(InsightTabs, { insights, defaultId: expandedId });
 });
-var InsightTabs = (0, import_react22.memo)(function InsightTabs2({
+var InsightTabs = (0, import_react25.memo)(function InsightTabs2({
   insights,
   defaultId
 }) {
-  const [activeId, setActiveId] = (0, import_react22.useState)(defaultId ?? insights[0]?.id);
+  const [activeId, setActiveId] = (0, import_react25.useState)(defaultId ?? insights[0]?.id);
   const active = insights.find((i) => i.id === activeId) ?? insights[0];
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
     "div",
     {
       style: {
@@ -4398,7 +4586,7 @@ var InsightTabs = (0, import_react22.memo)(function InsightTabs2({
         overflow: "hidden"
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
           "div",
           {
             style: {
@@ -4407,7 +4595,7 @@ var InsightTabs = (0, import_react22.memo)(function InsightTabs2({
               flexShrink: 0,
               overflowX: "auto"
             },
-            children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+            children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
               "button",
               {
                 onClick: () => setActiveId(insight.id),
@@ -4428,16 +4616,16 @@ var InsightTabs = (0, import_react22.memo)(function InsightTabs2({
             ))
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: active?.render() })
+        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: active?.render() })
       ]
     }
   );
 });
-var InsightGrid = (0, import_react22.memo)(function InsightGrid2({
+var InsightGrid = (0, import_react25.memo)(function InsightGrid2({
   insights
 }) {
   const cols = insights.length <= 2 ? 1 : 2;
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
     "div",
     {
       style: {
@@ -4448,7 +4636,7 @@ var InsightGrid = (0, import_react22.memo)(function InsightGrid2({
         gap: 1,
         background: theme.border
       },
-      children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+      children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
         "div",
         {
           style: {
@@ -4458,7 +4646,7 @@ var InsightGrid = (0, import_react22.memo)(function InsightGrid2({
             overflow: "hidden"
           },
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
               "div",
               {
                 style: {
@@ -4473,7 +4661,7 @@ var InsightGrid = (0, import_react22.memo)(function InsightGrid2({
                 },
                 children: [
                   insight.name,
-                  insight.summary && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+                  insight.summary && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
                     "span",
                     {
                       style: {
@@ -4488,7 +4676,7 @@ var InsightGrid = (0, import_react22.memo)(function InsightGrid2({
                 ]
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: insight.render() })
+            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: insight.render() })
           ]
         },
         insight.id
@@ -4498,17 +4686,17 @@ var InsightGrid = (0, import_react22.memo)(function InsightGrid2({
 });
 
 // src/components/CompactTimeline/CompactTimeline.tsx
-var import_react23 = require("react");
-var import_jsx_runtime21 = require("react/jsx-runtime");
-var CompactTimeline = (0, import_react23.memo)(function CompactTimeline2({
+var import_react26 = require("react");
+var import_jsx_runtime23 = require("react/jsx-runtime");
+var CompactTimeline = (0, import_react26.memo)(function CompactTimeline2({
   snapshots,
   selectedIndex,
   defaultExpanded = false
 }) {
-  const [expanded, setExpanded] = (0, import_react23.useState)(defaultExpanded);
+  const [expanded, setExpanded] = (0, import_react26.useState)(defaultExpanded);
   if (snapshots.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { style: { borderTop: `1px solid ${theme.border}` }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { style: { borderTop: `1px solid ${theme.border}` }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
       "button",
       {
         onClick: () => setExpanded((e) => !e),
@@ -4528,13 +4716,13 @@ var CompactTimeline = (0, import_react23.memo)(function CompactTimeline2({
           letterSpacing: "0.5px"
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
           "Timeline",
-          /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
             snapshots.length,
             " stages"
           ] }),
-          !expanded && /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+          !expanded && /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
             "div",
             {
               style: {
@@ -4545,7 +4733,7 @@ var CompactTimeline = (0, import_react23.memo)(function CompactTimeline2({
                 marginLeft: 8
               },
               children: [
-                snapshots.map((snap, i) => /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                snapshots.map((snap, i) => /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
                   "div",
                   {
                     style: {
@@ -4560,7 +4748,7 @@ var CompactTimeline = (0, import_react23.memo)(function CompactTimeline2({
                   },
                   i
                 )),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
                   "div",
                   {
                     style: {
@@ -4578,7 +4766,7 @@ var CompactTimeline = (0, import_react23.memo)(function CompactTimeline2({
         ]
       }
     ),
-    expanded && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { style: { padding: "0 12px 8px" }, children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+    expanded && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { padding: "0 12px 8px" }, children: /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
       GanttTimeline,
       {
         snapshots,
@@ -4589,21 +4777,21 @@ var CompactTimeline = (0, import_react23.memo)(function CompactTimeline2({
 });
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-var import_jsx_runtime22 = require("react/jsx-runtime");
-var HLinePill = (0, import_react24.memo)(function HLinePill2({
+var import_jsx_runtime24 = require("react/jsx-runtime");
+var HLinePill = (0, import_react27.memo)(function HLinePill2({
   label,
   detail,
   expanded,
   onClick
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: {
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: {
     display: "flex",
     alignItems: "center",
     gap: 0,
     padding: "0"
   }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } }),
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } }),
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
       "button",
       {
         onClick,
@@ -4627,31 +4815,31 @@ var HLinePill = (0, import_react24.memo)(function HLinePill2({
           transition: "color 0.15s ease"
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
           label,
-          detail && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
+          detail && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } })
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } })
   ] });
 });
-var VLinePill = (0, import_react24.memo)(function VLinePill2({
+var VLinePill = (0, import_react27.memo)(function VLinePill2({
   label,
   expanded,
   side = "right",
   onClick
 }) {
   const arrow = side === "right" ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25C0" : "\u25B6";
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: {
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     gap: 0,
     padding: "0"
   }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } }),
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } }),
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
       "button",
       {
         onClick,
@@ -4676,12 +4864,12 @@ var VLinePill = (0, import_react24.memo)(function VLinePill2({
           transition: "color 0.15s ease"
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
           label
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } })
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } })
   ] });
 });
 function detectKeyedSteps(data) {
@@ -4718,9 +4906,9 @@ function KeyedRecorderView({
   snapshots,
   selectedIndex
 }) {
-  const [showAggregate, setShowAggregate] = (0, import_react24.useState)(false);
-  const detected = (0, import_react24.useMemo)(() => detectKeyedSteps(data), [data]);
-  const visibleKeys = (0, import_react24.useMemo)(() => {
+  const [showAggregate, setShowAggregate] = (0, import_react27.useState)(false);
+  const detected = (0, import_react27.useMemo)(() => detectKeyedSteps(data), [data]);
+  const visibleKeys = (0, import_react27.useMemo)(() => {
     const keys = /* @__PURE__ */ new Set();
     for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
       const snap = snapshots[i];
@@ -4735,7 +4923,7 @@ function KeyedRecorderView({
   }, [snapshots, selectedIndex, detected?.keyType]);
   const isAtEnd = selectedIndex >= snapshots.length - 1;
   if (!detected) {
-    return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
+    return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
   }
   const steps = detected.steps;
   const hints = extractRenderHints(data);
@@ -4749,13 +4937,13 @@ function KeyedRecorderView({
     }
   }
   const grandTotal = hints?.grandTotal ?? 0;
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
-    description && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
+    description && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
       preferredOperation === "aggregate" ? (
         /* AGGREGATE: collect silently during scrub, button at end to reveal total */
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
-          isAtEnd ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+          isAtEnd ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
             "button",
             {
               onClick: () => setShowAggregate(true),
@@ -4773,35 +4961,35 @@ function KeyedRecorderView({
               },
               children: "Aggregate \u2014 Show Grand Total"
             }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
-            numFieldKey && /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
+          ) : /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
+            numFieldKey && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
               grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1),
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
                 numFieldKey,
                 " \xB7 ",
                 allKeys.length,
                 " steps"
               ] })
             ] })
-          ] }) }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
+          ] }) }) : /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
               visibleEntries.length,
               " of ",
               allKeys.length,
               " steps collected. Scrub to end to aggregate."
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
         ] })
       ) : preferredOperation === "accumulate" ? (
         /* ACCUMULATE: running total grows with slider — IS the total at end, no button */
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
-          numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+          numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
               numFieldKey,
               " \xB7 ",
               visibleEntries.length,
@@ -4810,31 +4998,30 @@ function KeyedRecorderView({
               " steps"
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
         ] })
       ) : (
         /* TRANSLATE: per-step entries prominent, no totals */
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
       ),
       visibleEntries.map((key) => {
         const entry = steps[key];
         const label = entry.stageName ?? key;
         const numVal = numFieldKey ? entry[numFieldKey] : void 0;
-        return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
-          numVal !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
+        return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
+          numVal !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
         ] }, key);
       }),
-      visibleEntries.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." })
+      visibleEntries.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." })
     ] })
   ] });
 }
-var DetailsContent = (0, import_react24.memo)(function DetailsContent2({
+var DetailsContent = (0, import_react27.memo)(function DetailsContent2({
   snapshots,
   selectedIndex,
   narrativeEntries,
-  narrative,
   size,
   fillHeight,
   extraViews
@@ -4843,27 +5030,27 @@ var DetailsContent = (0, import_react24.memo)(function DetailsContent2({
     {
       id: "memory",
       name: "Memory",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: fillHeight ? { height: "100%" } : void 0 })
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: fillHeight ? { height: "100%" } : void 0 })
     },
     {
       id: "narrative",
       name: "Narrative",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries, narrative, size, style: fillHeight ? { height: "100%" } : void 0 })
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries, size, style: fillHeight ? { height: "100%" } : void 0 })
     }
   ];
   const allViews = [...builtInViews, ...extraViews ?? []];
-  const [activeViewId, setActiveViewId] = (0, import_react24.useState)(allViews[0]?.id ?? "memory");
+  const [activeViewId, setActiveViewId] = (0, import_react27.useState)(allViews[0]?.id ?? "memory");
   const viewIds = allViews.map((v2) => v2.id).join(",");
-  (0, import_react24.useEffect)(() => {
+  (0, import_react27.useEffect)(() => {
     if (!allViews.find((v2) => v2.id === activeViewId)) {
       setActiveViewId(allViews[0]?.id ?? "memory");
     }
   }, [viewIds]);
   const activeView = allViews.find((v2) => v2.id === activeViewId) ?? allViews[0];
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
       const active = view.id === activeViewId;
-      return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
         "button",
         {
           onClick: () => setActiveViewId(view.id),
@@ -4887,7 +5074,7 @@ var DetailsContent = (0, import_react24.memo)(function DetailsContent2({
         view.id
       );
     }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
   ] });
 });
 function resolveSubflowLevel(parentSpec, parentSnapshots, subflowNodeName, narrativeEntries) {
@@ -4961,7 +5148,7 @@ function buildDataTrace(commitLog, targetRuntimeStageId, maxDepth = 10) {
   }
   return frames;
 }
-var RightPanel = (0, import_react24.memo)(function RightPanel2({
+var RightPanel = (0, import_react27.memo)(function RightPanel2({
   mode,
   onModeChange,
   snapshots,
@@ -4971,19 +5158,18 @@ var RightPanel = (0, import_react24.memo)(function RightPanel2({
   activeTab,
   allTabs,
   activeNarrativeEntries,
-  activeNarrative,
   recorderViews,
   autoRecorderViews,
   size,
   onNavigateToStage
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: {
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: {
       display: "flex",
       borderBottom: `1px solid ${theme.border}`,
       flexShrink: 0,
       background: theme.bgSecondary
-    }, children: ["insights", "what"].map((m) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    }, children: ["insights", "what"].map((m) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
       "button",
       {
         onClick: () => onModeChange(m),
@@ -5005,7 +5191,7 @@ var RightPanel = (0, import_react24.memo)(function RightPanel2({
       },
       m
     )) }),
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "insights" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "insights" ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
       InsightPanel,
       {
         mode: "tabs",
@@ -5014,16 +5200,16 @@ var RightPanel = (0, import_react24.memo)(function RightPanel2({
           id: tab.id,
           name: insightName(tab.name),
           render: () => {
-            if (tab.id === "narrative") return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NarrativePanel, { snapshots, selectedIndex, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, runtimeSnapshot, spec, size, style: { height: "100%" } });
+            if (tab.id === "narrative") return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(NarrativePanel, { snapshots, selectedIndex, narrativeEntries: activeNarrativeEntries, runtimeSnapshot, spec, size, style: { height: "100%" } });
             const customView = recorderViews?.find((v2) => v2.id === tab.id);
             if (customView?.render) return customView.render({ snapshots, selectedIndex });
             const autoView = autoRecorderViews.find((v2) => v2.id === tab.id);
-            if (autoView) return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(KeyedRecorderView, { data: autoView.data, description: autoView.description, preferredOperation: autoView.preferredOperation, snapshots, selectedIndex });
+            if (autoView) return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(KeyedRecorderView, { data: autoView.data, description: autoView.description, preferredOperation: autoView.preferredOperation, snapshots, selectedIndex });
             return null;
           }
         }))
       }
-    ) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+    ) : /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
       InspectorPanel,
       {
         snapshots,
@@ -5045,17 +5231,6 @@ function insightName(name) {
   };
   return map[name] ?? name;
 }
-function defaultRenderFlowchart({ spec: s, snapshots: snaps, selectedIndex, onNodeClick }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
-    TracedFlowchartView,
-    {
-      spec: s,
-      snapshots: snaps,
-      snapshotIndex: selectedIndex,
-      onNodeClick
-    }
-  );
-}
 function ExplainableShell({
   snapshots: snapshotsProp,
   runtimeSnapshot,
@@ -5063,7 +5238,6 @@ function ExplainableShell({
   title,
   resultData: resultDataProp,
   logs = [],
-  narrative: narrativeProp,
   narrativeEntries,
   tabs = ["result", "explainable"],
   defaultTab,
@@ -5073,36 +5247,58 @@ function ExplainableShell({
   defaultExpanded,
   recorderViews,
   renderFlowchart,
+  showStageId = false,
+  traceGraph,
+  runtimeOverlay,
   size = "default",
   unstyled = false,
   className,
   style
 }) {
-  const derivedFromRuntime = (0, import_react24.useMemo)(() => {
+  const derivedFromRuntime = (0, import_react27.useMemo)(() => {
     if (!runtimeSnapshot) return null;
     try {
       const snaps = toVisualizationSnapshots(runtimeSnapshot, narrativeEntries);
-      const narr = [];
-      for (const snap of snaps) {
-        const lines = (snap.narrative ?? "").split("\n").filter(Boolean);
-        narr.push(...lines);
-      }
-      return { snapshots: snaps, resultData: runtimeSnapshot.sharedState, narrative: narr };
+      return { snapshots: snaps, resultData: runtimeSnapshot.sharedState };
     } catch {
       return null;
     }
   }, [runtimeSnapshot, narrativeEntries]);
   const snapshots = snapshotsProp ?? derivedFromRuntime?.snapshots ?? [];
   const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
-  const narrative = narrativeProp ?? derivedFromRuntime?.narrative;
-  const effectiveRenderFlowchart = renderFlowchart ?? (spec ? defaultRenderFlowchart : void 0);
+  const tracedFlowRenderer = (0, import_react27.useMemo)(() => {
+    if (!traceGraph) return void 0;
+    return ({ selectedIndex, snapshots: snapshots2, onNodeClick }) => {
+      const activeRsid = snapshots2[selectedIndex]?.runtimeStageId;
+      let overlayIdx = selectedIndex;
+      if (activeRsid && runtimeOverlay) {
+        const i = runtimeOverlay.executionOrder.findIndex(
+          (s) => s.runtimeStageId === activeRsid
+        );
+        if (i >= 0) overlayIdx = i;
+      }
+      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+        TracedFlow,
+        {
+          graph: traceGraph,
+          overlay: runtimeOverlay ?? void 0,
+          scrubIndex: overlayIdx,
+          onNodeClick: (stageId) => onNodeClick?.(stageId),
+          onSubflowChange: (mountId) => {
+            if (mountId !== null) onNodeClick?.(mountId);
+          }
+        }
+      );
+    };
+  }, [traceGraph, runtimeOverlay]);
+  const effectiveRenderFlowchart = renderFlowchart ?? tracedFlowRenderer;
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
-  const shellRef = (0, import_react24.useRef)(null);
-  const [isNarrow, setIsNarrow] = (0, import_react24.useState)(false);
-  const [isMedium, setIsMedium] = (0, import_react24.useState)(false);
-  (0, import_react24.useEffect)(() => {
+  const shellRef = (0, import_react27.useRef)(null);
+  const [isNarrow, setIsNarrow] = (0, import_react27.useState)(false);
+  const [isMedium, setIsMedium] = (0, import_react27.useState)(false);
+  (0, import_react27.useEffect)(() => {
     const el = shellRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
@@ -5114,14 +5310,14 @@ function ExplainableShell({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const autoRecorderViews = (0, import_react24.useMemo)(() => {
+  const autoRecorderViews = (0, import_react27.useMemo)(() => {
     const recorders = runtimeSnapshot?.recorders;
     if (!recorders?.length) return [];
     const explicitIds = new Set((recorderViews ?? []).map((v2) => v2.id));
     return recorders.filter((r) => !explicitIds.has(r.id)).map((r) => ({ id: r.id, name: r.name, description: r.description, preferredOperation: r.preferredOperation, data: r.data }));
   }, [runtimeSnapshot, recorderViews]);
-  const hasNarrative = !!(narrative?.length || narrativeEntries?.length);
-  const allTabs = (0, import_react24.useMemo)(() => {
+  const hasNarrative = !!narrativeEntries?.length;
+  const allTabs = (0, import_react27.useMemo)(() => {
     const tabs2 = [
       { id: "result", name: "Result", description: "Final output and console logs" },
       { id: "memory", name: "Memory", description: "Accumulator \u2014 progressive shared state at each stage" }
@@ -5140,38 +5336,38 @@ function ExplainableShell({
   }, [hasNarrative, recorderViews, autoRecorderViews, hideTabsProp]);
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
-  const [activeTab, setActiveTab] = (0, import_react24.useState)(resolvedDefault);
-  const [snapshotIdx, setSnapshotIdx] = (0, import_react24.useState)(0);
-  const [drillDownStack, setDrillDownStack] = (0, import_react24.useState)([]);
-  const [rightExpanded, setRightExpanded] = (0, import_react24.useState)(defaultExpanded?.details ?? true);
-  const [rightPanelMode, setRightPanelMode] = (0, import_react24.useState)("insights");
-  const [leftExpanded, setLeftExpanded] = (0, import_react24.useState)(defaultExpanded?.topology ?? false);
-  const [timelineExpanded, setTimelineExpanded] = (0, import_react24.useState)(defaultExpanded?.timeline ?? false);
-  (0, import_react24.useEffect)(() => {
+  const [activeTab, setActiveTab] = (0, import_react27.useState)(resolvedDefault);
+  const [snapshotIdx, setSnapshotIdx] = (0, import_react27.useState)(0);
+  const [drillDownStack, setDrillDownStack] = (0, import_react27.useState)([]);
+  const [rightExpanded, setRightExpanded] = (0, import_react27.useState)(defaultExpanded?.details ?? true);
+  const [rightPanelMode, setRightPanelMode] = (0, import_react27.useState)("insights");
+  const [leftExpanded, setLeftExpanded] = (0, import_react27.useState)(defaultExpanded?.topology ?? false);
+  const [timelineExpanded, setTimelineExpanded] = (0, import_react27.useState)(defaultExpanded?.timeline ?? false);
+  (0, import_react27.useEffect)(() => {
     if (isNarrow) {
       setLeftExpanded(false);
       setRightExpanded(false);
       setTimelineExpanded(false);
     }
   }, [isNarrow]);
-  const triggerReflow = (0, import_react24.useCallback)(() => {
+  const triggerReflow = (0, import_react27.useCallback)(() => {
     requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
     setTimeout(() => window.dispatchEvent(new Event("resize")), 320);
   }, []);
-  const toggleLeft = (0, import_react24.useCallback)((v2) => {
+  const toggleLeft = (0, import_react27.useCallback)((v2) => {
     setLeftExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleRight = (0, import_react24.useCallback)((v2) => {
+  const toggleRight = (0, import_react27.useCallback)((v2) => {
     setRightExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleTimeline = (0, import_react24.useCallback)(() => {
+  const toggleTimeline = (0, import_react27.useCallback)(() => {
     setTimelineExpanded((p) => !p);
     triggerReflow();
   }, [triggerReflow]);
   const isInSubflow = drillDownStack.length > 0;
-  const currentLevel = (0, import_react24.useMemo)(() => {
+  const currentLevel = (0, import_react27.useMemo)(() => {
     if (drillDownStack.length > 0) {
       const top = drillDownStack[drillDownStack.length - 1];
       return { spec: top.spec, snapshots: top.snapshots };
@@ -5181,35 +5377,31 @@ function ExplainableShell({
   const activeSnapshots = currentLevel.snapshots;
   const activeSpec = currentLevel.spec;
   const safeIdx = activeSnapshots.length > 0 ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1)) : 0;
-  const activeNarrative = (0, import_react24.useMemo)(() => {
-    if (!isInSubflow) return narrative;
-    const lines = [];
-    for (const snap of activeSnapshots) {
-      const stageLines = (snap.narrative ?? "").split("\n").filter(Boolean);
-      lines.push(...stageLines);
-    }
-    return lines.length > 0 ? lines : void 0;
-  }, [isInSubflow, narrative, activeSnapshots]);
   const activeNarrativeEntries = isInSubflow ? void 0 : narrativeEntries;
-  const breadcrumbs = (0, import_react24.useMemo)(() => {
+  const breadcrumbs = (0, import_react27.useMemo)(() => {
     const root = { label: title || "Flowchart", spec, description: spec?.description };
     return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: void 0 }))];
   }, [spec, title, drillDownStack]);
-  const showTreeSidebar = (0, import_react24.useMemo)(() => !!spec && hasSubflowNodes(spec), [spec]);
-  const rootOverlay = (0, import_react24.useMemo)(() => {
+  const showTreeSidebar = (0, import_react27.useMemo)(() => {
+    if (traceGraph?.nodes?.length) {
+      return traceGraph.nodes.some((n) => n.data?.isSubflow === true);
+    }
+    return !!spec && hasSubflowNodes(spec);
+  }, [traceGraph, spec]);
+  const rootOverlay = (0, import_react27.useMemo)(() => {
     if (isInSubflow || !snapshots.length) return { activeStage: void 0, doneStages: void 0 };
     const doneStages = new Set(snapshots.slice(0, safeIdx).map((s) => s.stageLabel));
     const activeStage = snapshots[safeIdx]?.stageLabel ?? null;
     return { activeStage, doneStages };
   }, [isInSubflow, snapshots, safeIdx]);
-  const handleTabChange = (0, import_react24.useCallback)((tab) => {
+  const handleTabChange = (0, import_react27.useCallback)((tab) => {
     setActiveTab(tab);
     setDrillDownStack([]);
   }, []);
-  const handleSnapshotChange = (0, import_react24.useCallback)((idx) => {
+  const handleSnapshotChange = (0, import_react27.useCallback)((idx) => {
     if (typeof idx === "number") setSnapshotIdx(idx);
   }, []);
-  const handleDrillDown = (0, import_react24.useCallback)(
+  const handleDrillDown = (0, import_react27.useCallback)(
     (nodeName) => {
       if (!activeSpec) return;
       const entry = resolveSubflowLevel(activeSpec, activeSnapshots, nodeName, narrativeEntries);
@@ -5220,14 +5412,14 @@ function ExplainableShell({
     },
     [activeSpec, activeSnapshots, narrativeEntries, snapshotIdx]
   );
-  const handleBreadcrumbNavigate = (0, import_react24.useCallback)((level) => {
+  const handleBreadcrumbNavigate = (0, import_react27.useCallback)((level) => {
     setDrillDownStack((prev) => {
       const popped = level === 0 ? prev[0] : prev[level];
       if (popped) setSnapshotIdx(popped.parentSnapshotIdx);
       return level === 0 ? [] : prev.slice(0, level);
     });
   }, []);
-  const handleNodeClick = (0, import_react24.useCallback)(
+  const handleNodeClick = (0, import_react27.useCallback)(
     (indexOrId) => {
       if (typeof indexOrId === "number") {
         setSnapshotIdx(indexOrId);
@@ -5245,7 +5437,7 @@ function ExplainableShell({
     },
     [activeSpec, activeSnapshots, handleDrillDown]
   );
-  const handleTreeNodeSelect = (0, import_react24.useCallback)(
+  const handleTreeNodeSelect = (0, import_react27.useCallback)(
     (name, isSubflow) => {
       if (isSubflow && spec) {
         setDrillDownStack([]);
@@ -5264,31 +5456,31 @@ function ExplainableShell({
   );
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { className, style, "data-fp": "explainable-shell", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { "data-fp": "shell-tabs", children: allTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
-      /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
-        activeTab === "result" && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
-        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true }),
-          isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-          activeSpec && effectiveRenderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, unstyled: true }),
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
+    return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { className, style, "data-fp": "explainable-shell", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { "data-fp": "shell-tabs", children: allTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
+      /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
+        activeTab === "result" && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
+        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true }),
+          isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+          activeSpec && effectiveRenderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, unstyled: true }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
         ] })
       ] })
     ] });
   }
   const showTopology = !!effectiveRenderFlowchart && !!activeSpec;
-  const detailsContent = (0, import_react24.useMemo)(() => {
+  const detailsContent = (0, import_react27.useMemo)(() => {
     if (activeTab === "result") {
-      return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(ResultPanel, { data: resultData ?? null, logs, hideConsole, size });
+      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(ResultPanel, { data: resultData ?? null, logs, hideConsole, size });
     }
     if (activeTab === "memory") {
-      return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, size, style: { height: "100%" } });
+      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, size, style: { height: "100%" } });
     }
     if (activeTab === "narrative") {
-      return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, narrative: activeNarrative, size, style: { height: "100%" } });
+      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, size, style: { height: "100%" } });
     }
     const customView = recorderViews?.find((v2) => v2.id === activeTab);
     if (customView?.render) {
@@ -5296,7 +5488,7 @@ function ExplainableShell({
     }
     const autoView = autoRecorderViews.find((v2) => v2.id === activeTab);
     if (autoView) {
-      return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
         KeyedRecorderView,
         {
           data: autoView.data,
@@ -5308,9 +5500,9 @@ function ExplainableShell({
       );
     }
     return null;
-  }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, activeNarrative, recorderViews, autoRecorderViews]);
-  const detailsPanel = /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: {
+  }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, recorderViews, autoRecorderViews]);
+  const detailsPanel = /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: {
       display: "flex",
       borderBottom: `1px solid ${theme.border}`,
       background: theme.bgSecondary,
@@ -5318,7 +5510,7 @@ function ExplainableShell({
       overflowX: "auto"
     }, children: allTabs.map((tab) => {
       const active = tab.id === activeTab;
-      return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
         "button",
         {
           onClick: () => handleTabChange(tab.id),
@@ -5342,9 +5534,9 @@ function ExplainableShell({
         tab.id
       );
     }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
   ] });
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
     "div",
     {
       ref: shellRef,
@@ -5362,7 +5554,7 @@ function ExplainableShell({
       },
       "data-fp": "explainable-shell",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
           TimeTravelControls,
           {
             snapshots: activeSnapshots,
@@ -5371,57 +5563,59 @@ function ExplainableShell({
             size
           }
         ),
-        isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
+        isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
           /* ── Mobile: stacked vertical ── */
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
-            showTopology && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+            showTopology && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
               spec: activeSpec,
               snapshots: activeSnapshots,
               selectedIndex: safeIdx,
-              onNodeClick: handleNodeClick
+              onNodeClick: handleNodeClick,
+              showStageId
             }) }),
-            showTreeSidebar && /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
-              leftExpanded && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+            showTreeSidebar && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
+              leftExpanded && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
                 SubflowTree,
                 {
-                  spec,
+                  graph: traceGraph ?? { nodes: [], edges: [] },
                   activeStage: rootOverlay.activeStage,
                   doneStages: rootOverlay.doneStages,
                   onNodeSelect: handleTreeNodeSelect
                 }
               ) })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-            rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { maxHeight: 350, flexShrink: 0, overflow: "hidden" }, children: detailsPanel }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
-            timelineExpanded && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+            rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { maxHeight: 350, flexShrink: 0, overflow: "hidden" }, children: detailsPanel }),
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
+            timelineExpanded && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
           ] })
         ) : (
           /* ── Desktop: two-column — Flowchart | Right Panel ── */
-          /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
-              showTreeSidebar && (leftExpanded ? /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)("div", { style: { width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
+              showTreeSidebar && (leftExpanded ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: { width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
                   SubflowTree,
                   {
-                    spec,
+                    graph: traceGraph ?? { nodes: [], edges: [] },
                     activeStage: rootOverlay.activeStage,
                     doneStages: rootOverlay.doneStages,
                     onNodeSelect: handleTreeNodeSelect
                   }
                 ) }),
-                /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(VLinePill, { label: "Topology", expanded: true, side: "left", onClick: () => toggleLeft(false) })
-              ] }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(VLinePill, { label: "Topology", expanded: false, side: "left", onClick: () => toggleLeft(true) })),
-              showTopology ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(VLinePill, { label: "Topology", expanded: true, side: "left", onClick: () => toggleLeft(false) })
+              ] }) : /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(VLinePill, { label: "Topology", expanded: false, side: "left", onClick: () => toggleLeft(true) })),
+              showTopology ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
                 spec: activeSpec,
                 snapshots: activeSnapshots,
                 selectedIndex: safeIdx,
-                onNodeClick: handleNodeClick
-              }) }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1 } }),
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(VLinePill, { label: "Details", expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-              rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+                onNodeClick: handleNodeClick,
+                showStageId
+              }) }) : /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1 } }),
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(VLinePill, { label: "Details", expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+              rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
                 RightPanel,
                 {
                   mode: rightPanelMode,
@@ -5433,7 +5627,6 @@ function ExplainableShell({
                   activeTab,
                   allTabs,
                   activeNarrativeEntries,
-                  activeNarrative,
                   recorderViews,
                   autoRecorderViews,
                   size,
@@ -5444,7 +5637,7 @@ function ExplainableShell({
                 }
               ) })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
               CompactTimeline,
               {
                 snapshots: activeSnapshots,
@@ -5461,8 +5654,8 @@ function ExplainableShell({
 
 // src/components/TraceViewer/TraceViewer.tsx
 var React = __toESM(require("react"), 1);
-var import_react25 = require("react");
-var import_jsx_runtime23 = require("react/jsx-runtime");
+var import_react28 = require("react");
+var import_jsx_runtime25 = require("react/jsx-runtime");
 function parseTrace(input) {
   if (input == null) {
     return {
@@ -5525,11 +5718,11 @@ function TraceViewer({
   recorderViews,
   renderFlowchart
 }) {
-  const parsed = (0, import_react25.useMemo)(() => parseTrace(trace), [trace]);
+  const parsed = (0, import_react28.useMemo)(() => parseTrace(trace), [trace]);
   React.useEffect(() => {
     if (!parsed.ok && onError) onError(parsed.error);
   }, [parsed, onError]);
-  const snapshots = (0, import_react25.useMemo)(() => {
+  const snapshots = (0, import_react28.useMemo)(() => {
     if (!parsed.ok || !parsed.trace.snapshot) return [];
     try {
       return toVisualizationSnapshots(
@@ -5543,12 +5736,11 @@ function TraceViewer({
   if (!parsed.ok || snapshots.length === 0) {
     return fallback ?? null;
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
     ExplainableShell,
     {
       snapshots,
       spec: parsed.trace.spec,
-      narrative: parsed.trace.narrative,
       narrativeEntries: parsed.trace.narrativeEntries,
       tabs,
       defaultTab,

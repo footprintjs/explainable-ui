@@ -2,9 +2,10 @@
  * NarrativePanel — Recorder-based view of pipeline execution.
  *
  * Renders the execution narrative with progressive reveal synced to
- * snapshot index. Prefers structured NarrativeEntries (from
- * CombinedNarrativeRecorder) when available, falls back to plain
- * narrative lines built from per-stage snapshot.narrative fields.
+ * snapshot index. Consumes structured NarrativeEntries (from
+ * CombinedNarrativeRecorder) — the primary data source. Falls back to
+ * per-stage `snapshot.narrative` fields (built by the runtime adapter)
+ * when no entries are supplied.
  *
  * Data source: FlowRecorder (fires AFTER stage execution)
  */
@@ -48,10 +49,9 @@ function safeJsonStringify(value: unknown): string {
 export interface NarrativePanelProps extends BaseComponentProps {
   snapshots: StageSnapshot[];
   selectedIndex: number;
-  /** Structured narrative entries (preferred — richer rendering) */
+  /** Structured narrative entries (primary source — richer rendering).
+   *  When absent, falls back to per-stage `snapshot.narrative` lines. */
   narrativeEntries?: NarrativeEntry[];
-  /** Plain narrative lines (fallback) */
-  narrative?: string[];
   /**
    * Full runtime snapshot from the runner (executor.getSnapshot() /
    * agent.getSnapshot()). When present, "Copy for LLM" includes the
@@ -75,7 +75,6 @@ export function NarrativePanel({
   snapshots,
   selectedIndex,
   narrativeEntries,
-  narrative: narrativeProp,
   runtimeSnapshot,
   spec,
   size = "default",
@@ -86,16 +85,17 @@ export function NarrativePanel({
   const fs = fontSize[size];
   const pad = padding[size];
 
-  // Build plain narrative from snapshots if not provided
+  // Build plain narrative lines from per-stage snapshot.narrative.
+  // Used as fallback when narrativeEntries is empty, and for the
+  // progressive-reveal text view in the legacy code path.
   const narrative = useMemo<string[]>(() => {
-    if (narrativeProp && narrativeProp.length > 0) return narrativeProp;
     const lines: string[] = [];
     for (const snap of snapshots) {
       const stageLines = (snap.narrative ?? "").split("\n").filter(Boolean);
       lines.push(...stageLines);
     }
     return lines;
-  }, [narrativeProp, snapshots]);
+  }, [snapshots]);
 
   // Progressive reveal for plain narrative
   const revealedCount = useMemo(() => {

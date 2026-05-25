@@ -38,9 +38,25 @@ export function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, au
             setPlaying(true);
         }
     }, [playing, selectedIndex, total, onIndexChange]);
+    const handleKeyDown = useCallback((e) => {
+        if (e.key === "ArrowLeft" && canPrev && !playing) {
+            e.preventDefault();
+            setPlaying(false);
+            onIndexChange(selectedIndex - 1);
+        }
+        else if (e.key === "ArrowRight" && canNext && !playing) {
+            e.preventDefault();
+            setPlaying(false);
+            onIndexChange(selectedIndex + 1);
+        }
+        else if (e.key === " " && autoPlayable) {
+            e.preventDefault();
+            togglePlay();
+        }
+    }, [canPrev, canNext, playing, selectedIndex, onIndexChange, autoPlayable, togglePlay]);
     const fs = fontSize[size];
     if (unstyled) {
-        return (_jsxs("div", { className: className, style: style, "data-fp": "time-travel-controls", children: [_jsx("button", { "data-fp": "tt-prev", disabled: !canPrev || playing, onClick: () => { setPlaying(false); onIndexChange(selectedIndex - 1); }, children: "Prev" }), autoPlayable && (_jsx("button", { "data-fp": "tt-play", onClick: togglePlay, children: playing ? "Pause" : "Play" })), _jsx("button", { "data-fp": "tt-next", disabled: !canNext || playing, onClick: () => { setPlaying(false); onIndexChange(selectedIndex + 1); }, children: "Next" }), _jsx("div", { "data-fp": "tt-ticks", children: snapshots.map((snap, i) => (_jsx("button", { "data-fp": "tt-tick", "data-active": i === selectedIndex, "data-done": i < selectedIndex, onClick: () => { setPlaying(false); onIndexChange(i); }, title: snap.stageLabel }, i))) })] }));
+        return (_jsxs("div", { className: className, style: style, "data-fp": "time-travel-controls", role: "toolbar", "aria-label": "Time travel controls", tabIndex: 0, onKeyDown: handleKeyDown, children: [_jsx("button", { "data-fp": "tt-prev", disabled: !canPrev || playing, onClick: () => { setPlaying(false); onIndexChange(selectedIndex - 1); }, "aria-label": "Previous stage", children: "Prev" }), autoPlayable && (_jsx("button", { "data-fp": "tt-play", onClick: togglePlay, "aria-label": playing ? "Pause" : "Play", children: playing ? "Pause" : "Play" })), _jsx("button", { "data-fp": "tt-next", disabled: !canNext || playing, onClick: () => { setPlaying(false); onIndexChange(selectedIndex + 1); }, "aria-label": "Next stage", children: "Next" }), _jsx("div", { "data-fp": "tt-ticks", children: snapshots.map((snap, i) => (_jsx("button", { "data-fp": "tt-tick", "data-active": i === selectedIndex, "data-done": i < selectedIndex, onClick: () => { setPlaying(false); onIndexChange(i); }, title: snap.stageLabel }, i))) })] }));
     }
     const btnStyle = (disabled) => ({
         background: theme.bgTertiary,
@@ -63,7 +79,7 @@ export function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, au
             gap: 6,
             flexShrink: 0,
             ...style,
-        }, "data-fp": "time-travel-controls", children: [_jsx("button", { style: btnStyle(!canPrev || playing), disabled: !canPrev || playing, onClick: () => { setPlaying(false); onIndexChange(selectedIndex - 1); }, children: "\u25C0" }), autoPlayable && (_jsx("button", { onClick: togglePlay, style: {
+        }, "data-fp": "time-travel-controls", role: "toolbar", "aria-label": "Time travel controls", tabIndex: 0, onKeyDown: handleKeyDown, children: [_jsx("button", { style: btnStyle(!canPrev || playing), disabled: !canPrev || playing, onClick: () => { setPlaying(false); onIndexChange(selectedIndex - 1); }, "aria-label": "Previous stage", children: "\u25C0" }), autoPlayable && (_jsx("button", { onClick: togglePlay, style: {
                     background: playing ? theme.primary : theme.bgTertiary,
                     border: `1px solid ${theme.border}`,
                     color: playing ? "white" : theme.textPrimary,
@@ -76,7 +92,7 @@ export function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, au
                     cursor: "pointer",
                     fontSize: 14,
                     flexShrink: 0,
-                }, title: playing ? "Pause" : "Play", children: playing ? "\u23F8" : "\u25B6" })), _jsx("button", { style: btnStyle(!canNext || playing), disabled: !canNext || playing, onClick: () => { setPlaying(false); onIndexChange(selectedIndex + 1); }, children: "\u25B6" }), _jsx("div", { style: {
+                }, title: playing ? "Pause" : "Play", "aria-label": playing ? "Pause" : "Play", children: playing ? "\u23F8" : "\u25B6" })), _jsx("button", { style: btnStyle(!canNext || playing), disabled: !canNext || playing, onClick: () => { setPlaying(false); onIndexChange(selectedIndex + 1); }, "aria-label": "Next stage", children: "\u25B6" }), _jsx("div", { style: {
                     flex: 1,
                     display: "flex",
                     alignItems: "center",

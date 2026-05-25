@@ -1,13 +1,35 @@
+/**
+ * useSubflowNavigation — drill-down breadcrumb tracker for recorder-driven charts.
+ *
+ * Recorder-driven (v6+): replaces the legacy SpecNode-walk path. Accepts
+ * a `TraceGraph` (from `createTraceStructureRecorder`) and tracks WHICH
+ * subflow the user has drilled into.
+ *
+ * Limitation (intentional — recorder graph is flat / mount-only):
+ *   The StructureRecorder records the MOUNT of each subflow in the
+ *   parent chart, not the inner structure of each child chart. So
+ *   "drill into a subflow" today returns the SAME graph with the
+ *   `currentSubflowId` marker advanced — there is no separate
+ *   child-graph to swap in. Filtering nodes by
+ *   `data.subflowId === <selected>` would only surface mount nodes,
+ *   not the child chart's stages.
+ *
+ * TODO(recorder-driven-nesting): when child charts attach their own
+ * `traceStructureRecorder` and surface those graphs via a registry,
+ * accept `Map<subflowId, TraceGraph>` and swap `currentGraph` to the
+ * child's graph on drill-down. Consumers can then render
+ * `<TraceFlow graph={currentGraph} />` per level.
+ */
+
 import { useState, useCallback, useMemo } from "react";
-import { specToReactFlow } from "./specToReactFlow";
-import type { SpecNode, ExecutionOverlay, FlowchartColors } from "./specToReactFlow";
-import type { Node, Edge } from "@xyflow/react";
+import type { TraceGraph } from "./traceStructureRecorder";
 
 export interface BreadcrumbEntry {
   /** Display name for this level */
   label: string;
-  /** The spec node tree at this level */
-  spec: SpecNode;
+  /** The subflow id that was drilled into to reach this level
+   *  (undefined for root). */
+  subflowId?: string;
   /** Human-readable description of this subflow */
   description?: string;
 }
@@ -15,107 +37,108 @@ export interface BreadcrumbEntry {
 export interface SubflowNavigation {
   /** Current breadcrumb path (root → ... → current) */
   breadcrumbs: BreadcrumbEntry[];
-  /** Current level's ReactFlow nodes */
-  nodes: Node[];
-  /** Current level's ReactFlow edges */
-  edges: Edge[];
-  /** Call when a node is clicked — drills in if it's a subflow */
+  /** Current graph — today identical to the root graph (see file-level
+   *  TODO). Consumers should still treat this as the source of truth so
+   *  they remain forward-compatible once per-subflow graphs are wired in. */
+  currentGraph: TraceGraph;
+  /** Subflow id of the level the user is currently inside (null at root). */
+  currentSubflowId: string | null;
+  /** Display name of the subflow node we drilled into (null at root). */
+  currentSubflowNodeName: string | null;
+  /** Call when a node is clicked — drills in if it's a subflow.
+   *  Returns true when the click pushed a new level. */
   handleNodeClick: (nodeId: string) => boolean;
   /** Navigate to a specific breadcrumb level (0 = root) */
   navigateTo: (level: number) => void;
   /** Whether we're currently inside a subflow (not at root) */
   isInSubflow: boolean;
-  /** Name of the subflow node we drilled into (for finding execution data) */
-  currentSubflowNodeName: string | null;
 }
 
+const EMPTY_GRAPH: TraceGraph = { nodes: [], edges: [] };
+
 /**
- * Hook that manages subflow drill-down navigation for a flowchart spec.
+ * Hook that tracks subflow drill-down state for a recorder-driven chart.
  *
- * Maintains a breadcrumb stack. When a subflow node is clicked, pushes its
- * nested spec onto the stack and re-derives nodes/edges. Breadcrumb clicks
- * pop back to that level.
+ * Maintains a breadcrumb stack. When a subflow node is clicked the
+ * stack pushes a new entry; breadcrumb clicks pop back to that level.
+ * See file-level docs for the deferred per-subflow graph swap.
  */
 export function useSubflowNavigation(
-  rootSpec: SpecNode | null,
-  overlay?: ExecutionOverlay,
-  colors?: Partial<FlowchartColors>
+  rootGraph: TraceGraph | null,
 ): SubflowNavigation {
   const [stack, setStack] = useState<BreadcrumbEntry[]>([]);
 
-  // Current spec = top of stack, or root
-  const currentSpec = stack.length > 0 ? stack[stack.length - 1].spec : rootSpec;
+  const safeRootGraph = rootGraph ?? EMPTY_GRAPH;
 
-  // Derive nodes/edges from current spec
-  // Overlay is always passed through — consumer provides the appropriate overlay
-  // (root overlay at root level, subflow overlay when drilled in)
-  const { nodes, edges } = useMemo(() => {
-    if (!currentSpec) return { nodes: [], edges: [] };
-    return specToReactFlow(currentSpec, overlay, colors);
-  }, [currentSpec, overlay, colors]);
-
-  // Build a lookup of subflow nodes at the current level
-  const subflowMap = useMemo(() => {
-    const map = new Map<string, SpecNode>();
-    if (!currentSpec) return map;
-
-    function collectSubflows(node: SpecNode) {
-      if (node.isSubflowRoot && node.subflowStructure) {
-        const id = node.name || node.id || "";
-        map.set(id, node);
+  // Lookup: subflow id → mount node display name. Populated from the
+  // recorder graph so click handlers can resolve the node-id the
+  // consumer passes.
+  const subflowMounts = useMemo(() => {
+    const map = new Map<
+      string,
+      { subflowId: string; label: string; description?: string }
+    >();
+    for (const node of safeRootGraph.nodes) {
+      if (!node.data?.isSubflow) continue;
+      const subflowId =
+        typeof node.data.subflowId === "string" ? node.data.subflowId : node.id;
+      const label =
+        typeof node.data.label === "string" ? node.data.label : node.id;
+      const entry: { subflowId: string; label: string; description?: string } = {
+        subflowId,
+        label,
+      };
+      if (typeof node.data.description === "string") {
+        entry.description = node.data.description;
       }
-      if (node.children) node.children.forEach(collectSubflows);
-      if (node.next) collectSubflows(node.next);
+      // Key by stable id AND by the node id callers usually pass.
+      map.set(node.id, entry);
+      map.set(subflowId, entry);
     }
-    collectSubflows(currentSpec);
     return map;
-  }, [currentSpec]);
+  }, [safeRootGraph]);
 
   const breadcrumbs: BreadcrumbEntry[] = useMemo(() => {
-    const root: BreadcrumbEntry = {
-      label: rootSpec?.name || "Flowchart",
-      spec: rootSpec!,
-      description: rootSpec?.description,
-    };
+    const rootLabel = "Flowchart";
+    const root: BreadcrumbEntry = { label: rootLabel };
     return [root, ...stack];
-  }, [rootSpec, stack]);
+  }, [stack]);
 
   const handleNodeClick = useCallback(
     (nodeId: string): boolean => {
-      const subflowNode = subflowMap.get(nodeId);
-      if (!subflowNode?.subflowStructure) return false;
-
-      setStack((prev) => [
-        ...prev,
-        {
-          label: subflowNode.subflowName || subflowNode.name,
-          spec: subflowNode.subflowStructure!,
-          description: subflowNode.description,
-        },
-      ]);
+      const mount = subflowMounts.get(nodeId);
+      if (!mount) return false;
+      setStack((prev) => {
+        const entry: BreadcrumbEntry = {
+          label: mount.label,
+          subflowId: mount.subflowId,
+        };
+        if (mount.description !== undefined) entry.description = mount.description;
+        return [...prev, entry];
+      });
       return true;
     },
-    [subflowMap]
+    [subflowMounts],
   );
 
-  const navigateTo = useCallback(
-    (level: number) => {
-      if (level === 0) {
-        setStack([]);
-      } else {
-        setStack((prev) => prev.slice(0, level));
-      }
-    },
-    []
-  );
+  const navigateTo = useCallback((level: number) => {
+    if (level === 0) {
+      setStack([]);
+    } else {
+      setStack((prev) => prev.slice(0, level));
+    }
+  }, []);
 
+  const top = stack[stack.length - 1];
   return {
     breadcrumbs,
-    nodes,
-    edges,
+    // TODO(recorder-driven-nesting): swap to per-subflow graph when
+    // child charts attach their own recorders.
+    currentGraph: safeRootGraph,
+    currentSubflowId: top?.subflowId ?? null,
+    currentSubflowNodeName: top?.label ?? null,
     handleNodeClick,
     navigateTo,
     isInSubflow: stack.length > 0,
-    currentSubflowNodeName: stack.length > 0 ? stack[stack.length - 1].label : null,
   };
 }

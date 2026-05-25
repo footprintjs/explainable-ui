@@ -55,7 +55,6 @@ export interface AgentfootprintTrace {
   readonly redacted?: boolean;
   readonly snapshot?: unknown;
   readonly narrativeEntries?: unknown[];
-  readonly narrative?: string[];
   readonly spec?: unknown;
 }
 
@@ -187,7 +186,6 @@ export function TraceViewer({
     <ExplainableShell
       snapshots={snapshots}
       spec={parsed.trace.spec as ExplainableShellProps['spec']}
-      narrative={parsed.trace.narrative}
       narrativeEntries={parsed.trace.narrativeEntries as ExplainableShellProps['narrativeEntries']}
       tabs={tabs}
       defaultTab={defaultTab}

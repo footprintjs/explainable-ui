@@ -61,9 +61,31 @@ export const warmLight = {
         mono: "'JetBrains Mono', 'Fira Code', monospace",
     },
 };
+/** Cool light theme — neutral grays, matches Tailwind zinc palette */
+export const coolLight = {
+    colors: {
+        primary: "#6366f1",
+        success: "#22c55e",
+        error: "#ef4444",
+        warning: "#f59e0b",
+        bgPrimary: "#ffffff",
+        bgSecondary: "#f9fafb",
+        bgTertiary: "#e5e7eb",
+        textPrimary: "#18181b",
+        textSecondary: "#52525b",
+        textMuted: "#a1a1aa",
+        border: "#e5e7eb",
+    },
+    radius: "8px",
+    fontFamily: {
+        sans: "Inter, system-ui, -apple-system, sans-serif",
+        mono: "'JetBrains Mono', 'Fira Code', monospace",
+    },
+};
 /** All built-in theme presets */
 export const themePresets = {
     coolDark,
+    coolLight,
     warmDark,
     warmLight,
 };

@@ -5,6 +5,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.19.0]
+
+Tracks footprintjs v6.0.0 + a substantial UI/tracing rewrite that
+landed across recent sessions.
+
+### Added
+
+- **L8 trace stack** — `createTraceBundle`, `NodeView`, `CommitFlow`,
+  `ChainTree`, `RunSlider`, `TraceExplorerShell`. New composable
+  primitives for time-travel debugging that wrap footprintjs's
+  per-stage events into a UI-ready translator + view layer.
+- **`<TracedFlow>`** — react-flow visualizer with runtime overlay,
+  live highlighting as the executor scrubs through stages, and
+  drill-into-subflow with breadcrumbs.
+- **Subflow drill-down series** — auto-refit on chart swap, mount-
+  status aggregation, sidebar nav reset, three-tier overlay
+  (linear / decider / fork / selector / subflow-mount all visited
+  via the unified onStageExecuted in footprintjs v6).
+- **`walkSubflowSpecInto`** internal helper (mirrors footprintjs's
+  `walkSubflowSpec` shape; local to preserve the no-`footprintjs`-dep
+  boundary). 9 unit tests for mirror-drift guard.
+- `'emit'` added to `NarrativeEntry.type` union for parity with
+  footprintjs v6's emit channel.
+
+### Removed
+
+- **`tagSubflowMembers.ts`** (~123 LOC) — connected-component
+  workaround obsolete now that footprintjs v6's mount event carries
+  `subflowSpec` + `subflowPath`. The recorder walks the spec inline
+  via `walkSubflowSpecInto`.
+- **Duplicate `onDecision` / `onFork` / `onSelected` handlers** in
+  `createTraceRuntimeOverlay.ts` (~38 LOC). footprintjs v6 fires
+  `onStageExecuted` uniformly for every stage kind — a single
+  handler suffices. Latent NodeView visited-state bug also fixed
+  as a side effect.
+- Legacy `FlowchartView.tsx`, `TracedFlowchartView.tsx`,
+  `specToReactFlow.ts` (replaced by the L8 stack).
+
+### Changed
+
+- `MinimalFlowRecorder` mirror trimmed to just the events we
+  consume now (`onStageExecuted`, `onError`, `onRunStart`, `onRunEnd`).
+- `RuntimeStageExecutedEvent` mirror gained the `stageType`
+  discriminator field for parity with footprintjs v6.
+- `SubflowMountedEvent` mirror gained optional `subflowSpec` +
+  `subflowPath` fields. Typed as `unknown` for the spec to preserve
+  the loose-coupling boundary.
+
+### Dependencies
+
+- Bump @xyflow/react ^12.10.1 → ^12.10.2
+- Bump react ^19.2.0 → ^19.2.5
+- Bump react-dom ^19.2.0 → ^19.2.5
+
 ## [0.18.1] - 2026-04-20
 
 ### Fixed

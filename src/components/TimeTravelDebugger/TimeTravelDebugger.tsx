@@ -1,19 +1,26 @@
 import { useState } from "react";
-import type { Node, Edge } from "@xyflow/react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { theme, fontSize, padding } from "../../theme";
 import { MemoryInspector } from "../MemoryInspector";
 import { NarrativeLog } from "../NarrativeLog";
 import { GanttTimeline } from "../GanttTimeline";
-import { FlowchartView } from "../FlowchartView";
+import { TraceFlow } from "../FlowchartView/TraceFlow";
+import { TracedFlow } from "../FlowchartView/TracedFlow";
+import type { TraceGraph } from "../FlowchartView/traceStructureRecorder";
+import type { RuntimeOverlay } from "../FlowchartView/createTraceRuntimeOverlay";
 
 export interface TimeTravelDebuggerProps extends BaseComponentProps {
   /** Stage snapshots */
   snapshots: StageSnapshot[];
-  /** ReactFlow nodes (required for flowchart) */
-  nodes: Node[];
-  /** ReactFlow edges (required for flowchart) */
-  edges: Edge[];
+  /** Recorder-captured build-time graph (from
+   *  `createTraceStructureRecorder().getGraph()`). Required for the
+   *  chart rendering — replaces the legacy `nodes` / `edges` props. */
+  graph: TraceGraph;
+  /** Optional runtime overlay (from
+   *  `createTraceRuntimeOverlay().getOverlay()`). When provided, the
+   *  chart renders via `<TracedFlow>` with per-step coloring synced to
+   *  the scrubber; otherwise renders via `<TraceFlow>` (build-time only). */
+  runtimeOverlay?: RuntimeOverlay;
   /** Show Gantt timeline */
   showGantt?: boolean;
   /** Layout direction */
@@ -23,13 +30,18 @@ export interface TimeTravelDebuggerProps extends BaseComponentProps {
 }
 
 /**
- * Full time-travel debugger: scrubber + flowchart + memory + narrative + gantt.
- * This is the "batteries included" component for pipeline debugging.
+ * Full time-travel debugger: scrubber + recorder-driven flowchart +
+ * memory + narrative + gantt. This is the "batteries included"
+ * component for pipeline debugging.
+ *
+ * v6+: chart rendering is recorder-driven. Pass `graph` (always) and
+ * optionally `runtimeOverlay` for per-step coloring tied to the
+ * scrubber.
  */
 export function TimeTravelDebugger({
   snapshots,
-  nodes,
-  edges,
+  graph,
+  runtimeOverlay,
   showGantt = true,
   layout = "horizontal",
   title = "Time-Travel Debugger",
@@ -60,6 +72,27 @@ export function TimeTravelDebugger({
 
   const isHorizontal = layout === "horizontal";
 
+  // Click → jump scrubber to whichever snapshot maps to the clicked
+  // stage. Matches the legacy `onNodeClick(index)` semantics: callers
+  // receive a stage id, we translate to a snapshot index.
+  const handleNodeClick = (stageId: string) => {
+    const idx = snapshots.findIndex(
+      (s) => s.stageName === stageId || s.stageLabel === stageId,
+    );
+    if (idx >= 0) setSelectedIndex(idx);
+  };
+
+  const chart = runtimeOverlay ? (
+    <TracedFlow
+      graph={graph}
+      overlay={runtimeOverlay}
+      scrubIndex={selectedIndex}
+      onNodeClick={handleNodeClick}
+    />
+  ) : (
+    <TraceFlow graph={graph} onNodeClick={handleNodeClick} />
+  );
+
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="time-travel-debugger">
@@ -71,14 +104,7 @@ export function TimeTravelDebugger({
           value={selectedIndex}
           onChange={(e) => setSelectedIndex(parseInt(e.target.value))}
         />
-        <FlowchartView
-          nodes={nodes}
-          edges={edges}
-          snapshots={snapshots}
-          selectedIndex={selectedIndex}
-          onNodeClick={setSelectedIndex}
-          unstyled
-        />
+        {chart}
         <MemoryInspector
           snapshots={snapshots}
           selectedIndex={selectedIndex}
@@ -152,7 +178,7 @@ export function TimeTravelDebugger({
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <ScrubButton
-            label="\u25C0"
+            label="◀"
             disabled={selectedIndex === 0}
             onClick={() => setSelectedIndex((i) => Math.max(0, i - 1))}
           />
@@ -170,7 +196,7 @@ export function TimeTravelDebugger({
             }}
           />
           <ScrubButton
-            label="\u25B6"
+            label="▶"
             disabled={selectedIndex === snapshots.length - 1}
             onClick={() =>
               setSelectedIndex((i) => Math.min(snapshots.length - 1, i + 1))
@@ -211,14 +237,7 @@ export function TimeTravelDebugger({
               : "none",
           }}
         >
-          <FlowchartView
-            nodes={nodes}
-            edges={edges}
-            snapshots={snapshots}
-            selectedIndex={selectedIndex}
-            onNodeClick={setSelectedIndex}
-            size={size}
-          />
+          {chart}
         </div>
 
         {/* Data panel */}

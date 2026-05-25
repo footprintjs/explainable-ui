@@ -1,38 +1,49 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
+/**
+ * SubflowTree — collapsible sidebar listing mounted subflows.
+ *
+ * Recorder-driven (v6+): derives the tree from a `TraceGraph` produced
+ * by `createTraceStructureRecorder`. Filters nodes by
+ * `data.isSubflow === true` and lists them as `SubflowTreeEntry[]`
+ * keyed by `subflowId`.
+ *
+ * Limitation (intentional — recorder graph is flat / mount-only):
+ *   Subflow-within-subflow nesting is NOT represented. The
+ *   StructureRecorder records the MOUNT of each subflow in the parent
+ *   chart, not the inner structure of each child chart. Rendering the
+ *   nested tree requires a separate recorder attached to each child
+ *   chart instance (deferred — see TODO below).
+ *
+ * Shared navigation layer — humans click through the tree just like
+ * LLMs call getSubflowManifest() / getSubflowSpec().
+ *
+ * TODO(recorder-driven-nesting): when child charts attach their own
+ * `traceStructureRecorder` and surface those graphs via a parent
+ * registry, accept `Map<subflowId, TraceGraph>` and recurse to
+ * restore the nested rendering the legacy SpecNode-walk supported.
+ *
+ * All colors come from `--fp-*` CSS variables set by the consumer.
+ */
 import { memo, useState, useCallback, useMemo } from "react";
 import { theme } from "../../theme";
-/** Extracts a flat-ish tree of entries from a SpecNode for display. */
-export function specToTree(node) {
+/** Extracts subflow entries from a recorder graph. Insertion-order preserving. */
+export function graphToSubflowEntries(graph) {
+    if (!graph?.nodes?.length)
+        return [];
     const entries = [];
-    const seen = new Set();
-    function walk(n) {
-        const id = n.name || n.id || "";
-        if (seen.has(id))
-            return;
-        seen.add(id);
+    for (const node of graph.nodes) {
+        if (!node.data?.isSubflow)
+            continue;
         const entry = {
-            name: n.name,
-            description: n.description,
-            subflowId: n.subflowId,
-            isSubflow: !!n.isSubflowRoot,
+            name: typeof node.data.label === "string" ? node.data.label : node.id,
+            isSubflow: true,
         };
-        // If this is a subflow with nested structure, recurse into it
-        if (n.isSubflowRoot && n.subflowStructure) {
-            entry.children = specToTree(n.subflowStructure);
-        }
+        if (typeof node.data.description === "string")
+            entry.description = node.data.description;
+        if (typeof node.data.subflowId === "string")
+            entry.subflowId = node.data.subflowId;
         entries.push(entry);
-        // Walk children (fork/decider branches)
-        if (n.children) {
-            for (const child of n.children) {
-                walk(child);
-            }
-        }
-        // Walk linear continuation
-        if (n.next) {
-            walk(n.next);
-        }
     }
-    walk(node);
     return entries;
 }
 /** Single tree node row */
@@ -106,18 +117,24 @@ const TreeNode = memo(function TreeNode({ entry, depth, activeStage, doneStages,
                                     whiteSpace: "nowrap",
                                     overflow: "hidden",
                                     textOverflow: "ellipsis",
-                                }, children: entry.description }))] })] }), hasChildren && expanded && (_jsx("div", { children: entry.children.map((child, i) => (_jsx(TreeNode, { entry: child, depth: depth + 1, activeStage: activeStage, doneStages: doneStages, onNodeSelect: onNodeSelect }, `${child.name}-${i}`))) }))] }));
+                                }, children: entry.description }))] })] }), hasChildren && expanded && (_jsx("div", { children: entry.children.map((child, i) => (_jsx(TreeNode, { entry: child, depth: depth + 1, activeStage: activeStage, doneStages: doneStages, onNodeSelect: onNodeSelect }, child.subflowId ?? `${child.name}-${i}`))) }))] }));
 });
-/**
- * Collapsible tree sidebar showing the full subflow manifest.
- *
- * Shared navigation layer — humans click through the tree just like
- * LLMs call getSubflowManifest() / getSubflowSpec().
- *
- * All colors come from `--fp-*` CSS variables set by the consumer.
- */
-export const SubflowTree = memo(function SubflowTree({ spec, activeStage, doneStages, onNodeSelect, unstyled = false, className, style, }) {
-    const tree = useMemo(() => specToTree(spec), [spec]);
+/** Section label used for "Flowchart" and "Subflows" headings. */
+const SectionLabel = memo(function SectionLabel({ children }) {
+    return (_jsx("div", { style: {
+            padding: "4px 12px 8px",
+            fontSize: 10,
+            fontWeight: 600,
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+            color: theme.textMuted,
+        }, children: children }));
+});
+export const SubflowTree = memo(function SubflowTree({ graph, activeStage, doneStages, onNodeSelect, unstyled = false, className, style, }) {
+    const subflowStages = useMemo(() => graphToSubflowEntries(graph), [graph]);
+    // Don't render anything if there are no subflows
+    if (subflowStages.length === 0)
+        return null;
     return (_jsxs("div", { className: className, "data-fp": "subflow-tree", style: {
             ...(unstyled
                 ? {}
@@ -131,13 +148,6 @@ export const SubflowTree = memo(function SubflowTree({ spec, activeStage, doneSt
                     padding: "8px 0",
                 }),
             ...style,
-        }, children: [!unstyled && (_jsx("div", { style: {
-                    padding: "4px 12px 8px",
-                    fontSize: 10,
-                    fontWeight: 600,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    color: theme.textMuted,
-                }, children: "Pipeline" })), tree.map((entry, i) => (_jsx(TreeNode, { entry: entry, depth: 0, activeStage: activeStage, doneStages: doneStages, onNodeSelect: onNodeSelect }, `${entry.name}-${i}`)))] }));
+        }, children: [!unstyled && _jsx(SectionLabel, { children: "Subflows" }), subflowStages.map((entry, i) => (_jsx(TreeNode, { entry: entry, depth: 0, activeStage: activeStage, doneStages: doneStages, onNodeSelect: onNodeSelect }, entry.subflowId ?? `${entry.name}-${i}`)))] }));
 });
 //# sourceMappingURL=SubflowTree.js.map

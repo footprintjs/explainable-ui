@@ -28,7 +28,7 @@ export function GanttTimeline({ snapshots, selectedIndex = 0, onSelect, size = "
         }
     }, [selectedIndex, showAll]);
     if (unstyled) {
-        return (_jsx("div", { className: className, style: style, "data-fp": "gantt-timeline", children: snapshots.map((snap, idx) => (_jsxs("div", { "data-fp": "gantt-bar", "data-selected": idx === selectedIndex, "data-visible": idx <= selectedIndex, onClick: () => onSelect?.(idx), children: [_jsx("span", { "data-fp": "gantt-label", children: snap.stageLabel }), _jsxs("span", { "data-fp": "gantt-duration", children: [snap.durationMs, "ms"] })] }, snap.stageName))) }));
+        return (_jsx("div", { className: className, style: style, "data-fp": "gantt-timeline", role: "listbox", "aria-label": "Execution timeline", children: snapshots.map((snap, idx) => (_jsxs("div", { "data-fp": "gantt-bar", "data-selected": idx === selectedIndex, "data-visible": idx <= selectedIndex, role: "option", "aria-selected": idx === selectedIndex, "aria-label": `${snap.stageLabel}, ${snap.durationMs}ms`, onClick: () => onSelect?.(idx), children: [_jsx("span", { "data-fp": "gantt-label", children: snap.stageLabel }), _jsxs("span", { "data-fp": "gantt-duration", children: [snap.durationMs, "ms"] })] }, `${snap.stageName}-${idx}`))) }));
     }
     return (_jsxs("div", { className: className, style: { padding: pad, fontFamily: theme.fontSans, ...style }, "data-fp": "gantt-timeline", children: [_jsxs("div", { style: {
                     display: "flex",
@@ -51,7 +51,7 @@ export function GanttTimeline({ snapshots, selectedIndex = 0, onSelect, size = "
                             fontFamily: theme.fontSans,
                         }, children: expanded
                             ? "Collapse"
-                            : `${snapshots.length - maxVisibleRows} more...` }))] }), _jsx("div", { ref: scrollContainerRef, style: {
+                            : `${snapshots.length - maxVisibleRows} more...` }))] }), _jsx("div", { ref: scrollContainerRef, role: "listbox", "aria-label": "Execution timeline", style: {
                     marginTop: 8,
                     display: "flex",
                     flexDirection: "column",
@@ -68,7 +68,7 @@ export function GanttTimeline({ snapshots, selectedIndex = 0, onSelect, size = "
                     const widthPct = Math.max((snap.durationMs / totalWallTime) * 100, 1);
                     const isSelected = idx === selectedIndex;
                     const isVisible = idx <= selectedIndex;
-                    return (_jsxs("div", { ref: isSelected ? activeRowRef : undefined, onClick: () => onSelect?.(idx), style: {
+                    return (_jsxs("div", { ref: isSelected ? activeRowRef : undefined, role: "option", "aria-selected": isSelected, "aria-label": `${snap.stageLabel}, ${snap.durationMs}ms`, onClick: () => onSelect?.(idx), style: {
                             display: "flex",
                             alignItems: "center",
                             gap: size === "compact" ? 4 : 8,
@@ -77,7 +77,7 @@ export function GanttTimeline({ snapshots, selectedIndex = 0, onSelect, size = "
                             transition: "opacity 0.3s ease",
                             height: rowHeight,
                             flexShrink: 0,
-                        }, children: [_jsx("span", { style: {
+                        }, children: [_jsx("span", { title: snap.stageLabel, style: {
                                     width: labelWidth,
                                     fontSize: fs.small,
                                     color: isSelected ? theme.primary : theme.textMuted,
@@ -108,7 +108,7 @@ export function GanttTimeline({ snapshots, selectedIndex = 0, onSelect, size = "
                                     fontFamily: theme.fontMono,
                                     width: msWidth,
                                     flexShrink: 0,
-                                }, children: [snap.durationMs, "ms"] })] }, snap.stageName));
+                                }, children: [snap.durationMs, "ms"] })] }, `${snap.stageName}-${idx}`));
                 }) }), _jsxs("div", { style: {
                     marginTop: 4,
                     marginLeft: labelWidth + (size === "compact" ? 4 : 8),

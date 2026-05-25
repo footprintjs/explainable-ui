@@ -1,4 +1,5 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
+import { Node, Edge } from '@xyflow/react';
 import * as react from 'react';
 
 /** Snapshot of a single pipeline stage — the core data shape for all components. */
@@ -28,7 +29,7 @@ interface StageSnapshot {
 }
 /** Structured narrative entry — preserves type info for semantic rendering. */
 interface NarrativeEntry {
-    type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume';
+    type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume' | 'emit';
     text: string;
     depth: number;
     stageName?: string;
@@ -118,6 +119,20 @@ interface FootprintThemeProps {
 /**
  * Optional theme provider — wraps children with CSS custom properties.
  * Consumers can also just set --fp-* CSS variables directly.
+ *
+ * Wrapper div uses `display: contents` so it's invisible to the
+ * parent's layout (flex / grid / block). This matters because themed
+ * children often need to fill a parent (flex:1 / height:100% /
+ * grid cells), and a regular block `<div>` here would break that
+ * chain — descendants would resolve to 0 height when the parent is
+ * flex-column or a grid cell with minmax(0, 1fr). `display: contents`
+ * removes the box from the render tree while keeping the DOM intact,
+ * so CSS custom property inheritance (which follows the DOM) still
+ * flows to children.
+ *
+ * Trade-off: `display: contents` elements are removed from the
+ * accessibility tree in some older browser versions. Our wrapper has
+ * no semantic role, so this is fine.
  */
 declare function FootprintTheme({ tokens, children }: FootprintThemeProps): react_jsx_runtime.JSX.Element;
 
@@ -308,29 +323,223 @@ interface TimeTravelControlsProps extends BaseComponentProps {
 }
 declare function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, autoPlayable, size, unstyled, className, style, }: TimeTravelControlsProps): react_jsx_runtime.JSX.Element;
 
+/**
+ * One entry in the execution timeline. `<TracedFlow>` keys time-travel
+ * scrubbing on the index into this array — at index `i`, all entries
+ * `0..i-1` are "done", entry `i` is "active".
+ */
+interface RuntimeExecutionStep {
+    /** `[subflowPath/]stageId#executionIndex` — universal key. */
+    readonly runtimeStageId: string;
+    /** Base stage id (without `#N`) — matches the `TraceGraph` node id. */
+    readonly stageId: string;
+    /** Human-readable label (from event.stageName). */
+    readonly stageName: string;
+    /** When this step recorded, in ms since recorder start. */
+    readonly timestampMs: number;
+}
+interface RuntimeOverlay {
+    /** Ordered execution history — drives time-travel scrubbing. */
+    readonly executionOrder: readonly RuntimeExecutionStep[];
+    /** Per-base-stageId error message (most-recent wins). */
+    readonly errors: ReadonlyMap<string, string>;
+    /** True after `onRunStart` until `onRunEnd` — useful for "still running" indicators. */
+    readonly running: boolean;
+}
+
+/**
+ * Branded types for translator key discipline.
+ *
+ * The footprintjs/trace contract uses two distinct identity strings:
+ *
+ *   - **StageId**: the stable identifier the user picks at build time
+ *     (e.g. `'load-order'`, `'check-inventory'`). Identity per chart spec.
+ *
+ *   - **RuntimeStageId**: `[subflowPath/]stageId#executionIndex` — the
+ *     per-execution identity. A loop visiting the same stage 3 times
+ *     produces 3 distinct RuntimeStageIds with the same StageId base.
+ *
+ * Translator outputs index per-stage data by StageId (`Map<StageId, ...>`)
+ * AND per-execution data by RuntimeStageId (`Map<RuntimeStageId, ...>`).
+ * Both are `string` at runtime — TypeScript can't distinguish them
+ * without help. Branded types make `byStageId.get(runtimeStageId)` a
+ * **compile-time error** instead of a silent `undefined` at runtime.
+ *
+ * Why branded types over wrapper classes
+ * ──────────────────────────────────────
+ *   - Zero runtime cost (the brand exists only at the type level)
+ *   - JSON-serializable as-is (no `toJSON` glue needed)
+ *   - Interop with consumer code that uses raw `string` is one cast
+ *     (`stageId as StageId`) when the consumer is sure of the source.
+ *
+ * Usage pattern
+ * ─────────────
+ * ```ts
+ * import type { StageId, RuntimeStageId } from './_internal/keys';
+ *
+ * // In a translator, when accepting input from a footprintjs event:
+ * const sid = event.stageId as StageId;
+ * const rsid = event.traversalContext.runtimeStageId as RuntimeStageId;
+ *
+ * // In a consumer reading from the index:
+ * const node = index.byStageId.get(stageId);          // typechecks
+ * const node = index.byStageId.get(runtimeStageId);   // TS ERROR ✓
+ * ```
+ *
+ * Helper to derive a StageId from a RuntimeStageId — strips `#N` suffix
+ * and optional subflow path. **Use only for DISPLAY**, NEVER for matching
+ * commitLog stageIds (see invariant I3 in `traceStructureRecorder.ts`).
+ */
+/** Stable per-spec identifier (e.g. `'load-order'`). */
+type StageId = string & {
+    readonly __brand: "StageId";
+};
+
+/**
+ * traceStructureRecorder — event-driven xyflow Node[] + Edge[] collector.
+ *
+ * Implements footprintjs v6.0+ `StructureRecorder` interface. Accumulates
+ * an unpositioned graph (xyflow node + edge shape) as the chart is being
+ * built — no spec tree walk required.
+ *
+ * Why event-driven
+ * ────────────────
+ *   The recorder fires SYNCHRONOUSLY at every spec-mutation moment during
+ *   construction. By the time `.build()` returns, the recorder's
+ *   `getGraph()` returns the complete graph — zero extra walking
+ *   (the "collect during traversal, never post-process" rule footprintjs
+ *   documents in its core principle).
+ *
+ *   Bonus: the same recorder shape can drive incremental UI updates if
+ *   the builder is constructed asynchronously (e.g., a UI builder where
+ *   each "add stage" click re-renders the live graph).
+ *
+ * Layout is a separate concern
+ * ────────────────────────────
+ *   This module produces UNPOSITIONED nodes (no `position` field set;
+ *   xyflow defaults to `{x: 0, y: 0}`). Apply a layout algorithm
+ *   downstream — either:
+ *
+ *     - a graph algorithm (dagre / elk / d3-force)
+ *     - manual positioning via your own walk over `recorder.getGraph()`
+ *
+ *   The `<TraceFlow>` component wires a default BFS layout.
+ *
+ * @example
+ * ```ts
+ * import { flowChart } from 'footprintjs';
+ * import { createTraceStructureRecorder } from 'footprint-explainable-ui/flowchart';
+ *
+ * const trace = createTraceStructureRecorder();
+ * const chart = flowChart('seed', fn, 'seed', {
+ *   structureRecorders: [trace.recorder],
+ * })
+ *   .addFunction('a', fnA, 'a')
+ *   .build();
+ *
+ * const { nodes, edges } = trace.getGraph();
+ * // → nodes: [{ id: 'seed', data: { label: 'seed', ... } }, { id: 'a', ... }]
+ * // → edges: [{ id: 'seed->a', source: 'seed', target: 'a', data: { kind: 'next' } }]
+ *
+ * <ReactFlow nodes={layout(nodes)} edges={edges} />
+ * ```
+ */
+
+type EdgeKind = "next" | "fork-branch" | "decision-branch";
+/**
+ * Per-node data attached to the xyflow `Node`. Consumed by the
+ * `StageNode` renderer (shape mirrors what the renderer expects).
+ */
+interface TraceNodeData extends Record<string, unknown> {
+    label: string;
+    isDecider: boolean;
+    isFork: boolean;
+    isSubflow: boolean;
+    /** True when the event carried `type: 'streaming'` (the spec was added
+     *  via `addStreamingFunction`). Renderers that style streaming stages
+     *  distinctly key on this flag. */
+    isStreaming: boolean;
+    description?: string;
+    icon?: string;
+    subflowId?: string;
+    isLazy?: boolean;
+    isPausable?: boolean;
+    /** Set later by `onDeciderComplete` when the decider's branch list is
+     *  sealed. Useful for renderers that want to render decider with a
+     *  branch-count badge. */
+    branchIds?: readonly string[];
+    defaultBranch?: string;
+    /**
+     * The subflow this node belongs to, OR `undefined` for top-level
+     * parent-chart stages. Tracked via a stack-based heuristic during
+     * event ingestion:
+     *
+     *   - Push on `onSubflowMounted({subflowId, rootStageId})` →
+     *     top-of-stack = `{subflowId, mountStageId}`
+     *   - `onStageAdded` tags new nodes with the top-of-stack `subflowId`
+     *     (the mount node itself stays UNtagged — it's part of the parent
+     *     chain)
+     *   - Pop on `onEdgeAdded` where `from === mount.id` (a mount's
+     *     outgoing edge to a sibling means the parent chain has resumed);
+     *     the wrongly-tagged target node is re-tagged to the parent scope
+     *
+     * Mount nodes (where `isSubflow=true`) have `subflowOf` reflecting
+     * their OWN parent context, NOT the subflow they mount. So a parent's
+     * mount node has `subflowOf=undefined` (top-level parent), and the
+     * subflow's INTERNAL stages have `subflowOf=<mount.subflowId>`.
+     *
+     * Renderers use this to filter the chart by drill-down level: show
+     * only nodes where `subflowOf === currentDrillSubflowId` (undefined
+     * for top-level view, mount.subflowId after drilling in).
+     */
+    subflowOf?: string;
+    /**
+     * **L8.0 — STRUCTURAL prev/next**: stage ids that lead into / out of
+     * this node, derived live from incoming/outgoing edges. Excludes
+     * `loop` back-edges (visual only — per invariant I1).
+     *
+     * Convergence-correct: a fork-join node carries an ENTRY per branch
+     * child (e.g., `FinalizeOrder.prevIds = ['CheckInventory', 'RunFraudCheck']`).
+     *
+     * "Structural" qualifier: this is the chart-SHAPE prev/next, not
+     * runtime execution order. For runtime ancestry use `CommitView`
+     * fields on `CommitFlowIndex` (L8.2).
+     */
+    prevIds: StageId[];
+    nextIds: StageId[];
+}
+/** Per-edge data attached to the xyflow `Edge`. */
+interface TraceEdgeData extends Record<string, unknown> {
+    kind: EdgeKind | "loop";
+    label?: string;
+}
+type TraceNode = Node<TraceNodeData>;
+type TraceEdge = Edge<TraceEdgeData>;
+interface TraceGraph {
+    nodes: TraceNode[];
+    edges: TraceEdge[];
+}
+
+/**
+ * Minimal subflow-walking spec shape. Used INTERNALLY by drill-down
+ * resolution (which navigates `subflowStructure` to find a child chart
+ * inside the parent's serialized structure). No longer used for chart
+ * rendering — that happens via `traceGraph` + `<TracedFlow>` exclusively.
+ *
+ * Kept as a local type so the file no longer depends on any legacy
+ * spec-walk module.
+ */
 interface SpecNode {
     name: string;
     id?: string;
-    type?: "stage" | "decider" | "selector" | "fork" | "streaming";
-    /** Semantic icon hint — rendered by StageNode. Common values:
-     *  "llm", "tool", "rag", "search", "parse", "start", "end", "loop",
-     *  "agent", "swarm", "guard", "stream", "memory" */
-    icon?: string;
     description?: string;
     children?: SpecNode[];
     next?: SpecNode;
-    branchIds?: string[];
-    hasDecider?: boolean;
-    hasSelector?: boolean;
-    loopTarget?: string;
     isSubflowRoot?: boolean;
     subflowId?: string;
     subflowName?: string;
     subflowStructure?: SpecNode;
-    /** True when this subflow uses lazy resolution (deferred until execution). */
-    isLazy?: boolean;
 }
-
 /** Tab ID — "result", "memory", "narrative", or any custom recorder view ID. */
 type ShellTab = string;
 interface PanelLabels {
@@ -395,17 +604,42 @@ interface ExplainableShellProps extends BaseComponentProps {
     snapshots?: StageSnapshot[];
     /**
      * Raw runtime snapshot from executor.getSnapshot(). The shell converts it
-     * internally via toVisualizationSnapshots(). When provided, `snapshots`,
-     * `resultData`, and `narrative` are derived automatically.
+     * internally via toVisualizationSnapshots(). When provided, `snapshots`
+     * and `resultData` are derived automatically. Pair with
+     * `narrativeEntries` for rich per-stage narrative.
      *
-     * Usage: `<ExplainableShell runtimeSnapshot={executor.getSnapshot()} spec={spec} />`
+     * Usage: `<ExplainableShell runtimeSnapshot={executor.getSnapshot()} narrativeEntries={executor.getNarrativeEntries()} spec={spec} />`
      */
     runtimeSnapshot?: RuntimeSnapshotInput | null;
     spec?: SpecNode | null;
+    /**
+     * Build-time graph captured live via `createTraceStructureRecorder`.
+     * REQUIRED for chart rendering (v6+) — the legacy `spec` →
+     * legacy spec-walk post-walk path was removed in favor of this
+     * recorder-driven graph.
+     *
+     * Pair with `runtimeOverlay` for the full time-travel trace UI.
+     * When `traceGraph` is set but `runtimeOverlay` is absent, the
+     * chart renders without runtime coloring (build-time-only view).
+     *
+     * The `spec` prop, when also provided, is used INTERNALLY for
+     * subflow drill-down resolution (navigating `subflowStructure` to
+     * find a child chart inside the parent's serialized structure) —
+     * NOT for rendering.
+     */
+    traceGraph?: TraceGraph | null;
+    /**
+     * Runtime overlay captured live via `createTraceRuntimeOverlay`.
+     * Pair with `traceGraph` to drive `<TracedFlow>` for the full
+     * time-travel trace UI.
+     */
+    runtimeOverlay?: RuntimeOverlay | null;
     title?: string;
     resultData?: Record<string, unknown> | null;
     logs?: string[];
-    narrative?: string[];
+    /** Structured narrative entries from `executor.getNarrativeEntries()`.
+     *  This is the only narrative input — the flat-string form was
+     *  removed; call `.map(e => e.text)` if you need it. */
     narrativeEntries?: NarrativeEntry[];
     tabs?: ShellTab[];
     defaultTab?: ShellTab;
@@ -428,17 +662,31 @@ interface ExplainableShellProps extends BaseComponentProps {
      */
     recorderViews?: RecorderView[];
     /**
-     * Custom flowchart renderer. When omitted and `spec` is provided,
-     * ExplainableShell renders TracedFlowchartView by default.
+     * Custom flowchart renderer. When omitted, ExplainableShell renders
+     * via `<TracedFlow graph={traceGraph} overlay={runtimeOverlay} />` —
+     * the recorder-driven path. Override to plug a custom chart UI; the
+     * `spec` parameter is forwarded only for backward-compatible
+     * signatures (it's the same SpecNode used for drill-down) and may
+     * be `null` once consumers stop threading it in.
      */
     renderFlowchart?: (props: {
-        spec: SpecNode;
+        spec: SpecNode | null;
         snapshots: StageSnapshot[];
         selectedIndex: number;
         onNodeClick?: (indexOrId: number | string) => void;
+        showStageId?: boolean;
     }) => React.ReactNode;
+    /**
+     * When true, render each node's stable `stageId` as a small monospace
+     * caption beneath the label in the default flowchart renderer.
+     * Teaching aid: it reveals the key recorders use
+     * (`runtimeStageId = [subflowPath/]stageId#executionIndex`) so a
+     * consumer can map any recorder's per-stage data back to a node.
+     * Default false.
+     */
+    showStageId?: boolean;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, spec, title, resultData: resultDataProp, logs, narrative: narrativeProp, narrativeEntries, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, size, unstyled, className, style, }: ExplainableShellProps): react_jsx_runtime.JSX.Element;
+declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, spec, title, resultData: resultDataProp, logs, narrativeEntries, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay, size, unstyled, className, style, }: ExplainableShellProps): react_jsx_runtime.JSX.Element;
 
 /**
  * TraceViewer — drop-in component that renders an `agentfootprint.exportTrace()`
@@ -493,7 +741,6 @@ interface AgentfootprintTrace {
     readonly redacted?: boolean;
     readonly snapshot?: unknown;
     readonly narrativeEntries?: unknown[];
-    readonly narrative?: string[];
     readonly spec?: unknown;
 }
 /**
@@ -540,10 +787,9 @@ declare function MemoryPanel({ snapshots, selectedIndex, size, unstyled, classNa
 interface NarrativePanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
     selectedIndex: number;
-    /** Structured narrative entries (preferred — richer rendering) */
+    /** Structured narrative entries (primary source — richer rendering).
+     *  When absent, falls back to per-stage `snapshot.narrative` lines. */
     narrativeEntries?: NarrativeEntry[];
-    /** Plain narrative lines (fallback) */
-    narrative?: string[];
     /**
      * Full runtime snapshot from the runner (executor.getSnapshot() /
      * agent.getSnapshot()). When present, "Copy for LLM" includes the
@@ -560,7 +806,7 @@ interface NarrativePanelProps extends BaseComponentProps {
      */
     spec?: any;
 }
-declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, narrative: narrativeProp, runtimeSnapshot, spec, size, unstyled, className, style, }: NarrativePanelProps): react_jsx_runtime.JSX.Element;
+declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, runtimeSnapshot, spec, size, unstyled, className, style, }: NarrativePanelProps): react_jsx_runtime.JSX.Element;
 
 interface StoryNarrativeProps extends BaseComponentProps {
     /** Structured narrative entries from CombinedNarrativeRecorder */
@@ -579,12 +825,13 @@ interface SubflowTreeEntry {
     subflowId?: string;
     /** Whether this node is a subflow root (has nested structure) */
     isSubflow?: boolean;
-    /** Nested children (subflow stages) */
+    /** Nested children (subflow stages) — always undefined in the
+     *  current recorder-driven implementation; see file-level TODO. */
     children?: SubflowTreeEntry[];
 }
 interface SubflowTreeProps extends BaseComponentProps {
-    /** Pipeline spec to derive the tree from */
-    spec: SpecNode;
+    /** Recorder-captured graph from `createTraceStructureRecorder().getGraph()`. */
+    graph: TraceGraph;
     /** Currently active stage name (highlights in tree) */
     activeStage?: string | null;
     /** Set of completed stage names */

@@ -1,7 +1,59 @@
-import * as react_jsx_runtime from 'react/jsx-runtime';
-import * as _xyflow_react from '@xyflow/react';
-import { Node, Edge, NodeTypes } from '@xyflow/react';
 import * as react from 'react';
+import * as _xyflow_react from '@xyflow/react';
+import { Node, Edge } from '@xyflow/react';
+import * as react_jsx_runtime from 'react/jsx-runtime';
+
+interface StageNodeData {
+    label: string;
+    active?: boolean;
+    done?: boolean;
+    error?: boolean;
+    linked?: boolean;
+    /** Semantic icon hint (e.g., "llm", "tool", "rag", "start", "parse", "agent", "guard") */
+    icon?: string;
+    /** Step numbers in execution order (shown as badges — multiple when revisited via loops) */
+    stepNumbers?: number[];
+    /** Node was not executed (dim it) */
+    dimmed?: boolean;
+    /** Node is a subflow root (show nested indicator) */
+    isSubflow?: boolean;
+    /** Node uses lazy resolution (dashed border + cloud icon when unresolved) */
+    isLazy?: boolean;
+    /** Node is a decider (renders as diamond shape per flowchart convention) */
+    isDecider?: boolean;
+    /** Node is a fork (parallel fan-out) */
+    isFork?: boolean;
+    /** Human-readable description of what this stage does */
+    description?: string;
+    /** Subflow identifier — set when this node belongs to a subflow */
+    subflowId?: string;
+    /**
+     * Stable stage identifier from the spec (`SpecNode.id`). Renderable as a
+     * small monospace caption under the label when `showStageId` is true —
+     * useful for teaching the runtimeStageId convention and for debugging
+     * which node a recorder event belongs to.
+     */
+    stageId?: string;
+    /**
+     * When true, render the `stageId` as a small monospace caption beneath
+     * the label. Default false. Drives the "Show IDs" toggle in
+     * ExplainableShell.
+     */
+    showStageId?: boolean;
+    [key: string]: unknown;
+}
+/**
+ * Custom ReactFlow node for pipeline stages.
+ * All colors and fonts come from `--fp-*` CSS variables (via theme).
+ * Shows execution state via color, icon, step badge, and pulse animation.
+ */
+declare const StageNode: react.NamedExoticComponent<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "id" | "data" | "width" | "height" | "sourcePosition" | "targetPosition" | "dragHandle" | "parentId"> & Required<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "type" | "dragging" | "zIndex" | "selectable" | "deletable" | "selected" | "draggable">> & {
+    isConnectable: boolean;
+    positionAbsoluteX: number;
+    positionAbsoluteY: number;
+} & {
+    data: StageNodeData;
+}>;
 
 /** Snapshot of a single pipeline stage — the core data shape for all components. */
 interface StageSnapshot {
@@ -42,164 +94,558 @@ interface BaseComponentProps {
     style?: React.CSSProperties;
 }
 
-interface FlowchartViewProps extends BaseComponentProps {
-    /** ReactFlow nodes */
-    nodes: Node[];
-    /** ReactFlow edges */
-    edges: Edge[];
-    /** Optional snapshots for state-aware rendering (done/active coloring) */
-    snapshots?: StageSnapshot[];
-    /** Currently selected snapshot index (for state coloring) */
-    selectedIndex?: number;
-    /** Callback when a node is clicked */
-    onNodeClick?: (index: number) => void;
+/**
+ * Branded types for translator key discipline.
+ *
+ * The footprintjs/trace contract uses two distinct identity strings:
+ *
+ *   - **StageId**: the stable identifier the user picks at build time
+ *     (e.g. `'load-order'`, `'check-inventory'`). Identity per chart spec.
+ *
+ *   - **RuntimeStageId**: `[subflowPath/]stageId#executionIndex` — the
+ *     per-execution identity. A loop visiting the same stage 3 times
+ *     produces 3 distinct RuntimeStageIds with the same StageId base.
+ *
+ * Translator outputs index per-stage data by StageId (`Map<StageId, ...>`)
+ * AND per-execution data by RuntimeStageId (`Map<RuntimeStageId, ...>`).
+ * Both are `string` at runtime — TypeScript can't distinguish them
+ * without help. Branded types make `byStageId.get(runtimeStageId)` a
+ * **compile-time error** instead of a silent `undefined` at runtime.
+ *
+ * Why branded types over wrapper classes
+ * ──────────────────────────────────────
+ *   - Zero runtime cost (the brand exists only at the type level)
+ *   - JSON-serializable as-is (no `toJSON` glue needed)
+ *   - Interop with consumer code that uses raw `string` is one cast
+ *     (`stageId as StageId`) when the consumer is sure of the source.
+ *
+ * Usage pattern
+ * ─────────────
+ * ```ts
+ * import type { StageId, RuntimeStageId } from './_internal/keys';
+ *
+ * // In a translator, when accepting input from a footprintjs event:
+ * const sid = event.stageId as StageId;
+ * const rsid = event.traversalContext.runtimeStageId as RuntimeStageId;
+ *
+ * // In a consumer reading from the index:
+ * const node = index.byStageId.get(stageId);          // typechecks
+ * const node = index.byStageId.get(runtimeStageId);   // TS ERROR ✓
+ * ```
+ *
+ * Helper to derive a StageId from a RuntimeStageId — strips `#N` suffix
+ * and optional subflow path. **Use only for DISPLAY**, NEVER for matching
+ * commitLog stageIds (see invariant I3 in `traceStructureRecorder.ts`).
+ */
+/** Stable per-spec identifier (e.g. `'load-order'`). */
+type StageId = string & {
+    readonly __brand: "StageId";
+};
+/** Per-execution identifier (e.g. `'load-order#0'` or `'sf-foo/inner#3'`). */
+type RuntimeStageId = string & {
+    readonly __brand: "RuntimeStageId";
+};
+/**
+ * Tag a raw string as a `StageId`. Use at translator boundaries when
+ * ingesting from a footprintjs event payload (the source guarantees
+ * the string IS a stage id). Zero runtime cost.
+ */
+declare function asStageId(s: string): StageId;
+/**
+ * Tag a raw string as a `RuntimeStageId`. Use at translator boundaries
+ * when ingesting from a `traversalContext.runtimeStageId`. Zero
+ * runtime cost.
+ */
+declare function asRuntimeStageId(s: string): RuntimeStageId;
+
+/**
+ * traceStructureRecorder — event-driven xyflow Node[] + Edge[] collector.
+ *
+ * Implements footprintjs v6.0+ `StructureRecorder` interface. Accumulates
+ * an unpositioned graph (xyflow node + edge shape) as the chart is being
+ * built — no spec tree walk required.
+ *
+ * Why event-driven
+ * ────────────────
+ *   The recorder fires SYNCHRONOUSLY at every spec-mutation moment during
+ *   construction. By the time `.build()` returns, the recorder's
+ *   `getGraph()` returns the complete graph — zero extra walking
+ *   (the "collect during traversal, never post-process" rule footprintjs
+ *   documents in its core principle).
+ *
+ *   Bonus: the same recorder shape can drive incremental UI updates if
+ *   the builder is constructed asynchronously (e.g., a UI builder where
+ *   each "add stage" click re-renders the live graph).
+ *
+ * Layout is a separate concern
+ * ────────────────────────────
+ *   This module produces UNPOSITIONED nodes (no `position` field set;
+ *   xyflow defaults to `{x: 0, y: 0}`). Apply a layout algorithm
+ *   downstream — either:
+ *
+ *     - a graph algorithm (dagre / elk / d3-force)
+ *     - manual positioning via your own walk over `recorder.getGraph()`
+ *
+ *   The `<TraceFlow>` component wires a default BFS layout.
+ *
+ * @example
+ * ```ts
+ * import { flowChart } from 'footprintjs';
+ * import { createTraceStructureRecorder } from 'footprint-explainable-ui/flowchart';
+ *
+ * const trace = createTraceStructureRecorder();
+ * const chart = flowChart('seed', fn, 'seed', {
+ *   structureRecorders: [trace.recorder],
+ * })
+ *   .addFunction('a', fnA, 'a')
+ *   .build();
+ *
+ * const { nodes, edges } = trace.getGraph();
+ * // → nodes: [{ id: 'seed', data: { label: 'seed', ... } }, { id: 'a', ... }]
+ * // → edges: [{ id: 'seed->a', source: 'seed', target: 'a', data: { kind: 'next' } }]
+ *
+ * <ReactFlow nodes={layout(nodes)} edges={edges} />
+ * ```
+ */
+
+type StructureNodeType = "stage" | "decider" | "selector" | "fork" | "streaming" | "subflow" | "loop";
+interface StructureSpecRef {
+    readonly id: string;
+    readonly name: string;
+    readonly type?: StructureNodeType;
+    readonly description?: string;
+    readonly icon?: string;
+    readonly isSubflowRoot?: boolean;
+    readonly subflowId?: string;
+    readonly isLazy?: boolean;
+    readonly [key: string]: unknown;
+}
+interface StageAddedEvent {
+    readonly stageId: string;
+    readonly name: string;
+    readonly type: StructureNodeType;
+    readonly isPausable?: boolean;
+    readonly spec: StructureSpecRef;
+}
+type EdgeKind = "next" | "fork-branch" | "decision-branch";
+interface EdgeAddedEvent {
+    readonly from: string;
+    readonly to: string;
+    readonly kind: EdgeKind;
+    readonly label?: string;
+}
+interface LoopEdgeAddedEvent {
+    readonly from: string;
+    readonly to: string;
+}
+interface DeciderCompleteEvent {
+    readonly decider: string;
+    readonly type: "decider" | "selector";
+    readonly branchIds: readonly string[];
+    readonly defaultBranch?: string;
+}
+interface SubflowMountedEvent {
+    readonly subflowId: string;
+    readonly subflowName: string;
+    readonly rootStageId: string;
+    readonly isLazy?: boolean;
+    /**
+     * The mounted subflow's complete spec — added in footprintjs v6.0
+     * (proposal #001). Present for eager mounts, UNDEFINED for lazy
+     * mounts (the subflow isn't resolved yet at mount-event-fire-time).
+     * When present, the consumer walks it to materialize inner nodes +
+     * edges directly with `subflowOf` set — no retroactive tagging
+     * needed.
+     *
+     * Typed as `unknown` because the upstream `SerializedPipelineStructure`
+     * shape has no index signature and we want to stay loosely-coupled
+     * (see top-of-file rationale for the no-`footprintjs`-dep boundary).
+     * `walkSubflowSpecInto` accepts the duck-typed shape it actually
+     * walks.
+     */
+    readonly subflowSpec?: unknown;
+    /**
+     * Local mount id within the parent (matches `subflowId` for top-level
+     * mounts; composed `'parent/child'` for nested). Tagged onto every
+     * inner stage's `data.subflowOf` during the walk.
+     */
+    readonly subflowPath?: string;
 }
 /**
- * Pipeline flowchart visualization using ReactFlow.
- * When snapshots are provided, nodes are colored by execution state.
+ * Minimal StructureRecorder interface — mirrors footprintjs v6.0+.
+ *
+ * Named with the `Minimal` prefix to make the local-mirror nature
+ * explicit at consumer call sites — a consumer importing both this
+ * type and the upstream `StructureRecorder` from `footprintjs` won't
+ * collide, and code reviewers see at a glance which boundary the type
+ * crosses.
+ *
+ * The upstream `footprintjs.StructureRecorder` is structurally
+ * compatible (this type's shape is a subset of upstream's), so passing
+ * an instance of this to `flowChart(..., { structureRecorders: [...] })`
+ * typechecks cleanly.
  */
-declare function FlowchartView({ nodes: rawNodes, edges: rawEdges, snapshots, selectedIndex, onNodeClick, unstyled, className, style, }: FlowchartViewProps): react_jsx_runtime.JSX.Element;
-
-interface SpecNode {
-    name: string;
-    id?: string;
-    type?: "stage" | "decider" | "selector" | "fork" | "streaming";
-    /** Semantic icon hint — rendered by StageNode. Common values:
-     *  "llm", "tool", "rag", "search", "parse", "start", "end", "loop",
-     *  "agent", "swarm", "guard", "stream", "memory" */
-    icon?: string;
-    description?: string;
-    children?: SpecNode[];
-    next?: SpecNode;
-    branchIds?: string[];
-    hasDecider?: boolean;
-    hasSelector?: boolean;
-    loopTarget?: string;
-    isSubflowRoot?: boolean;
-    subflowId?: string;
-    subflowName?: string;
-    subflowStructure?: SpecNode;
-    /** True when this subflow uses lazy resolution (deferred until execution). */
-    isLazy?: boolean;
+interface MinimalStructureRecorder {
+    readonly id: string;
+    onStageAdded?(event: StageAddedEvent): void;
+    onEdgeAdded?(event: EdgeAddedEvent): void;
+    onLoopEdgeAdded?(event: LoopEdgeAddedEvent): void;
+    onDeciderComplete?(event: DeciderCompleteEvent): void;
+    onSubflowMounted?(event: SubflowMountedEvent): void;
 }
-interface ExecutionOverlay {
-    /** Names of stages that have completed (before the active one) */
-    doneStages: Set<string>;
-    /** Name of the currently active stage */
-    activeStage: string | null;
-    /** Names of all stages that were executed (done + active) */
-    executedStages: Set<string>;
-    /** Ordered list of executed stage names (for step numbering) */
-    executionOrder?: string[];
-}
-/** Colors for the flowchart — consumer provides these to match their theme */
-interface FlowchartColors {
-    edgeDefault: string;
-    edgeExecuted: string;
-    edgeActive: string;
-    edgeLoop: string;
-    labelDefault: string;
-    labelExecuted: string;
-    labelLoop: string;
-    pathGlow: string;
-}
-/** A positioned node with all static info, before overlay is applied. */
-interface LayoutNode {
-    id: string;
-    x: number;
-    y: number;
+/**
+ * Per-node data attached to the xyflow `Node`. Consumed by the
+ * `StageNode` renderer (shape mirrors what the renderer expects).
+ */
+interface TraceNodeData extends Record<string, unknown> {
     label: string;
     isDecider: boolean;
     isFork: boolean;
+    isSubflow: boolean;
+    /** True when the event carried `type: 'streaming'` (the spec was added
+     *  via `addStreamingFunction`). Renderers that style streaming stages
+     *  distinctly key on this flag. */
+    isStreaming: boolean;
     description?: string;
     icon?: string;
     subflowId?: string;
-    isSubflow: boolean;
     isLazy?: boolean;
+    isPausable?: boolean;
+    /** Set later by `onDeciderComplete` when the decider's branch list is
+     *  sealed. Useful for renderers that want to render decider with a
+     *  branch-count badge. */
+    branchIds?: readonly string[];
+    defaultBranch?: string;
+    /**
+     * The subflow this node belongs to, OR `undefined` for top-level
+     * parent-chart stages. Tracked via a stack-based heuristic during
+     * event ingestion:
+     *
+     *   - Push on `onSubflowMounted({subflowId, rootStageId})` →
+     *     top-of-stack = `{subflowId, mountStageId}`
+     *   - `onStageAdded` tags new nodes with the top-of-stack `subflowId`
+     *     (the mount node itself stays UNtagged — it's part of the parent
+     *     chain)
+     *   - Pop on `onEdgeAdded` where `from === mount.id` (a mount's
+     *     outgoing edge to a sibling means the parent chain has resumed);
+     *     the wrongly-tagged target node is re-tagged to the parent scope
+     *
+     * Mount nodes (where `isSubflow=true`) have `subflowOf` reflecting
+     * their OWN parent context, NOT the subflow they mount. So a parent's
+     * mount node has `subflowOf=undefined` (top-level parent), and the
+     * subflow's INTERNAL stages have `subflowOf=<mount.subflowId>`.
+     *
+     * Renderers use this to filter the chart by drill-down level: show
+     * only nodes where `subflowOf === currentDrillSubflowId` (undefined
+     * for top-level view, mount.subflowId after drilling in).
+     */
+    subflowOf?: string;
+    /**
+     * **L8.0 — STRUCTURAL prev/next**: stage ids that lead into / out of
+     * this node, derived live from incoming/outgoing edges. Excludes
+     * `loop` back-edges (visual only — per invariant I1).
+     *
+     * Convergence-correct: a fork-join node carries an ENTRY per branch
+     * child (e.g., `FinalizeOrder.prevIds = ['CheckInventory', 'RunFraudCheck']`).
+     *
+     * "Structural" qualifier: this is the chart-SHAPE prev/next, not
+     * runtime execution order. For runtime ancestry use `CommitView`
+     * fields on `CommitFlowIndex` (L8.2).
+     */
+    prevIds: StageId[];
+    nextIds: StageId[];
 }
-/** A positioned edge with source/target info. */
-interface LayoutEdge {
-    id: string;
-    source: string;
-    target: string;
+/** Per-edge data attached to the xyflow `Edge`. */
+interface TraceEdgeData extends Record<string, unknown> {
+    kind: EdgeKind | "loop";
     label?: string;
-    isLoop: boolean;
 }
-/** Static layout output — positions + structure, no execution state. */
-interface SpecLayout {
-    nodes: LayoutNode[];
-    edges: LayoutEdge[];
-    /** Maps stage ID → node id for resolving loopTarget references. */
-    idToName: Map<string, string>;
+type TraceNode = Node<TraceNodeData>;
+type TraceEdge = Edge<TraceEdgeData>;
+interface TraceGraph {
+    nodes: TraceNode[];
+    edges: TraceEdge[];
 }
-/**
- * Phase 1: Compute static layout from spec. Cached on spec reference — only
- * recomputes when the pipeline structure changes, not on every slider tick.
- */
-declare function specToLayout(spec: SpecNode): SpecLayout;
-/**
- * Phase 2: Apply execution overlay to static layout.
- * Produces ReactFlow nodes/edges with correct colors, step numbers, and glow.
- */
-declare function applyOverlay(layout: SpecLayout, overlay?: ExecutionOverlay, colors?: Partial<FlowchartColors>): {
-    nodes: Node[];
-    edges: Edge[];
-};
-/**
- * Convert a pipeline spec to ReactFlow graph.
- * Pass `overlay` to color nodes/edges by execution state.
- */
-declare function specToReactFlow(spec: SpecNode, overlay?: ExecutionOverlay, colors?: Partial<FlowchartColors>): {
-    nodes: Node[];
-    edges: Edge[];
-};
+interface TraceStructureRecorderHandle {
+    /** The recorder to register via `flowChart(..., { structureRecorders: [handle.recorder] })`
+     *  or `.attachStructureRecorder(handle.recorder)`. */
+    recorder: MinimalStructureRecorder;
+    /** Returns a defensive copy of the current graph state. Safe to call
+     *  multiple times; safe to mutate the returned arrays without affecting
+     *  the recorder's internal state. */
+    getGraph(): TraceGraph;
+    /** Direct read-only access for hot-path consumers (Lens slider scrubbing).
+     *  Returns the LIVE internal arrays — do NOT mutate. Prefer `getGraph()`
+     *  unless you measure a performance cost. */
+    getGraphRef(): Readonly<TraceGraph>;
+    /**
+     * Subscribe to graph-change notifications. Pub-sub model — multiple
+     * listeners can subscribe; each fires after every event that mutates
+     * the graph (per-event, NOT batched). Returns an unsubscribe function.
+     * Designed for React's `useSyncExternalStore` consumption.
+     *
+     * Listeners are NOT invoked during `reset()`. **Consumer guidance**:
+     * if you need to clear a live `<TraceFlow recorder={handle} />`
+     * mid-mount, either (a) unmount the component before calling
+     * `reset()` and re-mount after, OR (b) drive a fresh recorder
+     * instance via state. See `reset()` JSDoc for the rationale.
+     */
+    subscribe(listener: () => void): () => void;
+    /**
+     * Monotonically-increasing version counter — bumps once per
+     * graph-mutating event. Pair with `getGraph()` in
+     * `useSyncExternalStore` snapshot equality:
+     * ```ts
+     * const version = useSyncExternalStore(handle.subscribe, () => handle.version());
+     * const graph = useMemo(() => handle.getGraph(), [version]);
+     * ```
+     * Avoids defensive-copy allocation on every render while keeping
+     * React's identity-check happy.
+     */
+    version(): number;
+    /** Reset the recorder for reuse across multiple builds. After this,
+     *  the recorder behaves like a freshly-constructed instance. */
+    reset(): void;
+}
+interface CreateTraceStructureRecorderOptions {
+    /** Recorder id — surfaces in `StructureBuildError.recorderId` when
+     *  the recorder throws. Defaults to `'trace-structure'`. Use distinct
+     *  ids if you attach multiple instances. */
+    id?: string;
+    /** Optional callback fired after each event mutates the graph. Useful
+     *  for incremental-render UIs (Lens) that want to re-render between
+     *  builder operations. NOT invoked during the initial `attachStructureRecorder`
+     *  seed replay; consumers can call `getGraph()` directly after attach. */
+    onChange?: (graph: Readonly<TraceGraph>) => void;
+}
+declare function createTraceStructureRecorder(options?: CreateTraceStructureRecorderOptions): TraceStructureRecorderHandle;
 
-interface TracedFlowchartViewProps extends BaseComponentProps {
-    /** Pipeline spec from builder.toSpec() — for the current level */
-    spec: SpecNode;
-    /** Visualization snapshots (enables trace overlay when provided) */
-    snapshots?: StageSnapshot[];
-    /** Current time-travel position */
-    snapshotIndex?: number;
-    /** Callback when a node is clicked (receives snapshot index, or node id if no snapshots) */
-    onNodeClick?: (indexOrId: number | string) => void;
-    /** Override default node types */
-    nodeTypes?: NodeTypes;
+/**
+ * createTraceRuntimeOverlay — event-driven runtime overlay for `<TracedFlow>`.
+ *
+ * The runtime twin of `createTraceStructureRecorder` (L7.7). Where the
+ * structure recorder accumulates the build-time graph SHAPE from
+ * `StructureRecorder` events, this recorder accumulates the runtime
+ * EXECUTION STATE (which nodes ran, current active, errors) from
+ * `FlowRecorder` events. The two compose into the full time-travel
+ * trace UI:
+ *
+ *   StructureRecorder events  →  TraceGraph (nodes + edges, id-keyed)
+ *   FlowRecorder events       →  RuntimeOverlay (per-node state, id-keyed)
+ *                                     │
+ *                                     ▼
+ *                       <TracedFlow graph={...} overlay={...} scrubIndex={i} />
+ *
+ * **Universal key**: `runtimeStageId = [subflowPath/]stageId#executionIndex`.
+ * Loops re-execute the same stageId with bumping executionIndex — the
+ * overlay records each execution as a distinct step in `executionOrder`
+ * but updates the SAME node-by-id in `doneStageIds` (because the build-
+ * time graph has one node per spec — loops re-visit it).
+ *
+ * Per L7.7 panel guidance: the consumer pattern mirrors recorder error
+ * isolation, exposes a pub-sub `subscribe(listener)` + monotonic
+ * `version()` for `useSyncExternalStore` integration, and accumulates
+ * pure data with zero React coupling.
+ */
+interface TraversalContext$2 {
+    readonly runtimeStageId: string;
+    readonly iteration?: number;
+    readonly runId?: string;
 }
-declare function TracedFlowchartView({ spec, snapshots, snapshotIndex, onNodeClick, nodeTypes: customNodeTypes, unstyled, className, style, }: TracedFlowchartViewProps): react_jsx_runtime.JSX.Element;
+interface RuntimeStageExecutedEvent {
+    readonly stageName: string;
+    readonly stageId?: string;
+    /** Discriminator for which kind of stage completed. footprintjs v6+
+     *  fires this event uniformly for every stage kind (proposal #003);
+     *  consumers route by `stageType` without a chart-spec lookup. */
+    readonly stageType: 'linear' | 'decider' | 'fork' | 'selector' | 'subflow-mount';
+    readonly traversalContext: TraversalContext$2;
+}
+interface RuntimeErrorEvent {
+    readonly stageName: string;
+    readonly stageId?: string;
+    readonly message?: string;
+    readonly traversalContext?: TraversalContext$2;
+}
+interface RuntimeRunStartEvent {
+    readonly traversalContext?: TraversalContext$2;
+}
+interface RuntimeRunEndEvent {
+    readonly traversalContext?: TraversalContext$2;
+}
+/** Minimal FlowRecorder interface mirror — see top-of-file rationale.
+ *
+ *  As of footprintjs v6 (proposal #003), `onStageExecuted` fires
+ *  uniformly for ALL stage kinds — linear / decider / fork / selector
+ *  / subflow-mount. The event payload carries a `stageType` field for
+ *  consumers that need to route by kind. We no longer need separate
+ *  `onDecision` / `onFork` / `onSelected` handlers to track "did this
+ *  stage run" — a single `onStageExecuted` handler suffices. */
+interface MinimalFlowRecorder {
+    readonly id: string;
+    onStageExecuted?(event: RuntimeStageExecutedEvent): void;
+    onError?(event: RuntimeErrorEvent): void;
+    onRunStart?(event: RuntimeRunStartEvent): void;
+    onRunEnd?(event: RuntimeRunEndEvent): void;
+}
+/**
+ * One entry in the execution timeline. `<TracedFlow>` keys time-travel
+ * scrubbing on the index into this array — at index `i`, all entries
+ * `0..i-1` are "done", entry `i` is "active".
+ */
+interface RuntimeExecutionStep {
+    /** `[subflowPath/]stageId#executionIndex` — universal key. */
+    readonly runtimeStageId: string;
+    /** Base stage id (without `#N`) — matches the `TraceGraph` node id. */
+    readonly stageId: string;
+    /** Human-readable label (from event.stageName). */
+    readonly stageName: string;
+    /** When this step recorded, in ms since recorder start. */
+    readonly timestampMs: number;
+}
+interface RuntimeOverlay {
+    /** Ordered execution history — drives time-travel scrubbing. */
+    readonly executionOrder: readonly RuntimeExecutionStep[];
+    /** Per-base-stageId error message (most-recent wins). */
+    readonly errors: ReadonlyMap<string, string>;
+    /** True after `onRunStart` until `onRunEnd` — useful for "still running" indicators. */
+    readonly running: boolean;
+}
+interface TraceRuntimeOverlayHandle {
+    /** The recorder to attach via `executor.attachFlowRecorder(handle.recorder)`. */
+    recorder: MinimalFlowRecorder;
+    /** Returns a defensive copy of the current overlay state. */
+    getOverlay(): RuntimeOverlay;
+    /** Pub-sub: returns unsubscribe. Designed for `useSyncExternalStore`. */
+    subscribe(listener: () => void): () => void;
+    /** Monotonic version counter — bumps once per overlay-mutating event. */
+    version(): number;
+    /** Reset for reuse across runs. Does NOT bump version or notify (matches
+     *  traceStructureRecorder's reset contract). */
+    reset(): void;
+}
+interface CreateTraceRuntimeOverlayOptions {
+    id?: string;
+}
+declare function createTraceRuntimeOverlay(options?: CreateTraceRuntimeOverlayOptions): TraceRuntimeOverlayHandle;
+/**
+ * Snapshot of overlay state AT a specific scrub index. Drives node
+ * coloring in `<TracedFlow>`.
+ */
+interface RuntimeOverlaySlice {
+    /** Base stage ids that completed before the active scrub position. */
+    readonly doneStageIds: ReadonlySet<string>;
+    /** The currently-active stage id (or `null` when scrub is at 0 with no exec yet). */
+    readonly activeStageId: string | null;
+    /** Union of done + active — convenient for "executed at all" checks. */
+    readonly executedStageIds: ReadonlySet<string>;
+    /** The full ordered list of base stage ids up through the active position —
+     *  used by renderers that want to number stages by occurrence (e.g.,
+     *  show "3rd loop iteration" badges). */
+    readonly executedOrderIds: readonly string[];
+    /** Pass-through errors map for the renderer. */
+    readonly errors: ReadonlyMap<string, string>;
+}
+/**
+ * Slice `overlay.executionOrder` at the given index:
+ *
+ *   - `executionOrder[0..index-1]` → "done"
+ *   - `executionOrder[index]` → "active"
+ *   - `index >= executionOrder.length` → all done, no active
+ *
+ * Returns an empty slice when overlay has no execution history.
+ */
+declare function sliceOverlay(overlay: RuntimeOverlay, index: number): RuntimeOverlaySlice;
+
+interface TimeTravelDebuggerProps extends BaseComponentProps {
+    /** Stage snapshots */
+    snapshots: StageSnapshot[];
+    /** Recorder-captured build-time graph (from
+     *  `createTraceStructureRecorder().getGraph()`). Required for the
+     *  chart rendering — replaces the legacy `nodes` / `edges` props. */
+    graph: TraceGraph;
+    /** Optional runtime overlay (from
+     *  `createTraceRuntimeOverlay().getOverlay()`). When provided, the
+     *  chart renders via `<TracedFlow>` with per-step coloring synced to
+     *  the scrubber; otherwise renders via `<TraceFlow>` (build-time only). */
+    runtimeOverlay?: RuntimeOverlay;
+    /** Show Gantt timeline */
+    showGantt?: boolean;
+    /** Layout direction */
+    layout?: "horizontal" | "vertical";
+    /** Title */
+    title?: string;
+}
+/**
+ * Full time-travel debugger: scrubber + recorder-driven flowchart +
+ * memory + narrative + gantt. This is the "batteries included"
+ * component for pipeline debugging.
+ *
+ * v6+: chart rendering is recorder-driven. Pass `graph` (always) and
+ * optionally `runtimeOverlay` for per-step coloring tied to the
+ * scrubber.
+ */
+declare function TimeTravelDebugger({ snapshots, graph, runtimeOverlay, showGantt, layout, title, size, unstyled, className, style, }: TimeTravelDebuggerProps): react_jsx_runtime.JSX.Element;
+
+/**
+ * useSubflowNavigation — drill-down breadcrumb tracker for recorder-driven charts.
+ *
+ * Recorder-driven (v6+): replaces the legacy SpecNode-walk path. Accepts
+ * a `TraceGraph` (from `createTraceStructureRecorder`) and tracks WHICH
+ * subflow the user has drilled into.
+ *
+ * Limitation (intentional — recorder graph is flat / mount-only):
+ *   The StructureRecorder records the MOUNT of each subflow in the
+ *   parent chart, not the inner structure of each child chart. So
+ *   "drill into a subflow" today returns the SAME graph with the
+ *   `currentSubflowId` marker advanced — there is no separate
+ *   child-graph to swap in. Filtering nodes by
+ *   `data.subflowId === <selected>` would only surface mount nodes,
+ *   not the child chart's stages.
+ *
+ * TODO(recorder-driven-nesting): when child charts attach their own
+ * `traceStructureRecorder` and surface those graphs via a registry,
+ * accept `Map<subflowId, TraceGraph>` and swap `currentGraph` to the
+ * child's graph on drill-down. Consumers can then render
+ * `<TraceFlow graph={currentGraph} />` per level.
+ */
 
 interface BreadcrumbEntry {
     /** Display name for this level */
     label: string;
-    /** The spec node tree at this level */
-    spec: SpecNode;
+    /** The subflow id that was drilled into to reach this level
+     *  (undefined for root). */
+    subflowId?: string;
     /** Human-readable description of this subflow */
     description?: string;
 }
 interface SubflowNavigation {
     /** Current breadcrumb path (root → ... → current) */
     breadcrumbs: BreadcrumbEntry[];
-    /** Current level's ReactFlow nodes */
-    nodes: Node[];
-    /** Current level's ReactFlow edges */
-    edges: Edge[];
-    /** Call when a node is clicked — drills in if it's a subflow */
+    /** Current graph — today identical to the root graph (see file-level
+     *  TODO). Consumers should still treat this as the source of truth so
+     *  they remain forward-compatible once per-subflow graphs are wired in. */
+    currentGraph: TraceGraph;
+    /** Subflow id of the level the user is currently inside (null at root). */
+    currentSubflowId: string | null;
+    /** Display name of the subflow node we drilled into (null at root). */
+    currentSubflowNodeName: string | null;
+    /** Call when a node is clicked — drills in if it's a subflow.
+     *  Returns true when the click pushed a new level. */
     handleNodeClick: (nodeId: string) => boolean;
     /** Navigate to a specific breadcrumb level (0 = root) */
     navigateTo: (level: number) => void;
     /** Whether we're currently inside a subflow (not at root) */
     isInSubflow: boolean;
-    /** Name of the subflow node we drilled into (for finding execution data) */
-    currentSubflowNodeName: string | null;
 }
 /**
- * Hook that manages subflow drill-down navigation for a flowchart spec.
+ * Hook that tracks subflow drill-down state for a recorder-driven chart.
  *
- * Maintains a breadcrumb stack. When a subflow node is clicked, pushes its
- * nested spec onto the stack and re-derives nodes/edges. Breadcrumb clicks
- * pop back to that level.
+ * Maintains a breadcrumb stack. When a subflow node is clicked the
+ * stack pushes a new entry; breadcrumb clicks pop back to that level.
+ * See file-level docs for the deferred per-subflow graph swap.
  */
-declare function useSubflowNavigation(rootSpec: SpecNode | null, overlay?: ExecutionOverlay, colors?: Partial<FlowchartColors>): SubflowNavigation;
+declare function useSubflowNavigation(rootGraph: TraceGraph | null): SubflowNavigation;
 
 interface SubflowBreadcrumbProps {
     breadcrumbs: BreadcrumbEntry[];
@@ -220,12 +666,13 @@ interface SubflowTreeEntry {
     subflowId?: string;
     /** Whether this node is a subflow root (has nested structure) */
     isSubflow?: boolean;
-    /** Nested children (subflow stages) */
+    /** Nested children (subflow stages) — always undefined in the
+     *  current recorder-driven implementation; see file-level TODO. */
     children?: SubflowTreeEntry[];
 }
 interface SubflowTreeProps extends BaseComponentProps {
-    /** Pipeline spec to derive the tree from */
-    spec: SpecNode;
+    /** Recorder-captured graph from `createTraceStructureRecorder().getGraph()`. */
+    graph: TraceGraph;
     /** Currently active stage name (highlights in tree) */
     activeStage?: string | null;
     /** Set of completed stage names */
@@ -235,63 +682,1055 @@ interface SubflowTreeProps extends BaseComponentProps {
 }
 declare const SubflowTree: react.NamedExoticComponent<SubflowTreeProps>;
 
-interface StageNodeData {
-    label: string;
-    active?: boolean;
-    done?: boolean;
-    error?: boolean;
-    linked?: boolean;
-    /** Semantic icon hint (e.g., "llm", "tool", "rag", "start", "parse", "agent", "guard") */
-    icon?: string;
-    /** Step numbers in execution order (shown as badges — multiple when revisited via loops) */
-    stepNumbers?: number[];
-    /** Node was not executed (dim it) */
-    dimmed?: boolean;
-    /** Node is a subflow root (show nested indicator) */
-    isSubflow?: boolean;
-    /** Node uses lazy resolution (dashed border + cloud icon when unresolved) */
-    isLazy?: boolean;
-    /** Node is a decider (renders as diamond shape per flowchart convention) */
-    isDecider?: boolean;
-    /** Node is a fork (parallel fan-out) */
-    isFork?: boolean;
-    /** Human-readable description of what this stage does */
-    description?: string;
-    /** Subflow identifier — set when this node belongs to a subflow */
-    subflowId?: string;
-    [key: string]: unknown;
+/** Layout function shape — takes a graph, returns a graph with positions set. */
+type TraceFlowLayout = (graph: TraceGraph) => TraceGraph;
+/**
+ * Default tree-walk layout.
+ *
+ * Edge-kind semantics (critical for parity)
+ * ─────────────────────────────────────────
+ *   `fork-branch` + `decision-branch` edges are SIBLINGS at depth+1
+ *   (centered under the parent). A `next` edge from a node that ALSO
+ *   has branch edges is the "after convergence" target — its rank is
+ *   `max(deepest branch subtree) + 1`, so it sits BELOW the fan-out,
+ *   matching the legacy diamond layout.
+ *
+ *     LoadOrder (fork)
+ *        ├── fork-branch → CheckInventory   (sibling, y+1)
+ *        ├── fork-branch → RunFraudCheck    (sibling, y+1)
+ *        └── next        → FinalizeOrder    (after convergence,
+ *                                            below deepest sibling)
+ *
+ *   A `next` edge from a node with NO branch edges is a plain linear
+ *   chain — target at depth+1.
+ *
+ *   `loop` back-edges DO NOT shape layout (they're scrub-time visual
+ *   markers only).
+ *
+ * Limitations (documented; not bugs)
+ * ──────────────────────────────────
+ *   - Multi-root graphs render with the first-seen node as the visual
+ *     root; orphans stack below.
+ *   - Convergence where multiple branches join into a single node:
+ *     the node is placed under its FIRST traversed branch (first-wins).
+ *     For deep DAGs swap in a graph-layout library (dagre, elk).
+ *   - Sibling x-positions are local to each parent's subtree; no
+ *     global x-overlap detection across deep nested structures.
+ */
+declare const defaultTraceFlowLayout: TraceFlowLayout;
+interface TraceFlowEdgeColors {
+    next: string;
+    forkBranch: string;
+    decisionBranch: string;
+    loop: string;
+}
+type TraceFlowSource = {
+    recorder: TraceStructureRecorderHandle;
+    graph?: never;
+} | {
+    graph: TraceGraph;
+    recorder?: never;
+};
+type TraceFlowProps = BaseComponentProps & TraceFlowSource & {
+    /** Layout function. Default: BFS tree walk. Pass the literal
+     *  `"passthrough"` to skip layout when nodes already carry positions. */
+    layout?: TraceFlowLayout | "passthrough";
+    /** Per-kind edge color overrides. */
+    edgeColors?: Partial<TraceFlowEdgeColors>;
+    /** Node click handler — receives the node id. */
+    onNodeClick?: (id: string) => void;
+};
+declare function TraceFlow(props: TraceFlowProps): react_jsx_runtime.JSX.Element;
+
+interface TracedFlowColors {
+    /** Default (un-executed) node text + edge stroke. */
+    default: string;
+    /** Done — visually de-emphasised (lighter). */
+    done: string;
+    /** Active — current scrub position. */
+    active: string;
+    /** Error — node with recorded onError. */
+    error: string;
+    /** Loop back-edge color. */
+    loop: string;
+}
+interface TracedFlowProps extends BaseComponentProps {
+    /** Build-time graph from `createTraceStructureRecorder().getGraph()`. */
+    graph: TraceGraph;
+    /** Runtime overlay from `createTraceRuntimeOverlay().getOverlay()`. */
+    overlay?: RuntimeOverlay;
+    /** Time-travel scrub index. Defaults to the last step (latest state). */
+    scrubIndex?: number;
+    /** Layout function. Default: BFS tree walk over the recorder graph. */
+    layout?: TraceFlowLayout | "passthrough";
+    /** Color overrides. */
+    colors?: Partial<TracedFlowColors>;
+    /** Node click handler — receives stage id. */
+    onNodeClick?: (stageId: string) => void;
+    /**
+     * Fires when the chart drills into or out of a subflow (explicit
+     * user click on a mount node). Receives the mount stage id (drill
+     * in) or `null` (pop back). Container shells use this to keep
+     * their data panels in lock-step with the chart's drill state.
+     */
+    onSubflowChange?: (mountStageId: string | null) => void;
+}
+declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, className, style, }: TracedFlowProps): react_jsx_runtime.JSX.Element;
+
+/**
+ * createNodeViewRecorder — per-stage summary translator.
+ *
+ * Implements footprintjs v6.0+ `CombinedRecorder` (Flow + Scope) and
+ * produces a `NodeViewIndex` — per-stage data keyed by both `StageId`
+ * (chart-shape lookup) and `RuntimeStageId` (per-execution lookup).
+ *
+ * Composition (panel guidance, L8.0 review)
+ * ─────────────────────────────────────────
+ *   NodeView does NOT duplicate the structural prev/next index — it
+ *   READS those fields from the structure translator's
+ *   `node.data.prevIds`/`nextIds`. The structure translator already
+ *   maintains convergence-correct, loop-excluded neighbors. Duplicating
+ *   the index here would re-introduce edge-ordering bugs we just
+ *   solved.
+ *
+ *   The NodeView translator owns ONLY runtime-derived per-stage state:
+ *     - `executions[]` — every FlowRecorder.onStageExecuted event for
+ *       this stage (loop-friendly: N executions of one stage produce
+ *       N entries, each with its own runtimeStageId).
+ *     - `commitRuntimeStageIds[]` — refs to commits made by this stage
+ *       (the canonical CommitView lives in CommitFlowIndex from L8.2;
+ *       NodeView stores only the join key).
+ *
+ *   Plus derived convenience fields: `visitedInRun`, `executionCount`,
+ *   `firstExecutedAt`, `lastExecutedAt`, `totalDurationMs`, `errorCount`.
+ *
+ * Version bumping
+ * ───────────────
+ *   NodeView bumps its own version on EITHER:
+ *     (a) a Flow/Scope event arrives (own state mutates), OR
+ *     (b) the structure translator's version bumps (structural data
+ *         the index projects from changed).
+ *
+ *   So `useTranslator(nodeView, ...)` re-renders when EITHER changes —
+ *   one subscription, full reactive coverage.
+ *
+ * @example
+ * ```tsx
+ * import { createTraceStructureRecorder, createNodeViewRecorder, useTranslator } from 'footprint-explainable-ui/flowchart';
+ *
+ * const trace = useMemo(() => createTraceStructureRecorder(), []);
+ * const nodeView = useMemo(() => createNodeViewRecorder({ structure: trace }), [trace]);
+ *
+ * useEffect(() => {
+ *   executor.attachFlowRecorder(nodeView.recorder);
+ *   executor.attachScopeRecorder(nodeView.recorder);
+ * }, [nodeView]);
+ *
+ * const index = useTranslator(nodeView, () => nodeView.getIndex());
+ * const finalize = index.byStageId.get(asStageId('FinalizeOrder'));
+ * // finalize.prevIds            → ['CheckInventory', 'RunFraudCheck']  (from structure)
+ * // finalize.executions         → [{ runtimeStageId, iteration, startMs, endMs, ... }]
+ * // finalize.visitedInRun       → true
+ * // finalize.commitRuntimeStageIds → ['finalize-order#3', ...]
+ * ```
+ */
+
+interface TraversalContext$1 {
+    readonly runtimeStageId: string;
+    readonly iteration?: number;
+    readonly runId?: string;
+}
+interface FlowStageExecutedEvent$1 {
+    readonly stageName: string;
+    readonly stageId?: string;
+    readonly traversalContext: TraversalContext$1;
+    readonly startTime?: number;
+    readonly endTime?: number;
+}
+interface FlowErrorEvent$1 {
+    readonly stageName: string;
+    readonly stageId?: string;
+    readonly message?: string;
+    readonly traversalContext?: TraversalContext$1;
+}
+interface FlowRunLifecycleEvent$1 {
+    readonly traversalContext?: TraversalContext$1;
+}
+interface ScopeCommitEvent$1 {
+    readonly stage?: string;
+    readonly stageId?: string;
+    readonly runtimeStageId?: string;
+    readonly updates?: Record<string, unknown>;
+    readonly reads?: readonly string[];
 }
 /**
- * Custom ReactFlow node for pipeline stages.
- * All colors and fonts come from `--fp-*` CSS variables (via theme).
- * Shows execution state via color, icon, step badge, and pulse animation.
+ * Minimal CombinedRecorder interface mirror — subset of footprintjs's
+ * Flow + Scope recorder interfaces NodeView consumes. Implements both
+ * channels in one object; consumer attaches via
+ * `executor.attachFlowRecorder()` AND `executor.attachScopeRecorder()`
+ * (or `executor.attachCombinedRecorder()` if available).
  */
-declare const StageNode: react.NamedExoticComponent<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "id" | "data" | "width" | "height" | "sourcePosition" | "targetPosition" | "dragHandle" | "parentId"> & Required<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "type" | "dragging" | "zIndex" | "selectable" | "deletable" | "selected" | "draggable">> & {
-    isConnectable: boolean;
-    positionAbsoluteX: number;
-    positionAbsoluteY: number;
-} & {
-    data: StageNodeData;
-}>;
-
-interface TimeTravelDebuggerProps extends BaseComponentProps {
-    /** Stage snapshots */
-    snapshots: StageSnapshot[];
-    /** ReactFlow nodes (required for flowchart) */
-    nodes: Node[];
-    /** ReactFlow edges (required for flowchart) */
-    edges: Edge[];
-    /** Show Gantt timeline */
-    showGantt?: boolean;
-    /** Layout direction */
-    layout?: "horizontal" | "vertical";
-    /** Title */
-    title?: string;
+interface MinimalNodeViewRecorder {
+    readonly id: string;
+    onStageExecuted?(event: FlowStageExecutedEvent$1): void;
+    onError?(event: FlowErrorEvent$1): void;
+    onRunStart?(event: FlowRunLifecycleEvent$1): void;
+    onRunEnd?(event: FlowRunLifecycleEvent$1): void;
+    onCommit?(event: ScopeCommitEvent$1): void;
+}
+/** One execution of a stage. A stage that runs N times in a loop
+ *  produces N `ExecutionRecord` entries on the NodeView.executions[]. */
+interface ExecutionRecord {
+    /** `[subflowPath/]stageId#executionIndex` — universal join key. */
+    readonly runtimeStageId: RuntimeStageId;
+    /** Loop iteration (0-indexed). undefined when the engine didn't
+     *  populate it (rare). */
+    readonly iteration?: number;
+    /** ms since executor start. */
+    readonly startMs?: number;
+    /** ms since executor start. */
+    readonly endMs?: number;
+    /** Set when `onError` fired for this execution. */
+    readonly errorMessage?: string;
 }
 /**
- * Full time-travel debugger: scrubber + flowchart + memory + narrative + gantt.
- * This is the "batteries included" component for pipeline debugging.
+ * Per-stage summary. Joins STRUCTURAL data (from the structure
+ * translator's TraceNode.data) with RUNTIME data (executions + commit
+ * refs accumulated by this translator).
  */
-declare function TimeTravelDebugger({ snapshots, nodes, edges, showGantt, layout, title, size, unstyled, className, style, }: TimeTravelDebuggerProps): react_jsx_runtime.JSX.Element;
+interface NodeView {
+    readonly stageId: StageId;
+    readonly label: string;
+    readonly type: "stage" | "decider" | "selector" | "fork" | "streaming" | "subflow" | "loop";
+    readonly isDecider: boolean;
+    readonly isFork: boolean;
+    readonly isSubflow: boolean;
+    readonly isStreaming: boolean;
+    readonly isPausable: boolean;
+    readonly description?: string;
+    readonly icon?: string;
+    readonly subflowId?: string;
+    readonly branchIds?: readonly string[];
+    readonly defaultBranch?: string;
+    /** From the structure translator (loop-excluded, convergence-correct). */
+    readonly prevIds: StageId[];
+    readonly nextIds: StageId[];
+    readonly executions: ExecutionRecord[];
+    /** Derived: `executions.length > 0`. */
+    readonly visitedInRun: boolean;
+    /** Derived: `executions.length` (loop iteration count). */
+    readonly executionCount: number;
+    /** Derived: first execution `startMs`, or `null` if not yet executed. */
+    readonly firstExecutedAt: number | null;
+    /** Derived: last execution `endMs`, or `null`. */
+    readonly lastExecutedAt: number | null;
+    /** Derived: sum of `endMs - startMs` across executions. */
+    readonly totalDurationMs: number;
+    /** Derived: count of executions with an errorMessage. */
+    readonly errorCount: number;
+    /** Run-time stage ids of commits made by this stage. Look up the
+     *  canonical CommitView via `commitFlow.byRuntimeStageId.get(id)`. */
+    readonly commitRuntimeStageIds: RuntimeStageId[];
+}
+/** Index of NodeView keyed by both StageId and RuntimeStageId. The
+ *  branded types prevent `byStageId.get(runtimeStageId)` silent-undefined. */
+interface NodeViewIndex {
+    readonly byStageId: ReadonlyMap<StageId, NodeView>;
+    readonly byRuntimeStageId: ReadonlyMap<RuntimeStageId, NodeView>;
+    /** All NodeViews — insertion order matches structure translator. */
+    readonly all: readonly NodeView[];
+}
+interface NodeViewRecorderHandle {
+    /** CombinedRecorder — attach via BOTH `executor.attachFlowRecorder()`
+     *  AND `executor.attachScopeRecorder()` (footprintjs routes by
+     *  method-shape detection). */
+    recorder: MinimalNodeViewRecorder;
+    /** Returns a defensive copy of the current index state. */
+    getIndex(): NodeViewIndex;
+    /** Pub-sub: returns unsubscribe. Designed for `useSyncExternalStore`. */
+    subscribe(listener: () => void): () => void;
+    /** Monotonic version counter — bumps on Flow/Scope event OR when
+     *  the structure translator's version bumps (since NodeView projects
+     *  from its data). */
+    version(): number;
+    /** Reset runtime state. Does NOT bump version or notify (consistent
+     *  with traceStructureRecorder + createTraceRuntimeOverlay). */
+    reset(): void;
+}
+interface CreateNodeViewRecorderOptions {
+    /** Recorder id (surfaces in error attribution). */
+    id?: string;
+    /** REQUIRED — the structure translator handle. NodeView projects
+     *  structural fields (`prevIds`, `nextIds`, `label`, etc.) from
+     *  this on every `getIndex()` call. */
+    structure: TraceStructureRecorderHandle;
+}
+declare function createNodeViewRecorder(options: CreateNodeViewRecorderOptions): NodeViewRecorderHandle;
 
-export { type BreadcrumbEntry, type ExecutionOverlay, type FlowchartColors, FlowchartView, type FlowchartViewProps, type LayoutEdge, type LayoutNode, type SpecLayout, type SpecNode, StageNode, type StageNodeData, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, TracedFlowchartView, type TracedFlowchartViewProps, applyOverlay, specToLayout, specToReactFlow, useSubflowNavigation };
+/**
+ * createCommitFlowRecorder — per-commit summary translator.
+ *
+ * Owns the canonical `CommitView[]` — captured from Scope `onCommit`
+ * events as the chart runs. Each CommitView joins:
+ *
+ *   - **Identity**: runtimeStageId, stageId, commitIdx
+ *   - **Structural**: prev/next stage ids (read from structure
+ *     translator's `TraceNode.data.prevIds`/`nextIds`)
+ *   - **Runtime prev/next**: derived via "most-recent-per-structural-
+ *     prev" rule over the commitLog (loop-safe, convergence-aware)
+ *   - **Data dependencies**: per-read-key lineage via
+ *     `findLastWriter` over the commitLog
+ *   - **Payload**: updates + reads
+ *
+ * Composition (panel guidance, L8.1 review)
+ * ─────────────────────────────────────────
+ *   Per Panel 1 rule "translators MUST subscribe to structure
+ *   directly, never to peer translators", CommitFlow subscribes to
+ *   the structure handle (NOT to NodeView). Linear dependency tree
+ *   keeps notify cascades O(depth) instead of O(N²).
+ *
+ *   NodeView (L8.1) stores `commitRuntimeStageIds[]` — refs only —
+ *   pointing into CommitFlow's `byRuntimeStageId`. The canonical
+ *   payload lives HERE; NodeView is the per-stage projection.
+ *
+ * @example
+ * ```tsx
+ * const trace = useMemo(() => createTraceStructureRecorder(), []);
+ * const commitFlow = useMemo(
+ *   () => createCommitFlowRecorder({ structure: trace }),
+ *   [trace],
+ * );
+ * useEffect(() => {
+ *   executor.attachFlowRecorder(commitFlow.recorder);
+ *   executor.attachScopeRecorder(commitFlow.recorder);
+ * }, [commitFlow]);
+ *
+ * const index = useTranslator(commitFlow, () => commitFlow.getIndex());
+ * const c = index.byRuntimeStageId.get(asRuntimeStageId('finalize-order#3'));
+ * c.structuralPrevIds  // ['CheckInventory', 'RunFraudCheck']
+ * c.runtimePrevIds     // ['check-inventory#1', 'run-fraud-check#2']
+ * c.dataDependencies   // [{ key:'inStock', sourceRuntimeStageId:'check-inventory#1', sourceCommitIdx:1 }, ...]
+ *
+ * const lineage = backtraceDataFlow(index, asRuntimeStageId('finalize-order#3'));
+ * // → ancestry chain of commits whose writes contributed to this commit's reads
+ * ```
+ */
+
+interface TraversalContext {
+    readonly runtimeStageId: string;
+    readonly iteration?: number;
+    readonly runId?: string;
+}
+interface FlowStageExecutedEvent {
+    readonly stageName: string;
+    readonly stageId?: string;
+    readonly traversalContext: TraversalContext;
+}
+interface FlowErrorEvent {
+    readonly stageName: string;
+    readonly stageId?: string;
+    readonly message?: string;
+    readonly traversalContext?: TraversalContext;
+}
+interface FlowRunLifecycleEvent {
+    readonly traversalContext?: TraversalContext;
+}
+interface ScopeReadEvent {
+    readonly stage?: string;
+    readonly stageId?: string;
+    readonly runtimeStageId?: string;
+    readonly key?: string;
+}
+interface ScopeCommitEvent {
+    readonly stage?: string;
+    readonly stageId?: string;
+    readonly runtimeStageId?: string;
+    readonly updates?: Record<string, unknown>;
+    readonly reads?: readonly string[];
+}
+/**
+ * Minimal CombinedRecorder mirror — subset of footprintjs's Flow +
+ * Scope channels CommitFlow consumes.
+ */
+interface MinimalCommitFlowRecorder {
+    readonly id: string;
+    onStageExecuted?(event: FlowStageExecutedEvent): void;
+    onError?(event: FlowErrorEvent): void;
+    onRunStart?(event: FlowRunLifecycleEvent): void;
+    onRunEnd?(event: FlowRunLifecycleEvent): void;
+    onRead?(event: ScopeReadEvent): void;
+    onCommit?(event: ScopeCommitEvent): void;
+}
+/**
+ * One data-dependency edge — a read key in this commit AND the commit
+ * whose `updates` last wrote that key before this commit's index.
+ *
+ * `sourceRuntimeStageId` and `sourceCommitIdx` are BOTH `null` when no
+ * prior commit wrote the key (panel-flagged: NEVER `undefined` — forces
+ * consumers to handle absence as load-bearing).
+ */
+interface DataDependency {
+    readonly key: string;
+    readonly sourceRuntimeStageId: RuntimeStageId | null;
+    readonly sourceCommitIdx: number | null;
+}
+/**
+ * Per-commit summary. Joins structural data (from the structure
+ * translator) with runtime data (commitLog timeline) into a single
+ * consumer-friendly shape.
+ *
+ * Three "prev" views — pick the right one for your UI:
+ * ─────────────────────────────────────────────────────
+ *   | Field                | Answers                                    |
+ *   |----------------------|--------------------------------------------|
+ *   | `structuralPrevIds`  | "what COULD flow in" (chart shape)        |
+ *   | `runtimePrevIds`     | "what DID flow in by stage" (execution    |
+ *   |                      | timeline; loop-aware)                      |
+ *   | `dataDependencies`   | "which commit wrote the bytes I read"     |
+ *   |                      | (causal data lineage; per-key)             |
+ *
+ * The three answers usually align on simple charts (linear; single
+ * fork-merge). They DIVERGE in interesting ways under loops (runtime
+ * differs by iteration; data-deps may skip uninvolved stages) and
+ * conditional branches (structural sees all options; runtime + data
+ * see only the chosen path).
+ */
+interface CommitView {
+    readonly runtimeStageId: RuntimeStageId;
+    readonly stageId: StageId;
+    /** Position in the chronologically-ordered commitLog. */
+    readonly commitIdx: number;
+    /** Stage ids that lead into this stage in the chart (loop-excluded). */
+    readonly structuralPrevIds: StageId[];
+    readonly structuralNextIds: StageId[];
+    /**
+     * For each structural prev stage that EXECUTED IN THIS RUN before
+     * this commit, the most-recent runtimeStageId of that prev's commit.
+     * Loop-safe: in iteration 2, runtime prev points at iteration 2's
+     * commits (not iteration 1's).
+     */
+    readonly runtimePrevIds: RuntimeStageId[];
+    /**
+     * For each structural next stage that EXECUTED IN THIS RUN after
+     * this commit, the soonest runtimeStageId. Symmetric to prev.
+     */
+    readonly runtimeNextIds: RuntimeStageId[];
+    /**
+     * One entry per key in `reads`. `sourceRuntimeStageId` points at the
+     * commit whose `updates` last set this key BEFORE this commit's
+     * index; `null` when no prior writer (typically: read of a key
+     * declared as default but never written by another stage).
+     */
+    readonly dataDependencies: DataDependency[];
+    /**
+     * The commit's writes. **Shallow-copied** at intake — top-level
+     * keys are owned, but nested object values are SHARED references
+     * to whatever the upstream `onCommit` payload carried. Consumers
+     * MUST NOT mutate nested values; doing so corrupts the recorder's
+     * internal state and propagates through `findLastWriter` to every
+     * subsequent `getIndex()` call.
+     */
+    readonly updates: Record<string, unknown>;
+    readonly reads: string[];
+}
+/** Indexed CommitView access. */
+interface CommitFlowIndex {
+    /** Ordered list — index === commitIdx. */
+    readonly commits: readonly CommitView[];
+    /** Lookup by runtimeStageId (the universal join key). */
+    readonly byRuntimeStageId: ReadonlyMap<RuntimeStageId, CommitView>;
+    /**
+     * Data-dependency edges — `from` and `to` are commitIdx ints; `key`
+     * is the data key that flowed from one commit to the other. Same
+     * data as walking each CommitView's `dataDependencies` — exposed as
+     * a flat edge list for graph algorithms and rendering.
+     *
+     * **When to use which**:
+     *   - `view.dataDependencies` — render ONE commit's inputs in a
+     *     detail panel (e.g., `<CommitInspector>`).
+     *   - `index.dataEdges` — draw the FULL data-flow DAG (React Flow
+     *     edges, GraphViz, dependency matrix, etc.). One pass over the
+     *     flat list = the whole graph.
+     *
+     * Edges are `Object.freeze()`d at construction — type `readonly` is
+     * compile-time; freeze is the runtime enforcement.
+     */
+    readonly dataEdges: readonly {
+        readonly from: number;
+        readonly to: number;
+        readonly key: string;
+    }[];
+}
+interface CommitFlowRecorderHandle {
+    /** CombinedRecorder — attach via BOTH `executor.attachFlowRecorder()`
+     *  AND `executor.attachScopeRecorder()`. */
+    recorder: MinimalCommitFlowRecorder;
+    /** Returns a defensive copy of the current index state. */
+    getIndex(): CommitFlowIndex;
+    /** Pub-sub: returns unsubscribe. */
+    subscribe(listener: () => void): () => void;
+    /** Monotonic version counter — bumps on Scope/Flow event OR when
+     *  the structure translator's version bumps. */
+    version(): number;
+    /** Reset runtime state. Does NOT bump version or notify (consistent
+     *  with other translators' reset contracts). */
+    reset(): void;
+}
+interface CreateCommitFlowRecorderOptions {
+    /** Recorder id (surfaces in error attribution). */
+    id?: string;
+    /** REQUIRED — structure translator handle for structural prev/next
+     *  projection. CommitFlow subscribes to its version. */
+    structure: TraceStructureRecorderHandle;
+}
+declare function createCommitFlowRecorder(options: CreateCommitFlowRecorderOptions): CommitFlowRecorderHandle;
+/**
+ * Walk data-dependency edges BACKWARD from a starting commit. Returns
+ * the lineage chain — every ancestor commit whose writes transitively
+ * contributed to the starting commit's reads.
+ *
+ * BFS order, commitIdx-ascending (oldest first). Includes the starting
+ * commit at the END of the returned array.
+ *
+ * Cycle defense: visited set + recursion cap at `index.commits.length`
+ * (per L8 panel must-fix — defends against future malformed graphs).
+ *
+ * @example
+ * ```ts
+ * const lineage = backtraceDataFlow(commitIndex, asRuntimeStageId('finalize-order#3'));
+ * // → [load-order#0, check-inventory#1, run-fraud-check#2, finalize-order#3]
+ * //   (the commits whose updates fed FinalizeOrder's reads)
+ * ```
+ */
+declare function backtraceDataFlow(index: CommitFlowIndex, startRuntimeStageId: RuntimeStageId): CommitView[];
+
+/**
+ * `createTraceBundle` — one factory wires every shipped translator
+ * + provides a single `attachTo(executor)` call that registers all
+ * runtime recorders.
+ *
+ * Bundle shape (as of L8.2)
+ * ─────────────────────────
+ *   - `structure` — build-time `TraceGraph` (StructureRecorder).
+ *   - `runtimeOverlay` — execution overlay for time-travel (FlowRecorder).
+ *   - `nodeView` — per-stage summary index, CombinedRecorder
+ *     (FlowRecorder + ScopeRecorder).
+ *   - `commitFlow` — per-commit summary + data-lineage,
+ *     CombinedRecorder (ScopeRecorder + FlowRecorder).
+ *
+ * Goal: collapse the 5-line "create + attach + subscribe" boilerplate
+ * into one call for the common case. Consumers that want à-la-carte
+ * setup can still construct each translator directly (the underlying
+ * factories are unchanged).
+ *
+ * Independence: each translator subscribes ONLY to `structure` (per
+ * L8.1 Panel 1 rule — translators must never subscribe to peers).
+ * Linear dependency tree keeps notify cascades O(depth), not O(N²).
+ *
+ * @example
+ * ```tsx
+ * import { createTraceBundle } from 'footprint-explainable-ui/flowchart';
+ *
+ * function MyTraceUI() {
+ *   const bundle = useMemo(() => createTraceBundle(), []);
+ *   useEffect(() => {
+ *     const chart = flowChart('seed', fn, 'seed', {
+ *       structureRecorders: [bundle.structure.recorder],
+ *     }).addFunction('a', fnA, 'a').build();
+ *     const executor = new FlowChartExecutor(chart);
+ *     bundle.attachTo(executor);
+ *     executor.run({ input });
+ *   }, [bundle]);
+ *
+ *   return <TracedFlow recorder={bundle.structure} overlay={bundle.runtimeOverlay} />;
+ * }
+ * ```
+ *
+ * **Recorder-attach lifecycle**: `attachTo(executor)` attaches THREE
+ * FlowRecorders (`runtimeOverlay`, `nodeView`, `commitFlow`) and TWO
+ * ScopeRecorders (`nodeView`, `commitFlow`). Each translator has a
+ * distinct `recorder.id`, so footprintjs's id-idempotency rule
+ * doesn't collide. The build-time `structure.recorder` is NOT
+ * auto-attached — it must be passed to `flowChart(..., {
+ * structureRecorders: [...] })` because builder recorders register
+ * BEFORE `executor` exists. Consumers wire that one explicitly (see
+ * example above). This matches footprintjs's two-phase recorder
+ * model (build vs runtime).
+ */
+
+/** Minimal executor surface — mirrors the bits of footprintjs's
+ *  `FlowChartExecutor` the bundle calls into. Local to keep
+ *  explainable-ui dep-free from footprintjs. */
+interface MinimalExecutor {
+    attachFlowRecorder(recorder: unknown): void;
+    attachScopeRecorder?(recorder: unknown): void;
+}
+interface TraceBundle {
+    structure: TraceStructureRecorderHandle;
+    runtimeOverlay: TraceRuntimeOverlayHandle;
+    /** L8.1 — per-stage summary translator. Reads `prevIds`/`nextIds`
+     *  from `structure` (no duplication), accumulates `executions[]`
+     *  + commit refs from Flow + Scope events. */
+    nodeView: NodeViewRecorderHandle;
+    /** L8.2 — per-commit summary translator. Owns canonical CommitView[].
+     *  Derives structural prev/next from `structure`, runtimePrev/Next
+     *  from "most-recent-per-prev" over commitLog, and dataDependencies
+     *  via findLastWriter per read key. */
+    commitFlow: CommitFlowRecorderHandle;
+    /**
+     * Attach RUNTIME recorders (FlowRecorder, ScopeRecorder) to a
+     * footprintjs executor. The build-time `structure.recorder` is NOT
+     * covered — pass it to `flowChart(..., { structureRecorders: [...] })`
+     * at construction time instead (see file header example).
+     */
+    attachTo(executor: MinimalExecutor): void;
+}
+interface CreateTraceBundleOptions {
+    /** Per-translator options. All optional. */
+    structure?: CreateTraceStructureRecorderOptions;
+    runtimeOverlay?: CreateTraceRuntimeOverlayOptions;
+    nodeView?: Omit<CreateNodeViewRecorderOptions, "structure">;
+    commitFlow?: Omit<CreateCommitFlowRecorderOptions, "structure">;
+}
+declare function createTraceBundle(options?: CreateTraceBundleOptions): TraceBundle;
+
+/**
+ * `useTranslator(handle, getSnapshot)` — React adapter for any translator
+ * exposing the standard `subscribe()` + `version()` shape.
+ *
+ * Wraps `useSyncExternalStore` so consumers don't repeat the boilerplate
+ * for every translator. The `version` is the snapshot identity — when it
+ * changes, React re-renders; `getSnapshot` then returns the consumer-
+ * chosen view (full graph, slice, etc.).
+ *
+ * @example
+ * ```tsx
+ * const trace = useMemo(() => createTraceStructureRecorder(), []);
+ * const graph = useTranslator(trace, () => trace.getGraph());
+ * return <TraceFlow graph={graph} />;
+ * ```
+ *
+ * **Why a hook (vs each component wiring `useSyncExternalStore` itself)**:
+ * three reasons. (1) Reduces 4 lines of `useSyncExternalStore + useMemo`
+ * boilerplate to one line. (2) Standardises the snapshot-identity
+ * convention (version int) — consumers can't accidentally pass a getter
+ * whose return identity changes every call (which would re-render
+ * forever). (3) Stable subscribe/getVersion refs via memoization on the
+ * handle identity — no re-subscribe on parent re-renders.
+ */
+interface TranslatorHandleLike {
+    subscribe(listener: () => void): () => void;
+    version(): number;
+}
+/**
+ * Subscribe to a translator + return a typed snapshot computed by the
+ * caller. The snapshot recomputes whenever `version()` changes.
+ *
+ * `getSnapshot` is called inside a `useMemo` keyed on the version
+ * integer — so consumers can return fresh objects from `getSnapshot`
+ * (e.g., `handle.getGraph()` returns a defensive copy) without
+ * triggering infinite re-renders.
+ */
+declare function useTranslator<T>(handle: TranslatorHandleLike, getSnapshot: () => T): T;
+
+/**
+ * Graph traversal helpers — pure functions over a `NodeViewIndex`.
+ *
+ * Bi-directional structural walks (`walkForward` / `walkBackward`) plus
+ * convenience wrappers (`backtraceStructural` / `forwardtraceStructural`).
+ *
+ * Cycle defense (panel L8 must-fix)
+ * ──────────────────────────────────
+ *   Every traversal carries a `visited: Set<StageId>` and caps recursion
+ *   at `index.all.length` (the total node count). Defends against:
+ *     - Future bugs where a malformed graph includes a non-loop cycle
+ *     - Manual edge injection bypassing the structure-recorder fix
+ *     - Duplicate edges that survive dedupe due to source/target
+ *       collisions
+ *   Loop back-edges (`data.kind === 'loop'`) already excluded at the
+ *   structure-recorder layer (invariant I1), so they never enter
+ *   `prevIds`/`nextIds` — no extra filtering here.
+ *
+ * BFS order
+ * ─────────
+ *   Walks return nodes in BFS order — root first, then immediate
+ *   neighbors, then their neighbors. Matches breadcrumb-friendly
+ *   "closest-first" display order.
+ *
+ * Always-arrays returns
+ * ─────────────────────
+ *   All helpers return `NodeView[]`. Empty array (NOT null/undefined)
+ *   means "no path" or "node not found". Consumers `.map()` /
+ *   `.length`-check without null-handling boilerplate.
+ */
+
+interface WalkOptions {
+    /** Hard cap on hops. Default: `index.all.length` (one full traversal). */
+    maxDepth?: number;
+    /** When true, only return nodes that have `visitedInRun === true`.
+     *  Useful for "in THIS run, what fed me?" queries (runtime-aware walk). */
+    onlyVisited?: boolean;
+    /** When true, INCLUDE the start node in the returned array. Default:
+     *  false (caller already has the start node; the walk returns its
+     *  ancestors/descendants). */
+    includeStart?: boolean;
+}
+/**
+ * Walk forward (`nextIds`) from `startId`. BFS order. Cycle-safe.
+ * Returns `[]` if `startId` is unknown.
+ *
+ * Convergence semantics: a node reachable via multiple paths appears
+ * ONCE in the result (visited-set dedupes).
+ */
+declare function walkForward(index: NodeViewIndex, startId: StageId, options?: WalkOptions): NodeView[];
+/**
+ * Walk backward (`prevIds`) from `startId`. BFS order. Cycle-safe.
+ * Returns `[]` if `startId` is unknown.
+ *
+ * Convergence semantics: a fork-join's `walkBackward` returns BOTH
+ * branch parents (and their ancestors), each once.
+ */
+declare function walkBackward(index: NodeViewIndex, startId: StageId, options?: WalkOptions): NodeView[];
+/**
+ * Backtrace from `stageId` to a structural root (no prev) OR a split
+ * point (multiple prevs). Returns the chain from `stageId` BACK to
+ * the root, root-first. Includes `stageId` at the END.
+ *
+ * Defines "split" as `prevIds.length > 1 OR prevIds.length === 0`
+ * (per L8 panel recommendation) — stops at convergence points AND at
+ * the seed. Useful for breadcrumb display where "innermost serial
+ * run" is the meaningful path.
+ */
+declare function backtraceStructural(index: NodeViewIndex, stageId: StageId, options?: Pick<WalkOptions, "maxDepth" | "onlyVisited">): NodeView[];
+/**
+ * Forward-trace from `stageId` to a structural leaf (no next) OR a
+ * fork point (multiple nexts). Returns the chain from `stageId`
+ * FORWARD to the leaf/fork, with `stageId` at the START.
+ */
+declare function forwardtraceStructural(index: NodeViewIndex, stageId: StageId, options?: Pick<WalkOptions, "maxDepth" | "onlyVisited">): NodeView[];
+
+interface NodeInspectorProps extends BaseComponentProps {
+    /** The NodeView index (from `nodeView.getIndex()` or `useTranslator`).
+     *
+     *  **Pure data prop** (NOT the recorder handle) — by design. Lets
+     *  consumers wrap in `useTranslator(nodeView, () => nodeView.getIndex())`
+     *  at the parent, or pass a static index from tests / Storybook /
+     *  SSR. Mirrors `<CommitInspector index={...}>` for consistency. */
+    index: NodeViewIndex;
+    /** Which stage to inspect. When `null`, renders the placeholder. */
+    selectedId: StageId | null;
+    /** Click handler — receives a stageId for breadcrumb navigation. */
+    onNavigate?: (stageId: StageId) => void;
+    /** When true, the prev/next chains include only `visitedInRun` nodes
+     *  (runtime-filtered view). */
+    onlyVisited?: boolean;
+}
+declare function NodeInspector({ index, selectedId, onNavigate, onlyVisited, className, style, }: NodeInspectorProps): react_jsx_runtime.JSX.Element;
+
+interface CommitInspectorProps extends BaseComponentProps {
+    /** The CommitFlow index (from `commitFlow.getIndex()` or `useTranslator`).
+     *
+     *  **Pure data prop** (NOT the recorder handle) — by design. Lets
+     *  consumers wrap in `useTranslator(commitFlow, () => commitFlow.getIndex())`
+     *  at the parent, or pass a static index from tests / Storybook /
+     *  SSR. Mirrors `<NodeInspector index={...}>` for consistency. */
+    index: CommitFlowIndex;
+    /** Which commit to inspect (by runtimeStageId). null → placeholder. */
+    selectedRuntimeStageId: RuntimeStageId | null;
+    /** Click handler — receives a runtimeStageId for time-travel
+     *  navigation. Used by all clickable references (runtime prev/next,
+     *  data-dep sources, lineage chain). */
+    onNavigate?: (runtimeStageId: RuntimeStageId) => void;
+}
+declare function CommitInspector({ index, selectedRuntimeStageId, onNavigate, className, style, }: CommitInspectorProps): react_jsx_runtime.JSX.Element;
+
+/**
+ * Series-parallel chain tree builders — pure functions over `TraceGraph`
+ * (structural) + `CommitFlowIndex` (runtime).
+ *
+ * When to reach for this vs. flat commitLog
+ * ─────────────────────────────────────────
+ *   Use `commitLog` when you want chronological replay / slider scrubbing
+ *   ("what happened in order"). Use the chain tree when you want to
+ *   render parallel structure visually or answer "which branch ran?"
+ *   questions — flat `commitLog[idx-1]` loses the fork shape.
+ *
+ *   Pairs with `<CommitInspector>` for git-log-style master/detail —
+ *   `<CommitChainView>` picks, `<CommitInspector>` inspects.
+ *   Complements the per-stage view from `createNodeViewRecorder`.
+ *
+ * Why a chain tree
+ * ────────────────
+ *   Footprintjs charts are **series-parallel DAGs by construction** —
+ *   the builder primitives compose serially (`addFunction`) or in
+ *   parallel (`addListOfFunction` / `addDeciderFunction`). Series-
+ *   parallel DAGs are provably representable as expression trees,
+ *   so we can decompose any footprintjs chart into a nested
+ *   `(serial | parallel | leaf)` shape that renders cleanly as
+ *   swim lanes.
+ *
+ * Two builders, one tree shape
+ * ────────────────────────────
+ *   - `structureAsChainTree(graph, options?)` — STRUCTURAL view.
+ *     No commitLog. Decomposes the chart shape into S-P primitives.
+ *     Renders the full chart (all branches of a decider, etc.) even
+ *     before running.
+ *
+ *   - `buildCommitChainTree(graph, commitFlow, options?)` — RUNTIME
+ *     view. Each leaf carries the commits[] that fired for that stage
+ *     in this run. Loops produce a leaf with N commits. Branches that
+ *     never executed in this run appear as empty `commits[]` leaves
+ *     (consumer can filter).
+ *
+ * Algorithm scope (correctness contract)
+ * ──────────────────────────────────────
+ *   These builders are tuned for **series-parallel charts** — every
+ *   fork in footprintjs's builder has a matching merge point. For
+ *   non-S-P or malformed graphs the tree is still finite and stable
+ *   (cycle defense guarantees termination), but the shape may not
+ *   reflect a clean S-P decomposition.
+ *
+ *   - Forks with **no common descendant** drop the outer-walk tail at
+ *     the fork node. Real footprintjs charts always re-merge.
+ *   - Edges with `data.kind === undefined` are treated as `'next'`.
+ *     Multiple linear-next edges from a single source follow only the
+ *     first (deterministic by insertion order); a dev-mode warning
+ *     fires when this is observed (`isDevMode()` from footprintjs).
+ *
+ * Cycle defense (L8 panel must-fix carried forward)
+ * ─────────────────────────────────────────────────
+ *   Every recursive walk carries a `visited: Set<StageId>` to defend
+ *   against malformed graphs (manual edge injection, future builder
+ *   bugs). Loop edges (`kind === 'loop'`) are excluded at the
+ *   structure-recorder layer per invariant I1, so they never enter
+ *   prev/next — no extra filtering needed here. Convergence detection
+ *   uses BFS bounded by `graph.nodes.length`.
+ *
+ * @example
+ * ```ts
+ * const trace = createTraceStructureRecorder();
+ * // ... build a fork chart ...
+ *
+ * const sChain = structureAsChainTree(trace.getGraph());
+ * // → { kind: 'serial', items: [
+ * //     { kind: 'leaf', stageId: 'LoadOrder' },
+ * //     { kind: 'parallel', branches: [
+ * //       { kind: 'leaf', stageId: 'CheckInventory' },
+ * //       { kind: 'leaf', stageId: 'RunFraudCheck' },
+ * //     ]},
+ * //     { kind: 'leaf', stageId: 'FinalizeOrder' },
+ * //   ]}
+ *
+ * const commitFlow = createCommitFlowRecorder({ structure: trace });
+ * // ... run chart ...
+ * const cChain = buildCommitChainTree(trace.getGraph(), commitFlow.getIndex());
+ * // → same shape, but each leaf carries `commits: CommitView[]`
+ * ```
+ */
+
+/** Structural chain tree leaf (no commits). */
+interface StructureChainLeaf {
+    readonly kind: "leaf";
+    readonly stageId: StageId;
+}
+/** Structural chain tree node — recursive S-P composition over stage ids. */
+type StructureChain = StructureChainLeaf | {
+    readonly kind: "serial";
+    readonly items: readonly StructureChain[];
+} | {
+    readonly kind: "parallel";
+    readonly branches: readonly StructureChain[];
+};
+/** Commit chain tree leaf — carries all commits for the stage (loop-aware). */
+interface CommitChainLeaf {
+    readonly kind: "leaf";
+    readonly stageId: StageId;
+    /** All commits that fired for this stage in this run, in commitIdx
+     *  ascending order. Loop iteration N has commits[N]. Empty array
+     *  when the stage never executed in this run.
+     *
+     *  **Ownership**: references are shared with
+     *  `CommitFlowIndex.commits` (no deep copy). The same shallow-copy /
+     *  nested-shared-value contract documented on `CommitView.updates`
+     *  applies. Do not mutate. */
+    readonly commits: readonly CommitView[];
+}
+/** Commit chain tree — recursive S-P composition with commit leaves. */
+type CommitChain = CommitChainLeaf | {
+    readonly kind: "serial";
+    readonly items: readonly CommitChain[];
+} | {
+    readonly kind: "parallel";
+    readonly branches: readonly CommitChain[];
+};
+interface ChainTreeOptions {
+    /** Stage id to start the walk from. Defaults to the chart's seed
+     *  (first node with no incoming non-loop edge). */
+    rootStageId?: StageId;
+}
+/**
+ * Build a structural chain tree for a chart. Pure function over
+ * `TraceGraph` — no runtime data required. Useful for rendering the
+ * chart shape before any execution (static documentation, etc.).
+ */
+declare function structureAsChainTree(graph: TraceGraph, options?: ChainTreeOptions): StructureChain | null;
+/**
+ * Build a commit-decorated chain tree. Same S-P shape as
+ * `structureAsChainTree`, but each leaf carries the commits[] that
+ * fired for that stage in this run (in commitIdx ascending order).
+ *
+ * Loop semantics: a stage that ran N times has a leaf with
+ * `commits.length === N`. The consumer's renderer decides whether to
+ * display them as a single "ran 3×" badge or unroll into N visible
+ * boxes — both views are supported by the same data.
+ *
+ * Branches that never executed in this run appear with empty
+ * `commits[]`. Consumers wanting "runtime-only" view can filter them
+ * out.
+ */
+declare function buildCommitChainTree(graph: TraceGraph, commitFlow: CommitFlowIndex, options?: ChainTreeOptions): CommitChain | null;
+
+interface CommitChainViewProps extends BaseComponentProps {
+    /** The chain tree. Accepts BOTH `CommitChain` (from
+     *  `buildCommitChainTree`) and `StructureChain` (from
+     *  `structureAsChainTree` — pre-execution view). null → placeholder. */
+    chain: CommitChain | StructureChain | null;
+    /** Highlighted commit (by runtimeStageId). Only meaningful for
+     *  `CommitChain` input (StructureChain has no commits to select). */
+    selectedRuntimeStageId?: RuntimeStageId | null;
+    /** Fires when a commit box is clicked — pass to `<CommitInspector>`
+     *  for master/detail wiring. Not fired for "not executed" leaves. */
+    onSelectCommit?: (runtimeStageId: RuntimeStageId) => void;
+    /** Optional label resolver — default uses the bare stageId. Consumers
+     *  can map id → friendly name (e.g., from a NodeViewIndex). */
+    resolveLabel?: (stageId: StageId) => string;
+    /** Time-travel cursor: commits with `commitIdx > revealedThroughCommitIdx`
+     *  render dimmed (still visible — keeps layout stable). Pairs with
+     *  `<RunSlider>` in the ONE-CURSOR model.
+     *
+     *  Semantics:
+     *  - `null` (default) — reveal ALL commits (no time-travel applied).
+     *  - `N >= 0` — reveal commits 0..N inclusive; dim commits with
+     *    `commitIdx > N`.
+     *  - `N < 0` (e.g., `-1`) — reveal NONE; all commits dim. Use this
+     *    sentinel for "cursor is stale / unresolved" so the chain doesn't
+     *    accidentally fall back to fully-revealed when the consumer wants
+     *    no-reveal. */
+    revealedThroughCommitIdx?: number | null;
+}
+declare function CommitChainView({ chain, selectedRuntimeStageId, onSelectCommit, resolveLabel, revealedThroughCommitIdx, className, style, }: CommitChainViewProps): react_jsx_runtime.JSX.Element;
+
+/**
+ * Slot prop bags — slots receive PURE DATA (chain/index), NOT the
+ * bundle. Mirrors the sibling-inspector convention so slot bodies are
+ * usable from tests / Storybook / SSR and avoid re-subscribing to
+ * translators. Each callback is wired by the shell to the shared
+ * selection cursor.
+ */
+interface ChainSlotProps {
+    /** Live chain tree, derived from the bundle. `null` before any
+     *  commits arrive. */
+    chain: CommitChain | null;
+    /** Currently selected commit (shared cursor). */
+    selectedRuntimeStageId: RuntimeStageId | null;
+    /** Wire to the shared selection cursor. */
+    onSelectCommit: (rsid: RuntimeStageId) => void;
+    /** Time-travel reveal cursor (derived from selectedRuntimeStageId
+     *  via ONE-CURSOR model). Commits with commitIdx > this value
+     *  render dimmed. `null` reveals all, `-1` reveals none, `N >= 0`
+     *  reveals up to commit N. **Optional in custom slots** — slot
+     *  authors that don't implement time-travel dimming can ignore it
+     *  (matches the standalone `<CommitChainView>` prop optionality). */
+    revealedThroughCommitIdx?: number | null;
+}
+interface CommitInspectorSlotProps {
+    /** Live commitFlow index. */
+    index: CommitFlowIndex;
+    /** Currently selected commit (shared cursor). */
+    selectedRuntimeStageId: RuntimeStageId | null;
+    /** Wire to the shared selection cursor (e.g., for clickable
+     *  data-dep / lineage breadcrumbs). */
+    onNavigate: (rsid: RuntimeStageId) => void;
+}
+interface NodeInspectorSlotProps {
+    /** Live nodeView index. */
+    index: NodeViewIndex;
+    /** StageId derived from `selectedRuntimeStageId`. */
+    selectedStageId: StageId | null;
+    /** Wire to the shared selection cursor (e.g., for prev/next chain
+     *  breadcrumbs). Resolves the stage to its first commit. */
+    onNavigate: (stageId: StageId) => void;
+}
+interface SliderSlotProps {
+    /** Live commitFlow index. */
+    index: CommitFlowIndex;
+    /** Currently selected commit — same cursor as the chain selection
+     *  per the ONE-CURSOR model. */
+    cursorRuntimeStageId: RuntimeStageId | null;
+    /** Wire to the shared selection cursor. */
+    onCursorChange: (rsid: RuntimeStageId | null) => void;
+}
+interface TraceExplorerSlots {
+    /** Override the chain (master) pane. Use to swap the swim-lane
+     *  renderer for a timeline/Gantt/custom layout while keeping the
+     *  same selection contract. */
+    chain?: React.ComponentType<ChainSlotProps>;
+    /** Override the commit (detail) pane. Use to add custom commit-
+     *  detail formatting (e.g., domain-specific updates rendering). */
+    commitInspector?: React.ComponentType<CommitInspectorSlotProps>;
+    /** Override the node (stage-summary) pane. Use to surface per-stage
+     *  custom KPIs / annotations alongside the default execution data. */
+    nodeInspector?: React.ComponentType<NodeInspectorSlotProps>;
+    /** Override the slider (top time-travel bar). Pass `null` to HIDE
+     *  the slider entirely (e.g., for static post-run views with no
+     *  scrub affordance). */
+    slider?: React.ComponentType<SliderSlotProps> | null;
+}
+interface TraceExplorerShellProps extends BaseComponentProps {
+    /** The translator bundle from `createTraceBundle()`. MUST have had
+     *  `bundle.attachTo(executor)` called before any commits arrive,
+     *  otherwise every pane shows its placeholder. */
+    bundle: TraceBundle;
+    /** Controlled selection (omit for uncontrolled). `null` clears. */
+    selectedRuntimeStageId?: RuntimeStageId | null;
+    /** Fires on selection changes. In controlled mode, required for
+     *  selection to take effect. In uncontrolled mode, fires as an
+     *  observation hook (logging/analytics) — the shell still owns the
+     *  state.
+     *
+     *  Memoize via `useCallback` to avoid downstream re-renders. */
+    onSelectionChange?: (rsid: RuntimeStageId | null) => void;
+    /** Optional slot overrides. Should be stable across renders
+     *  (define at module scope or `useMemo`). */
+    slots?: TraceExplorerSlots;
+}
+declare function TraceExplorerShell({ bundle, selectedRuntimeStageId: controlledSel, onSelectionChange, slots, className, style, }: TraceExplorerShellProps): react_jsx_runtime.JSX.Element;
+
+interface RunSliderProps extends BaseComponentProps {
+    /** Live commit flow index (pure data prop — pass via
+     *  `useTranslator(commitFlow, () => commitFlow.getIndex())`).
+     *  Source: `createCommitFlowRecorder` — see `<CommitInspector>` for
+     *  the canonical consumer pattern. */
+    index: CommitFlowIndex;
+    /** The shared time cursor. `null` = no commit yet selected (slider
+     *  sits at value 0). */
+    cursorRuntimeStageId: RuntimeStageId | null;
+    /** Fires when the slider moves. */
+    onCursorChange: (rsid: RuntimeStageId | null) => void;
+    /** Optional label callback. Default renders `"#commitIdx · stageId"`.
+     *  Receives the full resolved `commit` + the `index` for richer
+     *  labels (step name, duration from a sibling translator, etc.). */
+    renderLabel?: (info: {
+        commitIdx: number;
+        total: number;
+        runtimeStageId: RuntimeStageId | null;
+        /** Resolved commit at the cursor, or `null` when index is empty. */
+        commit: CommitView | null;
+        /** Full index — for cross-lookups (e.g., finding the previous
+         *  commit's stage label). */
+        index: CommitFlowIndex;
+    }) => React.ReactNode;
+}
+declare function RunSlider({ index, cursorRuntimeStageId, onCursorChange, renderLabel, className, style, }: RunSliderProps): react_jsx_runtime.JSX.Element;
+
+export { type BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DataDependency, type ExecutionRecord, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SliderSlotProps, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, createCommitFlowRecorder, createNodeViewRecorder, createTraceBundle, createTraceRuntimeOverlay, createTraceStructureRecorder, defaultTraceFlowLayout, forwardtraceStructural, sliceOverlay, structureAsChainTree, useSubflowNavigation, useTranslator, walkBackward, walkForward };

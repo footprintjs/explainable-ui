@@ -22,8 +22,28 @@ import { MemoryPanel } from "../MemoryPanel";
 import { NarrativePanel } from "../NarrativePanel";
 import { SubflowTree } from "../FlowchartView/SubflowTree";
 import { SubflowBreadcrumb } from "../FlowchartView/SubflowBreadcrumb";
-import { TracedFlowchartView } from "../FlowchartView/TracedFlowchartView";
-import type { SpecNode } from "../FlowchartView/specToReactFlow";
+import { TracedFlow } from "../FlowchartView/TracedFlow";
+
+/**
+ * Minimal subflow-walking spec shape. Used INTERNALLY by drill-down
+ * resolution (which navigates `subflowStructure` to find a child chart
+ * inside the parent's serialized structure). No longer used for chart
+ * rendering — that happens via `traceGraph` + `<TracedFlow>` exclusively.
+ *
+ * Kept as a local type so the file no longer depends on any legacy
+ * spec-walk module.
+ */
+export interface SpecNode {
+  name: string;
+  id?: string;
+  description?: string;
+  children?: SpecNode[];
+  next?: SpecNode;
+  isSubflowRoot?: boolean;
+  subflowId?: string;
+  subflowName?: string;
+  subflowStructure?: SpecNode;
+}
 import { InspectorPanel } from "../InspectorPanel/InspectorPanel";
 import { InsightPanel } from "../InsightPanel/InsightPanel";
 import { CompactTimeline } from "../CompactTimeline/CompactTimeline";
@@ -110,17 +130,42 @@ export interface ExplainableShellProps extends BaseComponentProps {
   snapshots?: StageSnapshot[];
   /**
    * Raw runtime snapshot from executor.getSnapshot(). The shell converts it
-   * internally via toVisualizationSnapshots(). When provided, `snapshots`,
-   * `resultData`, and `narrative` are derived automatically.
+   * internally via toVisualizationSnapshots(). When provided, `snapshots`
+   * and `resultData` are derived automatically. Pair with
+   * `narrativeEntries` for rich per-stage narrative.
    *
-   * Usage: `<ExplainableShell runtimeSnapshot={executor.getSnapshot()} spec={spec} />`
+   * Usage: `<ExplainableShell runtimeSnapshot={executor.getSnapshot()} narrativeEntries={executor.getNarrativeEntries()} spec={spec} />`
    */
   runtimeSnapshot?: RuntimeSnapshotInput | null;
   spec?: SpecNode | null;
+  /**
+   * Build-time graph captured live via `createTraceStructureRecorder`.
+   * REQUIRED for chart rendering (v6+) — the legacy `spec` →
+   * legacy spec-walk post-walk path was removed in favor of this
+   * recorder-driven graph.
+   *
+   * Pair with `runtimeOverlay` for the full time-travel trace UI.
+   * When `traceGraph` is set but `runtimeOverlay` is absent, the
+   * chart renders without runtime coloring (build-time-only view).
+   *
+   * The `spec` prop, when also provided, is used INTERNALLY for
+   * subflow drill-down resolution (navigating `subflowStructure` to
+   * find a child chart inside the parent's serialized structure) —
+   * NOT for rendering.
+   */
+  traceGraph?: import("../FlowchartView/traceStructureRecorder").TraceGraph | null;
+  /**
+   * Runtime overlay captured live via `createTraceRuntimeOverlay`.
+   * Pair with `traceGraph` to drive `<TracedFlow>` for the full
+   * time-travel trace UI.
+   */
+  runtimeOverlay?: import("../FlowchartView/createTraceRuntimeOverlay").RuntimeOverlay | null;
   title?: string;
   resultData?: Record<string, unknown> | null;
   logs?: string[];
-  narrative?: string[];
+  /** Structured narrative entries from `executor.getNarrativeEntries()`.
+   *  This is the only narrative input — the flat-string form was
+   *  removed; call `.map(e => e.text)` if you need it. */
   narrativeEntries?: NarrativeEntry[];
   tabs?: ShellTab[];
   defaultTab?: ShellTab;
@@ -143,15 +188,29 @@ export interface ExplainableShellProps extends BaseComponentProps {
    */
   recorderViews?: RecorderView[];
   /**
-   * Custom flowchart renderer. When omitted and `spec` is provided,
-   * ExplainableShell renders TracedFlowchartView by default.
+   * Custom flowchart renderer. When omitted, ExplainableShell renders
+   * via `<TracedFlow graph={traceGraph} overlay={runtimeOverlay} />` —
+   * the recorder-driven path. Override to plug a custom chart UI; the
+   * `spec` parameter is forwarded only for backward-compatible
+   * signatures (it's the same SpecNode used for drill-down) and may
+   * be `null` once consumers stop threading it in.
    */
   renderFlowchart?: (props: {
-    spec: SpecNode;
+    spec: SpecNode | null;
     snapshots: StageSnapshot[];
     selectedIndex: number;
     onNodeClick?: (indexOrId: number | string) => void;
+    showStageId?: boolean;
   }) => React.ReactNode;
+  /**
+   * When true, render each node's stable `stageId` as a small monospace
+   * caption beneath the label in the default flowchart renderer.
+   * Teaching aid: it reveals the key recorders use
+   * (`runtimeStageId = [subflowPath/]stageId#executionIndex`) so a
+   * consumer can map any recorder's per-stage data back to a node.
+   * Default false.
+   */
+  showStageId?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -490,7 +549,6 @@ const DetailsContent = memo(function DetailsContent({
   snapshots,
   selectedIndex,
   narrativeEntries,
-  narrative,
   size,
   fillHeight,
   extraViews,
@@ -498,7 +556,6 @@ const DetailsContent = memo(function DetailsContent({
   snapshots: StageSnapshot[];
   selectedIndex: number;
   narrativeEntries?: NarrativeEntry[];
-  narrative?: string[];
   size: "compact" | "default" | "detailed";
   fillHeight?: boolean;
   extraViews?: RecorderView[];
@@ -516,7 +573,7 @@ const DetailsContent = memo(function DetailsContent({
       id: "narrative",
       name: "Narrative",
       render: ({ snapshots: snaps, selectedIndex: idx }) => (
-        <NarrativePanel snapshots={snaps} selectedIndex={idx} narrativeEntries={narrativeEntries} narrative={narrative} size={size} style={fillHeight ? { height: "100%" } : undefined} />
+        <NarrativePanel snapshots={snaps} selectedIndex={idx} narrativeEntries={narrativeEntries} size={size} style={fillHeight ? { height: "100%" } : undefined} />
       ),
     },
   ];
@@ -696,7 +753,6 @@ const RightPanel = memo(function RightPanel({
   activeTab,
   allTabs,
   activeNarrativeEntries,
-  activeNarrative,
   recorderViews,
   autoRecorderViews,
   size,
@@ -711,7 +767,6 @@ const RightPanel = memo(function RightPanel({
   activeTab: string;
   allTabs: Array<{ id: string; name: string; description?: string }>;
   activeNarrativeEntries?: NarrativeEntry[];
-  activeNarrative?: string[];
   recorderViews?: RecorderView[];
   autoRecorderViews: Array<{ id: string; name: string; description?: string; preferredOperation?: string; data: unknown }>;
   size: "compact" | "default" | "detailed";
@@ -760,7 +815,7 @@ const RightPanel = memo(function RightPanel({
               id: tab.id,
               name: insightName(tab.name),
               render: () => {
-                if (tab.id === "narrative") return <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} runtimeSnapshot={runtimeSnapshot} spec={spec} size={size} style={{ height: "100%" }} />;
+                if (tab.id === "narrative") return <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={activeNarrativeEntries} runtimeSnapshot={runtimeSnapshot} spec={spec} size={size} style={{ height: "100%" }} />;
                 const customView = recorderViews?.find((v) => v.id === tab.id);
                 if (customView?.render) return customView.render({ snapshots, selectedIndex });
                 const autoView = autoRecorderViews.find((v) => v.id === tab.id);
@@ -795,21 +850,6 @@ function insightName(name: string): string {
   return map[name] ?? name;
 }
 
-// Default flowchart renderer — used when renderFlowchart is not provided
-function defaultRenderFlowchart({ spec: s, snapshots: snaps, selectedIndex, onNodeClick }: {
-  spec: SpecNode; snapshots: StageSnapshot[]; selectedIndex: number;
-  onNodeClick?: (indexOrId: number | string) => void;
-}) {
-  return (
-    <TracedFlowchartView
-      spec={s}
-      snapshots={snaps}
-      snapshotIndex={selectedIndex}
-      onNodeClick={onNodeClick}
-    />
-  );
-}
-
 export function ExplainableShell({
   snapshots: snapshotsProp,
   runtimeSnapshot,
@@ -817,7 +857,6 @@ export function ExplainableShell({
   title,
   resultData: resultDataProp,
   logs = [],
-  narrative: narrativeProp,
   narrativeEntries,
   tabs = ["result", "explainable"],
   defaultTab,
@@ -827,6 +866,9 @@ export function ExplainableShell({
   defaultExpanded,
   recorderViews,
   renderFlowchart,
+  showStageId = false,
+  traceGraph,
+  runtimeOverlay,
   size = "default",
   unstyled = false,
   className,
@@ -837,12 +879,7 @@ export function ExplainableShell({
     if (!runtimeSnapshot) return null;
     try {
       const snaps = toVisualizationSnapshots(runtimeSnapshot as any, narrativeEntries as any);
-      const narr: string[] = [];
-      for (const snap of snaps) {
-        const lines = (snap.narrative ?? "").split("\n").filter(Boolean);
-        narr.push(...lines);
-      }
-      return { snapshots: snaps, resultData: runtimeSnapshot.sharedState, narrative: narr };
+      return { snapshots: snaps, resultData: runtimeSnapshot.sharedState };
     } catch {
       return null;
     }
@@ -851,10 +888,69 @@ export function ExplainableShell({
   // Use derived data when runtimeSnapshot is provided, otherwise use explicit props
   const snapshots = snapshotsProp ?? derivedFromRuntime?.snapshots ?? [];
   const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
-  const narrative = narrativeProp ?? derivedFromRuntime?.narrative;
 
-  // Default flowchart renderer when spec is provided
-  const effectiveRenderFlowchart = renderFlowchart ?? (spec ? defaultRenderFlowchart : undefined);
+  // Flowchart renderer selection (v6+ — recorder-driven only):
+  //   - explicit `renderFlowchart` always wins (consumer override)
+  //   - `traceGraph` → render via `<TracedFlow>` (event-driven graph
+  //     + optional runtime overlay, no spec-tree post-walk)
+  //
+  // Consumers MUST pass `traceGraph` for chart visualization. The
+  // legacy `spec={...}` → post-walk fallback was removed when the
+  // recorder gained convergence-edge expansion (post-fork `next`
+  // fires N edges, one per branch child) — the recorder graph is now
+  // the single source of truth.
+  const tracedFlowRenderer = useMemo(() => {
+    if (!traceGraph) return undefined;
+    return ({ selectedIndex, snapshots, onNodeClick }: {
+      spec: SpecNode | null; snapshots: StageSnapshot[]; selectedIndex: number;
+      onNodeClick?: (indexOrId: number | string) => void;
+      showStageId?: boolean;
+    }) => {
+      // The shell's `selectedIndex` indexes into `snapshots[]` (which
+      // may be filtered to a drill-down subset). The overlay's
+      // `executionOrder` is the FULL execution timeline (all stages
+      // including subflow internals). When the two arrays have
+      // different lengths, passing selectedIndex straight through
+      // misaligns the chart's active highlight.
+      //
+      // Translate: take the runtimeStageId at snapshots[selectedIndex]
+      // and find the matching position in overlay.executionOrder.
+      // Fall back to selectedIndex when no overlay or no match
+      // (charts without subflows have aligned indexes anyway).
+      const activeRsid = snapshots[selectedIndex]?.runtimeStageId;
+      let overlayIdx = selectedIndex;
+      if (activeRsid && runtimeOverlay) {
+        const i = runtimeOverlay.executionOrder.findIndex(
+          (s) => s.runtimeStageId === activeRsid,
+        );
+        if (i >= 0) overlayIdx = i;
+      }
+      return (
+        <TracedFlow
+          graph={traceGraph}
+          overlay={runtimeOverlay ?? undefined}
+          scrubIndex={overlayIdx}
+          onNodeClick={(stageId) => onNodeClick?.(stageId)}
+          onSubflowChange={(mountId) => {
+            // Forward chart's drill state to the shell's drill-down
+            // stack so memory/narrative/timeline panels follow the
+            // chart into/out of subflows. We route through the same
+            // onNodeClick channel — it already triggers drill-down
+            // for subflow mount nodes via the shell's handleNodeClick
+            // → handleDrillDown path.
+            //
+            // The `mountId === null` case (popping back to top) is
+            // intentionally NOT auto-triggered here: the shell's
+            // breadcrumb-back button is the right user gesture for
+            // navigating UP from a subflow. Auto-popping on scrub
+            // would surprise users who manually drilled in.
+            if (mountId !== null) onNodeClick?.(mountId);
+          }}
+        />
+      );
+    };
+  }, [traceGraph, runtimeOverlay]);
+  const effectiveRenderFlowchart = renderFlowchart ?? tracedFlowRenderer;
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
@@ -890,7 +986,7 @@ export function ExplainableShell({
 
   // Build tab list: Result + Memory (always), Narrative (when data exists),
   // explicit recorder views, auto-detected recorder views
-  const hasNarrative = !!(narrative?.length || narrativeEntries?.length);
+  const hasNarrative = !!narrativeEntries?.length;
   const allTabs = useMemo(() => {
     const tabs: Array<{ id: string; name: string; description?: string }> = [
       { id: "result", name: "Result", description: "Final output and console logs" },
@@ -955,16 +1051,6 @@ export function ExplainableShell({
     ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1))
     : 0;
 
-  const activeNarrative = useMemo<string[] | undefined>(() => {
-    if (!isInSubflow) return narrative;
-    const lines: string[] = [];
-    for (const snap of activeSnapshots) {
-      const stageLines = (snap.narrative ?? "").split("\n").filter(Boolean);
-      lines.push(...stageLines);
-    }
-    return lines.length > 0 ? lines : undefined;
-  }, [isInSubflow, narrative, activeSnapshots]);
-
   const activeNarrativeEntries = isInSubflow ? undefined : narrativeEntries;
 
   const breadcrumbs = useMemo(() => {
@@ -972,7 +1058,16 @@ export function ExplainableShell({
     return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: undefined as string | undefined }))];
   }, [spec, title, drillDownStack]);
 
-  const showTreeSidebar = useMemo(() => !!spec && hasSubflowNodes(spec), [spec]);
+  // Recorder-driven: derive subflow presence from the build-time graph.
+  // Falls back to the legacy spec walk only when traceGraph is absent
+  // (e.g., a consumer still threading raw spec). When both are absent,
+  // the tree sidebar is hidden.
+  const showTreeSidebar = useMemo(() => {
+    if (traceGraph?.nodes?.length) {
+      return traceGraph.nodes.some((n) => n.data?.isSubflow === true);
+    }
+    return !!spec && hasSubflowNodes(spec);
+  }, [traceGraph, spec]);
 
   const rootOverlay = useMemo(() => {
     if (isInSubflow || !snapshots.length) return { activeStage: undefined, doneStages: undefined };
@@ -1057,9 +1152,9 @@ export function ExplainableShell({
             <>
               <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled />
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
-              {activeSpec && effectiveRenderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick })}
+              {activeSpec && effectiveRenderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId })}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
-              <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} unstyled />
+              <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} unstyled />
               <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
             </>
           )}
@@ -1082,7 +1177,7 @@ export function ExplainableShell({
       return <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} size={size} style={{ height: "100%" }} />;
     }
     if (activeTab === "narrative") {
-      return <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} narrative={activeNarrative} size={size} style={{ height: "100%" }} />;
+      return <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} size={size} style={{ height: "100%" }} />;
     }
     const customView = recorderViews?.find((v) => v.id === activeTab);
     if (customView?.render) {
@@ -1102,7 +1197,7 @@ export function ExplainableShell({
       );
     }
     return null;
-  }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, activeNarrative, recorderViews, autoRecorderViews]);
+  }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, recorderViews, autoRecorderViews]);
 
   // Details panel with internal tabs
   const detailsPanel = (
@@ -1192,6 +1287,7 @@ export function ExplainableShell({
                   snapshots: activeSnapshots,
                   selectedIndex: safeIdx,
                   onNodeClick: handleNodeClick,
+                  showStageId,
                 })}
               </div>
             )}
@@ -1203,7 +1299,7 @@ export function ExplainableShell({
                 {leftExpanded && (
                   <div style={{ maxHeight: 180, overflow: "auto", flexShrink: 0 }}>
                     <SubflowTree
-                      spec={spec!}
+                      graph={traceGraph ?? { nodes: [], edges: [] }}
                       activeStage={rootOverlay.activeStage}
                       doneStages={rootOverlay.doneStages}
                       onNodeSelect={handleTreeNodeSelect}
@@ -1240,7 +1336,7 @@ export function ExplainableShell({
                   <div style={{ width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
                     <div style={{ flex: 1, overflow: "auto" }}>
                       <SubflowTree
-                        spec={spec!}
+                        graph={traceGraph ?? { nodes: [], edges: [] }}
                         activeStage={rootOverlay.activeStage}
                         doneStages={rootOverlay.doneStages}
                         onNodeSelect={handleTreeNodeSelect}
@@ -1253,7 +1349,11 @@ export function ExplainableShell({
                 )
               )}
 
-              {/* Center: Flowchart — always visible, primary time-travel visual */}
+              {/* Center: Flowchart — flex:1, shares horizontal space with
+                  the Details panel sibling when expanded. The chart's
+                  TracedFlow refits itself via ResizeObserver whenever
+                  this container's size changes (so opening/closing
+                  Details re-runs xyflow's fitView automatically). */}
               {showTopology ? (
                 <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
                   {effectiveRenderFlowchart!({
@@ -1261,6 +1361,7 @@ export function ExplainableShell({
                     snapshots: activeSnapshots,
                     selectedIndex: safeIdx,
                     onNodeClick: handleNodeClick,
+                  showStageId,
                   })}
                 </div>
               ) : (
@@ -1283,7 +1384,6 @@ export function ExplainableShell({
                   activeTab={activeTab}
                   allTabs={allTabs}
                   activeNarrativeEntries={activeNarrativeEntries}
-                  activeNarrative={activeNarrative}
                   recorderViews={recorderViews}
                   autoRecorderViews={autoRecorderViews}
                   size={size}
