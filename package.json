@@ -38,7 +38,9 @@
     "clean": "rm -rf dist",
     "release:patch": "bash scripts/release.sh patch",
     "release:minor": "bash scripts/release.sh minor",
-    "release:major": "bash scripts/release.sh major"
+    "release:major": "bash scripts/release.sh major",
+    "test:coverage": "vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text-summary --coverage.reportsDirectory=coverage",
+    "coverage:badge": "npm run test:coverage; node scripts/coverage-badge.mjs"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
@@ -52,16 +54,17 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
+    "@types/dagre": "^0.7.54",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
     "jsdom": "^29.0.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tsup": "^8.4.0",
     "typescript": "^5.4.0",
-    "vitest": "^4.1.0",
-    "@types/dagre": "^0.7.54"
+    "vitest": "^4.1.0"
   },
   "license": "MIT",
   "repository": {

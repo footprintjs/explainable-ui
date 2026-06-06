@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.21.0]
+
+Chart rendering upgrades for merge-tree + time-travel charts. Additive only.
+
+### Added
+
+- **`traceGroupLayout`**: group-based straight-trunk layout (longest-path ranks +
+  span/fork-origin-centered merges) for staggered-merge charts, plus
+  `dagreTraceLayout`, `groupLayout`, `loopRouting`, `stepRouting`,
+  `snapLinearSuccessors` internals.
+- **New node/edge renderers**: `SlotPillNode` (context slots), `GroupContainerNode`
+  (nested subflow boxes), `LoopBackEdge` (right-margin loop curve), `SmartStepEdge`
+  (rank-skipping routing).
+- **`<TracedFlow coActiveStageIds>`**: ORs a co-active set into `active` for ALL
+  node types (stage + custom), so a consumer can light a whole parallel cohort
+  (context slots, parallel branches) at one cursor.
+- `StageNode` `emphasis` (hero / plumbing) styling + size hints.
+- `test:coverage` script + v8 coverage reporting + README coverage badge.
+
+### Changed
+
+- `dist` migration: per-component output replaced by tsup-bundled
+  `index` / `flowchart` / `copyForLLM` + chunks.
+
 ## [0.20.0]
 
 Consumer-controlled rendering extension points on `<TraceFlow>` and
