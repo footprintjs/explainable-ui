@@ -1,17 +1,19 @@
 /**
- * Pure helpers for projecting a raw `RuntimeOverlaySlice` into the
+ * Pure helper for projecting a raw `RuntimeOverlaySlice` into the
  * shape `<TracedFlow>` needs for per-node coloring:
  *
- *   1. `normalizeSliceLeafIds` — strips subflow path prefixes from
- *      stage ids so they match `TraceNode.id` (graph stores LEAF ids
- *      like `charge-card`; overlay records path-prefixed ids like
- *      `payment/charge-card`).
- *   2. `aggregateMountStatus` — when execution is INSIDE a subflow,
- *      light up the mount node in the parent view as
- *      done/active based on its internals' statuses.
+ *   `aggregateMountStatus` — when execution is INSIDE a subflow, light
+ *   up the mount node in the parent view as done/active based on its
+ *   internals' statuses.
  *
- * Both are pure (no I/O, no React). Composed in TracedFlow as
- * `aggregate(normalize(raw))`.
+ * Pure (no I/O, no React).
+ *
+ * Note: there is NO id-normalization step. Both the overlay slice and
+ * the structure graph use path-QUALIFIED stage ids (`subflowPath/stageId`,
+ * mirroring runtimeStageId), so they match directly. (A former
+ * `normalizeSliceLeafIds` step existed only while structure ids were
+ * bare; once `walkSubflowSpecInto` started qualifying inner ids, leaf-
+ * stripping became a mismatch and was removed.)
  */
 
 import type { TraceGraph } from "../traceStructureRecorder";
@@ -22,26 +24,6 @@ export interface OverlaySlice {
   executedStageIds: ReadonlySet<string>;
   executedOrderIds: readonly string[];
   errors: ReadonlyMap<string, string>;
-}
-
-/** Strip everything before the last `/` — `'payment/charge-card'` → `'charge-card'`. */
-function leafId(id: string): string {
-  const i = id.lastIndexOf("/");
-  return i >= 0 ? id.slice(i + 1) : id;
-}
-
-/**
- * Normalize all stage ids in a slice to LEAF ids so they line up
- * with `TraceNode.id` keys for coloring lookups.
- */
-export function normalizeSliceLeafIds(slice: OverlaySlice): OverlaySlice {
-  return {
-    doneStageIds: new Set(Array.from(slice.doneStageIds).map(leafId)),
-    activeStageId: slice.activeStageId ? leafId(slice.activeStageId) : null,
-    executedStageIds: new Set(Array.from(slice.executedStageIds).map(leafId)),
-    executedOrderIds: slice.executedOrderIds.map(leafId),
-    errors: new Map(Array.from(slice.errors).map(([k, v]) => [leafId(k), v])),
-  };
 }
 
 /**

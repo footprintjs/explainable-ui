@@ -60,7 +60,8 @@
     "react-dom": "^19.2.5",
     "tsup": "^8.4.0",
     "typescript": "^5.4.0",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.0",
+    "@types/dagre": "^0.7.54"
   },
   "license": "MIT",
   "repository": {
@@ -75,5 +76,8 @@
     "react",
     "time-travel",
     "explainable-ai"
-  ]
+  ],
+  "dependencies": {
+    "dagre": "^0.8.5"
+  }
 }

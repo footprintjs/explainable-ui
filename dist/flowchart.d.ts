@@ -1,6 +1,6 @@
 import * as react from 'react';
 import * as _xyflow_react from '@xyflow/react';
-import { Node, Edge, NodeTypes, EdgeTypes } from '@xyflow/react';
+import { Node, Edge, NodeTypes, EdgeTypes, NodeProps, EdgeProps } from '@xyflow/react';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 
 interface StageNodeData {
@@ -40,6 +40,22 @@ interface StageNodeData {
      * ExplainableShell.
      */
     showStageId?: boolean;
+    /**
+     * Visual emphasis hint — generic, so the renderer stays domain-agnostic.
+     * `hero` = a stage the viewer cares about (accent border + tint + bold);
+     * `muted` = mechanism/plumbing (recedes — faded + thin border). The
+     * consumer's graph builder sets this from its own semantics (e.g. the
+     * agentfootprint lens maps `stageRole` → emphasis). Layers UNDER run status:
+     * active/done/error colours still override during a run.
+     */
+    emphasis?: "hero" | "muted";
+    /**
+     * Size tier — scales the card's text + padding to match the footprint the
+     * layout allocated (the layout's node-size resolver must scale in lockstep,
+     * else the card and its laid-out box disagree). `lg` = a focal stage,
+     * `sm` = a minor/plumbing stage, default `md`. Generic — no domain meaning.
+     */
+    size?: "sm" | "md" | "lg";
     [key: string]: unknown;
 }
 /**
@@ -319,6 +335,12 @@ interface TraceNodeData extends Record<string, unknown> {
     subflowId?: string;
     isLazy?: boolean;
     isPausable?: boolean;
+    /** Visual emphasis hint — `hero` (prominent) / `muted` (recedes). Set by
+     *  the consumer's graph builder from its own semantics; the renderer styles
+     *  off it without any domain knowledge. */
+    emphasis?: "hero" | "muted";
+    /** Size tier — scales the card; must match the layout's node-size resolver. */
+    size?: "sm" | "md" | "lg";
     /** Set later by `onDeciderComplete` when the decider's branch list is
      *  sealed. Useful for renderers that want to render decider with a
      *  branch-count badge. */
@@ -625,7 +647,7 @@ declare function TimeTravelDebugger({ snapshots, graph, runtimeOverlay, showGant
  * `<TraceFlow graph={currentGraph} />` per level.
  */
 
-interface BreadcrumbEntry {
+interface BreadcrumbEntry$1 {
     /** Display name for this level */
     label: string;
     /** The subflow id that was drilled into to reach this level
@@ -636,7 +658,7 @@ interface BreadcrumbEntry {
 }
 interface SubflowNavigation {
     /** Current breadcrumb path (root → ... → current) */
-    breadcrumbs: BreadcrumbEntry[];
+    breadcrumbs: BreadcrumbEntry$1[];
     /** Current graph — today identical to the root graph (see file-level
      *  TODO). Consumers should still treat this as the source of truth so
      *  they remain forward-compatible once per-subflow graphs are wired in. */
@@ -663,7 +685,7 @@ interface SubflowNavigation {
 declare function useSubflowNavigation(rootGraph: TraceGraph | null): SubflowNavigation;
 
 interface SubflowBreadcrumbProps {
-    breadcrumbs: BreadcrumbEntry[];
+    breadcrumbs: BreadcrumbEntry$1[];
     onNavigate: (level: number) => void;
 }
 /**
@@ -671,6 +693,48 @@ interface SubflowBreadcrumbProps {
  * Shows: Root > SubflowA > SubflowB — clicking any crumb navigates back.
  */
 declare const SubflowBreadcrumb: react.NamedExoticComponent<SubflowBreadcrumbProps>;
+
+/**
+ * Pure helpers for subflow drill-down on a `TraceGraph`.
+ *
+ * Filtering and breadcrumb computation are derived from the
+ * `TraceNodeData.subflowOf` field that the structure recorder sets
+ * at `onSubflowMounted` time. Both functions are pure (no I/O, no
+ * React) so they can be unit-tested in isolation and reused by any
+ * renderer.
+ */
+
+/**
+ * Filter the trace graph by drill-down scope.
+ *
+ *   - `currentSubflowId === null`  → show top-level (nodes with no
+ *     `subflowOf`). Subflow internals are hidden; their mount node
+ *     stays visible as a single clickable card.
+ *   - `currentSubflowId === 'X'`   → show only nodes where
+ *     `subflowOf === 'X'` (the drilled-in subflow's internals).
+ *
+ * Edges follow the same filter — only edges where both endpoints
+ * are in the visible set survive. When nothing would be filtered
+ * out, returns the original graph reference (preserves upstream
+ * memoization).
+ */
+declare function filterGraphForDrill(graph: TraceGraph, currentSubflowId: string | null): TraceGraph;
+/** Entry in the breadcrumb path. `subflowId === null` is the root. */
+interface BreadcrumbEntry {
+    subflowId: string | null;
+    label: string;
+}
+/**
+ * Build the breadcrumb path for the current drill level.
+ *
+ * Always starts with the root `{ subflowId: null, label: 'Chart' }`.
+ * When drilled into a subflow, appends one entry with the mount
+ * node's display label (falling back to the subflow id). Multi-level
+ * drill chains are NOT supported by the current chart UX (drill is
+ * always from root or sibling — clicking a deeper subflow's mount
+ * replaces the current scope), so the path has at most 2 entries.
+ */
+declare function buildSubflowBreadcrumb(graph: TraceGraph, currentSubflowId: string | null): BreadcrumbEntry[];
 
 interface SubflowTreeEntry {
     /** Node name / identifier */
@@ -826,6 +890,13 @@ interface TracedFlowProps extends BaseComponentProps {
      * the default for that node type. Pass `{ stageNode: MyNode }` to
      * replace the default stage renderer entirely, or add new keys
      * for custom node components you push into the graph.
+     *
+     * v0.20+ — overlay state is injected into custom nodes' `data`
+     * fields too (`active`, `done`, `error`, `errorMessage`, `dimmed`,
+     * `stepNumbers`), so consumer renderers can style themselves with
+     * the same scrub-driven done/active/error semantics the bundled
+     * `<StageNode>` uses — without re-implementing the overlay slice
+     * derivation. Consumer `data` fields pass through untouched alongside.
      */
     nodeTypes?: NodeTypes;
     /**
@@ -835,6 +906,33 @@ interface TracedFlowProps extends BaseComponentProps {
      */
     edgeTypes?: EdgeTypes;
     /**
+     * Extra chart node ids to mark `active` SIMULTANEOUSLY at the current scrub
+     * position, on top of the overlay's single active node. Lets a consumer light
+     * a whole parallel cohort at one cursor (e.g. the lens lighting every branch
+     * of a fork together). Works for BOTH stage and custom nodes. Defaults to
+     * none — single-active behaviour is unchanged.
+     */
+    coActiveStageIds?: ReadonlySet<string>;
+    /**
+     * Subflow ids to render as GROUP CONTAINER boxes — the subflow's member
+     * stages render NESTED inside the box (xyflow `parentId` + `extent`),
+     * instead of behind a click-to-zoom DRILL card. Per-subflow choice: any
+     * subflow id NOT listed keeps drilling. Default (unset): all drill —
+     * existing behavior, nothing changes.
+     */
+    groupedSubflows?: readonly string[];
+    /**
+     * Wrap the ENTIRE chart in ONE main-chart container box (the Lens model:
+     * the primitive you're viewing is always one box; subflows inside stay
+     * drill cards). Pass a config object to enable + label it; omit for no
+     * outer box. Composes AFTER drill-filtering, so when you drill into a
+     * subflow the box reframes to that subflow's contents.
+     */
+    mainChartBox?: {
+        label?: string;
+        kind?: string;
+    };
+    /**
      * Children rendered INSIDE the `<ReactFlow>` element, after the
      * built-in `<Background>`. Use this slot to mount xyflow
      * accessory components like `<Controls />`, `<MiniMap />`, or a
@@ -842,7 +940,416 @@ interface TracedFlowProps extends BaseComponentProps {
      */
     children?: react.ReactNode;
 }
-declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, children, className, style, }: TracedFlowProps): react_jsx_runtime.JSX.Element;
+declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, children, className, style, }: TracedFlowProps): react_jsx_runtime.JSX.Element;
+
+interface GroupContainerNodeData {
+    label: string;
+    isGroupContainer?: boolean;
+    active?: boolean;
+    done?: boolean;
+    error?: boolean;
+    dimmed?: boolean;
+    description?: string;
+    icon?: string;
+    [key: string]: unknown;
+}
+declare function GroupContainerNode({ data }: NodeProps): react_jsx_runtime.JSX.Element;
+
+interface SlotPillNodeData {
+    label: string;
+    /** Lit when the selector PICKED this slot this turn (overlay or consumer). */
+    active?: boolean;
+    selected?: boolean;
+    done?: boolean;
+    /** Faded when other slots ran but this one didn't (the "unlit" signal). */
+    dimmed?: boolean;
+    /** Semantic kind hint for the dot color (e.g. 'system-prompt'|'messages'|'tools'). */
+    slotKind?: string;
+    icon?: string;
+    [key: string]: unknown;
+}
+declare function SlotPillNode({ data }: NodeProps): react_jsx_runtime.JSX.Element;
+
+declare function LoopBackEdge({ id, source, target, markerEnd, style }: EdgeProps): react_jsx_runtime.JSX.Element | null;
+
+declare function SmartStepEdge({ id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, }: EdgeProps): react_jsx_runtime.JSX.Element;
+
+/**
+ * groupLayout — xyflow NATIVE container boxes for the trace chart.
+ *
+ * Two box mechanisms live here, plus the existing drill (elsewhere):
+ *
+ *   - **Drill** (`subflowDrill.ts` + `useSubflowDrill`): a subflow shows as
+ *     ONE mount card; clicking it zooms in. The DEFAULT for every subflow.
+ *   - **Main-chart box** (`wrapInMainChartBox`): wrap the WHOLE chart in ONE
+ *     container box. This is the Lens model — the primitive you're viewing
+ *     (LLMCall / Agent) is always one box; every subflow inside it stays a
+ *     drill card. A `nodeTypes` registry then styles each inner card
+ *     (system-prompt / messages / tools / LLM). USE THIS for Lens.
+ *   - **Per-subflow group** (`applyGroupLayout`): box individual subflows
+ *     (mount → container, members nested inside). A more granular tool kept
+ *     for consumers that want specific subflows inlined as boxes rather than
+ *     drilled. NOT what the Lens main-chart model uses.
+ *
+ * All are pure `(graph, opts) => graph` (no React, no I/O) and compose with
+ * `<TracedFlow>` before nodes reach `<ReactFlow>`. explainable-ui stays
+ * policy-free: it offers the mechanisms; the consumer (Lens) picks.
+ *
+ * Pure: `(graph, opts) => graph`. No React, no I/O. Composed by `<TracedFlow>`
+ * before the nodes reach `<ReactFlow>`.
+ *
+ * What it does, given `groupedSubflowIds`:
+ *   1. For each grouped subflow that is actually present (a mount node whose
+ *      `subflowId` is listed AND has ≥1 member where `subflowOf === id`):
+ *      - lay the OUTER graph out with `baseLayout` (members excluded; the
+ *        mount stays as the box anchor);
+ *      - lay the subflow's MEMBERS out with `baseLayout` in isolation, then
+ *        normalise them to the box's local coordinate space;
+ *      - size the container box to fit the members (+ header + padding);
+ *      - convert the mount node to `type: 'groupContainer'` with a `style`
+ *        width/height, and nest each member via `parentId` + `extent`.
+ *   2. Subflows NOT listed are left untouched (they continue to drill).
+ *
+ * Node ORDER invariant (xyflow requirement): a parent node MUST appear
+ * before its children in the array. We emit all outer nodes (containers
+ * included) first, then all nested members — so every container precedes
+ * its members.
+ */
+
+/** xyflow node type used for the container box. Consumers register a
+ *  renderer for this key (explainable-ui ships a default `GroupContainerNode`). */
+declare const GROUP_CONTAINER_NODE_TYPE = "groupContainer";
+interface GroupLayoutOptions {
+    /** Subflow ids (the mount's `subflowId`) to render as group boxes. */
+    readonly groupedSubflowIds: readonly string[];
+    /** Layout for both the outer graph and each subflow's interior. */
+    readonly baseLayout: TraceFlowLayout;
+    /** Inner padding inside the container box, in px. Default 16. */
+    readonly padding?: number;
+    /** Header strip height (room for the box title), in px. Default 44. */
+    readonly headerHeight?: number;
+    /** Assumed node footprint for box sizing (the layout sets positions, not
+     *  sizes). Defaults match the bundled `StageNode` footprint. */
+    readonly nodeWidth?: number;
+    readonly nodeHeight?: number;
+}
+/**
+ * Apply group-container nesting to a positioned-or-unpositioned graph.
+ * Returns a NEW graph (input is not mutated). Edges pass through unchanged
+ * — xyflow resolves them by node id regardless of nesting, so an edge that
+ * pointed at a now-container mount still connects to the box, and
+ * member↔member edges render inside it.
+ */
+declare function applyGroupLayout(graph: TraceGraph, opts: GroupLayoutOptions): TraceGraph;
+/**
+ * Convenience: wrap a base layout into a `TraceFlowLayout` that applies
+ * group containers. Pass to `<TraceFlow layout={...}>` / `<TracedFlow>`.
+ */
+declare function createGroupedLayout(opts: GroupLayoutOptions): TraceFlowLayout;
+/** Default id for the synthesised main-chart container node. */
+declare const MAIN_CHART_BOX_ID = "__main_chart__";
+interface MainChartBoxOptions {
+    /** Layout applied to the chart's contents before wrapping. */
+    readonly baseLayout: TraceFlowLayout;
+    /** Container node id. Default `__main_chart__`. */
+    readonly id?: string;
+    /** Box title (rendered in the container header). */
+    readonly label?: string;
+    /** Optional taxonomy hint surfaced on `data` (e.g. 'LLMCall' | 'Agent'). */
+    readonly kind?: string;
+    readonly padding?: number;
+    readonly headerHeight?: number;
+    readonly nodeWidth?: number;
+    readonly nodeHeight?: number;
+}
+/**
+ * Wrap an entire graph in a single main-chart container box. Pure
+ * `(graph, opts) => graph`; input not mutated. Empty graph → returned
+ * unchanged (nothing to wrap).
+ */
+declare function wrapInMainChartBox(graph: TraceGraph, opts: MainChartBoxOptions): TraceGraph;
+/**
+ * Convenience: a `TraceFlowLayout` that wraps the whole chart in one
+ * main-chart box. Pass to `<TraceFlow layout={...}>` / `<TracedFlow>`.
+ */
+declare function createMainChartBoxLayout(opts: MainChartBoxOptions): TraceFlowLayout;
+
+/**
+ * dagreTraceLayout — professor-grade `TraceFlowLayout` backed by dagre.
+ *
+ * Replaces the hand-rolled BFS `defaultTraceFlowLayout` (which used FIXED
+ * spacing constants — Y_STEP / X_SPREAD — and documented "first-wins"
+ * convergence + no overlap detection). Dagre instead derives every
+ * position from the STRUCTURE RELATIONS:
+ *
+ *   - **next** (sequential): y-delta = rank depth (longest path), so a
+ *     convergence node lands at `max(incoming ranks) + 1` — not
+ *     "deepest-branch-so-far".
+ *   - **fork / selector** (N branches): x-delta = the measured SUBTREE
+ *     WIDTH of each branch (a wide branch pushes its siblings further; a
+ *     thin one barely shifts them) — scales cleanly for any N, no collisions.
+ *   - **merge** (join): centered under the average of its real parents.
+ *
+ * Compound nesting: dagre is given `parentId` as a compound-parent link,
+ * so group-container children (from `applyGroupLayout` / `wrapInMainChartBox`)
+ * stay inside their box. Coordinates are returned parent-RELATIVE (xyflow
+ * convention), matching what the box transforms expect.
+ *
+ * Ported from agentfootprint-lens's proven `dagreLayout` (same dagre core),
+ * re-shaped to the `TraceFlowLayout` contract: `(TraceGraph) => TraceGraph`.
+ * Pure — same graph in, same positions out; no React, no I/O.
+ */
+
+/** Explicit node footprint (px). */
+interface NodeFootprint {
+    readonly width: number;
+    readonly height: number;
+}
+/**
+ * Consumer-supplied per-node size resolver. Receives the WHOLE node (all
+ * recorder semantics: `data.isSubflow`, `data.icon`, `data.subflowId`,
+ * `id`, …) and returns a footprint, or `undefined` to leave the node alone
+ * (→ falls back to `style.width/height`, then the default footprint).
+ *
+ * The library imposes NO sizing rules — the consumer decides per node by
+ * whatever criteria THEY choose. E.g. make one specific slot a slim bar
+ * while another stays a full card; make the LLM-call node large; etc.
+ */
+type NodeSizeResolver = (node: TraceNode) => NodeFootprint | undefined;
+/** Consumer-supplied per-edge layout-weight resolver. Higher weight pulls
+ *  the two endpoints into a tighter, straighter column (dagre `weight`).
+ *  Return `undefined` for the default (1). */
+type EdgeWeightResolver = (edge: Edge<TraceEdgeData>) => number | undefined;
+/** Consumer-supplied per-edge minimum rank-span resolver. `>1` STRETCHES an
+ *  edge (pushes its target that many ranks down). Note dagre cannot make an
+ *  edge SHORTER than one rank — `minlen` only increases. Return `undefined`
+ *  for the default (1). */
+type EdgeMinLenResolver = (edge: Edge<TraceEdgeData>) => number | undefined;
+/**
+ * Consumer-supplied left-to-right ORDER for a node's fork/decider children.
+ * Receives the source node id + its child target ids (in spec/edge-insertion
+ * order); returns the SAME ids reordered left-to-right (index 0 = leftmost).
+ * Ids omitted from the result keep their original relative order after the
+ * listed ones. Return the input unchanged (or `undefined` from the resolver)
+ * to leave a node alone.
+ *
+ * Use to place a specific branch on a chosen side — e.g. the looping branch on
+ * the right margin where the loop-back curve lives, so the "iterate" path reads
+ * as one side of the fork. This is a pure VISUAL/LAYOUT decision (it changes
+ * which side a branch draws on, never the chart's behavior), so it belongs in
+ * the renderer, not the chart spec.
+ *
+ * Mechanism: dagre seeds its sibling order from edge-insertion order and keeps
+ * it as the tie-break for equal-barycenter siblings. We insert each source's
+ * edges in the resolved order, so for the common symmetric N-branch decider the
+ * result is deterministic. (For graphs where one ordering strictly reduces edge
+ * crossings, dagre's crossing-minimizer may still override — best-effort, as
+ * documented for any dagre ordering hint.)
+ */
+type SiblingOrderResolver = (sourceId: string, childIds: readonly string[]) => readonly string[];
+interface DagreTraceLayoutOptions {
+    /** Layout direction. `'TB'` (top-to-bottom) is the default — matches the
+     *  "Seed → … → answer" reading order. */
+    readonly direction?: "TB" | "BT" | "LR" | "RL";
+    /** Vertical spacing between rank layers (px). Surfaced as a knob — the
+     *  rank-gap delta. Default 80. */
+    readonly rankSep?: number;
+    /** Horizontal spacing between siblings within a rank (px). The
+     *  sibling-gap delta dagre adds ON TOP of measured subtree widths.
+     *  Default 60. */
+    readonly nodeSep?: number;
+    /** Spacing between edges (px). Default 20. */
+    readonly edgeSep?: number;
+    /** Fallback node footprint when a node carries no explicit size. dagre
+     *  needs real dimensions or arrows collapse to a point. */
+    readonly nodeWidth?: number;
+    readonly nodeHeight?: number;
+    /** Per-node size resolver — consumer decides each node's footprint. See
+     *  `NodeSizeResolver`. Resolution order: resolver → `node.style` → default. */
+    readonly nodeSize?: NodeSizeResolver;
+    /** Per-edge pull (dagre `weight`). See `EdgeWeightResolver`. */
+    readonly edgeWeight?: EdgeWeightResolver;
+    /** Per-edge stretch (dagre `minlen`). See `EdgeMinLenResolver`. */
+    readonly edgeMinLen?: EdgeMinLenResolver;
+    /** Per-node fork/decider child ordering. See `SiblingOrderResolver`. */
+    readonly siblingOrder?: SiblingOrderResolver;
+}
+/**
+ * Lay out a `TraceGraph` with dagre. Returns a NEW graph with each node's
+ * `position` set (top-left, parent-relative for nested nodes). Edges pass
+ * through unchanged — xyflow routes them once nodes are placed.
+ *
+ * Loop back-edges (`kind: 'loop'`) are EXCLUDED from the dagre graph: they
+ * are visual annotations only (invariant I1) and would otherwise create
+ * cycles that distort ranking.
+ */
+declare function dagreTraceLayout(graph: TraceGraph, options?: DagreTraceLayoutOptions): TraceGraph;
+/**
+ * Build a `TraceFlowLayout` from dagre options. Pass to
+ * `<TraceFlow layout={...}>` / `<TracedFlow layout={...}>`, or use it as a
+ * `baseLayout` for the group/main-box transforms.
+ */
+declare function createDagreTraceLayout(options?: DagreTraceLayoutOptions): TraceFlowLayout;
+
+/**
+ * snapLinearSuccessors — pure post-dagre alignment pass for the chart SPINE.
+ *
+ * THE PROBLEM IT FIXES
+ * --------------------
+ * On a chart like `Context(selector) → [slot, slot] → messageAPI(merge) →
+ * callLLM(linear)`, dagre's default balanced x-assignment (Brandes–Köpf
+ * `balance()` = median of 4 extreme alignments) drifts a pure linear
+ * successor a few px off the spine on an ASYMMETRIC graph (a wide callLLM
+ * node + the fork above unbalance the alignment passes). Measured centers:
+ * context 915, messageAPI 917, callLLM 921 — callLLM is ~6px off even though
+ * it is a single-in / single-out continuation of messageAPI.
+ *
+ * THE FIX
+ * -------
+ * A pure `(graph) => graph` pass applied AFTER `dagreTraceLayout`. A node with
+ * EXACTLY ONE forward (non-loop) predecessor, whose predecessor has EXACTLY
+ * ONE forward (non-loop) successor, and which shares the same `parentId`
+ * coordinate space, snaps its CENTER-x onto that predecessor's center-x. The
+ * top-left `position.x` is recomputed from the new center using the node's OWN
+ * width. `y` is never touched.
+ *
+ * WHAT IT NEVER MOVES (by construction of the predicate)
+ * ------------------------------------------------------
+ *   - the ROOT             — 0 predecessors            → predicate (1) fails
+ *   - a MERGE (messageAPI) — >1 predecessor            → predicate (1) fails
+ *   - FORK / DECISION children — predecessor out-deg>1 → predicate (2) fails
+ *   - cross-compound hops  — differing parentId        → predicate (3) fails
+ * A fork/merge NODE itself is still snapped onto ITS upstream predecessor when
+ * that predecessor is a pure linear hop — correct, it is a continuation of
+ * whatever feeds it. Only its CHILDREN are protected.
+ *
+ * PROPERTIES
+ * ----------
+ *   - PURE: never mutates the input graph; returns a new nodes array (edges by
+ *     reference, mirroring dagre's own pass-through).
+ *   - IDEMPOTENT: re-running finds centers already equal → zero-delta writes.
+ *   - CHAIN-PROPAGATING: nodes are processed in rank (y-asc) order, so a
+ *     snapped predecessor's corrected x flows down a `a→b→c` chain in one pass.
+ *   - GEOMETRY-EXACT: widths come from the SAME resolver→style→default order
+ *     dagre used (`sizeOf`), so reconstructed centers match dagre's placement.
+ *
+ * Compose it with dagre via `createSnappedDagreLayout`, or call it directly on
+ * a `dagreTraceLayout(...)` result. Kept SEPARATE from `dagreTraceLayout` so
+ * the base layout's output stays byte-identical for consumers that don't opt
+ * in.
+ */
+
+/**
+ * Options for the snap pass. These MUST mirror the size-relevant options
+ * passed to the `dagreTraceLayout` run that produced the graph, so the pass
+ * reconstructs each node's center from the identical width.
+ */
+interface SnapLinearSuccessorsOptions {
+    /** Per-node size resolver — same one passed to dagre. Resolution order:
+     *  resolver → `node.style` → default. */
+    readonly nodeSize?: NodeSizeResolver;
+    /** Fallback width when a node carries no resolver/style size. Must match
+     *  the dagre run's `nodeWidth`. Default 200. */
+    readonly nodeWidth?: number;
+    /** Fallback height. Must match the dagre run's `nodeHeight`. Default 80.
+     *  (Height is unused for x-snapping but kept so `sizeOf` resolves the same
+     *  footprint the resolver may key on.) */
+    readonly nodeHeight?: number;
+}
+/**
+ * Snap pure single-in/single-out linear successors onto their predecessor's
+ * center-x. See the file header for the full contract. Pure + idempotent.
+ */
+declare function snapLinearSuccessors(graph: TraceGraph, options?: SnapLinearSuccessorsOptions): TraceGraph;
+/**
+ * Convenience: run a base `TraceFlowLayout` (typically `createDagreTraceLayout`)
+ * then the snap pass, as one composed layout.
+ *
+ * @example
+ *   const layout = createSnappedDagreLayout(
+ *     createDagreTraceLayout({ nodeSize }),
+ *     { nodeSize }, // SAME size opts so widths match
+ *   );
+ */
+declare function createSnappedDagreLayout(base: TraceFlowLayout, options?: SnapLinearSuccessorsOptions): TraceFlowLayout;
+
+/**
+ * traceGroupLayout — a group-based layout for footprint trace charts, designed
+ * the way a layout engineer reasons about structured flowcharts: NOT by tuning
+ * a generic Sugiyama/dagre pass, but by ranking nodes into bands and centering
+ * each MERGE under the SPAN of its inputs, so the layout's correctness falls out
+ * BY CONSTRUCTION.
+ *
+ * The mental model (groups):
+ *   - A SEQUENCE is a single-in/single-out chain → stacked vertically, each node
+ *     inheriting its predecessor's x (a straight spine; the downstream
+ *     `snapLinearSuccessors` pass keeps it pixel-exact).
+ *   - A FORK (a node with ≥2 branch children) → its children spread across the
+ *     next band; the children ARE the parallel group.
+ *   - A MERGE (a node with ≥2 incoming edges) → centered under the combined
+ *     visual SPAN of its inputs. This handles STAGGERED merges with zero
+ *     special-casing: longest-path ranking puts a merge one band below its
+ *     deepest input, and span-centering places it symmetrically under inputs
+ *     that may sit at different bands and have very different widths.
+ *
+ * For the agent merge-tree this yields: messageAPI centered under
+ * {system-prompt, messages}; call-llm centered under the span of
+ * {messageAPI, tools} (tools bypasses messageAPI's band — a staggered merge);
+ * route + its branches symmetric below; the loop excluded from layout (drawn as
+ * a right-margin back-edge by `LoopBackEdge`).
+ *
+ * Contract: pure `(TraceGraph) => TraceGraph`, sets `position` (top-left) on
+ * every node, parent-relative for `parentId` nodes — same as `dagreTraceLayout`.
+ * Reuses `sizeOf` / `NodeSizeResolver` / size defaults from `dagreTraceLayout`
+ * (so the group-container "style-wins" exception + any consumer sizing behave
+ * identically), and composes with the existing `createSnappedDagreLayout` +
+ * `wrapInMainChartBox` passes — no duplication.
+ */
+
+interface TraceGroupLayoutOptions {
+    /** Vertical gap between rank bands (px). Default 80. */
+    readonly rankSep?: number;
+    /** Horizontal gap between siblings within a band (px). Default 60. */
+    readonly nodeSep?: number;
+    /** Fallback node footprint when a node carries no explicit size. */
+    readonly nodeWidth?: number;
+    readonly nodeHeight?: number;
+    /** Per-node size resolver (see `NodeSizeResolver`). Resolution order matches
+     *  `dagreTraceLayout.sizeOf`. */
+    readonly nodeSize?: NodeSizeResolver;
+    /** Left-to-right order for a fork's children within their band (see
+     *  `SiblingOrderResolver`). Default = edge-insertion order. */
+    readonly siblingOrder?: SiblingOrderResolver;
+    /** Bottom-up merge re-centering pass. Default true; off = pass-1 only (debug). */
+    readonly enableMergeCentering?: boolean;
+    /**
+     * How a MERGE (join) node is horizontally placed relative to its inputs:
+     *   - `"span"` (default) — centered under the combined visual SPAN of its
+     *     inputs. Faithful "this node's data comes from those boxes", but when a
+     *     join's inputs are the splayed children of a fork, the join lands under
+     *     the splay (off the trunk) and the main path ZIG-ZAGS.
+     *   - `"fork-origin"` — aligned with the FORK the inputs re-converge from
+     *     (their lowest common ancestor). A join returns to its fork's axis, so
+     *     the trunk (root → joins → tail) renders as ONE STRAIGHT centered column
+     *     with the branches splaying symmetrically around it. Nested forks return
+     *     to their INNER fork. Use for "read it as a sequence with side-inputs"
+     *     charts.
+     * Default `"span"` (unchanged behavior for existing consumers).
+     */
+    readonly mergeAlign?: "span" | "fork-origin";
+}
+/**
+ * Lay out a `TraceGraph` by rank bands + span-centered merges. Returns a NEW
+ * graph with each node's `position` set. Edges pass through by reference.
+ */
+declare function traceGroupLayout(graph: TraceGraph, options?: TraceGroupLayoutOptions): TraceGraph;
+/**
+ * Build a `TraceFlowLayout` from group-layout options. Pass to
+ * `<TraceFlow layout={...}>` / `<TracedFlow layout={...}>`, or wrap with the
+ * existing `createSnappedDagreLayout(base, opts)` (it is layout-engine-agnostic)
+ * and/or `wrapInMainChartBox`.
+ */
+declare function createTraceGroupLayout(options?: TraceGroupLayoutOptions): TraceFlowLayout;
 
 /**
  * createNodeViewRecorder — per-stage summary translator.
@@ -1800,4 +2307,4 @@ interface RunSliderProps extends BaseComponentProps {
 }
 declare function RunSlider({ index, cursorRuntimeStageId, onCursorChange, renderLabel, className, style, }: RunSliderProps): react_jsx_runtime.JSX.Element;
 
-export { type BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DataDependency, type ExecutionRecord, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SliderSlotProps, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, createCommitFlowRecorder, createNodeViewRecorder, createTraceBundle, createTraceRuntimeOverlay, createTraceStructureRecorder, defaultTraceFlowLayout, forwardtraceStructural, sliceOverlay, structureAsChainTree, useSubflowNavigation, useTranslator, walkBackward, walkForward };
+export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };

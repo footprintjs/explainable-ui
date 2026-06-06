@@ -774,9 +774,11 @@ describe("createTraceStructureRecorder — subflowOf tracking", () => {
     const t = createTraceStructureRecorder();
     fireSubflowChart(t);
     const byId = new Map(t.getGraph().nodes.map((n) => [n.id, n.data]));
-    expect(byId.get("validate-card")?.subflowOf).toBe("payment");
-    expect(byId.get("charge-card")?.subflowOf).toBe("payment");
-    expect(byId.get("send-receipt")?.subflowOf).toBe("payment");
+    // Inner node ids are now path-qualified (mirrors runtimeStageId);
+    // subflowOf still carries the bare parent subflowId.
+    expect(byId.get("payment/validate-card")?.subflowOf).toBe("payment");
+    expect(byId.get("payment/charge-card")?.subflowOf).toBe("payment");
+    expect(byId.get("payment/send-receipt")?.subflowOf).toBe("payment");
   });
 
   it("mount node itself is NOT tagged with subflowOf (it lives in the parent chain)", () => {
@@ -841,12 +843,12 @@ describe("createTraceStructureRecorder — subflowOf tracking", () => {
     expect(byId.get("top")?.subflowOf).toBeUndefined();
     expect(byId.get("outerMount")?.subflowOf).toBeUndefined();
     expect(byId.get("outerNext")?.subflowOf).toBeUndefined();
-    // Outer subflow internals tagged with 'outer'.
-    expect(byId.get("outerRoot")?.subflowOf).toBe("outer");
-    expect(byId.get("innerMount")?.subflowOf).toBe("outer");
-    expect(byId.get("innerNext")?.subflowOf).toBe("outer");
+    // Outer subflow internals tagged with 'outer'; ids path-qualified.
+    expect(byId.get("outer/outerRoot")?.subflowOf).toBe("outer");
+    expect(byId.get("outer/innerMount")?.subflowOf).toBe("outer");
+    expect(byId.get("outer/innerNext")?.subflowOf).toBe("outer");
     // Inner subflow internals tagged with composed path 'outer/inner'.
-    expect(byId.get("innerRoot")?.subflowOf).toBe("outer/inner");
+    expect(byId.get("outer/inner/innerRoot")?.subflowOf).toBe("outer/inner");
   });
 
   it("reset() clears the subflow stack so a fresh re-build starts clean", () => {

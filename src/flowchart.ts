@@ -19,6 +19,9 @@ export type { SubflowBreadcrumbProps } from "./components/FlowchartView";
 export { useSubflowNavigation } from "./components/FlowchartView";
 export type { SubflowNavigation, BreadcrumbEntry } from "./components/FlowchartView";
 
+// Drill-scope graph filter (top-level view = subflows as single cards).
+export { filterGraphForDrill, buildSubflowBreadcrumb } from "./components/FlowchartView";
+
 // Subflow manifest tree (no ReactFlow dependency — pure React)
 export { SubflowTree } from "./components/FlowchartView";
 export type { SubflowTreeProps, SubflowTreeEntry } from "./components/FlowchartView";
@@ -59,6 +62,52 @@ export type {
 
 export { TracedFlow } from "./components/FlowchartView";
 export type { TracedFlowProps, TracedFlowColors } from "./components/FlowchartView";
+
+// Loop-back edge — curves `loopTo` edges along the right margin. Built-in in
+// TraceFlow/TracedFlow; exported for consumers that fully replace `edgeTypes`.
+export { LoopBackEdge } from "./components/FlowchartView";
+// Smart step edge — routes rank-skipping (staggered) edges around skipped nodes.
+// Built-in `smartStep`; exported for consumers that fully replace `edgeTypes`.
+export { SmartStepEdge } from "./components/FlowchartView";
+
+// Group containers (subflow-as-box, xyflow native nesting via parentId).
+export {
+  GroupContainerNode,
+  SlotPillNode,
+  applyGroupLayout,
+  createGroupedLayout,
+  wrapInMainChartBox,
+  createMainChartBoxLayout,
+  GROUP_CONTAINER_NODE_TYPE,
+  MAIN_CHART_BOX_ID,
+} from "./components/FlowchartView";
+export type {
+  GroupContainerNodeData,
+  SlotPillNodeData,
+  GroupLayoutOptions,
+  MainChartBoxOptions,
+} from "./components/FlowchartView";
+
+// Dagre layout — structure-derived spacing; the professor-grade default.
+export { dagreTraceLayout, createDagreTraceLayout } from "./components/FlowchartView";
+export type {
+  DagreTraceLayoutOptions,
+  NodeFootprint,
+  NodeSizeResolver,
+  EdgeWeightResolver,
+  EdgeMinLenResolver,
+  SiblingOrderResolver,
+} from "./components/FlowchartView";
+
+// Post-dagre spine alignment — snaps pure linear successors onto their single
+// predecessor's center-x (fixes balanced-mode drift). Opt-in via compose.
+export { snapLinearSuccessors, createSnappedDagreLayout } from "./components/FlowchartView";
+export type { SnapLinearSuccessorsOptions } from "./components/FlowchartView";
+
+// Group-based layout — longest-path rank bands + span-centered merges, for
+// structured flowcharts with staggered merges. Composes with the snap pass.
+export { traceGroupLayout, createTraceGroupLayout } from "./components/FlowchartView";
+export type { TraceGroupLayoutOptions } from "./components/FlowchartView";
 
 // L8.0 — landing strip exports.
 export { createTraceBundle } from "./components/FlowchartView";

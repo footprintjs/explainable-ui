@@ -54,8 +54,11 @@ import type {
 } from "./traceStructureRecorder";
 import { StageNode } from "../StageNode";
 import type { StageNodeData } from "../StageNode";
+import { LoopBackEdge } from "../LoopBackEdge";
+import { SmartStepEdge } from "../SmartStepEdge";
 import { rawDefaults } from "../../theme/tokens";
 import type { BaseComponentProps } from "../../types";
+import { dagreTraceLayout } from "./_internal/dagreTraceLayout";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Layout
@@ -240,7 +243,11 @@ function styleEdge(edge: TraceEdge, colors: TraceFlowEdgeColors): Edge {
           : colors.next;
   const styled: Edge = {
     ...edge,
-    type: kind === "loop" ? "step" : "smoothstep",
+    // Loop back-edges use the custom `loopBack` edge — a curve routed along the
+    // right margin (clear of the spine) instead of a straight/step center line.
+    // Every other edge uses `smartStep`: a smoothstep superset that routes a
+    // RANK-SKIPPING edge around the node it skips (else identical to smoothstep).
+    type: kind === "loop" ? "loopBack" : "smartStep",
     animated: false,
     style: { stroke: color, strokeWidth: 1.5 },
     markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16 },
@@ -303,6 +310,11 @@ export type TraceFlowProps = BaseComponentProps &
 
 const DEFAULT_NODE_TYPES: NodeTypes = { stageNode: StageNode };
 
+// Built-in edge types. `loopBack` curves loop-back edges along the right margin
+// (see LoopBackEdge). Always registered so every consumer gets the curve;
+// merged UNDER any consumer-supplied `edgeTypes` (consumer keys win).
+const DEFAULT_EDGE_TYPES: EdgeTypes = { loopBack: LoopBackEdge, smartStep: SmartStepEdge };
+
 /**
  * Convert a `TraceNode` (with `TraceNodeData`) to the `StageNode`-typed
  * node shape so the built-in `<StageNode>` renderer works.
@@ -335,6 +347,8 @@ function toStageNode(node: TraceNode): Node {
     ...(data.icon !== undefined && { icon: data.icon }),
     ...(data.subflowId !== undefined && { subflowId: data.subflowId }),
     ...(data.isLazy === true && { isLazy: true }),
+    ...(data.emphasis !== undefined && { emphasis: data.emphasis }),
+    ...(data.size !== undefined && { size: data.size }),
   };
   return {
     ...node,
@@ -377,7 +391,10 @@ export function TraceFlow(props: TraceFlowProps) {
     );
   }
 
-  const layout = props.layout ?? defaultTraceFlowLayout;
+  // Dagre is the default — structure-derived spacing (fork fan-out by subtree
+  // width, rank-depth ranking, centered merges). Pass `layout` to override
+  // (e.g. the legacy `defaultTraceFlowLayout` BFS, or `"passthrough"`).
+  const layout = props.layout ?? dagreTraceLayout;
   const edgeColors = useMemo<TraceFlowEdgeColors>(
     () => ({ ...DEFAULT_EDGE_COLORS, ...(props.edgeColors ?? {}) }),
     [props.edgeColors],
@@ -434,6 +451,10 @@ export function TraceFlow(props: TraceFlowProps) {
     () => (userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES),
     [userNodeTypes],
   );
+  const mergedEdgeTypes = useMemo<EdgeTypes>(
+    () => (userEdgeTypes ? { ...DEFAULT_EDGE_TYPES, ...userEdgeTypes } : DEFAULT_EDGE_TYPES),
+    [userEdgeTypes],
+  );
 
   return (
     <div
@@ -449,7 +470,7 @@ export function TraceFlow(props: TraceFlowProps) {
         nodes={reactFlowNodes}
         edges={reactFlowEdges}
         nodeTypes={mergedNodeTypes}
-        {...(userEdgeTypes && { edgeTypes: userEdgeTypes })}
+        edgeTypes={mergedEdgeTypes}
         onNodeClick={handleNodeClick}
         fitView
         proOptions={{ hideAttribution: true }}

@@ -52,7 +52,8 @@ describe("walkSubflowSpecInto", () => {
     const sink = makeSink();
     walkSubflowSpecInto(spec("only"), "sub", sink);
     expect(sink.nodes).toHaveLength(1);
-    expect(sink.nodes[0]!.id).toBe("only");
+    // Node id is path-qualified (mirrors runtimeStageId); subflowOf stays bare.
+    expect(sink.nodes[0]!.id).toBe("sub/only");
     expect(sink.nodes[0]!.data.subflowOf).toBe("sub");
   });
 
@@ -64,11 +65,11 @@ describe("walkSubflowSpecInto", () => {
     const sink = makeSink();
     walkSubflowSpecInto(chain, "sub", sink);
 
-    expect(sink.nodes.map((n) => n.id)).toEqual(["a", "b", "c"]);
+    expect(sink.nodes.map((n) => n.id)).toEqual(["sub/a", "sub/b", "sub/c"]);
     expect(sink.edges).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ source: "a", target: "b", data: { kind: "next" } }),
-        expect.objectContaining({ source: "b", target: "c", data: { kind: "next" } }),
+        expect.objectContaining({ source: "sub/a", target: "sub/b", data: { kind: "next" } }),
+        expect.objectContaining({ source: "sub/b", target: "sub/c", data: { kind: "next" } }),
       ]),
     );
   });
@@ -118,7 +119,7 @@ describe("walkSubflowSpecInto", () => {
 
     const loopEdges = sink.edges.filter((e) => e.data?.kind === "loop");
     expect(loopEdges).toHaveLength(1);
-    expect(loopEdges[0]).toMatchObject({ source: "b", target: "a" });
+    expect(loopEdges[0]).toMatchObject({ source: "sub/b", target: "sub/a" });
   });
 
   it("nested subflow — recurses with composed path", () => {
@@ -142,7 +143,8 @@ describe("walkSubflowSpecInto", () => {
     // Innermost stage tagged with composed path 'outer/inner'
     const innerStages = sink.nodes.filter((n) => n.data.subflowOf === "outer/inner");
     expect(innerStages.length).toBeGreaterThan(0);
-    expect(innerStages.map((n) => n.id)).toContain("inner-leaf");
+    // Fully composed path qualifies the innermost stage id.
+    expect(innerStages.map((n) => n.id)).toContain("outer/inner/inner-leaf");
   });
 
   it("cycle guard — visiting same node twice doesn't re-emit", () => {
@@ -153,8 +155,8 @@ describe("walkSubflowSpecInto", () => {
 
     const sink = makeSink();
     walkSubflowSpecInto(node, "sub", sink);
-    // 'a' emitted at most once.
-    expect(sink.nodes.filter((n) => n.id === "a")).toHaveLength(1);
+    // 'a' emitted at most once (id qualified as 'sub/a').
+    expect(sink.nodes.filter((n) => n.id === "sub/a")).toHaveLength(1);
   });
 
   it("isSubflow flag propagates onto mount nodes", () => {
@@ -165,8 +167,25 @@ describe("walkSubflowSpecInto", () => {
     });
     const sink = makeSink();
     walkSubflowSpecInto(innerMount, "outer", sink);
-    const mountNode = sink.nodes.find((n) => n.id === "mount");
+    // Mount node id is path-qualified; subflowId stays the LOCAL id.
+    const mountNode = sink.nodes.find((n) => n.id === "outer/mount");
     expect(mountNode?.data.isSubflow).toBe(true);
     expect(mountNode?.data.subflowId).toBe("nested");
+  });
+
+  it("REGRESSION: two sibling subflows sharing a local stage id get DISTINCT qualified ids", () => {
+    // The bug: two slot subflows each have an inner stage named `compose`.
+    // Walked into ONE graph they must NOT collide (the recorder dedupes by
+    // id; a collision would orphan one of them — the floating-Compose bug
+    // seen in the messageAPI merge-tree chart).
+    const compose = spec("compose", "Compose");
+    const sink = makeSink();
+    walkSubflowSpecInto(compose, "sf-system-prompt", sink);
+    walkSubflowSpecInto(compose, "sf-messages", sink);
+
+    const ids = sink.nodes.map((n) => n.id);
+    expect(ids).toEqual(["sf-system-prompt/compose", "sf-messages/compose"]);
+    // Distinct ids → no dedup collision when fed to a single recorder.
+    expect(new Set(ids).size).toBe(2);
   });
 });

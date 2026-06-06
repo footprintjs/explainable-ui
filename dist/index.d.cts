@@ -472,6 +472,12 @@ interface TraceNodeData extends Record<string, unknown> {
     subflowId?: string;
     isLazy?: boolean;
     isPausable?: boolean;
+    /** Visual emphasis hint — `hero` (prominent) / `muted` (recedes). Set by
+     *  the consumer's graph builder from its own semantics; the renderer styles
+     *  off it without any domain knowledge. */
+    emphasis?: "hero" | "muted";
+    /** Size tier — scales the card; must match the layout's node-size resolver. */
+    size?: "sm" | "md" | "lg";
     /** Set later by `onDeciderComplete` when the decider's branch list is
      *  sealed. Useful for renderers that want to render decider with a
      *  branch-count badge. */

@@ -1,7 +1,9 @@
 "use strict";
+var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -15,6 +17,14 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/flowchart.ts
@@ -22,8 +32,14 @@ var flowchart_exports = {};
 __export(flowchart_exports, {
   CommitChainView: () => CommitChainView,
   CommitInspector: () => CommitInspector,
+  GROUP_CONTAINER_NODE_TYPE: () => GROUP_CONTAINER_NODE_TYPE,
+  GroupContainerNode: () => GroupContainerNode,
+  LoopBackEdge: () => LoopBackEdge,
+  MAIN_CHART_BOX_ID: () => MAIN_CHART_BOX_ID,
   NodeInspector: () => NodeInspector,
   RunSlider: () => RunSlider,
+  SlotPillNode: () => SlotPillNode,
+  SmartStepEdge: () => SmartStepEdge,
   StageNode: () => StageNode,
   SubflowBreadcrumb: () => SubflowBreadcrumb,
   SubflowTree: () => SubflowTree,
@@ -31,24 +47,36 @@ __export(flowchart_exports, {
   TraceExplorerShell: () => TraceExplorerShell,
   TraceFlow: () => TraceFlow,
   TracedFlow: () => TracedFlow,
+  applyGroupLayout: () => applyGroupLayout,
   asRuntimeStageId: () => asRuntimeStageId,
   asStageId: () => asStageId,
   backtraceDataFlow: () => backtraceDataFlow,
   backtraceStructural: () => backtraceStructural,
   buildCommitChainTree: () => buildCommitChainTree,
+  buildSubflowBreadcrumb: () => buildSubflowBreadcrumb,
   createCommitFlowRecorder: () => createCommitFlowRecorder,
+  createDagreTraceLayout: () => createDagreTraceLayout,
+  createGroupedLayout: () => createGroupedLayout,
+  createMainChartBoxLayout: () => createMainChartBoxLayout,
   createNodeViewRecorder: () => createNodeViewRecorder,
+  createSnappedDagreLayout: () => createSnappedDagreLayout,
   createTraceBundle: () => createTraceBundle,
+  createTraceGroupLayout: () => createTraceGroupLayout,
   createTraceRuntimeOverlay: () => createTraceRuntimeOverlay,
   createTraceStructureRecorder: () => createTraceStructureRecorder,
+  dagreTraceLayout: () => dagreTraceLayout,
   defaultTraceFlowLayout: () => defaultTraceFlowLayout,
+  filterGraphForDrill: () => filterGraphForDrill,
   forwardtraceStructural: () => forwardtraceStructural,
   sliceOverlay: () => sliceOverlay,
+  snapLinearSuccessors: () => snapLinearSuccessors,
   structureAsChainTree: () => structureAsChainTree,
+  traceGroupLayout: () => traceGroupLayout,
   useSubflowNavigation: () => useSubflowNavigation,
   useTranslator: () => useTranslator,
   walkBackward: () => walkBackward,
-  walkForward: () => walkForward
+  walkForward: () => walkForward,
+  wrapInMainChartBox: () => wrapInMainChartBox
 });
 module.exports = __toCommonJS(flowchart_exports);
 
@@ -255,6 +283,27 @@ function StageIcon({ type, color }) {
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("line", { x1: "13", y1: "4.5", x2: "13", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
         /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("ellipse", { cx: "8", cy: "11.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" })
       ] });
+    // System prompt — document with lines
+    case "system-prompt":
+    case "prompt":
+    case "instructions":
+    case "document":
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("rect", { x: "3.5", y: "2", width: "9", height: "12", rx: "1.5", stroke: color, strokeWidth: "1.3", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("line", { x1: "5.5", y1: "5", x2: "10.5", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("line", { x1: "5.5", y1: "7.5", x2: "10.5", y2: "7.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("line", { x1: "5.5", y1: "10", x2: "8.5", y2: "10", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      ] });
+    // Messages / conversation — chat bubble
+    case "messages":
+    case "chat":
+    case "conversation":
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("rect", { x: "2.5", y: "3", width: "11", height: "8", rx: "2", stroke: color, strokeWidth: "1.3", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M5.5 11L5.5 13.5L8.5 11", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("line", { x1: "5", y1: "6", x2: "11", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("line", { x1: "5", y1: "8.5", x2: "9", y2: "8.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      ] });
     // Loop — circular arrow
     case "loop":
     case "retry":
@@ -305,20 +354,29 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
     injectedRef.current = true;
   }, []);
   const isOnPath = active || done;
-  const bg = active ? theme.primary : done ? theme.success : error ? theme.error : theme.bgSecondary;
-  const borderColor = active ? theme.primary : done ? theme.success : error ? theme.error : theme.border;
-  const shadow = active ? `0 0 16px color-mix(in srgb, ${theme.primary} 40%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.success} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : `0 2px 8px rgba(0,0,0,0.15)`;
+  const isHero = data.emphasis === "hero";
+  const isMuted = data.emphasis === "muted";
+  const sizeScale = data.size === "lg" ? 1.3 : data.size === "sm" ? 0.85 : 1;
+  const restingBg = isHero ? `color-mix(in srgb, ${theme.primary} 12%, ${theme.bgSecondary})` : theme.bgSecondary;
+  const restingBorder = isHero ? theme.primary : theme.border;
+  const restingShadow = isHero ? `0 0 10px color-mix(in srgb, ${theme.primary} 22%, transparent)` : `0 2px 8px rgba(0,0,0,0.15)`;
+  const bg = active ? theme.primary : done ? theme.success : error ? theme.error : restingBg;
+  const borderColor = active ? theme.primary : done ? theme.success : error ? theme.error : restingBorder;
+  const shadow = active ? `0 0 16px color-mix(in srgb, ${theme.primary} 40%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.success} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : restingShadow;
   const textColor = active || done || error ? "#fff" : theme.textPrimary;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_react4.Handle, { type: "target", position: import_react4.Position.Top, style: { opacity: 0 } }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { width: "100%", display: "flex", justifyContent: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
       "div",
       {
         style: {
           position: "relative",
           display: "flex",
           alignItems: "center",
-          gap: 6
+          gap: 6,
+          // Plumbing recedes. Layers with the run-overlay `dimmed` (not-yet-run)
+          // — a muted AND not-run node is faintest, which is correct.
+          opacity: isMuted ? 0.5 : void 0
         },
         children: [
           stepNumbers && stepNumbers.length > 0 && isOnPath && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
@@ -492,9 +550,9 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
               {
                 style: {
                   background: bg,
-                  border: `2px ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
+                  border: `${isHero ? "2.5px" : isMuted ? "1px" : "2px"} ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
                   borderRadius: theme.radius,
-                  padding: description ? "8px 16px" : "10px 20px",
+                  padding: description ? `${Math.round(8 * sizeScale)}px ${Math.round(16 * sizeScale)}px` : `${Math.round(10 * sizeScale)}px ${Math.round(20 * sizeScale)}px`,
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
@@ -527,8 +585,8 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
                       "span",
                       {
                         style: {
-                          fontSize: 13,
-                          fontWeight: 500,
+                          fontSize: Math.round(13 * sizeScale),
+                          fontWeight: isHero ? 700 : 500,
                           color: textColor,
                           whiteSpace: "nowrap"
                         },
@@ -603,31 +661,13 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
           )
         ]
       }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_react4.Handle, { type: "source", position: import_react4.Position.Bottom, style: { opacity: 0 } }),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-      import_react4.Handle,
-      {
-        id: "loop-source",
-        type: "source",
-        position: import_react4.Position.Bottom,
-        style: { background: "transparent", border: "none", width: 6, height: 6, left: "75%" }
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-      import_react4.Handle,
-      {
-        id: "loop-target",
-        type: "target",
-        position: import_react4.Position.Right,
-        style: { background: "transparent", border: "none", width: 6, height: 6 }
-      }
-    )
+    ) }),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_react4.Handle, { type: "source", position: import_react4.Position.Bottom, style: { opacity: 0 } })
   ] });
 });
 
 // src/components/TimeTravelDebugger/TimeTravelDebugger.tsx
-var import_react14 = require("react");
+var import_react18 = require("react");
 
 // src/components/MemoryInspector/MemoryInspector.tsx
 var import_react5 = require("react");
@@ -1185,9 +1225,440 @@ function GanttTimeline({
 }
 
 // src/components/FlowchartView/TraceFlow.tsx
-var import_react8 = require("react");
-var import_react9 = require("@xyflow/react");
+var import_react11 = require("react");
+var import_react12 = require("@xyflow/react");
+
+// src/components/LoopBackEdge/LoopBackEdge.tsx
+var import_react8 = require("@xyflow/react");
+
+// src/components/FlowchartView/_internal/loopRouting.ts
+var LOOP_LANE_GAP = 56;
+function loopLaneX(contentRights, gap = LOOP_LANE_GAP) {
+  let max = -Infinity;
+  for (const r of contentRights) if (r > max) max = r;
+  if (!Number.isFinite(max)) max = 0;
+  return max + gap;
+}
+function loopBackPath(source, target, laneX, radius = 22) {
+  const { right: sx, centerY: sy } = source;
+  const { right: tx, centerY: ty } = target;
+  const r = Math.max(
+    0,
+    Math.min(radius, Math.abs(sy - ty) / 2, laneX - sx, laneX - tx)
+  );
+  const up = ty <= sy;
+  const vy1 = up ? sy - r : sy + r;
+  const vy2 = up ? ty + r : ty - r;
+  return [
+    `M ${sx},${sy}`,
+    `L ${laneX - r},${sy}`,
+    `Q ${laneX},${sy} ${laneX},${vy1}`,
+    `L ${laneX},${vy2}`,
+    `Q ${laneX},${ty} ${laneX - r},${ty}`,
+    `L ${tx},${ty}`
+  ].join(" ");
+}
+
+// src/components/FlowchartView/_internal/groupLayout.ts
+var GROUP_CONTAINER_NODE_TYPE = "groupContainer";
+var DEFAULT_PADDING = 16;
+var DEFAULT_HEADER = 44;
+var DEFAULT_NODE_W = 200;
+var DEFAULT_NODE_H = 80;
+function footprintOf(node, fallbackW, fallbackH) {
+  const style = node.style ?? {};
+  const w = typeof style.width === "number" ? style.width : fallbackW;
+  const h = typeof style.height === "number" ? style.height : fallbackH;
+  return { width: w, height: h };
+}
+function applyGroupLayout(graph, opts) {
+  const padding2 = opts.padding ?? DEFAULT_PADDING;
+  const headerHeight = opts.headerHeight ?? DEFAULT_HEADER;
+  const nodeW = opts.nodeWidth ?? DEFAULT_NODE_W;
+  const nodeH = opts.nodeHeight ?? DEFAULT_NODE_H;
+  const baseLayout = opts.baseLayout;
+  const requested = new Set(opts.groupedSubflowIds);
+  const membersBySubflow = /* @__PURE__ */ new Map();
+  for (const n of graph.nodes) {
+    const of = n.data?.subflowOf;
+    if (of !== void 0 && requested.has(of)) {
+      const arr = membersBySubflow.get(of) ?? [];
+      arr.push(n);
+      membersBySubflow.set(of, arr);
+    }
+  }
+  const mountBySubflow = /* @__PURE__ */ new Map();
+  for (const n of graph.nodes) {
+    const sfId = n.data?.subflowId;
+    if (n.data?.isSubflow && sfId !== void 0 && requested.has(sfId) && membersBySubflow.has(sfId)) {
+      mountBySubflow.set(sfId, n);
+    }
+  }
+  const activeGroups = /* @__PURE__ */ new Set();
+  for (const sfId of mountBySubflow.keys()) activeGroups.add(sfId);
+  if (activeGroups.size === 0) {
+    return graph;
+  }
+  const memberIds = /* @__PURE__ */ new Set();
+  for (const sfId of activeGroups) {
+    for (const m of membersBySubflow.get(sfId) ?? []) memberIds.add(m.id);
+  }
+  const containerNodes = [];
+  const nestedMembers = [];
+  const groupBox = /* @__PURE__ */ new Map();
+  for (const sfId of activeGroups) {
+    const members = membersBySubflow.get(sfId);
+    const innerOnlyEdges = graph.edges.filter((e) => {
+      const s = members.some((m) => m.id === e.source);
+      const t = members.some((m) => m.id === e.target);
+      return s && t;
+    });
+    const innerPositioned = baseLayout({ nodes: members, edges: innerOnlyEdges });
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const m of innerPositioned.nodes) {
+      const p = m.position;
+      const { width, height } = footprintOf(m, nodeW, nodeH);
+      if (p.x < minX) minX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.x + width > maxX) maxX = p.x + width;
+      if (p.y + height > maxY) maxY = p.y + height;
+    }
+    if (!Number.isFinite(minX)) {
+      minX = 0;
+      minY = 0;
+      maxX = 0;
+      maxY = 0;
+    }
+    const boxWidth = maxX - minX + padding2 * 2;
+    const boxHeight = maxY - minY + headerHeight + padding2 * 2;
+    groupBox.set(sfId, { width: boxWidth, height: boxHeight, minX, minY, members: innerPositioned.nodes });
+  }
+  const outerNodes = graph.nodes.filter((n) => !memberIds.has(n.id)).map((n) => {
+    const box = n.data?.subflowId ? groupBox.get(n.data.subflowId) : void 0;
+    return box ? {
+      ...n,
+      style: { ...n.style ?? {}, width: box.width, height: box.height },
+      data: { ...n.data, isGroupContainer: true }
+    } : n;
+  });
+  const outerEdges = graph.edges.filter(
+    (e) => !memberIds.has(e.source) && !memberIds.has(e.target)
+  );
+  const outerPositioned = baseLayout({ nodes: outerNodes, edges: outerEdges });
+  const outerPosById = new Map(outerPositioned.nodes.map((n) => [n.id, n.position]));
+  for (const sfId of activeGroups) {
+    const mount = mountBySubflow.get(sfId);
+    const box = groupBox.get(sfId);
+    const { width: boxWidth, height: boxHeight, minX, minY } = box;
+    const mountPos = outerPosById.get(mount.id) ?? mount.position ?? { x: 0, y: 0 };
+    containerNodes.push({
+      ...mount,
+      type: GROUP_CONTAINER_NODE_TYPE,
+      position: mountPos,
+      style: { ...mount.style ?? {}, width: boxWidth, height: boxHeight },
+      data: { ...mount.data, isGroupContainer: true }
+    });
+    for (const m of box.members) {
+      const relX = m.position.x - minX + padding2;
+      const relY = m.position.y - minY + headerHeight + padding2;
+      nestedMembers.push({
+        ...m,
+        parentId: mount.id,
+        extent: "parent",
+        position: { x: relX, y: relY }
+      });
+    }
+  }
+  const containerById = new Map(containerNodes.map((c) => [c.id, c]));
+  const outerOut = outerPositioned.nodes.map(
+    (n) => containerById.get(n.id) ?? n
+  );
+  return {
+    nodes: [...outerOut, ...nestedMembers],
+    edges: graph.edges
+  };
+}
+function createGroupedLayout(opts) {
+  return (graph) => applyGroupLayout(graph, opts);
+}
+var MAIN_CHART_BOX_ID = "__main_chart__";
+function wrapInMainChartBox(graph, opts) {
+  if (graph.nodes.length === 0) return graph;
+  const padding2 = opts.padding ?? DEFAULT_PADDING;
+  const headerHeight = opts.headerHeight ?? DEFAULT_HEADER;
+  const nodeW = opts.nodeWidth ?? DEFAULT_NODE_W;
+  const nodeH = opts.nodeHeight ?? DEFAULT_NODE_H;
+  const mainId = opts.id ?? MAIN_CHART_BOX_ID;
+  const positioned = opts.baseLayout(graph);
+  const topLevel = positioned.nodes.filter((n) => n.parentId === void 0);
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const n of topLevel) {
+    const p = n.position;
+    const { width, height } = footprintOf(n, nodeW, nodeH);
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x + width > maxX) maxX = p.x + width;
+    if (p.y + height > maxY) maxY = p.y + height;
+  }
+  if (!Number.isFinite(minX)) {
+    minX = 0;
+    minY = 0;
+    maxX = 0;
+    maxY = 0;
+  }
+  const hasLoopEdge = graph.edges.some((e) => e.data?.kind === "loop");
+  const loopReserve = hasLoopEdge ? LOOP_LANE_GAP : 0;
+  const boxWidth = maxX - minX + padding2 * 2 + loopReserve;
+  const boxHeight = maxY - minY + headerHeight + padding2 * 2;
+  const container = {
+    id: mainId,
+    type: GROUP_CONTAINER_NODE_TYPE,
+    position: { x: 0, y: 0 },
+    style: { width: boxWidth, height: boxHeight },
+    data: {
+      label: opts.label ?? "Chart",
+      isDecider: false,
+      isFork: false,
+      isStreaming: false,
+      isSubflow: false,
+      isGroupContainer: true,
+      isMainChart: true,
+      ...opts.kind !== void 0 && { kind: opts.kind },
+      prevIds: [],
+      nextIds: []
+    }
+  };
+  const topLevelIds = new Set(topLevel.map((n) => n.id));
+  const reparented = positioned.nodes.map((n) => {
+    if (!topLevelIds.has(n.id)) return n;
+    return {
+      ...n,
+      parentId: mainId,
+      extent: "parent",
+      position: {
+        x: n.position.x - minX + padding2,
+        y: n.position.y - minY + headerHeight + padding2
+      }
+    };
+  });
+  return { nodes: [container, ...reparented], edges: graph.edges };
+}
+function createMainChartBoxLayout(opts) {
+  return (graph) => wrapInMainChartBox(graph, opts);
+}
+
+// src/components/LoopBackEdge/LoopBackEdge.tsx
 var import_jsx_runtime6 = require("react/jsx-runtime");
+function rightEdge(node) {
+  return node.internals.positionAbsolute.x + (node.measured.width ?? 0);
+}
+function centerY(node) {
+  return node.internals.positionAbsolute.y + (node.measured.height ?? 0) / 2;
+}
+function LoopBackEdge({ id, source, target, markerEnd, style }) {
+  const path = (0, import_react8.useStore)((s) => {
+    const src = s.nodeLookup.get(source);
+    const tgt = s.nodeLookup.get(target);
+    if (!src || !tgt) return "";
+    const contentRights = [];
+    for (const n of s.nodeLookup.values()) {
+      if (n.type === GROUP_CONTAINER_NODE_TYPE) continue;
+      contentRights.push(rightEdge(n));
+    }
+    const laneX = loopLaneX([...contentRights, rightEdge(src), rightEdge(tgt)], LOOP_LANE_GAP);
+    return loopBackPath(
+      { right: rightEdge(src), centerY: centerY(src) },
+      { right: rightEdge(tgt), centerY: centerY(tgt) },
+      laneX
+    );
+  });
+  if (!path) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_react8.BaseEdge, { id, path, markerEnd, style, "aria-label": "Loop back" });
+}
+
+// src/components/SmartStepEdge/SmartStepEdge.tsx
+var import_react9 = require("@xyflow/react");
+var import_react10 = require("@xyflow/react");
+
+// src/components/FlowchartView/_internal/stepRouting.ts
+function staggeredBendY(sourceBottom, targetTop, others, minGapFromTarget = 8) {
+  let lowestSkippedBottom = -Infinity;
+  for (const n of others) {
+    const cy = (n.top + n.bottom) / 2;
+    if (cy > sourceBottom && cy < targetTop && n.bottom > lowestSkippedBottom) {
+      lowestSkippedBottom = n.bottom;
+    }
+  }
+  if (lowestSkippedBottom === -Infinity) return null;
+  return Math.min((lowestSkippedBottom + targetTop) / 2, targetTop - minGapFromTarget);
+}
+
+// src/components/SmartStepEdge/SmartStepEdge.tsx
+var import_jsx_runtime7 = require("react/jsx-runtime");
+function SmartStepEdge({
+  id,
+  source,
+  target,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  markerEnd,
+  style
+}) {
+  const bendY = (0, import_react9.useStore)((s) => {
+    const src = s.nodeLookup.get(source);
+    const tgt = s.nodeLookup.get(target);
+    if (!src || !tgt) return null;
+    const sourceBottom = src.internals.positionAbsolute.y + (src.measured.height ?? 0);
+    const targetTop = tgt.internals.positionAbsolute.y;
+    const others = [];
+    for (const n of s.nodeLookup.values()) {
+      if (n.id === source || n.id === target) continue;
+      if (n.type === GROUP_CONTAINER_NODE_TYPE) continue;
+      const top = n.internals.positionAbsolute.y;
+      others.push({ top, bottom: top + (n.measured.height ?? 0) });
+    }
+    return staggeredBendY(sourceBottom, targetTop, others);
+  });
+  const [path] = (0, import_react9.getSmoothStepPath)({
+    sourceX,
+    sourceY,
+    sourcePosition: sourcePosition ?? import_react10.Position.Bottom,
+    targetX,
+    targetY,
+    targetPosition: targetPosition ?? import_react10.Position.Top,
+    // Override the bend only for a staggered edge; otherwise let getSmoothStepPath
+    // use its default centerY (== the built-in `smoothstep` path, byte-for-byte).
+    ...bendY !== null ? { centerY: bendY } : {}
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(import_react9.BaseEdge, { id, path, markerEnd, style });
+}
+
+// src/components/FlowchartView/_internal/dagreTraceLayout.ts
+var import_dagre = __toESM(require("dagre"), 1);
+var DEFAULT_NODE_W2 = 200;
+var DEFAULT_NODE_H2 = 80;
+function sizeOf(node, fallbackW, fallbackH, resolver) {
+  const style = node.style ?? {};
+  const styleW = typeof style.width === "number" ? style.width : void 0;
+  const styleH = typeof style.height === "number" ? style.height : void 0;
+  if (node.data?.isGroupContainer && styleW !== void 0 && styleH !== void 0) {
+    return { width: styleW, height: styleH };
+  }
+  const resolved = resolver?.(node);
+  if (resolved) return { width: resolved.width, height: resolved.height };
+  return {
+    width: styleW ?? fallbackW,
+    height: styleH ?? fallbackH
+  };
+}
+function reorderSiblingEdges(edges, siblingOrder) {
+  const bySource = /* @__PURE__ */ new Map();
+  for (const e of edges) {
+    if (e.data?.kind === "loop") continue;
+    const arr = bySource.get(e.source);
+    if (arr) arr.push(e);
+    else bySource.set(e.source, [e]);
+  }
+  const out = [];
+  for (const [src, group] of bySource) {
+    if (group.length < 2) {
+      out.push(...group);
+      continue;
+    }
+    const ordered = siblingOrder(src, group.map((e) => e.target));
+    const byTarget = new Map(group.map((e) => [e.target, e]));
+    const used = /* @__PURE__ */ new Set();
+    for (const t of ordered) {
+      const e = byTarget.get(t);
+      if (e && !used.has(t)) {
+        out.push(e);
+        used.add(t);
+      }
+    }
+    for (const e of group) if (!used.has(e.target)) out.push(e);
+  }
+  return out;
+}
+function dagreTraceLayout(graph, options = {}) {
+  if (graph.nodes.length === 0) return graph;
+  const direction = options.direction ?? "TB";
+  const rankSep = options.rankSep ?? 80;
+  const nodeSep = options.nodeSep ?? 60;
+  const edgeSep = options.edgeSep ?? 20;
+  const fallbackW = options.nodeWidth ?? DEFAULT_NODE_W2;
+  const fallbackH = options.nodeHeight ?? DEFAULT_NODE_H2;
+  const g = new import_dagre.default.graphlib.Graph({ compound: true });
+  g.setGraph({ rankdir: direction, ranksep: rankSep, nodesep: nodeSep, edgesep: edgeSep });
+  g.setDefaultEdgeLabel(() => ({}));
+  const sizes = /* @__PURE__ */ new Map();
+  const resolvedStyleSizes = /* @__PURE__ */ new Map();
+  for (const node of graph.nodes) {
+    const resolved = options.nodeSize?.(node);
+    const size = sizeOf(node, fallbackW, fallbackH, options.nodeSize);
+    sizes.set(node.id, size);
+    if (resolved && resolved.width === size.width && resolved.height === size.height) {
+      resolvedStyleSizes.set(node.id, resolved);
+    }
+    g.setNode(node.id, { width: size.width, height: size.height });
+    if (node.parentId) {
+      g.setParent(node.id, node.parentId);
+    }
+  }
+  const layoutEdges = options.siblingOrder ? reorderSiblingEdges(graph.edges, options.siblingOrder) : graph.edges;
+  for (const e of layoutEdges) {
+    if (e.data?.kind === "loop") continue;
+    if (g.hasNode(e.source) && g.hasNode(e.target)) {
+      const label = {};
+      const weight = options.edgeWeight?.(e);
+      const minlen = options.edgeMinLen?.(e);
+      if (typeof weight === "number") label.weight = weight;
+      if (typeof minlen === "number") label.minlen = minlen;
+      g.setEdge(e.source, e.target, label);
+    }
+  }
+  import_dagre.default.layout(g);
+  const positioned = graph.nodes.map((node) => {
+    const laidOut = g.node(node.id);
+    if (!laidOut) return node;
+    const size = sizes.get(node.id);
+    let x = laidOut.x - size.width / 2;
+    let y = laidOut.y - size.height / 2;
+    if (node.parentId) {
+      const parent = g.node(node.parentId);
+      const parentSize = sizes.get(node.parentId);
+      if (parent && parentSize) {
+        x -= parent.x - parentSize.width / 2;
+        y -= parent.y - parentSize.height / 2;
+      }
+    }
+    const styleSize = resolvedStyleSizes.get(node.id);
+    if (styleSize) {
+      return {
+        ...node,
+        position: { x, y },
+        style: { ...node.style ?? {}, width: styleSize.width, height: styleSize.height }
+      };
+    }
+    return { ...node, position: { x, y } };
+  });
+  return { nodes: positioned, edges: graph.edges };
+}
+function createDagreTraceLayout(options = {}) {
+  return (graph) => dagreTraceLayout(graph, options);
+}
+
+// src/components/FlowchartView/TraceFlow.tsx
+var import_jsx_runtime8 = require("react/jsx-runtime");
 var Y_STEP = 100;
 var X_SPREAD = 200;
 var defaultTraceFlowLayout = (graph) => {
@@ -1276,10 +1747,14 @@ function styleEdge(edge, colors) {
   const color = kind === "loop" ? colors.loop : kind === "fork-branch" ? colors.forkBranch : kind === "decision-branch" ? colors.decisionBranch : colors.next;
   const styled = {
     ...edge,
-    type: kind === "loop" ? "step" : "smoothstep",
+    // Loop back-edges use the custom `loopBack` edge — a curve routed along the
+    // right margin (clear of the spine) instead of a straight/step center line.
+    // Every other edge uses `smartStep`: a smoothstep superset that routes a
+    // RANK-SKIPPING edge around the node it skips (else identical to smoothstep).
+    type: kind === "loop" ? "loopBack" : "smartStep",
     animated: false,
     style: { stroke: color, strokeWidth: 1.5 },
-    markerEnd: { type: import_react9.MarkerType.ArrowClosed, color, width: 16, height: 16 }
+    markerEnd: { type: import_react12.MarkerType.ArrowClosed, color, width: 16, height: 16 }
   };
   if (kind === "loop") {
     styled.style = { ...styled.style, strokeDasharray: "4 3" };
@@ -1287,6 +1762,7 @@ function styleEdge(edge, colors) {
   return styled;
 }
 var DEFAULT_NODE_TYPES = { stageNode: StageNode };
+var DEFAULT_EDGE_TYPES = { loopBack: LoopBackEdge, smartStep: SmartStepEdge };
 function toStageNode(node) {
   if (node.type !== void 0 && node.type !== "stage") {
     return node;
@@ -1303,7 +1779,9 @@ function toStageNode(node) {
     ...data.description !== void 0 && { description: data.description },
     ...data.icon !== void 0 && { icon: data.icon },
     ...data.subflowId !== void 0 && { subflowId: data.subflowId },
-    ...data.isLazy === true && { isLazy: true }
+    ...data.isLazy === true && { isLazy: true },
+    ...data.emphasis !== void 0 && { emphasis: data.emphasis },
+    ...data.size !== void 0 && { size: data.size }
   };
   return {
     ...node,
@@ -1333,51 +1811,55 @@ function TraceFlow(props) {
       "[TraceFlow] neither `recorder` nor `graph` prop was provided \u2014 rendering an empty chart. Pass one of: <TraceFlow recorder={handle} /> OR <TraceFlow graph={{nodes, edges}} />."
     );
   }
-  const layout = props.layout ?? defaultTraceFlowLayout;
-  const edgeColors = (0, import_react8.useMemo)(
+  const layout = props.layout ?? dagreTraceLayout;
+  const edgeColors = (0, import_react11.useMemo)(
     () => ({ ...DEFAULT_EDGE_COLORS, ...props.edgeColors ?? {} }),
     [props.edgeColors]
   );
-  const subscribe = (0, import_react8.useMemo)(
+  const subscribe = (0, import_react11.useMemo)(
     () => subscribeToRecorder(props.recorder),
     [props.recorder]
   );
-  const getVersion = (0, import_react8.useMemo)(
+  const getVersion = (0, import_react11.useMemo)(
     () => getRecorderVersion(props.recorder),
     [props.recorder]
   );
-  const version = (0, import_react8.useSyncExternalStore)(subscribe, getVersion, getVersion);
+  const version = (0, import_react11.useSyncExternalStore)(subscribe, getVersion, getVersion);
   const { recorder, graph: graphProp } = props;
-  const graph = (0, import_react8.useMemo)(() => {
+  const graph = (0, import_react11.useMemo)(() => {
     if (recorder) return recorder.getGraph();
     if (graphProp) return graphProp;
     return EMPTY_GRAPH;
   }, [recorder, graphProp, version]);
-  const positioned = (0, import_react8.useMemo)(() => {
+  const positioned = (0, import_react11.useMemo)(() => {
     if (layout === "passthrough") return graph;
     return layout(graph);
   }, [graph, layout]);
-  const reactFlowNodes = (0, import_react8.useMemo)(
+  const reactFlowNodes = (0, import_react11.useMemo)(
     () => positioned.nodes.map(toStageNode),
     [positioned.nodes]
   );
-  const reactFlowEdges = (0, import_react8.useMemo)(
+  const reactFlowEdges = (0, import_react11.useMemo)(
     () => positioned.edges.map((e) => styleEdge(e, edgeColors)),
     [positioned.edges, edgeColors]
   );
   const onNodeClickRef = props.onNodeClick;
-  const handleNodeClick = (0, import_react8.useCallback)(
+  const handleNodeClick = (0, import_react11.useCallback)(
     (_, node) => {
       onNodeClickRef?.(node.id);
     },
     [onNodeClickRef]
   );
   const { nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes } = props;
-  const mergedNodeTypes = (0, import_react8.useMemo)(
+  const mergedNodeTypes = (0, import_react11.useMemo)(
     () => userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES,
     [userNodeTypes]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+  const mergedEdgeTypes = (0, import_react11.useMemo)(
+    () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES, ...userEdgeTypes } : DEFAULT_EDGE_TYPES,
+    [userEdgeTypes]
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
     "div",
     {
       className: props.className,
@@ -1387,18 +1869,18 @@ function TraceFlow(props) {
         minHeight: 300,
         ...props.style
       },
-      children: /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
-        import_react9.ReactFlow,
+      children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
+        import_react12.ReactFlow,
         {
           nodes: reactFlowNodes,
           edges: reactFlowEdges,
           nodeTypes: mergedNodeTypes,
-          ...userEdgeTypes && { edgeTypes: userEdgeTypes },
+          edgeTypes: mergedEdgeTypes,
           onNodeClick: handleNodeClick,
           fitView: true,
           proOptions: { hideAttribution: true },
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_react9.Background, { variant: import_react9.BackgroundVariant.Dots, gap: 20, size: 1 }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(import_react12.Background, { variant: import_react12.BackgroundVariant.Dots, gap: 20, size: 1 }),
             props.children
           ]
         }
@@ -1408,8 +1890,8 @@ function TraceFlow(props) {
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-var import_react12 = require("react");
-var import_react13 = require("@xyflow/react");
+var import_react16 = require("react");
+var import_react17 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/devWarn.ts
 function isDevModeEnv() {
@@ -1585,19 +2067,6 @@ function buildSubflowBreadcrumb(graph, currentSubflowId) {
 }
 
 // src/components/FlowchartView/_internal/overlayProjection.ts
-function leafId(id) {
-  const i = id.lastIndexOf("/");
-  return i >= 0 ? id.slice(i + 1) : id;
-}
-function normalizeSliceLeafIds(slice) {
-  return {
-    doneStageIds: new Set(Array.from(slice.doneStageIds).map(leafId)),
-    activeStageId: slice.activeStageId ? leafId(slice.activeStageId) : null,
-    executedStageIds: new Set(Array.from(slice.executedStageIds).map(leafId)),
-    executedOrderIds: slice.executedOrderIds.map(leafId),
-    errors: new Map(Array.from(slice.errors).map(([k, v2]) => [leafId(k), v2]))
-  };
-}
 function aggregateMountStatus(slice, graph, currentSubflowId) {
   if (graph.nodes.length === 0) return slice;
   const mounts = graph.nodes.filter((n) => n.data?.isSubflow && n.data?.subflowId);
@@ -1620,18 +2089,18 @@ function aggregateMountStatus(slice, graph, currentSubflowId) {
 }
 
 // src/components/FlowchartView/_internal/useSubflowDrill.ts
-var import_react10 = require("react");
+var import_react13 = require("react");
 function useSubflowDrill(graph, onSubflowChange) {
-  const [currentSubflowId, setCurrentSubflowId] = (0, import_react10.useState)(null);
-  const lastGraphRef = (0, import_react10.useRef)(null);
+  const [currentSubflowId, setCurrentSubflowId] = (0, import_react13.useState)(null);
+  const lastGraphRef = (0, import_react13.useRef)(null);
   if (lastGraphRef.current !== graph) {
     lastGraphRef.current = graph;
     if (currentSubflowId !== null && !graph.nodes.some((n) => n.data?.subflowId === currentSubflowId)) {
       queueMicrotask(() => setCurrentSubflowId(null));
     }
   }
-  const lastNotifiedRef = (0, import_react10.useRef)(void 0);
-  (0, import_react10.useEffect)(() => {
+  const lastNotifiedRef = (0, import_react13.useRef)(void 0);
+  (0, import_react13.useEffect)(() => {
     if (lastNotifiedRef.current === currentSubflowId) return;
     lastNotifiedRef.current = currentSubflowId;
     if (currentSubflowId === null) {
@@ -1641,21 +2110,21 @@ function useSubflowDrill(graph, onSubflowChange) {
       if (mount) onSubflowChange?.(mount.id);
     }
   }, [currentSubflowId, graph, onSubflowChange]);
-  const drillInto = (0, import_react10.useCallback)((subflowId) => {
+  const drillInto = (0, import_react13.useCallback)((subflowId) => {
     setCurrentSubflowId(subflowId);
   }, []);
-  const drillUp = (0, import_react10.useCallback)(() => {
+  const drillUp = (0, import_react13.useCallback)(() => {
     setCurrentSubflowId(null);
   }, []);
   return { currentSubflowId, drillInto, drillUp, setCurrentSubflowId };
 }
 
 // src/components/FlowchartView/_internal/useChartAutoRefit.ts
-var import_react11 = require("react");
+var import_react14 = require("react");
 function useChartAutoRefit(wrapperRef, rfInstance, options = {}) {
   const duration = options.duration ?? 200;
   const padding2 = options.padding ?? 0.1;
-  (0, import_react11.useEffect)(() => {
+  (0, import_react14.useEffect)(() => {
     const el = wrapperRef.current;
     if (!el || !rfInstance) return;
     let raf = 0;
@@ -1677,9 +2146,9 @@ function useChartAutoRefit(wrapperRef, rfInstance, options = {}) {
 }
 
 // src/components/FlowchartView/SubflowBreadcrumbBar.tsx
-var import_jsx_runtime7 = require("react/jsx-runtime");
+var import_jsx_runtime9 = require("react/jsx-runtime");
 function SubflowBreadcrumbBar({ entries, onNavigate }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
     "div",
     {
       style: {
@@ -1695,12 +2164,12 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
       "aria-label": "Subflow breadcrumb",
       children: entries.map((entry, i) => {
         const isLast = i === entries.length - 1;
-        return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+        return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
           "span",
           {
             style: { display: "inline-flex", alignItems: "center", gap: 6 },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
                 "button",
                 {
                   type: "button",
@@ -1720,7 +2189,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
                   children: entry.label
                 }
               ),
-              !isLast && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: { color: rawDefaults.colors.textMuted }, children: "\u203A" })
+              !isLast && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { color: rawDefaults.colors.textMuted }, children: "\u203A" })
             ]
           },
           entry.subflowId ?? "__top__"
@@ -1730,8 +2199,56 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
   );
 }
 
+// src/components/GroupContainerNode/GroupContainerNode.tsx
+var import_react15 = require("@xyflow/react");
+var import_jsx_runtime10 = require("react/jsx-runtime");
+var C = rawDefaults.colors;
+function GroupContainerNode({ data }) {
+  const d = data;
+  const borderColor = d.error ? C.error : d.active ? C.primary : d.done ? C.success : C.border;
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+    "div",
+    {
+      style: {
+        width: "100%",
+        height: "100%",
+        boxSizing: "border-box",
+        border: `1.5px ${d.active || d.done || d.error ? "solid" : "dashed"} ${borderColor}`,
+        borderRadius: 12,
+        // Translucent so the dotted background + nested children read clearly.
+        background: "rgba(148, 163, 184, 0.06)",
+        opacity: d.dimmed ? 0.4 : 1,
+        position: "relative"
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+          "div",
+          {
+            style: {
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "8px 12px",
+              fontSize: 12,
+              fontWeight: 600,
+              color: C.textMuted,
+              letterSpacing: 0.2
+            },
+            children: [
+              d.icon ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { "aria-hidden": true, children: d.icon }) : null,
+              /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { children: d.label })
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react15.Handle, { type: "target", position: import_react15.Position.Top, style: { opacity: 0 } }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react15.Handle, { type: "source", position: import_react15.Position.Bottom, style: { opacity: 0 } })
+      ]
+    }
+  );
+}
+
 // src/components/FlowchartView/TracedFlow.tsx
-var import_jsx_runtime8 = require("react/jsx-runtime");
+var import_jsx_runtime11 = require("react/jsx-runtime");
 var DEFAULT_COLORS = {
   default: rawDefaults.colors.textMuted,
   done: rawDefaults.colors.success,
@@ -1739,12 +2256,10 @@ var DEFAULT_COLORS = {
   error: rawDefaults.colors.error,
   loop: rawDefaults.colors.warning
 };
-function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds) {
-  if (node.type !== void 0 && node.type !== "stage") {
-    return node;
-  }
+var EMPTY_SET = /* @__PURE__ */ new Set();
+function deriveOverlayFields(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds) {
   const isDone = doneStageIds.has(node.id);
-  const isActive = activeStageId === node.id;
+  const isActive = activeStageId === node.id || coActiveStageIds.has(node.id);
   const wasExecuted = isDone || isActive;
   const hasError = !!errorMessage;
   const dimmed = !wasExecuted && executedOrderIds.length > 0;
@@ -1756,21 +2271,62 @@ function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage,
     }
     if (nums.length > 0) stepNumbers = nums;
   }
+  return {
+    active: isActive,
+    done: isDone,
+    error: hasError,
+    dimmed,
+    ...errorMessage && { errorMessage },
+    ...stepNumbers && { stepNumbers }
+  };
+}
+function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds) {
+  const overlayFields = deriveOverlayFields(
+    node,
+    doneStageIds,
+    activeStageId,
+    errorMessage,
+    executedOrderIds,
+    coActiveStageIds
+  );
+  const { dimmed } = overlayFields;
+  if (node.type !== void 0 && node.type !== "stage") {
+    const consumerData = node.data ?? {};
+    const consumerActive = consumerData.active === true;
+    const consumerDone = consumerData.done === true;
+    const consumerError = consumerData.error === true;
+    const finalActive = consumerActive || overlayFields.active;
+    const finalDone = consumerDone || overlayFields.done;
+    const finalError = consumerError || overlayFields.error;
+    const finalDimmed = !finalActive && !finalDone && dimmed;
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        active: finalActive,
+        done: finalDone,
+        error: finalError,
+        ...overlayFields.errorMessage !== void 0 && consumerData.errorMessage === void 0 && {
+          errorMessage: overlayFields.errorMessage
+        },
+        ...finalDimmed && { dimmed: true },
+        ...overlayFields.stepNumbers && { stepNumbers: overlayFields.stepNumbers }
+      },
+      ...finalDimmed && { style: { ...node.style ?? {}, opacity: 0.35 } }
+    };
+  }
   const stageData = {
     label: node.data.label,
     isDecider: node.data.isDecider,
     isFork: node.data.isFork,
     isSubflow: node.data.isSubflow,
-    active: isActive,
-    done: isDone,
-    error: hasError,
+    ...overlayFields,
     ...node.data.description !== void 0 && { description: node.data.description },
     ...node.data.icon !== void 0 && { icon: node.data.icon },
     ...node.data.subflowId !== void 0 && { subflowId: node.data.subflowId },
     ...node.data.isLazy === true && { isLazy: true },
-    ...dimmed && { dimmed: true },
-    ...stepNumbers && { stepNumbers },
-    ...errorMessage && { errorMessage }
+    ...node.data.emphasis !== void 0 && { emphasis: node.data.emphasis },
+    ...node.data.size !== void 0 && { size: node.data.size }
   };
   return {
     ...node,
@@ -1791,23 +2347,27 @@ function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors) {
   else if (traversed) color = colors.done;
   const styled = {
     ...edge,
-    type: "smoothstep",
+    // Loop back-edges use the custom `loopBack` edge — a curve routed along the
+    // right margin (clear of the spine). It reads node bounds from the store
+    // and anchors on right edges itself, so it needs NO dedicated loop handles
+    // on the node (the old approach broke for any node missing them).
+    // Every other edge uses `smartStep`: a smoothstep superset that routes a
+    // RANK-SKIPPING edge around the node it skips (else identical to smoothstep).
+    type: kind === "loop" ? "loopBack" : "smartStep",
     animated: isLeadingEdge,
     style: { stroke: color, strokeWidth: traversed ? 2 : 1.5 },
-    markerEnd: { type: import_react13.MarkerType.ArrowClosed, color, width: 16, height: 16 }
+    markerEnd: { type: import_react17.MarkerType.ArrowClosed, color, width: 16, height: 16 }
   };
   if (kind === "loop") {
     styled.style = { ...styled.style, strokeDasharray: "4 3" };
-    styled.data = {
-      ...styled.data ?? {},
-      pathOptions: { borderRadius: 14, offset: 36 }
-    };
-    styled.sourceHandle = "loop-source";
-    styled.targetHandle = "loop-target";
   }
   return styled;
 }
-var DEFAULT_NODE_TYPES2 = { stageNode: StageNode };
+var DEFAULT_NODE_TYPES2 = {
+  stageNode: StageNode,
+  groupContainer: GroupContainerNode
+};
+var DEFAULT_EDGE_TYPES2 = { loopBack: LoopBackEdge, smartStep: SmartStepEdge };
 function TracedFlow({
   graph,
   overlay,
@@ -1816,35 +2376,64 @@ function TracedFlow({
   colors: colorOverrides,
   onNodeClick,
   onSubflowChange,
+  groupedSubflows,
+  mainChartBox,
   nodeTypes: userNodeTypes,
   edgeTypes: userEdgeTypes,
+  coActiveStageIds,
   children,
   className,
   style
 }) {
-  const layout = layoutProp ?? defaultTraceFlowLayout;
-  const colors = (0, import_react12.useMemo)(
+  const layout = layoutProp ?? dagreTraceLayout;
+  const colors = (0, import_react16.useMemo)(
     () => ({ ...DEFAULT_COLORS, ...colorOverrides ?? {} }),
     [colorOverrides]
   );
-  const mergedNodeTypes = (0, import_react12.useMemo)(
+  const mergedNodeTypes = (0, import_react16.useMemo)(
     () => userNodeTypes ? { ...DEFAULT_NODE_TYPES2, ...userNodeTypes } : DEFAULT_NODE_TYPES2,
     [userNodeTypes]
   );
-  const drill = useSubflowDrill(graph, onSubflowChange);
-  const filteredGraph = (0, import_react12.useMemo)(
-    () => filterGraphForDrill(graph, drill.currentSubflowId),
-    [graph, drill.currentSubflowId]
+  const mergedEdgeTypes = (0, import_react16.useMemo)(
+    () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES2, ...userEdgeTypes } : DEFAULT_EDGE_TYPES2,
+    [userEdgeTypes]
   );
-  const breadcrumb = (0, import_react12.useMemo)(
+  const drill = useSubflowDrill(graph, onSubflowChange);
+  const groupedSet = (0, import_react16.useMemo)(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
+  const filteredGraph = (0, import_react16.useMemo)(() => {
+    const base = filterGraphForDrill(graph, drill.currentSubflowId);
+    if (groupedSet.size === 0) return base;
+    const baseIds = new Set(base.nodes.map((n) => n.id));
+    const extraNodes = graph.nodes.filter(
+      (n) => n.data?.subflowOf !== void 0 && groupedSet.has(n.data.subflowOf) && !baseIds.has(n.id)
+    );
+    if (extraNodes.length === 0) return base;
+    const allIds = /* @__PURE__ */ new Set([...baseIds, ...extraNodes.map((n) => n.id)]);
+    const baseEdgeIds = new Set(base.edges.map((e) => e.id));
+    const extraEdges = graph.edges.filter(
+      (e) => !baseEdgeIds.has(e.id) && allIds.has(e.source) && allIds.has(e.target)
+    );
+    return { nodes: [...base.nodes, ...extraNodes], edges: [...base.edges, ...extraEdges] };
+  }, [graph, drill.currentSubflowId, groupedSet]);
+  const breadcrumb = (0, import_react16.useMemo)(
     () => buildSubflowBreadcrumb(graph, drill.currentSubflowId),
     [graph, drill.currentSubflowId]
   );
-  const positioned = (0, import_react12.useMemo)(
-    () => layout === "passthrough" ? filteredGraph : layout(filteredGraph),
-    [filteredGraph, layout]
-  );
-  const slice = (0, import_react12.useMemo)(() => {
+  const positioned = (0, import_react16.useMemo)(() => {
+    const realBase = layout === "passthrough" ? (g) => g : layout;
+    if (groupedSet.size > 0) {
+      const grouped = applyGroupLayout(filteredGraph, {
+        groupedSubflowIds: [...groupedSet],
+        baseLayout: realBase
+      });
+      return mainChartBox ? wrapInMainChartBox(grouped, { baseLayout: (g) => g, ...mainChartBox }) : grouped;
+    }
+    if (mainChartBox) {
+      return wrapInMainChartBox(filteredGraph, { baseLayout: realBase, ...mainChartBox });
+    }
+    return layout === "passthrough" ? filteredGraph : layout(filteredGraph);
+  }, [filteredGraph, layout, groupedSet, mainChartBox]);
+  const slice = (0, import_react16.useMemo)(() => {
     const empty = {
       doneStageIds: /* @__PURE__ */ new Set(),
       activeStageId: null,
@@ -1854,41 +2443,41 @@ function TracedFlow({
     };
     if (!overlay) return empty;
     const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
-    const normalized = normalizeSliceLeafIds(sliceOverlay(overlay, idx));
-    return aggregateMountStatus(normalized, graph, drill.currentSubflowId);
+    return aggregateMountStatus(sliceOverlay(overlay, idx), graph, drill.currentSubflowId);
   }, [overlay, scrubIndex, graph, drill.currentSubflowId]);
-  const reactFlowNodes = (0, import_react12.useMemo)(
+  const reactFlowNodes = (0, import_react16.useMemo)(
     () => positioned.nodes.map(
       (n) => toStageNodeWithOverlay(
         n,
         slice.doneStageIds,
         slice.activeStageId,
         slice.errors.get(n.id),
-        slice.executedOrderIds
+        slice.executedOrderIds,
+        coActiveStageIds ?? EMPTY_SET
       )
     ),
-    [positioned.nodes, slice]
+    [positioned.nodes, slice, coActiveStageIds]
   );
-  const reactFlowEdges = (0, import_react12.useMemo)(
+  const reactFlowEdges = (0, import_react16.useMemo)(
     () => positioned.edges.map(
       (e) => styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors)
     ),
     [positioned.edges, slice, colors]
   );
-  const handleNodeClick = (0, import_react12.useCallback)(
+  const handleNodeClick = (0, import_react16.useCallback)(
     (_, node) => {
       const data = node.data ?? {};
-      if (data.isSubflow && data.subflowId) {
+      if (data.isSubflow && data.subflowId && !groupedSet.has(data.subflowId)) {
         drill.drillInto(data.subflowId);
       }
       onNodeClick?.(node.id);
     },
-    [drill, onNodeClick]
+    [drill, onNodeClick, groupedSet]
   );
-  const wrapperRef = (0, import_react12.useRef)(null);
-  const [rfInstance, setRfInstance] = (0, import_react12.useState)(null);
+  const wrapperRef = (0, import_react16.useRef)(null);
+  const [rfInstance, setRfInstance] = (0, import_react16.useState)(null);
   useChartAutoRefit(wrapperRef, rfInstance);
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
     "div",
     {
       ref: wrapperRef,
@@ -1902,26 +2491,26 @@ function TracedFlow({
         ...style
       },
       children: [
-        breadcrumb.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+        breadcrumb.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
           SubflowBreadcrumbBar,
           {
             entries: breadcrumb,
             onNavigate: drill.setCurrentSubflowId
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
-          import_react13.ReactFlow,
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+          import_react17.ReactFlow,
           {
             nodes: reactFlowNodes,
             edges: reactFlowEdges,
             nodeTypes: mergedNodeTypes,
-            ...userEdgeTypes && { edgeTypes: userEdgeTypes },
+            edgeTypes: mergedEdgeTypes,
             onNodeClick: handleNodeClick,
             onInit: setRfInstance,
             fitView: true,
             proOptions: { hideAttribution: true },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(import_react13.Background, { variant: import_react13.BackgroundVariant.Dots, gap: 20, size: 1 }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_react17.Background, { variant: import_react17.BackgroundVariant.Dots, gap: 20, size: 1 }),
               children
             ]
           }
@@ -1932,7 +2521,7 @@ function TracedFlow({
 }
 
 // src/components/TimeTravelDebugger/TimeTravelDebugger.tsx
-var import_jsx_runtime9 = require("react/jsx-runtime");
+var import_jsx_runtime12 = require("react/jsx-runtime");
 function TimeTravelDebugger({
   snapshots,
   graph,
@@ -1945,11 +2534,11 @@ function TimeTravelDebugger({
   className,
   style
 }) {
-  const [selectedIndex, setSelectedIndex] = (0, import_react14.useState)(0);
+  const [selectedIndex, setSelectedIndex] = (0, import_react18.useState)(0);
   const fs = fontSize[size];
   const pad = padding[size];
   if (snapshots.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
       "div",
       {
         className,
@@ -1970,7 +2559,7 @@ function TimeTravelDebugger({
     );
     if (idx >= 0) setSelectedIndex(idx);
   };
-  const chart = runtimeOverlay ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  const chart = runtimeOverlay ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
     TracedFlow,
     {
       graph,
@@ -1978,11 +2567,11 @@ function TimeTravelDebugger({
       scrubIndex: selectedIndex,
       onNodeClick: handleNodeClick
     }
-  ) : /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(TraceFlow, { graph, onNodeClick: handleNodeClick });
+  ) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(TraceFlow, { graph, onNodeClick: handleNodeClick });
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className, style, "data-fp": "time-travel-debugger", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("h3", { children: title }),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { className, style, "data-fp": "time-travel-debugger", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("h3", { children: title }),
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
         "input",
         {
           type: "range",
@@ -1993,7 +2582,7 @@ function TimeTravelDebugger({
         }
       ),
       chart,
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
         MemoryInspector,
         {
           snapshots,
@@ -2001,7 +2590,7 @@ function TimeTravelDebugger({
           unstyled: true
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
         NarrativeLog,
         {
           snapshots,
@@ -2009,7 +2598,7 @@ function TimeTravelDebugger({
           unstyled: true
         }
       ),
-      showGantt && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      showGantt && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
         GanttTimeline,
         {
           snapshots,
@@ -2020,7 +2609,7 @@ function TimeTravelDebugger({
       )
     ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
     "div",
     {
       className,
@@ -2035,7 +2624,7 @@ function TimeTravelDebugger({
       },
       "data-fp": "time-travel-debugger",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
           "div",
           {
             style: {
@@ -2045,7 +2634,7 @@ function TimeTravelDebugger({
               flexShrink: 0
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
                 "div",
                 {
                   style: {
@@ -2055,7 +2644,7 @@ function TimeTravelDebugger({
                     marginBottom: 8
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                       "span",
                       {
                         style: {
@@ -2066,7 +2655,7 @@ function TimeTravelDebugger({
                         children: title
                       }
                     ),
-                    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                       "span",
                       {
                         style: {
@@ -2079,8 +2668,8 @@ function TimeTravelDebugger({
                   ]
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                   ScrubButton,
                   {
                     label: "\u25C0",
@@ -2088,7 +2677,7 @@ function TimeTravelDebugger({
                     onClick: () => setSelectedIndex((i) => Math.max(0, i - 1))
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                   "input",
                   {
                     type: "range",
@@ -2104,7 +2693,7 @@ function TimeTravelDebugger({
                     }
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                   ScrubButton,
                   {
                     label: "\u25B6",
@@ -2112,7 +2701,7 @@ function TimeTravelDebugger({
                     onClick: () => setSelectedIndex((i) => Math.min(snapshots.length - 1, i + 1))
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
                   "span",
                   {
                     style: {
@@ -2132,7 +2721,7 @@ function TimeTravelDebugger({
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
           "div",
           {
             style: {
@@ -2142,7 +2731,7 @@ function TimeTravelDebugger({
               overflow: "hidden"
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                 "div",
                 {
                   style: {
@@ -2154,8 +2743,8 @@ function TimeTravelDebugger({
                   children: chart
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: { flex: 1, overflow: "auto" }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: { flex: 1, overflow: "auto" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                   MemoryInspector,
                   {
                     snapshots,
@@ -2163,7 +2752,7 @@ function TimeTravelDebugger({
                     size
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                   "div",
                   {
                     style: {
@@ -2173,7 +2762,7 @@ function TimeTravelDebugger({
                     }
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                   NarrativeLog,
                   {
                     snapshots,
@@ -2185,7 +2774,7 @@ function TimeTravelDebugger({
             ]
           }
         ),
-        showGantt && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+        showGantt && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
           "div",
           {
             style: {
@@ -2193,7 +2782,7 @@ function TimeTravelDebugger({
               background: theme.bgSecondary,
               flexShrink: 0
             },
-            children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+            children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
               GanttTimeline,
               {
                 snapshots,
@@ -2213,7 +2802,7 @@ function ScrubButton({
   disabled,
   onClick
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
     "button",
     {
       onClick,
@@ -2239,14 +2828,14 @@ function ScrubButton({
 }
 
 // src/components/FlowchartView/SubflowBreadcrumb.tsx
-var import_react15 = require("react");
-var import_jsx_runtime10 = require("react/jsx-runtime");
-var SubflowBreadcrumb = (0, import_react15.memo)(function SubflowBreadcrumb2({
+var import_react19 = require("react");
+var import_jsx_runtime13 = require("react/jsx-runtime");
+var SubflowBreadcrumb = (0, import_react19.memo)(function SubflowBreadcrumb2({
   breadcrumbs,
   onNavigate
 }) {
   if (breadcrumbs.length <= 1) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
     "div",
     {
       style: {
@@ -2263,10 +2852,10 @@ var SubflowBreadcrumb = (0, import_react15.memo)(function SubflowBreadcrumb2({
       },
       children: breadcrumbs.map((crumb, i) => {
         const isLast = i === breadcrumbs.length - 1;
-        return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
-          i > 0 && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" }),
-          isLast ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
+          i > 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" }),
+          isLast ? /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
               "span",
               {
                 style: {
@@ -2276,7 +2865,7 @@ var SubflowBreadcrumb = (0, import_react15.memo)(function SubflowBreadcrumb2({
                 children: crumb.label
               }
             ),
-            crumb.description && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+            crumb.description && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
               "span",
               {
                 style: {
@@ -2290,7 +2879,7 @@ var SubflowBreadcrumb = (0, import_react15.memo)(function SubflowBreadcrumb2({
                 ]
               }
             )
-          ] }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
             "button",
             {
               onClick: () => onNavigate(i),
@@ -2322,12 +2911,12 @@ var SubflowBreadcrumb = (0, import_react15.memo)(function SubflowBreadcrumb2({
 });
 
 // src/components/FlowchartView/useSubflowNavigation.ts
-var import_react16 = require("react");
+var import_react20 = require("react");
 var EMPTY_GRAPH2 = { nodes: [], edges: [] };
 function useSubflowNavigation(rootGraph) {
-  const [stack, setStack] = (0, import_react16.useState)([]);
+  const [stack, setStack] = (0, import_react20.useState)([]);
   const safeRootGraph = rootGraph ?? EMPTY_GRAPH2;
-  const subflowMounts = (0, import_react16.useMemo)(() => {
+  const subflowMounts = (0, import_react20.useMemo)(() => {
     const map = /* @__PURE__ */ new Map();
     for (const node of safeRootGraph.nodes) {
       if (!node.data?.isSubflow) continue;
@@ -2345,12 +2934,12 @@ function useSubflowNavigation(rootGraph) {
     }
     return map;
   }, [safeRootGraph]);
-  const breadcrumbs = (0, import_react16.useMemo)(() => {
+  const breadcrumbs = (0, import_react20.useMemo)(() => {
     const rootLabel = "Flowchart";
     const root = { label: rootLabel };
     return [root, ...stack];
   }, [stack]);
-  const handleNodeClick = (0, import_react16.useCallback)(
+  const handleNodeClick = (0, import_react20.useCallback)(
     (nodeId) => {
       const mount = subflowMounts.get(nodeId);
       if (!mount) return false;
@@ -2366,7 +2955,7 @@ function useSubflowNavigation(rootGraph) {
     },
     [subflowMounts]
   );
-  const navigateTo = (0, import_react16.useCallback)((level) => {
+  const navigateTo = (0, import_react20.useCallback)((level) => {
     if (level === 0) {
       setStack([]);
     } else {
@@ -2388,8 +2977,8 @@ function useSubflowNavigation(rootGraph) {
 }
 
 // src/components/FlowchartView/SubflowTree.tsx
-var import_react17 = require("react");
-var import_jsx_runtime11 = require("react/jsx-runtime");
+var import_react21 = require("react");
+var import_jsx_runtime14 = require("react/jsx-runtime");
 function graphToSubflowEntries(graph) {
   if (!graph?.nodes?.length) return [];
   const entries = [];
@@ -2405,25 +2994,25 @@ function graphToSubflowEntries(graph) {
   }
   return entries;
 }
-var TreeNode = (0, import_react17.memo)(function TreeNode2({
+var TreeNode = (0, import_react21.memo)(function TreeNode2({
   entry,
   depth,
   activeStage,
   doneStages,
   onNodeSelect
 }) {
-  const [expanded, setExpanded] = (0, import_react17.useState)(true);
+  const [expanded, setExpanded] = (0, import_react21.useState)(true);
   const hasChildren = entry.children && entry.children.length > 0;
   const isActive = activeStage === entry.name;
   const isDone = doneStages?.has(entry.name);
-  const handleClick = (0, import_react17.useCallback)(() => {
+  const handleClick = (0, import_react21.useCallback)(() => {
     if (hasChildren) {
       setExpanded((prev) => !prev);
     }
     onNodeSelect?.(entry.name, !!entry.isSubflow);
   }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow]);
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
       "button",
       {
         onClick: handleClick,
@@ -2454,7 +3043,7 @@ var TreeNode = (0, import_react17.memo)(function TreeNode2({
           }
         },
         children: [
-          hasChildren ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+          hasChildren ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
             "span",
             {
               style: {
@@ -2469,8 +3058,8 @@ var TreeNode = (0, import_react17.memo)(function TreeNode2({
               },
               children: "\u25B6"
             }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { style: { width: 12, flexShrink: 0 } }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+          ) : /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { style: { width: 12, flexShrink: 0 } }),
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
             "span",
             {
               style: {
@@ -2482,8 +3071,8 @@ var TreeNode = (0, import_react17.memo)(function TreeNode2({
               }
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { style: { display: "flex", flexDirection: "column", minWidth: 0 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { style: { display: "flex", flexDirection: "column", minWidth: 0 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
               "span",
               {
                 style: {
@@ -2495,11 +3084,11 @@ var TreeNode = (0, import_react17.memo)(function TreeNode2({
                 },
                 children: [
                   entry.name,
-                  entry.isSubflow && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { style: { opacity: 0.5, marginLeft: 4, fontSize: 10 }, children: "\u229E" })
+                  entry.isSubflow && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("span", { style: { opacity: 0.5, marginLeft: 4, fontSize: 10 }, children: "\u229E" })
                 ]
               }
             ),
-            entry.description && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+            entry.description && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
               "span",
               {
                 style: {
@@ -2516,7 +3105,7 @@ var TreeNode = (0, import_react17.memo)(function TreeNode2({
         ]
       }
     ),
-    hasChildren && expanded && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { children: entry.children.map((child, i) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+    hasChildren && expanded && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { children: entry.children.map((child, i) => /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
       TreeNode2,
       {
         entry: child,
@@ -2529,8 +3118,8 @@ var TreeNode = (0, import_react17.memo)(function TreeNode2({
     )) })
   ] });
 });
-var SectionLabel = (0, import_react17.memo)(function SectionLabel2({ children }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+var SectionLabel = (0, import_react21.memo)(function SectionLabel2({ children }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
     "div",
     {
       style: {
@@ -2545,7 +3134,7 @@ var SectionLabel = (0, import_react17.memo)(function SectionLabel2({ children })
     }
   );
 });
-var SubflowTree = (0, import_react17.memo)(function SubflowTree2({
+var SubflowTree = (0, import_react21.memo)(function SubflowTree2({
   graph,
   activeStage,
   doneStages,
@@ -2554,9 +3143,9 @@ var SubflowTree = (0, import_react17.memo)(function SubflowTree2({
   className,
   style
 }) {
-  const subflowStages = (0, import_react17.useMemo)(() => graphToSubflowEntries(graph), [graph]);
+  const subflowStages = (0, import_react21.useMemo)(() => graphToSubflowEntries(graph), [graph]);
   if (subflowStages.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
     "div",
     {
       className,
@@ -2574,8 +3163,8 @@ var SubflowTree = (0, import_react17.memo)(function SubflowTree2({
         ...style
       },
       children: [
-        !unstyled && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(SectionLabel, { children: "Subflows" }),
-        subflowStages.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        !unstyled && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(SectionLabel, { children: "Subflows" }),
+        subflowStages.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
           TreeNode,
           {
             entry,
@@ -2603,9 +3192,13 @@ function asRuntimeStageId(s) {
 function walkSubflowSpecInto(spec, subflowPath, sink) {
   walkNode(spec, subflowPath, sink, /* @__PURE__ */ new Set());
 }
+function qid(subflowPath, localId) {
+  return `${subflowPath}/${localId}`;
+}
 function walkNode(node, subflowPath, sink, visited) {
-  if (visited.has(node.id)) return;
-  visited.add(node.id);
+  const fullId = qid(subflowPath, node.id);
+  if (visited.has(fullId)) return;
+  visited.add(fullId);
   if (node.isLoopReference) return;
   if (node.isSubflowRoot && node.subflowId !== void 0 && node.subflowStructure) {
     const nestedPath = `${subflowPath}/${node.subflowId}`;
@@ -2616,7 +3209,6 @@ function walkNode(node, subflowPath, sink, visited) {
   const isFork = type === "fork";
   const isStreaming = type === "streaming";
   const isSubflow = !!node.isSubflowRoot;
-  const stageId = asStageId(node.id);
   const data = {
     label: node.name,
     isDecider,
@@ -2633,7 +3225,7 @@ function walkNode(node, subflowPath, sink, visited) {
   if (node.isLazy === true) data.isLazy = true;
   if (node.isPausable === true) data.isPausable = true;
   sink.upsertNode({
-    id: node.id,
+    id: asStageId(fullId),
     type: "stage",
     position: { x: 0, y: 0 },
     data
@@ -2641,13 +3233,14 @@ function walkNode(node, subflowPath, sink, visited) {
   if (node.children && node.children.length > 0) {
     const edgeKind = type === "fork" ? "fork-branch" : "decision-branch";
     for (const child of node.children) {
-      const edgeId = `${node.id}->${child.id}:${edgeKind}${edgeKind === "decision-branch" ? `:${child.id}` : ""}`;
+      const childFullId = qid(subflowPath, child.id);
+      const edgeId = `${fullId}->${childFullId}:${edgeKind}${edgeKind === "decision-branch" ? `:${child.id}` : ""}`;
       const edgeData = { kind: edgeKind };
       if (edgeKind === "decision-branch") edgeData.label = child.id;
       const edge = {
         id: edgeId,
-        source: node.id,
-        target: child.id,
+        source: fullId,
+        target: childFullId,
         data: edgeData
       };
       if (edgeKind === "decision-branch") edge.label = child.id;
@@ -2657,24 +3250,25 @@ function walkNode(node, subflowPath, sink, visited) {
   }
   if (node.next) {
     if (node.next.isLoopReference && node.loopTarget) {
+      const loopFullId = qid(subflowPath, node.loopTarget);
       sink.pushEdge({
-        id: `${node.id}->${node.loopTarget}:loop`,
-        source: node.id,
-        target: node.loopTarget,
+        id: `${fullId}->${loopFullId}:loop`,
+        source: fullId,
+        target: loopFullId,
         data: { kind: "loop" }
       });
     } else {
-      const edgeId = `${node.id}->${node.next.id}:next`;
+      const nextFullId = qid(subflowPath, node.next.id);
+      const edgeId = `${fullId}->${nextFullId}:next`;
       sink.pushEdge({
         id: edgeId,
-        source: node.id,
-        target: node.next.id,
+        source: fullId,
+        target: nextFullId,
         data: { kind: "next" }
       });
       walkNode(node.next, subflowPath, sink, visited);
     }
   }
-  void stageId;
 }
 
 // src/components/FlowchartView/traceStructureRecorder.ts
@@ -2868,6 +3462,361 @@ function createTraceStructureRecorder(options = {}) {
       nextIdsOf.clear();
     }
   };
+}
+
+// src/components/SlotPillNode/SlotPillNode.tsx
+var import_react22 = require("@xyflow/react");
+var import_jsx_runtime15 = require("react/jsx-runtime");
+var C2 = rawDefaults.colors;
+function SlotPillNode({ data }) {
+  const d = data;
+  const lit = !!(d.active || d.selected);
+  const accent = lit ? C2.primary : d.done ? C2.success : C2.textMuted;
+  const opacity = d.dimmed && !lit ? 0.45 : 1;
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+    "div",
+    {
+      style: {
+        width: "100%",
+        height: "100%",
+        boxSizing: "border-box",
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "0 12px",
+        borderRadius: 999,
+        // full pill
+        border: `1.5px solid ${lit ? C2.primary : C2.border}`,
+        background: lit ? "rgba(99, 102, 241, 0.14)" : "rgba(148, 163, 184, 0.06)",
+        boxShadow: lit ? `0 0 0 2px rgba(99,102,241,0.25)` : "none",
+        opacity,
+        fontSize: 12,
+        fontWeight: 600,
+        color: lit ? C2.textPrimary : C2.textSecondary,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        transition: "opacity 120ms, box-shadow 120ms, border-color 120ms"
+      },
+      title: d.label,
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+          "span",
+          {
+            "aria-hidden": true,
+            style: {
+              flexShrink: 0,
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: accent
+            }
+          }
+        ),
+        d.icon ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { "aria-hidden": true, style: { flexShrink: 0 }, children: d.icon }) : null,
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { style: { overflow: "hidden", textOverflow: "ellipsis" }, children: d.label }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react22.Handle, { type: "target", position: import_react22.Position.Top, style: { opacity: 0 } }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react22.Handle, { type: "source", position: import_react22.Position.Bottom, style: { opacity: 0 } })
+      ]
+    }
+  );
+}
+
+// src/components/FlowchartView/_internal/snapLinearSuccessors.ts
+function snapLinearSuccessors(graph, options = {}) {
+  if (graph.nodes.length === 0) return graph;
+  const fallbackW = options.nodeWidth ?? DEFAULT_NODE_W2;
+  const fallbackH = options.nodeHeight ?? DEFAULT_NODE_H2;
+  const byId = /* @__PURE__ */ new Map();
+  const width = /* @__PURE__ */ new Map();
+  for (const n of graph.nodes) {
+    byId.set(n.id, n);
+    width.set(n.id, sizeOf(n, fallbackW, fallbackH, options.nodeSize).width);
+  }
+  const preds = /* @__PURE__ */ new Map();
+  const outDegree = /* @__PURE__ */ new Map();
+  const seenEdge = /* @__PURE__ */ new Set();
+  for (const e of graph.edges) {
+    if (e.data?.kind === "loop") continue;
+    if (!byId.has(e.source) || !byId.has(e.target)) continue;
+    const key = `${e.source}\0${e.target}`;
+    if (seenEdge.has(key)) continue;
+    seenEdge.add(key);
+    const list = preds.get(e.target);
+    if (list) list.push(e.source);
+    else preds.set(e.target, [e.source]);
+    outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
+  }
+  const workingX = /* @__PURE__ */ new Map();
+  for (const n of graph.nodes) workingX.set(n.id, n.position.x);
+  const centerX = (id) => workingX.get(id) + width.get(id) / 2;
+  const order = [...graph.nodes].sort(
+    (a, b) => a.position.y - b.position.y || a.position.x - b.position.x || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
+  for (const n of order) {
+    const p = preds.get(n.id);
+    if (!p || p.length !== 1) continue;
+    const pid = p[0];
+    if ((outDegree.get(pid) ?? 0) !== 1) continue;
+    const P = byId.get(pid);
+    if ((n.parentId ?? void 0) !== (P.parentId ?? void 0)) continue;
+    workingX.set(n.id, centerX(pid) - width.get(n.id) / 2);
+  }
+  const nodes = graph.nodes.map((n) => {
+    const nx = workingX.get(n.id);
+    return nx === n.position.x ? n : { ...n, position: { x: nx, y: n.position.y } };
+  });
+  return { nodes, edges: graph.edges };
+}
+function createSnappedDagreLayout(base, options = {}) {
+  return (graph) => snapLinearSuccessors(base(graph), options);
+}
+
+// src/components/FlowchartView/_internal/traceGroupLayout.ts
+function buildAdjacency(graph, fallbackW, fallbackH, nodeSize) {
+  const preds = /* @__PURE__ */ new Map();
+  const branchSuccs = /* @__PURE__ */ new Map();
+  const width = /* @__PURE__ */ new Map();
+  const height = /* @__PURE__ */ new Map();
+  const resolvedStyle = /* @__PURE__ */ new Map();
+  const ids = /* @__PURE__ */ new Set();
+  for (const n of graph.nodes) {
+    ids.add(n.id);
+    const s = sizeOf(n, fallbackW, fallbackH, nodeSize);
+    width.set(n.id, s.width);
+    height.set(n.id, s.height);
+    const resolved = nodeSize?.(n);
+    if (resolved && resolved.width === s.width && resolved.height === s.height) {
+      resolvedStyle.set(n.id, resolved);
+    }
+    preds.set(n.id, []);
+    branchSuccs.set(n.id, []);
+  }
+  const seen = /* @__PURE__ */ new Set();
+  for (const e of graph.edges) {
+    if (e.data?.kind === "loop") continue;
+    if (!ids.has(e.source) || !ids.has(e.target)) continue;
+    const key = `${e.source}\0${e.target}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    preds.get(e.target).push(e.source);
+    if (e.data?.kind === "fork-branch" || e.data?.kind === "decision-branch") {
+      branchSuccs.get(e.source).push(e.target);
+    }
+  }
+  return { preds, branchSuccs, width, height, resolvedStyle };
+}
+function assignRanks(preds, ids) {
+  const rank = /* @__PURE__ */ new Map();
+  const inProgress = /* @__PURE__ */ new Set();
+  const visit = (id) => {
+    const memo4 = rank.get(id);
+    if (memo4 !== void 0) return memo4;
+    if (inProgress.has(id)) return 0;
+    inProgress.add(id);
+    const ps = preds.get(id) ?? [];
+    let r = 0;
+    for (const p of ps) {
+      const pr = visit(p);
+      if (pr + 1 > r) r = pr + 1;
+    }
+    inProgress.delete(id);
+    rank.set(id, r);
+    return r;
+  };
+  for (const id of ids) visit(id);
+  return rank;
+}
+function spanCenter(ids, center, width) {
+  let left = Infinity;
+  let right = -Infinity;
+  for (const id of ids) {
+    const c = center.get(id);
+    if (c === void 0) continue;
+    const w = width.get(id) ?? 0;
+    if (c - w / 2 < left) left = c - w / 2;
+    if (c + w / 2 > right) right = c + w / 2;
+  }
+  if (!Number.isFinite(left)) return 0;
+  return (left + right) / 2;
+}
+function ancestorsOf(start, preds) {
+  const seen = /* @__PURE__ */ new Set();
+  const stack = [start];
+  while (stack.length) {
+    const n = stack.pop();
+    if (seen.has(n)) continue;
+    seen.add(n);
+    for (const p of preds.get(n) ?? []) if (!seen.has(p)) stack.push(p);
+  }
+  return seen;
+}
+function lowestCommonAncestor(inputs, preds, rank) {
+  if (inputs.length === 0) return void 0;
+  let common = ancestorsOf(inputs[0], preds);
+  for (let i = 1; i < inputs.length && common.size > 0; i++) {
+    const a = ancestorsOf(inputs[i], preds);
+    common = new Set([...common].filter((x) => a.has(x)));
+  }
+  let best;
+  let bestRank = -Infinity;
+  for (const id of common) {
+    const r = rank.get(id) ?? -Infinity;
+    if (r > bestRank) bestRank = r, best = id;
+  }
+  return best;
+}
+function orderBand(ids, preds, center, insertionIndex, siblingOrder) {
+  if (siblingOrder && ids.length > 1) {
+    const parents = new Set(ids.map((id) => preds.get(id)?.[0]));
+    if (parents.size === 1) {
+      const parent = [...parents][0];
+      if (parent !== void 0) {
+        const ordered = siblingOrder(parent, ids);
+        const used = /* @__PURE__ */ new Set();
+        const out = [];
+        for (const id of ordered) if (ids.includes(id) && !used.has(id)) out.push(id), used.add(id);
+        for (const id of ids) if (!used.has(id)) out.push(id);
+        return out;
+      }
+    }
+  }
+  return [...ids].sort((a, b) => {
+    const pa = preds.get(a)?.[0];
+    const pb = preds.get(b)?.[0];
+    const ca = pa !== void 0 ? center.get(pa) : void 0;
+    const cb = pb !== void 0 ? center.get(pb) : void 0;
+    if (ca !== void 0 && cb !== void 0 && ca !== cb) return ca - cb;
+    return (insertionIndex.get(a) ?? 0) - (insertionIndex.get(b) ?? 0);
+  });
+}
+function traceGroupLayout(graph, options = {}) {
+  if (graph.nodes.length === 0) return { nodes: graph.nodes, edges: graph.edges };
+  if (graph.nodes.length === 1) {
+    const only = graph.nodes[0];
+    return { nodes: [{ ...only, position: { x: 0, y: 0 } }], edges: graph.edges };
+  }
+  const rankSep = options.rankSep ?? 80;
+  const nodeSep = options.nodeSep ?? 60;
+  const fallbackW = options.nodeWidth ?? DEFAULT_NODE_W2;
+  const fallbackH = options.nodeHeight ?? DEFAULT_NODE_H2;
+  const mergeCentering = options.enableMergeCentering ?? true;
+  const mergeAlign = options.mergeAlign ?? "span";
+  const ids = graph.nodes.map((n) => n.id);
+  const insertionIndex = new Map(ids.map((id, i) => [id, i]));
+  const { preds, branchSuccs, width, height, resolvedStyle } = buildAdjacency(
+    graph,
+    fallbackW,
+    fallbackH,
+    options.nodeSize
+  );
+  const rank = assignRanks(preds, ids);
+  let maxRank = 0;
+  for (const r of rank.values()) if (r > maxRank) maxRank = r;
+  for (const id of ids) if (!rank.has(id)) rank.set(id, maxRank + 1);
+  maxRank = 0;
+  for (const r of rank.values()) if (r > maxRank) maxRank = r;
+  const byRank = /* @__PURE__ */ new Map();
+  const bandMaxH = /* @__PURE__ */ new Map();
+  for (const id of ids) {
+    const r = rank.get(id);
+    (byRank.get(r) ?? byRank.set(r, []).get(r)).push(id);
+    bandMaxH.set(r, Math.max(bandMaxH.get(r) ?? 0, height.get(id)));
+  }
+  const bandTop = /* @__PURE__ */ new Map();
+  let yAcc = 0;
+  for (let r = 0; r <= maxRank; r++) {
+    bandTop.set(r, yAcc);
+    yAcc += (bandMaxH.get(r) ?? fallbackH) + rankSep;
+  }
+  const center = /* @__PURE__ */ new Map();
+  const mergeCenterX = (ps) => {
+    if (mergeAlign === "fork-origin") {
+      const lca = lowestCommonAncestor(ps, preds, rank);
+      const lcaC = lca !== void 0 ? center.get(lca) : void 0;
+      if (lcaC !== void 0) return lcaC;
+    }
+    return spanCenter(ps, center, width);
+  };
+  for (let r = 0; r <= maxRank; r++) {
+    const band = orderBand(byRank.get(r) ?? [], preds, center, insertionIndex, options.siblingOrder);
+    let cursor = -Infinity;
+    let i = 0;
+    while (i < band.length) {
+      const id = band[i];
+      const ps = preds.get(id) ?? [];
+      const parent = ps.length === 1 ? ps[0] : void 0;
+      const parentBranches = parent !== void 0 ? branchSuccs.get(parent) ?? [] : [];
+      const isForkChild = parent !== void 0 && parentBranches.length >= 2 && parentBranches.includes(id);
+      if (isForkChild) {
+        const run = [];
+        let j = i;
+        while (j < band.length) {
+          const cand = band[j];
+          const cps = preds.get(cand) ?? [];
+          if (cps.length === 1 && cps[0] === parent && parentBranches.includes(cand)) run.push(cand), j++;
+          else break;
+        }
+        const totalW = run.reduce((s, rid) => s + width.get(rid), 0) + (run.length - 1) * nodeSep;
+        let left = (center.get(parent) ?? 0) - totalW / 2;
+        if (cursor !== -Infinity && left < cursor) left = cursor;
+        let x = left;
+        for (const rid of run) {
+          const w = width.get(rid);
+          center.set(rid, x + w / 2);
+          x += w + nodeSep;
+        }
+        cursor = x;
+        i = j;
+      } else {
+        const w = width.get(id);
+        let desired;
+        if (ps.length === 0) desired = (cursor === -Infinity ? 0 : cursor) + w / 2;
+        else if (ps.length === 1) desired = center.get(ps[0]) ?? 0;
+        else desired = mergeCenterX(ps);
+        const cursorCenter = cursor === -Infinity ? -Infinity : cursor + w / 2;
+        const c = Math.max(cursorCenter, desired);
+        center.set(id, c);
+        cursor = c + w / 2 + nodeSep;
+        i++;
+      }
+    }
+  }
+  if (mergeCentering) {
+    for (let r = maxRank; r >= 1; r--) {
+      for (const id of byRank.get(r) ?? []) {
+        const ps = preds.get(id) ?? [];
+        if (ps.length > 1) center.set(id, mergeCenterX(ps));
+      }
+    }
+  }
+  const centerById = center;
+  const positioned = graph.nodes.map((n) => {
+    const r = rank.get(n.id);
+    const w = width.get(n.id);
+    const h = height.get(n.id);
+    let x = (centerById.get(n.id) ?? 0) - w / 2;
+    let y = (bandTop.get(r) ?? 0) + ((bandMaxH.get(r) ?? h) - h) / 2;
+    if (n.parentId) {
+      const pr = rank.get(n.parentId);
+      const pw = width.get(n.parentId);
+      const ph = height.get(n.parentId);
+      if (pr !== void 0 && pw !== void 0 && ph !== void 0) {
+        const parentX = (centerById.get(n.parentId) ?? 0) - pw / 2;
+        const parentY = (bandTop.get(pr) ?? 0) + ((bandMaxH.get(pr) ?? ph) - ph) / 2;
+        x -= parentX;
+        y -= parentY;
+      }
+    }
+    const styleSize = resolvedStyle.get(n.id);
+    if (styleSize) {
+      return { ...n, position: { x, y }, style: { ...n.style ?? {}, width: styleSize.width, height: styleSize.height } };
+    }
+    return { ...n, position: { x, y } };
+  });
+  return { nodes: positioned, edges: graph.edges };
+}
+function createTraceGroupLayout(options = {}) {
+  return (graph) => traceGroupLayout(graph, options);
 }
 
 // src/components/FlowchartView/createNodeViewRecorder.ts
@@ -3291,12 +4240,12 @@ function createTraceBundle(options = {}) {
 }
 
 // src/components/FlowchartView/_internal/useTranslator.ts
-var import_react18 = require("react");
+var import_react23 = require("react");
 function useTranslator(handle, getSnapshot) {
-  const subscribe = (0, import_react18.useMemo)(() => handle.subscribe.bind(handle), [handle]);
-  const getVersion = (0, import_react18.useMemo)(() => handle.version.bind(handle), [handle]);
-  const version = (0, import_react18.useSyncExternalStore)(subscribe, getVersion, getVersion);
-  return (0, import_react18.useMemo)(() => getSnapshot(), [version, getSnapshot]);
+  const subscribe = (0, import_react23.useMemo)(() => handle.subscribe.bind(handle), [handle]);
+  const getVersion = (0, import_react23.useMemo)(() => handle.version.bind(handle), [handle]);
+  const version = (0, import_react23.useSyncExternalStore)(subscribe, getVersion, getVersion);
+  return (0, import_react23.useMemo)(() => getSnapshot(), [version, getSnapshot]);
 }
 
 // src/components/FlowchartView/walkHelpers.ts
@@ -3379,8 +4328,8 @@ function bfsWalk(index, startId, neighborsOf, options) {
 }
 
 // src/components/FlowchartView/NodeInspector.tsx
-var import_react19 = require("react");
-var import_jsx_runtime12 = require("react/jsx-runtime");
+var import_react24 = require("react");
+var import_jsx_runtime16 = require("react/jsx-runtime");
 function NodeInspector({
   index,
   selectedId,
@@ -3390,16 +4339,16 @@ function NodeInspector({
   style
 }) {
   const view = selectedId ? index.byStageId.get(selectedId) ?? null : null;
-  const prevChain = (0, import_react19.useMemo)(
+  const prevChain = (0, import_react24.useMemo)(
     () => view ? backtraceStructural(index, view.stageId, { onlyVisited }) : [],
     [index, view, onlyVisited]
   );
-  const nextChain = (0, import_react19.useMemo)(
+  const nextChain = (0, import_react24.useMemo)(
     () => view ? forwardtraceStructural(index, view.stageId, { onlyVisited }) : [],
     [index, view, onlyVisited]
   );
   if (!view) {
-    return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
       "div",
       {
         className,
@@ -3413,7 +4362,7 @@ function NodeInspector({
       }
     );
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
     "div",
     {
       className,
@@ -3425,9 +4374,9 @@ function NodeInspector({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: { marginBottom: 16 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: { fontSize: 16, fontWeight: 700, color: theme.textPrimary }, children: view.label }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: { fontSize: 11, fontFamily: "monospace", color: theme.textMuted, marginTop: 2 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { style: { marginBottom: 16 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { style: { fontSize: 16, fontWeight: 700, color: theme.textPrimary }, children: view.label }),
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { style: { fontSize: 11, fontFamily: "monospace", color: theme.textMuted, marginTop: 2 }, children: [
             view.stageId,
             " \xB7 ",
             view.type,
@@ -3437,42 +4386,42 @@ function NodeInspector({
             view.isStreaming && " \xB7 streaming",
             view.isPausable && " \xB7 pausable"
           ] }),
-          view.description && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: { fontSize: 12, color: theme.textSecondary, marginTop: 6 }, children: view.description })
+          view.description && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { style: { fontSize: 12, color: theme.textSecondary, marginTop: 6 }, children: view.description })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(Section, { title: "Runtime", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Row, { label: "Visited", value: view.visitedInRun ? "yes" : "no" }),
-          view.visitedInRun && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Row, { label: "Executions", value: String(view.executionCount) }),
-            view.firstExecutedAt !== null && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Row, { label: "First at", value: `${view.firstExecutedAt.toFixed(1)}ms` }),
-            view.lastExecutedAt !== null && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Row, { label: "Last at", value: `${view.lastExecutedAt.toFixed(1)}ms` }),
-            view.totalDurationMs > 0 && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Row, { label: "Total", value: `${view.totalDurationMs.toFixed(1)}ms` }),
-            view.errorCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Row, { label: "Errors", value: String(view.errorCount), valueColor: theme.error })
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(Section, { title: "Runtime", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Row, { label: "Visited", value: view.visitedInRun ? "yes" : "no" }),
+          view.visitedInRun && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(import_jsx_runtime16.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Row, { label: "Executions", value: String(view.executionCount) }),
+            view.firstExecutedAt !== null && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Row, { label: "First at", value: `${view.firstExecutedAt.toFixed(1)}ms` }),
+            view.lastExecutedAt !== null && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Row, { label: "Last at", value: `${view.lastExecutedAt.toFixed(1)}ms` }),
+            view.totalDurationMs > 0 && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Row, { label: "Total", value: `${view.totalDurationMs.toFixed(1)}ms` }),
+            view.errorCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Row, { label: "Errors", value: String(view.errorCount), valueColor: theme.error })
           ] })
         ] }),
-        prevChain.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Section, { title: `Prev chain (${prevChain.length - 1} hops)`, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Crumbs, { nodes: prevChain.slice(0, -1), onClick: onNavigate }) }),
-        view.prevIds.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Section, { title: "Multiple prev (convergence)", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+        prevChain.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Section, { title: `Prev chain (${prevChain.length - 1} hops)`, children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Crumbs, { nodes: prevChain.slice(0, -1), onClick: onNavigate }) }),
+        view.prevIds.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Section, { title: "Multiple prev (convergence)", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
           Crumbs,
           {
             nodes: view.prevIds.map((id) => index.byStageId.get(id)).filter((n) => n !== void 0),
             onClick: onNavigate
           }
         ) }),
-        nextChain.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Section, { title: `Next chain (${nextChain.length - 1} hops)`, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Crumbs, { nodes: nextChain.slice(1), onClick: onNavigate }) }),
-        view.nextIds.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Section, { title: "Multiple next (fork/decider)", children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+        nextChain.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Section, { title: `Next chain (${nextChain.length - 1} hops)`, children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Crumbs, { nodes: nextChain.slice(1), onClick: onNavigate }) }),
+        view.nextIds.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Section, { title: "Multiple next (fork/decider)", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
           Crumbs,
           {
             nodes: view.nextIds.map((id) => index.byStageId.get(id)).filter((n) => n !== void 0),
             onClick: onNavigate
           }
         ) }),
-        view.commitRuntimeStageIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(Section, { title: `Commits (${view.commitRuntimeStageIds.length})`, children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: { fontFamily: "monospace", fontSize: 11, color: theme.textSecondary }, children: view.commitRuntimeStageIds.map((rsid) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { children: rsid }, rsid)) }) })
+        view.commitRuntimeStageIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Section, { title: `Commits (${view.commitRuntimeStageIds.length})`, children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { style: { fontFamily: "monospace", fontSize: 11, color: theme.textSecondary }, children: view.commitRuntimeStageIds.map((rsid) => /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { children: rsid }, rsid)) }) })
       ]
     }
   );
 }
 function Section({ title, children }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: { marginBottom: 14 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { style: { marginBottom: 14 }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
       "div",
       {
         style: {
@@ -3490,15 +4439,15 @@ function Section({ title, children }) {
   ] });
 }
 function Row({ label, value, valueColor }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { style: { color: theme.textMuted }, children: label }),
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { style: { color: valueColor ?? theme.textSecondary, fontFamily: "monospace" }, children: value })
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0" }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { style: { color: theme.textMuted }, children: label }),
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { style: { color: valueColor ?? theme.textSecondary, fontFamily: "monospace" }, children: value })
   ] });
 }
 function Crumbs({ nodes, onClick }) {
   if (nodes.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: nodes.map((n, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: nodes.map((n, i) => /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
       "button",
       {
         onClick: onClick ? () => onClick(n.stageId) : void 0,
@@ -3515,13 +4464,13 @@ function Crumbs({ nodes, onClick }) {
         children: n.label
       }
     ),
-    i < nodes.length - 1 && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" })
+    i < nodes.length - 1 && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" })
   ] }, n.stageId)) });
 }
 
 // src/components/FlowchartView/CommitInspector.tsx
-var import_react20 = require("react");
-var import_jsx_runtime13 = require("react/jsx-runtime");
+var import_react25 = require("react");
+var import_jsx_runtime17 = require("react/jsx-runtime");
 function CommitInspector({
   index,
   selectedRuntimeStageId,
@@ -3530,12 +4479,12 @@ function CommitInspector({
   style
 }) {
   const view = selectedRuntimeStageId ? index.byRuntimeStageId.get(selectedRuntimeStageId) ?? null : null;
-  const lineage = (0, import_react20.useMemo)(
+  const lineage = (0, import_react25.useMemo)(
     () => view ? backtraceDataFlow(index, view.runtimeStageId) : [],
     [index, view]
   );
   if (!view) {
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
       "div",
       {
         className,
@@ -3549,7 +4498,7 @@ function CommitInspector({
       }
     );
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
     "div",
     {
       className,
@@ -3561,9 +4510,9 @@ function CommitInspector({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { style: { marginBottom: 16 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: { fontSize: 16, fontWeight: 700, color: theme.textPrimary }, children: view.stageId }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { style: { marginBottom: 16 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { fontSize: 16, fontWeight: 700, color: theme.textPrimary }, children: view.stageId }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
             "div",
             {
               style: {
@@ -3580,15 +4529,15 @@ function CommitInspector({
             }
           )
         ] }),
-        view.structuralPrevIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Section2, { title: "Structural prev (chart shape)", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(PlainTags, { labels: view.structuralPrevIds }) }),
-        view.structuralNextIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Section2, { title: "Structural next (chart shape)", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(PlainTags, { labels: view.structuralNextIds }) }),
-        view.runtimePrevIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Section2, { title: "Runtime prev (this execution)", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RuntimeRefs, { refs: view.runtimePrevIds, onClick: onNavigate }) }),
-        view.runtimeNextIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Section2, { title: "Runtime next (this execution)", children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(RuntimeRefs, { refs: view.runtimeNextIds, onClick: onNavigate }) }),
-        Object.keys(view.updates).length > 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Section2, { title: `Updates (${Object.keys(view.updates).length})`, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(KeyValueGrid, { entries: Object.entries(view.updates) }) }),
-        view.reads.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Section2, { title: `Reads (${view.reads.length})`, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(PlainTags, { labels: view.reads }) }),
-        view.dataDependencies.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Section2, { title: `Data dependencies (${view.dataDependencies.length})`, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("tbody", { children: view.dataDependencies.map((dep) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("tr", { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("td", { style: { color: theme.textSecondary, padding: "2px 8px 2px 0" }, children: dep.key }),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("td", { style: { color: dep.sourceRuntimeStageId ? theme.textPrimary : theme.textMuted }, children: dep.sourceRuntimeStageId ? /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+        view.structuralPrevIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Section2, { title: "Structural prev (chart shape)", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(PlainTags, { labels: view.structuralPrevIds }) }),
+        view.structuralNextIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Section2, { title: "Structural next (chart shape)", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(PlainTags, { labels: view.structuralNextIds }) }),
+        view.runtimePrevIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Section2, { title: "Runtime prev (this execution)", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(RuntimeRefs, { refs: view.runtimePrevIds, onClick: onNavigate }) }),
+        view.runtimeNextIds.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Section2, { title: "Runtime next (this execution)", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(RuntimeRefs, { refs: view.runtimeNextIds, onClick: onNavigate }) }),
+        Object.keys(view.updates).length > 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Section2, { title: `Updates (${Object.keys(view.updates).length})`, children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(KeyValueGrid, { entries: Object.entries(view.updates) }) }),
+        view.reads.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Section2, { title: `Reads (${view.reads.length})`, children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(PlainTags, { labels: view.reads }) }),
+        view.dataDependencies.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Section2, { title: `Data dependencies (${view.dataDependencies.length})`, children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("tbody", { children: view.dataDependencies.map((dep) => /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("tr", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { style: { color: theme.textSecondary, padding: "2px 8px 2px 0" }, children: dep.key }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { style: { color: dep.sourceRuntimeStageId ? theme.textPrimary : theme.textMuted }, children: dep.sourceRuntimeStageId ? /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
             "button",
             {
               onClick: onNavigate ? () => onNavigate(dep.sourceRuntimeStageId) : void 0,
@@ -3598,10 +4547,10 @@ function CommitInspector({
                 dep.sourceRuntimeStageId
               ]
             }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("em", { children: "(no prior writer \u2014 default or external)" }) })
+          ) : /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("em", { children: "(no prior writer \u2014 default or external)" }) })
         ] }, dep.key)) }) }) }),
-        lineage.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(Section2, { title: `Lineage chain (${lineage.length - 1} ancestor commits)`, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: lineage.slice(0, -1).map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+        lineage.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(Section2, { title: `Lineage chain (${lineage.length - 1} ancestor commits)`, children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: lineage.slice(0, -1).map((c, i) => /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
             "button",
             {
               onClick: onNavigate ? () => onNavigate(c.runtimeStageId) : void 0,
@@ -3609,15 +4558,15 @@ function CommitInspector({
               children: c.runtimeStageId
             }
           ),
-          i < lineage.length - 2 && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u2192" })
+          i < lineage.length - 2 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u2192" })
         ] }, c.runtimeStageId)) }) })
       ]
     }
   );
 }
 function Section2({ title, children }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { style: { marginBottom: 14 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { style: { marginBottom: 14 }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
       "div",
       {
         style: {
@@ -3635,7 +4584,7 @@ function Section2({ title, children }) {
   ] });
 }
 function PlainTags({ labels }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: 4 }, children: labels.map((l) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: 4 }, children: labels.map((l) => /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
     "span",
     {
       style: {
@@ -3655,7 +4604,7 @@ function RuntimeRefs({
   refs,
   onClick
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: refs.map((r) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: refs.map((r) => /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
     "button",
     {
       onClick: onClick ? () => onClick(r) : void 0,
@@ -3666,9 +4615,9 @@ function RuntimeRefs({
   )) });
 }
 function KeyValueGrid({ entries }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("tbody", { children: entries.map(([k, v2]) => /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("tr", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("td", { style: { color: theme.textSecondary, padding: "2px 8px 2px 0", verticalAlign: "top" }, children: k }),
-    /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("td", { style: { color: theme.textPrimary, wordBreak: "break-word" }, children: typeof v2 === "object" ? JSON.stringify(v2) : String(v2) })
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("tbody", { children: entries.map(([k, v2]) => /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("tr", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { style: { color: theme.textSecondary, padding: "2px 8px 2px 0", verticalAlign: "top" }, children: k }),
+    /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("td", { style: { color: theme.textPrimary, wordBreak: "break-word" }, children: typeof v2 === "object" ? JSON.stringify(v2) : String(v2) })
   ] }, k)) }) });
 }
 function crumbButtonStyle(clickable) {
@@ -3835,7 +4784,7 @@ function decorate(node, commitsByStageId) {
 }
 
 // src/components/FlowchartView/CommitChainView.tsx
-var import_jsx_runtime14 = require("react/jsx-runtime");
+var import_jsx_runtime18 = require("react/jsx-runtime");
 function CommitChainView({
   chain,
   selectedRuntimeStageId = null,
@@ -3846,7 +4795,7 @@ function CommitChainView({
   style
 }) {
   if (!chain) {
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
       "div",
       {
         className,
@@ -3860,7 +4809,7 @@ function CommitChainView({
       }
     );
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
     "div",
     {
       className,
@@ -3871,11 +4820,11 @@ function CommitChainView({
         overflow: "auto",
         ...style
       },
-      children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
         ChainShell,
         {
           node: chain,
-          renderLeaf: (leaf) => /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+          renderLeaf: (leaf) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
             Leaf,
             {
               leaf,
@@ -3892,10 +4841,10 @@ function CommitChainView({
 }
 function ChainShell({ node, renderLeaf }) {
   if (node.kind === "leaf") {
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(import_jsx_runtime14.Fragment, { children: renderLeaf(node) });
+    return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(import_jsx_runtime18.Fragment, { children: renderLeaf(node) });
   }
   if (node.kind === "serial") {
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
       "div",
       {
         style: {
@@ -3904,13 +4853,13 @@ function ChainShell({ node, renderLeaf }) {
           alignItems: "center",
           gap: 0
         },
-        children: node.items.map((child, i) => /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+        children: node.items.map((child, i) => /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
           "div",
           {
             style: { display: "flex", flexDirection: "column", alignItems: "center" },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ChainShell, { node: child, renderLeaf }),
-              i < node.items.length - 1 && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(Connector, { orientation: "vertical" })
+              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ChainShell, { node: child, renderLeaf }),
+              i < node.items.length - 1 && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(Connector, { orientation: "vertical" })
             ]
           },
           chainKey(child, i)
@@ -3918,7 +4867,7 @@ function ChainShell({ node, renderLeaf }) {
       }
     );
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
     "div",
     {
       style: {
@@ -3928,8 +4877,8 @@ function ChainShell({ node, renderLeaf }) {
         gap: 0
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ForkMarker, {}),
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ForkMarker, {}),
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
           "div",
           {
             style: {
@@ -3943,7 +4892,7 @@ function ChainShell({ node, renderLeaf }) {
               paddingLeft: 12,
               paddingRight: 12
             },
-            children: node.branches.map((branch, i) => /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+            children: node.branches.map((branch, i) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
               "div",
               {
                 style: {
@@ -3952,13 +4901,13 @@ function ChainShell({ node, renderLeaf }) {
                   alignItems: "center",
                   minWidth: 120
                 },
-                children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ChainShell, { node: branch, renderLeaf })
+                children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ChainShell, { node: branch, renderLeaf })
               },
               chainKey(branch, i)
             ))
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ForkMarker, {})
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ForkMarker, {})
       ]
     }
   );
@@ -3992,7 +4941,7 @@ function Leaf({
   const label = resolveLabel ? resolveLabel(leaf.stageId) : leaf.stageId;
   const commits = "commits" in leaf ? leaf.commits : [];
   if (commits.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
       "div",
       {
         style: {
@@ -4003,17 +4952,17 @@ function Leaf({
         },
         title: `${leaf.stageId} \u2014 not executed in this run`,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { style: { fontWeight: 600 }, children: label }),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { style: { fontSize: 10, fontStyle: "italic" }, children: "not executed" })
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontWeight: 600 }, children: label }),
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { fontSize: 10, fontStyle: "italic" }, children: "not executed" })
         ]
       }
     );
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }, children: commits.map((c, i) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }, children: commits.map((c, i) => {
     const isSelected = c.runtimeStageId === selectedRuntimeStageId;
     const clickable = onSelectCommit !== void 0;
     const isRevealed = revealedThroughCommitIdx === null || c.commitIdx <= revealedThroughCommitIdx;
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
       "button",
       {
         type: "button",
@@ -4034,16 +4983,16 @@ function Leaf({
         "aria-current": isSelected ? "true" : void 0,
         title: c.runtimeStageId,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { style: { fontWeight: 600 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { fontWeight: 600 }, children: [
             label,
-            commits.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("span", { style: { color: theme.textMuted, fontWeight: 400, marginLeft: 6 }, children: [
+            commits.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: { color: theme.textMuted, fontWeight: 400, marginLeft: 6 }, children: [
               "iter ",
               i + 1,
               "/",
               commits.length
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
             "div",
             {
               style: {
@@ -4067,7 +5016,7 @@ function Leaf({
   }) });
 }
 function Connector({ orientation }) {
-  return orientation === "vertical" ? /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return orientation === "vertical" ? /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
     "div",
     {
       "aria-hidden": true,
@@ -4077,7 +5026,7 @@ function Connector({ orientation }) {
         background: theme.border
       }
     }
-  ) : /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  ) : /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
     "div",
     {
       "aria-hidden": true,
@@ -4090,7 +5039,7 @@ function Connector({ orientation }) {
   );
 }
 function ForkMarker() {
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
     "div",
     {
       "aria-hidden": true,
@@ -4116,11 +5065,11 @@ var boxBaseStyle = {
 };
 
 // src/components/FlowchartView/TraceExplorerShell.tsx
-var import_react22 = require("react");
+var import_react27 = require("react");
 
 // src/components/FlowchartView/RunSlider.tsx
-var import_react21 = require("react");
-var import_jsx_runtime15 = require("react/jsx-runtime");
+var import_react26 = require("react");
+var import_jsx_runtime19 = require("react/jsx-runtime");
 function RunSlider({
   index,
   cursorRuntimeStageId,
@@ -4130,12 +5079,12 @@ function RunSlider({
   style
 }) {
   const total = index.commits.length;
-  const cursorCommitIdx = (0, import_react21.useMemo)(() => {
+  const cursorCommitIdx = (0, import_react26.useMemo)(() => {
     if (!cursorRuntimeStageId) return 0;
     const view = index.byRuntimeStageId.get(cursorRuntimeStageId);
     return view ? view.commitIdx : 0;
   }, [index, cursorRuntimeStageId]);
-  const handleSliderChange = (0, import_react21.useCallback)(
+  const handleSliderChange = (0, import_react26.useCallback)(
     (e) => {
       const value = Number(e.target.value);
       const view = index.commits[value];
@@ -4143,7 +5092,7 @@ function RunSlider({
     },
     [index, onCursorChange]
   );
-  const label = (0, import_react21.useMemo)(() => {
+  const label = (0, import_react26.useMemo)(() => {
     const commit = index.commits[cursorCommitIdx] ?? null;
     const rsid = cursorRuntimeStageId ?? commit?.runtimeStageId ?? null;
     if (renderLabel)
@@ -4154,8 +5103,8 @@ function RunSlider({
         commit,
         index
       });
-    if (total === 0) return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { style: { color: theme.textMuted }, children: "No commits yet" });
-    return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("span", { style: { fontFamily: "monospace", fontSize: 11, color: theme.textSecondary }, children: [
+    if (total === 0) return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { style: { color: theme.textMuted }, children: "No commits yet" });
+    return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("span", { style: { fontFamily: "monospace", fontSize: 11, color: theme.textSecondary }, children: [
       "#",
       cursorCommitIdx + 1,
       " / ",
@@ -4165,7 +5114,7 @@ function RunSlider({
     ] });
   }, [renderLabel, cursorCommitIdx, total, index, cursorRuntimeStageId]);
   const disabled = total < 2;
-  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
     "div",
     {
       className,
@@ -4180,7 +5129,7 @@ function RunSlider({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
           "span",
           {
             style: {
@@ -4193,7 +5142,7 @@ function RunSlider({
             children: "Time"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
           "input",
           {
             type: "range",
@@ -4211,14 +5160,14 @@ function RunSlider({
             style: { flex: 1, accentColor: theme.success }
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { style: { minWidth: 200, textAlign: "right" }, children: label })
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { style: { minWidth: 200, textAlign: "right" }, children: label })
       ]
     }
   );
 }
 
 // src/components/FlowchartView/TraceExplorerShell.tsx
-var import_jsx_runtime16 = require("react/jsx-runtime");
+var import_jsx_runtime20 = require("react/jsx-runtime");
 function TraceExplorerShell({
   bundle,
   selectedRuntimeStageId: controlledSel,
@@ -4227,39 +5176,39 @@ function TraceExplorerShell({
   className,
   style
 }) {
-  const [internalSel, setInternalSel] = (0, import_react22.useState)(null);
+  const [internalSel, setInternalSel] = (0, import_react27.useState)(null);
   const isControlled = controlledSel !== void 0;
   const selectedRuntimeStageId = isControlled ? controlledSel : internalSel;
-  const handleSelect = (0, import_react22.useCallback)(
+  const handleSelect = (0, import_react27.useCallback)(
     (rsid) => {
       if (!isControlled) setInternalSel(rsid);
       onSelectionChange?.(rsid);
     },
     [isControlled, onSelectionChange]
   );
-  const handleSelectCommit = (0, import_react22.useCallback)(
+  const handleSelectCommit = (0, import_react27.useCallback)(
     (rsid) => handleSelect(rsid),
     [handleSelect]
   );
-  const selectedStageId = (0, import_react22.useMemo)(() => {
+  const selectedStageId = (0, import_react27.useMemo)(() => {
     if (!selectedRuntimeStageId) return null;
     const hashIdx = selectedRuntimeStageId.lastIndexOf("#");
     if (hashIdx <= 0) return null;
     return asStageId(selectedRuntimeStageId.slice(0, hashIdx));
   }, [selectedRuntimeStageId]);
-  const ChainPane = (0, import_react22.useMemo)(
+  const ChainPane = (0, import_react27.useMemo)(
     () => slots?.chain ?? DefaultChainPane,
     [slots?.chain]
   );
-  const CommitPane = (0, import_react22.useMemo)(
+  const CommitPane = (0, import_react27.useMemo)(
     () => slots?.commitInspector ?? DefaultCommitPane,
     [slots?.commitInspector]
   );
-  const NodePane = (0, import_react22.useMemo)(
+  const NodePane = (0, import_react27.useMemo)(
     () => slots?.nodeInspector ?? DefaultNodePane,
     [slots?.nodeInspector]
   );
-  const SliderPane = (0, import_react22.useMemo)(() => {
+  const SliderPane = (0, import_react27.useMemo)(() => {
     if (slots && "slider" in slots) {
       return slots.slider ?? null;
     }
@@ -4274,7 +5223,7 @@ function TraceExplorerShell({
     () => bundle.commitFlow.getIndex()
   );
   const nodeIndex = useTranslator(bundle.nodeView, () => bundle.nodeView.getIndex());
-  const handleStageNavigate = (0, import_react22.useCallback)(
+  const handleStageNavigate = (0, import_react27.useCallback)(
     (stageId) => {
       const candidates = commitIndex.commits.filter((c) => c.stageId === stageId);
       const first = candidates[0];
@@ -4282,17 +5231,17 @@ function TraceExplorerShell({
     },
     [commitIndex, handleSelect]
   );
-  const revealedThroughCommitIdx = (0, import_react22.useMemo)(() => {
+  const revealedThroughCommitIdx = (0, import_react27.useMemo)(() => {
     if (!selectedRuntimeStageId) return null;
     const view = commitIndex.byRuntimeStageId.get(selectedRuntimeStageId);
     return view ? view.commitIdx : -1;
   }, [selectedRuntimeStageId, commitIndex]);
-  const layoutStyle = (0, import_react22.useMemo)(
+  const layoutStyle = (0, import_react27.useMemo)(
     () => SliderPane ? SHELL_STYLE_WITH_SLIDER : SHELL_STYLE_NO_SLIDER,
     [SliderPane]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { className, style: { ...layoutStyle, ...style }, children: [
-    SliderPane && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Pane, { area: "slider", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className, style: { ...layoutStyle, ...style }, children: [
+    SliderPane && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Pane, { area: "slider", children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
       SliderPane,
       {
         index: commitIndex,
@@ -4300,7 +5249,7 @@ function TraceExplorerShell({
         onCursorChange: handleSelect
       }
     ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Pane, { area: "chain", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Pane, { area: "chain", children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
       ChainPane,
       {
         chain,
@@ -4309,7 +5258,7 @@ function TraceExplorerShell({
         revealedThroughCommitIdx
       }
     ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Pane, { area: "commit", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Pane, { area: "commit", children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
       CommitPane,
       {
         index: commitIndex,
@@ -4317,7 +5266,7 @@ function TraceExplorerShell({
         onNavigate: handleSelectCommit
       }
     ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(Pane, { area: "node", children: /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Pane, { area: "node", children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
       NodePane,
       {
         index: nodeIndex,
@@ -4333,7 +5282,7 @@ function DefaultChainPane({
   onSelectCommit,
   revealedThroughCommitIdx
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
     CommitChainView,
     {
       chain,
@@ -4348,7 +5297,7 @@ function DefaultCommitPane({
   selectedRuntimeStageId,
   onNavigate
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
     CommitInspector,
     {
       index,
@@ -4358,14 +5307,14 @@ function DefaultCommitPane({
   );
 }
 function DefaultNodePane({ index, selectedStageId, onNavigate }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(NodeInspector, { index, selectedId: selectedStageId, onNavigate });
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(NodeInspector, { index, selectedId: selectedStageId, onNavigate });
 }
 function DefaultSliderPane({
   index,
   cursorRuntimeStageId,
   onCursorChange
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
     RunSlider,
     {
       index,
@@ -4403,14 +5352,20 @@ var PANE_BASE_STYLE = {
   // permit shrinking inside grid
 };
 function Pane({ area, children }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { role: "region", "aria-label": area, style: { ...PANE_BASE_STYLE, gridArea: area }, children });
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { role: "region", "aria-label": area, style: { ...PANE_BASE_STYLE, gridArea: area }, children });
 }
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   CommitChainView,
   CommitInspector,
+  GROUP_CONTAINER_NODE_TYPE,
+  GroupContainerNode,
+  LoopBackEdge,
+  MAIN_CHART_BOX_ID,
   NodeInspector,
   RunSlider,
+  SlotPillNode,
+  SmartStepEdge,
   StageNode,
   SubflowBreadcrumb,
   SubflowTree,
@@ -4418,23 +5373,35 @@ function Pane({ area, children }) {
   TraceExplorerShell,
   TraceFlow,
   TracedFlow,
+  applyGroupLayout,
   asRuntimeStageId,
   asStageId,
   backtraceDataFlow,
   backtraceStructural,
   buildCommitChainTree,
+  buildSubflowBreadcrumb,
   createCommitFlowRecorder,
+  createDagreTraceLayout,
+  createGroupedLayout,
+  createMainChartBoxLayout,
   createNodeViewRecorder,
+  createSnappedDagreLayout,
   createTraceBundle,
+  createTraceGroupLayout,
   createTraceRuntimeOverlay,
   createTraceStructureRecorder,
+  dagreTraceLayout,
   defaultTraceFlowLayout,
+  filterGraphForDrill,
   forwardtraceStructural,
   sliceOverlay,
+  snapLinearSuccessors,
   structureAsChainTree,
+  traceGroupLayout,
   useSubflowNavigation,
   useTranslator,
   walkBackward,
-  walkForward
+  walkForward,
+  wrapInMainChartBox
 });
 //# sourceMappingURL=flowchart.cjs.map

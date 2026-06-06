@@ -58,6 +58,22 @@ export interface StageNodeData {
    * ExplainableShell.
    */
   showStageId?: boolean;
+  /**
+   * Visual emphasis hint — generic, so the renderer stays domain-agnostic.
+   * `hero` = a stage the viewer cares about (accent border + tint + bold);
+   * `muted` = mechanism/plumbing (recedes — faded + thin border). The
+   * consumer's graph builder sets this from its own semantics (e.g. the
+   * agentfootprint lens maps `stageRole` → emphasis). Layers UNDER run status:
+   * active/done/error colours still override during a run.
+   */
+  emphasis?: "hero" | "muted";
+  /**
+   * Size tier — scales the card's text + padding to match the footprint the
+   * layout allocated (the layout's node-size resolver must scale in lockstep,
+   * else the card and its laid-out box disagree). `lg` = a focal stage,
+   * `sm` = a minor/plumbing stage, default `md`. Generic — no domain meaning.
+   */
+  size?: "sm" | "md" | "lg";
   [key: string]: unknown;
 }
 
@@ -203,6 +219,33 @@ function StageIcon({ type, color }: { type: string; color: string }) {
         </svg>
       );
 
+    // System prompt — document with lines
+    case "system-prompt":
+    case "prompt":
+    case "instructions":
+    case "document":
+      return (
+        <svg {...props}>
+          <rect x="3.5" y="2" width="9" height="12" rx="1.5" stroke={color} strokeWidth="1.3" fill="none" />
+          <line x1="5.5" y1="5" x2="10.5" y2="5" stroke={color} strokeWidth="1" strokeLinecap="round" />
+          <line x1="5.5" y1="7.5" x2="10.5" y2="7.5" stroke={color} strokeWidth="1" strokeLinecap="round" />
+          <line x1="5.5" y1="10" x2="8.5" y2="10" stroke={color} strokeWidth="1" strokeLinecap="round" />
+        </svg>
+      );
+
+    // Messages / conversation — chat bubble
+    case "messages":
+    case "chat":
+    case "conversation":
+      return (
+        <svg {...props}>
+          <rect x="2.5" y="3" width="11" height="8" rx="2" stroke={color} strokeWidth="1.3" fill="none" />
+          <path d="M5.5 11L5.5 13.5L8.5 11" stroke={color} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          <line x1="5" y1="6" x2="11" y2="6" stroke={color} strokeWidth="1" strokeLinecap="round" />
+          <line x1="5" y1="8.5" x2="9" y2="8.5" stroke={color} strokeWidth="1" strokeLinecap="round" />
+        </svg>
+      );
+
     // Loop — circular arrow
     case "loop":
     case "retry":
@@ -274,13 +317,30 @@ export const StageNode = memo(function StageNode({
 
   const isOnPath = active || done;
 
+  // Emphasis (importance hierarchy). Generic flags — no domain knowledge.
+  const isHero = data.emphasis === "hero";
+  const isMuted = data.emphasis === "muted";
+  // Card text/padding scale — kept in step with the layout's footprint resolver.
+  const sizeScale = data.size === "lg" ? 1.3 : data.size === "sm" ? 0.85 : 1;
+
+  // RESTING (not-yet-run) appearance carries the importance hierarchy: heroes
+  // get an accent border + faint accent tint + accent glow. Run status
+  // (active/done/error) overrides these during execution.
+  const restingBg = isHero
+    ? `color-mix(in srgb, ${theme.primary} 12%, ${theme.bgSecondary})`
+    : theme.bgSecondary;
+  const restingBorder = isHero ? theme.primary : theme.border;
+  const restingShadow = isHero
+    ? `0 0 10px color-mix(in srgb, ${theme.primary} 22%, transparent)`
+    : `0 2px 8px rgba(0,0,0,0.15)`;
+
   const bg = active
     ? theme.primary
     : done
       ? theme.success
       : error
         ? theme.error
-        : theme.bgSecondary;
+        : restingBg;
 
   const borderColor = active
     ? theme.primary
@@ -288,7 +348,7 @@ export const StageNode = memo(function StageNode({
       ? theme.success
       : error
         ? theme.error
-        : theme.border;
+        : restingBorder;
 
   const shadow = active
     ? `0 0 16px color-mix(in srgb, ${theme.primary} 40%, transparent)`
@@ -296,7 +356,7 @@ export const StageNode = memo(function StageNode({
       ? `0 0 8px color-mix(in srgb, ${theme.success} 20%, transparent)`
       : error
         ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)`
-        : `0 2px 8px rgba(0,0,0,0.15)`;
+        : restingShadow;
 
   // Colored states use white for contrast; default uses consumer's text color.
   const textColor =
@@ -305,172 +365,308 @@ export const StageNode = memo(function StageNode({
   return (
     <>
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-      <div
-        style={{
-          position: "relative",
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        {/* Step number badges — multiple when revisited via loops */}
-        {stepNumbers && stepNumbers.length > 0 && isOnPath && (
-          <div
-            style={{
-              position: "absolute",
-              top: -10,
-              left: -10,
-              display: "flex",
-              gap: 3,
-              zIndex: 10,
-            }}
-          >
-            {stepNumbers.map((num, i) => {
-              const isLatest = i === stepNumbers.length - 1;
-              const badgeBg = isLatest && active ? theme.primary : theme.success;
-              const glow = isLatest && active
-                ? `color-mix(in srgb, ${theme.primary} 50%, transparent)`
-                : `color-mix(in srgb, ${theme.success} 40%, transparent)`;
-              return (
-                <div
-                  key={num}
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "50%",
-                    background: badgeBg,
-                    color: "#fff",
-                    fontSize: 11,
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    boxShadow: `0 0 8px ${glow}`,
-                  }}
-                >
-                  {num}
+      {/* Centering wrapper. React Flow sizes the node WRAPPER to the layout's
+          allocated width (which may be WIDER than the card — e.g. uniform-width
+          columns, or a NodeSizeResolver footprint stamped by the layout). The
+          card below is content-sized; without this wrapper it sits at the
+          wrapper's LEFT edge, so its visual center drifts left of the box
+          center the layout placed it at (the wider the box, the worse the
+          drift). `width:100%` + center-justify makes the card's visual center
+          coincide with the node-box center, so layout centering == paint
+          centering. Mirrors SlotPillNode / GroupContainerNode, which already
+          fill their wrapper width. */}
+      <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
+        <div
+          style={{
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            // Plumbing recedes. Layers with the run-overlay `dimmed` (not-yet-run)
+            // — a muted AND not-run node is faintest, which is correct.
+            opacity: isMuted ? 0.5 : undefined,
+          }}
+        >
+          {/* Step number badges — multiple when revisited via loops */}
+          {stepNumbers && stepNumbers.length > 0 && isOnPath && (
+            <div
+              style={{
+                position: "absolute",
+                top: -10,
+                left: -10,
+                display: "flex",
+                gap: 3,
+                zIndex: 10,
+              }}
+            >
+              {stepNumbers.map((num, i) => {
+                const isLatest = i === stepNumbers.length - 1;
+                const badgeBg = isLatest && active ? theme.primary : theme.success;
+                const glow = isLatest && active
+                  ? `color-mix(in srgb, ${theme.primary} 50%, transparent)`
+                  : `color-mix(in srgb, ${theme.success} 40%, transparent)`;
+                return (
+                  <div
+                    key={num}
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      background: badgeBg,
+                      color: "#fff",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      boxShadow: `0 0 8px ${glow}`,
+                    }}
+                  >
+                    {num}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Linked pulse ring */}
+          {linked && (
+            <div
+              style={{
+                position: "absolute",
+                inset: -6,
+                borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
+                clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : undefined,
+                border: `2px solid ${theme.primary}`,
+                opacity: 0.4,
+                animation: "fp-pulse 2s ease-in-out infinite",
+              }}
+            />
+          )}
+
+          {/* Active node pulse ring */}
+          {active && (
+            <div
+              style={{
+                position: "absolute",
+                inset: -6,
+                borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
+                clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : undefined,
+                border: `2px solid ${theme.primary}`,
+                opacity: 0.3,
+                animation: "fp-pulse 1.5s ease-out infinite",
+              }}
+            />
+          )}
+
+          {/* Diamond for decider nodes — proper diamond via clip-path */}
+          {isDecider ? (
+            <div style={{ position: "relative", width: 120, height: 72 }}>
+              {/* Diamond shape layer */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: bg,
+                  clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+                  border: "none",
+                  boxShadow: shadow,
+                  transition: "all 0.3s ease",
+                }}
+              />
+              {/* Border layer — slightly larger diamond behind */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: -2,
+                  clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
+                  background: borderColor,
+                  zIndex: -1,
+                  ...(isLazyUnresolved ? {
+                    background: "transparent",
+                    // Dashed border via SVG for clip-path (CSS border doesn't work with clip-path)
+                  } : {}),
+                }}
+              />
+              {/* Content — centered on top of diamond */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 1,
+                  fontFamily: theme.fontSans,
+                  zIndex: 1,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  {effectiveIcon && <StageIcon type={effectiveIcon} color={textColor} />}
+                  {!effectiveIcon && (
+                    <span style={{ fontSize: 9, color: textColor }}>&#x25C7;</span>
+                  )}
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: textColor,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {label}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Linked pulse ring */}
-        {linked && (
-          <div
-            style={{
-              position: "absolute",
-              inset: -6,
-              borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
-              clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : undefined,
-              border: `2px solid ${theme.primary}`,
-              opacity: 0.4,
-              animation: "fp-pulse 2s ease-in-out infinite",
-            }}
-          />
-        )}
-
-        {/* Active node pulse ring */}
-        {active && (
-          <div
-            style={{
-              position: "absolute",
-              inset: -6,
-              borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
-              clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : undefined,
-              border: `2px solid ${theme.primary}`,
-              opacity: 0.3,
-              animation: "fp-pulse 1.5s ease-out infinite",
-            }}
-          />
-        )}
-
-        {/* Diamond for decider nodes — proper diamond via clip-path */}
-        {isDecider ? (
-          <div style={{ position: "relative", width: 120, height: 72 }}>
-            {/* Diamond shape layer */}
+                {description && (
+                  <span
+                    style={{
+                      fontSize: 8,
+                      fontWeight: 400,
+                      color: textColor,
+                      opacity: 0.7,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: 100,
+                    }}
+                  >
+                    {description}
+                  </span>
+                )}
+                {showStageId && stageId && (
+                  <span
+                    style={{
+                      fontSize: 8,
+                      fontFamily: "ui-monospace, monospace",
+                      color: textColor,
+                      opacity: 0.55,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      maxWidth: 100,
+                    }}
+                    title={`stageId: ${stageId}`}
+                  >
+                    {stageId}
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Standard rectangular node */
             <div
               style={{
-                position: "absolute",
-                inset: 0,
                 background: bg,
-                clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
-                border: "none",
-                boxShadow: shadow,
-                transition: "all 0.3s ease",
-              }}
-            />
-            {/* Border layer — slightly larger diamond behind */}
-            <div
-              style={{
-                position: "absolute",
-                inset: -2,
-                clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
-                background: borderColor,
-                zIndex: -1,
-                ...(isLazyUnresolved ? {
-                  background: "transparent",
-                  // Dashed border via SVG for clip-path (CSS border doesn't work with clip-path)
-                } : {}),
-              }}
-            />
-            {/* Content — centered on top of diamond */}
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
+                border: `${isHero ? "2.5px" : isMuted ? "1px" : "2px"} ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
+                borderRadius: theme.radius,
+                padding: description
+                  ? `${Math.round(8 * sizeScale)}px ${Math.round(16 * sizeScale)}px`
+                  : `${Math.round(10 * sizeScale)}px ${Math.round(20 * sizeScale)}px`,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                justifyContent: "center",
-                gap: 1,
+                gap: description ? 2 : 0,
+                boxShadow: shadow,
+                transition: "all 0.3s ease",
                 fontFamily: theme.fontSans,
-                zIndex: 1,
+                minWidth: 100,
+                justifyContent: "center",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {/* Semantic icon (lazy nodes default to cloud icon) */}
                 {effectiveIcon && <StageIcon type={effectiveIcon} color={textColor} />}
-                {!effectiveIcon && (
-                  <span style={{ fontSize: 9, color: textColor }}>&#x25C7;</span>
+
+                {/* State icon */}
+                {done && !effectiveIcon && (
+                  <span style={{ fontSize: 10, color: textColor }}>&#x2713;</span>
                 )}
+                {active && !effectiveIcon && (
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: "#fff",
+                      animation: "fp-blink 1s ease-in-out infinite",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                {error && !effectiveIcon && (
+                  <span style={{ fontSize: 10, color: textColor }}>&#x2717;</span>
+                )}
+
                 <span
                   style={{
-                    fontSize: 11,
-                    fontWeight: 600,
+                    fontSize: Math.round(13 * sizeScale),
+                    fontWeight: isHero ? 700 : 500,
                     color: textColor,
                     whiteSpace: "nowrap",
                   }}
                 >
                   {label}
                 </span>
+                {/* Subflow indicator — nested boxes icon */}
+                {isSubflow && (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 16,
+                      height: 16,
+                      borderRadius: 3,
+                      border: `1.5px solid ${textColor}`,
+                      position: "relative",
+                      opacity: 0.7,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: 2,
+                        border: `1px solid ${textColor}`,
+                      }}
+                    />
+                  </span>
+                )}
               </div>
+              {/* Description subtitle */}
               {description && (
                 <span
                   style={{
-                    fontSize: 8,
+                    fontSize: 10,
                     fontWeight: 400,
                     color: textColor,
                     opacity: 0.7,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
-                    maxWidth: 100,
+                    maxWidth: 160,
                   }}
                 >
                   {description}
                 </span>
               )}
+              {/* Stage ID caption — toggled by `showStageId`. Teaches the
+                  runtimeStageId convention; recorders key their data by
+                  this ID so consumers can render any recorder's per-stage
+                  output by lookup. */}
               {showStageId && stageId && (
                 <span
                   style={{
-                    fontSize: 8,
+                    fontSize: 9,
                     fontFamily: "ui-monospace, monospace",
                     color: textColor,
                     opacity: 0.55,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
-                    maxWidth: 100,
+                    maxWidth: 160,
                   }}
                   title={`stageId: ${stageId}`}
                 >
@@ -478,143 +674,10 @@ export const StageNode = memo(function StageNode({
                 </span>
               )}
             </div>
-          </div>
-        ) : (
-          /* Standard rectangular node */
-          <div
-            style={{
-              background: bg,
-              border: `2px ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
-              borderRadius: theme.radius,
-              padding: description ? "8px 16px" : "10px 20px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: description ? 2 : 0,
-              boxShadow: shadow,
-              transition: "all 0.3s ease",
-              fontFamily: theme.fontSans,
-              minWidth: 100,
-              justifyContent: "center",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {/* Semantic icon (lazy nodes default to cloud icon) */}
-              {effectiveIcon && <StageIcon type={effectiveIcon} color={textColor} />}
-
-              {/* State icon */}
-              {done && !effectiveIcon && (
-                <span style={{ fontSize: 10, color: textColor }}>&#x2713;</span>
-              )}
-              {active && !effectiveIcon && (
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: "#fff",
-                    animation: "fp-blink 1s ease-in-out infinite",
-                    flexShrink: 0,
-                  }}
-                />
-              )}
-              {error && !effectiveIcon && (
-                <span style={{ fontSize: 10, color: textColor }}>&#x2717;</span>
-              )}
-
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: textColor,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {label}
-              </span>
-              {/* Subflow indicator — nested boxes icon */}
-              {isSubflow && (
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 16,
-                    height: 16,
-                    borderRadius: 3,
-                    border: `1.5px solid ${textColor}`,
-                    position: "relative",
-                    opacity: 0.7,
-                    flexShrink: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: 2,
-                      border: `1px solid ${textColor}`,
-                    }}
-                  />
-                </span>
-              )}
-            </div>
-            {/* Description subtitle */}
-            {description && (
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 400,
-                  color: textColor,
-                  opacity: 0.7,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  maxWidth: 160,
-                }}
-              >
-                {description}
-              </span>
-            )}
-            {/* Stage ID caption — toggled by `showStageId`. Teaches the
-                runtimeStageId convention; recorders key their data by
-                this ID so consumers can render any recorder's per-stage
-                output by lookup. */}
-            {showStageId && stageId && (
-              <span
-                style={{
-                  fontSize: 9,
-                  fontFamily: "ui-monospace, monospace",
-                  color: textColor,
-                  opacity: 0.55,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  maxWidth: 160,
-                }}
-                title={`stageId: ${stageId}`}
-              >
-                {stageId}
-              </span>
-            )}
-          </div>
-        )}
+          )}
+        </div>
       </div>
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
-      {/* Loop handles: source exits bottom-right, target enters from right.
-          Creates a clockwise arc: down → right → up → back into right side. */}
-      <Handle
-        id="loop-source"
-        type="source"
-        position={Position.Bottom}
-        style={{ background: "transparent", border: "none", width: 6, height: 6, left: "75%" }}
-      />
-      <Handle
-        id="loop-target"
-        type="target"
-        position={Position.Right}
-        style={{ background: "transparent", border: "none", width: 6, height: 6 }}
-      />
     </>
   );
 });

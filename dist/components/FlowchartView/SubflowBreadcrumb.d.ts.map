@@ -1,1 +1,0 @@
-{"version":3,"file":"SubflowBreadcrumb.d.ts","sourceRoot":"","sources":["../../../src/components/FlowchartView/SubflowBreadcrumb.tsx"],"names":[],"mappings":"AAEA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,wBAAwB,CAAC;AAE9D,MAAM,WAAW,sBAAsB;IACrC,WAAW,EAAE,eAAe,EAAE,CAAC;IAC/B,UAAU,EAAE,CAAC,KAAK,EAAE,MAAM,KAAK,IAAI,CAAC;CACrC;AAED;;;GAGG;AACH,eAAO,MAAM,iBAAiB,8DAkF5B,CAAC"}

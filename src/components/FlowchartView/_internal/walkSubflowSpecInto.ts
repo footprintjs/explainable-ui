@@ -7,10 +7,24 @@
  * — kept local to preserve explainable-ui's zero-`footprintjs`-dep
  * boundary (see traceStructureRecorder.ts top-of-file rationale).
  *
- * Stage IDs come pre-prefixed from footprintjs's `_prefixNodeTree`
- * (e.g. `'sf-tools/execute-tool-calls'`), so we use them as-is for
- * node ids. The `subflowPath` is set on `data.subflowOf` to mark which
- * subflow each inner stage belongs to.
+ * Node-id qualification (why inner ids get the subflow-path prefix)
+ * ────────────────────────────────────────────────────────────────
+ * The `subflowStructure` payload on a mount event carries the child
+ * chart's OWN build-time ids, which are LOCAL and unprefixed (e.g. two
+ * sibling slot subflows can each contain a stage literally named
+ * `compose`). xyflow requires globally-unique node ids, and the
+ * recorder dedupes by id — so two siblings sharing `compose` would
+ * collapse into one node (last-write-wins), orphaning the other.
+ *
+ * To prevent that we qualify every emitted node id with the composed
+ * `subflowPath`: `compose` under `sf-system-prompt` becomes
+ * `sf-system-prompt/compose`. This MIRRORS footprintjs's runtime
+ * `runtimeStageId` format (`subflowPath/stageId#index`) exactly, so the
+ * runtime overlay matches a node by comparing its id against the
+ * runtimeStageId minus the `#index` suffix (see overlayProjection.ts).
+ * `data.subflowOf` still carries the path alone; `data.subflowId` still
+ * carries the LOCAL id for mount nodes — only the xyflow node `id` and
+ * edge endpoints are path-qualified.
  */
 
 import type { Node, Edge } from "@xyflow/react";
@@ -50,14 +64,28 @@ export function walkSubflowSpecInto(
   walkNode(spec, subflowPath, sink, new Set<string>());
 }
 
+/**
+ * Qualify a LOCAL node id with its subflow path, mirroring footprintjs's
+ * runtimeStageId format (`subflowPath/stageId`). All ids that share a
+ * `subflowPath` are siblings, so edge endpoints inside one walkNode call
+ * use the same path. `loopTarget` is a local id in the same subflow.
+ */
+function qid(subflowPath: string, localId: string): string {
+  return `${subflowPath}/${localId}`;
+}
+
 function walkNode(
   node: SpecNode,
   subflowPath: string,
   sink: WalkSink,
   visited: Set<string>,
 ): void {
-  if (visited.has(node.id)) return;
-  visited.add(node.id);
+  // Cycle guard keyed on the QUALIFIED id — two different subflows can
+  // share a local id (e.g. both have `compose`); keying on the bare id
+  // would wrongly skip the second.
+  const fullId = qid(subflowPath, node.id);
+  if (visited.has(fullId)) return;
+  visited.add(fullId);
   if (node.isLoopReference) return;
 
   // Nested subflow mount — recurse into its structure with composed path.
@@ -75,7 +103,6 @@ function walkNode(
   const isStreaming = type === "streaming";
   const isSubflow = !!node.isSubflowRoot;
 
-  const stageId = asStageId(node.id);
   const data: TraceNodeData = {
     label: node.name,
     isDecider,
@@ -88,28 +115,31 @@ function walkNode(
   };
   if (node.description !== undefined) data.description = node.description;
   if (node.icon !== undefined) data.icon = node.icon;
+  // `subflowId` stays the LOCAL id (mount nodes use it to match runtime
+  // events + drill scope); only the xyflow node `id` is path-qualified.
   if (node.subflowId !== undefined) data.subflowId = node.subflowId;
   if (node.isLazy === true) data.isLazy = true;
   if (node.isPausable === true) data.isPausable = true;
 
   sink.upsertNode({
-    id: node.id,
+    id: asStageId(fullId),
     type: "stage",
     position: { x: 0, y: 0 },
     data,
   });
 
-  // Children (decider/selector/fork branches).
+  // Children (decider/selector/fork branches) — siblings at the same path.
   if (node.children && node.children.length > 0) {
     const edgeKind: "fork-branch" | "decision-branch" = type === "fork" ? "fork-branch" : "decision-branch";
     for (const child of node.children) {
-      const edgeId = `${node.id}->${child.id}:${edgeKind}${edgeKind === "decision-branch" ? `:${child.id}` : ""}`;
+      const childFullId = qid(subflowPath, child.id);
+      const edgeId = `${fullId}->${childFullId}:${edgeKind}${edgeKind === "decision-branch" ? `:${child.id}` : ""}`;
       const edgeData: TraceEdgeData = { kind: edgeKind };
       if (edgeKind === "decision-branch") edgeData.label = child.id;
       const edge: Edge<TraceEdgeData> = {
         id: edgeId,
-        source: node.id,
-        target: child.id,
+        source: fullId,
+        target: childFullId,
         data: edgeData,
       };
       if (edgeKind === "decision-branch") edge.label = child.id;
@@ -118,27 +148,26 @@ function walkNode(
     }
   }
 
-  // Linear next or loop back-edge.
+  // Linear next or loop back-edge — also same-path siblings.
   if (node.next) {
     if (node.next.isLoopReference && node.loopTarget) {
+      const loopFullId = qid(subflowPath, node.loopTarget);
       sink.pushEdge({
-        id: `${node.id}->${node.loopTarget}:loop`,
-        source: node.id,
-        target: node.loopTarget,
+        id: `${fullId}->${loopFullId}:loop`,
+        source: fullId,
+        target: loopFullId,
         data: { kind: "loop" },
       });
     } else {
-      const edgeId = `${node.id}->${node.next.id}:next`;
+      const nextFullId = qid(subflowPath, node.next.id);
+      const edgeId = `${fullId}->${nextFullId}:next`;
       sink.pushEdge({
         id: edgeId,
-        source: node.id,
-        target: node.next.id,
+        source: fullId,
+        target: nextFullId,
         data: { kind: "next" },
       });
       walkNode(node.next, subflowPath, sink, visited);
     }
   }
-  // Suppress unused-binding warning for stageId (kept for parity with
-  // recorder upsertNode signature; xyflow node `id` is the string form).
-  void stageId;
 }
