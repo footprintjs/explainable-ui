@@ -30,10 +30,12 @@ export interface OverlaySlice {
  * Aggregate subflow internals' status onto their mount nodes.
  *
  *   - Mount is DONE when EVERY internal stage is done.
- *   - Mount is ACTIVE when ANY internal is active or done — but only
- *     when we're viewing the TOP-LEVEL chart (`currentSubflowId ===
- *     null`). When drilled INTO a subflow, the active highlight goes
- *     on the actual subflow stage, not on the parent's mount.
+ *   - Mount is ACTIVE only when an internal stage is CURRENTLY active
+ *     (not merely past-done), and only when viewing the TOP-LEVEL chart
+ *     (`currentSubflowId === null`). When drilled INTO a subflow, the
+ *     active highlight stays on the actual subflow stage, not the mount.
+ *     (Promoting on past-done internals let a looping subflow steal
+ *     "active" from the real live top-level node — see the inline note.)
  *
  * Pre-condition: slice has already been leaf-normalized so its
  * stage ids match `graph.nodes[].id`.
@@ -53,10 +55,16 @@ export function aggregateMountStatus(
     const members = graph.nodes.filter((n) => n.data?.subflowOf === sfId);
     if (members.length === 0) continue;
     const anyActive = members.some((m) => m.id === slice.activeStageId);
-    const anyDone = members.some((m) => slice.doneStageIds.has(m.id));
     const allDone = members.every((m) => slice.doneStageIds.has(m.id));
     if (allDone) doneIds.add(mount.id);
-    else if ((anyActive || anyDone) && currentSubflowId === null) {
+    // Promote "active" to the mount ONLY when the live node is genuinely INSIDE
+    // this subflow (anyActive). Previously a mount with merely PAST-done members
+    // (`anyDone`) also stole active — and once subflow internals are materialised
+    // (for drill), a looping subflow's earlier-iteration done members made the
+    // mount steal "active" from the real top-level live node (e.g. the tool
+    // call), so that node's NOW highlight disappeared. The mount's own done-ness
+    // still comes from its own commit + the allDone branch above.
+    else if (anyActive && currentSubflowId === null) {
       activeId = mount.id;
     }
   }

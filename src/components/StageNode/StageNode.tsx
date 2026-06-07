@@ -351,7 +351,7 @@ export const StageNode = memo(function StageNode({
         : restingBorder;
 
   const shadow = active
-    ? `0 0 16px color-mix(in srgb, ${theme.primary} 40%, transparent)`
+    ? `0 0 22px color-mix(in srgb, ${theme.primary} 55%, transparent)`
     : done
       ? `0 0 8px color-mix(in srgb, ${theme.success} 20%, transparent)`
       : error
@@ -457,6 +457,30 @@ export const StageNode = memo(function StageNode({
                 animation: "fp-pulse 1.5s ease-out infinite",
               }}
             />
+          )}
+
+          {/* "NOW" badge — marks the step the cursor is on (the live step),
+              mirroring the monitor mockup. Sits top-right so it never collides
+              with the top-left step-number badge. */}
+          {active && (
+            <div
+              style={{
+                position: "absolute",
+                top: -9,
+                right: -8,
+                zIndex: 11,
+                background: theme.warning,
+                color: "#1a1a1a",
+                fontSize: 9,
+                fontWeight: 800,
+                letterSpacing: 0.6,
+                padding: "2px 6px",
+                borderRadius: 10,
+                boxShadow: `0 0 10px color-mix(in srgb, ${theme.warning} 60%, transparent)`,
+              }}
+            >
+              NOW
+            </div>
           )}
 
           {/* Diamond for decider nodes — proper diamond via clip-path */}

@@ -506,7 +506,10 @@ export function TracedFlow({
   // ── Container auto-refit (xyflow's fitView is mount-only) ─────────
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
-  useChartAutoRefit(wrapperRef, rfInstance);
+  // refitKey = the drill id: drilling in/out swaps the visible subgraph, so the
+  // chart must recenter + rezoom to the new content (otherwise the smaller
+  // drilled graph keeps the parent's pan/zoom and sits cramped in a corner).
+  useChartAutoRefit(wrapperRef, rfInstance, { refitKey: drill.currentSubflowId });
 
   return (
     <div

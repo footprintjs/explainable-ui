@@ -3582,7 +3582,7 @@ var StageNode = memo3(function StageNode2({
   const restingShadow = isHero ? `0 0 10px color-mix(in srgb, ${theme.primary} 22%, transparent)` : `0 2px 8px rgba(0,0,0,0.15)`;
   const bg = active ? theme.primary : done ? theme.success : error ? theme.error : restingBg;
   const borderColor = active ? theme.primary : done ? theme.success : error ? theme.error : restingBorder;
-  const shadow = active ? `0 0 16px color-mix(in srgb, ${theme.primary} 40%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.success} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : restingShadow;
+  const shadow = active ? `0 0 22px color-mix(in srgb, ${theme.primary} 55%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.success} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : restingShadow;
   const textColor = active || done || error ? "#fff" : theme.textPrimary;
   return /* @__PURE__ */ jsxs15(Fragment5, { children: [
     /* @__PURE__ */ jsx16(Handle, { type: "target", position: Position.Top, style: { opacity: 0 } }),
@@ -3663,6 +3663,26 @@ var StageNode = memo3(function StageNode2({
                 opacity: 0.3,
                 animation: "fp-pulse 1.5s ease-out infinite"
               }
+            }
+          ),
+          active && /* @__PURE__ */ jsx16(
+            "div",
+            {
+              style: {
+                position: "absolute",
+                top: -9,
+                right: -8,
+                zIndex: 11,
+                background: theme.warning,
+                color: "#1a1a1a",
+                fontSize: 9,
+                fontWeight: 800,
+                letterSpacing: 0.6,
+                padding: "2px 6px",
+                borderRadius: 10,
+                boxShadow: `0 0 10px color-mix(in srgb, ${theme.warning} 60%, transparent)`
+              },
+              children: "NOW"
             }
           ),
           isDecider ? /* @__PURE__ */ jsxs15("div", { style: { position: "relative", width: 120, height: 72 }, children: [
@@ -3924,10 +3944,9 @@ function aggregateMountStatus(slice, graph, currentSubflowId) {
     const members = graph.nodes.filter((n) => n.data?.subflowOf === sfId);
     if (members.length === 0) continue;
     const anyActive = members.some((m) => m.id === slice.activeStageId);
-    const anyDone = members.some((m) => slice.doneStageIds.has(m.id));
     const allDone = members.every((m) => slice.doneStageIds.has(m.id));
     if (allDone) doneIds.add(mount.id);
-    else if ((anyActive || anyDone) && currentSubflowId === null) {
+    else if (anyActive && currentSubflowId === null) {
       activeId = mount.id;
     }
   }
@@ -3970,6 +3989,7 @@ import { useEffect as useEffect8 } from "react";
 function useChartAutoRefit(wrapperRef, rfInstance, options = {}) {
   const duration = options.duration ?? 200;
   const padding2 = options.padding ?? 0.1;
+  const refitKey = options.refitKey;
   useEffect8(() => {
     const el = wrapperRef.current;
     if (!el || !rfInstance) return;
@@ -3989,6 +4009,19 @@ function useChartAutoRefit(wrapperRef, rfInstance, options = {}) {
       cancelAnimationFrame(raf);
     };
   }, [rfInstance, wrapperRef, duration, padding2]);
+  useEffect8(() => {
+    if (!rfInstance) return;
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        rfInstance.fitView({ duration, padding: padding2 });
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [rfInstance, refitKey, duration, padding2]);
 }
 
 // src/components/FlowchartView/SubflowBreadcrumbBar.tsx
@@ -4314,6 +4347,19 @@ function wrapInMainChartBox(graph, opts) {
 
 // src/components/LoopBackEdge/LoopBackEdge.tsx
 import { jsx as jsx19 } from "react/jsx-runtime";
+var LOOP_DASH = "5 5";
+var LOOP_STROKE_OPACITY_CAP = 0.55;
+var LOOP_STROKE_WIDTH = 1.5;
+function softenLoopStyle(style) {
+  const passedStrokeOpacity = typeof style?.strokeOpacity === "number" ? style.strokeOpacity : 1;
+  return {
+    ...style,
+    strokeDasharray: style?.strokeDasharray ?? LOOP_DASH,
+    strokeOpacity: Math.min(passedStrokeOpacity, LOOP_STROKE_OPACITY_CAP),
+    strokeWidth: LOOP_STROKE_WIDTH
+  };
+}
+var LOOP_CORNER_RADIUS = 28;
 function rightEdge(node) {
   return node.internals.positionAbsolute.x + (node.measured.width ?? 0);
 }
@@ -4334,11 +4380,21 @@ function LoopBackEdge({ id, source, target, markerEnd, style }) {
     return loopBackPath(
       { right: rightEdge(src), centerY: centerY(src) },
       { right: rightEdge(tgt), centerY: centerY(tgt) },
-      laneX
+      laneX,
+      LOOP_CORNER_RADIUS
     );
   });
   if (!path) return null;
-  return /* @__PURE__ */ jsx19(BaseEdge, { id, path, markerEnd, style, "aria-label": "Loop back" });
+  return /* @__PURE__ */ jsx19(
+    BaseEdge,
+    {
+      id,
+      path,
+      markerEnd,
+      style: softenLoopStyle(style),
+      "aria-label": "Loop back"
+    }
+  );
 }
 
 // src/components/SmartStepEdge/SmartStepEdge.tsx
@@ -4631,7 +4687,7 @@ function TracedFlow({
   );
   const wrapperRef = useRef8(null);
   const [rfInstance, setRfInstance] = useState10(null);
-  useChartAutoRefit(wrapperRef, rfInstance);
+  useChartAutoRefit(wrapperRef, rfInstance, { refitKey: drill.currentSubflowId });
   return /* @__PURE__ */ jsxs18(
     "div",
     {

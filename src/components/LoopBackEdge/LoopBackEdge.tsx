@@ -18,9 +18,38 @@
  */
 
 import { BaseEdge, useStore } from "@xyflow/react";
+import type { CSSProperties } from "react";
 import type { EdgeProps, InternalNode, ReactFlowState } from "@xyflow/react";
 import { LOOP_LANE_GAP, loopBackPath, loopLaneX } from "../FlowchartView/_internal/loopRouting";
 import { GROUP_CONTAINER_NODE_TYPE } from "../FlowchartView/_internal/groupLayout";
+
+/** A loop-back spans the whole chart height down the right margin, so a SOLID
+ *  line at full weight reads as a wall. We soften it — dashed + slightly muted —
+ *  so it registers as a "control returns to the top" path, not a hard edge.
+ *  The renderer's color/state still flows through `style`; we only ADD the dash
+ *  and CAP the opacity (never brighter than `softCap`, but free to dim further
+ *  when the edge is out of the current scrub scope). */
+const LOOP_DASH = "5 5";
+const LOOP_STROKE_OPACITY_CAP = 0.55; // muted — the long return shouldn't dominate
+const LOOP_STROKE_WIDTH = 1.5; // thinner than a spine edge (default ~2)
+export function softenLoopStyle(style: CSSProperties | undefined): CSSProperties {
+  // Use SVG-native stroke props (strokeOpacity / strokeWidth) — they render on
+  // the <path> reliably, unlike `opacity` which react-flow's BaseEdge does not
+  // forward to the stroke. strokeOpacity is CAPPED (never bolder than the cap)
+  // but may go lower when the renderer dims an out-of-scope edge.
+  const passedStrokeOpacity =
+    typeof style?.strokeOpacity === "number" ? style.strokeOpacity : 1;
+  return {
+    ...style,
+    strokeDasharray: style?.strokeDasharray ?? LOOP_DASH,
+    strokeOpacity: Math.min(passedStrokeOpacity, LOOP_STROKE_OPACITY_CAP),
+    strokeWidth: LOOP_STROKE_WIDTH,
+  };
+}
+
+/** Slightly larger corner radius than a normal step edge — a gentler, rounder
+ *  arc reinforces the "soft return" read. */
+const LOOP_CORNER_RADIUS = 28;
 
 /** Absolute x of a node's right edge. */
 function rightEdge(node: InternalNode): number {
@@ -59,11 +88,18 @@ export function LoopBackEdge({ id, source, target, markerEnd, style }: EdgeProps
       { right: rightEdge(src), centerY: centerY(src) },
       { right: rightEdge(tgt), centerY: centerY(tgt) },
       laneX,
+      LOOP_CORNER_RADIUS,
     );
   });
 
   if (!path) return null;
   return (
-    <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} aria-label="Loop back" />
+    <BaseEdge
+      id={id}
+      path={path}
+      markerEnd={markerEnd}
+      style={softenLoopStyle(style)}
+      aria-label="Loop back"
+    />
   );
 }
