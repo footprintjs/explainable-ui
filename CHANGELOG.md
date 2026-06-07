@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.22.0]
+
+Time-travel chart polish: a clearer "live step" marker, drill re-fitting, and a
+softer loop edge. Additive only.
+
+### Added
+
+- **`StageNode` "NOW" badge** + a stronger glow on the active node, so the live
+  step in a running/replayed chart reads at a glance.
+- **`useChartAutoRefit` `refitKey` option** — re-fits the view when the key
+  changes (e.g. drilling into / out of a subflow) so a drilled subgraph recenters
+  instead of inheriting the parent's pan/zoom. `TracedFlow` wires this to the
+  current drill target.
+- **`softenLoopStyle`** (exported from `LoopBackEdge`) — dashed, muted-opacity,
+  thinner, rounder loop edges so back-edges recede behind the forward flow.
+
+### Fixed
+
+- **`aggregateMountStatus` active-marking.** A subflow mount is now marked
+  "active" only when one of its internals is *currently* active — never on merely
+  past-done internals. Previously, once subflow internals were materialised for
+  drill, a looping subflow's earlier-iteration done members could steal "active"
+  from the real live top-level node (its NOW highlight would disappear).
+
+### Tests
+
+- `aggregateMountStatus`, `useChartAutoRefit`, `softenLoopStyle`.
+
 ## [0.21.0]
 
 Chart rendering upgrades for merge-tree + time-travel charts. Additive only.
