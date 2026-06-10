@@ -1,0 +1,38 @@
+{
+  "rangeIndex": {
+    "load-patient#0": {
+      "firstIdx": 0,
+      "endIdx": 3
+    },
+    "screen#1": {
+      "firstIdx": 3,
+      "endIdx": 5
+    },
+    "hypertension#2": {
+      "firstIdx": 5,
+      "endIdx": 7
+    },
+    "obesity#3": {
+      "firstIdx": 7,
+      "endIdx": 9
+    },
+    "summarize#4": {
+      "firstIdx": 9,
+      "endIdx": 14
+    }
+  },
+  "revealedWithIndex": [
+    3,
+    5,
+    7,
+    9,
+    14
+  ],
+  "revealedWithoutIndex": [
+    3,
+    5,
+    7,
+    9,
+    14
+  ]
+}

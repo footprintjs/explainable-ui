@@ -1,0 +1,205 @@
+{
+  "nodes": [
+    {
+      "id": "load-patient",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "LoadPatient",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [],
+        "nextIds": [
+          "screen"
+        ],
+        "description": "Load patient vitals"
+      }
+    },
+    {
+      "id": "screen",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Screen",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "load-patient"
+        ],
+        "nextIds": [
+          "diabetes",
+          "hypertension",
+          "obesity"
+        ],
+        "description": "Select screenings from vitals",
+        "branchIds": [
+          "diabetes",
+          "hypertension",
+          "obesity"
+        ]
+      }
+    },
+    {
+      "id": "diabetes",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "DiabetesScreening",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "screen"
+        ],
+        "nextIds": [
+          "summarize"
+        ],
+        "description": "Assess diabetes risk"
+      }
+    },
+    {
+      "id": "hypertension",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "HypertensionCheck",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "screen"
+        ],
+        "nextIds": [
+          "summarize"
+        ],
+        "description": "Assess blood pressure"
+      }
+    },
+    {
+      "id": "obesity",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "ObesityAssessment",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "screen"
+        ],
+        "nextIds": [
+          "summarize"
+        ],
+        "description": "Assess BMI"
+      }
+    },
+    {
+      "id": "summarize",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Summarize",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "diabetes",
+          "hypertension",
+          "obesity"
+        ],
+        "nextIds": [],
+        "description": "Converge screening results"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "load-patient->screen:next",
+      "source": "load-patient",
+      "target": "screen",
+      "data": {
+        "kind": "next"
+      }
+    },
+    {
+      "id": "screen->diabetes:decision-branch:diabetes",
+      "source": "screen",
+      "target": "diabetes",
+      "data": {
+        "kind": "decision-branch",
+        "label": "diabetes"
+      },
+      "label": "diabetes"
+    },
+    {
+      "id": "screen->hypertension:decision-branch:hypertension",
+      "source": "screen",
+      "target": "hypertension",
+      "data": {
+        "kind": "decision-branch",
+        "label": "hypertension"
+      },
+      "label": "hypertension"
+    },
+    {
+      "id": "screen->obesity:decision-branch:obesity",
+      "source": "screen",
+      "target": "obesity",
+      "data": {
+        "kind": "decision-branch",
+        "label": "obesity"
+      },
+      "label": "obesity"
+    },
+    {
+      "id": "diabetes->summarize:next",
+      "source": "diabetes",
+      "target": "summarize",
+      "data": {
+        "kind": "next"
+      }
+    },
+    {
+      "id": "hypertension->summarize:next",
+      "source": "hypertension",
+      "target": "summarize",
+      "data": {
+        "kind": "next"
+      }
+    },
+    {
+      "id": "obesity->summarize:next",
+      "source": "obesity",
+      "target": "summarize",
+      "data": {
+        "kind": "next"
+      }
+    }
+  ]
+}

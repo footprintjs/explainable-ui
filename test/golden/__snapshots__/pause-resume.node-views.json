@@ -1,0 +1,104 @@
+{
+  "all": [
+    {
+      "stageId": "receive",
+      "label": "ReceiveRequest",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Receive the refund request",
+      "prevIds": [],
+      "nextIds": [
+        "approval"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "receive#0"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "receive#0"
+      ]
+    },
+    {
+      "stageId": "approval",
+      "label": "ManagerApproval",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": true,
+      "prevIds": [
+        "receive"
+      ],
+      "nextIds": [
+        "process"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "approval#2"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "approval#1",
+        "approval#2"
+      ]
+    },
+    {
+      "stageId": "process",
+      "label": "ProcessRefund",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Process the refund",
+      "prevIds": [
+        "approval"
+      ],
+      "nextIds": [],
+      "executions": [
+        {
+          "runtimeStageId": "process#3"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "process#3"
+      ]
+    }
+  ],
+  "byStageIdKeys": [
+    "receive",
+    "approval",
+    "process"
+  ],
+  "byRuntimeStageIdKeys": [
+    "receive#0",
+    "approval#2",
+    "approval#1",
+    "process#3"
+  ]
+}

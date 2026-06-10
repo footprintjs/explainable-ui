@@ -1,0 +1,39 @@
+{
+  "note": "Golden-trace fixtures recorded from the REAL footprintjs engine. Do not hand-edit — regenerate with `npm run fixtures:regen`.",
+  "generator": "scripts/generate-golden-fixtures.mjs",
+  "footprintjs": "9.5.0",
+  "fixtures": [
+    {
+      "file": "linear-decider.json",
+      "name": "linear-decider",
+      "description": "3 linear stages into a decider (decide() filter+fn rules, default branch). Exercises: typed writes, deep write, $metric timing path, decision evidence, branch routing.",
+      "structureEvents": 12,
+      "runtimeEvents": 10,
+      "narrativeEntries": 16
+    },
+    {
+      "file": "subflow-loop.json",
+      "name": "subflow-loop",
+      "description": "Parent mounts a 2-stage subflow (input/outputMapper), then a Refine→Evaluate loop (loopTo) that $break()s on the 2nd iteration. Exercises: onSubflowMounted subflowSpec walk, loop edge, repeated runtimeStageIds (executionIndex bump), break narrative.",
+      "structureEvents": 9,
+      "runtimeEvents": 17,
+      "narrativeEntries": 30
+    },
+    {
+      "file": "parallel-fork.json",
+      "name": "parallel-fork",
+      "description": "Selector (select() evidence) picks 2 of 3 branches which run in PARALLEL, then a convergence stage. Exercises: onDeciderComplete(type selector), parallel branch commits, fork-shaped execution tree, selection evidence.",
+      "structureEvents": 14,
+      "runtimeEvents": 15,
+      "narrativeEntries": 14
+    },
+    {
+      "file": "pause-resume.json",
+      "name": "pause-resume",
+      "description": "Linear chain with a pausable approval gate: run pauses, same executor resumes with the human's answer. Exercises: isPausable structure flag, pause/resume narrative entries, two runIds (resume generates a fresh one), post-resume snapshot.",
+      "structureEvents": 5,
+      "runtimeEvents": 10,
+      "narrativeEntries": 13
+    }
+  ]
+}

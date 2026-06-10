@@ -1,0 +1,52 @@
+{
+  "rangeIndex": {
+    "seed#0": {
+      "firstIdx": 0,
+      "endIdx": 3
+    },
+    "sf-enrich#1": {
+      "firstIdx": 3,
+      "endIdx": 12
+    },
+    "sf-enrich/normalize#2": {
+      "firstIdx": 5,
+      "endIdx": 8
+    },
+    "sf-enrich/score#3": {
+      "firstIdx": 8,
+      "endIdx": 11
+    },
+    "refine#4": {
+      "firstIdx": 12,
+      "endIdx": 17
+    },
+    "evaluate#5": {
+      "firstIdx": 17,
+      "endIdx": 20
+    },
+    "refine#6": {
+      "firstIdx": 20,
+      "endIdx": 25
+    },
+    "evaluate#7": {
+      "firstIdx": 25,
+      "endIdx": 30
+    }
+  },
+  "revealedWithIndex": [
+    3,
+    12,
+    17,
+    20,
+    25,
+    30
+  ],
+  "revealedWithoutIndex": [
+    3,
+    5,
+    17,
+    20,
+    25,
+    30
+  ]
+}

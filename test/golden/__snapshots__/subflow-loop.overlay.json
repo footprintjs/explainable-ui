@@ -1,0 +1,46 @@
+{
+  "executionOrder": [
+    {
+      "runtimeStageId": "seed#0",
+      "stageId": "seed",
+      "stageName": "Seed"
+    },
+    {
+      "runtimeStageId": "sf-enrich#1",
+      "stageId": "sf-enrich",
+      "stageName": "sf-enrich/Normalize"
+    },
+    {
+      "runtimeStageId": "sf-enrich/normalize#2",
+      "stageId": "sf-enrich/normalize",
+      "stageName": "sf-enrich/Normalize"
+    },
+    {
+      "runtimeStageId": "sf-enrich/score#3",
+      "stageId": "sf-enrich/score",
+      "stageName": "sf-enrich/Score"
+    },
+    {
+      "runtimeStageId": "refine#4",
+      "stageId": "refine",
+      "stageName": "Refine"
+    },
+    {
+      "runtimeStageId": "evaluate#5",
+      "stageId": "evaluate",
+      "stageName": "Evaluate"
+    },
+    {
+      "runtimeStageId": "refine#6",
+      "stageId": "refine",
+      "stageName": "Refine"
+    },
+    {
+      "runtimeStageId": "evaluate#7",
+      "stageId": "evaluate",
+      "stageName": "Evaluate"
+    }
+  ],
+  "errors": {},
+  "running": false
+}

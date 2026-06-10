@@ -1,0 +1,204 @@
+{
+  "all": [
+    {
+      "stageId": "seed",
+      "label": "Seed",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Seed raw input",
+      "prevIds": [],
+      "nextIds": [
+        "sf-enrich"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "seed#0"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "seed#0"
+      ]
+    },
+    {
+      "stageId": "sf-enrich",
+      "label": "EnrichText",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": true,
+      "isStreaming": false,
+      "isPausable": false,
+      "subflowId": "sf-enrich",
+      "prevIds": [
+        "seed"
+      ],
+      "nextIds": [
+        "refine"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "sf-enrich#1"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": []
+    },
+    {
+      "stageId": "sf-enrich/normalize",
+      "label": "Normalize",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Normalize raw input",
+      "prevIds": [],
+      "nextIds": [
+        "sf-enrich/score"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "sf-enrich/normalize#2"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "sf-enrich/normalize#2"
+      ]
+    },
+    {
+      "stageId": "sf-enrich/score",
+      "label": "Score",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Score the normalized text",
+      "prevIds": [],
+      "nextIds": [],
+      "executions": [
+        {
+          "runtimeStageId": "sf-enrich/score#3"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "sf-enrich/score#3"
+      ]
+    },
+    {
+      "stageId": "refine",
+      "label": "Refine",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Refine the text",
+      "prevIds": [
+        "sf-enrich"
+      ],
+      "nextIds": [
+        "evaluate"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "refine#4"
+        },
+        {
+          "runtimeStageId": "refine#6"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 2,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "refine#4",
+        "refine#6"
+      ]
+    },
+    {
+      "stageId": "evaluate",
+      "label": "Evaluate",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Loop until quality met",
+      "prevIds": [
+        "refine"
+      ],
+      "nextIds": [],
+      "executions": [
+        {
+          "runtimeStageId": "evaluate#5"
+        },
+        {
+          "runtimeStageId": "evaluate#7"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 2,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "evaluate#5",
+        "evaluate#7"
+      ]
+    }
+  ],
+  "byStageIdKeys": [
+    "seed",
+    "sf-enrich",
+    "sf-enrich/normalize",
+    "sf-enrich/score",
+    "refine",
+    "evaluate"
+  ],
+  "byRuntimeStageIdKeys": [
+    "seed#0",
+    "sf-enrich#1",
+    "sf-enrich/normalize#2",
+    "sf-enrich/score#3",
+    "refine#4",
+    "refine#6",
+    "evaluate#5",
+    "evaluate#7"
+  ]
+}

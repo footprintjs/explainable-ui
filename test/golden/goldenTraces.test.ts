@@ -1,0 +1,278 @@
+/**
+ * U2 — Golden-trace pipeline tests.
+ *
+ * Each fixture under `test/fixtures/golden/` is a REAL footprintjs run,
+ * recorded by `scripts/generate-golden-fixtures.mjs`: the raw
+ * StructureRecorder / FlowRecorder / ScopeRecorder event streams plus the
+ * post-run snapshot + narrative entries — the exact duck-typed artifacts
+ * explainable-ui consumes. These tests replay them through the full
+ * converter/layout/narrative pipeline and pin the OUTPUT via file
+ * snapshots in `test/golden/__snapshots__/`.
+ *
+ * Why: the unit suite fabricates engine events by hand ("we simulate by
+ * calling the recorder methods directly"), so engine-shape drift between
+ * footprintjs releases would pass unit tests and break rendering silently.
+ * The goldens close that gap — they are the contract corpus against the
+ * real engine.
+ *
+ * Workflow on an INTENTIONAL change
+ * ─────────────────────────────────
+ *   1. Engine-side shape change (new footprintjs):
+ *        npm i -D --save-exact footprintjs@<version>
+ *        npm run fixtures:regen          # re-records fixtures, fails on nondeterminism
+ *   2. Pipeline-side output change (eui converter/layout edit):
+ *        npx vitest run test/golden -u   # updates the output snapshots
+ *   3. REVIEW the snapshot diff before committing — an unexpected diff here
+ *      is exactly the regression this suite exists to catch.
+ *
+ * One known real-engine behavior these goldens pin (differs from the
+ * hand-built unit fixtures): footprintjs fires `onStageAdded` with
+ * `type: "stage"` for decider/selector stages (the spec carries
+ * `hasDecider: true` instead), so `TraceNodeData.isDecider` is FALSE on
+ * real traces — decider-ness surfaces via `branchIds`/`defaultBranch`
+ * patched by `onDeciderComplete`.
+ */
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import {
+  createTraceStructureRecorder,
+  type TraceGraph,
+} from "../../src/components/FlowchartView/traceStructureRecorder";
+import { createTraceRuntimeOverlay } from "../../src/components/FlowchartView/createTraceRuntimeOverlay";
+import { createNodeViewRecorder } from "../../src/components/FlowchartView/createNodeViewRecorder";
+import { createCommitFlowRecorder } from "../../src/components/FlowchartView/createCommitFlowRecorder";
+import { dagreTraceLayout } from "../../src/components/FlowchartView/_internal/dagreTraceLayout";
+import { toVisualizationSnapshots, type NarrativeEntry } from "../../src/adapters/fromRuntimeSnapshot";
+import {
+  buildEntryRangeIndex,
+  computeRevealedEntryCount,
+  extractSubflowNarrative,
+} from "../../src/utils/narrativeSync";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fixture loading (manifest-driven — new fixtures are picked up automatically)
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface RecordedEvent {
+  channel?: "flow" | "scope";
+  method: string;
+  event: Record<string, unknown>;
+}
+
+interface GoldenFixture {
+  name: string;
+  description: string;
+  structureEvents: RecordedEvent[];
+  runtimeEvents: RecordedEvent[];
+  narrativeEntries: NarrativeEntry[];
+  snapshot: Parameters<typeof toVisualizationSnapshots>[0];
+}
+
+const FIXTURE_DIR = new URL("../fixtures/golden/", import.meta.url);
+
+const manifest = JSON.parse(readFileSync(new URL("manifest.json", FIXTURE_DIR), "utf8")) as {
+  footprintjs: string;
+  fixtures: { file: string; name: string }[];
+};
+
+const fixtures: GoldenFixture[] = manifest.fixtures.map(
+  (f) => JSON.parse(readFileSync(new URL(f.file, FIXTURE_DIR), "utf8")) as GoldenFixture,
+);
+
+const byName = (name: string): GoldenFixture => {
+  const fx = fixtures.find((f) => f.name === name);
+  if (!fx) throw new Error(`golden fixture '${name}' missing — run \`npm run fixtures:regen\``);
+  return fx;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Replay + serialization helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Replay recorded events into recorders, dispatching by method name.
+ *  Order is the engine's real fire order (e.g. Scope.onCommit BEFORE
+ *  Flow.onStageExecuted — the L8.0 invariant the translators rely on). */
+function replay(events: RecordedEvent[], ...recorders: Record<string, unknown>[]): void {
+  for (const { method, event } of events) {
+    for (const r of recorders) {
+      const handler = r[method];
+      if (typeof handler === "function") handler.call(r, event);
+    }
+  }
+}
+
+function buildGraph(fx: GoldenFixture): TraceGraph {
+  const structure = createTraceStructureRecorder();
+  replay(fx.structureEvents, structure.recorder as unknown as Record<string, unknown>);
+  return structure.getGraph();
+}
+
+/** Convert Maps/Sets to plain JSON-able values for stable snapshots. */
+function jsonable(value: unknown): unknown {
+  if (value instanceof Map) {
+    return Object.fromEntries([...value.entries()].map(([k, v]) => [String(k), jsonable(v)]));
+  }
+  if (value instanceof Set) return [...value].map(jsonable);
+  if (Array.isArray(value)) return value.map(jsonable);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, jsonable(v)]));
+  }
+  return value;
+}
+
+const stringify = (value: unknown): string => JSON.stringify(jsonable(value), null, 2) + "\n";
+
+const snapshotPath = (fixture: string, aspect: string): string =>
+  `__snapshots__/${fixture}.${aspect}.json`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pipeline goldens — one block per fixture, one snapshot per pipeline output
+// ─────────────────────────────────────────────────────────────────────────────
+
+for (const fx of fixtures) {
+  describe(`golden: ${fx.name}`, () => {
+    it("structure events → TraceGraph (nodes + edges)", async () => {
+      await expect(stringify(buildGraph(fx))).toMatchFileSnapshot(
+        snapshotPath(fx.name, "structure-graph"),
+      );
+    });
+
+    it("TraceGraph → dagreTraceLayout positions (TraceFlow default layout)", async () => {
+      const positioned = dagreTraceLayout(buildGraph(fx));
+      const positions = positioned.nodes.map((n) => ({
+        id: n.id,
+        x: Math.round(n.position.x),
+        y: Math.round(n.position.y),
+      }));
+      await expect(stringify(positions)).toMatchFileSnapshot(snapshotPath(fx.name, "layout"));
+    });
+
+    it("flow events → runtime overlay (execution order, errors, running)", async () => {
+      const overlay = createTraceRuntimeOverlay();
+      replay(fx.runtimeEvents, overlay.recorder as unknown as Record<string, unknown>);
+      const { executionOrder, errors, running } = overlay.getOverlay();
+      const out = {
+        // timestampMs is stamped at replay time (wall clock) — excluded.
+        executionOrder: executionOrder.map(({ timestampMs: _t, ...rest }) => rest),
+        errors,
+        running,
+      };
+      await expect(stringify(out)).toMatchFileSnapshot(snapshotPath(fx.name, "overlay"));
+    });
+
+    it("flow+scope events → NodeView index", async () => {
+      const structure = createTraceStructureRecorder();
+      replay(fx.structureEvents, structure.recorder as unknown as Record<string, unknown>);
+      const nodeView = createNodeViewRecorder({ structure });
+      replay(fx.runtimeEvents, nodeView.recorder as unknown as Record<string, unknown>);
+      const index = nodeView.getIndex();
+      const out = {
+        all: index.all,
+        byStageIdKeys: [...index.byStageId.keys()],
+        byRuntimeStageIdKeys: [...index.byRuntimeStageId.keys()],
+      };
+      await expect(stringify(out)).toMatchFileSnapshot(snapshotPath(fx.name, "node-views"));
+    });
+
+    it("flow+scope events → CommitFlow index (commits + data lineage)", async () => {
+      const structure = createTraceStructureRecorder();
+      replay(fx.structureEvents, structure.recorder as unknown as Record<string, unknown>);
+      const commitFlow = createCommitFlowRecorder({ structure });
+      replay(fx.runtimeEvents, commitFlow.recorder as unknown as Record<string, unknown>);
+      const index = commitFlow.getIndex();
+      const out = {
+        commits: index.commits,
+        dataEdges: index.dataEdges,
+        byRuntimeStageIdKeys: [...index.byRuntimeStageId.keys()],
+      };
+      await expect(stringify(out)).toMatchFileSnapshot(snapshotPath(fx.name, "commit-flow"));
+    });
+
+    it("snapshot + narrative → visualization StageSnapshots (adapter)", async () => {
+      const snaps = toVisualizationSnapshots(fx.snapshot, fx.narrativeEntries);
+      await expect(stringify(snaps)).toMatchFileSnapshot(snapshotPath(fx.name, "stage-snapshots"));
+    });
+
+    it("narrative entries → range index + revealed counts (narrativeSync)", async () => {
+      const rangeIndex = buildEntryRangeIndex(fx.narrativeEntries);
+      const snaps = toVisualizationSnapshots(fx.snapshot, fx.narrativeEntries);
+      const indexed = snaps.map((_, i) =>
+        computeRevealedEntryCount(fx.narrativeEntries, snaps, i, rangeIndex),
+      );
+      const scanned = snaps.map((_, i) => computeRevealedEntryCount(fx.narrativeEntries, snaps, i));
+      const out = { rangeIndex, revealedWithIndex: indexed, revealedWithoutIndex: scanned };
+      await expect(stringify(out)).toMatchFileSnapshot(snapshotPath(fx.name, "narrative-sync"));
+    });
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cross-fixture semantic invariants — explicit guards beyond opaque snapshots
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("golden: semantic invariants", () => {
+  it("manifest pins the footprintjs version the fixtures were recorded with", () => {
+    expect(manifest.footprintjs).toMatch(/^\d+\.\d+\.\d+/);
+    expect(fixtures.length).toBeGreaterThanOrEqual(4);
+  });
+
+  it("linear-decider: decider node carries sealed branchIds + defaultBranch", () => {
+    const graph = buildGraph(byName("linear-decider"));
+    const decider = graph.nodes.find((n) => n.id === "classify-risk");
+    expect(decider?.data.branchIds).toEqual(["approve", "review", "reject"]);
+    expect(decider?.data.defaultBranch).toBe("reject");
+    // Real-engine behavior pin: onStageAdded fires with type 'stage' for
+    // deciders, so isDecider stays false (decider-ness lives in branchIds).
+    expect(decider?.data.isDecider).toBe(false);
+  });
+
+  it("subflow-loop: loop edge present and loop re-executes stages (executionIndex bumps)", () => {
+    const fx = byName("subflow-loop");
+    const graph = buildGraph(fx);
+    expect(graph.edges.some((e) => e.data?.kind === "loop")).toBe(true);
+
+    const overlay = createTraceRuntimeOverlay();
+    replay(fx.runtimeEvents, overlay.recorder as unknown as Record<string, unknown>);
+    const refineSteps = overlay
+      .getOverlay()
+      .executionOrder.filter((s) => s.stageId === "refine");
+    expect(refineSteps.length).toBe(2);
+    expect(new Set(refineSteps.map((s) => s.runtimeStageId)).size).toBe(2);
+  });
+
+  it("subflow-loop: subflow internals walked from subflowSpec (path-qualified ids)", () => {
+    const graph = buildGraph(byName("subflow-loop"));
+    const ids = graph.nodes.map((n) => n.id);
+    expect(ids).toContain("sf-enrich/normalize");
+    expect(ids).toContain("sf-enrich/score");
+    const narrative = extractSubflowNarrative(byName("subflow-loop").narrativeEntries, "sf-enrich");
+    expect(narrative.length).toBeGreaterThan(0);
+  });
+
+  it("parallel-fork: both selected branches committed; unselected branch did not", () => {
+    const fx = byName("parallel-fork");
+    const structure = createTraceStructureRecorder();
+    replay(fx.structureEvents, structure.recorder as unknown as Record<string, unknown>);
+    const commitFlow = createCommitFlowRecorder({ structure });
+    replay(fx.runtimeEvents, commitFlow.recorder as unknown as Record<string, unknown>);
+    const committedStageIds = new Set(commitFlow.getIndex().commits.map((c) => c.stageId));
+    expect(committedStageIds.has("hypertension")).toBe(true);
+    expect(committedStageIds.has("obesity")).toBe(true);
+    expect(committedStageIds.has("diabetes")).toBe(false); // glucose 96 ≤ 100
+    expect(committedStageIds.has("summarize")).toBe(true); // convergence ran
+  });
+
+  it("pause-resume: narrative spans the pause boundary; resume starts a fresh runId", () => {
+    const fx = byName("pause-resume");
+    const types = fx.narrativeEntries.map((e) => e.type);
+    expect(types).toContain("pause");
+    expect(types).toContain("resume");
+
+    const runIds = new Set(
+      fx.runtimeEvents
+        .map((e) => (e.event as { traversalContext?: { runId?: string } }).traversalContext?.runId)
+        .filter((id): id is string => typeof id === "string"),
+    );
+    expect(runIds).toEqual(new Set(["run-1", "run-2"]));
+  });
+});

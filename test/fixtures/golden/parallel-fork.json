@@ -1,0 +1,830 @@
+{
+  "name": "parallel-fork",
+  "description": "Selector (select() evidence) picks 2 of 3 branches which run in PARALLEL, then a convergence stage. Exercises: onDeciderComplete(type selector), parallel branch commits, fork-shaped execution tree, selection evidence.",
+  "structureEvents": [
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "load-patient",
+        "name": "LoadPatient",
+        "type": "stage",
+        "spec": {
+          "name": "LoadPatient",
+          "id": "load-patient",
+          "type": "stage",
+          "description": "Load patient vitals"
+        }
+      }
+    },
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "screen",
+        "name": "Screen",
+        "type": "stage",
+        "spec": {
+          "name": "Screen",
+          "id": "screen",
+          "type": "stage",
+          "hasSelector": true,
+          "description": "Select screenings from vitals"
+        }
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "load-patient",
+        "to": "screen",
+        "kind": "next"
+      }
+    },
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "diabetes",
+        "name": "DiabetesScreening",
+        "type": "stage",
+        "spec": {
+          "name": "DiabetesScreening",
+          "id": "diabetes",
+          "type": "stage",
+          "description": "Assess diabetes risk"
+        }
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "screen",
+        "to": "diabetes",
+        "kind": "decision-branch",
+        "label": "diabetes"
+      }
+    },
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "hypertension",
+        "name": "HypertensionCheck",
+        "type": "stage",
+        "spec": {
+          "name": "HypertensionCheck",
+          "id": "hypertension",
+          "type": "stage",
+          "description": "Assess blood pressure"
+        }
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "screen",
+        "to": "hypertension",
+        "kind": "decision-branch",
+        "label": "hypertension"
+      }
+    },
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "obesity",
+        "name": "ObesityAssessment",
+        "type": "stage",
+        "spec": {
+          "name": "ObesityAssessment",
+          "id": "obesity",
+          "type": "stage",
+          "description": "Assess BMI"
+        }
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "screen",
+        "to": "obesity",
+        "kind": "decision-branch",
+        "label": "obesity"
+      }
+    },
+    {
+      "method": "onDeciderComplete",
+      "event": {
+        "decider": "screen",
+        "type": "selector",
+        "branchIds": [
+          "diabetes",
+          "hypertension",
+          "obesity"
+        ]
+      }
+    },
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "summarize",
+        "name": "Summarize",
+        "type": "stage",
+        "spec": {
+          "name": "Summarize",
+          "id": "summarize",
+          "type": "stage",
+          "description": "Converge screening results"
+        }
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "diabetes",
+        "to": "summarize",
+        "kind": "next"
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "hypertension",
+        "to": "summarize",
+        "kind": "next"
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "obesity",
+        "to": "summarize",
+        "kind": "next"
+      }
+    }
+  ],
+  "runtimeEvents": [
+    {
+      "channel": "flow",
+      "method": "onRunStart",
+      "event": {
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "__root__",
+          "runtimeStageId": "__root__#0",
+          "stageName": "__root__",
+          "depth": 0
+        }
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "LoadPatient",
+        "stageId": "load-patient",
+        "runtimeStageId": "load-patient#0",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "vitals",
+            "value": {
+              "bmi": 31.2,
+              "systolic": 148,
+              "glucose": 96
+            },
+            "operation": "set"
+          },
+          {
+            "key": "flags",
+            "value": [],
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "LoadPatient",
+        "description": "Load patient vitals",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "load-patient",
+          "runtimeStageId": "load-patient#0",
+          "stageName": "LoadPatient",
+          "depth": 0
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "Screen",
+        "stageId": "screen",
+        "runtimeStageId": "screen#1",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": []
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "Screen",
+        "description": "Select screenings from vitals",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "screen",
+          "runtimeStageId": "screen#1",
+          "stageName": "Screen",
+          "parentStageId": "load-patient",
+          "depth": 1
+        },
+        "stageType": "selector"
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "selector-temp",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "screen",
+          "runtimeStageId": "screen#1",
+          "stageName": "Screen",
+          "parentStageId": "load-patient",
+          "depth": 1
+        },
+        "stageType": "fork"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "HypertensionCheck",
+        "stageId": "hypertension",
+        "runtimeStageId": "hypertension#2",
+        "pipelineId": "hypertension",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "hypertensionRisk",
+            "value": "high",
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "HypertensionCheck",
+        "description": "Assess blood pressure",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "hypertension",
+          "runtimeStageId": "hypertension#2",
+          "stageName": "HypertensionCheck",
+          "parentStageId": "screen",
+          "subflowPath": "hypertension",
+          "depth": 2
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "ObesityAssessment",
+        "stageId": "obesity",
+        "runtimeStageId": "obesity#3",
+        "pipelineId": "obesity",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "obesityRisk",
+            "value": "moderate",
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "ObesityAssessment",
+        "description": "Assess BMI",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "obesity",
+          "runtimeStageId": "obesity#3",
+          "stageName": "ObesityAssessment",
+          "parentStageId": "screen",
+          "subflowPath": "obesity",
+          "depth": 2
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "HypertensionCheck",
+        "stageId": "hypertension",
+        "runtimeStageId": "hypertension#2",
+        "pipelineId": "hypertension",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "hypertensionRisk",
+            "value": "high",
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "ObesityAssessment",
+        "stageId": "obesity",
+        "runtimeStageId": "obesity#3",
+        "pipelineId": "obesity",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "obesityRisk",
+            "value": "moderate",
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "Summarize",
+        "stageId": "summarize",
+        "runtimeStageId": "summarize#4",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "summary",
+            "value": {
+              "hypertension": "n/a",
+              "obesity": "n/a",
+              "diabetes": "n/a"
+            },
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "Summarize",
+        "description": "Converge screening results",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "summarize",
+          "runtimeStageId": "summarize#4",
+          "stageName": "Summarize",
+          "parentStageId": "screen",
+          "depth": 2
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onRunEnd",
+      "event": {
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "__root__",
+          "runtimeStageId": "__root__#0",
+          "stageName": "__root__",
+          "depth": 0
+        }
+      }
+    }
+  ],
+  "narrativeEntries": [
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Load patient vitals.",
+      "depth": 0,
+      "stageName": "LoadPatient",
+      "stageId": "load-patient",
+      "runtimeStageId": "load-patient#0"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write vitals = {bmi, systolic, glucose}",
+      "depth": 1,
+      "stageName": "LoadPatient",
+      "stageId": "load-patient",
+      "runtimeStageId": "load-patient#0",
+      "stepNumber": 1,
+      "key": "vitals",
+      "rawValue": {
+        "bmi": 31.2,
+        "systolic": 148,
+        "glucose": 96
+      }
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write flags = []",
+      "depth": 1,
+      "stageName": "LoadPatient",
+      "stageId": "load-patient",
+      "runtimeStageId": "load-patient#0",
+      "stepNumber": 2,
+      "key": "flags",
+      "rawValue": []
+    },
+    {
+      "type": "selector",
+      "text": "[Selected]: 2 of 3 paths selected: hypertension \"High systolic BP\" (vitals={bmi, systolic, glucose}); obesity \"Elevated BMI\" (vitals={bmi, systolic, glucose}).",
+      "depth": 0,
+      "stageId": "screen",
+      "runtimeStageId": "screen#1"
+    },
+    {
+      "type": "fork",
+      "text": "[Parallel]: Forking into 2 parallel paths: HypertensionCheck, ObesityAssessment.",
+      "depth": 0,
+      "stageId": "screen",
+      "runtimeStageId": "screen#1"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next step: Assess blood pressure.",
+      "depth": 0,
+      "stageName": "HypertensionCheck",
+      "stageId": "hypertension",
+      "runtimeStageId": "hypertension#2"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write hypertensionRisk = \"high\"",
+      "depth": 1,
+      "stageName": "HypertensionCheck",
+      "stageId": "hypertension",
+      "runtimeStageId": "hypertension#2",
+      "stepNumber": 1,
+      "key": "hypertensionRisk",
+      "rawValue": "high"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 3: Next step: Assess BMI.",
+      "depth": 0,
+      "stageName": "ObesityAssessment",
+      "stageId": "obesity",
+      "runtimeStageId": "obesity#3"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write obesityRisk = \"moderate\"",
+      "depth": 1,
+      "stageName": "ObesityAssessment",
+      "stageId": "obesity",
+      "runtimeStageId": "obesity#3",
+      "stepNumber": 1,
+      "key": "obesityRisk",
+      "rawValue": "moderate"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 4: Next step: Converge screening results.",
+      "depth": 0,
+      "stageName": "Summarize",
+      "stageId": "summarize",
+      "runtimeStageId": "summarize#4"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read hypertensionRisk = undefined",
+      "depth": 1,
+      "stageName": "Summarize",
+      "stageId": "summarize",
+      "runtimeStageId": "summarize#4",
+      "stepNumber": 1,
+      "key": "hypertensionRisk"
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Read obesityRisk = undefined",
+      "depth": 1,
+      "stageName": "Summarize",
+      "stageId": "summarize",
+      "runtimeStageId": "summarize#4",
+      "stepNumber": 2,
+      "key": "obesityRisk"
+    },
+    {
+      "type": "step",
+      "text": "Step 3: Read diabetesRisk = undefined",
+      "depth": 1,
+      "stageName": "Summarize",
+      "stageId": "summarize",
+      "runtimeStageId": "summarize#4",
+      "stepNumber": 3,
+      "key": "diabetesRisk"
+    },
+    {
+      "type": "step",
+      "text": "Step 4: Write summary = {hypertension, obesity, diabetes}",
+      "depth": 1,
+      "stageName": "Summarize",
+      "stageId": "summarize",
+      "runtimeStageId": "summarize#4",
+      "stepNumber": 4,
+      "key": "summary",
+      "rawValue": {
+        "hypertension": "n/a",
+        "obesity": "n/a",
+        "diabetes": "n/a"
+      }
+    }
+  ],
+  "snapshot": {
+    "sharedState": {
+      "vitals": {
+        "bmi": 31.2,
+        "systolic": 148,
+        "glucose": 96
+      },
+      "flags": [],
+      "runs": {
+        "hypertension": {
+          "hypertensionRisk": "high"
+        },
+        "obesity": {
+          "obesityRisk": "moderate"
+        }
+      },
+      "summary": {
+        "hypertension": "n/a",
+        "obesity": "n/a",
+        "diabetes": "n/a"
+      }
+    },
+    "executionTree": {
+      "id": "load-patient",
+      "runtimeStageId": "load-patient#0",
+      "name": "LoadPatient",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageWrites": {
+        "vitals": {
+          "bmi": 31.2,
+          "systolic": 148,
+          "glucose": 96
+        },
+        "flags": []
+      },
+      "description": "Load patient vitals",
+      "flowMessages": [
+        {
+          "type": "next",
+          "description": "Moving to Screen stage",
+          "timestamp": 0,
+          "targetStage": "Screen"
+        }
+      ],
+      "next": {
+        "id": "screen",
+        "runtimeStageId": "screen#1",
+        "name": "Screen",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {
+          "selectedChildIds": [
+            "hypertension",
+            "obesity"
+          ],
+          "selectorPattern": "scope-based-multi-choice",
+          "skippedChildIds": [
+            "diabetes"
+          ]
+        },
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageReads": {
+          "vitals": {
+            "bmi": 31.2,
+            "systolic": 148,
+            "glucose": 96
+          }
+        },
+        "description": "Select screenings from vitals",
+        "flowMessages": [
+          {
+            "type": "selected",
+            "description": "Running HypertensionCheck, ObesityAssessment (2 of 3 matched)",
+            "timestamp": 0,
+            "count": 2,
+            "targetStage": [
+              "HypertensionCheck",
+              "ObesityAssessment"
+            ]
+          }
+        ],
+        "next": {
+          "id": "summarize",
+          "runtimeStageId": "summarize#4",
+          "name": "Summarize",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "summary": {
+              "hypertension": "n/a",
+              "obesity": "n/a",
+              "diabetes": "n/a"
+            }
+          },
+          "stageReads": {},
+          "description": "Converge screening results"
+        },
+        "children": [
+          {
+            "id": "hypertension",
+            "runtimeStageId": "hypertension#2",
+            "name": "HypertensionCheck",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "hypertensionRisk": "high"
+            },
+            "description": "Assess blood pressure"
+          },
+          {
+            "id": "obesity",
+            "runtimeStageId": "obesity#3",
+            "name": "ObesityAssessment",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "obesityRisk": "moderate"
+            },
+            "description": "Assess BMI"
+          }
+        ]
+      }
+    },
+    "commitLog": [
+      {
+        "overwrite": {
+          "vitals": {
+            "bmi": 31.2,
+            "systolic": 148,
+            "glucose": 96
+          },
+          "flags": []
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "vitals",
+            "verb": "set"
+          },
+          {
+            "path": "flags",
+            "verb": "set"
+          }
+        ],
+        "stage": "LoadPatient",
+        "stageId": "load-patient",
+        "runtimeStageId": "load-patient#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Screen",
+        "stageId": "screen",
+        "runtimeStageId": "screen#1",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "runs": {
+            "hypertension": {
+              "hypertensionRisk": "high"
+            }
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "runs\u001fhypertension\u001fhypertensionRisk",
+            "verb": "set"
+          }
+        ],
+        "stage": "HypertensionCheck",
+        "stageId": "hypertension",
+        "runtimeStageId": "hypertension#2",
+        "idx": 2
+      },
+      {
+        "overwrite": {
+          "runs": {
+            "obesity": {
+              "obesityRisk": "moderate"
+            }
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "runs\u001fobesity\u001fobesityRisk",
+            "verb": "set"
+          }
+        ],
+        "stage": "ObesityAssessment",
+        "stageId": "obesity",
+        "runtimeStageId": "obesity#3",
+        "idx": 3
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "HypertensionCheck",
+        "stageId": "hypertension",
+        "runtimeStageId": "hypertension#2",
+        "idx": 4
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "ObesityAssessment",
+        "stageId": "obesity",
+        "runtimeStageId": "obesity#3",
+        "idx": 5
+      },
+      {
+        "overwrite": {
+          "summary": {
+            "hypertension": "n/a",
+            "obesity": "n/a",
+            "diabetes": "n/a"
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "summary",
+            "verb": "set"
+          }
+        ],
+        "stage": "Summarize",
+        "stageId": "summarize",
+        "runtimeStageId": "summarize#4",
+        "idx": 6
+      }
+    ]
+  }
+}

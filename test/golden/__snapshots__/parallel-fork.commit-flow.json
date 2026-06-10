@@ -1,0 +1,150 @@
+{
+  "commits": [
+    {
+      "runtimeStageId": "load-patient#0",
+      "stageId": "load-patient",
+      "commitIdx": 0,
+      "structuralPrevIds": [],
+      "structuralNextIds": [
+        "screen"
+      ],
+      "runtimePrevIds": [],
+      "runtimeNextIds": [
+        "screen#1"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "screen#1",
+      "stageId": "screen",
+      "commitIdx": 1,
+      "structuralPrevIds": [
+        "load-patient"
+      ],
+      "structuralNextIds": [
+        "diabetes",
+        "hypertension",
+        "obesity"
+      ],
+      "runtimePrevIds": [
+        "load-patient#0"
+      ],
+      "runtimeNextIds": [
+        "hypertension#2",
+        "obesity#3"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "hypertension#2",
+      "stageId": "hypertension",
+      "commitIdx": 2,
+      "structuralPrevIds": [
+        "screen"
+      ],
+      "structuralNextIds": [
+        "summarize"
+      ],
+      "runtimePrevIds": [
+        "screen#1"
+      ],
+      "runtimeNextIds": [
+        "summarize#4"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "obesity#3",
+      "stageId": "obesity",
+      "commitIdx": 3,
+      "structuralPrevIds": [
+        "screen"
+      ],
+      "structuralNextIds": [
+        "summarize"
+      ],
+      "runtimePrevIds": [
+        "screen#1"
+      ],
+      "runtimeNextIds": [
+        "summarize#4"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "hypertension#2",
+      "stageId": "hypertension",
+      "commitIdx": 4,
+      "structuralPrevIds": [
+        "screen"
+      ],
+      "structuralNextIds": [
+        "summarize"
+      ],
+      "runtimePrevIds": [
+        "screen#1"
+      ],
+      "runtimeNextIds": [
+        "summarize#4"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "obesity#3",
+      "stageId": "obesity",
+      "commitIdx": 5,
+      "structuralPrevIds": [
+        "screen"
+      ],
+      "structuralNextIds": [
+        "summarize"
+      ],
+      "runtimePrevIds": [
+        "screen#1"
+      ],
+      "runtimeNextIds": [
+        "summarize#4"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "summarize#4",
+      "stageId": "summarize",
+      "commitIdx": 6,
+      "structuralPrevIds": [
+        "diabetes",
+        "hypertension",
+        "obesity"
+      ],
+      "structuralNextIds": [],
+      "runtimePrevIds": [
+        "hypertension#2",
+        "obesity#3"
+      ],
+      "runtimeNextIds": [],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    }
+  ],
+  "dataEdges": [],
+  "byRuntimeStageIdKeys": [
+    "load-patient#0",
+    "screen#1",
+    "hypertension#2",
+    "obesity#3",
+    "summarize#4"
+  ]
+}

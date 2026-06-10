@@ -1,0 +1,32 @@
+[
+  {
+    "id": "load-patient",
+    "x": 260,
+    "y": 0
+  },
+  {
+    "id": "screen",
+    "x": 260,
+    "y": 160
+  },
+  {
+    "id": "diabetes",
+    "x": 0,
+    "y": 320
+  },
+  {
+    "id": "hypertension",
+    "x": 260,
+    "y": 320
+  },
+  {
+    "id": "obesity",
+    "x": 520,
+    "y": 320
+  },
+  {
+    "id": "summarize",
+    "x": 260,
+    "y": 480
+  }
+]

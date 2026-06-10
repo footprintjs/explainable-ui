@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Golden-trace fixtures (backlog U2): the converter/layout/narrative pipeline is
+now pinned against REAL footprintjs engine output instead of hand-built mocks.
+Test-infrastructure only — no library code changed; published package unchanged.
+
+### Added
+
+- **Golden-trace fixture pipeline.** `scripts/generate-golden-fixtures.mjs`
+  records 4 representative charts (linear+decider, subflow+loop, parallel
+  fork, pause/resume) through the real engine and serializes the exact
+  consumer-facing artifacts (StructureRecorder / FlowRecorder / ScopeRecorder
+  event streams in real fire order, post-run snapshot, narrative entries) to
+  `test/fixtures/golden/`. Deterministic by construction: charts use no
+  wall-clock/random data, engine-volatile fields (`runId`/`pipelineId`,
+  timestamps) are normalized, and each chart is generated twice with a
+  deep-compare that fails the script on any nondeterminism. A `manifest.json`
+  pins the footprintjs version the fixtures were recorded with.
+- **Golden tests** (`test/golden/goldenTraces.test.ts`, 34 tests, 28 output
+  snapshots) — replay each fixture through `createTraceStructureRecorder`,
+  `dagreTraceLayout` (TraceFlow's default layout), `createTraceRuntimeOverlay`,
+  `createNodeViewRecorder`, `createCommitFlowRecorder`,
+  `toVisualizationSnapshots`, and the `narrativeSync` utilities, then
+  snapshot-assert every output. Plus explicit semantic invariants (loop
+  executionIndex bumps, subflow path-qualified ids, parallel branch commits,
+  pause/resume run boundaries).
+- **`npm run fixtures:regen`** — one-command fixture regeneration; output
+  snapshots update via `npx vitest run test/golden -u`. Workflow documented in
+  the test-file header and README.
+- **`footprintjs` exact-pinned devDependency (9.5.0)** — used ONLY by the
+  generator. The published library keeps its zero-footprintjs-dependency
+  boundary (consumes plain JSON shapes).
+
+### Known real-engine behaviors the goldens pin (pre-existing, not changed here)
+
+- footprintjs fires `onStageAdded` with `type: 'stage'` for decider/selector
+  stages (spec carries `hasDecider: true`), so `TraceNodeData.isDecider` is
+  `false` on real traces — decider-ness surfaces via `branchIds`/`defaultBranch`
+  from `onDeciderComplete`. Hand-built unit fixtures that fabricate
+  `type: 'decider'` show `isDecider: true`; real traces do not.
+- `toVisualizationSnapshots` builds per-stage cumulative memory by whole-key
+  overwrite of `stageWrites`. With footprintjs's change-only commit semantics,
+  a deep write (e.g. `scope.applicant.address.zip = ...`) records only the
+  change patch, so the stage-memory view replaces the earlier full object and
+  drops sibling fields (engine `sharedState` itself is correct).
+
 ## [0.22.0]
 
 Time-travel chart polish: a clearer "live step" marker, drill re-fitting, and a

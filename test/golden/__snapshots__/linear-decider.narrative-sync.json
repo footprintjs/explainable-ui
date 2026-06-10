@@ -1,0 +1,32 @@
+{
+  "rangeIndex": {
+    "intake#0": {
+      "firstIdx": 0,
+      "endIdx": 5
+    },
+    "enrich#1": {
+      "firstIdx": 5,
+      "endIdx": 9
+    },
+    "classify-risk#2": {
+      "firstIdx": 9,
+      "endIdx": 13
+    },
+    "approve#3": {
+      "firstIdx": 13,
+      "endIdx": 16
+    }
+  },
+  "revealedWithIndex": [
+    5,
+    9,
+    13,
+    16
+  ],
+  "revealedWithoutIndex": [
+    5,
+    9,
+    13,
+    16
+  ]
+}

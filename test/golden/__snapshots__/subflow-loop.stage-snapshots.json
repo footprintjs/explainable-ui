@@ -1,0 +1,200 @@
+[
+  {
+    "stageName": "Seed",
+    "stageLabel": "seed",
+    "runtimeStageId": "seed#0",
+    "memory": {
+      "rawText": "  Hello GOLDEN Trace  ",
+      "attempt": 0
+    },
+    "narrative": "Stage 1: The process began: Seed raw input.\n  Step 1: Write rawText = \"  Hello GOLDEN Trace  \"\n  Step 2: Write attempt = 0",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Seed raw input"
+  },
+  {
+    "stageName": "EnrichText",
+    "stageLabel": "sf-enrich",
+    "runtimeStageId": "sf-enrich#1",
+    "memory": {
+      "rawText": "  Hello GOLDEN Trace  ",
+      "attempt": 0
+    },
+    "narrative": "Entering EnrichText: Normalize raw input.\n  Input: rawText = \"  Hello GOLDEN Trace  \"\nExiting the EnrichText subflow.",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "subflowId": "sf-enrich",
+    "subflowResult": {
+      "subflowId": "sf-enrich",
+      "subflowName": "EnrichText",
+      "treeContext": {
+        "globalContext": {
+          "rawText": "  Hello GOLDEN Trace  ",
+          "text": "hello golden trace",
+          "score": 36
+        },
+        "stageContexts": {
+          "id": "sf-enrich/normalize",
+          "runtimeStageId": "sf-enrich/normalize#2",
+          "name": "sf-enrich/Normalize",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "text": "hello golden trace"
+          },
+          "stageReads": {
+            "rawText": "  Hello GOLDEN Trace  "
+          },
+          "description": "Normalize raw input",
+          "flowMessages": [
+            {
+              "type": "next",
+              "description": "Moving to sf-enrich/Score stage",
+              "timestamp": 0,
+              "targetStage": "sf-enrich/Score"
+            }
+          ],
+          "next": {
+            "id": "sf-enrich/score",
+            "runtimeStageId": "sf-enrich/score#3",
+            "name": "sf-enrich/Score",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "score": 36
+            },
+            "stageReads": {
+              "text": "hello golden trace"
+            },
+            "description": "Score the normalized text"
+          }
+        },
+        "history": [
+          {
+            "overwrite": {
+              "rawText": "  Hello GOLDEN Trace  "
+            },
+            "updates": {},
+            "redactedPaths": [],
+            "trace": [
+              {
+                "path": "rawText",
+                "verb": "set"
+              }
+            ],
+            "stage": "sf-enrich/Normalize",
+            "stageId": "sf-enrich/normalize",
+            "runtimeStageId": "",
+            "idx": 0
+          },
+          {
+            "overwrite": {
+              "text": "hello golden trace"
+            },
+            "updates": {},
+            "redactedPaths": [],
+            "trace": [
+              {
+                "path": "text",
+                "verb": "set"
+              }
+            ],
+            "stage": "sf-enrich/Normalize",
+            "stageId": "sf-enrich/normalize",
+            "runtimeStageId": "sf-enrich/normalize#2",
+            "idx": 1
+          },
+          {
+            "overwrite": {
+              "score": 36
+            },
+            "updates": {},
+            "redactedPaths": [],
+            "trace": [
+              {
+                "path": "score",
+                "verb": "set"
+              }
+            ],
+            "stage": "sf-enrich/Score",
+            "stageId": "sf-enrich/score",
+            "runtimeStageId": "sf-enrich/score#3",
+            "idx": 2
+          }
+        ]
+      },
+      "parentStageId": "EnrichText"
+    }
+  },
+  {
+    "stageName": "Refine",
+    "stageLabel": "refine",
+    "runtimeStageId": "refine#4",
+    "memory": {
+      "rawText": "  Hello GOLDEN Trace  ",
+      "attempt": 1,
+      "text": "hello golden trace!"
+    },
+    "narrative": "Stage 2: Next step: Refine the text.\n  Step 1: Read attempt = 0\n  Step 2: Write attempt = 1\n  Step 3: Read text = \"hello golden trace\"\n  Step 4: Write text = \"hello golden trace!\"\nStage 4: Looped back: Refine the text (pass 1).\n  Step 1: Read attempt = 1\n  Step 2: Write attempt = 2\n  Step 3: Read text = \"hello golden trace!\"\n  Step 4: Write text = \"hello golden trace!!\"",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Refine the text"
+  },
+  {
+    "stageName": "Evaluate",
+    "stageLabel": "evaluate",
+    "runtimeStageId": "evaluate#5",
+    "memory": {
+      "rawText": "  Hello GOLDEN Trace  ",
+      "attempt": 1,
+      "text": "hello golden trace!"
+    },
+    "narrative": "Stage 3: Next step: Loop until quality met.\n  Step 1: Read attempt = 1\nOn pass 1: Refine the text again.\nStage 5: Looped back: Loop until quality met (pass 1).\n  Step 1: Read attempt = 2\n  Step 2: Read attempt = 2\n  Step 3: Write outcome = \"refined after 2 attempts\"\nExecution stopped at Evaluate.",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Loop until quality met"
+  },
+  {
+    "stageName": "Refine",
+    "stageLabel": "refine",
+    "runtimeStageId": "refine#6",
+    "memory": {
+      "rawText": "  Hello GOLDEN Trace  ",
+      "attempt": 2,
+      "text": "hello golden trace!!"
+    },
+    "narrative": "Stage 2: Next step: Refine the text.\n  Step 1: Read attempt = 0\n  Step 2: Write attempt = 1\n  Step 3: Read text = \"hello golden trace\"\n  Step 4: Write text = \"hello golden trace!\"\nStage 4: Looped back: Refine the text (pass 1).\n  Step 1: Read attempt = 1\n  Step 2: Write attempt = 2\n  Step 3: Read text = \"hello golden trace!\"\n  Step 4: Write text = \"hello golden trace!!\"",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Refine the text"
+  },
+  {
+    "stageName": "Evaluate",
+    "stageLabel": "evaluate",
+    "runtimeStageId": "evaluate#7",
+    "memory": {
+      "rawText": "  Hello GOLDEN Trace  ",
+      "attempt": 2,
+      "text": "hello golden trace!!",
+      "outcome": "refined after 2 attempts"
+    },
+    "narrative": "Stage 3: Next step: Loop until quality met.\n  Step 1: Read attempt = 1\nOn pass 1: Refine the text again.\nStage 5: Looped back: Loop until quality met (pass 1).\n  Step 1: Read attempt = 2\n  Step 2: Read attempt = 2\n  Step 3: Write outcome = \"refined after 2 attempts\"\nExecution stopped at Evaluate.",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Loop until quality met"
+  }
+]

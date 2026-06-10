@@ -362,6 +362,22 @@ Strip all built-in styles for full CSS control. Components render semantic `data
 
 ---
 
+## Golden-Trace Fixtures (contributors)
+
+The pipeline (structure/runtime translators, dagre layout, snapshot adapter,
+narrative sync) is pinned against **real footprintjs engine output**, not
+hand-built mocks. `test/fixtures/golden/` holds recorded traces from 4
+representative charts (linear+decider, subflow+loop, parallel fork,
+pause/resume); `test/golden/goldenTraces.test.ts` replays them through the full
+pipeline and snapshot-asserts the outputs in `test/golden/__snapshots__/`.
+
+- **Engine shape changed** (new footprintjs): `npm i -D --save-exact footprintjs@<version> && npm run fixtures:regen`. The generator runs every chart twice and fails on any nondeterminism.
+- **Pipeline output changed intentionally** (eui edit): `npx vitest run test/golden -u`, then review the snapshot diff.
+- `test/fixtures/golden/manifest.json` records the footprintjs version the fixtures were recorded with.
+
+`footprintjs` is a devDependency used ONLY by the generator — the published
+library still has zero footprintjs dependency (it consumes plain JSON shapes).
+
 ## License
 
 MIT

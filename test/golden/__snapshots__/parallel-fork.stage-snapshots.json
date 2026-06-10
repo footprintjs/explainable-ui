@@ -1,0 +1,99 @@
+[
+  {
+    "stageName": "LoadPatient",
+    "stageLabel": "load-patient",
+    "runtimeStageId": "load-patient#0",
+    "memory": {
+      "vitals": {
+        "bmi": 31.2,
+        "systolic": 148,
+        "glucose": 96
+      },
+      "flags": []
+    },
+    "narrative": "Stage 1: The process began: Load patient vitals.\n  Step 1: Write vitals = {bmi, systolic, glucose}\n  Step 2: Write flags = []\n[Selected]: 2 of 3 paths selected: hypertension \"High systolic BP\" (vitals={bmi, systolic, glucose}); obesity \"Elevated BMI\" (vitals={bmi, systolic, glucose}).\n[Parallel]: Forking into 2 parallel paths: HypertensionCheck, ObesityAssessment.",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Load patient vitals"
+  },
+  {
+    "stageName": "Screen",
+    "stageLabel": "screen",
+    "runtimeStageId": "screen#1",
+    "memory": {
+      "vitals": {
+        "bmi": 31.2,
+        "systolic": 148,
+        "glucose": 96
+      },
+      "flags": []
+    },
+    "narrative": "Screen executed.\nSelect screenings from vitals",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Select screenings from vitals"
+  },
+  {
+    "stageName": "HypertensionCheck",
+    "stageLabel": "hypertension",
+    "runtimeStageId": "hypertension#2",
+    "memory": {
+      "vitals": {
+        "bmi": 31.2,
+        "systolic": 148,
+        "glucose": 96
+      },
+      "flags": [],
+      "hypertensionRisk": "high"
+    },
+    "narrative": "Stage 2: Next step: Assess blood pressure.\n  Step 1: Write hypertensionRisk = \"high\"",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Assess blood pressure"
+  },
+  {
+    "stageName": "ObesityAssessment",
+    "stageLabel": "obesity",
+    "runtimeStageId": "obesity#3",
+    "memory": {
+      "vitals": {
+        "bmi": 31.2,
+        "systolic": 148,
+        "glucose": 96
+      },
+      "flags": [],
+      "obesityRisk": "moderate"
+    },
+    "narrative": "Stage 3: Next step: Assess BMI.\n  Step 1: Write obesityRisk = \"moderate\"",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Assess BMI"
+  },
+  {
+    "stageName": "Summarize",
+    "stageLabel": "summarize",
+    "runtimeStageId": "summarize#4",
+    "memory": {
+      "vitals": {
+        "bmi": 31.2,
+        "systolic": 148,
+        "glucose": 96
+      },
+      "flags": [],
+      "summary": {
+        "hypertension": "n/a",
+        "obesity": "n/a",
+        "diabetes": "n/a"
+      }
+    },
+    "narrative": "Stage 4: Next step: Converge screening results.\n  Step 1: Read hypertensionRisk = undefined\n  Step 2: Read obesityRisk = undefined\n  Step 3: Read diabetesRisk = undefined\n  Step 4: Write summary = {hypertension, obesity, diabetes}",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Converge screening results"
+  }
+]

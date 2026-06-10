@@ -1,0 +1,535 @@
+{
+  "name": "pause-resume",
+  "description": "Linear chain with a pausable approval gate: run pauses, same executor resumes with the human's answer. Exercises: isPausable structure flag, pause/resume narrative entries, two runIds (resume generates a fresh one), post-resume snapshot.",
+  "structureEvents": [
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "receive",
+        "name": "ReceiveRequest",
+        "type": "stage",
+        "spec": {
+          "name": "ReceiveRequest",
+          "id": "receive",
+          "type": "stage",
+          "description": "Receive the refund request"
+        }
+      }
+    },
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "approval",
+        "name": "ManagerApproval",
+        "type": "stage",
+        "isPausable": true,
+        "spec": {
+          "name": "ManagerApproval",
+          "id": "approval",
+          "type": "stage",
+          "isPausable": true
+        }
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "receive",
+        "to": "approval",
+        "kind": "next"
+      }
+    },
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "process",
+        "name": "ProcessRefund",
+        "type": "stage",
+        "spec": {
+          "name": "ProcessRefund",
+          "id": "process",
+          "type": "stage",
+          "description": "Process the refund"
+        }
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "approval",
+        "to": "process",
+        "kind": "next"
+      }
+    }
+  ],
+  "runtimeEvents": [
+    {
+      "channel": "flow",
+      "method": "onRunStart",
+      "event": {
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "__root__",
+          "runtimeStageId": "__root__#0",
+          "stageName": "__root__",
+          "depth": 0
+        }
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "ReceiveRequest",
+        "stageId": "receive",
+        "runtimeStageId": "receive#0",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "orderId",
+            "value": "ORD-42",
+            "operation": "set"
+          },
+          {
+            "key": "amount",
+            "value": 299,
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "ReceiveRequest",
+        "description": "Receive the refund request",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "receive",
+          "runtimeStageId": "receive#0",
+          "stageName": "ReceiveRequest",
+          "depth": 0
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "ManagerApproval",
+        "stageId": "approval",
+        "runtimeStageId": "approval#1",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": []
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onRunStart",
+      "event": {
+        "traversalContext": {
+          "runId": "run-2",
+          "stageId": "__root__",
+          "runtimeStageId": "__root__#0",
+          "stageName": "__root__",
+          "depth": 0
+        }
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "ManagerApproval",
+        "stageId": "approval",
+        "runtimeStageId": "approval#2",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "approved",
+            "value": true,
+            "operation": "set"
+          },
+          {
+            "key": "approver",
+            "value": "Sarah",
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "ManagerApproval",
+        "traversalContext": {
+          "runId": "run-2",
+          "stageId": "approval",
+          "runtimeStageId": "approval#2",
+          "stageName": "ManagerApproval",
+          "parentStageId": "approval",
+          "depth": 2
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "ProcessRefund",
+        "stageId": "process",
+        "runtimeStageId": "process#3",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "refundId",
+            "value": "REF-7",
+            "operation": "set"
+          },
+          {
+            "key": "status",
+            "value": "refunded",
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "ProcessRefund",
+        "description": "Process the refund",
+        "traversalContext": {
+          "runId": "run-2",
+          "stageId": "process",
+          "runtimeStageId": "process#3",
+          "stageName": "ProcessRefund",
+          "parentStageId": "approval",
+          "depth": 3
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onRunEnd",
+      "event": {
+        "traversalContext": {
+          "runId": "run-2",
+          "stageId": "__root__",
+          "runtimeStageId": "__root__#0",
+          "stageName": "__root__",
+          "depth": 0
+        }
+      }
+    }
+  ],
+  "narrativeEntries": [
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Receive the refund request.",
+      "depth": 0,
+      "stageName": "ReceiveRequest",
+      "stageId": "receive",
+      "runtimeStageId": "receive#0"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write orderId = \"ORD-42\"",
+      "depth": 1,
+      "stageName": "ReceiveRequest",
+      "stageId": "receive",
+      "runtimeStageId": "receive#0",
+      "stepNumber": 1,
+      "key": "orderId",
+      "rawValue": "ORD-42"
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write amount = 299",
+      "depth": 1,
+      "stageName": "ReceiveRequest",
+      "stageId": "receive",
+      "runtimeStageId": "receive#0",
+      "stepNumber": 2,
+      "key": "amount",
+      "rawValue": 299
+    },
+    {
+      "type": "pause",
+      "text": "Execution paused at ManagerApproval.",
+      "depth": 0,
+      "stageName": "ManagerApproval",
+      "stageId": "approval",
+      "runtimeStageId": "approval#1"
+    },
+    {
+      "type": "resume",
+      "text": "Execution resumed at ManagerApproval with input.",
+      "depth": 0,
+      "stageName": "ManagerApproval",
+      "stageId": "approval",
+      "runtimeStageId": "approval#2"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next, it moved on to ManagerApproval.",
+      "depth": 0,
+      "stageName": "ManagerApproval",
+      "stageId": "approval",
+      "runtimeStageId": "approval#2"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write approved = true",
+      "depth": 1,
+      "stageName": "ManagerApproval",
+      "stageId": "approval",
+      "runtimeStageId": "approval#2",
+      "stepNumber": 1,
+      "key": "approved",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write approver = \"Sarah\"",
+      "depth": 1,
+      "stageName": "ManagerApproval",
+      "stageId": "approval",
+      "runtimeStageId": "approval#2",
+      "stepNumber": 2,
+      "key": "approver",
+      "rawValue": "Sarah"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 3: Next step: Process the refund.",
+      "depth": 0,
+      "stageName": "ProcessRefund",
+      "stageId": "process",
+      "runtimeStageId": "process#3"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read approved = true",
+      "depth": 1,
+      "stageName": "ProcessRefund",
+      "stageId": "process",
+      "runtimeStageId": "process#3",
+      "stepNumber": 1,
+      "key": "approved",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write refundId = \"REF-7\"",
+      "depth": 1,
+      "stageName": "ProcessRefund",
+      "stageId": "process",
+      "runtimeStageId": "process#3",
+      "stepNumber": 2,
+      "key": "refundId",
+      "rawValue": "REF-7"
+    },
+    {
+      "type": "step",
+      "text": "Step 3: Read approved = true",
+      "depth": 1,
+      "stageName": "ProcessRefund",
+      "stageId": "process",
+      "runtimeStageId": "process#3",
+      "stepNumber": 3,
+      "key": "approved",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Step 4: Write status = \"refunded\"",
+      "depth": 1,
+      "stageName": "ProcessRefund",
+      "stageId": "process",
+      "runtimeStageId": "process#3",
+      "stepNumber": 4,
+      "key": "status",
+      "rawValue": "refunded"
+    }
+  ],
+  "snapshot": {
+    "sharedState": {
+      "orderId": "ORD-42",
+      "amount": 299,
+      "approved": true,
+      "approver": "Sarah",
+      "refundId": "REF-7",
+      "status": "refunded"
+    },
+    "executionTree": {
+      "id": "receive",
+      "runtimeStageId": "receive#0",
+      "name": "ReceiveRequest",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageWrites": {
+        "orderId": "ORD-42",
+        "amount": 299
+      },
+      "description": "Receive the refund request",
+      "flowMessages": [
+        {
+          "type": "next",
+          "description": "Moving to ManagerApproval stage",
+          "timestamp": 0,
+          "targetStage": "ManagerApproval"
+        }
+      ],
+      "next": {
+        "id": "approval",
+        "runtimeStageId": "approval#1",
+        "name": "ManagerApproval",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageReads": {
+          "amount": 299,
+          "orderId": "ORD-42"
+        },
+        "next": {
+          "id": "approval",
+          "runtimeStageId": "approval#2",
+          "name": "ManagerApproval",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "approved": true,
+            "approver": "Sarah"
+          },
+          "flowMessages": [
+            {
+              "type": "next",
+              "description": "Moving to ProcessRefund stage",
+              "timestamp": 0,
+              "targetStage": "ProcessRefund"
+            }
+          ],
+          "next": {
+            "id": "process",
+            "runtimeStageId": "process#3",
+            "name": "ProcessRefund",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "refundId": "REF-7",
+              "status": "refunded"
+            },
+            "stageReads": {
+              "approved": true
+            },
+            "description": "Process the refund"
+          }
+        }
+      }
+    },
+    "commitLog": [
+      {
+        "overwrite": {
+          "orderId": "ORD-42",
+          "amount": 299
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "orderId",
+            "verb": "set"
+          },
+          {
+            "path": "amount",
+            "verb": "set"
+          }
+        ],
+        "stage": "ReceiveRequest",
+        "stageId": "receive",
+        "runtimeStageId": "receive#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "ManagerApproval",
+        "stageId": "approval",
+        "runtimeStageId": "approval#1",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "approved": true,
+          "approver": "Sarah"
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "approved",
+            "verb": "set"
+          },
+          {
+            "path": "approver",
+            "verb": "set"
+          }
+        ],
+        "stage": "ManagerApproval",
+        "stageId": "approval",
+        "runtimeStageId": "approval#2",
+        "idx": 2
+      },
+      {
+        "overwrite": {
+          "refundId": "REF-7",
+          "status": "refunded"
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "refundId",
+            "verb": "set"
+          },
+          {
+            "path": "status",
+            "verb": "set"
+          }
+        ],
+        "stage": "ProcessRefund",
+        "stageId": "process",
+        "runtimeStageId": "process#3",
+        "idx": 3
+      }
+    ]
+  }
+}

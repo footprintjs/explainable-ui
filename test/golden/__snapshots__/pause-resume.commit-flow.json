@@ -1,0 +1,83 @@
+{
+  "commits": [
+    {
+      "runtimeStageId": "receive#0",
+      "stageId": "receive",
+      "commitIdx": 0,
+      "structuralPrevIds": [],
+      "structuralNextIds": [
+        "approval"
+      ],
+      "runtimePrevIds": [],
+      "runtimeNextIds": [
+        "approval#1"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "approval#1",
+      "stageId": "approval",
+      "commitIdx": 1,
+      "structuralPrevIds": [
+        "receive"
+      ],
+      "structuralNextIds": [
+        "process"
+      ],
+      "runtimePrevIds": [
+        "receive#0"
+      ],
+      "runtimeNextIds": [
+        "process#3"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "approval#2",
+      "stageId": "approval",
+      "commitIdx": 2,
+      "structuralPrevIds": [
+        "receive"
+      ],
+      "structuralNextIds": [
+        "process"
+      ],
+      "runtimePrevIds": [
+        "receive#0"
+      ],
+      "runtimeNextIds": [
+        "process#3"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "process#3",
+      "stageId": "process",
+      "commitIdx": 3,
+      "structuralPrevIds": [
+        "approval"
+      ],
+      "structuralNextIds": [],
+      "runtimePrevIds": [
+        "approval#2"
+      ],
+      "runtimeNextIds": [],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    }
+  ],
+  "dataEdges": [],
+  "byRuntimeStageIdKeys": [
+    "receive#0",
+    "approval#1",
+    "approval#2",
+    "process#3"
+  ]
+}

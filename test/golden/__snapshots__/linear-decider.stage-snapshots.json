@@ -1,0 +1,91 @@
+[
+  {
+    "stageName": "Intake",
+    "stageLabel": "intake",
+    "runtimeStageId": "intake#0",
+    "memory": {
+      "application": {
+        "id": "APP-1",
+        "amount": 25000
+      },
+      "creditScore": 712,
+      "dti": 0.31
+    },
+    "narrative": "Stage 1: The process began: Receive the loan application.\n  Step 1: Write application = {id, amount}\n  Step 2: Write creditScore = 712\n  Step 3: Write dti = 0.31\n  [emit] metric.durationMs: {name, value}",
+    "startMs": 0,
+    "durationMs": 12,
+    "status": "done",
+    "description": "Receive the loan application"
+  },
+  {
+    "stageName": "Enrich",
+    "stageLabel": "enrich",
+    "runtimeStageId": "enrich#1",
+    "memory": {
+      "application": {
+        "id": "APP-1",
+        "amount": 25000
+      },
+      "creditScore": 712,
+      "dti": 0.31,
+      "applicant": {
+        "address": {
+          "zip": "94016"
+        }
+      }
+    },
+    "narrative": "Stage 2: Next step: Attach applicant profile.\n  Step 1: Write applicant = {name, address}\n  Step 2: Read applicant = {name, address}\n  Step 3: Update applicant = {address}",
+    "startMs": 12,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Attach applicant profile"
+  },
+  {
+    "stageName": "ClassifyRisk",
+    "stageLabel": "classify-risk",
+    "runtimeStageId": "classify-risk#2",
+    "memory": {
+      "application": {
+        "id": "APP-1",
+        "amount": 25000
+      },
+      "creditScore": 712,
+      "dti": 0.31,
+      "applicant": {
+        "address": {
+          "zip": "94016"
+        }
+      }
+    },
+    "narrative": "Stage 3: Next step: Route by computed risk tier.\n  Step 1: Read creditScore = 712\n  Step 2: Read dti = 0.31\n  [Condition]: It evaluated Rule 0 \"Good credit\": creditScore 712 gt 700 ✓, dti 0.31 lt 0.43 ✓, and chose Approve.",
+    "startMs": 12,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Route by computed risk tier"
+  },
+  {
+    "stageName": "Approve",
+    "stageLabel": "approve",
+    "runtimeStageId": "approve#3",
+    "memory": {
+      "application": {
+        "id": "APP-1",
+        "amount": 25000
+      },
+      "creditScore": 712,
+      "dti": 0.31,
+      "applicant": {
+        "address": {
+          "zip": "94016"
+        }
+      },
+      "decision": "approved",
+      "apr": 6.49
+    },
+    "narrative": "Stage 4: Next step: Issue approval.\n  Step 1: Write decision = \"approved\"\n  Step 2: Write apr = 6.49",
+    "startMs": 12,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Issue approval"
+  }
+]

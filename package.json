@@ -40,7 +40,8 @@
     "release:minor": "bash scripts/release.sh minor",
     "release:major": "bash scripts/release.sh major",
     "test:coverage": "vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text-summary --coverage.reportsDirectory=coverage",
-    "coverage:badge": "npm run test:coverage; node scripts/coverage-badge.mjs"
+    "coverage:badge": "npm run test:coverage; node scripts/coverage-badge.mjs",
+    "fixtures:regen": "node scripts/generate-golden-fixtures.mjs"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
@@ -59,6 +60,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
+    "footprintjs": "9.5.0",
     "jsdom": "^29.0.1",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

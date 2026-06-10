@@ -1,0 +1,170 @@
+{
+  "nodes": [
+    {
+      "id": "seed",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Seed",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [],
+        "nextIds": [
+          "sf-enrich"
+        ],
+        "description": "Seed raw input"
+      }
+    },
+    {
+      "id": "sf-enrich",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "EnrichText",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": true,
+        "prevIds": [
+          "seed"
+        ],
+        "nextIds": [
+          "refine"
+        ],
+        "subflowId": "sf-enrich"
+      }
+    },
+    {
+      "id": "sf-enrich/normalize",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Normalize",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "subflowOf": "sf-enrich",
+        "prevIds": [],
+        "nextIds": [
+          "sf-enrich/score"
+        ],
+        "description": "Normalize raw input"
+      }
+    },
+    {
+      "id": "sf-enrich/score",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Score",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "subflowOf": "sf-enrich",
+        "prevIds": [],
+        "nextIds": [],
+        "description": "Score the normalized text"
+      }
+    },
+    {
+      "id": "refine",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Refine",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "sf-enrich"
+        ],
+        "nextIds": [
+          "evaluate"
+        ],
+        "description": "Refine the text"
+      }
+    },
+    {
+      "id": "evaluate",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Evaluate",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "refine"
+        ],
+        "nextIds": [],
+        "description": "Loop until quality met"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "seed->sf-enrich:next",
+      "source": "seed",
+      "target": "sf-enrich",
+      "data": {
+        "kind": "next"
+      }
+    },
+    {
+      "id": "sf-enrich/normalize->sf-enrich/score:next",
+      "source": "sf-enrich/normalize",
+      "target": "sf-enrich/score",
+      "data": {
+        "kind": "next"
+      }
+    },
+    {
+      "id": "sf-enrich->refine:next",
+      "source": "sf-enrich",
+      "target": "refine",
+      "data": {
+        "kind": "next"
+      }
+    },
+    {
+      "id": "refine->evaluate:next",
+      "source": "refine",
+      "target": "evaluate",
+      "data": {
+        "kind": "next"
+      }
+    },
+    {
+      "id": "evaluate->refine:loop",
+      "source": "evaluate",
+      "target": "refine",
+      "data": {
+        "kind": "loop"
+      }
+    }
+  ]
+}

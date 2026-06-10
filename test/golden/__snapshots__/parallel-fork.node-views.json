@@ -1,0 +1,209 @@
+{
+  "all": [
+    {
+      "stageId": "load-patient",
+      "label": "LoadPatient",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Load patient vitals",
+      "prevIds": [],
+      "nextIds": [
+        "screen"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "load-patient#0"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "load-patient#0"
+      ]
+    },
+    {
+      "stageId": "screen",
+      "label": "Screen",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Select screenings from vitals",
+      "branchIds": [
+        "diabetes",
+        "hypertension",
+        "obesity"
+      ],
+      "prevIds": [
+        "load-patient"
+      ],
+      "nextIds": [
+        "diabetes",
+        "hypertension",
+        "obesity"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "screen#1"
+        },
+        {
+          "runtimeStageId": "screen#1"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 2,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "screen#1"
+      ]
+    },
+    {
+      "stageId": "diabetes",
+      "label": "DiabetesScreening",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Assess diabetes risk",
+      "prevIds": [
+        "screen"
+      ],
+      "nextIds": [
+        "summarize"
+      ],
+      "executions": [],
+      "visitedInRun": false,
+      "executionCount": 0,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": []
+    },
+    {
+      "stageId": "hypertension",
+      "label": "HypertensionCheck",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Assess blood pressure",
+      "prevIds": [
+        "screen"
+      ],
+      "nextIds": [
+        "summarize"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "hypertension#2"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "hypertension#2",
+        "hypertension#2"
+      ]
+    },
+    {
+      "stageId": "obesity",
+      "label": "ObesityAssessment",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Assess BMI",
+      "prevIds": [
+        "screen"
+      ],
+      "nextIds": [
+        "summarize"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "obesity#3"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "obesity#3",
+        "obesity#3"
+      ]
+    },
+    {
+      "stageId": "summarize",
+      "label": "Summarize",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Converge screening results",
+      "prevIds": [
+        "diabetes",
+        "hypertension",
+        "obesity"
+      ],
+      "nextIds": [],
+      "executions": [
+        {
+          "runtimeStageId": "summarize#4"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "summarize#4"
+      ]
+    }
+  ],
+  "byStageIdKeys": [
+    "load-patient",
+    "screen",
+    "diabetes",
+    "hypertension",
+    "obesity",
+    "summarize"
+  ],
+  "byRuntimeStageIdKeys": [
+    "load-patient#0",
+    "screen#1",
+    "hypertension#2",
+    "obesity#3",
+    "summarize#4"
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "commits": [
+    {
+      "runtimeStageId": "intake#0",
+      "stageId": "intake",
+      "commitIdx": 0,
+      "structuralPrevIds": [],
+      "structuralNextIds": [
+        "enrich"
+      ],
+      "runtimePrevIds": [],
+      "runtimeNextIds": [
+        "enrich#1"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "enrich#1",
+      "stageId": "enrich",
+      "commitIdx": 1,
+      "structuralPrevIds": [
+        "intake"
+      ],
+      "structuralNextIds": [
+        "classify-risk"
+      ],
+      "runtimePrevIds": [
+        "intake#0"
+      ],
+      "runtimeNextIds": [
+        "classify-risk#2"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "classify-risk#2",
+      "stageId": "classify-risk",
+      "commitIdx": 2,
+      "structuralPrevIds": [
+        "enrich"
+      ],
+      "structuralNextIds": [
+        "approve",
+        "review",
+        "reject"
+      ],
+      "runtimePrevIds": [
+        "enrich#1"
+      ],
+      "runtimeNextIds": [
+        "approve#3"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "approve#3",
+      "stageId": "approve",
+      "commitIdx": 3,
+      "structuralPrevIds": [
+        "classify-risk"
+      ],
+      "structuralNextIds": [],
+      "runtimePrevIds": [
+        "classify-risk#2"
+      ],
+      "runtimeNextIds": [],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    }
+  ],
+  "dataEdges": [],
+  "byRuntimeStageIdKeys": [
+    "intake#0",
+    "enrich#1",
+    "classify-risk#2",
+    "approve#3"
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "commits": [
+    {
+      "runtimeStageId": "seed#0",
+      "stageId": "seed",
+      "commitIdx": 0,
+      "structuralPrevIds": [],
+      "structuralNextIds": [
+        "sf-enrich"
+      ],
+      "runtimePrevIds": [],
+      "runtimeNextIds": [],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "sf-enrich/normalize#2",
+      "stageId": "sf-enrich/normalize",
+      "commitIdx": 1,
+      "structuralPrevIds": [],
+      "structuralNextIds": [
+        "sf-enrich/score"
+      ],
+      "runtimePrevIds": [],
+      "runtimeNextIds": [
+        "sf-enrich/score#3"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "sf-enrich/score#3",
+      "stageId": "sf-enrich/score",
+      "commitIdx": 2,
+      "structuralPrevIds": [],
+      "structuralNextIds": [],
+      "runtimePrevIds": [],
+      "runtimeNextIds": [],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "refine#4",
+      "stageId": "refine",
+      "commitIdx": 3,
+      "structuralPrevIds": [
+        "sf-enrich"
+      ],
+      "structuralNextIds": [
+        "evaluate"
+      ],
+      "runtimePrevIds": [],
+      "runtimeNextIds": [
+        "evaluate#5"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "evaluate#5",
+      "stageId": "evaluate",
+      "commitIdx": 4,
+      "structuralPrevIds": [
+        "refine"
+      ],
+      "structuralNextIds": [],
+      "runtimePrevIds": [
+        "refine#4"
+      ],
+      "runtimeNextIds": [],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "refine#6",
+      "stageId": "refine",
+      "commitIdx": 5,
+      "structuralPrevIds": [
+        "sf-enrich"
+      ],
+      "structuralNextIds": [
+        "evaluate"
+      ],
+      "runtimePrevIds": [],
+      "runtimeNextIds": [
+        "evaluate#7"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "evaluate#7",
+      "stageId": "evaluate",
+      "commitIdx": 6,
+      "structuralPrevIds": [
+        "refine"
+      ],
+      "structuralNextIds": [],
+      "runtimePrevIds": [
+        "refine#6"
+      ],
+      "runtimeNextIds": [],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    }
+  ],
+  "dataEdges": [],
+  "byRuntimeStageIdKeys": [
+    "seed#0",
+    "sf-enrich/normalize#2",
+    "sf-enrich/score#3",
+    "refine#4",
+    "evaluate#5",
+    "refine#6",
+    "evaluate#7"
+  ]
+}

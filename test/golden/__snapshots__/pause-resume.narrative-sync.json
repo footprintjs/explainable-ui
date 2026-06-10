@@ -1,0 +1,32 @@
+{
+  "rangeIndex": {
+    "receive#0": {
+      "firstIdx": 0,
+      "endIdx": 3
+    },
+    "approval#1": {
+      "firstIdx": 3,
+      "endIdx": 4
+    },
+    "approval#2": {
+      "firstIdx": 4,
+      "endIdx": 8
+    },
+    "process#3": {
+      "firstIdx": 8,
+      "endIdx": 13
+    }
+  },
+  "revealedWithIndex": [
+    3,
+    4,
+    8,
+    13
+  ],
+  "revealedWithoutIndex": [
+    3,
+    4,
+    8,
+    13
+  ]
+}

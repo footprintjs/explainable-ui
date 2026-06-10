@@ -1,0 +1,32 @@
+[
+  {
+    "id": "seed",
+    "x": 0,
+    "y": 0
+  },
+  {
+    "id": "sf-enrich",
+    "x": 0,
+    "y": 160
+  },
+  {
+    "id": "sf-enrich/normalize",
+    "x": 260,
+    "y": 0
+  },
+  {
+    "id": "sf-enrich/score",
+    "x": 260,
+    "y": 160
+  },
+  {
+    "id": "refine",
+    "x": 0,
+    "y": 320
+  },
+  {
+    "id": "evaluate",
+    "x": 0,
+    "y": 480
+  }
+]

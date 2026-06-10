@@ -1,0 +1,1134 @@
+{
+  "name": "subflow-loop",
+  "description": "Parent mounts a 2-stage subflow (input/outputMapper), then a Refine→Evaluate loop (loopTo) that $break()s on the 2nd iteration. Exercises: onSubflowMounted subflowSpec walk, loop edge, repeated runtimeStageIds (executionIndex bump), break narrative.",
+  "structureEvents": [
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "seed",
+        "name": "Seed",
+        "type": "stage",
+        "spec": {
+          "name": "Seed",
+          "id": "seed",
+          "type": "stage",
+          "description": "Seed raw input"
+        }
+      }
+    },
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "sf-enrich",
+        "name": "EnrichText",
+        "type": "stage",
+        "spec": {
+          "name": "EnrichText",
+          "type": "stage",
+          "id": "sf-enrich",
+          "isSubflowRoot": true,
+          "subflowId": "sf-enrich",
+          "subflowName": "EnrichText",
+          "subflowStructure": {
+            "name": "Normalize",
+            "id": "normalize",
+            "type": "stage",
+            "description": "Normalize raw input",
+            "next": {
+              "name": "Score",
+              "id": "score",
+              "type": "stage",
+              "description": "Score the normalized text"
+            }
+          }
+        }
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "seed",
+        "to": "sf-enrich",
+        "kind": "next"
+      }
+    },
+    {
+      "method": "onSubflowMounted",
+      "event": {
+        "subflowId": "sf-enrich",
+        "subflowName": "EnrichText",
+        "rootStageId": "sf-enrich",
+        "subflowSpec": {
+          "name": "Normalize",
+          "id": "normalize",
+          "type": "stage",
+          "description": "Normalize raw input",
+          "next": {
+            "name": "Score",
+            "id": "score",
+            "type": "stage",
+            "description": "Score the normalized text"
+          }
+        },
+        "subflowPath": "sf-enrich"
+      }
+    },
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "refine",
+        "name": "Refine",
+        "type": "stage",
+        "spec": {
+          "name": "Refine",
+          "id": "refine",
+          "type": "stage",
+          "description": "Refine the text"
+        }
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "sf-enrich",
+        "to": "refine",
+        "kind": "next"
+      }
+    },
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "evaluate",
+        "name": "Evaluate",
+        "type": "stage",
+        "spec": {
+          "name": "Evaluate",
+          "id": "evaluate",
+          "type": "stage",
+          "description": "Loop until quality met"
+        }
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "refine",
+        "to": "evaluate",
+        "kind": "next"
+      }
+    },
+    {
+      "method": "onLoopEdgeAdded",
+      "event": {
+        "from": "evaluate",
+        "to": "refine"
+      }
+    }
+  ],
+  "runtimeEvents": [
+    {
+      "channel": "flow",
+      "method": "onRunStart",
+      "event": {
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "__root__",
+          "runtimeStageId": "__root__#0",
+          "stageName": "__root__",
+          "depth": 0
+        }
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "rawText",
+            "value": "  Hello GOLDEN Trace  ",
+            "operation": "set"
+          },
+          {
+            "key": "attempt",
+            "value": 0,
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "Seed",
+        "description": "Seed raw input",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "seed",
+          "runtimeStageId": "seed#0",
+          "stageName": "Seed",
+          "depth": 0
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "sf-enrich/Normalize",
+        "description": "Normalize raw input",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "sf-enrich",
+          "runtimeStageId": "sf-enrich#1",
+          "stageName": "EnrichText",
+          "parentStageId": "seed",
+          "subflowId": "sf-enrich",
+          "depth": 1
+        },
+        "stageType": "subflow-mount"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "sf-enrich/Normalize",
+        "stageId": "sf-enrich/normalize",
+        "runtimeStageId": "sf-enrich/normalize#2",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "text",
+            "value": "hello golden trace",
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "sf-enrich/Normalize",
+        "description": "Normalize raw input",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "sf-enrich/normalize",
+          "runtimeStageId": "sf-enrich/normalize#2",
+          "stageName": "sf-enrich/Normalize",
+          "subflowId": "sf-enrich",
+          "depth": 0
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "sf-enrich/Score",
+        "stageId": "sf-enrich/score",
+        "runtimeStageId": "sf-enrich/score#3",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "score",
+            "value": 36,
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "sf-enrich/Score",
+        "description": "Score the normalized text",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "sf-enrich/score",
+          "runtimeStageId": "sf-enrich/score#3",
+          "stageName": "sf-enrich/Score",
+          "parentStageId": "sf-enrich/normalize",
+          "subflowId": "sf-enrich",
+          "depth": 1
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "Refine",
+        "stageId": "refine",
+        "runtimeStageId": "refine#4",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "attempt",
+            "value": 1,
+            "operation": "set"
+          },
+          {
+            "key": "text",
+            "value": "hello golden trace!",
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "Refine",
+        "description": "Refine the text",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "refine",
+          "runtimeStageId": "refine#4",
+          "stageName": "Refine",
+          "parentStageId": "sf-enrich",
+          "depth": 2
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "Evaluate",
+        "stageId": "evaluate",
+        "runtimeStageId": "evaluate#5",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": []
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "Evaluate",
+        "description": "Loop until quality met",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "evaluate",
+          "runtimeStageId": "evaluate#5",
+          "stageName": "Evaluate",
+          "parentStageId": "refine",
+          "depth": 3
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "Refine",
+        "stageId": "refine",
+        "runtimeStageId": "refine#6",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "attempt",
+            "value": 2,
+            "operation": "set"
+          },
+          {
+            "key": "text",
+            "value": "hello golden trace!!",
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "Refine",
+        "description": "Refine the text",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "refine",
+          "runtimeStageId": "refine#6",
+          "stageName": "Refine",
+          "parentStageId": "evaluate",
+          "depth": 4
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "Evaluate",
+        "stageId": "evaluate",
+        "runtimeStageId": "evaluate#7",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "outcome",
+            "value": "refined after 2 attempts",
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "Evaluate",
+        "description": "Loop until quality met",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "evaluate",
+          "runtimeStageId": "evaluate#7",
+          "stageName": "Evaluate",
+          "parentStageId": "refine",
+          "depth": 5
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onRunEnd",
+      "event": {
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "__root__",
+          "runtimeStageId": "__root__#0",
+          "stageName": "__root__",
+          "depth": 0
+        }
+      }
+    }
+  ],
+  "narrativeEntries": [
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Seed raw input.",
+      "depth": 0,
+      "stageName": "Seed",
+      "stageId": "seed",
+      "runtimeStageId": "seed#0"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write rawText = \"  Hello GOLDEN Trace  \"",
+      "depth": 1,
+      "stageName": "Seed",
+      "stageId": "seed",
+      "runtimeStageId": "seed#0",
+      "stepNumber": 1,
+      "key": "rawText",
+      "rawValue": "  Hello GOLDEN Trace  "
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write attempt = 0",
+      "depth": 1,
+      "stageName": "Seed",
+      "stageId": "seed",
+      "runtimeStageId": "seed#0",
+      "stepNumber": 2,
+      "key": "attempt",
+      "rawValue": 0
+    },
+    {
+      "type": "subflow",
+      "text": "Entering EnrichText: Normalize raw input.",
+      "depth": 0,
+      "stageName": "EnrichText",
+      "stageId": "sf-enrich",
+      "runtimeStageId": "sf-enrich#1",
+      "subflowId": "sf-enrich",
+      "direction": "entry"
+    },
+    {
+      "type": "step",
+      "text": "Input: rawText = \"  Hello GOLDEN Trace  \"",
+      "depth": 1,
+      "stageName": "EnrichText",
+      "stageId": "sf-enrich",
+      "runtimeStageId": "sf-enrich#1",
+      "subflowId": "sf-enrich",
+      "key": "rawText",
+      "rawValue": "  Hello GOLDEN Trace  "
+    },
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Normalize raw input.",
+      "depth": 0,
+      "stageName": "sf-enrich/Normalize",
+      "stageId": "sf-enrich/normalize",
+      "runtimeStageId": "sf-enrich/normalize#2",
+      "subflowId": "sf-enrich"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read rawText = \"  Hello GOLDEN Trace  \"",
+      "depth": 1,
+      "stageName": "sf-enrich/Normalize",
+      "stageId": "sf-enrich/normalize",
+      "runtimeStageId": "sf-enrich/normalize#2",
+      "stepNumber": 1,
+      "subflowId": "sf-enrich",
+      "key": "rawText",
+      "rawValue": "  Hello GOLDEN Trace  "
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write text = \"hello golden trace\"",
+      "depth": 1,
+      "stageName": "sf-enrich/Normalize",
+      "stageId": "sf-enrich/normalize",
+      "runtimeStageId": "sf-enrich/normalize#2",
+      "stepNumber": 2,
+      "subflowId": "sf-enrich",
+      "key": "text",
+      "rawValue": "hello golden trace"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next step: Score the normalized text.",
+      "depth": 0,
+      "stageName": "sf-enrich/Score",
+      "stageId": "sf-enrich/score",
+      "runtimeStageId": "sf-enrich/score#3",
+      "subflowId": "sf-enrich"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read text = \"hello golden trace\"",
+      "depth": 1,
+      "stageName": "sf-enrich/Score",
+      "stageId": "sf-enrich/score",
+      "runtimeStageId": "sf-enrich/score#3",
+      "stepNumber": 1,
+      "subflowId": "sf-enrich",
+      "key": "text",
+      "rawValue": "hello golden trace"
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write score = 36",
+      "depth": 1,
+      "stageName": "sf-enrich/Score",
+      "stageId": "sf-enrich/score",
+      "runtimeStageId": "sf-enrich/score#3",
+      "stepNumber": 2,
+      "subflowId": "sf-enrich",
+      "key": "score",
+      "rawValue": 36
+    },
+    {
+      "type": "subflow",
+      "text": "Exiting the EnrichText subflow.",
+      "depth": 0,
+      "stageName": "EnrichText",
+      "stageId": "sf-enrich",
+      "runtimeStageId": "sf-enrich#1",
+      "subflowId": "sf-enrich",
+      "direction": "exit"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next step: Refine the text.",
+      "depth": 0,
+      "stageName": "Refine",
+      "stageId": "refine",
+      "runtimeStageId": "refine#4"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read attempt = 0",
+      "depth": 1,
+      "stageName": "Refine",
+      "stageId": "refine",
+      "runtimeStageId": "refine#4",
+      "stepNumber": 1,
+      "key": "attempt",
+      "rawValue": 0
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write attempt = 1",
+      "depth": 1,
+      "stageName": "Refine",
+      "stageId": "refine",
+      "runtimeStageId": "refine#4",
+      "stepNumber": 2,
+      "key": "attempt",
+      "rawValue": 1
+    },
+    {
+      "type": "step",
+      "text": "Step 3: Read text = \"hello golden trace\"",
+      "depth": 1,
+      "stageName": "Refine",
+      "stageId": "refine",
+      "runtimeStageId": "refine#4",
+      "stepNumber": 3,
+      "key": "text",
+      "rawValue": "hello golden trace"
+    },
+    {
+      "type": "step",
+      "text": "Step 4: Write text = \"hello golden trace!\"",
+      "depth": 1,
+      "stageName": "Refine",
+      "stageId": "refine",
+      "runtimeStageId": "refine#4",
+      "stepNumber": 4,
+      "key": "text",
+      "rawValue": "hello golden trace!"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 3: Next step: Loop until quality met.",
+      "depth": 0,
+      "stageName": "Evaluate",
+      "stageId": "evaluate",
+      "runtimeStageId": "evaluate#5"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read attempt = 1",
+      "depth": 1,
+      "stageName": "Evaluate",
+      "stageId": "evaluate",
+      "runtimeStageId": "evaluate#5",
+      "stepNumber": 1,
+      "key": "attempt",
+      "rawValue": 1
+    },
+    {
+      "type": "loop",
+      "text": "On pass 1: Refine the text again.",
+      "depth": 0,
+      "stageId": "evaluate",
+      "runtimeStageId": "evaluate#5"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 4: Looped back: Refine the text (pass 1).",
+      "depth": 0,
+      "stageName": "Refine",
+      "stageId": "refine",
+      "runtimeStageId": "refine#6"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read attempt = 1",
+      "depth": 1,
+      "stageName": "Refine",
+      "stageId": "refine",
+      "runtimeStageId": "refine#6",
+      "stepNumber": 1,
+      "key": "attempt",
+      "rawValue": 1
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write attempt = 2",
+      "depth": 1,
+      "stageName": "Refine",
+      "stageId": "refine",
+      "runtimeStageId": "refine#6",
+      "stepNumber": 2,
+      "key": "attempt",
+      "rawValue": 2
+    },
+    {
+      "type": "step",
+      "text": "Step 3: Read text = \"hello golden trace!\"",
+      "depth": 1,
+      "stageName": "Refine",
+      "stageId": "refine",
+      "runtimeStageId": "refine#6",
+      "stepNumber": 3,
+      "key": "text",
+      "rawValue": "hello golden trace!"
+    },
+    {
+      "type": "step",
+      "text": "Step 4: Write text = \"hello golden trace!!\"",
+      "depth": 1,
+      "stageName": "Refine",
+      "stageId": "refine",
+      "runtimeStageId": "refine#6",
+      "stepNumber": 4,
+      "key": "text",
+      "rawValue": "hello golden trace!!"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 5: Looped back: Loop until quality met (pass 1).",
+      "depth": 0,
+      "stageName": "Evaluate",
+      "stageId": "evaluate",
+      "runtimeStageId": "evaluate#7"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read attempt = 2",
+      "depth": 1,
+      "stageName": "Evaluate",
+      "stageId": "evaluate",
+      "runtimeStageId": "evaluate#7",
+      "stepNumber": 1,
+      "key": "attempt",
+      "rawValue": 2
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Read attempt = 2",
+      "depth": 1,
+      "stageName": "Evaluate",
+      "stageId": "evaluate",
+      "runtimeStageId": "evaluate#7",
+      "stepNumber": 2,
+      "key": "attempt",
+      "rawValue": 2
+    },
+    {
+      "type": "step",
+      "text": "Step 3: Write outcome = \"refined after 2 attempts\"",
+      "depth": 1,
+      "stageName": "Evaluate",
+      "stageId": "evaluate",
+      "runtimeStageId": "evaluate#7",
+      "stepNumber": 3,
+      "key": "outcome",
+      "rawValue": "refined after 2 attempts"
+    },
+    {
+      "type": "break",
+      "text": "Execution stopped at Evaluate.",
+      "depth": 0,
+      "stageName": "Evaluate",
+      "stageId": "evaluate",
+      "runtimeStageId": "evaluate#7"
+    }
+  ],
+  "snapshot": {
+    "sharedState": {
+      "rawText": "  Hello GOLDEN Trace  ",
+      "attempt": 2,
+      "text": "hello golden trace!!",
+      "score": 36,
+      "outcome": "refined after 2 attempts"
+    },
+    "executionTree": {
+      "id": "seed",
+      "runtimeStageId": "seed#0",
+      "name": "Seed",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageWrites": {
+        "rawText": "  Hello GOLDEN Trace  ",
+        "attempt": 0
+      },
+      "description": "Seed raw input",
+      "flowMessages": [
+        {
+          "type": "next",
+          "description": "Moving to EnrichText stage",
+          "timestamp": 0,
+          "targetStage": "EnrichText"
+        }
+      ],
+      "next": {
+        "id": "sf-enrich",
+        "runtimeStageId": "sf-enrich#1",
+        "name": "EnrichText",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "subflowId": "sf-enrich",
+        "flowMessages": [
+          {
+            "type": "subflow",
+            "description": "Entering EnrichText subflow",
+            "timestamp": 0,
+            "targetStage": "sf-enrich"
+          },
+          {
+            "type": "subflow",
+            "description": "Exiting EnrichText subflow",
+            "timestamp": 0,
+            "targetStage": "sf-enrich"
+          }
+        ],
+        "next": {
+          "id": "refine",
+          "runtimeStageId": "refine#4",
+          "name": "Refine",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "attempt": 1,
+            "text": "hello golden trace!"
+          },
+          "stageReads": {
+            "attempt": 0,
+            "text": "hello golden trace"
+          },
+          "description": "Refine the text",
+          "flowMessages": [
+            {
+              "type": "next",
+              "description": "Moving to Evaluate stage",
+              "timestamp": 0,
+              "targetStage": "Evaluate"
+            }
+          ],
+          "next": {
+            "id": "evaluate",
+            "runtimeStageId": "evaluate#5",
+            "name": "Evaluate",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {
+              "dynamicNextTarget": "refine",
+              "dynamicNextIteration": 0
+            },
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageReads": {
+              "attempt": 1
+            },
+            "description": "Loop until quality met",
+            "flowMessages": [
+              {
+                "type": "loop",
+                "description": "Looping back to Refine (iteration 1)",
+                "timestamp": 0,
+                "targetStage": "Refine",
+                "iteration": 1
+              }
+            ],
+            "next": {
+              "id": "refine",
+              "runtimeStageId": "refine#6",
+              "name": "Refine",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "attempt": 2,
+                "text": "hello golden trace!!"
+              },
+              "stageReads": {
+                "attempt": 1,
+                "text": "hello golden trace!"
+              },
+              "description": "Refine the text",
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to Evaluate stage",
+                  "timestamp": 0,
+                  "targetStage": "Evaluate"
+                }
+              ],
+              "next": {
+                "id": "evaluate",
+                "runtimeStageId": "evaluate#7",
+                "name": "Evaluate",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "outcome": "refined after 2 attempts"
+                },
+                "stageReads": {
+                  "attempt": 2
+                },
+                "description": "Loop until quality met"
+              }
+            }
+          }
+        }
+      }
+    },
+    "commitLog": [
+      {
+        "overwrite": {
+          "rawText": "  Hello GOLDEN Trace  ",
+          "attempt": 0
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "rawText",
+            "verb": "set"
+          },
+          {
+            "path": "attempt",
+            "verb": "set"
+          }
+        ],
+        "stage": "Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "text": "hello golden trace",
+          "score": 36
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "text",
+            "verb": "set"
+          },
+          {
+            "path": "score",
+            "verb": "set"
+          }
+        ],
+        "stage": "EnrichText",
+        "stageId": "sf-enrich",
+        "runtimeStageId": "sf-enrich#1",
+        "idx": 1
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "EnrichText",
+        "stageId": "sf-enrich",
+        "runtimeStageId": "sf-enrich#1",
+        "idx": 2
+      },
+      {
+        "overwrite": {
+          "attempt": 1,
+          "text": "hello golden trace!"
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "attempt",
+            "verb": "set"
+          },
+          {
+            "path": "text",
+            "verb": "set"
+          }
+        ],
+        "stage": "Refine",
+        "stageId": "refine",
+        "runtimeStageId": "refine#4",
+        "idx": 3
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Evaluate",
+        "stageId": "evaluate",
+        "runtimeStageId": "evaluate#5",
+        "idx": 4
+      },
+      {
+        "overwrite": {
+          "attempt": 2,
+          "text": "hello golden trace!!"
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "attempt",
+            "verb": "set"
+          },
+          {
+            "path": "text",
+            "verb": "set"
+          }
+        ],
+        "stage": "Refine",
+        "stageId": "refine",
+        "runtimeStageId": "refine#6",
+        "idx": 5
+      },
+      {
+        "overwrite": {
+          "outcome": "refined after 2 attempts"
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "outcome",
+            "verb": "set"
+          }
+        ],
+        "stage": "Evaluate",
+        "stageId": "evaluate",
+        "runtimeStageId": "evaluate#7",
+        "idx": 6
+      }
+    ],
+    "subflowResults": {
+      "sf-enrich": {
+        "subflowId": "sf-enrich",
+        "subflowName": "EnrichText",
+        "treeContext": {
+          "globalContext": {
+            "rawText": "  Hello GOLDEN Trace  ",
+            "text": "hello golden trace",
+            "score": 36
+          },
+          "stageContexts": {
+            "id": "sf-enrich/normalize",
+            "runtimeStageId": "sf-enrich/normalize#2",
+            "name": "sf-enrich/Normalize",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "text": "hello golden trace"
+            },
+            "stageReads": {
+              "rawText": "  Hello GOLDEN Trace  "
+            },
+            "description": "Normalize raw input",
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to sf-enrich/Score stage",
+                "timestamp": 0,
+                "targetStage": "sf-enrich/Score"
+              }
+            ],
+            "next": {
+              "id": "sf-enrich/score",
+              "runtimeStageId": "sf-enrich/score#3",
+              "name": "sf-enrich/Score",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "score": 36
+              },
+              "stageReads": {
+                "text": "hello golden trace"
+              },
+              "description": "Score the normalized text"
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "rawText": "  Hello GOLDEN Trace  "
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "rawText",
+                  "verb": "set"
+                }
+              ],
+              "stage": "sf-enrich/Normalize",
+              "stageId": "sf-enrich/normalize",
+              "runtimeStageId": "",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "text": "hello golden trace"
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "text",
+                  "verb": "set"
+                }
+              ],
+              "stage": "sf-enrich/Normalize",
+              "stageId": "sf-enrich/normalize",
+              "runtimeStageId": "sf-enrich/normalize#2",
+              "idx": 1
+            },
+            {
+              "overwrite": {
+                "score": 36
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "score",
+                  "verb": "set"
+                }
+              ],
+              "stage": "sf-enrich/Score",
+              "stageId": "sf-enrich/score",
+              "runtimeStageId": "sf-enrich/score#3",
+              "idx": 2
+            }
+          ]
+        },
+        "parentStageId": "EnrichText"
+      }
+    }
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "nodes": [
+    {
+      "id": "receive",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "ReceiveRequest",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [],
+        "nextIds": [
+          "approval"
+        ],
+        "description": "Receive the refund request"
+      }
+    },
+    {
+      "id": "approval",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "ManagerApproval",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "receive"
+        ],
+        "nextIds": [
+          "process"
+        ],
+        "isPausable": true
+      }
+    },
+    {
+      "id": "process",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "ProcessRefund",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "approval"
+        ],
+        "nextIds": [],
+        "description": "Process the refund"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "receive->approval:next",
+      "source": "receive",
+      "target": "approval",
+      "data": {
+        "kind": "next"
+      }
+    },
+    {
+      "id": "approval->process:next",
+      "source": "approval",
+      "target": "process",
+      "data": {
+        "kind": "next"
+      }
+    }
+  ]
+}

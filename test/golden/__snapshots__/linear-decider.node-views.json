@@ -1,0 +1,192 @@
+{
+  "all": [
+    {
+      "stageId": "intake",
+      "label": "Intake",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Receive the loan application",
+      "prevIds": [],
+      "nextIds": [
+        "enrich"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "intake#0"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "intake#0"
+      ]
+    },
+    {
+      "stageId": "enrich",
+      "label": "Enrich",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Attach applicant profile",
+      "prevIds": [
+        "intake"
+      ],
+      "nextIds": [
+        "classify-risk"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "enrich#1"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "enrich#1"
+      ]
+    },
+    {
+      "stageId": "classify-risk",
+      "label": "ClassifyRisk",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Route by computed risk tier",
+      "branchIds": [
+        "approve",
+        "review",
+        "reject"
+      ],
+      "defaultBranch": "reject",
+      "prevIds": [
+        "enrich"
+      ],
+      "nextIds": [
+        "approve",
+        "review",
+        "reject"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "classify-risk#2"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "classify-risk#2"
+      ]
+    },
+    {
+      "stageId": "approve",
+      "label": "Approve",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Issue approval",
+      "prevIds": [
+        "classify-risk"
+      ],
+      "nextIds": [],
+      "executions": [
+        {
+          "runtimeStageId": "approve#3"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "approve#3"
+      ]
+    },
+    {
+      "stageId": "review",
+      "label": "ManualReview",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Queue for manual review",
+      "prevIds": [
+        "classify-risk"
+      ],
+      "nextIds": [],
+      "executions": [],
+      "visitedInRun": false,
+      "executionCount": 0,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": []
+    },
+    {
+      "stageId": "reject",
+      "label": "Reject",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Issue rejection",
+      "prevIds": [
+        "classify-risk"
+      ],
+      "nextIds": [],
+      "executions": [],
+      "visitedInRun": false,
+      "executionCount": 0,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": []
+    }
+  ],
+  "byStageIdKeys": [
+    "intake",
+    "enrich",
+    "classify-risk",
+    "approve",
+    "review",
+    "reject"
+  ],
+  "byRuntimeStageIdKeys": [
+    "intake#0",
+    "enrich#1",
+    "classify-risk#2",
+    "approve#3"
+  ]
+}

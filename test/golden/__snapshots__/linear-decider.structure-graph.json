@@ -1,0 +1,184 @@
+{
+  "nodes": [
+    {
+      "id": "intake",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Intake",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [],
+        "nextIds": [
+          "enrich"
+        ],
+        "description": "Receive the loan application"
+      }
+    },
+    {
+      "id": "enrich",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Enrich",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "intake"
+        ],
+        "nextIds": [
+          "classify-risk"
+        ],
+        "description": "Attach applicant profile"
+      }
+    },
+    {
+      "id": "classify-risk",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "ClassifyRisk",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "enrich"
+        ],
+        "nextIds": [
+          "approve",
+          "review",
+          "reject"
+        ],
+        "description": "Route by computed risk tier",
+        "branchIds": [
+          "approve",
+          "review",
+          "reject"
+        ],
+        "defaultBranch": "reject"
+      }
+    },
+    {
+      "id": "approve",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Approve",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "classify-risk"
+        ],
+        "nextIds": [],
+        "description": "Issue approval"
+      }
+    },
+    {
+      "id": "review",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "ManualReview",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "classify-risk"
+        ],
+        "nextIds": [],
+        "description": "Queue for manual review"
+      }
+    },
+    {
+      "id": "reject",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Reject",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "classify-risk"
+        ],
+        "nextIds": [],
+        "description": "Issue rejection"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "intake->enrich:next",
+      "source": "intake",
+      "target": "enrich",
+      "data": {
+        "kind": "next"
+      }
+    },
+    {
+      "id": "enrich->classify-risk:next",
+      "source": "enrich",
+      "target": "classify-risk",
+      "data": {
+        "kind": "next"
+      }
+    },
+    {
+      "id": "classify-risk->approve:decision-branch:approve",
+      "source": "classify-risk",
+      "target": "approve",
+      "data": {
+        "kind": "decision-branch",
+        "label": "approve"
+      },
+      "label": "approve"
+    },
+    {
+      "id": "classify-risk->review:decision-branch:review",
+      "source": "classify-risk",
+      "target": "review",
+      "data": {
+        "kind": "decision-branch",
+        "label": "review"
+      },
+      "label": "review"
+    },
+    {
+      "id": "classify-risk->reject:decision-branch:reject",
+      "source": "classify-risk",
+      "target": "reject",
+      "data": {
+        "kind": "decision-branch",
+        "label": "reject"
+      },
+      "label": "reject"
+    }
+  ]
+}

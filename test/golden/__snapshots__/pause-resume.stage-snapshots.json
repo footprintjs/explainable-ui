@@ -1,0 +1,62 @@
+[
+  {
+    "stageName": "ReceiveRequest",
+    "stageLabel": "receive",
+    "runtimeStageId": "receive#0",
+    "memory": {
+      "orderId": "ORD-42",
+      "amount": 299
+    },
+    "narrative": "Stage 1: The process began: Receive the refund request.\n  Step 1: Write orderId = \"ORD-42\"\n  Step 2: Write amount = 299",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Receive the refund request"
+  },
+  {
+    "stageName": "ManagerApproval",
+    "stageLabel": "approval",
+    "runtimeStageId": "approval#1",
+    "memory": {
+      "orderId": "ORD-42",
+      "amount": 299
+    },
+    "narrative": "Execution paused at ManagerApproval.\nExecution resumed at ManagerApproval with input.\nStage 2: Next, it moved on to ManagerApproval.\n  Step 1: Write approved = true\n  Step 2: Write approver = \"Sarah\"",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done"
+  },
+  {
+    "stageName": "ManagerApproval",
+    "stageLabel": "approval",
+    "runtimeStageId": "approval#2",
+    "memory": {
+      "orderId": "ORD-42",
+      "amount": 299,
+      "approved": true,
+      "approver": "Sarah"
+    },
+    "narrative": "Execution paused at ManagerApproval.\nExecution resumed at ManagerApproval with input.\nStage 2: Next, it moved on to ManagerApproval.\n  Step 1: Write approved = true\n  Step 2: Write approver = \"Sarah\"",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done"
+  },
+  {
+    "stageName": "ProcessRefund",
+    "stageLabel": "process",
+    "runtimeStageId": "process#3",
+    "memory": {
+      "orderId": "ORD-42",
+      "amount": 299,
+      "approved": true,
+      "approver": "Sarah",
+      "refundId": "REF-7",
+      "status": "refunded"
+    },
+    "narrative": "Stage 3: Next step: Process the refund.\n  Step 1: Read approved = true\n  Step 2: Write refundId = \"REF-7\"\n  Step 3: Read approved = true\n  Step 4: Write status = \"refunded\"",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Process the refund"
+  }
+]
