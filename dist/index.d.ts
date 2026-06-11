@@ -868,6 +868,9 @@ declare const SubflowTree: react.NamedExoticComponent<SubflowTreeProps>;
  */
 interface RuntimeStageSnapshot {
     id: string;
+    /** `stageId#executionIndex` — the universal per-execution key. Joins this
+     *  tree node to its commit-log bundles for cumulative-memory replay. */
+    runtimeStageId?: string;
     name?: string;
     isDecider?: boolean;
     isFork?: boolean;
@@ -898,6 +901,31 @@ interface RuntimeSnapshot {
     recorders?: RecorderSnapshot[];
 }
 
+/**
+ * Deep-merges a net-change write PATCH into a base value for the
+ * cumulative-memory VIEW — the visualization-side mirror of footprintjs's
+ * `deepSmartMerge` (the `merge`-verb arm of `applySmartMerge`).
+ *
+ * Semantics:
+ *   - plain objects: object-spread per level — patch keys win, base
+ *     siblings survive (the gap this helper closes)
+ *   - **arrays: REPLACE, not union-merge.** Deliberate divergence from
+ *     footprintjs's `deepSmartMerge` (which unions non-empty arrays with
+ *     reference-equality dedup). A memory VIEW should show the array a
+ *     consumer would read at that moment: the dominant array-write path
+ *     (TypedScope copy-on-write push / `$batchArray`) commits as a `set`
+ *     of the full final array anyway, and union-replay of the rare
+ *     `merge`-verb array delta can fabricate element mixes (reference
+ *     dedup never dedupes deep-equal objects) that the display has no
+ *     way to reconcile. Replace is predictable and loses nothing the
+ *     patch didn't carry.
+ *   - summary markers (`__writeSummary`/`__readSummary`): atomic — a marker
+ *     patch replaces the key wholesale, and nothing merges INTO a marker
+ *   - primitives / null / type mismatches: patch wins
+ *
+ * Pure: never mutates `base` or `patch`; merged branches are fresh objects.
+ */
+declare function mergeWritePatch(base: unknown, patch: unknown): unknown;
 /**
  * Converts a FootPrint RuntimeSnapshot into a flat array of StageSnapshots
  * suitable for visualization components.
@@ -1066,4 +1094,4 @@ interface CompactTimelineProps {
 }
 declare const CompactTimeline: react.NamedExoticComponent<CompactTimelineProps>;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type AgentfootprintTrace, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, type TraceParseError, TraceViewer, type TraceViewerProps, buildEntryRangeIndex, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
+export { type NarrativeEntry as AdapterNarrativeEntry, type AgentfootprintTrace, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, type TraceParseError, TraceViewer, type TraceViewerProps, buildEntryRangeIndex, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, mergeWritePatch, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };

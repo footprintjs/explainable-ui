@@ -22,6 +22,8 @@ interface SpecNode {
   readonly id: string;
   readonly name: string;
   readonly type?: "stage" | "decider" | "selector" | "fork" | "streaming" | "subflow" | "loop";
+  readonly hasDecider?: boolean;
+  readonly hasSelector?: boolean;
   readonly children?: readonly SpecNode[];
   readonly next?: SpecNode;
   readonly loopTarget?: string;
@@ -95,6 +97,20 @@ describe("walkSubflowSpecInto", () => {
     expect(branchEdges).toHaveLength(2);
     expect(branchEdges[0]!.label).toBe("low");
     expect(branchEdges[1]!.label).toBe("high");
+  });
+
+  it("real-engine decider spelling — type 'stage' + hasDecider/hasSelector sets isDecider", () => {
+    const decider: SpecNode = {
+      ...spec("d", "Decide", { hasDecider: true }),
+      children: [spec("low"), spec("high")],
+    };
+    const sink = makeSink();
+    walkSubflowSpecInto(decider, "sub", sink);
+    expect(sink.nodes.find((n) => n.id === "sub/d")!.data.isDecider).toBe(true);
+
+    const sink2 = makeSink();
+    walkSubflowSpecInto(spec("s", "Screen", { hasSelector: true }), "sub", sink2);
+    expect(sink2.nodes[0]!.data.isDecider).toBe(true);
   });
 
   it("fork — emits fork-branch edges", () => {

@@ -33,7 +33,7 @@
       "stageId": "screen",
       "label": "Screen",
       "type": "stage",
-      "isDecider": false,
+      "isDecider": true,
       "isFork": false,
       "isSubflow": false,
       "isStreaming": false,

@@ -51,7 +51,7 @@
       },
       "data": {
         "label": "ClassifyRisk",
-        "isDecider": false,
+        "isDecider": true,
         "isFork": false,
         "isStreaming": false,
         "isSubflow": false,

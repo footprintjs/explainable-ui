@@ -46,7 +46,11 @@
         "glucose": 96
       },
       "flags": [],
-      "hypertensionRisk": "high"
+      "runs": {
+        "hypertension": {
+          "hypertensionRisk": "high"
+        }
+      }
     },
     "narrative": "Stage 2: Next step: Assess blood pressure.\n  Step 1: Write hypertensionRisk = \"high\"",
     "startMs": 0,
@@ -65,7 +69,11 @@
         "glucose": 96
       },
       "flags": [],
-      "obesityRisk": "moderate"
+      "runs": {
+        "obesity": {
+          "obesityRisk": "moderate"
+        }
+      }
     },
     "narrative": "Stage 3: Next step: Assess BMI.\n  Step 1: Write obesityRisk = \"moderate\"",
     "startMs": 0,

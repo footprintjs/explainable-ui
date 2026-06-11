@@ -29,6 +29,7 @@
       "creditScore": 712,
       "dti": 0.31,
       "applicant": {
+        "name": "Ada",
         "address": {
           "zip": "94016"
         }
@@ -52,6 +53,7 @@
       "creditScore": 712,
       "dti": 0.31,
       "applicant": {
+        "name": "Ada",
         "address": {
           "zip": "94016"
         }
@@ -75,6 +77,7 @@
       "creditScore": 712,
       "dti": 0.31,
       "applicant": {
+        "name": "Ada",
         "address": {
           "zip": "94016"
         }

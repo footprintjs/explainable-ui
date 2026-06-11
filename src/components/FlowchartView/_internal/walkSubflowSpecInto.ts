@@ -37,6 +37,12 @@ interface SpecNode {
   readonly id: string;
   readonly name: string;
   readonly type?: "stage" | "decider" | "selector" | "fork" | "streaming" | "subflow" | "loop";
+  /** Real-engine decider/selector flags — footprintjs serializes these
+   *  stages as `type: 'stage'` with `hasDecider`/`hasSelector` stamped on
+   *  the spec node (same contract as the top-level `onStageAdded` spec;
+   *  see StructureSpecRef in traceStructureRecorder.ts). */
+  readonly hasDecider?: boolean;
+  readonly hasSelector?: boolean;
   readonly icon?: string;
   readonly description?: string;
   readonly children?: readonly SpecNode[];
@@ -98,7 +104,11 @@ function walkNode(
 
   // Emit the stage node, tagged with subflowOf.
   const type = node.type ?? "stage";
-  const isDecider = type === "decider" || type === "selector";
+  const isDecider =
+    type === "decider" ||
+    type === "selector" ||
+    node.hasDecider === true ||
+    node.hasSelector === true;
   const isFork = type === "fork";
   const isStreaming = type === "streaming";
   const isSubflow = !!node.isSubflowRoot;

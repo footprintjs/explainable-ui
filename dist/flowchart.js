@@ -3189,7 +3189,7 @@ function walkNode(node, subflowPath, sink, visited) {
     walkNode(node.subflowStructure, nestedPath, sink, visited);
   }
   const type = node.type ?? "stage";
-  const isDecider = type === "decider" || type === "selector";
+  const isDecider = type === "decider" || type === "selector" || node.hasDecider === true || node.hasSelector === true;
   const isFork = type === "fork";
   const isStreaming = type === "streaming";
   const isSubflow = !!node.isSubflowRoot;
@@ -3323,7 +3323,7 @@ function createTraceStructureRecorder(options = {}) {
     onStageAdded(event) {
       const spec = event.spec;
       const type = event.type;
-      const isDecider = type === "decider" || type === "selector";
+      const isDecider = type === "decider" || type === "selector" || spec.hasDecider === true || spec.hasSelector === true;
       const isFork = type === "fork";
       const isStreaming = type === "streaming";
       const isSubflow = !!spec.isSubflowRoot;
@@ -3392,7 +3392,10 @@ function createTraceStructureRecorder(options = {}) {
       const node = nodes[existing];
       const data = {
         ...node.data,
-        branchIds: event.branchIds
+        branchIds: event.branchIds,
+        // A sealed branch list IS decider-ness — engines that stamp neither
+        // `type: 'decider'` nor `spec.hasDecider` still get a decision node.
+        isDecider: true
       };
       if (event.defaultBranch !== void 0) data.defaultBranch = event.defaultBranch;
       nodes[existing] = { ...node, data };

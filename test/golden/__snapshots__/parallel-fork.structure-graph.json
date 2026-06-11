@@ -29,7 +29,7 @@
       },
       "data": {
         "label": "Screen",
-        "isDecider": false,
+        "isDecider": true,
         "isFork": false,
         "isStreaming": false,
         "isSubflow": false,

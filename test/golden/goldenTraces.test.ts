@@ -25,12 +25,12 @@
  *   3. REVIEW the snapshot diff before committing — an unexpected diff here
  *      is exactly the regression this suite exists to catch.
  *
- * One known real-engine behavior these goldens pin (differs from the
- * hand-built unit fixtures): footprintjs fires `onStageAdded` with
- * `type: "stage"` for decider/selector stages (the spec carries
- * `hasDecider: true` instead), so `TraceNodeData.isDecider` is FALSE on
- * real traces — decider-ness surfaces via `branchIds`/`defaultBranch`
- * patched by `onDeciderComplete`.
+ * Real-engine decider spelling these goldens exercise: footprintjs fires
+ * `onStageAdded` with `type: "stage"` for decider/selector stages and stamps
+ * `hasDecider: true` / `hasSelector: true` on the spec instead. The
+ * converter derives `TraceNodeData.isDecider` from BOTH spellings (and from
+ * `onDeciderComplete`'s sealed branch list), so real traces and hand-built
+ * `type: 'decider'` fixtures render decision nodes identically.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
@@ -216,14 +216,50 @@ describe("golden: semantic invariants", () => {
     expect(fixtures.length).toBeGreaterThanOrEqual(4);
   });
 
-  it("linear-decider: decider node carries sealed branchIds + defaultBranch", () => {
+  it("linear-decider: real decider node is a decision node (isDecider + sealed branchIds)", () => {
     const graph = buildGraph(byName("linear-decider"));
     const decider = graph.nodes.find((n) => n.id === "classify-risk");
     expect(decider?.data.branchIds).toEqual(["approve", "review", "reject"]);
     expect(decider?.data.defaultBranch).toBe("reject");
-    // Real-engine behavior pin: onStageAdded fires with type 'stage' for
-    // deciders, so isDecider stays false (decider-ness lives in branchIds).
-    expect(decider?.data.isDecider).toBe(false);
+    // Real engine fires onStageAdded with type 'stage' + spec.hasDecider —
+    // the converter derives isDecider from that flag (and from the sealed
+    // branch list), so real traces render the decision diamond.
+    expect(decider?.data.isDecider).toBe(true);
+    // Non-decider stages stay plain.
+    const linear = graph.nodes.find((n) => n.id === "enrich");
+    expect(linear?.data.isDecider).toBe(false);
+  });
+
+  it("parallel-fork: real selector node (spec.hasSelector) is a decision node too", () => {
+    const graph = buildGraph(byName("parallel-fork"));
+    const selector = graph.nodes.find((n) => n.id === "screen");
+    expect(selector?.data.isDecider).toBe(true);
+    expect(selector?.data.branchIds).toEqual(["diabetes", "hypertension", "obesity"]);
+  });
+
+  it("linear-decider: cumulative memory at the deep-write stage retains sibling fields", () => {
+    const fx = byName("linear-decider");
+    const snaps = toVisualizationSnapshots(fx.snapshot, fx.narrativeEntries);
+    // 'enrich' sets the full applicant, then deep-writes applicant.address.zip.
+    // The commit bundle is replayed (set full object, then merge the patch),
+    // so the sibling field survives alongside the updated leaf — matching
+    // the engine's sharedState instead of the collapsed stageWrites patch.
+    const enrich = snaps.find((s) => s.stageLabel === "enrich");
+    expect(enrich?.memory.applicant).toEqual({ name: "Ada", address: { zip: "94016" } });
+    // ...and the merged object persists through later stages' cumulative views.
+    const approve = snaps.find((s) => s.stageLabel === "approve");
+    expect(approve?.memory.applicant).toEqual({ name: "Ada", address: { zip: "94016" } });
+  });
+
+  it("parallel-fork: branch memory mirrors the engine's namespaced fork-child state", () => {
+    const fx = byName("parallel-fork");
+    const snaps = toVisualizationSnapshots(fx.snapshot, fx.narrativeEntries);
+    // The engine commits fork-child writes under runs.<branchId> (visible in
+    // the fixture's final sharedState); commit replay shows that truthfully
+    // instead of fabricating a top-level key the engine never held.
+    const hyp = snaps.find((s) => s.stageLabel === "hypertension");
+    expect(hyp?.memory.runs).toEqual({ hypertension: { hypertensionRisk: "high" } });
+    expect(hyp?.memory).not.toHaveProperty("hypertensionRisk");
   });
 
   it("subflow-loop: loop edge present and loop re-executes stages (executionIndex bumps)", () => {

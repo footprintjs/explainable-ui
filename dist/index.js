@@ -2286,11 +2286,103 @@ function extractSubflowNarrative(entries, subflowId, subflowName) {
 }
 
 // src/adapters/fromRuntimeSnapshot.ts
+var COMMIT_PATH_DELIM = "";
+var UNSAFE_KEYS = /* @__PURE__ */ new Set(["__proto__", "constructor", "prototype"]);
+function isSummaryMarker(value) {
+  return value !== null && typeof value === "object" && (value.__writeSummary === true || value.__readSummary === true);
+}
+function isPlainRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+function mergeWritePatch(base, patch) {
+  if (isSummaryMarker(patch)) return patch;
+  if (patch === null || typeof patch !== "object") return patch;
+  if (Array.isArray(patch)) return patch;
+  if (isSummaryMarker(base) || !isPlainRecord(base)) {
+    base = {};
+  }
+  const out = { ...base };
+  for (const [key, value] of Object.entries(patch)) {
+    if (UNSAFE_KEYS.has(key)) continue;
+    out[key] = mergeWritePatch(out[key], value);
+  }
+  return out;
+}
+function getPath(root, segs) {
+  let cur = root;
+  for (const seg of segs) {
+    if (!isPlainRecord(cur) && !Array.isArray(cur)) return void 0;
+    cur = cur[seg];
+  }
+  return cur;
+}
+function setPath(memory, segs, value) {
+  if (segs.some((s) => UNSAFE_KEYS.has(s))) return;
+  let obj = memory;
+  for (let i = 0; i < segs.length - 1; i++) {
+    const cur = obj[segs[i]];
+    const next = Array.isArray(cur) ? cur.slice() : isPlainRecord(cur) && !isSummaryMarker(cur) ? { ...cur } : {};
+    obj[segs[i]] = next;
+    obj = next;
+  }
+  const last = segs[segs.length - 1];
+  if (value === void 0) {
+    delete obj[last];
+  } else {
+    obj[last] = value;
+  }
+}
+function applyCommitBundle(memory, bundle) {
+  const trace = Array.isArray(bundle.trace) ? bundle.trace : void 0;
+  if (trace) {
+    for (const op of trace) {
+      if (!op || typeof op.path !== "string") continue;
+      const segs = op.path.split(COMMIT_PATH_DELIM);
+      if (op.verb === "merge") {
+        setPath(memory, segs, mergeWritePatch(getPath(memory, segs), getPath(bundle.updates, segs)));
+      } else if (op.verb === "append") {
+        const tail = getPath(bundle.overwrite, segs);
+        const current = getPath(memory, segs);
+        setPath(memory, segs, Array.isArray(current) && Array.isArray(tail) ? [...current, ...tail] : tail);
+      } else if (op.verb === "delete") {
+        setPath(memory, segs, void 0);
+      } else {
+        setPath(memory, segs, getPath(bundle.overwrite, segs));
+      }
+    }
+    return;
+  }
+  if (isPlainRecord(bundle.overwrite)) {
+    for (const [key, value] of Object.entries(bundle.overwrite)) setPath(memory, [key], value);
+  }
+  if (isPlainRecord(bundle.updates)) {
+    for (const [key, value] of Object.entries(bundle.updates)) {
+      setPath(memory, [key], mergeWritePatch(memory[key], value));
+    }
+  }
+}
+function indexCommitLog(commitLog) {
+  const index = /* @__PURE__ */ new Map();
+  if (!Array.isArray(commitLog)) return index;
+  for (const entry of commitLog) {
+    if (!isPlainRecord(entry)) continue;
+    const bundle = entry;
+    if (typeof bundle.runtimeStageId !== "string" || bundle.runtimeStageId.length === 0) continue;
+    if (!isPlainRecord(bundle.overwrite) && !isPlainRecord(bundle.updates) && !Array.isArray(bundle.trace)) {
+      continue;
+    }
+    const list = index.get(bundle.runtimeStageId);
+    if (list) list.push(bundle);
+    else index.set(bundle.runtimeStageId, [bundle]);
+  }
+  return index;
+}
 function toVisualizationSnapshots(runtime, narrativeEntries) {
   const stageNarrativeMap = narrativeEntries?.length ? buildStageNarrativeMap(narrativeEntries) : /* @__PURE__ */ new Map();
   const stageTimings = extractStageTimings(runtime.recorders);
+  const commitIndex = indexCommitLog(runtime.commitLog);
   const snapshots = [];
-  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap, stageTimings);
+  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap, stageTimings, commitIndex);
   return snapshots;
 }
 function extractStageTimings(recorders) {
@@ -2334,7 +2426,7 @@ function buildStageNarrativeMap(entries) {
   }
   return map;
 }
-function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, cumulativeMemory = {}, stageNarrativeMap = /* @__PURE__ */ new Map(), stageTimings = /* @__PURE__ */ new Map()) {
+function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, cumulativeMemory = {}, stageNarrativeMap = /* @__PURE__ */ new Map(), stageTimings = /* @__PURE__ */ new Map(), commitIndex = /* @__PURE__ */ new Map()) {
   const stageName = node.name ?? node.id;
   const durationMs = (stageName ? stageTimings.get(stageName) : void 0) ?? (typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 0);
   const startMs = accumulatedMs;
@@ -2354,12 +2446,16 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
     narrative = parts.join("\n");
   }
   const memory = { ...cumulativeMemory };
-  if (node.stageWrites) {
+  const bundles = node.runtimeStageId ? commitIndex.get(node.runtimeStageId) : void 0;
+  if (bundles && bundles.length > 0) {
+    for (const bundle of bundles) applyCommitBundle(memory, bundle);
+  } else if (node.stageWrites) {
     for (const [key, value] of Object.entries(node.stageWrites)) {
+      if (UNSAFE_KEYS.has(key)) continue;
       if (value === void 0) {
         delete memory[key];
       } else {
-        memory[key] = value;
+        memory[key] = mergeWritePatch(memory[key], value);
       }
     }
   }
@@ -2381,13 +2477,13 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
   if (node.children && node.children.length > 0) {
     let maxChildEnd = nextMs;
     for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings);
+      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
       maxChildEnd = Math.max(maxChildEnd, childEnd);
     }
     nextMs = maxChildEnd;
   }
   if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings);
+    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
   }
   return nextMs;
 }
@@ -6233,6 +6329,7 @@ export {
   createSnapshots,
   defaultTokens,
   extractSubflowNarrative,
+  mergeWritePatch,
   rawDefaults,
   subflowResultToSnapshots,
   themePresets,

@@ -79,6 +79,16 @@ interface StructureSpecRef {
   readonly isSubflowRoot?: boolean;
   readonly subflowId?: string;
   readonly isLazy?: boolean;
+  /**
+   * How the REAL engine flags decider/selector stages: footprintjs fires
+   * `onStageAdded` with `type: 'stage'` and stamps `hasDecider: true` /
+   * `hasSelector: true` on the spec instead of `type: 'decider'|'selector'`
+   * (pinned by the U2 golden fixtures against fp 9.5.0). Both signals must
+   * feed `TraceNodeData.isDecider` or real traces render decision stages
+   * as plain rectangles.
+   */
+  readonly hasDecider?: boolean;
+  readonly hasSelector?: boolean;
   readonly [key: string]: unknown;
 }
 
@@ -422,7 +432,14 @@ export function createTraceStructureRecorder(
     onStageAdded(event) {
       const spec = event.spec;
       const type = event.type;
-      const isDecider = type === "decider" || type === "selector";
+      // Decider-ness has TWO spellings (see StructureSpecRef.hasDecider):
+      // hand-built fixtures use `type: 'decider'|'selector'`; the real
+      // engine sends `type: 'stage'` + spec-level `hasDecider`/`hasSelector`.
+      const isDecider =
+        type === "decider" ||
+        type === "selector" ||
+        spec.hasDecider === true ||
+        spec.hasSelector === true;
       const isFork = type === "fork";
       const isStreaming = type === "streaming";
       const isSubflow = !!spec.isSubflowRoot;
@@ -508,6 +525,9 @@ export function createTraceStructureRecorder(
       const data: TraceNodeData = {
         ...node.data,
         branchIds: event.branchIds,
+        // A sealed branch list IS decider-ness — engines that stamp neither
+        // `type: 'decider'` nor `spec.hasDecider` still get a decision node.
+        isDecider: true,
       };
       if (event.defaultBranch !== undefined) data.defaultBranch = event.defaultBranch;
       nodes[existing] = { ...node, data };

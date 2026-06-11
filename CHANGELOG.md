@@ -5,6 +5,78 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+The two real rendering gaps the U2 golden-trace fixtures exposed (documented
+as "known real-engine behaviors" under 0.23.0) are now FIXED. The golden
+output snapshots changed intentionally — see the regenerated files below.
+
+### Fixed
+
+- **Real deciders/selectors now render as decision nodes.** footprintjs
+  fires `onStageAdded` with `type: 'stage'` for decider/selector stages and
+  stamps `hasDecider: true` / `hasSelector: true` on the spec instead — so
+  `TraceNodeData.isDecider` was FALSE on every real trace (only hand-built
+  `type: 'decider'` unit fixtures rendered the diamond). The converter now
+  derives `isDecider` from the spec flags in `createTraceStructureRecorder.
+  onStageAdded` AND in the subflow-spec walker (`walkSubflowSpecInto`), and
+  `onDeciderComplete` additionally marks its node `isDecider` (a sealed
+  branch list IS decider-ness) — covering engines that stamp neither flag.
+  Hand-built `type: 'decider'` fixtures behave exactly as before.
+- **Cumulative-memory view no longer drops sibling fields on deep writes.**
+  footprintjs's change-only commit semantics record a deep write
+  (`scope.applicant.address.zip = ...`) as a net-change PATCH
+  (`{applicant: {address: {zip}}}`), and `StageSnapshot.stageWrites` keeps
+  only the last write per key — `toVisualizationSnapshots`' whole-key
+  overwrite then erased siblings (`applicant.name`) that the engine's
+  `sharedState` correctly holds. The adapter now replays each execution's
+  `commitLog` bundles (joined by `runtimeStageId`) with the engine's own
+  verb semantics — `set` overwrites with the full value, `merge` deep-merges
+  the accumulated delta, `append` concatenates, `delete` removes — so the
+  per-stage memory view evolves exactly like engine state. Side effects of
+  the higher fidelity (visible in the regenerated goldens): fork-child
+  writes appear at their true namespaced location (`runs.<branchId>.<key>`,
+  matching `sharedState`) instead of a fabricated top-level key, and a
+  subflow mount stage now shows the state its outputMapper committed.
+  Snapshots without a usable commitLog (older recordings, subflow
+  drill-down histories whose bundles carry empty `runtimeStageId`s) fall
+  back to `stageWrites` accumulation, upgraded from whole-key overwrite to
+  the new deep merge so cross-stage patches keep siblings too.
+
+### Added
+
+- **`mergeWritePatch(base, patch)`** (exported) — the visualization-side
+  deep merge: object-spread per level, patch keys win, base siblings
+  survive. **Arrays REPLACE** — a deliberate, documented divergence from
+  footprintjs's `deepSmartMerge` union-with-reference-dedup: a memory VIEW
+  should show the array a consumer would read at that moment, the dominant
+  array-write path (TypedScope copy-on-write push / `$batchArray`) commits
+  as a `set` of the full final array anyway, and union-replay of the rare
+  merge-verb array delta can fabricate element mixes the display can't
+  reconcile. `__writeSummary` / `__readSummary` marker objects (footprintjs
+  `writeTracking: 'summary'`) are treated as ATOMIC — passed through, never
+  recursed into. Prototype-pollution keys (`__proto__`, `constructor`,
+  `prototype`) are skipped on every write path.
+
+### Tests
+
+- Golden semantic invariants extended: real decider/selector nodes carry
+  `isDecider: true` + sealed `branchIds`; cumulative memory at the
+  deep-write stage retains the sibling field; fork-branch memory mirrors
+  the engine's namespaced state. Unit coverage for the spec-flag decider
+  derivation (converter + subflow walker) and for `mergeWritePatch` /
+  commit-bundle replay (nested patches, trace order, deep delimited paths,
+  multi-bundle executions, copy-on-write isolation, markers, fallback).
+- **Regenerated golden output snapshots** (fixtures themselves untouched):
+  `linear-decider.structure-graph` / `parallel-fork.structure-graph` and
+  `linear-decider.node-views` / `parallel-fork.node-views` (the two real
+  decision stages flip `isDecider` to `true` — only that field), plus
+  `linear-decider.stage-snapshots` (`applicant.name` retained from the
+  enrich stage onward), `parallel-fork.stage-snapshots` (branch writes at
+  `runs.<branchId>`), `subflow-loop.stage-snapshots` (mount stage shows
+  committed `text`/`score`). Layout, overlay, commit-flow, narrative-sync,
+  and all pause-resume snapshots are byte-identical.
+
 ## [0.23.0] - 2026-06-11
 
 Golden-trace fixtures (backlog U2): the converter/layout/narrative pipeline is

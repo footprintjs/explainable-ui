@@ -58,7 +58,7 @@ export { SubflowTree } from "./components/FlowchartView/SubflowTree";
 export type { SubflowTreeProps, SubflowTreeEntry } from "./components/FlowchartView/SubflowTree";
 
 // Adapters
-export { toVisualizationSnapshots, createSnapshots, subflowResultToSnapshots } from "./adapters/fromRuntimeSnapshot";
+export { toVisualizationSnapshots, createSnapshots, subflowResultToSnapshots, mergeWritePatch } from "./adapters/fromRuntimeSnapshot";
 export type { NarrativeEntry as AdapterNarrativeEntry } from "./adapters/fromRuntimeSnapshot";
 
 // Utilities — narrative sync, subflow extraction

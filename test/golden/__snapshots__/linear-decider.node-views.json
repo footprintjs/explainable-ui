@@ -64,7 +64,7 @@
       "stageId": "classify-risk",
       "label": "ClassifyRisk",
       "type": "stage",
-      "isDecider": false,
+      "isDecider": true,
       "isFork": false,
       "isSubflow": false,
       "isStreaming": false,

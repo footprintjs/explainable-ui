@@ -6,6 +6,9 @@ import type { StageSnapshot, NarrativeEntry } from "../types";
  */
 interface RuntimeStageSnapshot {
   id: string;
+  /** `stageId#executionIndex` — the universal per-execution key. Joins this
+   *  tree node to its commit-log bundles for cumulative-memory replay. */
+  runtimeStageId?: string;
   name?: string;
   isDecider?: boolean;
   isFork?: boolean;
@@ -42,6 +45,208 @@ interface RuntimeSnapshot {
 // Re-export here for backward compatibility (index.ts re-exports as AdapterNarrativeEntry).
 export type { NarrativeEntry } from '../types';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Cumulative-memory accumulation — commit-bundle replay + deep patch merge
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Why whole-key overwrite of `stageWrites` is NOT enough: footprintjs's
+// change-only commit semantics record a deep write (`scope.applicant.address
+// .zip = ...`) as a net-change PATCH (`{applicant: {address: {zip}}}`), and
+// `StageSnapshot.stageWrites` keeps only the LAST write per key — so a
+// set-then-deep-write stage surfaces only the patch and the per-stage memory
+// view dropped sibling fields (`applicant.name`) that the engine's
+// `sharedState` correctly holds.
+//
+// The faithful source is `RuntimeSnapshot.commitLog`: each `CommitBundle`
+// carries the stage's `overwrite` (full values for `set` paths), `updates`
+// (accumulated deltas for `merge` paths), and the ordered `trace`
+// (`[{path, verb}]`) — the same triple footprintjs's own `applySmartMerge`
+// replays onto live state. We mirror that replay onto the cumulative memory
+// view, keyed by `runtimeStageId` (tree node ↔ commit bundle join). When no
+// bundle is available (older snapshots, subflow drill-down histories with
+// empty runtimeStageIds), we fall back to `stageWrites` accumulation,
+// upgraded from whole-key overwrite to `mergeWritePatch` so patches no
+// longer erase siblings.
+
+/** Path delimiter used by footprintjs's commit `trace` entries
+ *  (`normalisePath` joins segments with U+001F UNIT SEPARATOR). */
+const COMMIT_PATH_DELIM = "\u001F";
+
+/** Keys that must never be assigned via bracket-write on a plain object —
+ *  `obj['__proto__'] = x` mutates the prototype, not an own property. */
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/** Duck-typed slice of footprintjs's `CommitBundle` the replay consumes. */
+interface CommitBundleLike {
+  runtimeStageId?: string;
+  overwrite?: Record<string, unknown>;
+  updates?: Record<string, unknown>;
+  trace?: { path: string; verb: string }[];
+}
+
+/** `__writeSummary` / `__readSummary` marker objects (footprintjs's
+ *  `writeTracking: 'summary'` dial) are ATOMIC placeholders, not data —
+ *  the merge passes them through and never recurses into them. */
+function isSummaryMarker(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    ((value as Record<string, unknown>).__writeSummary === true ||
+      (value as Record<string, unknown>).__readSummary === true)
+  );
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Deep-merges a net-change write PATCH into a base value for the
+ * cumulative-memory VIEW — the visualization-side mirror of footprintjs's
+ * `deepSmartMerge` (the `merge`-verb arm of `applySmartMerge`).
+ *
+ * Semantics:
+ *   - plain objects: object-spread per level — patch keys win, base
+ *     siblings survive (the gap this helper closes)
+ *   - **arrays: REPLACE, not union-merge.** Deliberate divergence from
+ *     footprintjs's `deepSmartMerge` (which unions non-empty arrays with
+ *     reference-equality dedup). A memory VIEW should show the array a
+ *     consumer would read at that moment: the dominant array-write path
+ *     (TypedScope copy-on-write push / `$batchArray`) commits as a `set`
+ *     of the full final array anyway, and union-replay of the rare
+ *     `merge`-verb array delta can fabricate element mixes (reference
+ *     dedup never dedupes deep-equal objects) that the display has no
+ *     way to reconcile. Replace is predictable and loses nothing the
+ *     patch didn't carry.
+ *   - summary markers (`__writeSummary`/`__readSummary`): atomic — a marker
+ *     patch replaces the key wholesale, and nothing merges INTO a marker
+ *   - primitives / null / type mismatches: patch wins
+ *
+ * Pure: never mutates `base` or `patch`; merged branches are fresh objects.
+ */
+export function mergeWritePatch(base: unknown, patch: unknown): unknown {
+  if (isSummaryMarker(patch)) return patch;
+  if (patch === null || typeof patch !== "object") return patch;
+  if (Array.isArray(patch)) return patch; // arrays REPLACE (see JSDoc)
+  if (isSummaryMarker(base) || !isPlainRecord(base)) {
+    // Nothing mergeable underneath — take the patch (fresh copy so later
+    // in-place view writes never reach the caller's object).
+    base = {};
+  }
+  const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
+  for (const [key, value] of Object.entries(patch)) {
+    if (UNSAFE_KEYS.has(key)) continue;
+    out[key] = mergeWritePatch(out[key], value);
+  }
+  return out;
+}
+
+/** Reads a delimited commit path out of a patch object. Undefined-safe. */
+function getPath(root: unknown, segs: string[]): unknown {
+  let cur: unknown = root;
+  for (const seg of segs) {
+    if (!isPlainRecord(cur) && !Array.isArray(cur)) return undefined;
+    cur = (cur as Record<string, unknown>)[seg];
+  }
+  return cur;
+}
+
+/**
+ * Writes `value` at a delimited commit path, copy-on-write along the way:
+ * every container on the path is cloned before mutation so sibling stage
+ * snapshots (which share nested refs via the per-stage shallow copy) are
+ * never retroactively edited.
+ */
+function setPath(memory: Record<string, unknown>, segs: string[], value: unknown): void {
+  if (segs.some((s) => UNSAFE_KEYS.has(s))) return;
+  let obj: Record<string, unknown> = memory;
+  for (let i = 0; i < segs.length - 1; i++) {
+    const cur = obj[segs[i]!];
+    const next: Record<string, unknown> = Array.isArray(cur)
+      ? (cur.slice() as unknown as Record<string, unknown>)
+      : isPlainRecord(cur) && !isSummaryMarker(cur)
+        ? { ...cur }
+        : {};
+    obj[segs[i]!] = next;
+    obj = next;
+  }
+  const last = segs[segs.length - 1]!;
+  if (value === undefined) {
+    delete obj[last];
+  } else {
+    obj[last] = value;
+  }
+}
+
+/**
+ * Replays one commit bundle onto the cumulative memory view — mirrors
+ * footprintjs's `applySmartMerge` verb arms:
+ *   - `set`    → overwrite with the full final value from `overwrite[path]`
+ *                (`undefined` = the historical delete-flattened-to-set —
+ *                removes the key)
+ *   - `merge`  → `mergeWritePatch` the accumulated `updates[path]` delta in
+ *   - `append` → concat the recorded tail onto the current array; degrade
+ *                to a direct set when either side isn't an array (matches
+ *                upstream's redaction/corrupt-base behavior)
+ *   - `delete` → remove the key
+ * Bundles without a `trace` (older engines) degrade to: apply every
+ * `overwrite` key as a set, then deep-merge every `updates` key.
+ */
+function applyCommitBundle(memory: Record<string, unknown>, bundle: CommitBundleLike): void {
+  const trace = Array.isArray(bundle.trace) ? bundle.trace : undefined;
+  if (trace) {
+    for (const op of trace) {
+      if (!op || typeof op.path !== "string") continue;
+      const segs = op.path.split(COMMIT_PATH_DELIM);
+      if (op.verb === "merge") {
+        setPath(memory, segs, mergeWritePatch(getPath(memory, segs), getPath(bundle.updates, segs)));
+      } else if (op.verb === "append") {
+        const tail = getPath(bundle.overwrite, segs);
+        const current = getPath(memory, segs);
+        setPath(memory, segs, Array.isArray(current) && Array.isArray(tail) ? [...current, ...tail] : tail);
+      } else if (op.verb === "delete") {
+        setPath(memory, segs, undefined);
+      } else {
+        // 'set' (and unknown verbs — treat as the terminal overwrite)
+        setPath(memory, segs, getPath(bundle.overwrite, segs));
+      }
+    }
+    return;
+  }
+  if (isPlainRecord(bundle.overwrite)) {
+    for (const [key, value] of Object.entries(bundle.overwrite)) setPath(memory, [key], value);
+  }
+  if (isPlainRecord(bundle.updates)) {
+    for (const [key, value] of Object.entries(bundle.updates)) {
+      setPath(memory, [key], mergeWritePatch(memory[key], value));
+    }
+  }
+}
+
+/**
+ * Indexes commit bundles by `runtimeStageId`. A stage execution can emit
+ * MORE than one bundle (e.g. a subflow mount commits the outputMapper
+ * result, then an empty boundary bundle) — all are kept, in log order.
+ * Entries without a non-empty `runtimeStageId` (subflow drill-down
+ * histories) are skipped; those trees fall back to `stageWrites`.
+ */
+function indexCommitLog(commitLog: unknown[] | undefined): Map<string, CommitBundleLike[]> {
+  const index = new Map<string, CommitBundleLike[]>();
+  if (!Array.isArray(commitLog)) return index;
+  for (const entry of commitLog) {
+    if (!isPlainRecord(entry)) continue;
+    const bundle = entry as CommitBundleLike;
+    if (typeof bundle.runtimeStageId !== "string" || bundle.runtimeStageId.length === 0) continue;
+    if (!isPlainRecord(bundle.overwrite) && !isPlainRecord(bundle.updates) && !Array.isArray(bundle.trace)) {
+      continue;
+    }
+    const list = index.get(bundle.runtimeStageId);
+    if (list) list.push(bundle);
+    else index.set(bundle.runtimeStageId, [bundle]);
+  }
+  return index;
+}
+
 /**
  * Converts a FootPrint RuntimeSnapshot into a flat array of StageSnapshots
  * suitable for visualization components.
@@ -72,8 +277,13 @@ export function toVisualizationSnapshots(
   // Extract per-stage timings from MetricRecorder if present in snapshot.recorders.
   const stageTimings = extractStageTimings(runtime.recorders);
 
+  // Commit-bundle index for faithful cumulative-memory replay (see the
+  // accumulation rationale above). Empty map when the snapshot carries no
+  // usable commitLog — stages then fall back to stageWrites accumulation.
+  const commitIndex = indexCommitLog(runtime.commitLog);
+
   const snapshots: StageSnapshot[] = [];
-  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap, stageTimings);
+  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap, stageTimings, commitIndex);
   return snapshots;
 }
 
@@ -155,6 +365,7 @@ function flattenTree(
   cumulativeMemory: Record<string, unknown> = {},
   stageNarrativeMap: Map<string, string[]> = new Map(),
   stageTimings: Map<string, number> = new Map(),
+  commitIndex: Map<string, CommitBundleLike[]> = new Map(),
 ): number {
   // Prefer MetricRecorder timing (real wall-clock), then scope.$metric('durationMs'), then 0.
   const stageName = node.name ?? node.id;
@@ -187,14 +398,22 @@ function flattenTree(
     narrative = parts.join('\n');
   }
 
-  // Build cumulative memory from stageWrites (actual setValue/updateValue calls)
+  // Build cumulative memory. Preferred source: this execution's commit
+  // bundles (replayed with engine verb semantics — set/merge/append/delete —
+  // so deep-write patches keep sibling fields, exactly like the engine's
+  // sharedState). Fallback: stageWrites, deep-merged via mergeWritePatch
+  // (whole-key overwrite would erase siblings on net-change patches).
   const memory = { ...cumulativeMemory };
-  if (node.stageWrites) {
+  const bundles = node.runtimeStageId ? commitIndex.get(node.runtimeStageId) : undefined;
+  if (bundles && bundles.length > 0) {
+    for (const bundle of bundles) applyCommitBundle(memory, bundle);
+  } else if (node.stageWrites) {
     for (const [key, value] of Object.entries(node.stageWrites)) {
+      if (UNSAFE_KEYS.has(key)) continue;
       if (value === undefined) {
         delete memory[key];
       } else {
-        memory[key] = value;
+        memory[key] = mergeWritePatch(memory[key], value);
       }
     }
   }
@@ -204,7 +423,7 @@ function flattenTree(
   out.push({
     stageName: displayName,
     stageLabel: stageId,
-    runtimeStageId: (node as any).runtimeStageId ?? undefined,
+    runtimeStageId: node.runtimeStageId ?? undefined,
     memory,
     narrative,
     startMs,
@@ -221,7 +440,7 @@ function flattenTree(
   if (node.children && node.children.length > 0) {
     let maxChildEnd = nextMs;
     for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings);
+      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
       maxChildEnd = Math.max(maxChildEnd, childEnd);
     }
     nextMs = maxChildEnd;
@@ -229,7 +448,7 @@ function flattenTree(
 
   // Handle linear continuation
   if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings);
+    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
   }
 
   return nextMs;

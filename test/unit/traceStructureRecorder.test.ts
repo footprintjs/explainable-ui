@@ -54,6 +54,47 @@ describe("createTraceStructureRecorder — unit (event-to-graph translation)", (
     expect(g.edges[0].data!.kind).toBe("next");
   });
 
+  it("derives isDecider from the real engine's spec.hasDecider (type stays 'stage')", () => {
+    const t = createTraceStructureRecorder();
+    t.recorder.onStageAdded!({
+      stageId: "classify",
+      name: "Classify",
+      type: "stage",
+      spec: spec("classify", "Classify", { hasDecider: true }),
+    });
+    expect(t.getGraph().nodes[0].data.isDecider).toBe(true);
+  });
+
+  it("derives isDecider from the real engine's spec.hasSelector (type stays 'stage')", () => {
+    const t = createTraceStructureRecorder();
+    t.recorder.onStageAdded!({
+      stageId: "screen",
+      name: "Screen",
+      type: "stage",
+      spec: spec("screen", "Screen", { hasSelector: true }),
+    });
+    expect(t.getGraph().nodes[0].data.isDecider).toBe(true);
+  });
+
+  it("onDeciderComplete marks the node isDecider even without spec flags", () => {
+    const t = createTraceStructureRecorder();
+    t.recorder.onStageAdded!({
+      stageId: "route",
+      name: "Route",
+      type: "stage",
+      spec: spec("route", "Route"),
+    });
+    expect(t.getGraph().nodes[0].data.isDecider).toBe(false);
+    t.recorder.onDeciderComplete!({
+      decider: "route",
+      type: "decider",
+      branchIds: ["a", "b"],
+    });
+    const node = t.getGraph().nodes[0];
+    expect(node.data.isDecider).toBe(true);
+    expect(node.data.branchIds).toEqual(["a", "b"]);
+  });
+
   it("recorder has a stable id (default 'trace-structure')", () => {
     const t = createTraceStructureRecorder();
     expect(t.recorder.id).toBe("trace-structure");
