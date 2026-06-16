@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.25.0] - 2026-06-16
+
+### Fixed
+
+- **Per-iteration subflow drill-down** — `fromRuntimeSnapshot` resolved a node's
+  `subflowResult` by `subflowId` (path), so every iteration of a LOOPING subflow rendered
+  the LAST iteration's internals (the path key held only the last). It now prefers the
+  node's unique `runtimeStageId` (footprintjs ≥ 9.9.0 dual-keys `subflowResults` per
+  execution), falling back to `subflowId` for non-looping subflows and older snapshots.
+  Each loop iteration now drills into its OWN internals. +2 unit tests.
+
 ## [0.24.0] - 2026-06-11
 
 The two real rendering gaps the U2 golden-trace fixtures exposed (documented
