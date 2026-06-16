@@ -418,7 +418,14 @@ function flattenTree(
     }
   }
 
-  const sfResult = subflowResults?.[node.subflowId ?? stageId];
+  // Prefer the per-iteration result keyed by this node's UNIQUE runtimeStageId, falling back to
+  // the subflow PATH key. A LOOPING subflow re-enters with the same `subflowId`, so the path key
+  // holds only the LAST iteration — keying by `runtimeStageId` gives THIS iteration's drill-down
+  // (footprintjs dual-keys subflowResults; see docs/design/subflow-commit-visibility.md). The
+  // fallback keeps non-looping subflows and older snapshots working unchanged.
+  const sfResult =
+    (node.runtimeStageId ? subflowResults?.[node.runtimeStageId] : undefined) ??
+    subflowResults?.[node.subflowId ?? stageId];
 
   out.push({
     stageName: displayName,

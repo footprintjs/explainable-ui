@@ -2459,7 +2459,7 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
       }
     }
   }
-  const sfResult = subflowResults?.[node.subflowId ?? stageId];
+  const sfResult = (node.runtimeStageId ? subflowResults?.[node.runtimeStageId] : void 0) ?? subflowResults?.[node.subflowId ?? stageId];
   out.push({
     stageName: displayName,
     stageLabel: stageId,

@@ -42,6 +42,39 @@ describe('toVisualizationSnapshots', () => {
     expect(snaps[0].subflowId).toBeUndefined();
   });
 
+  // Per-iteration drill-down (footprintjs subflow-commit-visibility): a LOOPING subflow's
+  // tree nodes share the same subflowId, so a path-only lookup renders the LAST iteration's
+  // internals for EVERY loop (the visible drill-down bug). footprintjs now dual-keys
+  // subflowResults by per-execution runtimeStageId; the adapter prefers that key.
+  it('resolves the per-iteration subflowResult by runtimeStageId (fix), not just the last loop', () => {
+    const iter1 = { subflowId: 'sf-loop', treeContext: { globalContext: { iNext: 1 }, stageContexts: {}, history: [{}] } };
+    const iter2 = { subflowId: 'sf-loop', treeContext: { globalContext: { iNext: 2 }, stageContexts: {}, history: [{}] } };
+    const node2 = makeRuntimeNode('LoopBody', { subflowId: 'sf-loop', runtimeStageId: 'sf-loop#3' });
+    const node1 = makeRuntimeNode('LoopBody', { subflowId: 'sf-loop', runtimeStageId: 'sf-loop#1', next: node2 });
+    const runtime = {
+      sharedState: {},
+      executionTree: node1,
+      commitLog: [],
+      // dual-keyed: path → last iteration; per-execution runtimeStageId → each iteration
+      subflowResults: { 'sf-loop': iter2, 'sf-loop#1': iter1, 'sf-loop#3': iter2 },
+    };
+    const snaps = toVisualizationSnapshots(runtime);
+    const s1 = snaps.find((s) => s.runtimeStageId === 'sf-loop#1')!;
+    const s2 = snaps.find((s) => s.runtimeStageId === 'sf-loop#3')!;
+    // each iteration now shows ITS OWN drill-down (before the fix both showed iNext=2)
+    expect((s1.subflowResult as typeof iter1).treeContext.globalContext.iNext).toBe(1);
+    expect((s2.subflowResult as typeof iter2).treeContext.globalContext.iNext).toBe(2);
+  });
+
+  it('falls back to the subflowId path key for older snapshots without per-execution keys', () => {
+    const last = { subflowId: 'sf-loop', treeContext: { globalContext: { iNext: 2 }, stageContexts: {}, history: [] } };
+    const node = makeRuntimeNode('LoopBody', { subflowId: 'sf-loop', runtimeStageId: 'sf-loop#1' });
+    const runtime = { sharedState: {}, executionTree: node, commitLog: [], subflowResults: { 'sf-loop': last } };
+    const snaps = toVisualizationSnapshots(runtime);
+    // no per-execution key → fall back to the path key (back-compat, unchanged behavior)
+    expect((snaps[0].subflowResult as typeof last).treeContext.globalContext.iNext).toBe(2);
+  });
+
   it('propagates description through linear chain', () => {
     const tree = makeRuntimeNode('A', {
       description: 'First step',
