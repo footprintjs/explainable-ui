@@ -2,3 +2,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 coverage
+
+# Published library: the lockfile is dev-only (npm strips it on publish) and a
+# committed one can ONLY pin the build env to a stale internal dep. Resolve fresh.
+package-lock.json

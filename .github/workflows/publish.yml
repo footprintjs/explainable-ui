@@ -4,12 +4,15 @@ on:
   release:
     types: [published]
 
+# Least privilege: NO id-token at the top level. OIDC publish power is granted ONLY to
+# the `publish` job below, which consumes the build job's pre-built artifact and does ZERO
+# dependency resolution — so the unpinned `npm install` (in `build`) never shares a runtime
+# with the registry token or `npm publish --provenance`.
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,21 +20,47 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          registry-url: https://registry.npmjs.org
 
-      - run: npm ci
+      # Fresh resolution (no committed lockfile — a library's lock is stripped on publish
+      # and can only pin the build env to a stale internal dep). This job has NO publish
+      # power, so an unpinned dep here cannot reach the registry token.
+      - run: npm install
       - run: npm test
       - run: npm run build
 
-      # Trusted publishing requires npm >= 11.5.1, but newer npm
-      # changes optional peer-dep resolution in ways that can break
-      # the test suite. Upgrade ONLY for the publish step, AFTER tests.
+      # Stage exactly the published files. package.json `files` is ["dist"]; npm always
+      # adds package.json + README (eui ships no LICENSE file).
+      - name: Stage published package
+        run: |
+          mkdir -p pkg
+          cp -R dist package.json README.md pkg/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: pkg/
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC trusted publishing — granted to THIS job only
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Upgrade npm ITSELF (trusted publishing needs >= 11.5.1) — not the project's deps.
       - run: npm install -g npm@latest
 
-      # Trusted publishing: no NODE_AUTH_TOKEN set. npm CLI authenticates
-      # to the registry via the GitHub OIDC token (granted by id-token:
-      # write permission above). npm verifies the publish is from a
-      # trusted GitHub workflow per the package's trusted-publisher config.
+      # Publishes the pre-built artifact. No node_modules, no dependency resolution.
+      # Trusted publishing: no NODE_AUTH_TOKEN — npm authenticates via the GitHub OIDC token.
       - name: Publish to npm
         run: npm publish --provenance --access public

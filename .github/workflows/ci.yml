@@ -23,8 +23,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
 
-      - run: npm ci
+      # Fresh resolution — no committed lockfile (library policy). `cache: npm` is dropped
+      # because it keys off the (now absent) lockfile.
+      - run: npm install
       - run: npm run build
       - run: npm test
