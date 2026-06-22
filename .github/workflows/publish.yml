@@ -28,6 +28,11 @@ jobs:
       - run: npm test
       - run: npm run build
 
+      # Packaging-correctness gate — block a publish that would ship a types masquerade /
+      # broken subpath export.
+      - run: npx publint
+      - run: npx @arethetypeswrong/cli --pack
+
       # Stage exactly the published files. package.json `files` is ["dist"]; npm always
       # adds package.json + README (eui ships no LICENSE file).
       - name: Stage published package

@@ -8,16 +8,25 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./flowchart": {
-      "types": "./dist/flowchart.d.ts",
-      "import": "./dist/flowchart.js",
-      "require": "./dist/flowchart.cjs"
-    },
-    "./styles.css": "./dist/styles.css"
+      "import": {
+        "types": "./dist/flowchart.d.ts",
+        "default": "./dist/flowchart.js"
+      },
+      "require": {
+        "types": "./dist/flowchart.d.cts",
+        "default": "./dist/flowchart.cjs"
+      }
+    }
   },
   "typesVersions": {
     "*": {
@@ -53,6 +62,7 @@
     }
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/dagre": "^0.7.54",
@@ -62,6 +72,7 @@
     "@xyflow/react": "^12.10.2",
     "footprintjs": "^9.0.0",
     "jsdom": "^29.0.1",
+    "publint": "^0.3.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "tsup": "^8.4.0",
@@ -69,9 +80,12 @@
     "vitest": "^4.1.0"
   },
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/footprintjs/explainable-ui.git"
+    "url": "git+https://github.com/footprintjs/explainable-ui.git"
   },
   "keywords": [
     "footprint",

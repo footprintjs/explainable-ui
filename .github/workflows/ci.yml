@@ -29,3 +29,9 @@ jobs:
       - run: npm install
       - run: npm run build
       - run: npm test
+
+      # Packaging-correctness gate on the would-be-published tarball (now that the dual
+      # CJS/ESM types + exports are correct). attw exits non-zero on a types masquerade /
+      # broken subpath; publint on a packaging error.
+      - run: npx publint
+      - run: npx @arethetypeswrong/cli --pack
