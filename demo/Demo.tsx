@@ -2,7 +2,7 @@ import "@xyflow/react/dist/style.css";
 import { TracedFlow } from "../src/flowchart";
 import type { TraceGraph } from "../src/components/FlowchartView/traceStructureRecorder";
 import graphData from "./sample-graph.json";
-import { GALLERY, COMBINE } from "./sample-graphs";
+import { GALLERY, COMBINE, CONNECTED_AGENT } from "./sample-graphs";
 
 /**
  * Demo gallery — each composition pattern in its OWN small chart so a layout
@@ -72,8 +72,14 @@ export function Demo() {
         height={560}
       />
       <ChartCard
-        title="Complex — real captured agent"
-        subtitle="16 top-level stages · subflows drill-in · loops · real (disconnected) capture"
+        title="Connected agent — the complete chart, perfect"
+        subtitle="full ReAct agent, CONNECTED — straight spine · symmetric+even diamond · conforming Route · side-lane loop"
+        graph={CONNECTED_AGENT}
+        height={620}
+      />
+      <ChartCard
+        title="Complex — real captured agent (disconnected data)"
+        subtitle="the SAME code on a real capture whose edges fragment into 3 pieces — a DATA limit, not a layout one"
         graph={complex}
         height={520}
       />

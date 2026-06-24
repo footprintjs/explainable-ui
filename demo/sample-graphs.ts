@@ -155,6 +155,51 @@ export const COMBINE: TraceGraph = {
   ],
 };
 
+/**
+ * CONNECTED_AGENT — the same real ReAct agent as the captured trace, but with
+ * its edges intact (one connected graph instead of 3 disconnected fragments).
+ * Proves the layout is general, not hard-coded: the SAME passes that lay out the
+ * tiny Fork chart handle a full agent — straight spine, a symmetric+even
+ * assembly diamond, two deciders, a divergent `Route` that conforms back onto
+ * the spine (terminal-fork conform), and a side-lane ReAct loop.
+ */
+export const CONNECTED_AGENT: TraceGraph = {
+  nodes: [
+    n("seed", "Seed"),
+    n("init", "Initialize"),
+    n("inject", "Injection Engine"),
+    n("assemble", "Assemble Context", { isFork: true }),
+    n("sysPrompt", "System Prompt"),
+    n("messages", "Messages"),
+    n("tools", "Tools"),
+    n("cache", "Cache"),
+    n("callLLM", "Call LLM"),
+    n("normalize", "Normalize"),
+    n("route", "Route", { isDecider: true }),
+    n("toolCalls", "Tool Calls"),
+    n("final", "Final"),
+    n("emit", "Emit Answer"),
+  ],
+  edges: [
+    e("seed", "init"),
+    e("init", "inject"),
+    e("inject", "assemble"),
+    e("assemble", "sysPrompt"),
+    e("assemble", "messages"),
+    e("assemble", "tools"),
+    e("sysPrompt", "cache"),
+    e("messages", "cache"),
+    e("tools", "cache"),
+    e("cache", "callLLM"),
+    e("callLLM", "normalize"),
+    e("normalize", "route"),
+    e("route", "toolCalls", "decision-branch"),
+    e("route", "final", "decision-branch"),
+    e("toolCalls", "inject", "loop"), // ReAct loop — act, then re-assemble
+    e("final", "emit"),
+  ],
+};
+
 export const GALLERY: { title: string; subtitle: string; graph: TraceGraph }[] = [
   { title: "Sequence", subtitle: "straight centered spine", graph: SEQUENCE },
   { title: "Fork / parallel", subtitle: "centered parent + comb fan", graph: FORK },
