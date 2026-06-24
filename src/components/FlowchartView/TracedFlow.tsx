@@ -46,7 +46,8 @@ import type { Node, Edge, NodeTypes, EdgeTypes, ReactFlowInstance } from "@xyflo
 import type { TraceGraph, TraceNode, TraceEdge } from "./traceStructureRecorder";
 import type { TraceFlowLayout } from "./TraceFlow";
 import { defaultTraceFlowLayout } from "./TraceFlow";
-import { dagreTraceLayout } from "./_internal/dagreTraceLayout";
+import { dagreTraceLayout, createDagreTraceLayout } from "./_internal/dagreTraceLayout";
+import type { NodeFootprint } from "./_internal/dagreTraceLayout";
 import type { RuntimeOverlay } from "./createTraceRuntimeOverlay";
 import { sliceOverlay } from "./createTraceRuntimeOverlay";
 import { StageNode } from "../StageNode";
@@ -62,6 +63,7 @@ import { GroupContainerNode } from "../GroupContainerNode";
 import { LoopBackEdge } from "../LoopBackEdge";
 import { SmartStepEdge } from "../SmartStepEdge";
 import { applyGroupLayout, wrapInMainChartBox } from "./_internal/groupLayout";
+import { MeasuredNodeSizes } from "./_internal/MeasuredNodeSizes";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Theming
@@ -421,9 +423,24 @@ export function TracedFlow({
     () => buildSubflowBreadcrumb(graph, drill.currentSubflowId),
     [graph, drill.currentSubflowId],
   );
+  // Real rendered node sizes, captured by the <MeasuredNodeSizes> probe once
+  // xyflow has measured them — fed into the dagre `nodeSize` resolver below so
+  // the layout re-runs with content-exact spacing (measure-then-layout).
+  const [measuredSizes, setMeasuredSizes] = useState<Map<string, NodeFootprint> | null>(null);
+
   const positioned = useMemo<TraceGraph>(() => {
+    // Default dagre? Inject the MEASURED node sizes so spacing is content-exact
+    // (no fixed-width-column gaps). A consumer's custom `layout` owns its own
+    // sizing and is left untouched; "passthrough" keeps the incoming positions.
+    const dagreBase: TraceFlowLayout = measuredSizes
+      ? createDagreTraceLayout({ nodeSize: (n) => measuredSizes.get(n.id) })
+      : dagreTraceLayout;
     const realBase: TraceFlowLayout =
-      layout === "passthrough" ? (g: TraceGraph) => g : layout;
+      layout === "passthrough"
+        ? (g: TraceGraph) => g
+        : layoutProp === undefined
+          ? dagreBase
+          : (layout as TraceFlowLayout);
 
     // Per-subflow group boxes (granular; not the main-chart model).
     if (groupedSet.size > 0) {
@@ -443,8 +460,8 @@ export function TracedFlow({
       return wrapInMainChartBox(filteredGraph, { baseLayout: realBase, ...mainChartBox });
     }
 
-    return layout === "passthrough" ? filteredGraph : layout(filteredGraph);
-  }, [filteredGraph, layout, groupedSet, mainChartBox]);
+    return realBase(filteredGraph);
+  }, [filteredGraph, layout, layoutProp, groupedSet, mainChartBox, measuredSizes]);
 
   // ── Runtime overlay slice → mount aggregation ────
   // Overlay stage ids are path-qualified (`subflowPath/stageId`, parsed
@@ -509,7 +526,11 @@ export function TracedFlow({
   // refitKey = the drill id: drilling in/out swaps the visible subgraph, so the
   // chart must recenter + rezoom to the new content (otherwise the smaller
   // drilled graph keeps the parent's pan/zoom and sits cramped in a corner).
-  useChartAutoRefit(wrapperRef, rfInstance, { refitKey: drill.currentSubflowId, padding: 0.18 });
+  useChartAutoRefit(wrapperRef, rfInstance, {
+    // Re-fit on drill AND after the measured-size re-layout settles.
+    refitKey: `${drill.currentSubflowId ?? ""}:${measuredSizes ? "measured" : "estimated"}`,
+    padding: 0.18,
+  });
 
   return (
     <div
@@ -543,6 +564,7 @@ export function TracedFlow({
           minZoom={0.1}
           proOptions={{ hideAttribution: true }}
         >
+          <MeasuredNodeSizes onSizes={setMeasuredSizes} />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
           {children}
         </ReactFlow>
