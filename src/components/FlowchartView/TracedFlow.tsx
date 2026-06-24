@@ -509,7 +509,7 @@ export function TracedFlow({
   // refitKey = the drill id: drilling in/out swaps the visible subgraph, so the
   // chart must recenter + rezoom to the new content (otherwise the smaller
   // drilled graph keeps the parent's pan/zoom and sits cramped in a corner).
-  useChartAutoRefit(wrapperRef, rfInstance, { refitKey: drill.currentSubflowId });
+  useChartAutoRefit(wrapperRef, rfInstance, { refitKey: drill.currentSubflowId, padding: 0.18 });
 
   return (
     <div
@@ -539,6 +539,8 @@ export function TracedFlow({
           onNodeClick={handleNodeClick}
           onInit={setRfInstance}
           fitView
+          fitViewOptions={{ padding: 0.18 }}
+          minZoom={0.1}
           proOptions={{ hideAttribution: true }}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />

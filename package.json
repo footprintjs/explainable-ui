@@ -50,7 +50,10 @@
     "release:major": "bash scripts/release.sh major",
     "test:coverage": "vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text-summary --coverage.reportsDirectory=coverage",
     "coverage:badge": "npm run test:coverage; node scripts/coverage-badge.mjs",
-    "fixtures:regen": "node scripts/generate-golden-fixtures.mjs"
+    "fixtures:regen": "node scripts/generate-golden-fixtures.mjs",
+    "demo": "vite",
+    "demo:build": "vite build",
+    "demo:preview": "vite preview"
   },
   "peerDependencies": {
     "react": ">=18.0.0",
@@ -68,6 +71,7 @@
     "@types/dagre": "^0.7.54",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
     "footprintjs": "^9.0.0",
@@ -77,6 +81,7 @@
     "react-dom": "^19.2.5",
     "tsup": "^8.4.0",
     "typescript": "^5.4.0",
+    "vite": "^8.1.0",
     "vitest": "^4.1.0"
   },
   "license": "MIT",
