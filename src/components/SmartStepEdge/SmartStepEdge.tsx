@@ -20,8 +20,9 @@
 import { BaseEdge, getSmoothStepPath, useStore } from "@xyflow/react";
 import type { EdgeProps, ReactFlowState } from "@xyflow/react";
 import { Position } from "@xyflow/react";
-import { staggeredBendY, type VerticalBounds } from "../FlowchartView/_internal/stepRouting";
+import { staggeredBendY, forkFanBendY, type VerticalBounds } from "../FlowchartView/_internal/stepRouting";
 import { GROUP_CONTAINER_NODE_TYPE } from "../FlowchartView/_internal/groupLayout";
+import type { TraceEdgeData } from "../FlowchartView/traceStructureRecorder";
 
 export function SmartStepEdge({
   id,
@@ -45,6 +46,22 @@ export function SmartStepEdge({
     if (!src || !tgt) return null;
     const sourceBottom = src.internals.positionAbsolute.y + (src.measured.height ?? 0);
     const targetTop = tgt.internals.positionAbsolute.y;
+
+    // FORK FAN: if this source feeds >= 2 children (excluding loop back-edges),
+    // every edge leaving it shares ONE bend row above the nearest child, so the
+    // fan reads as a clean comb instead of N staggered diagonals. Derived from
+    // the source's geometry → all siblings return the same primitive.
+    const childTops: number[] = [];
+    for (const e of s.edges) {
+      if (e.source !== source) continue;
+      if ((e.data as TraceEdgeData | undefined)?.kind === "loop") continue;
+      const c = s.nodeLookup.get(e.target);
+      if (c) childTops.push(c.internals.positionAbsolute.y);
+    }
+    const fan = forkFanBendY(sourceBottom, childTops);
+    if (fan !== null) return fan;
+
+    // Otherwise: route a rank-SKIPPING edge around the node(s) it skips.
     const others: VerticalBounds[] = [];
     for (const n of s.nodeLookup.values()) {
       if (n.id === source || n.id === target) continue;

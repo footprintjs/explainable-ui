@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { staggeredBendY, type VerticalBounds } from "../../src/components/FlowchartView/_internal/stepRouting";
+import { staggeredBendY, forkFanBendY, type VerticalBounds } from "../../src/components/FlowchartView/_internal/stepRouting";
 
 // Band geometry mirroring the agent merge-tree (flow coords, top→bottom):
 //   tools     rank 1 : top 360, bottom 440   (source of the staggered edge)
@@ -103,5 +103,35 @@ describe("staggeredBendY", () => {
     expect(() => staggeredBendY(NaN, NaN, [{ top: NaN, bottom: NaN }])).not.toThrow();
     // target above source (inverted) → nothing qualifies as skipped → null
     expect(staggeredBendY(500, 100, [{ top: 200, bottom: 300 }])).toBeNull();
+  });
+});
+
+describe("forkFanBendY", () => {
+  it("unit: < 2 children → null (not a fork; caller uses the default bend)", () => {
+    expect(forkFanBendY(100, [])).toBeNull();
+    expect(forkFanBendY(100, [300])).toBeNull();
+  });
+
+  it("unit: 2+ children → midway between source bottom and the NEAREST child top", () => {
+    expect(forkFanBendY(100, [300, 500])).toBeCloseTo(200, 6); // nearest 300, mid from 100
+  });
+
+  it("unit: picks the nearest (min) child top across differing ranks", () => {
+    expect(forkFanBendY(100, [500, 220, 800])).toBeCloseTo((100 + 220) / 2, 6); // 160
+  });
+
+  it("unit: clamps to minGapFromTarget above the nearest child (corner room)", () => {
+    expect(forkFanBendY(0, [1000, 1200], 8)).toBeCloseTo(500, 6); // midway < clamp → midway
+    expect(forkFanBendY(0, [10, 40], 8)).toBeCloseTo(2, 6); // tiny gap → clamp wins (10-8)
+  });
+
+  it("functional: same source geometry → SAME bend for every sibling (one comb)", () => {
+    const tops = [300, 460, 620];
+    expect(forkFanBendY(100, tops)).toBe(forkFanBendY(100, tops));
+  });
+
+  it("security/robustness: degenerate inputs do not throw", () => {
+    expect(() => forkFanBendY(NaN, [NaN, NaN])).not.toThrow();
+    expect(forkFanBendY(0, [])).toBeNull();
   });
 });

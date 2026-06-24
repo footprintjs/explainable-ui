@@ -52,3 +52,26 @@ export function staggeredBendY(
   if (lowestSkippedBottom === -Infinity) return null; // nothing skipped → default bend
   return Math.min((lowestSkippedBottom + targetTop) / 2, targetTop - minGapFromTarget);
 }
+
+/**
+ * The shared bend-y for a FORK FAN. When one source feeds N children (out-degree
+ * >= 2), every edge leaving it bends at the SAME row — midway between the
+ * source's bottom and the NEAREST child's top — so the fan reads as one clean
+ * comb instead of N independently-bent diagonals (the staggered-staircase look).
+ *
+ * Because the value derives only from the SOURCE's geometry + its children
+ * (identical for every sibling edge), each edge's store selector returns the
+ * same primitive → React Flow re-renders the whole fan as a unit. Returns
+ * `null` for a non-fork (< 2 children); the caller then uses the staggered /
+ * default-midpoint bend.
+ */
+export function forkFanBendY(
+  sourceBottom: number,
+  childTops: readonly number[],
+  minGapFromTarget = 8,
+): number | null {
+  if (childTops.length < 2) return null;
+  const nearestTop = Math.min(...childTops);
+  // Midway to the nearest child, but kept a corner-radius above it.
+  return Math.min((sourceBottom + nearestTop) / 2, nearestTop - minGapFromTarget);
+}
