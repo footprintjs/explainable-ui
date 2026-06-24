@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.25.3] - 2026-06-24
+
+### Fixed
+
+- **Even fan + straight spines through irregular real charts** — two general
+  layout passes (both read only graph structure + measured widths; no
+  per-chart logic):
+  - **Even-fan**: a diamond fork's children are re-spaced to equal center-gaps,
+    symmetric around the axis, so the comb reads evenly even when the children
+    differ in width (dagre's edge-based packing otherwise hands the wider child
+    more room → a lopsided fan). Restricted to true diamonds (children
+    reconverge at a common merge) so a divergent fork whose child owns its own
+    subtree is never disturbed.
+  - **Terminal-fork conform**: a divergent fork on a straight trunk (a decision
+    whose branches don't reconverge — e.g. a ReAct `Route` → tool-call/final)
+    was left at its branches' span-midpoint, which the spine above need not
+    share → the edge into it jogged (~10px on the agent chart). It now aligns
+    to its trunk axis and carries its branches along, so the spine stays
+    straight and the branches stay centered under it. +4 unit tests.
+
 ## [0.25.2] - 2026-06-24
 
 ### Fixed
