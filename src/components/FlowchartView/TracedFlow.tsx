@@ -35,7 +35,7 @@
  */
 
 import type * as React from "react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -47,6 +47,7 @@ import type { TraceGraph, TraceNode, TraceEdge } from "./traceStructureRecorder"
 import type { TraceFlowLayout } from "./TraceFlow";
 import { defaultTraceFlowLayout } from "./TraceFlow";
 import { dagreTraceLayout, createDagreTraceLayout } from "./_internal/dagreTraceLayout";
+import { devWarn } from "./_internal/devWarn";
 import type { NodeFootprint, NodeSizeResolver } from "./_internal/dagreTraceLayout";
 import { createSnappedDagreLayout } from "./_internal/snapLinearSuccessors";
 import { withForkCentering } from "./_internal/centerForkParents";
@@ -384,6 +385,24 @@ export function TracedFlow({
 }: TracedFlowProps) {
   // Dagre is the default (structure-derived spacing); override via `layout`.
   const layout = layoutProp ?? dagreTraceLayout;
+
+  // Dev guardrail (integration-drift, not version-drift): passing the BARE
+  // exported `dagreTraceLayout` as `layout` opts OUT of the built-in
+  // measure-then-layout pipeline (content-exact sizing + fork/merge centering +
+  // straight spines) — a silent footgun that once made the lens render stale
+  // while pinned to a current eui. Omit `layout` to get the pipeline; pass a
+  // custom layout only to deliberately override it.
+  useEffect(() => {
+    if (layoutProp === dagreTraceLayout) {
+      devWarn(
+        () =>
+          "[footprint-explainable-ui] <TracedFlow layout={dagreTraceLayout}> bypasses the " +
+          "built-in measure-then-layout pipeline (content-exact sizing, fork/merge centering, " +
+          "straight spines). OMIT the `layout` prop to use it — passing the raw dagreTraceLayout " +
+          "silently forfeits every layout improvement eui ships.",
+      );
+    }
+  }, [layoutProp]);
   const colors = useMemo<TracedFlowColors>(
     () => ({ ...DEFAULT_COLORS, ...(colorOverrides ?? {}) }),
     [colorOverrides],
