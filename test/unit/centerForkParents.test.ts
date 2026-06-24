@@ -184,7 +184,81 @@ describe("centerForkParents — overlap safety (the clamp the panel required)", 
     expect(centerOf(centerForkParents(g, { nodeSep: 60 }))("f")).toBeCloseTo(400, 5);
   });
 
-  it("composed over real dagre introduces NO node overlap", () => {
+});
+
+describe("centerForkParents — trunk propagation (keeps the spine INTO a fork straight)", () => {
+  it("pulls a single linear predecessor onto the fork's new center — aligns CENTERS, not top-lefts", () => {
+    // The decision-spine bug: f centers over its branches, but its linear trunk
+    // `t` (a card of DIFFERENT width) must follow by CENTER so the edge into the
+    // fork is vertical. If only top-lefts aligned, unequal widths would jog it.
+    const W = { t: 132, f: 120, a: 200, b: 200 };
+    const g: TraceGraph = {
+      nodes: [
+        node("t", 0, -100),
+        node("f", 0, 0),
+        node("a", 0, 100), node("b", 600, 100), // children centers 100, 700 → span-mid 400
+      ],
+      edges: [edge("t", "f"), edge("f", "a"), edge("f", "b")],
+    };
+    const out = centerForkParents(g, { nodeSize: sizing(W) });
+    const c = centerOf(out, W);
+    expect(c("f")).toBeCloseTo(400, 5);
+    expect(c("t")).toBeCloseTo(400, 5); // trunk followed the fork's new center
+    const t = out.nodes.find((n) => n.id === "t")!;
+    const f = out.nodes.find((n) => n.id === "f")!;
+    expect(t.position.x).not.toBeCloseTo(f.position.x, 1); // top-lefts DIFFER → only centers align
+  });
+
+  it("propagates up a MULTI-HOP linear trunk (every ancestor follows)", () => {
+    const W = { t2: 100, t1: 150, f: 120, a: 200, b: 200 };
+    const g: TraceGraph = {
+      nodes: [
+        node("t2", 0, -200), node("t1", 0, -100), node("f", 0, 0),
+        node("a", 0, 100), node("b", 600, 100),
+      ],
+      edges: [edge("t2", "t1"), edge("t1", "f"), edge("f", "a"), edge("f", "b")],
+    };
+    const c = centerOf(centerForkParents(g, { nodeSize: sizing(W) }), W);
+    expect(c("f")).toBeCloseTo(400, 5);
+    expect(c("t1")).toBeCloseTo(400, 5);
+    expect(c("t2")).toBeCloseTo(400, 5);
+  });
+
+  it("STOPS at a predecessor that itself branches (pred out-degree > 1 is not a straight trunk)", () => {
+    // p feeds the fork f AND a side node s → p is its OWN fork, not f's trunk.
+    // f's trunk walk must stop at p; p then centers over ITS children, not f's.
+    const W = { p: 200, f: 120, s: 200, a: 200, b: 200 };
+    const g: TraceGraph = {
+      nodes: [
+        node("p", 0, -100),
+        node("f", 0, 0), node("s", 1000, 0), // s center 1100
+        node("a", 0, 100), node("b", 600, 100), // f → span-mid 400
+      ],
+      edges: [edge("p", "f"), edge("p", "s"), edge("f", "a"), edge("f", "b")],
+    };
+    const c = centerOf(centerForkParents(g, { nodeSize: sizing(W) }), W);
+    expect(c("f")).toBeCloseTo(400, 5);
+    expect(c("p")).not.toBeCloseTo(400, 0); // NOT dragged to f's center by the trunk
+    expect(c("p")).toBeCloseTo(750, 5); // centers over its own children (400, 1100)
+  });
+
+  it("does NOT cross a compound boundary when propagating up the trunk", () => {
+    const W = { t: 132, f: 120, a: 200, b: 200 };
+    const g: TraceGraph = {
+      nodes: [
+        node("t", 333, -100, { parentId: "box" }), // trunk in a DIFFERENT compound
+        node("f", 0, 0),
+        node("a", 0, 100), node("b", 600, 100),
+      ],
+      edges: [edge("t", "f"), edge("f", "a"), edge("f", "b")],
+    };
+    const out = centerForkParents(g, { nodeSize: sizing(W) });
+    expect(out.nodes.find((n) => n.id === "t")!.position.x).toBe(333); // unmoved (cross-compound guard)
+  });
+});
+
+describe("centerForkParents — real-dagre composition", () => {
+  it("introduces NO node overlap", () => {
     // A fork → 3 slots → merge, run through dagre then fork-centering; assert no
     // two nodes overlap (the centering must not undo dagre's packing).
     const resolver = sizing({});

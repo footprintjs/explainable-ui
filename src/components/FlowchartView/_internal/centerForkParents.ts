@@ -74,6 +74,7 @@ export function centerForkParents(
 
   // Forward adjacency, EXCLUDING loop back-edges (matching dagre + snap), deduped.
   const childrenOf = new Map<string, string[]>();
+  const predsOf = new Map<string, string[]>();
   const outDegree = new Map<string, number>();
   const inDegree = new Map<string, number>();
   const seen = new Set<string>();
@@ -83,9 +84,12 @@ export function centerForkParents(
     const key = `${e.source} ${e.target}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    const list = childrenOf.get(e.source);
-    if (list) list.push(e.target);
+    const cl = childrenOf.get(e.source);
+    if (cl) cl.push(e.target);
     else childrenOf.set(e.source, [e.target]);
+    const pl = predsOf.get(e.target);
+    if (pl) pl.push(e.source);
+    else predsOf.set(e.target, [e.source]);
     outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
     inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
   }
@@ -96,6 +100,25 @@ export function centerForkParents(
   const centerX = (id: string) => workingX.get(id)! + width.get(id)! / 2;
 
   const nodeSep = options.nodeSep ?? 60;
+  // Clamp a desired top-left x for `id` so it can't reduce same-rank,
+  // same-compound sibling clearance below the reserved nodeSep gap.
+  const clampX = (id: string, desiredX: number): number => {
+    const w = width.get(id)!;
+    const x0 = workingX.get(id)!;
+    const self = byId.get(id)!;
+    let minX = -Infinity;
+    let maxX = Infinity;
+    for (const m of graph.nodes) {
+      if (m.id === id || m.parentId !== self.parentId) continue;
+      if (Math.abs(m.position.y - self.position.y) > 1) continue; // same rank only
+      const mLeft = workingX.get(m.id)!;
+      const mRight = mLeft + width.get(m.id)!;
+      if (mRight <= x0) minX = Math.max(minX, mRight + nodeSep);
+      else if (mLeft >= x0 + w) maxX = Math.min(maxX, mLeft - nodeSep - w);
+    }
+    return minX <= maxX ? Math.max(minX, Math.min(maxX, desiredX)) : x0;
+  };
+
   // Rank-DESCENDING (y desc) so nested forks center before their ancestors.
   const order = [...graph.nodes].sort((a, b) =>
     b.position.y - a.position.y || a.position.x - b.position.x || a.id.localeCompare(b.id),
@@ -109,26 +132,27 @@ export function centerForkParents(
     if (kids.length < 2) continue;
     const centers = kids.map(centerX);
     const wN = width.get(n.id)!;
-    let desiredX = (Math.min(...centers) + Math.max(...centers)) / 2 - wN / 2; // span center
+    const span = (Math.min(...centers) + Math.max(...centers)) / 2; // fan center
+    workingX.set(n.id, clampX(n.id, span - wN / 2));
 
-    // Clamp against same-rank, same-compound neighbors so re-centering can NEVER
-    // reduce sibling clearance below the reserved nodeSep gap. (A no-op on real
-    // dagre output — it already packs the parent inside its column — but keeps
-    // the pass overlap-SAFE when composed over any non-dagre base.)
-    const x0 = workingX.get(n.id)!;
-    let minX = -Infinity;
-    let maxX = Infinity;
-    for (const m of graph.nodes) {
-      if (m.id === n.id || m.parentId !== n.parentId) continue;
-      if (Math.abs(m.position.y - n.position.y) > 1) continue; // same rank only
-      const mLeft = workingX.get(m.id)!;
-      const mRight = mLeft + width.get(m.id)!;
-      if (mRight <= x0) minX = Math.max(minX, mRight + nodeSep); // neighbor to the left
-      else if (mLeft >= x0 + wN) maxX = Math.min(maxX, mLeft - nodeSep - wN); // to the right
+    // Propagate the new center UP the LINEAR trunk feeding this fork: a node that
+    // is BOTH a fork parent AND a single-in/single-out continuation must keep its
+    // predecessor chain straight, else the edge INTO the fork jogs (a decider fed
+    // by one stage is the common case). Walk while single-pred + single-out +
+    // same compound; cycle-guarded; each move clamped.
+    let curId = n.id;
+    const walked = new Set<string>([curId]);
+    for (;;) {
+      const ps = predsOf.get(curId);
+      if (!ps || ps.length !== 1) break; // not a single predecessor
+      const p = ps[0];
+      if (walked.has(p)) break; // cycle guard (defensive — forward graph is a DAG)
+      if ((outDegree.get(p) ?? 0) !== 1) break; // predecessor forks elsewhere → stop
+      if (byId.get(p)?.parentId !== byId.get(curId)?.parentId) break; // cross-compound
+      workingX.set(p, clampX(p, centerX(curId) - width.get(p)! / 2));
+      walked.add(p);
+      curId = p;
     }
-    desiredX = minX <= maxX ? Math.max(minX, Math.min(maxX, desiredX)) : x0;
-
-    workingX.set(n.id, desiredX);
   }
 
   const nodes = graph.nodes.map((n) =>

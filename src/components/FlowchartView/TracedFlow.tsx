@@ -50,11 +50,6 @@ import { dagreTraceLayout, createDagreTraceLayout } from "./_internal/dagreTrace
 import type { NodeFootprint, NodeSizeResolver } from "./_internal/dagreTraceLayout";
 import { createSnappedDagreLayout } from "./_internal/snapLinearSuccessors";
 import { withForkCentering } from "./_internal/centerForkParents";
-
-/** Deciders render as a fixed diamond in StageNode — give the layout that TRUE
- *  footprint (not the wide-card default) so a decider centers over its branches
- *  and the branch arrows stay straight. Mirrors the diamond size in StageNode. */
-const DECIDER_FOOTPRINT: NodeFootprint = { width: 120, height: 72 };
 import type { RuntimeOverlay } from "./createTraceRuntimeOverlay";
 import { sliceOverlay } from "./createTraceRuntimeOverlay";
 import { StageNode } from "../StageNode";
@@ -442,11 +437,10 @@ export function TracedFlow({
     // snap reconstructs centers from wrong widths (the identical-resolver
     // invariant). A consumer's custom `layout` owns its own sizing;
     // "passthrough" keeps the incoming positions.
-    // Deciders always resolve to the true diamond footprint (P1c) so they
-    // center over their branches; everything else uses its measured size.
-    const nodeSize: NodeSizeResolver = (n) =>
-      n.data?.isDecider ? DECIDER_FOOTPRINT : measuredSizes?.get(n.id);
-    const sizeOpts = { nodeSize };
+    const nodeSize: NodeSizeResolver | undefined = measuredSizes
+      ? (n) => measuredSizes.get(n.id)
+      : undefined;
+    const sizeOpts = nodeSize ? { nodeSize } : {};
     // dagre → snap (spine drift) → fork-centering (off-center fork parents).
     // SAME sizeOpts to every stage (the identical-resolver invariant).
     const dagreBase: TraceFlowLayout = withForkCentering(
