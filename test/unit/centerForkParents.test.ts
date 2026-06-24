@@ -97,8 +97,9 @@ describe("centerForkParents — never moves protected nodes", () => {
     expect(centerForkParents(g).nodes.find((n) => n.id === "a")!.position.x).toBe(333);
   });
 
-  it("a MERGE (in-degree > 1) is never moved even if it forks out", () => {
-    // m has 2 preds (p1,p2) AND 2 succs (a,b) → it's a merge; must NOT be recentered.
+  it("a FORK-MERGE (in-degree >= 2 AND out-degree >= 2) is left at dagre's barycenter", () => {
+    // m has 2 preds (p1,p2) AND 2 succs (a,b) → it is BOTH a merge and a fork;
+    // ambiguous to center (each side wants a different axis), so it must NOT move.
     const g: TraceGraph = {
       nodes: [
         node("p1", 0, 0), node("p2", 400, 0),
@@ -184,6 +185,79 @@ describe("centerForkParents — overlap safety (the clamp the panel required)", 
     expect(centerOf(centerForkParents(g, { nodeSep: 60 }))("f")).toBeCloseTo(400, 5);
   });
 
+});
+
+describe("centerForkParents — merge centering (symmetric counterpart of fork centering)", () => {
+  it("centers a MERGE (in>=2, out<=1) on the span-midpoint of its PARENTS", () => {
+    // p1,p2,p3 → m. Parents at centers 100, 500, 900 → span-mid 500. dagre placed
+    // m off-center (center 700); the pass pulls it to 500.
+    const W = { p1: 200, p2: 200, p3: 200, m: 120 };
+    const g: TraceGraph = {
+      nodes: [
+        node("p1", 0, 0), node("p2", 400, 0), node("p3", 800, 0), // centers 100,500,900
+        node("m", 640, 100), // dagre off-center (center 700)
+      ],
+      edges: [edge("p1", "m"), edge("p2", "m"), edge("p3", "m")],
+    };
+    expect(centerOf(centerForkParents(g, { nodeSize: sizing(W) }), W)("m")).toBeCloseTo(500, 5);
+  });
+
+  it("propagates the merge's new center DOWN its linear successor trunk (unequal widths align CENTERS)", () => {
+    const W = { p1: 200, p2: 200, m: 120, s1: 150, s2: 100 };
+    const g: TraceGraph = {
+      nodes: [
+        node("p1", 0, 0), node("p2", 600, 0), // centers 100, 700 → span-mid 400
+        node("m", 0, 100), node("s1", 0, 200), node("s2", 0, 300),
+      ],
+      edges: [edge("p1", "m"), edge("p2", "m"), edge("m", "s1"), edge("s1", "s2")],
+    };
+    const c = centerOf(centerForkParents(g, { nodeSize: sizing(W) }), W);
+    expect(c("m")).toBeCloseTo(400, 5);
+    expect(c("s1")).toBeCloseTo(400, 5); // followed the merge down
+    expect(c("s2")).toBeCloseTo(400, 5);
+  });
+
+  it("a fork→branches→merge DIAMOND is symmetric: fork and merge share one axis", () => {
+    // The bug the user hit: branches of UNEQUAL width shift dagre's merge off the
+    // fork axis. Both ends must land on the same span-midpoint.
+    const W = { d: 120, a: 200, b: 100, c: 100, m: 120 };
+    const g: TraceGraph = {
+      nodes: [
+        node("d", 0, 0),
+        node("a", 0, 100), node("b", 300, 100), node("c", 600, 100), // centers 100,350,650
+        node("m", 500, 200), // dagre off-center
+      ],
+      edges: [
+        edge("d", "a"), edge("d", "b"), edge("d", "c"),
+        edge("a", "m"), edge("b", "m"), edge("c", "m"),
+      ],
+    };
+    const c = centerOf(centerForkParents(g, { nodeSize: sizing(W) }), W);
+    expect(c("d")).toBeCloseTo(375, 5); // span-mid of (100,650)
+    expect(c("m")).toBeCloseTo(375, 5);
+    expect(c("d")).toBeCloseTo(c("m"), 5); // the diamond is vertically symmetric
+  });
+
+  it("STOPS the merge's downward trunk at a node that itself forks or merges", () => {
+    // m (merge) → s (pass-through) → f (fork). The walk moves s but must STOP at f
+    // (f has its own children to balance).
+    const W = { p1: 200, p2: 200, m: 120, s: 120, f: 120, x: 200, y: 200 };
+    const g: TraceGraph = {
+      nodes: [
+        node("p1", 0, 0), node("p2", 600, 0), // span-mid 400
+        node("m", 0, 100), node("s", 0, 200),
+        node("f", 0, 300), node("x", 0, 400), node("y", 800, 400), // f's children → f span-mid 500
+      ],
+      edges: [
+        edge("p1", "m"), edge("p2", "m"), edge("m", "s"), edge("s", "f"),
+        edge("f", "x"), edge("f", "y"),
+      ],
+    };
+    const c = centerOf(centerForkParents(g, { nodeSize: sizing(W) }), W);
+    expect(c("m")).toBeCloseTo(400, 5);
+    expect(c("s")).toBeCloseTo(400, 5); // moved with the merge
+    expect(c("f")).toBeCloseTo(500, 5); // NOT dragged to 400 — centers over its own children
+  });
 });
 
 describe("centerForkParents — trunk propagation (keeps the spine INTO a fork straight)", () => {

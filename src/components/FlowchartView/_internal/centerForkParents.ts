@@ -14,18 +14,23 @@
  * THE FIX
  * -------
  * A pure `(graph) => graph` pass applied AFTER `dagreTraceLayout` (+ the snap
- * pass). A node with forward (non-loop) out-degree >= 2 that is NOT a merge
- * (in-degree <= 1) has its CENTER-x set to the midpoint of the min/max
- * center-x of its direct children in the SAME compound. `position.x` is
- * recomputed from the node's OWN width; `y` is never touched.
+ * pass). It centers BOTH ends of a diamond on the same axis:
+ *   - a FORK  (out-degree >= 2, in-degree <= 1) is centered over its CHILDREN;
+ *   - a MERGE (in-degree >= 2, out-degree <= 1) is centered under its PARENTS.
+ * Each lands on the midpoint of the min/max center-x of its kin in the SAME
+ * compound, so a fork and the merge that re-joins its branches sit on one
+ * vertical axis (a symmetric diamond) even when the branches have unequal
+ * widths (where dagre's placement of the merge otherwise drifts off-center).
+ * `position.x` is recomputed from the node's OWN width; `y` is never touched.
  *
  * WHAT IT NEVER MOVES
  * -------------------
- *   - linear nodes (out-degree < 2)        — not a fork
- *   - MERGE nodes (in-degree > 1)          — moving a join distorts its inbound
- *   - children in a different compound      — cross-box hop, skipped
- * Processed RANK-DESCENDING (y desc) so a nested fork centers over its own
- * (already-centered) children before its parent centers over it.
+ *   - linear nodes (out-degree < 2 AND in-degree < 2) — neither fork nor merge
+ *   - FORK-MERGE nodes (in-degree >= 2 AND out-degree >= 2) — ambiguous: moving
+ *     them would distort one side, so they're left at dagre's barycenter
+ *   - kin in a different compound                      — cross-box hop, skipped
+ * Processed RANK-DESCENDING (y desc) so a nested fork/merge centers over its own
+ * (already-centered) kin before its ancestors are processed.
  *
  * PROPERTIES — mirror snapLinearSuccessors: PURE (new nodes array, edges by
  * reference), IDEMPOTENT (re-running finds centers equal → zero-delta), and
@@ -119,45 +124,54 @@ export function centerForkParents(
     return minX <= maxX ? Math.max(minX, Math.min(maxX, desiredX)) : x0;
   };
 
-  // Rank-DESCENDING (y desc) so nested forks center before their ancestors.
+  // Rank-DESCENDING (y desc) so nested forks/merges center before their ancestors.
   const order = [...graph.nodes].sort((a, b) =>
     b.position.y - a.position.y || a.position.x - b.position.x || a.id.localeCompare(b.id),
   );
   for (const n of order) {
-    if ((outDegree.get(n.id) ?? 0) < 2) continue; // not a fork/decision
-    if ((inDegree.get(n.id) ?? 0) > 1) continue; // a merge — leave it
-    const kids = (childrenOf.get(n.id) ?? []).filter(
+    const outD = outDegree.get(n.id) ?? 0;
+    const inD = inDegree.get(n.id) ?? 0;
+    // A FORK (out>=2, not itself a merge) centers over its CHILDREN; a MERGE
+    // (in>=2, not itself a fork) centers under its PARENTS. Both land on the
+    // span-midpoint of their kin, so a fork and the merge that re-joins its
+    // branches share one vertical axis. A FORK-MERGE (in>=2 AND out>=2) is
+    // ambiguous → skipped (left at dagre's barycenter).
+    const isFork = outD >= 2 && inD <= 1;
+    const isMerge = inD >= 2 && outD <= 1;
+    if (!isFork && !isMerge) continue;
+
+    const kin = ((isFork ? childrenOf.get(n.id) : predsOf.get(n.id)) ?? []).filter(
       (k) => byId.get(k)?.parentId === n.parentId, // same compound only
     );
-    if (kids.length < 2) continue;
-    const centers = kids.map(centerX);
+    if (kin.length < 2) continue;
+    const centers = kin.map(centerX);
     const wN = width.get(n.id)!;
-    const span = (Math.min(...centers) + Math.max(...centers)) / 2; // fan center
+    const span = (Math.min(...centers) + Math.max(...centers)) / 2; // kin span center
     workingX.set(n.id, clampX(n.id, span - wN / 2));
 
-    // Propagate the new center UP the LINEAR trunk feeding this fork: a node that
-    // is BOTH a fork parent AND a single-in/single-out continuation must keep its
-    // predecessor chain straight, else the edge INTO the fork jogs (a decider fed
-    // by one stage is the common case). Walk while single-pred + single-out +
-    // NOT a merge + same compound; cycle-guarded; each move clamped.
-    // NOTE: the move is clamp-LIMITED — if a trunk node is boxed by same-rank
-    // neighbours closer than nodeSep on both sides, clampX leaves it put and the
-    // into-fork edge stays slightly jogged (best-effort, never overlaps).
+    // Propagate the new center along the LINEAR trunk leading AWAY from the kin —
+    // UP the predecessor chain for a fork (keep the edge INTO the fork straight),
+    // DOWN the successor chain for a merge (keep the edge OUT OF the merge
+    // straight). Walk while the next node is a pure pass-through (single neighbour
+    // in this direction, and itself neither a fork nor a merge) in the same
+    // compound; cycle-guarded; each move clamped.
+    // NOTE: clamp-LIMITED (best-effort) — a trunk node boxed by same-rank
+    // neighbours closer than nodeSep on both sides stays put (never overlaps).
+    const stepOf = isFork ? predsOf : childrenOf;
     let curId = n.id;
     const walked = new Set<string>([curId]);
     for (;;) {
-      const ps = predsOf.get(curId);
-      if (!ps || ps.length !== 1) break; // not a single predecessor
-      const p = ps[0];
-      if (walked.has(p)) break; // cycle guard (defensive — forward graph is a DAG)
-      if ((outDegree.get(p) ?? 0) !== 1) break; // predecessor forks elsewhere → stop
-      if ((inDegree.get(p) ?? 0) > 1) break; // predecessor is a MERGE — moving it
-      // would jog ITS inbound edges (same reason the main loop leaves merges
-      // alone); stop the trunk here.
-      if (byId.get(p)?.parentId !== byId.get(curId)?.parentId) break; // cross-compound
-      workingX.set(p, clampX(p, centerX(curId) - width.get(p)! / 2));
-      walked.add(p);
-      curId = p;
+      const nexts = stepOf.get(curId);
+      if (!nexts || nexts.length !== 1) break; // not a single linear neighbour
+      const m = nexts[0];
+      if (walked.has(m)) break; // cycle guard (defensive — forward graph is a DAG)
+      if ((outDegree.get(m) ?? 0) > 1) break; // neighbour forks elsewhere → stop
+      if ((inDegree.get(m) ?? 0) > 1) break; // neighbour is a merge → stop (moving
+      // it would jog its OTHER inbound/outbound edges)
+      if (byId.get(m)?.parentId !== byId.get(curId)?.parentId) break; // cross-compound
+      workingX.set(m, clampX(m, centerX(curId) - width.get(m)! / 2));
+      walked.add(m);
+      curId = m;
     }
   }
 
