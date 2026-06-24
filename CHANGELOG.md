@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.25.2] - 2026-06-24
+
+### Fixed
+
+- **Center MERGE nodes too — symmetric diamonds.** `centerForkParents` centered
+  the FORK end of a diamond but left the MERGE end at dagre's barycenter. When
+  branches have unequal widths (e.g. a wide "System Prompt" slot beside a narrow
+  "Tools"), the span-midpoint ≠ barycenter, so the merge — and the whole spine
+  below it — drifted off the fork's axis (~49px in the agent chart). A MERGE
+  (in-degree ≥ 2, out-degree ≤ 1) is now centered on its parents' span-midpoint,
+  mirroring fork centering, and propagates that center DOWN its linear successor
+  trunk. Both ends of a diamond now share one vertical axis. Fork-merge nodes
+  (in ≥ 2 AND out ≥ 2) stay at the barycenter (ambiguous). +4 unit tests.
+
+### Added
+
+- **Dev guardrail against the raw-layout footgun.** `<TracedFlow>` now dev-warns
+  when handed the bare exported `dagreTraceLayout` as its `layout` prop — that
+  opts OUT of the measure-then-layout pipeline (content-exact sizing +
+  fork/merge centering + straight spines), which is exactly how a consumer can
+  silently render stale while pinned to a current eui. Omit `layout` for the
+  pipeline. Dev-only (no production cost). +2 component tests.
+- **Full-pipeline integration smoke test** (`test/integration/layout-pipeline`)
+  — exercises the exact default composition (measure-fed dagre → snap → fork +
+  merge centering) and asserts a content-exact symmetric diamond for any
+  branch-width skew, so a regression to off-center/estimated output fails CI.
+
 ## [0.25.1] - 2026-06-24
 
 ### Fixed
