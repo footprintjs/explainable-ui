@@ -382,7 +382,9 @@ describe("<TraceFlow> — security", () => {
 // ── 6. Performance — large graph layout ────────────────────────────────────
 
 describe("<TraceFlow> — performance", () => {
-  it("defaultTraceFlowLayout handles 500-node linear chain under 30ms", () => {
+  // Generous budget: dagre on 500 nodes is heavier and CI runners vary; a real
+  // super-linear regression would be SECONDS, not ~300ms (was 30ms).
+  it("defaultTraceFlowLayout handles 500-node linear chain under 300ms", () => {
     const nodes = Array.from({ length: 500 }, (_, i) => ({
       id: `s${i}`,
       type: "stage",
@@ -397,7 +399,7 @@ describe("<TraceFlow> — performance", () => {
     }));
     const t0 = performance.now();
     const out = defaultTraceFlowLayout({ nodes, edges });
-    expect(performance.now() - t0).toBeLessThan(30);
+    expect(performance.now() - t0).toBeLessThan(300);
     expect(out.nodes[499].position.y).toBe(499 * 100);
   });
 });

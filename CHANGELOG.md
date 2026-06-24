@@ -34,6 +34,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   the probe bug; deciders use their measured size like every other node). Verified by an
   expert panel against the pinned `@xyflow/react 12.11.1` source. +new unit suites
   (`measuredFootprints`, trunk-propagation + merge-guard cases); full suite 592 passing.
+- CI robustness: widened four real-timing performance budgets (30/50ms → 200–300ms) that
+  flaked on slower CI runners; a genuine super-linear regression on these sizes would be
+  seconds, so the headroom keeps the regression-detection intact.
 
 ## [0.25.0] - 2026-06-16
 

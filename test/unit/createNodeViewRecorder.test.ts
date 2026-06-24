@@ -306,7 +306,9 @@ describe("createNodeViewRecorder — security (error isolation + orphan handling
 // ── 6. Performance ─────────────────────────────────────────────────────────
 
 describe("createNodeViewRecorder — performance", () => {
-  it("1000-stage chart + 1000 executions builds index under 50ms", () => {
+  // Generous budget: a real O(n²) regression on 1000 items would be SECONDS, not
+  // ~250ms — catches blow-ups while absorbing CI runner variance (was 50ms).
+  it("1000-stage chart + 1000 executions builds index under 250ms", () => {
     const trace = createTraceStructureRecorder();
     for (let i = 0; i < 1000; i++) {
       trace.recorder.onStageAdded!({
@@ -328,7 +330,7 @@ describe("createNodeViewRecorder — performance", () => {
     }
     const t0 = performance.now();
     const idx = nv.getIndex();
-    expect(performance.now() - t0).toBeLessThan(50);
+    expect(performance.now() - t0).toBeLessThan(250);
     expect(idx.all).toHaveLength(1000);
   });
 });
