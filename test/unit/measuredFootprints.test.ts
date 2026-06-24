@@ -15,8 +15,10 @@
 import { describe, it, expect } from "vitest";
 import {
   extractMeasuredFootprints,
+  sameFootprints,
   type MeasuredLike,
 } from "../../src/components/FlowchartView/_internal/measuredFootprints";
+import type { NodeFootprint } from "../../src/components/FlowchartView/_internal/dagreTraceLayout";
 
 /** Build nodeLookup-shaped entries from a plain record. */
 const entries = (
@@ -58,6 +60,13 @@ describe("extractMeasuredFootprints", () => {
       }),
     );
     expect([...out.keys()]).toEqual(["ok"]);
+  });
+
+  it("unit: footprints are ROUNDED to whole px (fixed-point stability for the measure→stamp→re-measure cycle)", () => {
+    const out = extractMeasuredFootprints(
+      entries({ a: { measured: { width: 131.6, height: 32.4 } } }),
+    );
+    expect(out.get("a")).toEqual({ width: 132, height: 32 });
   });
 
   it("functional: the whole-getNodes()-returns-0×0 case yields an EMPTY map (the bug signature)", () => {
@@ -105,5 +114,60 @@ describe("extractMeasuredFootprints", () => {
       }),
     );
     expect([...out.keys()]).toEqual(["good"]);
+  });
+});
+
+describe("sameFootprints — the useStore equality fn (re-fire only on a real re-measure)", () => {
+  const fp = (rec: Record<string, [number, number]>): Map<string, NodeFootprint> =>
+    new Map(Object.entries(rec).map(([id, [w, h]]) => [id, { width: w, height: h }]));
+
+  it("unit: identical maps (same ids + footprints) are equal", () => {
+    expect(sameFootprints(fp({ a: [120, 72], b: [200, 40] }), fp({ a: [120, 72], b: [200, 40] }))).toBe(true);
+  });
+
+  it("unit: same reference short-circuits to equal", () => {
+    const m = fp({ a: [120, 72] });
+    expect(sameFootprints(m, m)).toBe(true);
+  });
+
+  it("unit: a changed footprint is NOT equal (this is what makes the probe re-fire on resize)", () => {
+    expect(sameFootprints(fp({ a: [120, 72] }), fp({ a: [120, 80] }))).toBe(false); // height grew
+    expect(sameFootprints(fp({ a: [120, 72] }), fp({ a: [140, 72] }))).toBe(false); // width grew
+  });
+
+  it("unit: a different id-set (node added / removed) is NOT equal", () => {
+    expect(sameFootprints(fp({ a: [10, 10] }), fp({ a: [10, 10], b: [10, 10] }))).toBe(false);
+    expect(sameFootprints(fp({ a: [10, 10], b: [10, 10] }), fp({ b: [10, 10] }))).toBe(false);
+  });
+
+  it("unit: a same-size but RENAMED id is NOT equal (size match alone is not identity)", () => {
+    expect(sameFootprints(fp({ a: [10, 10] }), fp({ b: [10, 10] }))).toBe(false);
+  });
+
+  it("property: equality is reflexive, symmetric, and detects any single-field change", () => {
+    for (let t = 0; t < 200; t++) {
+      const n = 1 + (t % 5);
+      const base: Record<string, [number, number]> = {};
+      for (let i = 0; i < n; i++) base[`n${i}`] = [50 + ((t * (i + 1)) % 100), 20 + ((t * (i + 2)) % 60)];
+      const a = fp(base);
+      expect(sameFootprints(a, a)).toBe(true); // reflexive
+      const b = fp(base);
+      expect(sameFootprints(a, b)).toBe(true);
+      expect(sameFootprints(b, a)).toBe(true); // symmetric
+      // perturb one field → must be detected (asymmetric, both directions)
+      const k = `n${t % n}`;
+      const perturbed = { ...base, [k]: [base[k][0] + 1, base[k][1]] as [number, number] };
+      const c = fp(perturbed);
+      expect(sameFootprints(a, c)).toBe(false);
+      expect(sameFootprints(c, a)).toBe(false);
+    }
+  });
+
+  it("security/robustness: empty maps are equal; degenerate sizes still compare without throwing", () => {
+    expect(sameFootprints(new Map(), new Map())).toBe(true);
+    expect(() => sameFootprints(fp({ a: [NaN, NaN] }), fp({ a: [NaN, NaN] }))).not.toThrow();
+    // NaN !== NaN, so two NaN footprints are reported as NOT equal — safe (would
+    // just trigger one extra relayout, never a crash); extract() never emits NaN anyway.
+    expect(sameFootprints(fp({ a: [NaN, 10] }), fp({ a: [NaN, 10] }))).toBe(false);
   });
 });

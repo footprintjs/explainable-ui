@@ -242,6 +242,31 @@ describe("centerForkParents — trunk propagation (keeps the spine INTO a fork s
     expect(c("p")).toBeCloseTo(750, 5); // centers over its own children (400, 1100)
   });
 
+  it("STOPS at a MERGE predecessor — never drags a join onto the fork's center (panel-confirmed)", () => {
+    // x→m, y→m, m→f, f→{a,b}. The merge m sits linearly above the fork f, but it
+    // has two inbound edges; pulling it onto f's center would jog BOTH x→m and
+    // y→m. The trunk walk must stop at m (in-degree guard), exactly as the main
+    // loop leaves merges alone.
+    const W = { x: 200, y: 200, m: 200, f: 120, a: 200, b: 200 };
+    const g: TraceGraph = {
+      nodes: [
+        node("x", 0, -200), node("y", 800, -200), // merge parents: centers 100, 900
+        node("m", 400, -100), // merge, dagre-centered over its parents → center 500
+        node("f", 0, 0),
+        node("a", 0, 100), node("b", 600, 100), // f → span-mid 400
+      ],
+      edges: [
+        edge("x", "m"), edge("y", "m"), edge("m", "f"),
+        edge("f", "a"), edge("f", "b"),
+      ],
+    };
+    const out = centerForkParents(g, { nodeSize: sizing(W) });
+    const c = centerOf(out, W);
+    expect(c("f")).toBeCloseTo(400, 5); // the fork still centers over its branches
+    expect(c("m")).toBeCloseTo(500, 5); // the merge is UNMOVED (not dragged to 400)
+    expect(out.nodes.find((n) => n.id === "m")!.position.x).toBe(400);
+  });
+
   it("does NOT cross a compound boundary when propagating up the trunk", () => {
     const W = { t: 132, f: 120, a: 200, b: 200 };
     const g: TraceGraph = {

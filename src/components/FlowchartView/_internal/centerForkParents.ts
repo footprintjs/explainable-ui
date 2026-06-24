@@ -139,7 +139,10 @@ export function centerForkParents(
     // is BOTH a fork parent AND a single-in/single-out continuation must keep its
     // predecessor chain straight, else the edge INTO the fork jogs (a decider fed
     // by one stage is the common case). Walk while single-pred + single-out +
-    // same compound; cycle-guarded; each move clamped.
+    // NOT a merge + same compound; cycle-guarded; each move clamped.
+    // NOTE: the move is clamp-LIMITED — if a trunk node is boxed by same-rank
+    // neighbours closer than nodeSep on both sides, clampX leaves it put and the
+    // into-fork edge stays slightly jogged (best-effort, never overlaps).
     let curId = n.id;
     const walked = new Set<string>([curId]);
     for (;;) {
@@ -148,6 +151,9 @@ export function centerForkParents(
       const p = ps[0];
       if (walked.has(p)) break; // cycle guard (defensive — forward graph is a DAG)
       if ((outDegree.get(p) ?? 0) !== 1) break; // predecessor forks elsewhere → stop
+      if ((inDegree.get(p) ?? 0) > 1) break; // predecessor is a MERGE — moving it
+      // would jog ITS inbound edges (same reason the main loop leaves merges
+      // alone); stop the trunk here.
       if (byId.get(p)?.parentId !== byId.get(curId)?.parentId) break; // cross-compound
       workingX.set(p, clampX(p, centerX(curId) - width.get(p)! / 2));
       walked.add(p);
