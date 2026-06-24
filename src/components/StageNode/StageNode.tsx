@@ -326,34 +326,36 @@ export const StageNode = memo(function StageNode({
   // RESTING (not-yet-run) appearance carries the importance hierarchy: heroes
   // get an accent border + faint accent tint + accent glow. Run status
   // (active/done/error) overrides these during execution.
+  // THREE semantic node-state colors (themeable): the scrub CURSOR (active), the
+  // VISITED path (done), and a group's MAIN/hero node. Error keeps its own red.
   const restingBg = isHero
-    ? `color-mix(in srgb, ${theme.primary} 12%, ${theme.bgSecondary})`
+    ? `color-mix(in srgb, ${theme.nodeMain} 12%, ${theme.bgSecondary})`
     : theme.bgSecondary;
-  const restingBorder = isHero ? theme.primary : theme.border;
+  const restingBorder = isHero ? theme.nodeMain : theme.border;
   const restingShadow = isHero
-    ? `0 0 10px color-mix(in srgb, ${theme.primary} 22%, transparent)`
+    ? `0 0 10px color-mix(in srgb, ${theme.nodeMain} 22%, transparent)`
     : `0 2px 8px rgba(0,0,0,0.15)`;
 
   const bg = active
-    ? theme.primary
+    ? theme.nodeCursor
     : done
-      ? theme.success
+      ? theme.nodeVisited
       : error
         ? theme.error
         : restingBg;
 
   const borderColor = active
-    ? theme.primary
+    ? theme.nodeCursor
     : done
-      ? theme.success
+      ? theme.nodeVisited
       : error
         ? theme.error
         : restingBorder;
 
   const shadow = active
-    ? `0 0 22px color-mix(in srgb, ${theme.primary} 55%, transparent)`
+    ? `0 0 22px color-mix(in srgb, ${theme.nodeCursor} 55%, transparent)`
     : done
-      ? `0 0 8px color-mix(in srgb, ${theme.success} 20%, transparent)`
+      ? `0 0 8px color-mix(in srgb, ${theme.nodeVisited} 20%, transparent)`
       : error
         ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)`
         : restingShadow;
@@ -401,10 +403,10 @@ export const StageNode = memo(function StageNode({
             >
               {stepNumbers.map((num, i) => {
                 const isLatest = i === stepNumbers.length - 1;
-                const badgeBg = isLatest && active ? theme.primary : theme.success;
+                const badgeBg = isLatest && active ? theme.nodeCursor : theme.nodeVisited;
                 const glow = isLatest && active
-                  ? `color-mix(in srgb, ${theme.primary} 50%, transparent)`
-                  : `color-mix(in srgb, ${theme.success} 40%, transparent)`;
+                  ? `color-mix(in srgb, ${theme.nodeCursor} 50%, transparent)`
+                  : `color-mix(in srgb, ${theme.nodeVisited} 40%, transparent)`;
                 return (
                   <div
                     key={num}
@@ -452,7 +454,7 @@ export const StageNode = memo(function StageNode({
                 inset: -6,
                 borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
                 clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : undefined,
-                border: `2px solid ${theme.primary}`,
+                border: `2px solid ${theme.nodeCursor}`,
                 opacity: 0.3,
                 animation: "fp-pulse 1.5s ease-out infinite",
               }}

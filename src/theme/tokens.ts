@@ -5,6 +5,11 @@ export interface ThemeTokens {
     success?: string;
     error?: string;
     warning?: string;
+    /** Semantic node-state roles (a runtime overlay maps onto these): the scrub
+     *  cursor, the visited path, and a group's lead node. */
+    nodeCursor?: string;
+    nodeVisited?: string;
+    nodeMain?: string;
     bgPrimary?: string;
     bgSecondary?: string;
     bgTertiary?: string;
@@ -29,6 +34,9 @@ export function tokensToCSSVars(tokens: ThemeTokens): Record<string, string> {
     if (c.success) vars["--fp-color-success"] = c.success;
     if (c.error) vars["--fp-color-error"] = c.error;
     if (c.warning) vars["--fp-color-warning"] = c.warning;
+    if (c.nodeCursor) vars["--fp-node-cursor"] = c.nodeCursor;
+    if (c.nodeVisited) vars["--fp-node-visited"] = c.nodeVisited;
+    if (c.nodeMain) vars["--fp-node-main"] = c.nodeMain;
     if (c.bgPrimary) vars["--fp-bg-primary"] = c.bgPrimary;
     if (c.bgSecondary) vars["--fp-bg-secondary"] = c.bgSecondary;
     if (c.bgTertiary) vars["--fp-bg-tertiary"] = c.bgTertiary;
@@ -50,6 +58,9 @@ export const rawDefaults = {
     success: "#22c55e",
     error: "#ef4444",
     warning: "#f59e0b",
+    nodeCursor: "#f59e0b",
+    nodeVisited: "#22c55e",
+    nodeMain: "#6366f1",
     bgPrimary: "#0f172a",
     bgSecondary: "#1e293b",
     bgTertiary: "#334155",
@@ -74,6 +85,9 @@ export const defaultTokens: Required<{
     success: `var(--fp-color-success, ${rawDefaults.colors.success})`,
     error: `var(--fp-color-error, ${rawDefaults.colors.error})`,
     warning: `var(--fp-color-warning, ${rawDefaults.colors.warning})`,
+    nodeCursor: `var(--fp-node-cursor, ${rawDefaults.colors.nodeCursor})`,
+    nodeVisited: `var(--fp-node-visited, ${rawDefaults.colors.nodeVisited})`,
+    nodeMain: `var(--fp-node-main, ${rawDefaults.colors.nodeMain})`,
     bgPrimary: `var(--fp-bg-primary, ${rawDefaults.colors.bgPrimary})`,
     bgSecondary: `var(--fp-bg-secondary, ${rawDefaults.colors.bgSecondary})`,
     bgTertiary: `var(--fp-bg-tertiary, ${rawDefaults.colors.bgTertiary})`,

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.25.4] - 2026-06-24
+
+### Added
+
+- **Semantic node-state color roles** — three first-class, themeable tokens a
+  runtime overlay maps onto, so the three states read as three distinct things
+  instead of all leaning on the generic `primary` accent:
+  - `nodeCursor` (`--fp-node-cursor`, default amber `#f59e0b`) — the current /
+    scrubbed-to step.
+  - `nodeVisited` (`--fp-node-visited`, default green `#22c55e`) — executed up
+    to the cursor.
+  - `nodeMain` (`--fp-node-main`, default indigo `#6366f1`) — a group's lead
+    ("hero") node.
+  `StageNode` now colors active → cursor, done → visited, hero → main. Available
+  on the `ThemeTokens` API and as CSS vars; override per light/dark for theming.
+
 ## [0.25.3] - 2026-06-24
 
 ### Fixed
