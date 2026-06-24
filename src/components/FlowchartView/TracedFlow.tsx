@@ -47,7 +47,9 @@ import type { TraceGraph, TraceNode, TraceEdge } from "./traceStructureRecorder"
 import type { TraceFlowLayout } from "./TraceFlow";
 import { defaultTraceFlowLayout } from "./TraceFlow";
 import { dagreTraceLayout, createDagreTraceLayout } from "./_internal/dagreTraceLayout";
-import type { NodeFootprint } from "./_internal/dagreTraceLayout";
+import type { NodeFootprint, NodeSizeResolver } from "./_internal/dagreTraceLayout";
+import { createSnappedDagreLayout } from "./_internal/snapLinearSuccessors";
+import { withForkCentering } from "./_internal/centerForkParents";
 import type { RuntimeOverlay } from "./createTraceRuntimeOverlay";
 import { sliceOverlay } from "./createTraceRuntimeOverlay";
 import { StageNode } from "../StageNode";
@@ -429,12 +431,25 @@ export function TracedFlow({
   const [measuredSizes, setMeasuredSizes] = useState<Map<string, NodeFootprint> | null>(null);
 
   const positioned = useMemo<TraceGraph>(() => {
-    // Default dagre? Inject the MEASURED node sizes so spacing is content-exact
-    // (no fixed-width-column gaps). A consumer's custom `layout` owns its own
-    // sizing and is left untouched; "passthrough" keeps the incoming positions.
-    const dagreBase: TraceFlowLayout = measuredSizes
-      ? createDagreTraceLayout({ nodeSize: (n) => measuredSizes.get(n.id) })
-      : dagreTraceLayout;
+    // Default layout = dagre (measured content-exact sizes + tighter pro
+    // spacing) → snap pass (kills Brandes–Köpf spine drift on asymmetric
+    // graphs). The SAME nodeSize resolver goes to BOTH dagre and snap — else
+    // snap reconstructs centers from wrong widths (the identical-resolver
+    // invariant). A consumer's custom `layout` owns its own sizing;
+    // "passthrough" keeps the incoming positions.
+    const nodeSize: NodeSizeResolver | undefined = measuredSizes
+      ? (n) => measuredSizes.get(n.id)
+      : undefined;
+    const sizeOpts = nodeSize ? { nodeSize } : {};
+    // dagre → snap (spine drift) → fork-centering (off-center fork parents).
+    // SAME sizeOpts to every stage (the identical-resolver invariant).
+    const dagreBase: TraceFlowLayout = withForkCentering(
+      createSnappedDagreLayout(
+        createDagreTraceLayout({ ...sizeOpts, rankSep: 52, nodeSep: 36 }),
+        sizeOpts,
+      ),
+      sizeOpts,
+    );
     const realBase: TraceFlowLayout =
       layout === "passthrough"
         ? (g: TraceGraph) => g
