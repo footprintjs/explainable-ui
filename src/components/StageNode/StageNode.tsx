@@ -336,33 +336,48 @@ export const StageNode = memo(function StageNode({
     ? `0 0 10px color-mix(in srgb, ${theme.nodeMain} 22%, transparent)`
     : `0 2px 8px rgba(0,0,0,0.15)`;
 
+  // Priority: cursor (amber) > a MAIN node (indigo — even after it ran, so the
+  // lead nodes stay a distinct 3rd colour and don't all collapse to green) >
+  // visited (green) > error (red) > resting.
   const bg = active
     ? theme.nodeCursor
-    : done
-      ? theme.nodeVisited
-      : error
-        ? theme.error
-        : restingBg;
+    : isHero && done
+      ? theme.nodeMain
+      : done
+        ? theme.nodeVisited
+        : error
+          ? theme.error
+          : restingBg;
 
   const borderColor = active
     ? theme.nodeCursor
-    : done
-      ? theme.nodeVisited
-      : error
-        ? theme.error
-        : restingBorder;
+    : isHero && done
+      ? theme.nodeMain
+      : done
+        ? theme.nodeVisited
+        : error
+          ? theme.error
+          : restingBorder;
 
   const shadow = active
     ? `0 0 22px color-mix(in srgb, ${theme.nodeCursor} 55%, transparent)`
-    : done
-      ? `0 0 8px color-mix(in srgb, ${theme.nodeVisited} 20%, transparent)`
-      : error
-        ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)`
-        : restingShadow;
+    : isHero && done
+      ? `0 0 12px color-mix(in srgb, ${theme.nodeMain} 30%, transparent)`
+      : done
+        ? `0 0 8px color-mix(in srgb, ${theme.nodeVisited} 20%, transparent)`
+        : error
+          ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)`
+          : restingShadow;
 
-  // Colored states use white for contrast; default uses consumer's text color.
-  const textColor =
-    active || done || error ? "#fff" : theme.textPrimary;
+  // Text contrast per state. The CURSOR color (nodeCursor) is a light amber by
+  // design, so it needs DARK text (white washes out on amber — that's the "Final
+  // node unreadable" regression). done (green) / error (red) are dark enough for
+  // white. Resting uses the consumer's text color.
+  const textColor = active
+    ? "#1a1a1a"
+    : done || error
+      ? "#fff"
+      : theme.textPrimary;
 
   return (
     <>

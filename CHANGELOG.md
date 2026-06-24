@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.25.5] - 2026-06-24
+
+### Fixed
+
+- **Cursor node text contrast** — the active (cursor) node fills with the amber
+  `nodeCursor`, on which white text washes out (the "current step unreadable"
+  regression). Active nodes now use dark text; done/error keep white.
+- **Main nodes stay their own colour after running** — `done` (green) was
+  checked before `hero`, so a visited lead node collapsed to green and the
+  indigo `nodeMain` never showed during a completed run (the chart read as
+  green + one amber, not three colours). A MAIN/hero node now keeps `nodeMain`
+  (indigo) even when visited: cursor (amber) > main (indigo) > visited (green) >
+  error > resting.
+
 ## [0.25.4] - 2026-06-24
 
 ### Added
