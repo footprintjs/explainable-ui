@@ -51,6 +51,9 @@ export interface CenterForkParentsOptions {
   readonly nodeWidth?: number;
   /** Fallback height (match the dagre run's `nodeHeight`). Default 80. */
   readonly nodeHeight?: number;
+  /** Horizontal clearance to preserve from a same-rank neighbor when
+   *  re-centering (match the dagre run's `nodeSep`). Default 60. */
+  readonly nodeSep?: number;
 }
 
 export function centerForkParents(
@@ -92,6 +95,7 @@ export function centerForkParents(
   for (const n of graph.nodes) workingX.set(n.id, n.position.x);
   const centerX = (id: string) => workingX.get(id)! + width.get(id)! / 2;
 
+  const nodeSep = options.nodeSep ?? 60;
   // Rank-DESCENDING (y desc) so nested forks center before their ancestors.
   const order = [...graph.nodes].sort((a, b) =>
     b.position.y - a.position.y || a.position.x - b.position.x || a.id.localeCompare(b.id),
@@ -104,8 +108,27 @@ export function centerForkParents(
     );
     if (kids.length < 2) continue;
     const centers = kids.map(centerX);
-    const mid = (Math.min(...centers) + Math.max(...centers)) / 2; // geometric fan center
-    workingX.set(n.id, mid - width.get(n.id)! / 2);
+    const wN = width.get(n.id)!;
+    let desiredX = (Math.min(...centers) + Math.max(...centers)) / 2 - wN / 2; // span center
+
+    // Clamp against same-rank, same-compound neighbors so re-centering can NEVER
+    // reduce sibling clearance below the reserved nodeSep gap. (A no-op on real
+    // dagre output — it already packs the parent inside its column — but keeps
+    // the pass overlap-SAFE when composed over any non-dagre base.)
+    const x0 = workingX.get(n.id)!;
+    let minX = -Infinity;
+    let maxX = Infinity;
+    for (const m of graph.nodes) {
+      if (m.id === n.id || m.parentId !== n.parentId) continue;
+      if (Math.abs(m.position.y - n.position.y) > 1) continue; // same rank only
+      const mLeft = workingX.get(m.id)!;
+      const mRight = mLeft + width.get(m.id)!;
+      if (mRight <= x0) minX = Math.max(minX, mRight + nodeSep); // neighbor to the left
+      else if (mLeft >= x0 + wN) maxX = Math.min(maxX, mLeft - nodeSep - wN); // to the right
+    }
+    desiredX = minX <= maxX ? Math.max(minX, Math.min(maxX, desiredX)) : x0;
+
+    workingX.set(n.id, desiredX);
   }
 
   const nodes = graph.nodes.map((n) =>

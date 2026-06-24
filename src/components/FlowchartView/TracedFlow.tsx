@@ -448,7 +448,7 @@ export function TracedFlow({
         createDagreTraceLayout({ ...sizeOpts, rankSep: 52, nodeSep: 36 }),
         sizeOpts,
       ),
-      sizeOpts,
+      { ...sizeOpts, nodeSep: 36 }, // same nodeSep → clamp preserves dagre's reserved gap
     );
     const realBase: TraceFlowLayout =
       layout === "passthrough"
