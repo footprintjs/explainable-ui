@@ -1,6 +1,6 @@
 import "@xyflow/react/dist/style.css";
 import { TracedFlow } from "../src/flowchart";
-import type { TraceGraph, TraceNode } from "../src/components/FlowchartView/traceStructureRecorder";
+import type { TraceGraph } from "../src/components/FlowchartView/traceStructureRecorder";
 import graphData from "./sample-graph.json";
 import { GALLERY } from "./sample-graphs";
 
@@ -10,9 +10,6 @@ import { GALLERY } from "./sample-graphs";
  * target). Edit src/components/FlowchartView/* and every chart hot-reloads.
  */
 const complex = graphData as unknown as TraceGraph;
-const complexSubflows = complex.nodes
-  .map((nd: TraceNode) => nd.id)
-  .filter((id: string) => complex.nodes.some((o: TraceNode) => o.id.startsWith(`${id}/`)));
 
 function ChartCard({
   title,
@@ -70,10 +67,9 @@ export function Demo() {
       </div>
       <ChartCard
         title="Complex — real captured agent"
-        subtitle="53 nodes · subflows · loops · the combine target"
+        subtitle="16 top-level stages · subflows drill-in · loops · the combine target"
         graph={complex}
         height={520}
-        groupedSubflows={complexSubflows}
       />
     </div>
   );
