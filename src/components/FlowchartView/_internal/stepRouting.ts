@@ -75,3 +75,18 @@ export function forkFanBendY(
   // Midway to the nearest child, but kept a corner-radius above it.
   return Math.min((sourceBottom + nearestTop) / 2, nearestTop - minGapFromTarget);
 }
+
+/**
+ * Precedence when both a fork-fan bend and a rank-skip bend could apply to one
+ * edge. The shared fan row gives forks a clean comb, BUT a fork branch that
+ * ALSO skips a rank must keep its rank-skip bend — that bend sits BELOW the
+ * skipped node, so the branch's long drop can't cut through it (the fan row is
+ * high, near the source, and would not clear it). So: rank-skip WINS when
+ * present, else the fan bend, else null (caller uses the default midpoint).
+ */
+export function resolveStepBendY(
+  forkBend: number | null,
+  staggeredBend: number | null,
+): number | null {
+  return staggeredBend ?? forkBend;
+}

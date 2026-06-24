@@ -20,7 +20,12 @@
 import { BaseEdge, getSmoothStepPath, useStore } from "@xyflow/react";
 import type { EdgeProps, ReactFlowState } from "@xyflow/react";
 import { Position } from "@xyflow/react";
-import { staggeredBendY, forkFanBendY, type VerticalBounds } from "../FlowchartView/_internal/stepRouting";
+import {
+  staggeredBendY,
+  forkFanBendY,
+  resolveStepBendY,
+  type VerticalBounds,
+} from "../FlowchartView/_internal/stepRouting";
 import { GROUP_CONTAINER_NODE_TYPE } from "../FlowchartView/_internal/groupLayout";
 import type { TraceEdgeData } from "../FlowchartView/traceStructureRecorder";
 
@@ -56,12 +61,13 @@ export function SmartStepEdge({
       if (e.source !== source) continue;
       if ((e.data as TraceEdgeData | undefined)?.kind === "loop") continue;
       const c = s.nodeLookup.get(e.target);
-      if (c) childTops.push(c.internals.positionAbsolute.y);
+      if (c && c.type !== GROUP_CONTAINER_NODE_TYPE) {
+        childTops.push(c.internals.positionAbsolute.y);
+      }
     }
     const fan = forkFanBendY(sourceBottom, childTops);
-    if (fan !== null) return fan;
 
-    // Otherwise: route a rank-SKIPPING edge around the node(s) it skips.
+    // Rank-skip clearance: route around any node this edge SKIPS.
     const others: VerticalBounds[] = [];
     for (const n of s.nodeLookup.values()) {
       if (n.id === source || n.id === target) continue;
@@ -69,7 +75,11 @@ export function SmartStepEdge({
       const top = n.internals.positionAbsolute.y;
       others.push({ top, bottom: top + (n.measured.height ?? 0) });
     }
-    return staggeredBendY(sourceBottom, targetTop, others);
+    const staggered = staggeredBendY(sourceBottom, targetTop, others);
+
+    // Shared fan row for forks, EXCEPT a fork branch that also skips a rank —
+    // there the rank-skip bend wins so the long drop stays below the skipped node.
+    return resolveStepBendY(fan, staggered);
   });
 
   const [path] = getSmoothStepPath({

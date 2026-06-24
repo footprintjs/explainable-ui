@@ -11,7 +11,12 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { staggeredBendY, forkFanBendY, type VerticalBounds } from "../../src/components/FlowchartView/_internal/stepRouting";
+import {
+  staggeredBendY,
+  forkFanBendY,
+  resolveStepBendY,
+  type VerticalBounds,
+} from "../../src/components/FlowchartView/_internal/stepRouting";
 
 // Band geometry mirroring the agent merge-tree (flow coords, top→bottom):
 //   tools     rank 1 : top 360, bottom 440   (source of the staggered edge)
@@ -133,5 +138,20 @@ describe("forkFanBendY", () => {
   it("security/robustness: degenerate inputs do not throw", () => {
     expect(() => forkFanBendY(NaN, [NaN, NaN])).not.toThrow();
     expect(forkFanBendY(0, [])).toBeNull();
+  });
+});
+
+describe("resolveStepBendY — fork-fan vs rank-skip precedence", () => {
+  it("rank-skip bend WINS when both apply (a fork branch that also skips a rank)", () => {
+    expect(resolveStepBendY(200, 450)).toBe(450); // low staggered bend over the high fan row
+  });
+  it("fan bend when the branch does not skip a rank", () => {
+    expect(resolveStepBendY(200, null)).toBe(200);
+  });
+  it("rank-skip bend for a non-fork edge that skips", () => {
+    expect(resolveStepBendY(null, 450)).toBe(450);
+  });
+  it("null (default midpoint) when neither applies", () => {
+    expect(resolveStepBendY(null, null)).toBeNull();
   });
 });
