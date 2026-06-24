@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.25.1] - 2026-06-24
+
+### Fixed
+
+- **Measure-then-layout now actually runs — content-exact layout for every chart.**
+  The `MeasuredNodeSizes` probe read each node's footprint from `getNodes()`, whose
+  nodes report `measured: {0,0}` in `@xyflow/react` v12 — the real measured size lives
+  on the internal node in the store's `nodeLookup`. So `onSizes` never fired and the
+  whole chart laid out on estimated fallback column widths forever (off-center
+  deciders/forks, a jogged decision spine). The probe now reads `.measured` from
+  `nodeLookup` via the pure `extractMeasuredFootprints` helper. Decision spine and fork
+  fan are provably aligned now (0px) — across the simple charts AND the real 53-node
+  agent chart.
+- **The probe re-fires on a genuine re-measure, not only on first settle.** `nodeLookup`
+  is a Map xyflow mutates in place (stable reference), so subscribing to it by reference
+  ran the relayout only once. It now subscribes to the derived, rounded footprint map
+  with a `sameFootprints` equality fn, so a later resize (async font/icon load, dynamic
+  label) re-runs the layout; rounding gives the measure→stamp→re-measure cycle a fixed
+  point.
+- **Fork-parent centering no longer drags a merge that sits above a fork.** The trunk
+  propagation that keeps the edge into a decider vertical now stops at any merge node
+  (in-degree > 1), matching the main centering loop.
+
+### Notes
+
+- Reverted the 0.25.0-era decider fixed-footprint workaround (it treated a symptom of
+  the probe bug; deciders use their measured size like every other node). Verified by an
+  expert panel against the pinned `@xyflow/react 12.11.1` source. +new unit suites
+  (`measuredFootprints`, trunk-propagation + merge-guard cases); full suite 592 passing.
+
 ## [0.25.0] - 2026-06-16
 
 ### Fixed
