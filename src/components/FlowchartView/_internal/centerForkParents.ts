@@ -124,6 +124,27 @@ export function centerForkParents(
     return minX <= maxX ? Math.max(minX, Math.min(maxX, desiredX)) : x0;
   };
 
+  // EVEN-FAN: redistribute a fork's children at EQUAL center-gaps, symmetric
+  // around the fork's (already-centered) axis, so the comb reads evenly even when
+  // the children differ in width (where dagre's edge-based packing yields uneven
+  // CENTER gaps — the wider child claims more room on its side). The uniform gap
+  // is the widest adjacent half+nodeSep+half requirement, so no pair overlaps;
+  // symmetric placement keeps the span-midpoint at the fork axis, so a merge that
+  // re-joins the same children (a diamond) stays centered. Pure-ish: only the
+  // children's `workingX` change. Idempotent (re-running finds equal gaps).
+  const evenFanKids = (forkCenter: number, kids: readonly string[]): void => {
+    if (kids.length < 2) return;
+    const sorted = [...kids].sort((a, b) => centerX(a) - centerX(b));
+    let gap = 0;
+    for (let i = 0; i < sorted.length - 1; i++) {
+      gap = Math.max(gap, width.get(sorted[i])! / 2 + nodeSep + width.get(sorted[i + 1])! / 2);
+    }
+    const mid = (sorted.length - 1) / 2;
+    for (let i = 0; i < sorted.length; i++) {
+      workingX.set(sorted[i], forkCenter + (i - mid) * gap - width.get(sorted[i])! / 2);
+    }
+  };
+
   // Rank-DESCENDING (y desc) so nested forks/merges center before their ancestors.
   const order = [...graph.nodes].sort((a, b) =>
     b.position.y - a.position.y || a.position.x - b.position.x || a.id.localeCompare(b.id),
@@ -149,6 +170,19 @@ export function centerForkParents(
     const span = (Math.min(...centers) + Math.max(...centers)) / 2; // kin span center
     workingX.set(n.id, clampX(n.id, span - wN / 2));
 
+    // Even out the fan so the comb is symmetric — but ONLY for a DIAMOND fork
+    // (children that reconverge at a common merge, i.e. true parallel branches we
+    // can freely re-space). For a DIVERGENT/terminal fork (a decision whose
+    // branches go their separate ways, possibly owning their own subtrees)
+    // re-spacing a child would drag its subtree off-center, so we leave it.
+    if (isFork) {
+      const succSets = kin.map((k) => childrenOf.get(k) ?? []);
+      const isDiamond =
+        kin.length >= 2 &&
+        succSets[0].some((s) => succSets.every((ss) => ss.includes(s)));
+      if (isDiamond) evenFanKids(centerX(n.id), kin);
+    }
+
     // Propagate the new center along the LINEAR trunk leading AWAY from the kin —
     // UP the predecessor chain for a fork (keep the edge INTO the fork straight),
     // DOWN the successor chain for a merge (keep the edge OUT OF the merge
@@ -173,6 +207,37 @@ export function centerForkParents(
       walked.add(m);
       curId = m;
     }
+  }
+
+  // PHASE 2 — straighten the trunk through a DIVERGENT/terminal fork. Phase 1
+  // centers every fork over its branches; for a DIAMOND that's correct, but a
+  // divergent fork (a decision whose branches don't reconverge — e.g. a ReAct
+  // `Route` → tool-call / final) then sits at its branches' span-midpoint, which
+  // the upper diamond's spine may not share → the edge INTO the fork jogs. When
+  // such a fork sits on a straight trunk (its single predecessor's ONLY child),
+  // align it to that trunk axis and carry its branches by the same delta, so the
+  // spine stays straight and the branches stay centered under it.
+  for (const n of order) {
+    const outD = outDegree.get(n.id) ?? 0;
+    const inD = inDegree.get(n.id) ?? 0;
+    if (!(outD >= 2 && inD <= 1)) continue; // forks only
+    const kids = (childrenOf.get(n.id) ?? []).filter(
+      (k) => byId.get(k)?.parentId === n.parentId,
+    );
+    if (kids.length < 2) continue;
+    const succSets = kids.map((k) => childrenOf.get(k) ?? []);
+    const isDiamond = succSets[0].some((s) => succSets.every((ss) => ss.includes(s)));
+    if (isDiamond) continue; // a real diamond — leave centered over its branches
+    const ps = predsOf.get(n.id);
+    if (!ps || ps.length !== 1) continue; // no single trunk predecessor
+    const pred = ps[0];
+    if ((outDegree.get(pred) ?? 0) !== 1) continue; // pred forks elsewhere → not a straight trunk
+    if (byId.get(pred)?.parentId !== byId.get(n.id)?.parentId) continue; // cross-compound
+    const before = centerX(n.id);
+    workingX.set(n.id, clampX(n.id, centerX(pred) - width.get(n.id)! / 2));
+    const delta = centerX(n.id) - before;
+    if (delta === 0) continue;
+    for (const k of kids) workingX.set(k, clampX(k, workingX.get(k)! + delta)); // carry branches along
   }
 
   const nodes = graph.nodes.map((n) =>

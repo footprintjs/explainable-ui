@@ -238,15 +238,17 @@ describe("centerForkParents — merge centering (symmetric counterpart of fork c
     expect(c("d")).toBeCloseTo(c("m"), 5); // the diamond is vertically symmetric
   });
 
-  it("STOPS the merge's downward trunk at a node that itself forks or merges", () => {
-    // m (merge) → s (pass-through) → f (fork). The walk moves s but must STOP at f
-    // (f has its own children to balance).
+  it("the merge's downward trunk STOPS at a fork in phase 1 (panel guard); phase 2 then conforms it", () => {
+    // m (merge) → s (pass-through) → f (DIVERGENT fork). Phase 1: the merge's
+    // trunk-down moves s but STOPS at f (the panel-required guard — it does not
+    // drag the fork via the merge). Phase 2 then conforms the divergent fork to
+    // the straight spine (so the s→f edge doesn't jog), carrying its branches.
     const W = { p1: 200, p2: 200, m: 120, s: 120, f: 120, x: 200, y: 200 };
     const g: TraceGraph = {
       nodes: [
         node("p1", 0, 0), node("p2", 600, 0), // span-mid 400
         node("m", 0, 100), node("s", 0, 200),
-        node("f", 0, 300), node("x", 0, 400), node("y", 800, 400), // f's children → f span-mid 500
+        node("f", 0, 300), node("x", 0, 400), node("y", 800, 400),
       ],
       edges: [
         edge("p1", "m"), edge("p2", "m"), edge("m", "s"), edge("s", "f"),
@@ -255,8 +257,99 @@ describe("centerForkParents — merge centering (symmetric counterpart of fork c
     };
     const c = centerOf(centerForkParents(g, { nodeSize: sizing(W) }), W);
     expect(c("m")).toBeCloseTo(400, 5);
-    expect(c("s")).toBeCloseTo(400, 5); // moved with the merge
-    expect(c("f")).toBeCloseTo(500, 5); // NOT dragged to 400 — centers over its own children
+    expect(c("s")).toBeCloseTo(400, 5);
+    expect(c("f")).toBeCloseTo(400, 5); // conformed to the straight spine (was 500)
+    expect(c("f")).toBeCloseTo((c("x") + c("y")) / 2, 5); // branches carried → still centered under f
+  });
+});
+
+describe("centerForkParents — even-fan (symmetric comb for unequal child widths)", () => {
+  it("re-spaces a DIAMOND fork's children to EQUAL center-gaps, symmetric around the axis", () => {
+    // a is much wider than b, c → dagre gives uneven CENTER gaps; even-fan equalizes.
+    const W = { f: 120, a: 240, b: 80, c: 80, m: 120 };
+    const g: TraceGraph = {
+      nodes: [
+        node("f", 0, 0),
+        node("a", 0, 100), node("b", 400, 100), node("c", 700, 100),
+        node("m", 0, 200),
+      ],
+      edges: [
+        edge("f", "a"), edge("f", "b"), edge("f", "c"),
+        edge("a", "m"), edge("b", "m"), edge("c", "m"),
+      ],
+    };
+    const c = centerOf(centerForkParents(g, { nodeSize: sizing(W) }), W);
+    const g1 = c("b") - c("a");
+    const g2 = c("c") - c("b");
+    expect(Math.abs(g1 - g2)).toBeLessThan(1e-6); // equal gaps → even comb
+    const mid = (c("a") + c("c")) / 2;
+    expect(c("f")).toBeCloseTo(mid, 5); // fork still on the axis
+    expect(c("m")).toBeCloseTo(mid, 5); // merge still centered
+  });
+
+  it("does NOT even-fan a DIVERGENT fork (children that don't reconverge keep their subtrees)", () => {
+    // d → {a, b}; a → leaf, b → its OWN fork (b1,b2). Even-fanning d would drag b
+    // off its own children. The diamond guard prevents it.
+    const W = { d: 120, a: 200, b: 120, b1: 200, b2: 200, leaf: 200 };
+    const g: TraceGraph = {
+      nodes: [
+        node("d", 0, 0),
+        node("a", 0, 100), node("b", 600, 100),
+        node("leaf", 0, 200), node("b1", 400, 200), node("b2", 900, 200),
+      ],
+      edges: [
+        edge("d", "a"), edge("d", "b"), edge("a", "leaf"),
+        edge("b", "b1"), edge("b", "b2"),
+      ],
+    };
+    const c = centerOf(centerForkParents(g, { nodeSize: sizing(W) }), W);
+    expect(c("b")).toBeCloseTo((c("b1") + c("b2")) / 2, 5); // b stays centered over ITS children
+  });
+});
+
+describe("centerForkParents — terminal-fork conform (straight spine through a divergent fork)", () => {
+  it("aligns a divergent fork on a straight trunk to the spine, carrying its branches", () => {
+    // Reproduces the docs `Route` jog: an upper diamond anchors the spine, then a
+    // lower DIVERGENT fork (branches don't reconverge) sits at its own branches'
+    // span-mid, off the spine. Conform pulls it back onto the spine.
+    const W = { top: 120, p1: 200, p2: 200, merge: 120, mid: 120, route: 120, x: 200, y: 200 };
+    const g: TraceGraph = {
+      nodes: [
+        node("top", 0, 0),
+        node("p1", 0, 100), node("p2", 400, 100), // slots span-mid 300
+        node("merge", 0, 200),
+        node("mid", 0, 300),
+        node("route", 0, 400),
+        node("x", 100, 500), node("y", 700, 500), // route branches span-mid 500 (off-spine)
+      ],
+      edges: [
+        edge("top", "p1"), edge("top", "p2"), edge("p1", "merge"), edge("p2", "merge"),
+        edge("merge", "mid"), edge("mid", "route"), edge("route", "x"), edge("route", "y"),
+      ],
+    };
+    const c = centerOf(centerForkParents(g, { nodeSize: sizing(W) }), W);
+    // the whole spine — top, merge, mid, route — shares ONE axis
+    expect(c("route")).toBeCloseTo(c("mid"), 3);
+    expect(c("mid")).toBeCloseTo(c("merge"), 3);
+    expect(c("merge")).toBeCloseTo(c("top"), 3);
+    // route's branches carried along → still centered under route
+    expect(c("route")).toBeCloseTo((c("x") + c("y")) / 2, 3);
+  });
+
+  it("does NOT conform a fork whose predecessor itself branches (not a straight trunk)", () => {
+    // p → {f, s}; f → {a, b}. f's pred p forks elsewhere, so f must stay centered
+    // over a,b, NOT get dragged to p.
+    const W = { p: 200, f: 120, s: 200, a: 200, b: 200 };
+    const g: TraceGraph = {
+      nodes: [
+        node("p", 0, -100),
+        node("f", 0, 0), node("s", 1000, 0),
+        node("a", 0, 100), node("b", 600, 100),
+      ],
+      edges: [edge("p", "f"), edge("p", "s"), edge("f", "a"), edge("f", "b")],
+    };
+    const c = centerOf(centerForkParents(g, { nodeSize: sizing(W) }), W);
+    expect(c("f")).toBeCloseTo((c("a") + c("b")) / 2, 5); // f centered over its OWN branches
   });
 });
 
@@ -336,9 +429,13 @@ describe("centerForkParents — trunk propagation (keeps the spine INTO a fork s
     };
     const out = centerForkParents(g, { nodeSize: sizing(W) });
     const c = centerOf(out, W);
-    expect(c("f")).toBeCloseTo(400, 5); // the fork still centers over its branches
+    // The MERGE guard holds: f's trunk-up does NOT drag m down (m stays at 500).
     expect(c("m")).toBeCloseTo(500, 5); // the merge is UNMOVED (not dragged to 400)
     expect(out.nodes.find((n) => n.id === "m")!.position.x).toBe(400);
+    // f is a DIVERGENT fork directly below the merge on a straight trunk → phase 2
+    // conforms it UP to the merge's axis (straight m→f), branches carried along.
+    expect(c("f")).toBeCloseTo(500, 5);
+    expect(c("f")).toBeCloseTo((c("a") + c("b")) / 2, 5);
   });
 
   it("does NOT cross a compound boundary when propagating up the trunk", () => {
