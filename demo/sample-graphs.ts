@@ -118,6 +118,43 @@ export const NESTED: TraceGraph = {
   ],
 };
 
+/**
+ * COMBINE — every pattern in ONE fully-connected flow (the "complete chart"
+ * done right). A realistic ReAct agent turn: a straight spine with an inline
+ * fork→merge diamond (parallel context assembly), a decider, and a side-lane
+ * loop back-edge. Because it's connected (unlike a flattened real capture, which
+ * fragments into disconnected pieces), the now-complete fork+merge centering
+ * lays it out perfectly: one centered spine, a symmetric diamond, a clean loop.
+ */
+export const COMBINE: TraceGraph = {
+  nodes: [
+    n("seed", "Seed"),
+    n("init", "Initialize"),
+    n("assemble", "Assemble", { isFork: true }),
+    n("sysPrompt", "System Prompt"),
+    n("messages", "Messages"),
+    n("tools", "Tools"),
+    n("gather", "Gather"),
+    n("callLLM", "Call LLM"),
+    n("route", "Route", { isDecider: true }),
+    n("emit", "Emit Answer"),
+  ],
+  edges: [
+    e("seed", "init"),
+    e("init", "assemble"),
+    e("assemble", "sysPrompt"),
+    e("assemble", "messages"),
+    e("assemble", "tools"),
+    e("sysPrompt", "gather"),
+    e("messages", "gather"),
+    e("tools", "gather"),
+    e("gather", "callLLM"),
+    e("callLLM", "route"),
+    e("route", "emit", "decision-branch"),
+    e("route", "assemble", "loop"),
+  ],
+};
+
 export const GALLERY: { title: string; subtitle: string; graph: TraceGraph }[] = [
   { title: "Sequence", subtitle: "straight centered spine", graph: SEQUENCE },
   { title: "Fork / parallel", subtitle: "centered parent + comb fan", graph: FORK },

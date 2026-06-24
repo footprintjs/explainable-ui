@@ -2,7 +2,7 @@ import "@xyflow/react/dist/style.css";
 import { TracedFlow } from "../src/flowchart";
 import type { TraceGraph } from "../src/components/FlowchartView/traceStructureRecorder";
 import graphData from "./sample-graph.json";
-import { GALLERY } from "./sample-graphs";
+import { GALLERY, COMBINE } from "./sample-graphs";
 
 /**
  * Demo gallery — each composition pattern in its OWN small chart so a layout
@@ -66,8 +66,14 @@ export function Demo() {
         ))}
       </div>
       <ChartCard
+        title="Combine — every pattern, one connected flow"
+        subtitle="sequence · fork+merge diamond · decision · side-lane loop — laid out perfectly"
+        graph={COMBINE}
+        height={560}
+      />
+      <ChartCard
         title="Complex — real captured agent"
-        subtitle="16 top-level stages · subflows drill-in · loops · the combine target"
+        subtitle="16 top-level stages · subflows drill-in · loops · real (disconnected) capture"
         graph={complex}
         height={520}
       />
