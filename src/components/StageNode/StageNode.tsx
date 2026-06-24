@@ -585,8 +585,8 @@ export const StageNode = memo(function StageNode({
                 border: `${isHero ? "2.5px" : isMuted ? "1px" : "2px"} ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
                 borderRadius: theme.radius,
                 padding: description
-                  ? `${Math.round(8 * sizeScale)}px ${Math.round(16 * sizeScale)}px`
-                  : `${Math.round(10 * sizeScale)}px ${Math.round(20 * sizeScale)}px`,
+                  ? `${Math.round(6 * sizeScale)}px ${Math.round(12 * sizeScale)}px`
+                  : `${Math.round(7 * sizeScale)}px ${Math.round(14 * sizeScale)}px`,
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
