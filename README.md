@@ -10,6 +10,8 @@
 
 Themeable React components for visualizing [footprintjs](https://github.com/footprintjs/footPrint) pipeline execution — time-travel debugging, flowchart overlays, subflow drill-down, and collapsible detail panels.
 
+> Part of the **[footprintjs ecosystem](https://footprintjs.github.io/)** — the self-explaining stack.
+
 ## Install
 
 ```bash
@@ -377,6 +379,20 @@ pipeline and snapshot-asserts the outputs in `test/golden/__snapshots__/`.
 
 `footprintjs` is a devDependency used ONLY by the generator — the published
 library still has zero footprintjs dependency (it consumes plain JSON shapes).
+
+## The footprintjs ecosystem
+
+The self-explaining stack — from backend pipelines to AI agents. → **[overview](https://footprintjs.github.io/)**
+
+| Project | Role |
+|---|---|
+| [footprintjs](https://footprintjs.github.io/footPrint/) | the flowchart pattern (core engine) |
+| [agentfootprint](https://footprintjs.github.io/agentfootprint/) | build self-explaining AI agents |
+| **Explainable UI** ← you are here | visualize a footprintjs run |
+| [Lens](https://github.com/footprintjs/agentfootprint-lens) | debug an agentfootprint run |
+| [Thinking UI](https://footprintjs.github.io/agentThinkingUI/) | replay an agent run for non-devs |
+
+---
 
 ## License
 
