@@ -6142,6 +6142,7 @@ function ExplainableShell({
   showStageId = false,
   traceGraph,
   runtimeOverlay,
+  traceTheme,
   size = "default",
   unstyled = false,
   className,
@@ -6174,11 +6175,17 @@ function ExplainableShell({
         }
         if (i >= 0) overlayIdx = i;
       }
+      const traceColors = traceTheme && {
+        ...traceTheme.visited !== void 0 && { done: traceTheme.visited },
+        ...traceTheme.current !== void 0 && { active: traceTheme.current },
+        ...traceTheme.mode !== void 0 && { default: traceTheme.mode === "dark" ? "#94a3b8" : "#64748b" }
+      };
       return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
         TracedFlow,
         {
           graph: traceGraph,
           overlay: runtimeOverlay ?? void 0,
+          colors: traceColors || void 0,
           scrubIndex: overlayIdx,
           onNodeClick: (stageId) => onNodeClick?.(stageId),
           onSubflowChange: (mountId) => {
@@ -6187,7 +6194,7 @@ function ExplainableShell({
         }
       );
     };
-  }, [traceGraph, runtimeOverlay]);
+  }, [traceGraph, runtimeOverlay, traceTheme]);
   const effectiveRenderFlowchart = renderFlowchart ?? tracedFlowRenderer;
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";

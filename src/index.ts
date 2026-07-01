@@ -37,7 +37,7 @@ export { TimeTravelControls } from "./components/TimeTravelControls";
 export type { TimeTravelControlsProps } from "./components/TimeTravelControls";
 
 export { ExplainableShell } from "./components/ExplainableShell";
-export type { ExplainableShellProps, RuntimeSnapshotInput, RecorderView, ShellTab, PanelLabels, DefaultExpanded } from "./components/ExplainableShell";
+export type { ExplainableShellProps, TraceTheme, RuntimeSnapshotInput, RecorderView, ShellTab, PanelLabels, DefaultExpanded } from "./components/ExplainableShell";
 
 // Drop-in viewer for `agentfootprint.exportTrace()` JSON
 export { TraceViewer } from "./components/TraceViewer/TraceViewer";

@@ -624,6 +624,19 @@ interface RecorderView {
         selectedIndex: number;
     }) => React.ReactNode;
 }
+/**
+ * The Trace flowchart's two-colour theme (footprintjs level). `mode` selects
+ * the neutral base (unvisited / edges) for dark or light; `visited` and
+ * `current` are the two semantic colours. All optional — sensible per-mode
+ * defaults are used for anything omitted.
+ */
+interface TraceTheme {
+    mode?: "dark" | "light";
+    /** Executed / done nodes. */
+    visited?: string;
+    /** The node at the current cursor position ("now"). */
+    current?: string;
+}
 interface ExplainableShellProps extends BaseComponentProps {
     /**
      * Pre-converted visualization snapshots. Use when you've already called
@@ -661,6 +674,15 @@ interface ExplainableShellProps extends BaseComponentProps {
      * time-travel trace UI.
      */
     runtimeOverlay?: RuntimeOverlay | null;
+    /**
+     * Trace flowchart theme — the footprintjs-LEVEL **two-colour** scheme:
+     * `visited` (executed nodes) + `current` (the cursor node). `mode` picks the
+     * neutral base (unvisited nodes / edges follow dark/light; the background is
+     * transparent, so it inherits your container). Colours are optional — omit to
+     * use the per-mode defaults. The agent-semantic three-colour theme belongs to
+     * `<Lens>`, not here.
+     */
+    traceTheme?: TraceTheme;
     title?: string;
     resultData?: Record<string, unknown> | null;
     logs?: string[];
@@ -713,7 +735,7 @@ interface ExplainableShellProps extends BaseComponentProps {
      */
     showStageId?: boolean;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
+declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
 
 /**
  * TraceViewer — drop-in component that renders an `agentfootprint.exportTrace()`
@@ -1100,4 +1122,4 @@ interface CompactTimelineProps {
 }
 declare const CompactTimeline: react.NamedExoticComponent<CompactTimelineProps>;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type AgentfootprintTrace, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, type TraceParseError, TraceViewer, type TraceViewerProps, buildEntryRangeIndex, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, mergeWritePatch, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
+export { type NarrativeEntry as AdapterNarrativeEntry, type AgentfootprintTrace, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, type TraceParseError, type TraceTheme, TraceViewer, type TraceViewerProps, buildEntryRangeIndex, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, mergeWritePatch, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };

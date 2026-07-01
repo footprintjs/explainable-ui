@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.26.1] - 2026-07-01
+
+### Added
+
+- **`traceTheme` prop on `<ExplainableShell>`** — the footprintjs-level
+  **two-colour** Trace theme: `{ mode?: 'dark' | 'light'; visited?; current? }`.
+  `visited` colours executed nodes, `current` the cursor node; `mode` picks the
+  neutral base (unvisited / edges), and the flowchart background is transparent
+  so it inherits your container (dark/light "just works"). Maps internally to
+  `TracedFlow`'s `done`/`active`/`default`, keeping the Trace's plain 2-colour
+  scheme distinct from the agent-semantic 3-colour theme on `<Lens>`. New
+  `TraceTheme` type exported.
+
 ## [0.26.0] - 2026-06-30
 
 ### Changed (BREAKING)

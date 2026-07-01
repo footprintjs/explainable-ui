@@ -127,6 +127,20 @@ export interface RecorderView {
   render: (props: { snapshots: StageSnapshot[]; selectedIndex: number }) => React.ReactNode;
 }
 
+/**
+ * The Trace flowchart's two-colour theme (footprintjs level). `mode` selects
+ * the neutral base (unvisited / edges) for dark or light; `visited` and
+ * `current` are the two semantic colours. All optional — sensible per-mode
+ * defaults are used for anything omitted.
+ */
+export interface TraceTheme {
+  mode?: "dark" | "light";
+  /** Executed / done nodes. */
+  visited?: string;
+  /** The node at the current cursor position ("now"). */
+  current?: string;
+}
+
 export interface ExplainableShellProps extends BaseComponentProps {
   /**
    * Pre-converted visualization snapshots. Use when you've already called
@@ -164,6 +178,15 @@ export interface ExplainableShellProps extends BaseComponentProps {
    * time-travel trace UI.
    */
   runtimeOverlay?: import("../FlowchartView/createTraceRuntimeOverlay").RuntimeOverlay | null;
+  /**
+   * Trace flowchart theme — the footprintjs-LEVEL **two-colour** scheme:
+   * `visited` (executed nodes) + `current` (the cursor node). `mode` picks the
+   * neutral base (unvisited nodes / edges follow dark/light; the background is
+   * transparent, so it inherits your container). Colours are optional — omit to
+   * use the per-mode defaults. The agent-semantic three-colour theme belongs to
+   * `<Lens>`, not here.
+   */
+  traceTheme?: TraceTheme;
   title?: string;
   resultData?: Record<string, unknown> | null;
   logs?: string[];
@@ -862,6 +885,7 @@ export function ExplainableShell({
   showStageId = false,
   traceGraph,
   runtimeOverlay,
+  traceTheme,
   size = "default",
   unstyled = false,
   className,
@@ -929,10 +953,20 @@ export function ExplainableShell({
         }
         if (i >= 0) overlayIdx = i;
       }
+      // Map the shell's 2-colour Trace theme onto TracedFlow's colour model:
+      // `visited → done`, `current → active`, and a neutral base per mode. The
+      // flowchart background stays transparent (inherits the container), so it
+      // follows the consumer's dark/light automatically.
+      const traceColors = traceTheme && {
+        ...(traceTheme.visited !== undefined && { done: traceTheme.visited }),
+        ...(traceTheme.current !== undefined && { active: traceTheme.current }),
+        ...(traceTheme.mode !== undefined && { default: traceTheme.mode === "dark" ? "#94a3b8" : "#64748b" }),
+      };
       return (
         <TracedFlow
           graph={traceGraph}
           overlay={runtimeOverlay ?? undefined}
+          colors={traceColors || undefined}
           scrubIndex={overlayIdx}
           onNodeClick={(stageId) => onNodeClick?.(stageId)}
           onSubflowChange={(mountId) => {
@@ -953,7 +987,7 @@ export function ExplainableShell({
         />
       );
     };
-  }, [traceGraph, runtimeOverlay]);
+  }, [traceGraph, runtimeOverlay, traceTheme]);
   const effectiveRenderFlowchart = renderFlowchart ?? tracedFlowRenderer;
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
