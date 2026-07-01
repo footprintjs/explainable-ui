@@ -54,25 +54,16 @@ const snapshots = toVisualizationSnapshots(
 
 ```tsx
 import { ExplainableShell } from "footprint-explainable-ui";
-import { TracedFlowchartView } from "footprint-explainable-ui/flowchart";
 
-function DebugView({ snapshots, spec, narrative, narrativeEntries }) {
+function DebugView({ snapshots, narrativeEntries, traceGraph, runtimeOverlay }) {
   return (
     <ExplainableShell
       snapshots={snapshots}
-      spec={spec}
-      narrative={narrative}
       narrativeEntries={narrativeEntries}
+      traceGraph={traceGraph}
+      runtimeOverlay={runtimeOverlay}
       title="My Pipeline"
       panelLabels={{ topology: "What Ran", details: "What Happened", timeline: "How Long" }}
-      renderFlowchart={({ spec, snapshots, selectedIndex, onNodeClick }) => (
-        <TracedFlowchartView
-          spec={spec}
-          snapshots={snapshots}
-          snapshotIndex={selectedIndex}
-          onNodeClick={onNodeClick}
-        />
-      )}
     />
   );
 }
@@ -134,7 +125,8 @@ The all-in-one orchestrator. Handles time-travel, subflow drill-down, memory/nar
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `snapshots` | `StageSnapshot[]` | required | Visualization snapshots |
-| `spec` | `SpecNode \| null` | — | Pipeline spec (enables flowchart + subflow tree) |
+| `traceGraph` | `TraceGraph \| null` | — | Build-time graph — drives the flowchart + subflow drill-down |
+| `runtimeOverlay` | `RuntimeOverlay` | — | Per-step execution overlay — lights the executed path |
 | `title` | `string` | `"Flowchart"` | Breadcrumb root label |
 | `narrative` | `string[]` | — | Flat narrative lines |
 | `narrativeEntries` | `NarrativeEntry[]` | — | Structured narrative (rich rendering) |
@@ -166,7 +158,7 @@ Control which panels start open. Desktop default: details panel open (flowchart 
 
 ```tsx
 // Desktop (default) — memory panel open
-<ExplainableShell snapshots={...} spec={...} />
+<ExplainableShell snapshots={...} traceGraph={...} runtimeOverlay={...} />
 
 // Mobile — all collapsed, flowchart fills screen
 <ExplainableShell

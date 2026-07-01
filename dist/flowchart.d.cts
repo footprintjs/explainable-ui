@@ -1,7 +1,6 @@
 import * as react from 'react';
 import * as _xyflow_react from '@xyflow/react';
 import { Node, Edge, NodeTypes, EdgeTypes, NodeProps, EdgeProps } from '@xyflow/react';
-import * as react_jsx_runtime from 'react/jsx-runtime';
 
 interface StageNodeData {
     label: string;
@@ -632,7 +631,7 @@ interface TimeTravelDebuggerProps extends BaseComponentProps {
  * optionally `runtimeOverlay` for per-step coloring tied to the
  * scrubber.
  */
-declare function TimeTravelDebugger({ snapshots, graph, runtimeOverlay, showGantt, layout, title, size, unstyled, className, style, }: TimeTravelDebuggerProps): react_jsx_runtime.JSX.Element;
+declare function TimeTravelDebugger({ snapshots, graph, runtimeOverlay, showGantt, layout, title, size, unstyled, className, style, }: TimeTravelDebuggerProps): react.JSX.Element;
 
 /**
  * useSubflowNavigation — drill-down breadcrumb tracker for recorder-driven charts.
@@ -771,6 +770,45 @@ interface SubflowTreeProps extends BaseComponentProps {
 }
 declare const SubflowTree: react.NamedExoticComponent<SubflowTreeProps>;
 
+/**
+ * TraceFlow — ReactFlow renderer driven by `createTraceStructureRecorder`.
+ *
+ * Two input modes (mutually exclusive):
+ *
+ *   1. **Live mode**: pass `recorder={traceHandle}`. The component
+ *      subscribes via `useSyncExternalStore` to the recorder's
+ *      pub-sub `subscribe()` API and re-renders as the builder runs.
+ *      Ideal for incremental visualisation (Lens-style live chart
+ *      construction).
+ *
+ *   2. **Static mode**: pass `graph={{ nodes, edges }}`. The component
+ *      treats the graph as final and renders once. Ideal for post-build
+ *      snapshots (Trace tab, docs site).
+ *
+ * Layout is pluggable:
+ *
+ *   - Pass a `layout` function `(graph) => positioned graph`. Default is
+ *     a simple BFS tree walk (Y_STEP=100, X_SPREAD=200).
+ *   - Pass the literal `"passthrough"` to skip layout when nodes are
+ *     already pre-positioned by the caller.
+ *
+ * @example
+ * ```tsx
+ * import { createTraceStructureRecorder, TraceFlow } from 'footprint-explainable-ui/flowchart';
+ * import { flowChart } from 'footprintjs';
+ *
+ * function MyTraceUI() {
+ *   const trace = useMemo(() => createTraceStructureRecorder(), []);
+ *   useEffect(() => {
+ *     flowChart('seed', fn, 'seed', {
+ *       structureRecorders: [trace.recorder],
+ *     }).addFunction('a', fnA, 'a').build();
+ *   }, [trace]);
+ *   return <TraceFlow recorder={trace} />;
+ * }
+ * ```
+ */
+
 /** Layout function shape — takes a graph, returns a graph with positions set. */
 type TraceFlowLayout = (graph: TraceGraph) => TraceGraph;
 /**
@@ -860,7 +898,43 @@ type TraceFlowProps = BaseComponentProps & TraceFlowSource & {
      */
     children?: react.ReactNode;
 };
-declare function TraceFlow(props: TraceFlowProps): react_jsx_runtime.JSX.Element;
+declare function TraceFlow(props: TraceFlowProps): react.JSX.Element;
+
+/**
+ * TracedFlow — runtime-overlay variant of `<TraceFlow>`.
+ *
+ * Pairs a build-time `TraceGraph` (from `createTraceStructureRecorder`)
+ * with a runtime `RuntimeOverlay` (from `createTraceRuntimeOverlay`)
+ * and a scrub index → renders an xyflow chart with per-node coloring
+ * (done / active / error), per-edge highlighting (executed paths),
+ * loop-edge side-routing, and subflow drill-down.
+ *
+ * The component is orchestration only. Each responsibility lives in
+ * an extracted helper / hook (see `_internal/`):
+ *
+ *   - drill state .................. useSubflowDrill
+ *   - container resize → fitView ... useChartAutoRefit
+ *   - graph filtering by drill ..... filterGraphForDrill
+ *   - breadcrumb path .............. buildSubflowBreadcrumb
+ *   - slice id normalization ....... normalizeSliceLeafIds
+ *   - mount status aggregation ..... aggregateMountStatus
+ *   - node / edge styling .......... toStageNodeWithOverlay + styleEdgeWithOverlay
+ *   - breadcrumb UI ................ <SubflowBreadcrumbBar>
+ *
+ * @example
+ * ```tsx
+ * const trace = useMemo(() => createTraceStructureRecorder(), []);
+ * const runtime = useMemo(() => createTraceRuntimeOverlay(), []);
+ * // ... attach both to executor, run the chart ...
+ * <TracedFlow
+ *   graph={trace.getGraph()}
+ *   overlay={runtime.getOverlay()}
+ *   scrubIndex={sliderValue}
+ *   onNodeClick={(stageId) => focusStage(stageId)}
+ *   onSubflowChange={(mountId) => syncShellDrill(mountId)}
+ * />
+ * ```
+ */
 
 interface TracedFlowColors {
     /** Default (un-executed) node text + edge stroke. */
@@ -950,7 +1024,7 @@ interface TracedFlowProps extends BaseComponentProps {
      */
     children?: react.ReactNode;
 }
-declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, children, className, style, }: TracedFlowProps): react_jsx_runtime.JSX.Element;
+declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, children, className, style, }: TracedFlowProps): react.JSX.Element;
 
 interface GroupContainerNodeData {
     label: string;
@@ -963,7 +1037,7 @@ interface GroupContainerNodeData {
     icon?: string;
     [key: string]: unknown;
 }
-declare function GroupContainerNode({ data }: NodeProps): react_jsx_runtime.JSX.Element;
+declare function GroupContainerNode({ data }: NodeProps): react.JSX.Element;
 
 interface SlotPillNodeData {
     label: string;
@@ -978,11 +1052,11 @@ interface SlotPillNodeData {
     icon?: string;
     [key: string]: unknown;
 }
-declare function SlotPillNode({ data }: NodeProps): react_jsx_runtime.JSX.Element;
+declare function SlotPillNode({ data }: NodeProps): react.JSX.Element;
 
-declare function LoopBackEdge({ id, source, target, markerEnd, style }: EdgeProps): react_jsx_runtime.JSX.Element | null;
+declare function LoopBackEdge({ id, source, target, markerEnd, style }: EdgeProps): react.JSX.Element | null;
 
-declare function SmartStepEdge({ id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, }: EdgeProps): react_jsx_runtime.JSX.Element;
+declare function SmartStepEdge({ id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, }: EdgeProps): react.JSX.Element;
 
 /**
  * groupLayout — xyflow NATIVE container boxes for the trace chart.
@@ -2009,7 +2083,7 @@ interface NodeInspectorProps extends BaseComponentProps {
      *  (runtime-filtered view). */
     onlyVisited?: boolean;
 }
-declare function NodeInspector({ index, selectedId, onNavigate, onlyVisited, className, style, }: NodeInspectorProps): react_jsx_runtime.JSX.Element;
+declare function NodeInspector({ index, selectedId, onNavigate, onlyVisited, className, style, }: NodeInspectorProps): react.JSX.Element;
 
 interface CommitInspectorProps extends BaseComponentProps {
     /** The CommitFlow index (from `commitFlow.getIndex()` or `useTranslator`).
@@ -2026,7 +2100,7 @@ interface CommitInspectorProps extends BaseComponentProps {
      *  data-dep sources, lineage chain). */
     onNavigate?: (runtimeStageId: RuntimeStageId) => void;
 }
-declare function CommitInspector({ index, selectedRuntimeStageId, onNavigate, className, style, }: CommitInspectorProps): react_jsx_runtime.JSX.Element;
+declare function CommitInspector({ index, selectedRuntimeStageId, onNavigate, className, style, }: CommitInspectorProps): react.JSX.Element;
 
 /**
  * Series-parallel chain tree builders — pure functions over `TraceGraph`
@@ -2202,7 +2276,7 @@ interface CommitChainViewProps extends BaseComponentProps {
      *    no-reveal. */
     revealedThroughCommitIdx?: number | null;
 }
-declare function CommitChainView({ chain, selectedRuntimeStageId, onSelectCommit, resolveLabel, revealedThroughCommitIdx, className, style, }: CommitChainViewProps): react_jsx_runtime.JSX.Element;
+declare function CommitChainView({ chain, selectedRuntimeStageId, onSelectCommit, resolveLabel, revealedThroughCommitIdx, className, style, }: CommitChainViewProps): react.JSX.Element;
 
 /**
  * Slot prop bags — slots receive PURE DATA (chain/index), NOT the
@@ -2288,7 +2362,7 @@ interface TraceExplorerShellProps extends BaseComponentProps {
      *  (define at module scope or `useMemo`). */
     slots?: TraceExplorerSlots;
 }
-declare function TraceExplorerShell({ bundle, selectedRuntimeStageId: controlledSel, onSelectionChange, slots, className, style, }: TraceExplorerShellProps): react_jsx_runtime.JSX.Element;
+declare function TraceExplorerShell({ bundle, selectedRuntimeStageId: controlledSel, onSelectionChange, slots, className, style, }: TraceExplorerShellProps): react.JSX.Element;
 
 interface RunSliderProps extends BaseComponentProps {
     /** Live commit flow index (pure data prop — pass via
@@ -2315,6 +2389,6 @@ interface RunSliderProps extends BaseComponentProps {
         index: CommitFlowIndex;
     }) => React.ReactNode;
 }
-declare function RunSlider({ index, cursorRuntimeStageId, onCursorChange, renderLabel, className, style, }: RunSliderProps): react_jsx_runtime.JSX.Element;
+declare function RunSlider({ index, cursorRuntimeStageId, onCursorChange, renderLabel, className, style, }: RunSliderProps): react.JSX.Element;
 
 export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };

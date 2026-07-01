@@ -94,6 +94,9 @@ var rawDefaults = {
     success: "#22c55e",
     error: "#ef4444",
     warning: "#f59e0b",
+    nodeCursor: "#f59e0b",
+    nodeVisited: "#22c55e",
+    nodeMain: "#6366f1",
     bgPrimary: "#0f172a",
     bgSecondary: "#1e293b",
     bgTertiary: "#334155",
@@ -114,6 +117,9 @@ var defaultTokens = {
     success: `var(--fp-color-success, ${rawDefaults.colors.success})`,
     error: `var(--fp-color-error, ${rawDefaults.colors.error})`,
     warning: `var(--fp-color-warning, ${rawDefaults.colors.warning})`,
+    nodeCursor: `var(--fp-node-cursor, ${rawDefaults.colors.nodeCursor})`,
+    nodeVisited: `var(--fp-node-visited, ${rawDefaults.colors.nodeVisited})`,
+    nodeMain: `var(--fp-node-main, ${rawDefaults.colors.nodeMain})`,
     bgPrimary: `var(--fp-bg-primary, ${rawDefaults.colors.bgPrimary})`,
     bgSecondary: `var(--fp-bg-secondary, ${rawDefaults.colors.bgSecondary})`,
     bgTertiary: `var(--fp-bg-tertiary, ${rawDefaults.colors.bgTertiary})`,
@@ -142,6 +148,15 @@ var theme = {
   success: v("--fp-color-success", "#22c55e"),
   error: v("--fp-color-error", "#ef4444"),
   warning: v("--fp-color-warning", "#f59e0b"),
+  // Semantic NODE-STATE colors — first-class, themeable roles a runtime overlay
+  // maps onto (scrub cursor / executed / a group's lead node). Distinct from the
+  // generic `primary` accent so the three read as three different things.
+  nodeCursor: v("--fp-node-cursor", "#f59e0b"),
+  // the current / scrubbed-to step
+  nodeVisited: v("--fp-node-visited", "#22c55e"),
+  // executed up to the cursor
+  nodeMain: v("--fp-node-main", "#6366f1"),
+  // the lead / "hero" node of a group
   bgPrimary: v("--fp-bg-primary", "#0f172a"),
   bgSecondary: v("--fp-bg-secondary", "#1e293b"),
   bgTertiary: v("--fp-bg-tertiary", "#334155"),
@@ -357,13 +372,13 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
   const isHero = data.emphasis === "hero";
   const isMuted = data.emphasis === "muted";
   const sizeScale = data.size === "lg" ? 1.3 : data.size === "sm" ? 0.85 : 1;
-  const restingBg = isHero ? `color-mix(in srgb, ${theme.primary} 12%, ${theme.bgSecondary})` : theme.bgSecondary;
-  const restingBorder = isHero ? theme.primary : theme.border;
-  const restingShadow = isHero ? `0 0 10px color-mix(in srgb, ${theme.primary} 22%, transparent)` : `0 2px 8px rgba(0,0,0,0.15)`;
-  const bg = active ? theme.primary : done ? theme.success : error ? theme.error : restingBg;
-  const borderColor = active ? theme.primary : done ? theme.success : error ? theme.error : restingBorder;
-  const shadow = active ? `0 0 22px color-mix(in srgb, ${theme.primary} 55%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.success} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : restingShadow;
-  const textColor = active || done || error ? "#fff" : theme.textPrimary;
+  const restingBg = isHero ? `color-mix(in srgb, ${theme.nodeMain} 12%, ${theme.bgSecondary})` : theme.bgSecondary;
+  const restingBorder = isHero ? theme.nodeMain : theme.border;
+  const restingShadow = isHero ? `0 0 10px color-mix(in srgb, ${theme.nodeMain} 22%, transparent)` : `0 2px 8px rgba(0,0,0,0.15)`;
+  const bg = active ? theme.nodeCursor : isHero && done ? theme.nodeMain : done ? theme.nodeVisited : error ? theme.error : restingBg;
+  const borderColor = active ? theme.nodeCursor : isHero && done ? theme.nodeMain : done ? theme.nodeVisited : error ? theme.error : restingBorder;
+  const shadow = active ? `0 0 22px color-mix(in srgb, ${theme.nodeCursor} 55%, transparent)` : isHero && done ? `0 0 12px color-mix(in srgb, ${theme.nodeMain} 30%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.nodeVisited} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : restingShadow;
+  const textColor = active ? "#1a1a1a" : done || error ? "#fff" : theme.textPrimary;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(import_react4.Handle, { type: "target", position: import_react4.Position.Top, style: { opacity: 0 } }),
     /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { width: "100%", display: "flex", justifyContent: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
@@ -392,8 +407,8 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
               },
               children: stepNumbers.map((num, i) => {
                 const isLatest = i === stepNumbers.length - 1;
-                const badgeBg = isLatest && active ? theme.primary : theme.success;
-                const glow = isLatest && active ? `color-mix(in srgb, ${theme.primary} 50%, transparent)` : `color-mix(in srgb, ${theme.success} 40%, transparent)`;
+                const badgeBg = isLatest && active ? theme.nodeCursor : theme.nodeVisited;
+                const glow = isLatest && active ? `color-mix(in srgb, ${theme.nodeCursor} 50%, transparent)` : `color-mix(in srgb, ${theme.nodeVisited} 40%, transparent)`;
                 return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
                   "div",
                   {
@@ -439,7 +454,7 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
                 inset: -6,
                 borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
                 clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : void 0,
-                border: `2px solid ${theme.primary}`,
+                border: `2px solid ${theme.nodeCursor}`,
                 opacity: 0.3,
                 animation: "fp-pulse 1.5s ease-out infinite"
               }
@@ -572,7 +587,7 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
                   background: bg,
                   border: `${isHero ? "2.5px" : isMuted ? "1px" : "2px"} ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
                   borderRadius: theme.radius,
-                  padding: description ? `${Math.round(8 * sizeScale)}px ${Math.round(16 * sizeScale)}px` : `${Math.round(10 * sizeScale)}px ${Math.round(20 * sizeScale)}px`,
+                  padding: description ? `${Math.round(6 * sizeScale)}px ${Math.round(12 * sizeScale)}px` : `${Math.round(7 * sizeScale)}px ${Math.round(14 * sizeScale)}px`,
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
@@ -687,7 +702,7 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
 });
 
 // src/components/TimeTravelDebugger/TimeTravelDebugger.tsx
-var import_react18 = require("react");
+var import_react20 = require("react");
 
 // src/components/MemoryInspector/MemoryInspector.tsx
 var import_react5 = require("react");
@@ -1541,6 +1556,14 @@ function staggeredBendY(sourceBottom, targetTop, others, minGapFromTarget = 8) {
   if (lowestSkippedBottom === -Infinity) return null;
   return Math.min((lowestSkippedBottom + targetTop) / 2, targetTop - minGapFromTarget);
 }
+function forkFanBendY(sourceBottom, childTops, minGapFromTarget = 8) {
+  if (childTops.length < 2) return null;
+  const nearestTop = Math.min(...childTops);
+  return Math.min((sourceBottom + nearestTop) / 2, nearestTop - minGapFromTarget);
+}
+function resolveStepBendY(forkBend, staggeredBend) {
+  return staggeredBend ?? forkBend;
+}
 
 // src/components/SmartStepEdge/SmartStepEdge.tsx
 var import_jsx_runtime7 = require("react/jsx-runtime");
@@ -1563,6 +1586,16 @@ function SmartStepEdge({
     if (!src || !tgt) return null;
     const sourceBottom = src.internals.positionAbsolute.y + (src.measured.height ?? 0);
     const targetTop = tgt.internals.positionAbsolute.y;
+    const childTops = [];
+    for (const e of s.edges) {
+      if (e.source !== source) continue;
+      if (e.data?.kind === "loop") continue;
+      const c = s.nodeLookup.get(e.target);
+      if (c && c.type !== GROUP_CONTAINER_NODE_TYPE) {
+        childTops.push(c.internals.positionAbsolute.y);
+      }
+    }
+    const fan = forkFanBendY(sourceBottom, childTops);
     const others = [];
     for (const n of s.nodeLookup.values()) {
       if (n.id === source || n.id === target) continue;
@@ -1570,7 +1603,8 @@ function SmartStepEdge({
       const top = n.internals.positionAbsolute.y;
       others.push({ top, bottom: top + (n.measured.height ?? 0) });
     }
-    return staggeredBendY(sourceBottom, targetTop, others);
+    const staggered = staggeredBendY(sourceBottom, targetTop, others);
+    return resolveStepBendY(fan, staggered);
   });
   const [path] = (0, import_react9.getSmoothStepPath)({
     sourceX,
@@ -1933,8 +1967,8 @@ function TraceFlow(props) {
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-var import_react16 = require("react");
-var import_react17 = require("@xyflow/react");
+var import_react18 = require("react");
+var import_react19 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/devWarn.ts
 function isDevModeEnv() {
@@ -1944,6 +1978,189 @@ function isDevModeEnv() {
 function devWarn(messageFn, ...extras) {
   if (!isDevModeEnv()) return;
   console.warn(messageFn(), ...extras);
+}
+
+// src/components/FlowchartView/_internal/snapLinearSuccessors.ts
+function snapLinearSuccessors(graph, options = {}) {
+  if (graph.nodes.length === 0) return graph;
+  const fallbackW = options.nodeWidth ?? DEFAULT_NODE_W2;
+  const fallbackH = options.nodeHeight ?? DEFAULT_NODE_H2;
+  const byId = /* @__PURE__ */ new Map();
+  const width = /* @__PURE__ */ new Map();
+  for (const n of graph.nodes) {
+    byId.set(n.id, n);
+    width.set(n.id, sizeOf(n, fallbackW, fallbackH, options.nodeSize).width);
+  }
+  const preds = /* @__PURE__ */ new Map();
+  const outDegree = /* @__PURE__ */ new Map();
+  const seenEdge = /* @__PURE__ */ new Set();
+  for (const e of graph.edges) {
+    if (e.data?.kind === "loop") continue;
+    if (!byId.has(e.source) || !byId.has(e.target)) continue;
+    const key = `${e.source}\0${e.target}`;
+    if (seenEdge.has(key)) continue;
+    seenEdge.add(key);
+    const list = preds.get(e.target);
+    if (list) list.push(e.source);
+    else preds.set(e.target, [e.source]);
+    outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
+  }
+  const workingX = /* @__PURE__ */ new Map();
+  for (const n of graph.nodes) workingX.set(n.id, n.position.x);
+  const centerX = (id) => workingX.get(id) + width.get(id) / 2;
+  const order = [...graph.nodes].sort(
+    (a, b) => a.position.y - b.position.y || a.position.x - b.position.x || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+  );
+  for (const n of order) {
+    const p = preds.get(n.id);
+    if (!p || p.length !== 1) continue;
+    const pid = p[0];
+    if ((outDegree.get(pid) ?? 0) !== 1) continue;
+    const P = byId.get(pid);
+    if ((n.parentId ?? void 0) !== (P.parentId ?? void 0)) continue;
+    workingX.set(n.id, centerX(pid) - width.get(n.id) / 2);
+  }
+  const nodes = graph.nodes.map((n) => {
+    const nx = workingX.get(n.id);
+    return nx === n.position.x ? n : { ...n, position: { x: nx, y: n.position.y } };
+  });
+  return { nodes, edges: graph.edges };
+}
+function createSnappedDagreLayout(base, options = {}) {
+  return (graph) => snapLinearSuccessors(base(graph), options);
+}
+
+// src/components/FlowchartView/_internal/centerForkParents.ts
+function centerForkParents(graph, options = {}) {
+  if (graph.nodes.length === 0) return graph;
+  const fallbackW = options.nodeWidth ?? DEFAULT_NODE_W2;
+  const fallbackH = options.nodeHeight ?? DEFAULT_NODE_H2;
+  const byId = /* @__PURE__ */ new Map();
+  const width = /* @__PURE__ */ new Map();
+  for (const n of graph.nodes) {
+    byId.set(n.id, n);
+    width.set(n.id, sizeOf(n, fallbackW, fallbackH, options.nodeSize).width);
+  }
+  const childrenOf = /* @__PURE__ */ new Map();
+  const predsOf = /* @__PURE__ */ new Map();
+  const outDegree = /* @__PURE__ */ new Map();
+  const inDegree = /* @__PURE__ */ new Map();
+  const seen = /* @__PURE__ */ new Set();
+  for (const e of graph.edges) {
+    if (e.data?.kind === "loop") continue;
+    if (!byId.has(e.source) || !byId.has(e.target)) continue;
+    const key = `${e.source} ${e.target}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const cl = childrenOf.get(e.source);
+    if (cl) cl.push(e.target);
+    else childrenOf.set(e.source, [e.target]);
+    const pl = predsOf.get(e.target);
+    if (pl) pl.push(e.source);
+    else predsOf.set(e.target, [e.source]);
+    outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
+    inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
+  }
+  const workingX = /* @__PURE__ */ new Map();
+  for (const n of graph.nodes) workingX.set(n.id, n.position.x);
+  const centerX = (id) => workingX.get(id) + width.get(id) / 2;
+  const nodeSep = options.nodeSep ?? 60;
+  const clampX = (id, desiredX) => {
+    const w = width.get(id);
+    const x0 = workingX.get(id);
+    const self = byId.get(id);
+    let minX = -Infinity;
+    let maxX = Infinity;
+    for (const m of graph.nodes) {
+      if (m.id === id || m.parentId !== self.parentId) continue;
+      if (Math.abs(m.position.y - self.position.y) > 1) continue;
+      const mLeft = workingX.get(m.id);
+      const mRight = mLeft + width.get(m.id);
+      if (mRight <= x0) minX = Math.max(minX, mRight + nodeSep);
+      else if (mLeft >= x0 + w) maxX = Math.min(maxX, mLeft - nodeSep - w);
+    }
+    return minX <= maxX ? Math.max(minX, Math.min(maxX, desiredX)) : x0;
+  };
+  const evenFanKids = (forkCenter, kids) => {
+    if (kids.length < 2) return;
+    const sorted = [...kids].sort((a, b) => centerX(a) - centerX(b));
+    let gap = 0;
+    for (let i = 0; i < sorted.length - 1; i++) {
+      gap = Math.max(gap, width.get(sorted[i]) / 2 + nodeSep + width.get(sorted[i + 1]) / 2);
+    }
+    const mid = (sorted.length - 1) / 2;
+    for (let i = 0; i < sorted.length; i++) {
+      workingX.set(sorted[i], forkCenter + (i - mid) * gap - width.get(sorted[i]) / 2);
+    }
+  };
+  const order = [...graph.nodes].sort(
+    (a, b) => b.position.y - a.position.y || a.position.x - b.position.x || a.id.localeCompare(b.id)
+  );
+  for (const n of order) {
+    const outD = outDegree.get(n.id) ?? 0;
+    const inD = inDegree.get(n.id) ?? 0;
+    const isFork = outD >= 2 && inD <= 1;
+    const isMerge = inD >= 2 && outD <= 1;
+    if (!isFork && !isMerge) continue;
+    const kin = ((isFork ? childrenOf.get(n.id) : predsOf.get(n.id)) ?? []).filter(
+      (k) => byId.get(k)?.parentId === n.parentId
+      // same compound only
+    );
+    if (kin.length < 2) continue;
+    const centers = kin.map(centerX);
+    const wN = width.get(n.id);
+    const span = (Math.min(...centers) + Math.max(...centers)) / 2;
+    workingX.set(n.id, clampX(n.id, span - wN / 2));
+    if (isFork) {
+      const succSets = kin.map((k) => childrenOf.get(k) ?? []);
+      const isDiamond = kin.length >= 2 && succSets[0].some((s) => succSets.every((ss) => ss.includes(s)));
+      if (isDiamond) evenFanKids(centerX(n.id), kin);
+    }
+    const stepOf = isFork ? predsOf : childrenOf;
+    let curId = n.id;
+    const walked = /* @__PURE__ */ new Set([curId]);
+    for (; ; ) {
+      const nexts = stepOf.get(curId);
+      if (!nexts || nexts.length !== 1) break;
+      const m = nexts[0];
+      if (walked.has(m)) break;
+      if ((outDegree.get(m) ?? 0) > 1) break;
+      if ((inDegree.get(m) ?? 0) > 1) break;
+      if (byId.get(m)?.parentId !== byId.get(curId)?.parentId) break;
+      workingX.set(m, clampX(m, centerX(curId) - width.get(m) / 2));
+      walked.add(m);
+      curId = m;
+    }
+  }
+  for (const n of order) {
+    const outD = outDegree.get(n.id) ?? 0;
+    const inD = inDegree.get(n.id) ?? 0;
+    if (!(outD >= 2 && inD <= 1)) continue;
+    const kids = (childrenOf.get(n.id) ?? []).filter(
+      (k) => byId.get(k)?.parentId === n.parentId
+    );
+    if (kids.length < 2) continue;
+    const succSets = kids.map((k) => childrenOf.get(k) ?? []);
+    const isDiamond = succSets[0].some((s) => succSets.every((ss) => ss.includes(s)));
+    if (isDiamond) continue;
+    const ps = predsOf.get(n.id);
+    if (!ps || ps.length !== 1) continue;
+    const pred = ps[0];
+    if ((outDegree.get(pred) ?? 0) !== 1) continue;
+    if (byId.get(pred)?.parentId !== byId.get(n.id)?.parentId) continue;
+    const before = centerX(n.id);
+    workingX.set(n.id, clampX(n.id, centerX(pred) - width.get(n.id) / 2));
+    const delta = centerX(n.id) - before;
+    if (delta === 0) continue;
+    for (const k of kids) workingX.set(k, clampX(k, workingX.get(k) + delta));
+  }
+  const nodes = graph.nodes.map(
+    (n) => workingX.get(n.id) === n.position.x ? n : { ...n, position: { x: workingX.get(n.id), y: n.position.y } }
+  );
+  return { nodes, edges: graph.edges };
+}
+function withForkCentering(base, options = {}) {
+  return (graph) => centerForkParents(base(graph), options);
 }
 
 // src/components/FlowchartView/_internal/notifyChange.ts
@@ -2303,6 +2520,49 @@ function GroupContainerNode({ data }) {
   );
 }
 
+// src/components/FlowchartView/_internal/MeasuredNodeSizes.tsx
+var import_react16 = require("react");
+var import_react17 = require("@xyflow/react");
+
+// src/components/FlowchartView/_internal/measuredFootprints.ts
+function extractMeasuredFootprints(entries) {
+  const sizes = /* @__PURE__ */ new Map();
+  for (const [id, node] of entries) {
+    const width = node.measured?.width;
+    const height = node.measured?.height;
+    if (typeof width === "number" && typeof height === "number" && width > 0 && height > 0) {
+      sizes.set(id, { width: Math.round(width), height: Math.round(height) });
+    }
+  }
+  return sizes;
+}
+function sameFootprints(a, b) {
+  if (a === b) return true;
+  if (a.size !== b.size) return false;
+  for (const [id, s] of a) {
+    const t = b.get(id);
+    if (!t || t.width !== s.width || t.height !== s.height) return false;
+  }
+  return true;
+}
+
+// src/components/FlowchartView/_internal/MeasuredNodeSizes.tsx
+function MeasuredNodeSizes({
+  onSizes,
+  includeHiddenNodes = false
+}) {
+  const initialized = (0, import_react17.useNodesInitialized)({ includeHiddenNodes });
+  const sizes = (0, import_react17.useStore)(
+    (s) => extractMeasuredFootprints(s.nodeLookup),
+    sameFootprints
+  );
+  (0, import_react16.useEffect)(() => {
+    if (!initialized || sizes.size === 0) return;
+    onSizes(sizes);
+  }, [initialized, sizes, onSizes]);
+  return null;
+}
+
 // src/components/FlowchartView/TracedFlow.tsx
 var import_jsx_runtime11 = require("react/jsx-runtime");
 var DEFAULT_COLORS = {
@@ -2412,7 +2672,7 @@ function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors) {
     type: kind === "loop" ? "loopBack" : "smartStep",
     animated: isLeadingEdge,
     style: { stroke: color, strokeWidth: traversed ? 2 : 1.5 },
-    markerEnd: { type: import_react17.MarkerType.ArrowClosed, color, width: 16, height: 16 }
+    markerEnd: { type: import_react19.MarkerType.ArrowClosed, color, width: 16, height: 16 }
   };
   if (kind === "loop") {
     styled.style = { ...styled.style, strokeDasharray: "4 3" };
@@ -2442,21 +2702,28 @@ function TracedFlow({
   style
 }) {
   const layout = layoutProp ?? dagreTraceLayout;
-  const colors = (0, import_react16.useMemo)(
+  (0, import_react18.useEffect)(() => {
+    if (layoutProp === dagreTraceLayout) {
+      devWarn(
+        () => "[footprint-explainable-ui] <TracedFlow layout={dagreTraceLayout}> bypasses the built-in measure-then-layout pipeline (content-exact sizing, fork/merge centering, straight spines). OMIT the `layout` prop to use it \u2014 passing the raw dagreTraceLayout silently forfeits every layout improvement eui ships."
+      );
+    }
+  }, [layoutProp]);
+  const colors = (0, import_react18.useMemo)(
     () => ({ ...DEFAULT_COLORS, ...colorOverrides ?? {} }),
     [colorOverrides]
   );
-  const mergedNodeTypes = (0, import_react16.useMemo)(
+  const mergedNodeTypes = (0, import_react18.useMemo)(
     () => userNodeTypes ? { ...DEFAULT_NODE_TYPES2, ...userNodeTypes } : DEFAULT_NODE_TYPES2,
     [userNodeTypes]
   );
-  const mergedEdgeTypes = (0, import_react16.useMemo)(
+  const mergedEdgeTypes = (0, import_react18.useMemo)(
     () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES2, ...userEdgeTypes } : DEFAULT_EDGE_TYPES2,
     [userEdgeTypes]
   );
   const drill = useSubflowDrill(graph, onSubflowChange);
-  const groupedSet = (0, import_react16.useMemo)(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
-  const filteredGraph = (0, import_react16.useMemo)(() => {
+  const groupedSet = (0, import_react18.useMemo)(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
+  const filteredGraph = (0, import_react18.useMemo)(() => {
     const base = filterGraphForDrill(graph, drill.currentSubflowId);
     if (groupedSet.size === 0) return base;
     const baseIds = new Set(base.nodes.map((n) => n.id));
@@ -2471,12 +2738,23 @@ function TracedFlow({
     );
     return { nodes: [...base.nodes, ...extraNodes], edges: [...base.edges, ...extraEdges] };
   }, [graph, drill.currentSubflowId, groupedSet]);
-  const breadcrumb = (0, import_react16.useMemo)(
+  const breadcrumb = (0, import_react18.useMemo)(
     () => buildSubflowBreadcrumb(graph, drill.currentSubflowId),
     [graph, drill.currentSubflowId]
   );
-  const positioned = (0, import_react16.useMemo)(() => {
-    const realBase = layout === "passthrough" ? (g) => g : layout;
+  const [measuredSizes, setMeasuredSizes] = (0, import_react18.useState)(null);
+  const positioned = (0, import_react18.useMemo)(() => {
+    const nodeSize = measuredSizes ? (n) => measuredSizes.get(n.id) : void 0;
+    const sizeOpts = nodeSize ? { nodeSize } : {};
+    const dagreBase = withForkCentering(
+      createSnappedDagreLayout(
+        createDagreTraceLayout({ ...sizeOpts, rankSep: 52, nodeSep: 36 }),
+        sizeOpts
+      ),
+      { ...sizeOpts, nodeSep: 36 }
+      // same nodeSep → clamp preserves dagre's reserved gap
+    );
+    const realBase = layout === "passthrough" ? (g) => g : layoutProp === void 0 ? dagreBase : layout;
     if (groupedSet.size > 0) {
       const grouped = applyGroupLayout(filteredGraph, {
         groupedSubflowIds: [...groupedSet],
@@ -2487,9 +2765,9 @@ function TracedFlow({
     if (mainChartBox) {
       return wrapInMainChartBox(filteredGraph, { baseLayout: realBase, ...mainChartBox });
     }
-    return layout === "passthrough" ? filteredGraph : layout(filteredGraph);
-  }, [filteredGraph, layout, groupedSet, mainChartBox]);
-  const slice = (0, import_react16.useMemo)(() => {
+    return realBase(filteredGraph);
+  }, [filteredGraph, layout, layoutProp, groupedSet, mainChartBox, measuredSizes]);
+  const slice = (0, import_react18.useMemo)(() => {
     const empty = {
       doneStageIds: /* @__PURE__ */ new Set(),
       activeStageId: null,
@@ -2501,7 +2779,7 @@ function TracedFlow({
     const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
     return aggregateMountStatus(sliceOverlay(overlay, idx), graph, drill.currentSubflowId);
   }, [overlay, scrubIndex, graph, drill.currentSubflowId]);
-  const reactFlowNodes = (0, import_react16.useMemo)(
+  const reactFlowNodes = (0, import_react18.useMemo)(
     () => positioned.nodes.map(
       (n) => toStageNodeWithOverlay(
         n,
@@ -2514,13 +2792,13 @@ function TracedFlow({
     ),
     [positioned.nodes, slice, coActiveStageIds]
   );
-  const reactFlowEdges = (0, import_react16.useMemo)(
+  const reactFlowEdges = (0, import_react18.useMemo)(
     () => positioned.edges.map(
       (e) => styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors)
     ),
     [positioned.edges, slice, colors]
   );
-  const handleNodeClick = (0, import_react16.useCallback)(
+  const handleNodeClick = (0, import_react18.useCallback)(
     (_, node) => {
       const data = node.data ?? {};
       if (data.isSubflow && data.subflowId && !groupedSet.has(data.subflowId)) {
@@ -2530,9 +2808,13 @@ function TracedFlow({
     },
     [drill, onNodeClick, groupedSet]
   );
-  const wrapperRef = (0, import_react16.useRef)(null);
-  const [rfInstance, setRfInstance] = (0, import_react16.useState)(null);
-  useChartAutoRefit(wrapperRef, rfInstance, { refitKey: drill.currentSubflowId });
+  const wrapperRef = (0, import_react18.useRef)(null);
+  const [rfInstance, setRfInstance] = (0, import_react18.useState)(null);
+  useChartAutoRefit(wrapperRef, rfInstance, {
+    // Re-fit on drill AND after the measured-size re-layout settles.
+    refitKey: `${drill.currentSubflowId ?? ""}:${measuredSizes ? "measured" : "estimated"}`,
+    padding: 0.18
+  });
   return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
     "div",
     {
@@ -2555,7 +2837,7 @@ function TracedFlow({
           }
         ),
         /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
-          import_react17.ReactFlow,
+          import_react19.ReactFlow,
           {
             nodes: reactFlowNodes,
             edges: reactFlowEdges,
@@ -2564,9 +2846,12 @@ function TracedFlow({
             onNodeClick: handleNodeClick,
             onInit: setRfInstance,
             fitView: true,
+            fitViewOptions: { padding: 0.18 },
+            minZoom: 0.1,
             proOptions: { hideAttribution: true },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_react17.Background, { variant: import_react17.BackgroundVariant.Dots, gap: 20, size: 1 }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_react19.Background, { variant: import_react19.BackgroundVariant.Dots, gap: 20, size: 1 }),
               children
             ]
           }
@@ -2590,7 +2875,7 @@ function TimeTravelDebugger({
   className,
   style
 }) {
-  const [selectedIndex, setSelectedIndex] = (0, import_react18.useState)(0);
+  const [selectedIndex, setSelectedIndex] = (0, import_react20.useState)(0);
   const fs = fontSize[size];
   const pad = padding[size];
   if (snapshots.length === 0) {
@@ -2884,9 +3169,9 @@ function ScrubButton({
 }
 
 // src/components/FlowchartView/SubflowBreadcrumb.tsx
-var import_react19 = require("react");
+var import_react21 = require("react");
 var import_jsx_runtime13 = require("react/jsx-runtime");
-var SubflowBreadcrumb = (0, import_react19.memo)(function SubflowBreadcrumb2({
+var SubflowBreadcrumb = (0, import_react21.memo)(function SubflowBreadcrumb2({
   breadcrumbs,
   onNavigate
 }) {
@@ -2967,12 +3252,12 @@ var SubflowBreadcrumb = (0, import_react19.memo)(function SubflowBreadcrumb2({
 });
 
 // src/components/FlowchartView/useSubflowNavigation.ts
-var import_react20 = require("react");
+var import_react22 = require("react");
 var EMPTY_GRAPH2 = { nodes: [], edges: [] };
 function useSubflowNavigation(rootGraph) {
-  const [stack, setStack] = (0, import_react20.useState)([]);
+  const [stack, setStack] = (0, import_react22.useState)([]);
   const safeRootGraph = rootGraph ?? EMPTY_GRAPH2;
-  const subflowMounts = (0, import_react20.useMemo)(() => {
+  const subflowMounts = (0, import_react22.useMemo)(() => {
     const map = /* @__PURE__ */ new Map();
     for (const node of safeRootGraph.nodes) {
       if (!node.data?.isSubflow) continue;
@@ -2990,12 +3275,12 @@ function useSubflowNavigation(rootGraph) {
     }
     return map;
   }, [safeRootGraph]);
-  const breadcrumbs = (0, import_react20.useMemo)(() => {
+  const breadcrumbs = (0, import_react22.useMemo)(() => {
     const rootLabel = "Flowchart";
     const root = { label: rootLabel };
     return [root, ...stack];
   }, [stack]);
-  const handleNodeClick = (0, import_react20.useCallback)(
+  const handleNodeClick = (0, import_react22.useCallback)(
     (nodeId) => {
       const mount = subflowMounts.get(nodeId);
       if (!mount) return false;
@@ -3011,7 +3296,7 @@ function useSubflowNavigation(rootGraph) {
     },
     [subflowMounts]
   );
-  const navigateTo = (0, import_react20.useCallback)((level) => {
+  const navigateTo = (0, import_react22.useCallback)((level) => {
     if (level === 0) {
       setStack([]);
     } else {
@@ -3033,7 +3318,7 @@ function useSubflowNavigation(rootGraph) {
 }
 
 // src/components/FlowchartView/SubflowTree.tsx
-var import_react21 = require("react");
+var import_react23 = require("react");
 var import_jsx_runtime14 = require("react/jsx-runtime");
 function graphToSubflowEntries(graph) {
   if (!graph?.nodes?.length) return [];
@@ -3050,18 +3335,18 @@ function graphToSubflowEntries(graph) {
   }
   return entries;
 }
-var TreeNode = (0, import_react21.memo)(function TreeNode2({
+var TreeNode = (0, import_react23.memo)(function TreeNode2({
   entry,
   depth,
   activeStage,
   doneStages,
   onNodeSelect
 }) {
-  const [expanded, setExpanded] = (0, import_react21.useState)(true);
+  const [expanded, setExpanded] = (0, import_react23.useState)(true);
   const hasChildren = entry.children && entry.children.length > 0;
   const isActive = activeStage === entry.name;
   const isDone = doneStages?.has(entry.name);
-  const handleClick = (0, import_react21.useCallback)(() => {
+  const handleClick = (0, import_react23.useCallback)(() => {
     if (hasChildren) {
       setExpanded((prev) => !prev);
     }
@@ -3174,7 +3459,7 @@ var TreeNode = (0, import_react21.memo)(function TreeNode2({
     )) })
   ] });
 });
-var SectionLabel = (0, import_react21.memo)(function SectionLabel2({ children }) {
+var SectionLabel = (0, import_react23.memo)(function SectionLabel2({ children }) {
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
     "div",
     {
@@ -3190,7 +3475,7 @@ var SectionLabel = (0, import_react21.memo)(function SectionLabel2({ children })
     }
   );
 });
-var SubflowTree = (0, import_react21.memo)(function SubflowTree2({
+var SubflowTree = (0, import_react23.memo)(function SubflowTree2({
   graph,
   activeStage,
   doneStages,
@@ -3199,7 +3484,7 @@ var SubflowTree = (0, import_react21.memo)(function SubflowTree2({
   className,
   style
 }) {
-  const subflowStages = (0, import_react21.useMemo)(() => graphToSubflowEntries(graph), [graph]);
+  const subflowStages = (0, import_react23.useMemo)(() => graphToSubflowEntries(graph), [graph]);
   if (subflowStages.length === 0) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
     "div",
@@ -3524,7 +3809,7 @@ function createTraceStructureRecorder(options = {}) {
 }
 
 // src/components/SlotPillNode/SlotPillNode.tsx
-var import_react22 = require("@xyflow/react");
+var import_react24 = require("@xyflow/react");
 var import_jsx_runtime15 = require("react/jsx-runtime");
 var C2 = rawDefaults.colors;
 function SlotPillNode({ data }) {
@@ -3573,61 +3858,11 @@ function SlotPillNode({ data }) {
         ),
         d.icon ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { "aria-hidden": true, style: { flexShrink: 0 }, children: d.icon }) : null,
         /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { style: { overflow: "hidden", textOverflow: "ellipsis" }, children: d.label }),
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react22.Handle, { type: "target", position: import_react22.Position.Top, style: { opacity: 0 } }),
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react22.Handle, { type: "source", position: import_react22.Position.Bottom, style: { opacity: 0 } })
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react24.Handle, { type: "target", position: import_react24.Position.Top, style: { opacity: 0 } }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react24.Handle, { type: "source", position: import_react24.Position.Bottom, style: { opacity: 0 } })
       ]
     }
   );
-}
-
-// src/components/FlowchartView/_internal/snapLinearSuccessors.ts
-function snapLinearSuccessors(graph, options = {}) {
-  if (graph.nodes.length === 0) return graph;
-  const fallbackW = options.nodeWidth ?? DEFAULT_NODE_W2;
-  const fallbackH = options.nodeHeight ?? DEFAULT_NODE_H2;
-  const byId = /* @__PURE__ */ new Map();
-  const width = /* @__PURE__ */ new Map();
-  for (const n of graph.nodes) {
-    byId.set(n.id, n);
-    width.set(n.id, sizeOf(n, fallbackW, fallbackH, options.nodeSize).width);
-  }
-  const preds = /* @__PURE__ */ new Map();
-  const outDegree = /* @__PURE__ */ new Map();
-  const seenEdge = /* @__PURE__ */ new Set();
-  for (const e of graph.edges) {
-    if (e.data?.kind === "loop") continue;
-    if (!byId.has(e.source) || !byId.has(e.target)) continue;
-    const key = `${e.source}\0${e.target}`;
-    if (seenEdge.has(key)) continue;
-    seenEdge.add(key);
-    const list = preds.get(e.target);
-    if (list) list.push(e.source);
-    else preds.set(e.target, [e.source]);
-    outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
-  }
-  const workingX = /* @__PURE__ */ new Map();
-  for (const n of graph.nodes) workingX.set(n.id, n.position.x);
-  const centerX = (id) => workingX.get(id) + width.get(id) / 2;
-  const order = [...graph.nodes].sort(
-    (a, b) => a.position.y - b.position.y || a.position.x - b.position.x || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-  );
-  for (const n of order) {
-    const p = preds.get(n.id);
-    if (!p || p.length !== 1) continue;
-    const pid = p[0];
-    if ((outDegree.get(pid) ?? 0) !== 1) continue;
-    const P = byId.get(pid);
-    if ((n.parentId ?? void 0) !== (P.parentId ?? void 0)) continue;
-    workingX.set(n.id, centerX(pid) - width.get(n.id) / 2);
-  }
-  const nodes = graph.nodes.map((n) => {
-    const nx = workingX.get(n.id);
-    return nx === n.position.x ? n : { ...n, position: { x: nx, y: n.position.y } };
-  });
-  return { nodes, edges: graph.edges };
-}
-function createSnappedDagreLayout(base, options = {}) {
-  return (graph) => snapLinearSuccessors(base(graph), options);
 }
 
 // src/components/FlowchartView/_internal/traceGroupLayout.ts
@@ -4299,12 +4534,12 @@ function createTraceBundle(options = {}) {
 }
 
 // src/components/FlowchartView/_internal/useTranslator.ts
-var import_react23 = require("react");
+var import_react25 = require("react");
 function useTranslator(handle, getSnapshot) {
-  const subscribe = (0, import_react23.useMemo)(() => handle.subscribe.bind(handle), [handle]);
-  const getVersion = (0, import_react23.useMemo)(() => handle.version.bind(handle), [handle]);
-  const version = (0, import_react23.useSyncExternalStore)(subscribe, getVersion, getVersion);
-  return (0, import_react23.useMemo)(() => getSnapshot(), [version, getSnapshot]);
+  const subscribe = (0, import_react25.useMemo)(() => handle.subscribe.bind(handle), [handle]);
+  const getVersion = (0, import_react25.useMemo)(() => handle.version.bind(handle), [handle]);
+  const version = (0, import_react25.useSyncExternalStore)(subscribe, getVersion, getVersion);
+  return (0, import_react25.useMemo)(() => getSnapshot(), [version, getSnapshot]);
 }
 
 // src/components/FlowchartView/walkHelpers.ts
@@ -4387,7 +4622,7 @@ function bfsWalk(index, startId, neighborsOf, options) {
 }
 
 // src/components/FlowchartView/NodeInspector.tsx
-var import_react24 = require("react");
+var import_react26 = require("react");
 var import_jsx_runtime16 = require("react/jsx-runtime");
 function NodeInspector({
   index,
@@ -4398,11 +4633,11 @@ function NodeInspector({
   style
 }) {
   const view = selectedId ? index.byStageId.get(selectedId) ?? null : null;
-  const prevChain = (0, import_react24.useMemo)(
+  const prevChain = (0, import_react26.useMemo)(
     () => view ? backtraceStructural(index, view.stageId, { onlyVisited }) : [],
     [index, view, onlyVisited]
   );
-  const nextChain = (0, import_react24.useMemo)(
+  const nextChain = (0, import_react26.useMemo)(
     () => view ? forwardtraceStructural(index, view.stageId, { onlyVisited }) : [],
     [index, view, onlyVisited]
   );
@@ -4528,7 +4763,7 @@ function Crumbs({ nodes, onClick }) {
 }
 
 // src/components/FlowchartView/CommitInspector.tsx
-var import_react25 = require("react");
+var import_react27 = require("react");
 var import_jsx_runtime17 = require("react/jsx-runtime");
 function CommitInspector({
   index,
@@ -4538,7 +4773,7 @@ function CommitInspector({
   style
 }) {
   const view = selectedRuntimeStageId ? index.byRuntimeStageId.get(selectedRuntimeStageId) ?? null : null;
-  const lineage = (0, import_react25.useMemo)(
+  const lineage = (0, import_react27.useMemo)(
     () => view ? backtraceDataFlow(index, view.runtimeStageId) : [],
     [index, view]
   );
@@ -5124,10 +5359,10 @@ var boxBaseStyle = {
 };
 
 // src/components/FlowchartView/TraceExplorerShell.tsx
-var import_react27 = require("react");
+var import_react29 = require("react");
 
 // src/components/FlowchartView/RunSlider.tsx
-var import_react26 = require("react");
+var import_react28 = require("react");
 var import_jsx_runtime19 = require("react/jsx-runtime");
 function RunSlider({
   index,
@@ -5138,12 +5373,12 @@ function RunSlider({
   style
 }) {
   const total = index.commits.length;
-  const cursorCommitIdx = (0, import_react26.useMemo)(() => {
+  const cursorCommitIdx = (0, import_react28.useMemo)(() => {
     if (!cursorRuntimeStageId) return 0;
     const view = index.byRuntimeStageId.get(cursorRuntimeStageId);
     return view ? view.commitIdx : 0;
   }, [index, cursorRuntimeStageId]);
-  const handleSliderChange = (0, import_react26.useCallback)(
+  const handleSliderChange = (0, import_react28.useCallback)(
     (e) => {
       const value = Number(e.target.value);
       const view = index.commits[value];
@@ -5151,7 +5386,7 @@ function RunSlider({
     },
     [index, onCursorChange]
   );
-  const label = (0, import_react26.useMemo)(() => {
+  const label = (0, import_react28.useMemo)(() => {
     const commit = index.commits[cursorCommitIdx] ?? null;
     const rsid = cursorRuntimeStageId ?? commit?.runtimeStageId ?? null;
     if (renderLabel)
@@ -5235,39 +5470,39 @@ function TraceExplorerShell({
   className,
   style
 }) {
-  const [internalSel, setInternalSel] = (0, import_react27.useState)(null);
+  const [internalSel, setInternalSel] = (0, import_react29.useState)(null);
   const isControlled = controlledSel !== void 0;
   const selectedRuntimeStageId = isControlled ? controlledSel : internalSel;
-  const handleSelect = (0, import_react27.useCallback)(
+  const handleSelect = (0, import_react29.useCallback)(
     (rsid) => {
       if (!isControlled) setInternalSel(rsid);
       onSelectionChange?.(rsid);
     },
     [isControlled, onSelectionChange]
   );
-  const handleSelectCommit = (0, import_react27.useCallback)(
+  const handleSelectCommit = (0, import_react29.useCallback)(
     (rsid) => handleSelect(rsid),
     [handleSelect]
   );
-  const selectedStageId = (0, import_react27.useMemo)(() => {
+  const selectedStageId = (0, import_react29.useMemo)(() => {
     if (!selectedRuntimeStageId) return null;
     const hashIdx = selectedRuntimeStageId.lastIndexOf("#");
     if (hashIdx <= 0) return null;
     return asStageId(selectedRuntimeStageId.slice(0, hashIdx));
   }, [selectedRuntimeStageId]);
-  const ChainPane = (0, import_react27.useMemo)(
+  const ChainPane = (0, import_react29.useMemo)(
     () => slots?.chain ?? DefaultChainPane,
     [slots?.chain]
   );
-  const CommitPane = (0, import_react27.useMemo)(
+  const CommitPane = (0, import_react29.useMemo)(
     () => slots?.commitInspector ?? DefaultCommitPane,
     [slots?.commitInspector]
   );
-  const NodePane = (0, import_react27.useMemo)(
+  const NodePane = (0, import_react29.useMemo)(
     () => slots?.nodeInspector ?? DefaultNodePane,
     [slots?.nodeInspector]
   );
-  const SliderPane = (0, import_react27.useMemo)(() => {
+  const SliderPane = (0, import_react29.useMemo)(() => {
     if (slots && "slider" in slots) {
       return slots.slider ?? null;
     }
@@ -5282,7 +5517,7 @@ function TraceExplorerShell({
     () => bundle.commitFlow.getIndex()
   );
   const nodeIndex = useTranslator(bundle.nodeView, () => bundle.nodeView.getIndex());
-  const handleStageNavigate = (0, import_react27.useCallback)(
+  const handleStageNavigate = (0, import_react29.useCallback)(
     (stageId) => {
       const candidates = commitIndex.commits.filter((c) => c.stageId === stageId);
       const first = candidates[0];
@@ -5290,12 +5525,12 @@ function TraceExplorerShell({
     },
     [commitIndex, handleSelect]
   );
-  const revealedThroughCommitIdx = (0, import_react27.useMemo)(() => {
+  const revealedThroughCommitIdx = (0, import_react29.useMemo)(() => {
     if (!selectedRuntimeStageId) return null;
     const view = commitIndex.byRuntimeStageId.get(selectedRuntimeStageId);
     return view ? view.commitIdx : -1;
   }, [selectedRuntimeStageId, commitIndex]);
-  const layoutStyle = (0, import_react27.useMemo)(
+  const layoutStyle = (0, import_react29.useMemo)(
     () => SliderPane ? SHELL_STYLE_WITH_SLIDER : SHELL_STYLE_NO_SLIDER,
     [SliderPane]
   );

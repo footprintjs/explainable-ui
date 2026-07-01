@@ -185,7 +185,6 @@ export function TraceViewer({
   return (
     <ExplainableShell
       snapshots={snapshots}
-      spec={parsed.trace.spec as ExplainableShellProps['spec']}
       narrativeEntries={parsed.trace.narrativeEntries as ExplainableShellProps['narrativeEntries']}
       tabs={tabs}
       defaultTab={defaultTab}

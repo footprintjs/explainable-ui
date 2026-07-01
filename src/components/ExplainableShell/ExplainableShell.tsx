@@ -59,8 +59,13 @@ export type ShellTab = string;
 interface SubflowLevel {
   subflowId: string;
   label: string;
-  spec: SpecNode;
+  /** Null on the recorder-driven (traceGraph) path — there is no spec tree;
+   *  the level is resolved from the mount stage's `subflowResult` instead. */
+  spec: SpecNode | null;
   snapshots: StageSnapshot[];
+  /** Subflow-scoped, subflow-renumbered narrative for the Story panel while
+   *  drilled in (so it reveals to the subflow-local cursor, not whole-run). */
+  narrative?: NarrativeEntry[];
 }
 
 interface DrillDownEntry extends SubflowLevel {
@@ -134,10 +139,9 @@ export interface ExplainableShellProps extends BaseComponentProps {
    * and `resultData` are derived automatically. Pair with
    * `narrativeEntries` for rich per-stage narrative.
    *
-   * Usage: `<ExplainableShell runtimeSnapshot={executor.getSnapshot()} narrativeEntries={executor.getNarrativeEntries()} spec={spec} />`
+   * Usage: `<ExplainableShell runtimeSnapshot={executor.getSnapshot()} narrativeEntries={executor.getNarrativeEntries()} traceGraph={graph} runtimeOverlay={overlay} />`
    */
   runtimeSnapshot?: RuntimeSnapshotInput | null;
-  spec?: SpecNode | null;
   /**
    * Build-time graph captured live via `createTraceStructureRecorder`.
    * REQUIRED for chart rendering (v6+) — the legacy `spec` →
@@ -628,47 +632,38 @@ const DetailsContent = memo(function DetailsContent({
 // Subflow resolution helpers
 // ---------------------------------------------------------------------------
 
-function resolveSubflowLevel(
-  parentSpec: SpecNode,
+/**
+ * Recorder-driven drill resolution. There is no spec tree on the traceGraph
+ * path, so the subflow level is resolved straight from the mount stage's
+ * recorded `subflowResult` — so all four panels (slider / story / overlay /
+ * chart) rescope to the subflow together.
+ */
+function resolveSubflowFromRuntime(
   parentSnapshots: StageSnapshot[],
-  subflowNodeName: string,
+  subflowId: string,
   narrativeEntries?: NarrativeEntry[],
 ): SubflowLevel | null {
-  const specNode = findSubflowSpecNode(parentSpec, subflowNodeName);
-  if (!specNode?.subflowStructure) return null;
-  const parentSnap = parentSnapshots.find(
-    (s) => s.stageName === subflowNodeName || s.stageLabel === subflowNodeName
-  );
+  const localId = subflowId.split("/").pop() ?? subflowId;
+  const parentSnap = parentSnapshots.find((s) => {
+    if (!s.subflowResult) return false;
+    const sfStageId = s.runtimeStageId?.split("#")[0]?.split("/").pop();
+    return (
+      s.subflowId === subflowId ||
+      s.subflowId === localId ||
+      s.stageName === subflowId ||
+      s.stageLabel === subflowId ||
+      sfStageId === subflowId ||
+      sfStageId === localId
+    );
+  });
   if (!parentSnap?.subflowResult) return null;
-  // Extract subflow narrative: prefer subflowId (structured), fall back to display name (text scan)
-  const sfId = specNode.subflowId ?? subflowNodeName;
-  const sfDisplayName = specNode.subflowName ?? specNode.name;
+  const label = parentSnap.stageLabel ?? parentSnap.stageName ?? localId;
   const sfNarrative = narrativeEntries
-    ? extractSubflowNarrative(narrativeEntries, sfId, sfDisplayName)
+    ? extractSubflowNarrative(narrativeEntries, subflowId, label)
     : undefined;
   const sfSnapshots = subflowResultToSnapshots(parentSnap.subflowResult, sfNarrative);
   if (sfSnapshots.length === 0) return null;
-  return {
-    subflowId: specNode.subflowId ?? subflowNodeName,
-    label: specNode.subflowName ?? specNode.name,
-    spec: specNode.subflowStructure,
-    snapshots: sfSnapshots,
-  };
-}
-
-function findSubflowSpecNode(node: SpecNode, name: string): SpecNode | null {
-  if ((node.name === name || node.id === name) && node.isSubflowRoot) return node;
-  if (node.children) { for (const child of node.children) { const f = findSubflowSpecNode(child, name); if (f) return f; } }
-  if (node.next) return findSubflowSpecNode(node.next, name);
-  return null;
-}
-
-function hasSubflowNodes(node: SpecNode): boolean {
-  if (!node) return false;
-  if (node.isSubflowRoot) return true;
-  if (node.children?.some((c) => c && hasSubflowNodes(c))) return true;
-  if (node.next && hasSubflowNodes(node.next)) return true;
-  return false;
+  return { subflowId, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
 }
 
 // ---------------------------------------------------------------------------
@@ -749,7 +744,6 @@ const RightPanel = memo(function RightPanel({
   snapshots,
   selectedIndex,
   runtimeSnapshot,
-  spec,
   activeTab,
   allTabs,
   activeNarrativeEntries,
@@ -815,7 +809,7 @@ const RightPanel = memo(function RightPanel({
               id: tab.id,
               name: insightName(tab.name),
               render: () => {
-                if (tab.id === "narrative") return <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={activeNarrativeEntries} runtimeSnapshot={runtimeSnapshot} spec={spec} size={size} style={{ height: "100%" }} />;
+                if (tab.id === "narrative") return <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={activeNarrativeEntries} runtimeSnapshot={runtimeSnapshot} size={size} style={{ height: "100%" }} />;
                 const customView = recorderViews?.find((v) => v.id === tab.id);
                 if (customView?.render) return customView.render({ snapshots, selectedIndex });
                 const autoView = autoRecorderViews.find((v) => v.id === tab.id);
@@ -853,7 +847,6 @@ function insightName(name: string): string {
 export function ExplainableShell({
   snapshots: snapshotsProp,
   runtimeSnapshot,
-  spec,
   title,
   resultData: resultDataProp,
   logs = [],
@@ -920,9 +913,20 @@ export function ExplainableShell({
       const activeRsid = snapshots[selectedIndex]?.runtimeStageId;
       let overlayIdx = selectedIndex;
       if (activeRsid && runtimeOverlay) {
-        const i = runtimeOverlay.executionOrder.findIndex(
+        let i = runtimeOverlay.executionOrder.findIndex(
           (s) => s.runtimeStageId === activeRsid,
         );
+        // Drilled-in subflow snapshots carry PREFIX-STRIPPED runtimeStageIds
+        // (e.g. "gather#8" vs the overlay's "sf-injection-engine/gather#8"),
+        // so the exact match misses and we'd fall back to the raw subflow-local
+        // index — mixing index spaces and mis-coloring the whole run as "done".
+        // Re-match by suffix so the subflow-local cursor maps to the correct
+        // whole-run overlay position (Bug 2).
+        if (i < 0) {
+          i = runtimeOverlay.executionOrder.findIndex(
+            (s) => s.runtimeStageId?.endsWith("/" + activeRsid),
+          );
+        }
         if (i >= 0) overlayIdx = i;
       }
       return (
@@ -1040,23 +1044,26 @@ export function ExplainableShell({
   const currentLevel = useMemo(() => {
     if (drillDownStack.length > 0) {
       const top = drillDownStack[drillDownStack.length - 1];
-      return { spec: top.spec, snapshots: top.snapshots };
+      return { spec: top.spec, snapshots: top.snapshots, narrative: top.narrative };
     }
-    return { spec: spec ?? null, snapshots };
-  }, [drillDownStack, spec, snapshots]);
+    return { spec: null, snapshots, narrative: undefined as NarrativeEntry[] | undefined };
+  }, [drillDownStack, snapshots]);
 
   const activeSnapshots = currentLevel.snapshots;
-  const activeSpec = currentLevel.spec;
   const safeIdx = activeSnapshots.length > 0
     ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1))
     : 0;
 
-  const activeNarrativeEntries = isInSubflow ? undefined : narrativeEntries;
+  // While drilled in, feed the Story the subflow-scoped, subflow-renumbered
+  // narrative (Bug 3) so it reveals to the subflow-local cursor — not the
+  // whole-run-numbered per-stage fallback text (which is why it used to start
+  // at "Step 24" instead of step 1).
+  const activeNarrativeEntries = isInSubflow ? currentLevel.narrative : narrativeEntries;
 
   const breadcrumbs = useMemo(() => {
-    const root = { label: title || "Flowchart", spec: spec!, description: spec?.description };
+    const root = { label: title || "Flowchart", spec: null, description: undefined as string | undefined };
     return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: undefined as string | undefined }))];
-  }, [spec, title, drillDownStack]);
+  }, [title, drillDownStack]);
 
   // Recorder-driven: derive subflow presence from the build-time graph.
   // Falls back to the legacy spec walk only when traceGraph is absent
@@ -1066,8 +1073,8 @@ export function ExplainableShell({
     if (traceGraph?.nodes?.length) {
       return traceGraph.nodes.some((n) => n.data?.isSubflow === true);
     }
-    return !!spec && hasSubflowNodes(spec);
-  }, [traceGraph, spec]);
+    return false;
+  }, [traceGraph]);
 
   const rootOverlay = useMemo(() => {
     if (isInSubflow || !snapshots.length) return { activeStage: undefined, doneStages: undefined };
@@ -1088,14 +1095,16 @@ export function ExplainableShell({
 
   const handleDrillDown = useCallback(
     (nodeName: string) => {
-      if (!activeSpec) return;
-      const entry = resolveSubflowLevel(activeSpec, activeSnapshots, nodeName, narrativeEntries);
+      // Recorder path: resolve the subflow level from the mount stage's recorded
+      // `subflowResult` (no spec tree needed). Pushing the shell's drillDownStack
+      // rescopes the slider / story / overlay to the subflow.
+      const entry = resolveSubflowFromRuntime(activeSnapshots, nodeName, narrativeEntries);
       if (entry) {
         setDrillDownStack((prev) => [...prev, { ...entry, parentSnapshotIdx: snapshotIdx }]);
         setSnapshotIdx(0);
       }
     },
-    [activeSpec, activeSnapshots, narrativeEntries, snapshotIdx]
+    [activeSnapshots, narrativeEntries, snapshotIdx]
   );
 
   const handleBreadcrumbNavigate = useCallback((level: number) => {
@@ -1109,21 +1118,21 @@ export function ExplainableShell({
   const handleNodeClick = useCallback(
     (indexOrId: number | string) => {
       if (typeof indexOrId === "number") { setSnapshotIdx(indexOrId); return; }
-      if (activeSpec) {
-        const sfNode = findSubflowSpecNode(activeSpec, indexOrId);
-        if (sfNode?.subflowStructure) { handleDrillDown(indexOrId); return; }
-      }
+      // Drill if this names a subflow — via the recorder path (the chart
+      // forwards a subflowId here through onSubflowChange).
+      const drillable = resolveSubflowFromRuntime(activeSnapshots, indexOrId, narrativeEntries);
+      if (drillable) { handleDrillDown(indexOrId); return; }
       const idx = activeSnapshots.findIndex((s) => s.stageLabel === indexOrId);
       if (idx >= 0) setSnapshotIdx(idx);
     },
-    [activeSpec, activeSnapshots, handleDrillDown]
+    [activeSnapshots, narrativeEntries, handleDrillDown]
   );
 
   const handleTreeNodeSelect = useCallback(
     (name: string, isSubflow: boolean) => {
-      if (isSubflow && spec) {
+      if (isSubflow) {
         setDrillDownStack([]);
-        const entry = resolveSubflowLevel(spec, snapshots, name, narrativeEntries);
+        const entry = resolveSubflowFromRuntime(snapshots, name, narrativeEntries);
         if (entry) { setDrillDownStack([{ ...entry, parentSnapshotIdx: snapshotIdx }]); setSnapshotIdx(0); }
       } else {
         setDrillDownStack([]);
@@ -1131,7 +1140,7 @@ export function ExplainableShell({
         if (idx >= 0) setSnapshotIdx(idx);
       }
     },
-    [spec, snapshots, narrativeEntries, snapshotIdx]
+    [snapshots, narrativeEntries, snapshotIdx]
   );
 
   // Map tab id → label for rendering
@@ -1152,7 +1161,7 @@ export function ExplainableShell({
             <>
               <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled />
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
-              {activeSpec && effectiveRenderFlowchart?.({ spec: activeSpec, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId })}
+              {traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId })}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
               <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} unstyled />
               <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
@@ -1165,8 +1174,13 @@ export function ExplainableShell({
 
   // ── Styled mode ──
 
-  // Show topology when spec has subflows
-  const showTopology = !!effectiveRenderFlowchart && !!activeSpec;
+  // Show topology when there's a renderer AND a graph to draw. The recorder/
+  // traceGraph renderer draws from `traceGraph` and self-drills, so it does NOT
+  // need a spec — gating on `activeSpec` alone hid the chart whenever a subflow
+  // was drilled via the runtime path (`resolveSubflowFromRuntime` returns
+  // spec: null), while the slider/story/breadcrumb kept working. See
+  // test/component/ExplainableShellDrill.test.tsx.
+  const showTopology = !!effectiveRenderFlowchart && !!traceGraph;
 
   // Render the active details tab content
   const detailsContent = useMemo(() => {
@@ -1283,7 +1297,7 @@ export function ExplainableShell({
             {showTopology && (
               <div style={{ height: 350, flexShrink: 0, overflow: "hidden" }}>
                 {effectiveRenderFlowchart!({
-                  spec: activeSpec!,
+                  spec: null,
                   snapshots: activeSnapshots,
                   selectedIndex: safeIdx,
                   onNodeClick: handleNodeClick,
@@ -1357,7 +1371,7 @@ export function ExplainableShell({
               {showTopology ? (
                 <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
                   {effectiveRenderFlowchart!({
-                    spec: activeSpec!,
+                    spec: null,
                     snapshots: activeSnapshots,
                     selectedIndex: safeIdx,
                     onNodeClick: handleNodeClick,
@@ -1380,7 +1394,6 @@ export function ExplainableShell({
                   snapshots={activeSnapshots}
                   selectedIndex={safeIdx}
                   runtimeSnapshot={runtimeSnapshot}
-                  spec={spec}
                   activeTab={activeTab}
                   allTabs={allTabs}
                   activeNarrativeEntries={activeNarrativeEntries}

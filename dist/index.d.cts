@@ -1,6 +1,5 @@
-import * as react_jsx_runtime from 'react/jsx-runtime';
-import { Node, Edge } from '@xyflow/react';
 import * as react from 'react';
+import { Node, Edge } from '@xyflow/react';
 
 /** Snapshot of a single pipeline stage — the core data shape for all components. */
 interface StageSnapshot {
@@ -69,6 +68,11 @@ interface ThemeTokens {
         success?: string;
         error?: string;
         warning?: string;
+        /** Semantic node-state roles (a runtime overlay maps onto these): the scrub
+         *  cursor, the visited path, and a group's lead node. */
+        nodeCursor?: string;
+        nodeVisited?: string;
+        nodeMain?: string;
         bgPrimary?: string;
         bgSecondary?: string;
         bgTertiary?: string;
@@ -92,6 +96,9 @@ declare const rawDefaults: {
         readonly success: "#22c55e";
         readonly error: "#ef4444";
         readonly warning: "#f59e0b";
+        readonly nodeCursor: "#f59e0b";
+        readonly nodeVisited: "#22c55e";
+        readonly nodeMain: "#6366f1";
         readonly bgPrimary: "#0f172a";
         readonly bgSecondary: "#1e293b";
         readonly bgTertiary: "#334155";
@@ -134,7 +141,7 @@ interface FootprintThemeProps {
  * accessibility tree in some older browser versions. Our wrapper has
  * no semantic role, so this is fine.
  */
-declare function FootprintTheme({ tokens, children }: FootprintThemeProps): react_jsx_runtime.JSX.Element;
+declare function FootprintTheme({ tokens, children }: FootprintThemeProps): react.JSX.Element;
 
 /** Cool dark theme (the library default) */
 declare const coolDark: ThemeTokens;
@@ -201,7 +208,7 @@ interface MemoryInspectorProps extends BaseComponentProps {
  * Displays pipeline memory state as formatted JSON.
  * Supports both static (data prop) and time-travel (snapshots + selectedIndex) modes.
  */
-declare function MemoryInspector({ data, snapshots, selectedIndex, showTypes, highlightNew, size, unstyled, className, style, }: MemoryInspectorProps): react_jsx_runtime.JSX.Element;
+declare function MemoryInspector({ data, snapshots, selectedIndex, showTypes, highlightNew, size, unstyled, className, style, }: MemoryInspectorProps): react.JSX.Element;
 
 interface NarrativeLogProps extends BaseComponentProps {
     /** Snapshots to display narratives from */
@@ -215,7 +222,7 @@ interface NarrativeLogProps extends BaseComponentProps {
  * Timeline-style execution log showing what happened at each stage.
  * Supports both full snapshots mode and single-narrative mode.
  */
-declare function NarrativeLog({ snapshots, selectedIndex, narrative, size, unstyled, className, style, }: NarrativeLogProps): react_jsx_runtime.JSX.Element;
+declare function NarrativeLog({ snapshots, selectedIndex, narrative, size, unstyled, className, style, }: NarrativeLogProps): react.JSX.Element;
 
 interface NarrativeTraceProps extends BaseComponentProps {
     /** All narrative lines (full trace) */
@@ -227,7 +234,7 @@ interface NarrativeTraceProps extends BaseComponentProps {
     /** Called when user clicks a stage header */
     onStageClick?: (headerIndex: number) => void;
 }
-declare function NarrativeTrace({ narrative, revealedCount, defaultCollapsed, onStageClick, size, unstyled, className, style, }: NarrativeTraceProps): react_jsx_runtime.JSX.Element;
+declare function NarrativeTrace({ narrative, revealedCount, defaultCollapsed, onStageClick, size, unstyled, className, style, }: NarrativeTraceProps): react.JSX.Element;
 
 interface GanttTimelineProps extends BaseComponentProps {
     /** Stage snapshots with timing info */
@@ -244,7 +251,7 @@ interface GanttTimelineProps extends BaseComponentProps {
  * Collapses to `maxVisibleRows` with expand/collapse toggle.
  * Auto-scrolls to keep the active stage visible when collapsed.
  */
-declare function GanttTimeline({ snapshots, selectedIndex, onSelect, size, unstyled, className, style, maxVisibleRows, }: GanttTimelineProps): react_jsx_runtime.JSX.Element;
+declare function GanttTimeline({ snapshots, selectedIndex, onSelect, size, unstyled, className, style, maxVisibleRows, }: GanttTimelineProps): react.JSX.Element;
 
 interface SnapshotPanelProps extends BaseComponentProps {
     /** Stage snapshots from pipeline execution */
@@ -260,7 +267,7 @@ interface SnapshotPanelProps extends BaseComponentProps {
  * All-in-one panel: time-travel scrubber + memory inspector + narrative log + gantt.
  * Drop this into any page to make a pipeline run inspectable.
  */
-declare function SnapshotPanel({ snapshots, showGantt, showScrubber, title, size, unstyled, className, style, }: SnapshotPanelProps): react_jsx_runtime.JSX.Element;
+declare function SnapshotPanel({ snapshots, showGantt, showScrubber, title, size, unstyled, className, style, }: SnapshotPanelProps): react.JSX.Element;
 
 interface DiffEntry {
     key: string;
@@ -276,7 +283,7 @@ interface ScopeDiffProps extends BaseComponentProps {
     /** Hide unchanged keys (default: false) */
     hideUnchanged?: boolean;
 }
-declare function ScopeDiff({ previous, current, hideUnchanged, size, unstyled, className, style, }: ScopeDiffProps): react_jsx_runtime.JSX.Element;
+declare function ScopeDiff({ previous, current, hideUnchanged, size, unstyled, className, style, }: ScopeDiffProps): react.JSX.Element;
 
 interface ResultPanelProps extends BaseComponentProps {
     /** Final pipeline output / shared state */
@@ -286,7 +293,7 @@ interface ResultPanelProps extends BaseComponentProps {
     /** Hide console section (default: false) */
     hideConsole?: boolean;
 }
-declare function ResultPanel({ data, logs, hideConsole, size, unstyled, className, style, }: ResultPanelProps): react_jsx_runtime.JSX.Element;
+declare function ResultPanel({ data, logs, hideConsole, size, unstyled, className, style, }: ResultPanelProps): react.JSX.Element;
 
 type StageDetailMode = "simple" | "dev";
 interface MemoryChange {
@@ -309,7 +316,7 @@ interface StageDetailPanelProps extends BaseComponentProps {
     /** Keys to exclude from memory display (default: engine internals). Pass empty set to show all. */
     excludeKeys?: Set<string>;
 }
-declare function StageDetailPanel({ snapshots, selectedIndex, mode: controlledMode, showToggle, onModeChange, size, unstyled, className, style, }: StageDetailPanelProps): react_jsx_runtime.JSX.Element;
+declare function StageDetailPanel({ snapshots, selectedIndex, mode: controlledMode, showToggle, onModeChange, size, unstyled, className, style, }: StageDetailPanelProps): react.JSX.Element;
 
 interface TimeTravelControlsProps extends BaseComponentProps {
     /** Stage snapshots */
@@ -321,7 +328,7 @@ interface TimeTravelControlsProps extends BaseComponentProps {
     /** Enable auto-play with Gantt-proportional timing */
     autoPlayable?: boolean;
 }
-declare function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, autoPlayable, size, unstyled, className, style, }: TimeTravelControlsProps): react_jsx_runtime.JSX.Element;
+declare function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, autoPlayable, size, unstyled, className, style, }: TimeTravelControlsProps): react.JSX.Element;
 
 /**
  * One entry in the execution timeline. `<TracedFlow>` keys time-travel
@@ -629,10 +636,9 @@ interface ExplainableShellProps extends BaseComponentProps {
      * and `resultData` are derived automatically. Pair with
      * `narrativeEntries` for rich per-stage narrative.
      *
-     * Usage: `<ExplainableShell runtimeSnapshot={executor.getSnapshot()} narrativeEntries={executor.getNarrativeEntries()} spec={spec} />`
+     * Usage: `<ExplainableShell runtimeSnapshot={executor.getSnapshot()} narrativeEntries={executor.getNarrativeEntries()} traceGraph={graph} runtimeOverlay={overlay} />`
      */
     runtimeSnapshot?: RuntimeSnapshotInput | null;
-    spec?: SpecNode | null;
     /**
      * Build-time graph captured live via `createTraceStructureRecorder`.
      * REQUIRED for chart rendering (v6+) — the legacy `spec` →
@@ -707,7 +713,7 @@ interface ExplainableShellProps extends BaseComponentProps {
      */
     showStageId?: boolean;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, spec, title, resultData: resultDataProp, logs, narrativeEntries, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay, size, unstyled, className, style, }: ExplainableShellProps): react_jsx_runtime.JSX.Element;
+declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
 
 /**
  * TraceViewer — drop-in component that renders an `agentfootprint.exportTrace()`
@@ -803,7 +809,7 @@ interface MemoryPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
     selectedIndex: number;
 }
-declare function MemoryPanel({ snapshots, selectedIndex, size, unstyled, className, style, }: MemoryPanelProps): react_jsx_runtime.JSX.Element;
+declare function MemoryPanel({ snapshots, selectedIndex, size, unstyled, className, style, }: MemoryPanelProps): react.JSX.Element;
 
 interface NarrativePanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
@@ -827,7 +833,7 @@ interface NarrativePanelProps extends BaseComponentProps {
      */
     spec?: any;
 }
-declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, runtimeSnapshot, spec, size, unstyled, className, style, }: NarrativePanelProps): react_jsx_runtime.JSX.Element;
+declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, runtimeSnapshot, spec, size, unstyled, className, style, }: NarrativePanelProps): react.JSX.Element;
 
 interface StoryNarrativeProps extends BaseComponentProps {
     /** Structured narrative entries from CombinedNarrativeRecorder */
@@ -835,7 +841,7 @@ interface StoryNarrativeProps extends BaseComponentProps {
     /** Number of entries to reveal (position-based sync from NarrativePanel) */
     revealedEntryCount: number;
 }
-declare function StoryNarrative({ entries, revealedEntryCount, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): react_jsx_runtime.JSX.Element;
+declare function StoryNarrative({ entries, revealedEntryCount, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): react.JSX.Element;
 
 interface SubflowTreeEntry {
     /** Node name / identifier */

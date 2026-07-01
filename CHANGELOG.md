@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.26.0] - 2026-06-30
+
+### Changed (BREAKING)
+
+- **Removed the `spec` prop from `<ExplainableShell>`.** The chart renders from
+  `traceGraph` + `runtimeOverlay` (both eui-owned types), and subflow drill-down
+  resolves from the recorded `subflowResult`. `spec` was no longer load-bearing
+  for rendering and was the source of a silent-blank footgun: passing a
+  footprintjs `FlowChart` into `spec: SpecNode` typechecked (because `SpecNode`
+  is all-optional) but blanked the drilled chart. The legacy spec-walk drill
+  resolution (`resolveSubflowLevel` + the `findSubflowSpecNode` / `hasSubflowNodes`
+  helpers) is gone.
+  - **Migration:** drop `spec={...}`; pass `traceGraph={...} runtimeOverlay={...}`
+    (already required for chart rendering). Consumers driving the shell from an
+    agentfootprint `Runner` can get the whole typed prop bundle in ONE call:
+    `import { explainableShellPropsFromRunner } from 'agentfootprint-lens'` →
+    `<ExplainableShell {...explainableShellPropsFromRunner(agent, recorder)} />`.
+
+### Fixed
+
+- **Blank subflow chart on drill-down.** Drilling a subflow via the recorder
+  path used to hide the flowchart entirely (the chart was gated on `activeSpec`,
+  which a recorder-path drill leaves null) while the slider / story / breadcrumb
+  still rescoped. The chart now renders whenever a `traceGraph` is present, so
+  drilling shows the subflow's own stages.
+
 ## [0.25.5] - 2026-06-24
 
 ### Fixed
