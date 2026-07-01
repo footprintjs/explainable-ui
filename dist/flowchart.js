@@ -2358,8 +2358,8 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
         gap: 6,
         padding: "6px 12px",
         fontSize: 11,
-        background: rawDefaults.colors.bgSecondary,
-        borderBottom: `1px solid ${rawDefaults.colors.border}`,
+        background: theme.bgSecondary,
+        borderBottom: `1px solid ${theme.border}`,
         flexShrink: 0
       },
       "aria-label": "Subflow breadcrumb",
@@ -2382,7 +2382,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
                     padding: 0,
                     fontSize: 11,
                     fontWeight: isLast ? 600 : 500,
-                    color: isLast ? rawDefaults.colors.textPrimary : rawDefaults.colors.primary,
+                    color: isLast ? theme.textPrimary : theme.primary,
                     cursor: isLast ? "default" : "pointer",
                     textDecoration: isLast ? "none" : "underline",
                     fontFamily: "inherit"
@@ -2390,7 +2390,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
                   children: entry.label
                 }
               ),
-              !isLast && /* @__PURE__ */ jsx9("span", { style: { color: rawDefaults.colors.textMuted }, children: "\u203A" })
+              !isLast && /* @__PURE__ */ jsx9("span", { style: { color: theme.textMuted }, children: "\u203A" })
             ]
           },
           entry.subflowId ?? "__top__"
@@ -2403,10 +2403,9 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
 // src/components/GroupContainerNode/GroupContainerNode.tsx
 import { Handle as Handle2, Position as Position3 } from "@xyflow/react";
 import { jsx as jsx10, jsxs as jsxs7 } from "react/jsx-runtime";
-var C = rawDefaults.colors;
 function GroupContainerNode({ data }) {
   const d = data;
-  const borderColor = d.error ? C.error : d.active ? C.primary : d.done ? C.success : C.border;
+  const borderColor = d.error ? theme.error : d.active ? theme.primary : d.done ? theme.nodeVisited : theme.border;
   return /* @__PURE__ */ jsxs7(
     "div",
     {
@@ -2416,8 +2415,9 @@ function GroupContainerNode({ data }) {
         boxSizing: "border-box",
         border: `1.5px ${d.active || d.done || d.error ? "solid" : "dashed"} ${borderColor}`,
         borderRadius: 12,
-        // Translucent so the dotted background + nested children read clearly.
-        background: "rgba(148, 163, 184, 0.06)",
+        // Translucent (theme-derived) so the dotted background + nested children
+        // read clearly, while still following dark/light.
+        background: `color-mix(in srgb, ${theme.textMuted} 7%, transparent)`,
         opacity: d.dimmed ? 0.4 : 1,
         position: "relative"
       },
@@ -2432,7 +2432,7 @@ function GroupContainerNode({ data }) {
               padding: "8px 12px",
               fontSize: 12,
               fontWeight: 600,
-              color: C.textMuted,
+              color: theme.textMuted,
               letterSpacing: 0.2
             },
             children: [
@@ -3739,11 +3739,10 @@ function createTraceStructureRecorder(options = {}) {
 // src/components/SlotPillNode/SlotPillNode.tsx
 import { Handle as Handle3, Position as Position4 } from "@xyflow/react";
 import { jsx as jsx15, jsxs as jsxs12 } from "react/jsx-runtime";
-var C2 = rawDefaults.colors;
 function SlotPillNode({ data }) {
   const d = data;
   const lit = !!(d.active || d.selected);
-  const accent = lit ? C2.primary : d.done ? C2.success : C2.textMuted;
+  const accent = lit ? theme.primary : d.done ? theme.nodeVisited : theme.textMuted;
   const opacity = d.dimmed && !lit ? 0.45 : 1;
   return /* @__PURE__ */ jsxs12(
     "div",
@@ -3758,13 +3757,16 @@ function SlotPillNode({ data }) {
         padding: "0 12px",
         borderRadius: 999,
         // full pill
-        border: `1.5px solid ${lit ? C2.primary : C2.border}`,
-        background: lit ? "rgba(99, 102, 241, 0.14)" : "rgba(148, 163, 184, 0.06)",
-        boxShadow: lit ? `0 0 0 2px rgba(99,102,241,0.25)` : "none",
+        border: `1.5px solid ${lit ? theme.primary : theme.border}`,
+        // Fills derive from the theme so the pill follows dark/light — the lit
+        // state is a faint primary tint over the resting node bg, unlit is the
+        // resting bg itself (visible against the canvas via the border).
+        background: lit ? `color-mix(in srgb, ${theme.primary} 14%, ${theme.bgSecondary})` : theme.bgSecondary,
+        boxShadow: lit ? `0 0 0 2px color-mix(in srgb, ${theme.primary} 25%, transparent)` : "none",
         opacity,
         fontSize: 12,
         fontWeight: 600,
-        color: lit ? C2.textPrimary : C2.textSecondary,
+        color: lit ? theme.textPrimary : theme.textSecondary,
         whiteSpace: "nowrap",
         overflow: "hidden",
         transition: "opacity 120ms, box-shadow 120ms, border-color 120ms"

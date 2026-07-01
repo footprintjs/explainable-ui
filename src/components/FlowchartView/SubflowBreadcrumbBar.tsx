@@ -12,7 +12,7 @@
  */
 
 import type { BreadcrumbEntry } from "./_internal/subflowDrill";
-import { rawDefaults } from "../../theme/tokens";
+import { theme } from "../../theme";
 
 export interface SubflowBreadcrumbBarProps {
   entries: BreadcrumbEntry[];
@@ -28,8 +28,8 @@ export function SubflowBreadcrumbBar({ entries, onNavigate }: SubflowBreadcrumbB
         gap: 6,
         padding: "6px 12px",
         fontSize: 11,
-        background: rawDefaults.colors.bgSecondary,
-        borderBottom: `1px solid ${rawDefaults.colors.border}`,
+        background: theme.bgSecondary,
+        borderBottom: `1px solid ${theme.border}`,
         flexShrink: 0,
       }}
       aria-label="Subflow breadcrumb"
@@ -51,7 +51,7 @@ export function SubflowBreadcrumbBar({ entries, onNavigate }: SubflowBreadcrumbB
                 padding: 0,
                 fontSize: 11,
                 fontWeight: isLast ? 600 : 500,
-                color: isLast ? rawDefaults.colors.textPrimary : rawDefaults.colors.primary,
+                color: isLast ? theme.textPrimary : theme.primary,
                 cursor: isLast ? "default" : "pointer",
                 textDecoration: isLast ? "none" : "underline",
                 fontFamily: "inherit",
@@ -59,7 +59,7 @@ export function SubflowBreadcrumbBar({ entries, onNavigate }: SubflowBreadcrumbB
             >
               {entry.label}
             </button>
-            {!isLast && <span style={{ color: rawDefaults.colors.textMuted }}>›</span>}
+            {!isLast && <span style={{ color: theme.textMuted }}>›</span>}
           </span>
         );
       })}

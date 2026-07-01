@@ -4346,8 +4346,8 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
         gap: 6,
         padding: "6px 12px",
         fontSize: 11,
-        background: rawDefaults.colors.bgSecondary,
-        borderBottom: `1px solid ${rawDefaults.colors.border}`,
+        background: theme.bgSecondary,
+        borderBottom: `1px solid ${theme.border}`,
         flexShrink: 0
       },
       "aria-label": "Subflow breadcrumb",
@@ -4370,7 +4370,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
                     padding: 0,
                     fontSize: 11,
                     fontWeight: isLast ? 600 : 500,
-                    color: isLast ? rawDefaults.colors.textPrimary : rawDefaults.colors.primary,
+                    color: isLast ? theme.textPrimary : theme.primary,
                     cursor: isLast ? "default" : "pointer",
                     textDecoration: isLast ? "none" : "underline",
                     fontFamily: "inherit"
@@ -4378,7 +4378,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
                   children: entry.label
                 }
               ),
-              !isLast && /* @__PURE__ */ jsx17("span", { style: { color: rawDefaults.colors.textMuted }, children: "\u203A" })
+              !isLast && /* @__PURE__ */ jsx17("span", { style: { color: theme.textMuted }, children: "\u203A" })
             ]
           },
           entry.subflowId ?? "__top__"
@@ -4391,10 +4391,9 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
 // src/components/GroupContainerNode/GroupContainerNode.tsx
 import { Handle as Handle2, Position as Position2 } from "@xyflow/react";
 import { jsx as jsx18, jsxs as jsxs17 } from "react/jsx-runtime";
-var C = rawDefaults.colors;
 function GroupContainerNode({ data }) {
   const d = data;
-  const borderColor = d.error ? C.error : d.active ? C.primary : d.done ? C.success : C.border;
+  const borderColor = d.error ? theme.error : d.active ? theme.primary : d.done ? theme.nodeVisited : theme.border;
   return /* @__PURE__ */ jsxs17(
     "div",
     {
@@ -4404,8 +4403,9 @@ function GroupContainerNode({ data }) {
         boxSizing: "border-box",
         border: `1.5px ${d.active || d.done || d.error ? "solid" : "dashed"} ${borderColor}`,
         borderRadius: 12,
-        // Translucent so the dotted background + nested children read clearly.
-        background: "rgba(148, 163, 184, 0.06)",
+        // Translucent (theme-derived) so the dotted background + nested children
+        // read clearly, while still following dark/light.
+        background: `color-mix(in srgb, ${theme.textMuted} 7%, transparent)`,
         opacity: d.dimmed ? 0.4 : 1,
         position: "relative"
       },
@@ -4420,7 +4420,7 @@ function GroupContainerNode({ data }) {
               padding: "8px 12px",
               fontSize: 12,
               fontWeight: 600,
-              color: C.textMuted,
+              color: theme.textMuted,
               letterSpacing: 0.2
             },
             children: [

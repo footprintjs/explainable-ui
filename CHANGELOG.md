@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.26.2] - 2026-06-30
+
+### Fixed
+
+- **Custom node renderers + subflow breadcrumb now follow dark/light.**
+  `SlotPillNode` (context slots), `GroupContainerNode` (subflow boxes), and
+  `SubflowBreadcrumbBar` read their colours from eui's raw dark defaults
+  (`rawDefaults.colors`) plus hardcoded `rgba()` fills — so they ignored the
+  `--fp-*` theme entirely and rendered dark in light mode (a lit slot pill drew
+  near-white text on a near-transparent fill → invisible). They now theme through
+  the CSS-var tokens (`theme.textPrimary`/`bgSecondary`/`primary`/`nodeVisited`/
+  `border`, with `color-mix` tints), so the whole flowchart chrome tracks the
+  consumer's dark/light like the built-in `StageNode` already did. No API change.
+
 ## [0.26.1] - 2026-07-01
 
 ### Added

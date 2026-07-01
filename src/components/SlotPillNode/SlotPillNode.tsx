@@ -21,9 +21,7 @@
 
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { rawDefaults } from "../../theme/tokens";
-
-const C = rawDefaults.colors;
+import { theme } from "../../theme";
 
 export interface SlotPillNodeData {
   label: string;
@@ -43,8 +41,8 @@ export function SlotPillNode({ data }: NodeProps) {
   const d = data as SlotPillNodeData;
   const lit = !!(d.active || d.selected);
 
-  // Lit → primary glow; done → success tint; otherwise muted. Dimmed fades.
-  const accent = lit ? C.primary : d.done ? C.success : C.textMuted;
+  // Lit → primary glow; done → visited tint; otherwise muted. Dimmed fades.
+  const accent = lit ? theme.primary : d.done ? theme.nodeVisited : theme.textMuted;
   const opacity = d.dimmed && !lit ? 0.45 : 1;
 
   return (
@@ -58,13 +56,18 @@ export function SlotPillNode({ data }: NodeProps) {
         gap: 8,
         padding: "0 12px",
         borderRadius: 999, // full pill
-        border: `1.5px solid ${lit ? C.primary : C.border}`,
-        background: lit ? "rgba(99, 102, 241, 0.14)" : "rgba(148, 163, 184, 0.06)",
-        boxShadow: lit ? `0 0 0 2px rgba(99,102,241,0.25)` : "none",
+        border: `1.5px solid ${lit ? theme.primary : theme.border}`,
+        // Fills derive from the theme so the pill follows dark/light — the lit
+        // state is a faint primary tint over the resting node bg, unlit is the
+        // resting bg itself (visible against the canvas via the border).
+        background: lit
+          ? `color-mix(in srgb, ${theme.primary} 14%, ${theme.bgSecondary})`
+          : theme.bgSecondary,
+        boxShadow: lit ? `0 0 0 2px color-mix(in srgb, ${theme.primary} 25%, transparent)` : "none",
         opacity,
         fontSize: 12,
         fontWeight: 600,
-        color: lit ? C.textPrimary : C.textSecondary,
+        color: lit ? theme.textPrimary : theme.textSecondary,
         whiteSpace: "nowrap",
         overflow: "hidden",
         transition: "opacity 120ms, box-shadow 120ms, border-color 120ms",

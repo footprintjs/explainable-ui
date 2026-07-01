@@ -41,9 +41,11 @@ describe("SlotPillNode", () => {
 
   it("unit: LIT when active — primary border + glow (box-shadow)", () => {
     const html = render({ label: "messages", active: true });
-    expect(html).toContain(C.primary); // primary-colored border/accent
+    expect(html).toContain(C.primary); // primary-colored border/accent (as the var() fallback)
     expect(html).toContain(GLOW); // the lit glow
-    expect(html).toContain("rgba(99, 102, 241, 0.14)"); // lit background tint
+    // Lit background is a 14% primary tint via color-mix over the resting bg —
+    // theme-aware (follows dark/light), replacing the old hardcoded rgba().
+    expect(html).toContain("14%");
   });
 
   it("unit: LIT when selected (selector pick) — same lit treatment as active", () => {

@@ -16,9 +16,7 @@
 
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { rawDefaults } from "../../theme/tokens";
-
-const C = rawDefaults.colors;
+import { theme } from "../../theme";
 
 export interface GroupContainerNodeData {
   label: string;
@@ -35,12 +33,12 @@ export interface GroupContainerNodeData {
 export function GroupContainerNode({ data }: NodeProps) {
   const d = data as GroupContainerNodeData;
   const borderColor = d.error
-    ? C.error
+    ? theme.error
     : d.active
-      ? C.primary
+      ? theme.primary
       : d.done
-        ? C.success
-        : C.border;
+        ? theme.nodeVisited
+        : theme.border;
 
   return (
     <div
@@ -50,8 +48,9 @@ export function GroupContainerNode({ data }: NodeProps) {
         boxSizing: "border-box",
         border: `1.5px ${d.active || d.done || d.error ? "solid" : "dashed"} ${borderColor}`,
         borderRadius: 12,
-        // Translucent so the dotted background + nested children read clearly.
-        background: "rgba(148, 163, 184, 0.06)",
+        // Translucent (theme-derived) so the dotted background + nested children
+        // read clearly, while still following dark/light.
+        background: `color-mix(in srgb, ${theme.textMuted} 7%, transparent)`,
         opacity: d.dimmed ? 0.4 : 1,
         position: "relative",
       }}
@@ -65,7 +64,7 @@ export function GroupContainerNode({ data }: NodeProps) {
           padding: "8px 12px",
           fontSize: 12,
           fontWeight: 600,
-          color: C.textMuted,
+          color: theme.textMuted,
           letterSpacing: 0.2,
         }}
       >
