@@ -625,10 +625,17 @@ interface RecorderView {
     }) => React.ReactNode;
 }
 /**
- * The Trace flowchart's two-colour theme (footprintjs level). `mode` selects
- * the neutral base (unvisited / edges) for dark or light; `visited` and
- * `current` are the two semantic colours. All optional — sensible per-mode
- * defaults are used for anything omitted.
+ * The Trace flowchart's two-colour theme (footprintjs level).
+ *
+ * `mode` is the COARSE switch: it applies eui's full light or dark preset
+ * (`coolLight` / `coolDark`) as `--fp-*` variables on the shell root, so the
+ * ENTIRE shell — canvas, panels, nodes, text, borders — follows dark/light from
+ * this one field. You do NOT need to hand-set `--fp-*` yourself. (`--fp-*`
+ * remains available as a fine escape hatch for individual token overrides.)
+ *
+ * `visited` and `current` are the two semantic node colours, layered on top of
+ * the mode base. All optional — sensible per-mode defaults are used for anything
+ * omitted.
  */
 interface TraceTheme {
     mode?: "dark" | "light";
@@ -676,11 +683,11 @@ interface ExplainableShellProps extends BaseComponentProps {
     runtimeOverlay?: RuntimeOverlay | null;
     /**
      * Trace flowchart theme — the footprintjs-LEVEL **two-colour** scheme:
-     * `visited` (executed nodes) + `current` (the cursor node). `mode` picks the
-     * neutral base (unvisited nodes / edges follow dark/light; the background is
-     * transparent, so it inherits your container). Colours are optional — omit to
-     * use the per-mode defaults. The agent-semantic three-colour theme belongs to
-     * `<Lens>`, not here.
+     * `visited` (executed nodes) + `current` (the cursor node). `mode` is the
+     * coarse light/dark switch — it applies eui's full preset to the whole shell,
+     * so you pass one word instead of a wall of `--fp-*` vars. Colours are optional
+     * — omit to use the per-mode defaults. The agent-semantic three-colour theme
+     * belongs to `<Lens>`, not here.
      */
     traceTheme?: TraceTheme;
     title?: string;
@@ -1075,6 +1082,8 @@ interface DataTracePanelProps {
     onFrameClick?: (runtimeStageId: string) => void;
     /** Optional: stage name for the "tracing from" header. */
     fromStageName?: string;
+    /** Optional honesty line rendered under the header (⚠-style). */
+    note?: string;
 }
 /**
  * Render the backward causal chain as a stack trace.
@@ -1088,6 +1097,8 @@ interface InspectorPanelProps {
     selectedIndex: number;
     /** Causal chain frames for the selected node (empty = no trace available). */
     dataTraceFrames: CausalFrame[];
+    /** Optional honesty line for the Data Trace tab (e.g. reads not recorded). */
+    dataTraceNote?: string;
     /** Currently selected runtimeStageId. */
     selectedStageId?: string;
     /** Navigate to a stage when clicking a Data Trace frame. */

@@ -6,8 +6,11 @@
  *
  * Like Chrome DevTools' Call Stack — click a frame to navigate there.
  *
- * Uses causalChain() from footprintjs/trace internally. The commitLog
- * and keysRead data come from props (collected during traversal).
+ * The frames come from a LOCAL mirror of footprintjs' causalChain walk
+ * (ExplainableShell/_internal/dataTrace.ts — real read→write BFS over the
+ * snapshot's commitLog + executionTree reads; eui never imports footprintjs).
+ * `note` renders an honesty line (e.g. "reads were not recorded") so an
+ * edge-less trace is never mistaken for independence.
  */
 import { memo, useMemo } from "react";
 import { theme } from "../../theme";
@@ -34,6 +37,8 @@ export interface DataTracePanelProps {
   onFrameClick?: (runtimeStageId: string) => void;
   /** Optional: stage name for the "tracing from" header. */
   fromStageName?: string;
+  /** Optional honesty line rendered under the header (⚠-style). */
+  note?: string;
 }
 
 /**
@@ -46,7 +51,13 @@ export const DataTracePanel = memo(function DataTracePanel({
   selectedStageId,
   onFrameClick,
   fromStageName,
+  note,
 }: DataTracePanelProps) {
+  const noteLine = note ? (
+    <div style={{ color: theme.textMuted, fontSize: 11, fontStyle: "italic", marginBottom: 8 }}>
+      {note}
+    </div>
+  ) : null;
   if (frames.length === 0) {
     return (
       <div style={{ padding: "14px 14px 12px", fontSize: 13, lineHeight: 1.55 }}>
@@ -66,6 +77,7 @@ export const DataTracePanel = memo(function DataTracePanel({
           Trace any value back to the stage that created it — and everything upstream that
           influenced it.
         </div>
+        {noteLine}
         <div style={{ color: theme.textMuted, fontSize: 12 }}>
           Select a stage above to see its dependency chain.
         </div>
@@ -75,6 +87,7 @@ export const DataTracePanel = memo(function DataTracePanel({
 
   return (
     <div style={{ padding: "8px 0", fontSize: 13 }}>
+      {note && <div style={{ padding: "4px 12px 0", fontSize: 11, color: theme.textMuted, fontStyle: "italic" }}>{note}</div>}
       {fromStageName && (
         <div style={{ padding: "4px 12px 8px" }}>
           <div

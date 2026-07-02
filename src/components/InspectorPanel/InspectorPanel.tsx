@@ -18,6 +18,8 @@ export interface InspectorPanelProps {
   selectedIndex: number;
   /** Causal chain frames for the selected node (empty = no trace available). */
   dataTraceFrames: CausalFrame[];
+  /** Optional honesty line for the Data Trace tab (e.g. reads not recorded). */
+  dataTraceNote?: string;
   /** Currently selected runtimeStageId. */
   selectedStageId?: string;
   /** Navigate to a stage when clicking a Data Trace frame. */
@@ -30,6 +32,7 @@ export const InspectorPanel = memo(function InspectorPanel({
   snapshots,
   selectedIndex,
   dataTraceFrames,
+  dataTraceNote,
   selectedStageId,
   onNavigateToStage,
 }: InspectorPanelProps) {
@@ -77,6 +80,7 @@ export const InspectorPanel = memo(function InspectorPanel({
         {tab === "trace" && (
           <DataTracePanel
             frames={dataTraceFrames}
+            note={dataTraceNote}
             selectedStageId={selectedStageId}
             onFrameClick={onNavigateToStage}
             fromStageName={currentSnapshot?.stageName}

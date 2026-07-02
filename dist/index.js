@@ -2228,6 +2228,67 @@ function TimeTravelControls({
 // src/components/ExplainableShell/ExplainableShell.tsx
 import { memo as memo8, useState as useState14, useCallback as useCallback8, useMemo as useMemo12, useRef as useRef9, useEffect as useEffect11 } from "react";
 
+// src/components/ExplainableShell/_internal/dataTrace.ts
+function readsByStep(tree) {
+  const byStep = /* @__PURE__ */ new Map();
+  if (!tree) return byStep;
+  const visited = /* @__PURE__ */ new Set();
+  const stack = [tree];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (visited.has(node)) continue;
+    visited.add(node);
+    if (node.runtimeStageId && node.stageReads) {
+      const keys = Object.keys(node.stageReads);
+      if (keys.length > 0) byStep.set(node.runtimeStageId, keys);
+    }
+    if (node.next) stack.push(node.next);
+    if (node.children) for (const c of node.children) stack.push(c);
+  }
+  return byStep;
+}
+function buildDataTrace(commitLog, executionTree, targetRuntimeStageId, maxDepth = 10, maxFrames = 50) {
+  const log = commitLog ?? [];
+  const reads = readsByStep(executionTree);
+  const readsAvailable = reads.size > 0;
+  if (!log.length) return { frames: [], readsAvailable };
+  const idxOf = /* @__PURE__ */ new Map();
+  for (let i = 0; i < log.length; i++) idxOf.set(log[i].runtimeStageId, i);
+  const startIdx = idxOf.get(targetRuntimeStageId);
+  if (startIdx === void 0) return { frames: [], readsAvailable };
+  const findLastWriter = (key, beforeIdx) => {
+    for (let i = beforeIdx - 1; i >= 0; i--) {
+      if (log[i].trace.some((t) => t.path === key)) return i;
+    }
+    return -1;
+  };
+  const frames = [];
+  const visited = /* @__PURE__ */ new Set();
+  const queue = [[startIdx, 0, ""]];
+  while (queue.length > 0 && frames.length < maxFrames) {
+    const [idx, depth, linkedBy] = queue.shift();
+    const commit = log[idx];
+    if (visited.has(commit.runtimeStageId)) continue;
+    visited.add(commit.runtimeStageId);
+    frames.push({
+      runtimeStageId: commit.runtimeStageId,
+      stageId: commit.stageId,
+      stageName: commit.stage,
+      keysWritten: commit.trace.map((t) => t.path),
+      linkedBy,
+      depth
+    });
+    if (depth >= maxDepth) continue;
+    for (const key of reads.get(commit.runtimeStageId) ?? []) {
+      const writerIdx = findLastWriter(key, idx);
+      if (writerIdx >= 0 && !visited.has(log[writerIdx].runtimeStageId)) {
+        queue.push([writerIdx, depth + 1, key]);
+      }
+    }
+  }
+  return { frames, readsAvailable };
+}
+
 // src/utils/narrativeSync.ts
 function buildEntryRangeIndex(entries) {
   const ranges = /* @__PURE__ */ new Map();
@@ -5138,8 +5199,10 @@ var DataTracePanel = memo4(function DataTracePanel2({
   frames,
   selectedStageId,
   onFrameClick,
-  fromStageName
+  fromStageName,
+  note
 }) {
+  const noteLine = note ? /* @__PURE__ */ jsx22("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", marginBottom: 8 }, children: note }) : null;
   if (frames.length === 0) {
     return /* @__PURE__ */ jsxs19("div", { style: { padding: "14px 14px 12px", fontSize: 13, lineHeight: 1.55 }, children: [
       /* @__PURE__ */ jsx22(
@@ -5157,10 +5220,12 @@ var DataTracePanel = memo4(function DataTracePanel2({
         }
       ),
       /* @__PURE__ */ jsx22("div", { style: { color: theme.textSecondary, marginBottom: 10 }, children: "Trace any value back to the stage that created it \u2014 and everything upstream that influenced it." }),
+      noteLine,
       /* @__PURE__ */ jsx22("div", { style: { color: theme.textMuted, fontSize: 12 }, children: "Select a stage above to see its dependency chain." })
     ] });
   }
   return /* @__PURE__ */ jsxs19("div", { style: { padding: "8px 0", fontSize: 13 }, children: [
+    note && /* @__PURE__ */ jsx22("div", { style: { padding: "4px 12px 0", fontSize: 11, color: theme.textMuted, fontStyle: "italic" }, children: note }),
     fromStageName && /* @__PURE__ */ jsxs19("div", { style: { padding: "4px 12px 8px" }, children: [
       /* @__PURE__ */ jsxs19(
         "div",
@@ -5294,6 +5359,7 @@ var InspectorPanel = memo5(function InspectorPanel2({
   snapshots,
   selectedIndex,
   dataTraceFrames,
+  dataTraceNote,
   selectedStageId,
   onNavigateToStage
 }) {
@@ -5350,6 +5416,7 @@ var InspectorPanel = memo5(function InspectorPanel2({
             DataTracePanel,
             {
               frames: dataTraceFrames,
+              note: dataTraceNote,
               selectedStageId,
               onFrameClick: onNavigateToStage,
               fromStageName: currentSnapshot?.stageName
@@ -5941,40 +6008,6 @@ function resolveSubflowFromRuntime(parentSnapshots, subflowId, narrativeEntries)
   if (sfSnapshots.length === 0) return null;
   return { subflowId, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
 }
-function buildDataTrace(commitLog, targetRuntimeStageId, maxDepth = 10) {
-  const log = commitLog;
-  if (!log?.length) return [];
-  const idxMap = /* @__PURE__ */ new Map();
-  for (let i = 0; i < log.length; i++) idxMap.set(log[i].runtimeStageId, i);
-  const startIdx = idxMap.get(targetRuntimeStageId);
-  if (startIdx === void 0) return [];
-  const startCommit = log[startIdx];
-  const frames = [];
-  const visited = /* @__PURE__ */ new Set();
-  let current = startCommit;
-  let currentIdx = startIdx;
-  let depth = 0;
-  while (current && depth <= maxDepth) {
-    if (visited.has(current.runtimeStageId)) break;
-    visited.add(current.runtimeStageId);
-    frames.push({
-      runtimeStageId: current.runtimeStageId,
-      stageId: current.stageId,
-      stageName: current.stage,
-      keysWritten: current.trace.map((t) => t.path),
-      linkedBy: depth === 0 ? "" : current.trace[0]?.path ?? "",
-      depth
-    });
-    if (currentIdx > 0) {
-      currentIdx--;
-      current = log[currentIdx];
-      depth++;
-    } else {
-      break;
-    }
-  }
-  return frames;
-}
 var RightPanel = memo8(function RightPanel2({
   mode,
   onModeChange,
@@ -5989,6 +6022,10 @@ var RightPanel = memo8(function RightPanel2({
   size,
   onNavigateToStage
 }) {
+  const dataTrace = useMemo12(
+    () => runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, snapshots[selectedIndex]?.runtimeStageId ?? "") : { frames: [], readsAvailable: true },
+    [runtimeSnapshot, snapshots, selectedIndex]
+  );
   return /* @__PURE__ */ jsxs23(Fragment6, { children: [
     /* @__PURE__ */ jsx26("div", { style: {
       display: "flex",
@@ -6040,7 +6077,8 @@ var RightPanel = memo8(function RightPanel2({
       {
         snapshots,
         selectedIndex,
-        dataTraceFrames: runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, snapshots[selectedIndex]?.runtimeStageId ?? "") : [],
+        dataTraceFrames: dataTrace.frames,
+        dataTraceNote: dataTrace.readsAvailable ? void 0 : "\u26A0 reads were not recorded (readTracking off) \u2014 dependencies are unknowable, not absent.",
         selectedStageId: snapshots[selectedIndex]?.runtimeStageId,
         onNavigateToStage
       }
@@ -6369,12 +6407,22 @@ function ExplainableShell({
     }) }),
     /* @__PURE__ */ jsx26("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
   ] });
+  const shellThemeVars = useMemo12(() => {
+    if (!traceTheme) return {};
+    const base = traceTheme.mode ? tokensToCSSVars(traceTheme.mode === "light" ? coolLight : coolDark) : {};
+    return {
+      ...base,
+      ...traceTheme.visited !== void 0 && { ["--fp-node-visited"]: traceTheme.visited },
+      ...traceTheme.current !== void 0 && { ["--fp-node-cursor"]: traceTheme.current }
+    };
+  }, [traceTheme]);
   return /* @__PURE__ */ jsxs23(
     "div",
     {
       ref: shellRef,
       className,
       style: {
+        ...shellThemeVars,
         height: "100%",
         display: "flex",
         flexDirection: "column",

@@ -12,7 +12,8 @@
  */
 import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
-import { theme } from "../../theme";
+import { theme, tokensToCSSVars, coolLight, coolDark } from "../../theme";
+import { buildDataTrace } from "./_internal/dataTrace";
 import { extractSubflowNarrative } from "../../utils/narrativeSync";
 import { toVisualizationSnapshots, subflowResultToSnapshots } from "../../adapters/fromRuntimeSnapshot";
 import { ResultPanel } from "../ResultPanel";
@@ -128,10 +129,17 @@ export interface RecorderView {
 }
 
 /**
- * The Trace flowchart's two-colour theme (footprintjs level). `mode` selects
- * the neutral base (unvisited / edges) for dark or light; `visited` and
- * `current` are the two semantic colours. All optional — sensible per-mode
- * defaults are used for anything omitted.
+ * The Trace flowchart's two-colour theme (footprintjs level).
+ *
+ * `mode` is the COARSE switch: it applies eui's full light or dark preset
+ * (`coolLight` / `coolDark`) as `--fp-*` variables on the shell root, so the
+ * ENTIRE shell — canvas, panels, nodes, text, borders — follows dark/light from
+ * this one field. You do NOT need to hand-set `--fp-*` yourself. (`--fp-*`
+ * remains available as a fine escape hatch for individual token overrides.)
+ *
+ * `visited` and `current` are the two semantic node colours, layered on top of
+ * the mode base. All optional — sensible per-mode defaults are used for anything
+ * omitted.
  */
 export interface TraceTheme {
   mode?: "dark" | "light";
@@ -180,11 +188,11 @@ export interface ExplainableShellProps extends BaseComponentProps {
   runtimeOverlay?: import("../FlowchartView/createTraceRuntimeOverlay").RuntimeOverlay | null;
   /**
    * Trace flowchart theme — the footprintjs-LEVEL **two-colour** scheme:
-   * `visited` (executed nodes) + `current` (the cursor node). `mode` picks the
-   * neutral base (unvisited nodes / edges follow dark/light; the background is
-   * transparent, so it inherits your container). Colours are optional — omit to
-   * use the per-mode defaults. The agent-semantic three-colour theme belongs to
-   * `<Lens>`, not here.
+   * `visited` (executed nodes) + `current` (the cursor node). `mode` is the
+   * coarse light/dark switch — it applies eui's full preset to the whole shell,
+   * so you pass one word instead of a wall of `--fp-*` vars. Colours are optional
+   * — omit to use the per-mode defaults. The agent-semantic three-colour theme
+   * belongs to `<Lens>`, not here.
    */
   traceTheme?: TraceTheme;
   title?: string;
@@ -694,68 +702,7 @@ function resolveSubflowFromRuntime(
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Lightweight data trace — builds causal frames from commitLog without
-// importing footprintjs/trace. Uses the same backward-walk algorithm.
-// ---------------------------------------------------------------------------
-
-interface CommitEntry {
-  stage: string;
-  stageId: string;
-  runtimeStageId: string;
-  trace: Array<{ path: string }>;
-}
-
-function buildDataTrace(
-  commitLog: unknown[],
-  targetRuntimeStageId: string,
-  maxDepth = 10,
-): Array<{ runtimeStageId: string; stageId: string; stageName: string; keysWritten: string[]; linkedBy: string; depth: number }> {
-  const log = commitLog as CommitEntry[];
-  if (!log?.length) return [];
-
-  const idxMap = new Map<string, number>();
-  for (let i = 0; i < log.length; i++) idxMap.set(log[i].runtimeStageId, i);
-
-  const startIdx = idxMap.get(targetRuntimeStageId);
-  if (startIdx === undefined) return [];
-
-  const startCommit = log[startIdx];
-  const frames: Array<{ runtimeStageId: string; stageId: string; stageName: string; keysWritten: string[]; linkedBy: string; depth: number }> = [];
-  const visited = new Set<string>();
-
-  // BFS backward: for each commit, find what keys existed before it that it might have read
-  // Simplified: trace the write chain backward — each commit's written keys link to whoever wrote the keys it implicitly depends on
-  let current = startCommit;
-  let currentIdx = startIdx;
-  let depth = 0;
-
-  while (current && depth <= maxDepth) {
-    if (visited.has(current.runtimeStageId)) break;
-    visited.add(current.runtimeStageId);
-
-    frames.push({
-      runtimeStageId: current.runtimeStageId,
-      stageId: current.stageId,
-      stageName: current.stage,
-      keysWritten: current.trace.map((t) => t.path),
-      linkedBy: depth === 0 ? "" : current.trace[0]?.path ?? "",
-      depth,
-    });
-
-    // Find the previous commit (the one right before this one)
-    if (currentIdx > 0) {
-      currentIdx--;
-      current = log[currentIdx];
-      depth++;
-    } else {
-      break;
-    }
-  }
-
-  return frames;
-}
-
-// ---------------------------------------------------------------------------
+// RightPanel — two-mode panel: Insights vs What Happened// ---------------------------------------------------------------------------
 // RightPanel — two-mode panel: Insights vs What Happened
 // ---------------------------------------------------------------------------
 
@@ -789,6 +736,16 @@ const RightPanel = memo(function RightPanel({
   size: "compact" | "default" | "detailed";
   onNavigateToStage: (id: string) => void;
 }) {
+  // The REAL backward slice for the Data Trace tab — computed once per
+  // (snapshot, cursor) pair. `readsAvailable: false` becomes an honesty note
+  // so an edge-less trace is never mistaken for "no dependencies".
+  const dataTrace = useMemo(
+    () =>
+      runtimeSnapshot?.commitLog
+        ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, snapshots[selectedIndex]?.runtimeStageId ?? "")
+        : { frames: [], readsAvailable: true },
+    [runtimeSnapshot, snapshots, selectedIndex],
+  );
   return (
     <>
       {/* Mode toggle */}
@@ -845,7 +802,8 @@ const RightPanel = memo(function RightPanel({
           <InspectorPanel
             snapshots={snapshots}
             selectedIndex={selectedIndex}
-            dataTraceFrames={runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, snapshots[selectedIndex]?.runtimeStageId ?? '') : []}
+            dataTraceFrames={dataTrace.frames}
+            dataTraceNote={dataTrace.readsAvailable ? undefined : '⚠ reads were not recorded (readTracking off) — dependencies are unknowable, not absent.'}
             selectedStageId={snapshots[selectedIndex]?.runtimeStageId}
             onNavigateToStage={onNavigateToStage}
           />
@@ -1292,11 +1250,31 @@ export function ExplainableShell({
     </div>
   );
 
+  // `traceTheme.mode` applies eui's full light/dark preset as `--fp-*` vars on
+  // the shell root, so the WHOLE shell (canvas, panels, nodes, text, borders)
+  // follows dark/light from one prop — the consumer never hand-sets the palette.
+  // `visited`/`current` layer node-fill overrides on top (they win over the
+  // preset). Any `--fp-*` the consumer sets on an ancestor is still respected
+  // for tokens the preset/overrides don't touch. This is the coarse switch;
+  // `--fp-*` remains the fine escape hatch.
+  const shellThemeVars = useMemo<React.CSSProperties>(() => {
+    if (!traceTheme) return {};
+    const base = traceTheme.mode
+      ? (tokensToCSSVars(traceTheme.mode === "light" ? coolLight : coolDark) as React.CSSProperties)
+      : {};
+    return {
+      ...base,
+      ...(traceTheme.visited !== undefined && { ["--fp-node-visited" as string]: traceTheme.visited }),
+      ...(traceTheme.current !== undefined && { ["--fp-node-cursor" as string]: traceTheme.current }),
+    } as React.CSSProperties;
+  }, [traceTheme]);
+
   return (
     <div
       ref={shellRef}
       className={className}
       style={{
+        ...shellThemeVars,
         height: "100%",
         display: "flex",
         flexDirection: "column",

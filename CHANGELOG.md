@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.27.0] - 2026-07-02
+
+### Fixed
+
+- **The Data Trace tab now shows the REAL backward slice.** The previous
+  implementation walked the commit log linearly backwards (`idx--`) and
+  labeled each hop with the commit's own first written path — chronology
+  dressed as causality; on any fan-in it blamed the wrong stage (its own
+  header comment claimed `causalChain()` was used — it wasn't). Replaced with
+  a true read→write BFS mirroring footprintjs' `causalChain` thin-slice walk
+  (`ExplainableShell/_internal/dataTrace.ts`), fed by the snapshot's
+  `executionTree` reads + `commitLog` writes. eui stays footprintjs-import-free
+  (the mirror consumes stable snapshot shapes only; stage-level attribution —
+  the safe ceiling).
+
+### Added
+
+- **Honesty note on `DataTracePanel`** (optional `note` prop, plumbed through
+  `InspectorPanel`): when the snapshot carries no read tracking
+  (`readTracking: 'off'`), the tab says "⚠ reads were not recorded —
+  dependencies are unknowable, not absent" instead of rendering a single
+  frame that reads as independence.
+
 ## [0.26.2] - 2026-06-30
 
 ### Fixed
