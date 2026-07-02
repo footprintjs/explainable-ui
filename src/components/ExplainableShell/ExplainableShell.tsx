@@ -11,9 +11,14 @@
  * Consumer controls theme via --fp-* CSS custom properties.
  */
 import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
+import type { ReactNode } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme, tokensToCSSVars, coolLight, coolDark } from "../../theme";
 import { buildDataTrace } from "./_internal/dataTrace";
+import { buildTraceWalk, type TraceIngredient, type TraceWalk } from "./_internal/traceWalk";
+import { TraceWalkCard } from "../DataTracePanel/TraceWalkCard";
+import { DataTracePanel } from "../DataTracePanel/DataTracePanel";
+import type { TracingRail } from "../TimeTravelControls/TimeTravelControls";
 import { extractSubflowNarrative } from "../../utils/narrativeSync";
 import { toVisualizationSnapshots, subflowResultToSnapshots } from "../../adapters/fromRuntimeSnapshot";
 import { ResultPanel } from "../ResultPanel";
@@ -726,6 +731,8 @@ const RightPanel = memo(function RightPanel({
   onNavigateToStage,
   dataTrace,
   onInspectorTabChange,
+  inspectorTab,
+  traceContent,
 }: {
   mode: RightPanelMode;
   onModeChange: (mode: RightPanelMode) => void;
@@ -744,6 +751,10 @@ const RightPanel = memo(function RightPanel({
    *  root so the chart's dependency cone shares the SAME frames). */
   dataTrace: { frames: import("./_internal/dataTrace").DataTraceFrame[]; readsAvailable: boolean };
   onInspectorTabChange?: (tab: "state" | "trace") => void;
+  /** Controlled Inspector tab — the shell forces Data Trace open on tracing entry. */
+  inspectorTab?: "state" | "trace";
+  /** The Data Trace tab body (stop card while tracing / entry chips + frames list). */
+  traceContent?: ReactNode;
 }) {
   return (
     <>
@@ -804,6 +815,8 @@ const RightPanel = memo(function RightPanel({
             dataTraceFrames={dataTrace.frames}
             dataTraceNote={dataTrace.readsAvailable ? undefined : '⚠ reads were not recorded (readTracking off) — dependencies are unknowable, not absent.'}
             onTabChange={onInspectorTabChange}
+            tab={inspectorTab}
+            traceContent={traceContent}
             selectedStageId={snapshots[selectedIndex]?.runtimeStageId}
             onNavigateToStage={onNavigateToStage}
           />
@@ -1015,6 +1028,17 @@ export function ExplainableShell({
   // CONE exactly while the Data Trace tab is open (Inspector mode).
   const [inspectorTab, setInspectorTab] = useState<"state" | "trace">("state");
 
+  // ── Same-Rail Rewind (tracing) session ──
+  // The traced key + a stack of followed ingredients ({key, beforeCommitIdx}
+  // scopes — following = RE-ANCHORING, see traceWalk.ts). This is a LENS
+  // ({what are we asking about}), NOT a cursor: the one position stays
+  // `snapshotIdx`. Root-level only; drilling into a subflow exits it.
+  const [tracing, setTracing] = useState<null | {
+    key: string;
+    beforeCommitIdx?: number;
+    via: Array<{ key: string; beforeCommitIdx: number }>;
+  }>(null);
+
 
   const [leftExpanded, setLeftExpanded] = useState(defaultExpanded?.topology ?? false);
   const [timelineExpanded, setTimelineExpanded] = useState(defaultExpanded?.timeline ?? false);
@@ -1064,10 +1088,41 @@ export function ExplainableShell({
     [runtimeSnapshot, activeSnapshots, safeIdx],
   );
 
+  // The active tracing walk — recomputed only when the SESSION changes
+  // (entry / follow / show-all), never on scrub: the anchor is frozen in
+  // the session state, so walking the rail cannot shift the question.
+  const traceWalk = useMemo<TraceWalk | null>(() => {
+    if (!tracing || !runtimeSnapshot?.commitLog) return null;
+    const scope = tracing.via.length > 0 ? tracing.via[tracing.via.length - 1] : tracing;
+    return buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
+      beforeCommitIdx: scope.beforeCommitIdx,
+    });
+  }, [tracing, runtimeSnapshot]);
+
+  // Rail stops: walk frames mapped onto the snapshot rail (root level only —
+  // every walk frame comes from the root commit log, so this is total).
+  const traceStopIndices = useMemo<number[]>(() => {
+    if (!traceWalk || traceWalk.missing || isInSubflow) return [];
+    const idxByRsid = new Map(activeSnapshots.map((sn, i) => [sn.runtimeStageId, i]));
+    return traceWalk.stops
+      .map((stop) => idxByRsid.get(stop.runtimeStageId))
+      .filter((i): i is number => i !== undefined)
+      .sort((a, b) => a - b);
+  }, [traceWalk, activeSnapshots, isInSubflow]);
+
   // The cone: chart node id (stage part — strip the '#N' execution index) →
-  // BFS depth. Painted ONLY while the Inspector's Data Trace tab is open, so
-  // it never fights the scrub overlay's visited/current story.
+  // BFS depth. Painted while TRACING (from the walk, so a via-filter narrows
+  // it) or while the Inspector's Data Trace tab is open (stage-anchored).
   const sliceCone = useMemo<ReadonlyMap<string, number> | undefined>(() => {
+    if (traceWalk && !traceWalk.missing && traceWalk.stops.length >= 2) {
+      const cone = new Map<string, number>();
+      for (const stop of traceWalk.stops) {
+        const stagePart = stop.runtimeStageId.split("#")[0];
+        const prev = cone.get(stagePart);
+        if (prev === undefined || stop.depth < prev) cone.set(stagePart, stop.depth);
+      }
+      return cone;
+    }
     // Gate: the Inspector panel's INTERNAL mode name is 'what' (its button
     // label is "Inspector"); 'insights' is the Story/narrative side.
     if (rightPanelMode !== "what" || inspectorTab !== "trace") return undefined;
@@ -1079,7 +1134,7 @@ export function ExplainableShell({
       if (prev === undefined || f.depth < prev) cone.set(stagePart, f.depth);
     }
     return cone;
-  }, [rightPanelMode, inspectorTab, shellDataTrace]);
+  }, [traceWalk, rightPanelMode, inspectorTab, shellDataTrace]);
 
   // While drilled in, feed the Story the subflow-scoped, subflow-renumbered
   // narrative (Bug 3) so it reveals to the subflow-local cursor — not the
@@ -1120,6 +1175,69 @@ export function ExplainableShell({
     if (typeof idx === "number") setSnapshotIdx(idx);
   }, []);
 
+  // ── Tracing handlers ──
+  // Entry FREEZES the question at the cursor's moment ("why is it this value
+  // as I see it here") and does the design's ONE visible jump: cursor → the
+  // anchor stop. buildTraceWalk is pure/cheap, so handlers derive the jump
+  // target synchronously instead of racing an effect.
+  const jumpToAnchor = useCallback(
+    (walk: TraceWalk) => {
+      const anchor = walk.stops[0];
+      if (!anchor) return; // honest absence — the card explains, the cursor stays
+      const idx = activeSnapshots.findIndex((sn) => sn.runtimeStageId === anchor.runtimeStageId);
+      if (idx >= 0) setSnapshotIdx(idx);
+    },
+    [activeSnapshots],
+  );
+
+  const handleStartTracing = useCallback(
+    (key: string) => {
+      if (!runtimeSnapshot?.commitLog || isInSubflow) return;
+      const log = runtimeSnapshot.commitLog as Array<{ runtimeStageId?: string }>;
+      const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
+      const cursorCommitIdx = log.findIndex((c) => c.runtimeStageId === cursorRsid);
+      // -1 only when a consumer pairs a HAND-BUILT `snapshots` prop (ids the
+      // log doesn't know) with `runtimeSnapshot`; we then trace the whole log
+      // and the entry jump may land after the cursor — defined, not a bug.
+      const beforeCommitIdx = cursorCommitIdx >= 0 ? cursorCommitIdx + 1 : undefined;
+      setTracing({ key, beforeCommitIdx, via: [] });
+      setRightPanelMode("what");
+      setInspectorTab("trace");
+      jumpToAnchor(
+        buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, key, { beforeCommitIdx }),
+      );
+    },
+    [runtimeSnapshot, isInSubflow, activeSnapshots, safeIdx, jumpToAnchor],
+  );
+
+  const handleFollowIngredient = useCallback(
+    (ing: TraceIngredient) => {
+      if (!tracing || !runtimeSnapshot?.commitLog || ing.writerCommitIdx === null) return;
+      const scope = { key: ing.key, beforeCommitIdx: ing.writerCommitIdx + 1 };
+      setTracing({ ...tracing, via: [...tracing.via, scope] });
+      jumpToAnchor(
+        buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
+          beforeCommitIdx: scope.beforeCommitIdx,
+        }),
+      );
+    },
+    [tracing, runtimeSnapshot, jumpToAnchor],
+  );
+
+  const handleShowAllIngredients = useCallback(() => {
+    if (!tracing || !runtimeSnapshot?.commitLog) return;
+    setTracing({ ...tracing, via: [] });
+    jumpToAnchor(
+      buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, tracing.key, {
+        beforeCommitIdx: tracing.beforeCommitIdx,
+      }),
+    );
+  }, [tracing, runtimeSnapshot, jumpToAnchor]);
+
+  // Exit keeps the cursor exactly where the walk left it — you land in
+  // normal time-travel at the cause you found.
+  const handleExitTracing = useCallback(() => setTracing(null), []);
+
   const handleDrillDown = useCallback(
     (nodeName: string) => {
       // Recorder path: resolve the subflow level from the mount stage's recorded
@@ -1127,6 +1245,7 @@ export function ExplainableShell({
       // rescopes the slider / story / overlay to the subflow.
       const entry = resolveSubflowFromRuntime(activeSnapshots, nodeName, narrativeEntries);
       if (entry) {
+        setTracing(null); // the walk lives on the ROOT rail — drilling exits it honestly
         setDrillDownStack((prev) => [...prev, { ...entry, parentSnapshotIdx: snapshotIdx }]);
         setSnapshotIdx(0);
       }
@@ -1170,6 +1289,94 @@ export function ExplainableShell({
     [snapshots, narrativeEntries, snapshotIdx]
   );
 
+  const navigateToStage = useCallback(
+    (id: string) => {
+      const idx = activeSnapshots.findIndex((sn) => sn.runtimeStageId === id);
+      if (idx >= 0) setSnapshotIdx(idx);
+    },
+    [activeSnapshots],
+  );
+
+  // ── Tracing render props ──
+  const activeViaKey = tracing && tracing.via.length > 0 ? tracing.via[tracing.via.length - 1].key : null;
+
+  const stepNumberOf = useCallback(
+    (rsid: string) => {
+      const i = activeSnapshots.findIndex((sn) => sn.runtimeStageId === rsid);
+      return i >= 0 ? i + 1 : null;
+    },
+    [activeSnapshots],
+  );
+
+  const tracingRail = useMemo<TracingRail | null>(() => {
+    if (!tracing || !traceWalk || traceWalk.missing || traceStopIndices.length === 0) return null;
+    const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
+    const walkIdx = traceWalk.stops.findIndex((st) => st.runtimeStageId === cursorRsid);
+    return {
+      tracedKey: tracing.key,
+      viaKey: activeViaKey,
+      stopIndices: traceStopIndices,
+      stopOrdinal: walkIdx >= 0 ? walkIdx + 1 : 1,
+      totalStops: traceWalk.stops.length,
+      onExit: handleExitTracing,
+      onShowAll: activeViaKey ? handleShowAllIngredients : undefined,
+    };
+  }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients]);
+
+  // Data Trace tab body: the stop card while tracing; otherwise the classic
+  // frames list with "Trace a value" entry chips (the keys the cursor's
+  // stage wrote — the natural place to ask "where did THIS come from?").
+  const traceTabContent: ReactNode = useMemo(() => tracing && traceWalk ? (
+    <TraceWalkCard
+      walk={traceWalk}
+      cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null}
+      viaKey={activeViaKey}
+      stepNumberOf={stepNumberOf}
+      previewValueOf={(k) => activeSnapshots[safeIdx]?.memory?.[k]}
+      onFollowIngredient={handleFollowIngredient}
+      onJumpToStop={navigateToStage}
+      onShowAll={activeViaKey ? handleShowAllIngredients : undefined}
+      onExit={handleExitTracing}
+    />
+  ) : (
+    <>
+      {!isInSubflow && (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && (
+        <div data-fp="trace-entry" style={{ padding: "10px 14px 0", fontSize: 12 }}>
+          <span style={{ color: theme.textMuted, marginRight: 6 }}>Trace a value:</span>
+          {shellDataTrace.frames[0].keysWritten.map((k) => (
+            <button
+              key={k}
+              data-fp="trace-entry-chip"
+              onClick={() => handleStartTracing(k)}
+              title={"Where did " + k + " come from? Walk its causes on the timeline."}
+              style={{
+                border: "1px solid var(--fp-accent, #6366f1)",
+                background: "transparent",
+                color: "var(--fp-accent, #6366f1)",
+                borderRadius: 12,
+                padding: "2px 10px",
+                margin: "0 6px 6px 0",
+                fontSize: 11,
+                fontWeight: 600,
+                fontFamily: "monospace",
+                cursor: "pointer",
+              }}
+            >
+              {k}
+            </button>
+          ))}
+        </div>
+      )}
+      <DataTracePanel
+        frames={shellDataTrace.frames}
+        note={shellDataTrace.readsAvailable ? undefined : "⚠ reads were not recorded (readTracking off) — dependencies are unknowable, not absent."}
+        selectedStageId={activeSnapshots[safeIdx]?.runtimeStageId}
+        onFrameClick={navigateToStage}
+        fromStageName={activeSnapshots[safeIdx]?.stageName}
+      />
+    </>
+  ), [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace]);
+
   // Map tab id → label for rendering
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
 
@@ -1186,7 +1393,7 @@ export function ExplainableShell({
           {activeTab === "result" && <ResultPanel data={resultData ?? null} logs={logs} hideConsole={hideConsole} unstyled />}
           {(activeTab === "explainable" || activeTab === "ai-compatible") && (
             <>
-              <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled />
+              <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} />
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
               {traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, ...(sliceCone && { sliceCone }) })}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
@@ -1322,12 +1529,13 @@ export function ExplainableShell({
       }}
       data-fp="explainable-shell"
     >
-      {/* Time-travel slider */}
+      {/* Time-travel slider — the SAME rail hosts the tracing walk */}
       <TimeTravelControls
         snapshots={activeSnapshots}
         selectedIndex={safeIdx}
         onIndexChange={handleSnapshotChange}
         size={size}
+        tracing={tracingRail}
       />
 
       {/* Breadcrumb */}
@@ -1442,6 +1650,8 @@ export function ExplainableShell({
                   onModeChange={setRightPanelMode}
                   dataTrace={shellDataTrace}
                   onInspectorTabChange={setInspectorTab}
+                  inspectorTab={inspectorTab}
+                  traceContent={traceTabContent}
                   snapshots={activeSnapshots}
                   selectedIndex={safeIdx}
                   runtimeSnapshot={runtimeSnapshot}
@@ -1451,10 +1661,7 @@ export function ExplainableShell({
                   recorderViews={recorderViews}
                   autoRecorderViews={autoRecorderViews}
                   size={size}
-                  onNavigateToStage={(id) => {
-                    const idx = activeSnapshots.findIndex((s) => s.runtimeStageId === id);
-                    if (idx >= 0) setSnapshotIdx(idx);
-                  }}
+                  onNavigateToStage={navigateToStage}
                 />
               </div>
               )}

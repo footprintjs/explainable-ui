@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.29.0] - 2026-07-02
+
+### Added
+
+- **Same-Rail Rewind — steerable backtracking on the existing time slider.**
+  In the Inspector's Data Trace tab, "Trace a value" chips start a tracing
+  session: the rail's slice members become landable STOPS (everything else
+  fades to unlandable ticks), the buttons become "◀ earlier cause / toward
+  result ▶", and the ONE cursor walks the value's causes newest-first.
+  Licensed by the data model: every dependency commits strictly earlier than
+  the value it feeds, so the backward slice is a sub-sequence of the
+  timeline — reverse commit order is a valid topological order, and one
+  monotone button visits BOTH parents of a fork with no branch-choosing UI.
+  - `buildTraceWalk` / `formatTraceWalk`
+    (`ExplainableShell/_internal/traceWalk.ts`): variable-anchored backward
+    slice with per-stop ingredients, loop pass numbers, run-input termini,
+    truncation + reads-honesty flags, and TWO truthful absence sentences
+    ('never-written' vs 'not-yet-written' — a cutoff artifact is not
+    "never"). Following an ingredient IS re-anchoring (same function,
+    `beforeCommitIdx`) — no traversal modes.
+  - `<TimeTravelControls tracing>`: the tracing rail (mode header, stop
+    ticks, direction-honest buttons, Escape/Done exit — cursor stays put).
+  - `<TraceWalkCard>`: the "WHY THIS VALUE" stop card — headline with value
+    preview, junction-local colored ingredient chips (forks show ⑂),
+    itinerary, honesty footer, and **[Copy story]** emitting
+    `formatTraceWalk`'s exact string (the LLM-parity artifact).
+  - `ExplainableShell` orchestrates: entry jumps the cursor to the anchor
+    (the one visible jump), the chart's dependency cone follows the walk
+    (a via-filter narrows it), drilling into a subflow exits tracing
+    (root-rail-only, honestly). `InspectorPanel` gains a controlled `tab`
+    prop + `traceContent` slot.
+  - Browser-verified live (demo/tracing-verified.png).
+
 ## [0.28.0] - 2026-07-02
 
 ### Added

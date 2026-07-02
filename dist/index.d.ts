@@ -1,4 +1,5 @@
 import * as react from 'react';
+import { ReactNode } from 'react';
 import { Node, Edge } from '@xyflow/react';
 
 /** Snapshot of a single pipeline stage — the core data shape for all components. */
@@ -318,6 +319,31 @@ interface StageDetailPanelProps extends BaseComponentProps {
 }
 declare function StageDetailPanel({ snapshots, selectedIndex, mode: controlledMode, showToggle, onModeChange, size, unstyled, className, style, }: StageDetailPanelProps): react.JSX.Element;
 
+/**
+ * Same-Rail Rewind (tracing mode) — the rail's AXIS never changes, only its
+ * stops do: every dependency was committed earlier than the value it fed, so
+ * a backward slice is a sub-sequence of this same timeline. When `tracing`
+ * is set, slice members stay landable ("stops"), everything else fades to
+ * unlandable ticks, and prev/next walk stop-to-stop ("◀ earlier cause").
+ * The cursor stays the ONE `selectedIndex` — no second position exists.
+ */
+interface TracingRail {
+    /** The traced variable — rendered in the mode header. */
+    tracedKey: string;
+    /** Set while an ingredient filter is active ("▸ via key"). */
+    viaKey?: string | null;
+    /** Snapshot indices that are stops, ASCENDING. All other ticks become
+     *  faint and unlandable (context, not destinations). */
+    stopIndices: number[];
+    /** 1-based position of the cursor in WALK order (newest first) + total —
+     *  the "stop 2 of 6" label. */
+    stopOrdinal: number;
+    totalStops: number;
+    /** Exit tracing (Done button / Escape). The cursor stays put. */
+    onExit: () => void;
+    /** Clear the via filter back to the full walk (breadcrumb's "show all"). */
+    onShowAll?: () => void;
+}
 interface TimeTravelControlsProps extends BaseComponentProps {
     /** Stage snapshots */
     snapshots: StageSnapshot[];
@@ -327,8 +353,10 @@ interface TimeTravelControlsProps extends BaseComponentProps {
     onIndexChange: (index: number) => void;
     /** Enable auto-play with Gantt-proportional timing */
     autoPlayable?: boolean;
+    /** Same-Rail Rewind session — when set, the rail is in tracing mode. */
+    tracing?: TracingRail | null;
 }
-declare function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, autoPlayable, size, unstyled, className, style, }: TimeTravelControlsProps): react.JSX.Element;
+declare function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, autoPlayable, tracing, size, unstyled, className, style, }: TimeTravelControlsProps): react.JSX.Element;
 
 /**
  * One entry in the execution timeline. `<TracedFlow>` keys time-travel
@@ -1109,8 +1137,136 @@ interface InspectorPanelProps {
     /** Fires when the user switches tabs — lets the shell paint the chart's
      *  dependency cone while the Data Trace tab is open. */
     onTabChange?: (tab: "state" | "trace") => void;
+    /** Controlled tab — when provided the SHELL owns the tab (it must force
+     *  Data Trace open on tracing entry); clicks still fire onTabChange. */
+    tab?: "state" | "trace";
+    /** Replaces the Data Trace tab body (the shell swaps in the Same-Rail
+     *  Rewind stop card / entry chips); default = the classic frames list. */
+    traceContent?: ReactNode;
 }
 declare const InspectorPanel: react.NamedExoticComponent<InspectorPanelProps>;
+
+/**
+ * traceWalk — the SAME-RAIL REWIND walk: a variable-anchored backward slice,
+ * linearized in REVERSE COMMIT ORDER so it can be driven by the existing
+ * time slider ("◀ earlier cause" stop by stop).
+ *
+ * THE LOAD-BEARING FACT (why one linear walk can cover a DAG): every
+ * dependency was committed strictly EARLIER than the value derived from it,
+ * so a backward slice is always a sub-sequence of the run's timeline — and
+ * sorting its frames by commitIdx DESCENDING is a valid topological order.
+ * One monotone "earlier" button therefore visits EVERY frame, including
+ * both parents of a fork, with no branch-choosing UI and no second cursor.
+ *
+ * FORKS are explained, not navigated: each stop carries its `ingredients`
+ * (the read keys + who wrote each), so a 2-parent value shows both chips;
+ * "follow one ingredient" is a RE-ANCHORED walk (same function, key = the
+ * ingredient, before = this stop) — never a special traversal mode.
+ *
+ * HONEST ABSENCE, two truthful sentences (they are different facts):
+ *   'never-written'   — no commit in the WHOLE log wrote the key: it came
+ *                       in with the run's inputs.
+ *   'not-yet-written' — a later commit writes it, but none at or before
+ *                       the cutoff: "not yet" is not "never".
+ *
+ * Shares the read→write BFS with dataTrace.ts (the causalChain mirror);
+ * eui still never imports footprintjs — snapshot SHAPES only.
+ */
+/** One read key of a stop, resolved to the commit that wrote it. */
+interface TraceIngredient {
+    key: string;
+    /** null = no commit before this stop wrote the key (a run-input terminus). */
+    writerRuntimeStageId: string | null;
+    writerStageName: string | null;
+    writerCommitIdx: number | null;
+}
+/** One stop on the rewind rail — a slice frame with its rail position. */
+interface TraceStop {
+    runtimeStageId: string;
+    stageId: string;
+    stageName: string;
+    /** Position in the commit log — the stop's place on the time rail. */
+    commitIdx: number;
+    /** The slice keys DOWNSTREAM members read from this stop (what it
+     *  contributed to the traced value). The anchor contributes the traced
+     *  key itself. */
+    contributedKeys: string[];
+    keysWritten: string[];
+    ingredients: TraceIngredient[];
+    /** BFS hop distance from the anchor (tooltip-grade info, NOT the walk
+     *  order — the walk order is time). */
+    depth: number;
+    /** 1-based pass number when the same stage appears more than once in
+     *  the walk (loop iterations); 0 = appears once. */
+    loopPass: number;
+}
+interface TraceWalkMissing {
+    reason: "never-written" | "not-yet-written";
+    /** For 'not-yet-written': where the FIRST write actually happens. */
+    firstWriteCommitIdx?: number;
+    firstWriterRuntimeStageId?: string;
+    firstWriterStageName?: string;
+}
+interface TraceWalk {
+    key: string;
+    /** Stops in WALK ORDER: commitIdx DESCENDING. stops[0] is the anchor
+     *  (the last writer of `key` within the cutoff). */
+    stops: TraceStop[];
+    /** Non-null ⇒ zero stops: the honest-absence card, not an empty chain. */
+    missing: TraceWalkMissing | null;
+    /** Read keys that NO commit ever wrote — the run's inputs ("came in the
+     *  door"), deduped, in first-encounter order. */
+    inputTermini: string[];
+    /** False when the snapshot recorded no reads anywhere — the chain is
+     *  UNKNOWABLE (not absent) beyond the anchor. */
+    readsAvailable: boolean;
+    /** True when the underlying slice hit its frame/depth budget — the
+     *  earliest stop may not be the true origin. */
+    truncated: boolean;
+}
+/**
+ * Build the rewind walk for `key`.
+ *
+ * `beforeCommitIdx` (EXCLUSIVE) scopes the question to "the value as it
+ * stood before that moment" — it is also how ingredient-following works:
+ * follow ingredient K at stop S = buildTraceWalk(K, { beforeCommitIdx:
+ * S.commitIdx }) — one function, no traversal modes.
+ */
+declare function buildTraceWalk(commitLog: unknown[], executionTree: unknown, key: string, opts?: {
+    beforeCommitIdx?: number;
+    maxDepth?: number;
+    maxFrames?: number;
+}): TraceWalk;
+/**
+ * formatTraceWalk — THE parity artifact: the [Copy story] button and any
+ * LLM backtrack tool emit THIS string, so the human's board and the
+ * agent's answer are the same text, not two translations.
+ *
+ * `stepNumberOf` maps a runtimeStageId to the 1-based step number shown on
+ * the rail (null = not on the rail); walk order and wording match the
+ * stop cards exactly.
+ */
+declare function formatTraceWalk(walk: TraceWalk, stepNumberOf: (runtimeStageId: string) => number | null): string;
+
+interface TraceWalkCardProps {
+    walk: TraceWalk;
+    /** The ONE cursor — the card highlights its stop; null falls back to the anchor. */
+    cursorRuntimeStageId: string | null;
+    /** Active ingredient filter (breadcrumb "▸ via key"). */
+    viaKey?: string | null;
+    /** Map a stop to its 1-based rail step number (null = not on this rail). */
+    stepNumberOf: (runtimeStageId: string) => number | null;
+    /** Value preview for a contributed key at the current stop (the shell
+     *  reads snapshot.memory — state as of that moment). */
+    previewValueOf?: (key: string) => unknown;
+    /** Follow an ingredient: re-anchor the walk on ing.key before this stop. */
+    onFollowIngredient?: (ing: TraceIngredient) => void;
+    /** Jump the cursor to a stop (itinerary row click). */
+    onJumpToStop?: (runtimeStageId: string) => void;
+    onShowAll?: () => void;
+    onExit?: () => void;
+}
+declare const TraceWalkCard: react.NamedExoticComponent<TraceWalkCardProps>;
 
 interface InsightConfig {
     /** Unique ID (matches recorder id). */
@@ -1139,4 +1295,4 @@ interface CompactTimelineProps {
 }
 declare const CompactTimeline: react.NamedExoticComponent<CompactTimelineProps>;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type AgentfootprintTrace, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, type TraceParseError, type TraceTheme, TraceViewer, type TraceViewerProps, buildEntryRangeIndex, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, mergeWritePatch, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
+export { type NarrativeEntry as AdapterNarrativeEntry, type AgentfootprintTrace, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, mergeWritePatch, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };

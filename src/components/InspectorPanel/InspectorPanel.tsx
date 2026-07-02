@@ -8,6 +8,7 @@
  * Like Chrome DevTools' Scope + Call Stack panels when paused at a breakpoint.
  */
 import { memo, useState } from "react";
+import type { ReactNode } from "react";
 import { theme } from "../../theme";
 import type { StageSnapshot } from "../../types";
 import { MemoryPanel } from "../MemoryPanel";
@@ -27,6 +28,12 @@ export interface InspectorPanelProps {
   /** Fires when the user switches tabs — lets the shell paint the chart's
    *  dependency cone while the Data Trace tab is open. */
   onTabChange?: (tab: "state" | "trace") => void;
+  /** Controlled tab — when provided the SHELL owns the tab (it must force
+   *  Data Trace open on tracing entry); clicks still fire onTabChange. */
+  tab?: "state" | "trace";
+  /** Replaces the Data Trace tab body (the shell swaps in the Same-Rail
+   *  Rewind stop card / entry chips); default = the classic frames list. */
+  traceContent?: ReactNode;
 }
 
 type InspectorTab = "state" | "trace";
@@ -39,8 +46,11 @@ export const InspectorPanel = memo(function InspectorPanel({
   selectedStageId,
   onNavigateToStage,
   onTabChange,
+  tab: controlledTab,
+  traceContent,
 }: InspectorPanelProps) {
-  const [tab, setTabState] = useState<InspectorTab>("state");
+  const [internalTab, setTabState] = useState<InspectorTab>("state");
+  const tab = controlledTab ?? internalTab;
   const setTab = (t: InspectorTab) => {
     setTabState(t);
     onTabChange?.(t);
@@ -85,15 +95,16 @@ export const InspectorPanel = memo(function InspectorPanel({
             selectedIndex={selectedIndex}
           />
         )}
-        {tab === "trace" && (
-          <DataTracePanel
-            frames={dataTraceFrames}
-            note={dataTraceNote}
-            selectedStageId={selectedStageId}
-            onFrameClick={onNavigateToStage}
-            fromStageName={currentSnapshot?.stageName}
-          />
-        )}
+        {tab === "trace" &&
+          (traceContent ?? (
+            <DataTracePanel
+              frames={dataTraceFrames}
+              note={dataTraceNote}
+              selectedStageId={selectedStageId}
+              onFrameClick={onNavigateToStage}
+              fromStageName={currentSnapshot?.stageName}
+            />
+          ))}
       </div>
     </div>
   );

@@ -34,7 +34,7 @@ export { StageDetailPanel } from "./components/StageDetailPanel";
 export type { StageDetailPanelProps, StageDetailMode, MemoryChange } from "./components/StageDetailPanel";
 
 export { TimeTravelControls } from "./components/TimeTravelControls";
-export type { TimeTravelControlsProps } from "./components/TimeTravelControls";
+export type { TimeTravelControlsProps, TracingRail } from "./components/TimeTravelControls";
 
 export { ExplainableShell } from "./components/ExplainableShell";
 export type { ExplainableShellProps, TraceTheme, RuntimeSnapshotInput, RecorderView, ShellTab, PanelLabels, DefaultExpanded } from "./components/ExplainableShell";
@@ -74,6 +74,15 @@ export type { InspectorPanelProps } from "./components/InspectorPanel/InspectorP
 // Data Trace: backward causal chain visualization
 export { DataTracePanel } from "./components/DataTracePanel/DataTracePanel";
 export type { DataTracePanelProps, CausalFrame } from "./components/DataTracePanel/DataTracePanel";
+export { TraceWalkCard } from "./components/DataTracePanel/TraceWalkCard";
+export type { TraceWalkCardProps } from "./components/DataTracePanel/TraceWalkCard";
+export { buildTraceWalk, formatTraceWalk } from "./components/ExplainableShell/_internal/traceWalk";
+export type {
+  TraceWalk,
+  TraceStop,
+  TraceIngredient,
+  TraceWalkMissing,
+} from "./components/ExplainableShell/_internal/traceWalk";
 
 // Insights: recorder tabs / grid (was "Recorders")
 export { InsightPanel } from "./components/InsightPanel/InsightPanel";

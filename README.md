@@ -138,6 +138,32 @@ The all-in-one orchestrator. Handles time-travel, subflow drill-down, memory/nar
 | `size` | `"compact" \| "default" \| "detailed"` | `"default"` | Size variant |
 | `unstyled` | `boolean` | `false` | Strip styles, render `data-fp` attributes |
 
+### Tracing a value — walk the timeline backward through its causes
+
+![Tracing mode: the rail becomes the walk](demo/tracing-verified.png)
+
+Open **Inspector → Data Trace** and click one of the "Trace a value" chips.
+The time slider stays the same rail — the stages that made that value light
+up as **stops**, everything else fades to unlandable ticks, and the buttons
+become **◀ earlier cause / toward result ▶**. This works because every
+ingredient of a value was always written *earlier in the run* than the value
+it fed, so the dependency chain is a sub-sequence of the timeline you already
+have. One cursor, no new axis.
+
+- A value made from **two ingredients** shows both as colored chips —
+  pressing "earlier cause" visits both (most recent first); nothing is ever
+  silently skipped. Click a chip to **follow** just that ingredient (the
+  breadcrumb shows `key ▸ via ingredient · show all`).
+- Every stop shows the world **as it was at that moment** — the state panel
+  time-travels with the walk for free.
+- **Honest absence**: a value nobody wrote gets a truthful card ("never
+  written in this run — it arrived with the run's inputs"), and a value not
+  written *yet* at the cursor's moment says exactly that, naming where its
+  first write happens. Reads-off runs say "unknowable, not absent".
+- **[Copy story]** emits the same text an LLM backtrack tool returns — the
+  human's board and the agent's answer are one artifact.
+- Tracing lives on the root rail: drilling into a subflow exits it honestly.
+
 ### Panel Labels
 
 Customize the text on collapsible pill buttons. Semantic keys — not tied to position:
