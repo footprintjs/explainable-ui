@@ -2697,6 +2697,7 @@ function TracedFlow({
   nodeTypes: userNodeTypes,
   edgeTypes: userEdgeTypes,
   coActiveStageIds,
+  sliceCone,
   children,
   className,
   style
@@ -2798,6 +2799,38 @@ function TracedFlow({
     ),
     [positioned.edges, slice, colors]
   );
+  const [coneRevealed, setConeRevealed] = (0, import_react18.useState)(false);
+  (0, import_react18.useEffect)(() => {
+    if (!sliceCone) return;
+    setConeRevealed(false);
+    const raf = requestAnimationFrame(() => setConeRevealed(true));
+    return () => cancelAnimationFrame(raf);
+  }, [sliceCone]);
+  const conedNodes = (0, import_react18.useMemo)(() => {
+    if (!sliceCone || sliceCone.size === 0) return reactFlowNodes;
+    return reactFlowNodes.map((n) => {
+      const depth = sliceCone.get(n.id);
+      if (depth === void 0) {
+        return { ...n, style: { ...n.style, opacity: 0.22, transition: "opacity 260ms ease" } };
+      }
+      return {
+        ...n,
+        style: {
+          ...n.style,
+          opacity: coneRevealed ? 1 : 0.22,
+          transition: "opacity 320ms ease",
+          transitionDelay: `${depth * 90}ms`
+        }
+      };
+    });
+  }, [reactFlowNodes, sliceCone, coneRevealed]);
+  const conedEdges = (0, import_react18.useMemo)(() => {
+    if (!sliceCone || sliceCone.size === 0) return reactFlowEdges;
+    return reactFlowEdges.map((e) => {
+      const inCone = sliceCone.has(e.source) && sliceCone.has(e.target);
+      return inCone ? e : { ...e, style: { ...e.style, opacity: 0.12, transition: "opacity 260ms ease" } };
+    });
+  }, [reactFlowEdges, sliceCone]);
   const handleNodeClick = (0, import_react18.useCallback)(
     (_, node) => {
       const data = node.data ?? {};
@@ -2839,8 +2872,8 @@ function TracedFlow({
         /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
           import_react19.ReactFlow,
           {
-            nodes: reactFlowNodes,
-            edges: reactFlowEdges,
+            nodes: conedNodes,
+            edges: conedEdges,
             nodeTypes: mergedNodeTypes,
             edgeTypes: mergedEdgeTypes,
             onNodeClick: handleNodeClick,

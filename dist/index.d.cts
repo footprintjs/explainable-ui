@@ -731,6 +731,9 @@ interface ExplainableShellProps extends BaseComponentProps {
         selectedIndex: number;
         onNodeClick?: (indexOrId: number | string) => void;
         showStageId?: boolean;
+        /** Dependency-cone overlay (chart node id → BFS depth) — painted while
+         *  the Inspector's Data Trace tab is open. Custom renderers may ignore it. */
+        sliceCone?: ReadonlyMap<string, number>;
     }) => React.ReactNode;
     /**
      * When true, render each node's stable `stageId` as a small monospace
@@ -1103,6 +1106,9 @@ interface InspectorPanelProps {
     selectedStageId?: string;
     /** Navigate to a stage when clicking a Data Trace frame. */
     onNavigateToStage?: (runtimeStageId: string) => void;
+    /** Fires when the user switches tabs — lets the shell paint the chart's
+     *  dependency cone while the Data Trace tab is open. */
+    onTabChange?: (tab: "state" | "trace") => void;
 }
 declare const InspectorPanel: react.NamedExoticComponent<InspectorPanelProps>;
 

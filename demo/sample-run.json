@@ -1,0 +1,562 @@
+{
+  "generatedBy": "demo/generate-run.ts (real footprintjs run — do not hand-edit)",
+  "runtimeSnapshot": {
+    "sharedState": {
+      "rates": [
+        3.1,
+        3.4,
+        9.9
+      ],
+      "baseRate": 9.9,
+      "auditNote": "checked",
+      "riskFactor": 1.2,
+      "quote": 11.88
+    },
+    "executionTree": {
+      "id": "load-rates",
+      "runtimeStageId": "load-rates#0",
+      "name": "LoadRates",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageWrites": {
+        "rates": [
+          3.1,
+          3.4,
+          9.9
+        ]
+      },
+      "description": "Fetch the rate table",
+      "flowMessages": [
+        {
+          "type": "next",
+          "description": "Moving to PickBase stage",
+          "timestamp": 1782969269869,
+          "targetStage": "PickBase"
+        }
+      ],
+      "next": {
+        "id": "pick-base",
+        "runtimeStageId": "pick-base#1",
+        "name": "PickBase",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "baseRate": 9.9
+        },
+        "stageReads": {
+          "rates": [
+            3.1,
+            3.4,
+            9.9
+          ]
+        },
+        "description": "Choose the base rate",
+        "flowMessages": [
+          {
+            "type": "next",
+            "description": "Moving to Audit stage",
+            "timestamp": 1782969269869,
+            "targetStage": "Audit"
+          }
+        ],
+        "next": {
+          "id": "audit",
+          "runtimeStageId": "audit#2",
+          "name": "Audit",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "auditNote": "checked"
+          },
+          "description": "Log an audit note",
+          "flowMessages": [
+            {
+              "type": "next",
+              "description": "Moving to AssessRisk stage",
+              "timestamp": 1782969269870,
+              "targetStage": "AssessRisk"
+            }
+          ],
+          "next": {
+            "id": "assess-risk",
+            "runtimeStageId": "assess-risk#3",
+            "name": "AssessRisk",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "riskFactor": 1.2
+            },
+            "description": "Score the applicant",
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to Quote stage",
+                "timestamp": 1782969269870,
+                "targetStage": "Quote"
+              }
+            ],
+            "next": {
+              "id": "quote",
+              "runtimeStageId": "quote#4",
+              "name": "Quote",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "quote": 11.88
+              },
+              "stageReads": {
+                "baseRate": 9.9,
+                "riskFactor": 1.2
+              },
+              "description": "Compute the quote"
+            }
+          }
+        }
+      }
+    },
+    "commitLog": [
+      {
+        "overwrite": {
+          "rates": [
+            3.1,
+            3.4,
+            9.9
+          ]
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "rates",
+            "verb": "set"
+          }
+        ],
+        "stage": "LoadRates",
+        "stageId": "load-rates",
+        "runtimeStageId": "load-rates#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "baseRate": 9.9
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "baseRate",
+            "verb": "set"
+          }
+        ],
+        "stage": "PickBase",
+        "stageId": "pick-base",
+        "runtimeStageId": "pick-base#1",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "auditNote": "checked"
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "auditNote",
+            "verb": "set"
+          }
+        ],
+        "stage": "Audit",
+        "stageId": "audit",
+        "runtimeStageId": "audit#2",
+        "idx": 2
+      },
+      {
+        "overwrite": {
+          "riskFactor": 1.2
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "riskFactor",
+            "verb": "set"
+          }
+        ],
+        "stage": "AssessRisk",
+        "stageId": "assess-risk",
+        "runtimeStageId": "assess-risk#3",
+        "idx": 3
+      },
+      {
+        "overwrite": {
+          "quote": 11.88
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "quote",
+            "verb": "set"
+          }
+        ],
+        "stage": "Quote",
+        "stageId": "quote",
+        "runtimeStageId": "quote#4",
+        "idx": 4
+      }
+    ]
+  },
+  "narrativeEntries": [
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Fetch the rate table.",
+      "depth": 0,
+      "stageName": "LoadRates",
+      "stageId": "load-rates",
+      "runtimeStageId": "load-rates#0"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write rates = (3 items)",
+      "depth": 1,
+      "stageName": "LoadRates",
+      "stageId": "load-rates",
+      "runtimeStageId": "load-rates#0",
+      "stepNumber": 1,
+      "key": "rates",
+      "rawValue": [
+        3.1,
+        3.4,
+        9.9
+      ]
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next step: Choose the base rate.",
+      "depth": 0,
+      "stageName": "PickBase",
+      "stageId": "pick-base",
+      "runtimeStageId": "pick-base#1"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read rates = (3 items)",
+      "depth": 1,
+      "stageName": "PickBase",
+      "stageId": "pick-base",
+      "runtimeStageId": "pick-base#1",
+      "stepNumber": 1,
+      "key": "rates",
+      "rawValue": [
+        3.1,
+        3.4,
+        9.9
+      ]
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Read rates = (3 items)",
+      "depth": 1,
+      "stageName": "PickBase",
+      "stageId": "pick-base",
+      "runtimeStageId": "pick-base#1",
+      "stepNumber": 2,
+      "key": "rates",
+      "rawValue": [
+        3.1,
+        3.4,
+        9.9
+      ]
+    },
+    {
+      "type": "step",
+      "text": "Step 3: Write baseRate = 9.9",
+      "depth": 1,
+      "stageName": "PickBase",
+      "stageId": "pick-base",
+      "runtimeStageId": "pick-base#1",
+      "stepNumber": 3,
+      "key": "baseRate",
+      "rawValue": 9.9
+    },
+    {
+      "type": "stage",
+      "text": "Stage 3: Next step: Log an audit note.",
+      "depth": 0,
+      "stageName": "Audit",
+      "stageId": "audit",
+      "runtimeStageId": "audit#2"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write auditNote = \"checked\"",
+      "depth": 1,
+      "stageName": "Audit",
+      "stageId": "audit",
+      "runtimeStageId": "audit#2",
+      "stepNumber": 1,
+      "key": "auditNote",
+      "rawValue": "checked"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 4: Next step: Score the applicant.",
+      "depth": 0,
+      "stageName": "AssessRisk",
+      "stageId": "assess-risk",
+      "runtimeStageId": "assess-risk#3"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write riskFactor = 1.2",
+      "depth": 1,
+      "stageName": "AssessRisk",
+      "stageId": "assess-risk",
+      "runtimeStageId": "assess-risk#3",
+      "stepNumber": 1,
+      "key": "riskFactor",
+      "rawValue": 1.2
+    },
+    {
+      "type": "stage",
+      "text": "Stage 5: Next step: Compute the quote.",
+      "depth": 0,
+      "stageName": "Quote",
+      "stageId": "quote",
+      "runtimeStageId": "quote#4"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read baseRate = 9.9",
+      "depth": 1,
+      "stageName": "Quote",
+      "stageId": "quote",
+      "runtimeStageId": "quote#4",
+      "stepNumber": 1,
+      "key": "baseRate",
+      "rawValue": 9.9
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Read riskFactor = 1.2",
+      "depth": 1,
+      "stageName": "Quote",
+      "stageId": "quote",
+      "runtimeStageId": "quote#4",
+      "stepNumber": 2,
+      "key": "riskFactor",
+      "rawValue": 1.2
+    },
+    {
+      "type": "step",
+      "text": "Step 3: Write quote = 11.88",
+      "depth": 1,
+      "stageName": "Quote",
+      "stageId": "quote",
+      "runtimeStageId": "quote#4",
+      "stepNumber": 3,
+      "key": "quote",
+      "rawValue": 11.88
+    }
+  ],
+  "traceGraph": {
+    "nodes": [
+      {
+        "id": "load-rates",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "LoadRates",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [],
+          "nextIds": [
+            "pick-base"
+          ],
+          "description": "Fetch the rate table"
+        }
+      },
+      {
+        "id": "pick-base",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "PickBase",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "load-rates"
+          ],
+          "nextIds": [
+            "audit"
+          ],
+          "description": "Choose the base rate"
+        }
+      },
+      {
+        "id": "audit",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Audit",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "pick-base"
+          ],
+          "nextIds": [
+            "assess-risk"
+          ],
+          "description": "Log an audit note"
+        }
+      },
+      {
+        "id": "assess-risk",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "AssessRisk",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "audit"
+          ],
+          "nextIds": [
+            "quote"
+          ],
+          "description": "Score the applicant"
+        }
+      },
+      {
+        "id": "quote",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Quote",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "assess-risk"
+          ],
+          "nextIds": [],
+          "description": "Compute the quote"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "load-rates->pick-base:next",
+        "source": "load-rates",
+        "target": "pick-base",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "pick-base->audit:next",
+        "source": "pick-base",
+        "target": "audit",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "audit->assess-risk:next",
+        "source": "audit",
+        "target": "assess-risk",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "assess-risk->quote:next",
+        "source": "assess-risk",
+        "target": "quote",
+        "data": {
+          "kind": "next"
+        }
+      }
+    ]
+  },
+  "runtimeOverlay": {
+    "executionOrder": [
+      {
+        "runtimeStageId": "load-rates#0",
+        "stageId": "load-rates",
+        "stageName": "LoadRates",
+        "timestampMs": 2.978749999999991
+      },
+      {
+        "runtimeStageId": "pick-base#1",
+        "stageId": "pick-base",
+        "stageName": "PickBase",
+        "timestampMs": 3.4987919999999804
+      },
+      {
+        "runtimeStageId": "audit#2",
+        "stageId": "audit",
+        "stageName": "Audit",
+        "timestampMs": 3.660583000000031
+      },
+      {
+        "runtimeStageId": "assess-risk#3",
+        "stageId": "assess-risk",
+        "stageName": "AssessRisk",
+        "timestampMs": 3.8988330000000246
+      },
+      {
+        "runtimeStageId": "quote#4",
+        "stageId": "quote",
+        "stageName": "Quote",
+        "timestampMs": 4.126833000000033
+      }
+    ],
+    "errors": [],
+    "running": false
+  }
+}

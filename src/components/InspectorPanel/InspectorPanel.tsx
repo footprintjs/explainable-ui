@@ -24,6 +24,9 @@ export interface InspectorPanelProps {
   selectedStageId?: string;
   /** Navigate to a stage when clicking a Data Trace frame. */
   onNavigateToStage?: (runtimeStageId: string) => void;
+  /** Fires when the user switches tabs — lets the shell paint the chart's
+   *  dependency cone while the Data Trace tab is open. */
+  onTabChange?: (tab: "state" | "trace") => void;
 }
 
 type InspectorTab = "state" | "trace";
@@ -35,8 +38,13 @@ export const InspectorPanel = memo(function InspectorPanel({
   dataTraceNote,
   selectedStageId,
   onNavigateToStage,
+  onTabChange,
 }: InspectorPanelProps) {
-  const [tab, setTab] = useState<InspectorTab>("state");
+  const [tab, setTabState] = useState<InspectorTab>("state");
+  const setTab = (t: InspectorTab) => {
+    setTabState(t);
+    onTabChange?.(t);
+  };
   const currentSnapshot = snapshots[selectedIndex];
 
   return (

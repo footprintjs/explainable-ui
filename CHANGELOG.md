@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.28.0] - 2026-07-02
+
+### Added
+
+- **The dependency CONE — the backward slice painted on the chart.**
+  `TracedFlow` gains `sliceCone?: ReadonlyMap<string, number>` (chart node id
+  → BFS depth): members re-light with a transition-delay staggered by depth —
+  causality visibly walks BACKWARDS across the chart — while everything
+  outside the cone (and its edges) dims. `ExplainableShell` wires it
+  automatically: open Inspector → Data Trace and the chart shows exactly the
+  frames the tab lists (one slice, three consumers — tab, honesty note, cone
+  — they cannot disagree). Leaves the scrub overlay's visited/current story
+  untouched: the cone paints only while the Data Trace tab is open.
+  Verified live via Playwright on the demo (the chronological-neighbor stage
+  correctly dims at opacity 0.22 while the causal chain stays lit, staggered
+  0/90/180ms by depth).
+- **Demo: a real generated run** (`demo/generate-run.ts` → `sample-run.json`,
+  never hand-authored) rendering the full `ExplainableShell` — fan-in shaped
+  so the cone is demonstrably different from "the steps before it".
+- `renderFlowchart` custom renderers receive an optional `sliceCone` arg
+  (ignore it and nothing changes).
+
 ## [0.27.0] - 2026-07-02
 
 ### Fixed

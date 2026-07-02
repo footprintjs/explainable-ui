@@ -1,7 +1,19 @@
 import "@xyflow/react/dist/style.css";
 import { TracedFlow } from "../src/flowchart";
+import { ExplainableShell } from "../src/components/ExplainableShell/ExplainableShell";
 import type { TraceGraph } from "../src/components/FlowchartView/traceStructureRecorder";
 import graphData from "./sample-graph.json";
+import runData from "./sample-run.json";
+
+// Rehydrate the JSON fixture: RuntimeOverlay.errors is a Map at runtime,
+// serialized as entry pairs by generate-run.ts.
+const liveRun = {
+  ...runData,
+  runtimeOverlay: {
+    ...runData.runtimeOverlay,
+    errors: new Map((runData.runtimeOverlay.errors as [string, string][]) ?? []),
+  },
+};
 import { GALLERY, COMBINE, CONNECTED_AGENT } from "./sample-graphs";
 
 /**
@@ -48,6 +60,23 @@ export function Demo() {
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 1200, margin: "0 auto" }}>
       <h1 style={{ fontSize: 20, margin: "0 0 4px" }}>explainable-ui — flowchart gallery</h1>
+
+      {/* THE full shell on a REAL generated run (demo/generate-run.ts) —
+          exercise the Data Trace tab: scrub to Quote, open Inspector →
+          Data Trace, and watch the chart dim to the dependency CONE
+          (Audit, the chronological neighbor, correctly stays dim). */}
+      <div
+        data-testid="shell-live-run"
+        style={{ border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden", background: "#fff", height: 640, marginBottom: 20 }}
+      >
+        <ExplainableShell
+          runtimeSnapshot={liveRun.runtimeSnapshot as never}
+          narrativeEntries={liveRun.narrativeEntries as never}
+          traceGraph={liveRun.traceGraph as never}
+          runtimeOverlay={liveRun.runtimeOverlay as never}
+          traceTheme={{ mode: "light" }}
+        />
+      </div>
       <p style={{ color: "#64748b", margin: "0 0 20px", fontSize: 14 }}>
         One chart per composition pattern (so the layout is readable), then the real agent chart —
         the combine target. Edit <code>src/components/FlowchartView/*</code> and every chart

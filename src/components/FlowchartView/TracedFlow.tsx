@@ -331,6 +331,17 @@ export interface TracedFlowProps extends BaseComponentProps {
    */
   coActiveStageIds?: ReadonlySet<string>;
   /**
+   * Dependency-CONE overlay (the variable backward slice painted on the
+   * chart): a map of chart node id → BFS depth (0 = the slice anchor/writer).
+   * Nodes NOT in the map dim to near-transparency; members re-light with a
+   * staggered transition-delay by depth — causality walks BACKWARDS across
+   * the chart when the cone changes. Edges with either endpoint outside the
+   * cone dim too. `undefined`/`null` = no cone, byte-identical rendering.
+   * Keys are chart node ids (the stage part of a runtimeStageId — strip
+   * `#N` before passing).
+   */
+  sliceCone?: ReadonlyMap<string, number> | null;
+  /**
    * Subflow ids to render as GROUP CONTAINER boxes — the subflow's member
    * stages render NESTED inside the box (xyflow `parentId` + `extent`),
    * instead of behind a click-to-zoom DRILL card. Per-subflow choice: any
@@ -379,6 +390,7 @@ export function TracedFlow({
   nodeTypes: userNodeTypes,
   edgeTypes: userEdgeTypes,
   coActiveStageIds,
+  sliceCone,
   children,
   className,
   style,
@@ -540,6 +552,49 @@ export function TracedFlow({
     [positioned.edges, slice, colors],
   );
 
+  // ── Dependency-cone overlay (sliceCone) ────────────────────────────
+  // Two-phase reveal: when the cone changes, everything renders at the
+  // dimmed opacity for one frame, then members transition UP staggered by
+  // depth — the "causality walks backwards" animation. Opacity rides the
+  // React Flow wrapper style so it works uniformly for stage AND custom
+  // node renderers. No cone → the original arrays pass through untouched.
+  const [coneRevealed, setConeRevealed] = useState(false);
+  useEffect(() => {
+    if (!sliceCone) return;
+    setConeRevealed(false);
+    const raf = requestAnimationFrame(() => setConeRevealed(true));
+    return () => cancelAnimationFrame(raf);
+  }, [sliceCone]);
+
+  const conedNodes = useMemo<Node[]>(() => {
+    if (!sliceCone || sliceCone.size === 0) return reactFlowNodes;
+    return reactFlowNodes.map((n) => {
+      const depth = sliceCone.get(n.id);
+      if (depth === undefined) {
+        return { ...n, style: { ...n.style, opacity: 0.22, transition: "opacity 260ms ease" } };
+      }
+      return {
+        ...n,
+        style: {
+          ...n.style,
+          opacity: coneRevealed ? 1 : 0.22,
+          transition: "opacity 320ms ease",
+          transitionDelay: `${depth * 90}ms`,
+        },
+      };
+    });
+  }, [reactFlowNodes, sliceCone, coneRevealed]);
+
+  const conedEdges = useMemo<Edge[]>(() => {
+    if (!sliceCone || sliceCone.size === 0) return reactFlowEdges;
+    return reactFlowEdges.map((e) => {
+      const inCone = sliceCone.has(e.source) && sliceCone.has(e.target);
+      return inCone
+        ? e
+        : { ...e, style: { ...e.style, opacity: 0.12, transition: "opacity 260ms ease" } };
+    });
+  }, [reactFlowEdges, sliceCone]);
+
   // ── Click handling: drill on subflow mount click, propagate click ─
   const handleNodeClick = useCallback(
     (_: unknown, node: Node) => {
@@ -587,8 +642,8 @@ export function TracedFlow({
       )}
       <div style={{ flex: 1, minHeight: 0 }}>
         <ReactFlow
-          nodes={reactFlowNodes}
-          edges={reactFlowEdges}
+          nodes={conedNodes}
+          edges={conedEdges}
           nodeTypes={mergedNodeTypes}
           edgeTypes={mergedEdgeTypes}
           onNodeClick={handleNodeClick}

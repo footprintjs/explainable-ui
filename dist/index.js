@@ -5025,6 +5025,7 @@ function TracedFlow({
   nodeTypes: userNodeTypes,
   edgeTypes: userEdgeTypes,
   coActiveStageIds,
+  sliceCone,
   children,
   className,
   style
@@ -5126,6 +5127,38 @@ function TracedFlow({
     ),
     [positioned.edges, slice, colors]
   );
+  const [coneRevealed, setConeRevealed] = useState10(false);
+  useEffect10(() => {
+    if (!sliceCone) return;
+    setConeRevealed(false);
+    const raf = requestAnimationFrame(() => setConeRevealed(true));
+    return () => cancelAnimationFrame(raf);
+  }, [sliceCone]);
+  const conedNodes = useMemo10(() => {
+    if (!sliceCone || sliceCone.size === 0) return reactFlowNodes;
+    return reactFlowNodes.map((n) => {
+      const depth = sliceCone.get(n.id);
+      if (depth === void 0) {
+        return { ...n, style: { ...n.style, opacity: 0.22, transition: "opacity 260ms ease" } };
+      }
+      return {
+        ...n,
+        style: {
+          ...n.style,
+          opacity: coneRevealed ? 1 : 0.22,
+          transition: "opacity 320ms ease",
+          transitionDelay: `${depth * 90}ms`
+        }
+      };
+    });
+  }, [reactFlowNodes, sliceCone, coneRevealed]);
+  const conedEdges = useMemo10(() => {
+    if (!sliceCone || sliceCone.size === 0) return reactFlowEdges;
+    return reactFlowEdges.map((e) => {
+      const inCone = sliceCone.has(e.source) && sliceCone.has(e.target);
+      return inCone ? e : { ...e, style: { ...e.style, opacity: 0.12, transition: "opacity 260ms ease" } };
+    });
+  }, [reactFlowEdges, sliceCone]);
   const handleNodeClick = useCallback7(
     (_, node) => {
       const data = node.data ?? {};
@@ -5167,8 +5200,8 @@ function TracedFlow({
         /* @__PURE__ */ jsx21("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ jsxs18(
           ReactFlow,
           {
-            nodes: reactFlowNodes,
-            edges: reactFlowEdges,
+            nodes: conedNodes,
+            edges: conedEdges,
             nodeTypes: mergedNodeTypes,
             edgeTypes: mergedEdgeTypes,
             onNodeClick: handleNodeClick,
@@ -5361,9 +5394,14 @@ var InspectorPanel = memo5(function InspectorPanel2({
   dataTraceFrames,
   dataTraceNote,
   selectedStageId,
-  onNavigateToStage
+  onNavigateToStage,
+  onTabChange
 }) {
-  const [tab, setTab] = useState11("state");
+  const [tab, setTabState] = useState11("state");
+  const setTab = (t) => {
+    setTabState(t);
+    onTabChange?.(t);
+  };
   const currentSnapshot = snapshots[selectedIndex];
   return /* @__PURE__ */ jsxs20(
     "div",
@@ -6020,12 +6058,10 @@ var RightPanel = memo8(function RightPanel2({
   recorderViews,
   autoRecorderViews,
   size,
-  onNavigateToStage
+  onNavigateToStage,
+  dataTrace,
+  onInspectorTabChange
 }) {
-  const dataTrace = useMemo12(
-    () => runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, snapshots[selectedIndex]?.runtimeStageId ?? "") : { frames: [], readsAvailable: true },
-    [runtimeSnapshot, snapshots, selectedIndex]
-  );
   return /* @__PURE__ */ jsxs23(Fragment6, { children: [
     /* @__PURE__ */ jsx26("div", { style: {
       display: "flex",
@@ -6079,6 +6115,7 @@ var RightPanel = memo8(function RightPanel2({
         selectedIndex,
         dataTraceFrames: dataTrace.frames,
         dataTraceNote: dataTrace.readsAvailable ? void 0 : "\u26A0 reads were not recorded (readTracking off) \u2014 dependencies are unknowable, not absent.",
+        onTabChange: onInspectorTabChange,
         selectedStageId: snapshots[selectedIndex]?.runtimeStageId,
         onNavigateToStage
       }
@@ -6132,7 +6169,7 @@ function ExplainableShell({
   const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
   const tracedFlowRenderer = useMemo12(() => {
     if (!traceGraph) return void 0;
-    return ({ selectedIndex, snapshots: snapshots2, onNodeClick }) => {
+    return ({ selectedIndex, snapshots: snapshots2, onNodeClick, sliceCone: sliceCone2 }) => {
       const activeRsid = snapshots2[selectedIndex]?.runtimeStageId;
       let overlayIdx = selectedIndex;
       if (activeRsid && runtimeOverlay) {
@@ -6156,6 +6193,7 @@ function ExplainableShell({
         {
           graph: traceGraph,
           overlay: runtimeOverlay ?? void 0,
+          sliceCone: sliceCone2 ?? void 0,
           colors: traceColors || void 0,
           scrubIndex: overlayIdx,
           onNodeClick: (stageId) => onNodeClick?.(stageId),
@@ -6216,6 +6254,7 @@ function ExplainableShell({
   const [drillDownStack, setDrillDownStack] = useState14([]);
   const [rightExpanded, setRightExpanded] = useState14(defaultExpanded?.details ?? true);
   const [rightPanelMode, setRightPanelMode] = useState14("insights");
+  const [inspectorTab, setInspectorTab] = useState14("state");
   const [leftExpanded, setLeftExpanded] = useState14(defaultExpanded?.topology ?? false);
   const [timelineExpanded, setTimelineExpanded] = useState14(defaultExpanded?.timeline ?? false);
   useEffect11(() => {
@@ -6251,6 +6290,21 @@ function ExplainableShell({
   }, [drillDownStack, snapshots]);
   const activeSnapshots = currentLevel.snapshots;
   const safeIdx = activeSnapshots.length > 0 ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1)) : 0;
+  const shellDataTrace = useMemo12(
+    () => runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "") : { frames: [], readsAvailable: true },
+    [runtimeSnapshot, activeSnapshots, safeIdx]
+  );
+  const sliceCone = useMemo12(() => {
+    if (rightPanelMode !== "what" || inspectorTab !== "trace") return void 0;
+    if (shellDataTrace.frames.length < 2) return void 0;
+    const cone = /* @__PURE__ */ new Map();
+    for (const f of shellDataTrace.frames) {
+      const stagePart = f.runtimeStageId.split("#")[0];
+      const prev = cone.get(stagePart);
+      if (prev === void 0 || f.depth < prev) cone.set(stagePart, f.depth);
+    }
+    return cone;
+  }, [rightPanelMode, inspectorTab, shellDataTrace]);
   const activeNarrativeEntries = isInSubflow ? currentLevel.narrative : narrativeEntries;
   const breadcrumbs = useMemo12(() => {
     const root = { label: title || "Flowchart", spec: null, description: void 0 };
@@ -6334,7 +6388,7 @@ function ExplainableShell({
         (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs23(Fragment6, { children: [
           /* @__PURE__ */ jsx26(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true }),
           isInSubflow && /* @__PURE__ */ jsx26(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-          traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId }),
+          traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, ...sliceCone && { sliceCone } }),
           /* @__PURE__ */ jsx26(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
           /* @__PURE__ */ jsx26(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, unstyled: true }),
           /* @__PURE__ */ jsx26(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
@@ -6453,7 +6507,8 @@ function ExplainableShell({
               snapshots: activeSnapshots,
               selectedIndex: safeIdx,
               onNodeClick: handleNodeClick,
-              showStageId
+              showStageId,
+              ...sliceCone && { sliceCone }
             }) }),
             showTreeSidebar && /* @__PURE__ */ jsxs23(Fragment6, { children: [
               /* @__PURE__ */ jsx26(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
@@ -6493,7 +6548,8 @@ function ExplainableShell({
                 snapshots: activeSnapshots,
                 selectedIndex: safeIdx,
                 onNodeClick: handleNodeClick,
-                showStageId
+                showStageId,
+                ...sliceCone && { sliceCone }
               }) }) : /* @__PURE__ */ jsx26("div", { style: { flex: 1 } }),
               /* @__PURE__ */ jsx26(VLinePill, { label: "Details", expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
               rightExpanded && /* @__PURE__ */ jsx26("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ jsx26(
@@ -6501,6 +6557,8 @@ function ExplainableShell({
                 {
                   mode: rightPanelMode,
                   onModeChange: setRightPanelMode,
+                  dataTrace: shellDataTrace,
+                  onInspectorTabChange: setInspectorTab,
                   snapshots: activeSnapshots,
                   selectedIndex: safeIdx,
                   runtimeSnapshot,

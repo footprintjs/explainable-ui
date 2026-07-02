@@ -236,6 +236,9 @@ export interface ExplainableShellProps extends BaseComponentProps {
     selectedIndex: number;
     onNodeClick?: (indexOrId: number | string) => void;
     showStageId?: boolean;
+    /** Dependency-cone overlay (chart node id → BFS depth) — painted while
+     *  the Inspector's Data Trace tab is open. Custom renderers may ignore it. */
+    sliceCone?: ReadonlyMap<string, number>;
   }) => React.ReactNode;
   /**
    * When true, render each node's stable `stageId` as a small monospace
@@ -721,6 +724,8 @@ const RightPanel = memo(function RightPanel({
   autoRecorderViews,
   size,
   onNavigateToStage,
+  dataTrace,
+  onInspectorTabChange,
 }: {
   mode: RightPanelMode;
   onModeChange: (mode: RightPanelMode) => void;
@@ -735,17 +740,11 @@ const RightPanel = memo(function RightPanel({
   autoRecorderViews: Array<{ id: string; name: string; description?: string; preferredOperation?: string; data: unknown }>;
   size: "compact" | "default" | "detailed";
   onNavigateToStage: (id: string) => void;
+  /** Precomputed backward slice for the Data Trace tab (lifted to the shell
+   *  root so the chart's dependency cone shares the SAME frames). */
+  dataTrace: { frames: import("./_internal/dataTrace").DataTraceFrame[]; readsAvailable: boolean };
+  onInspectorTabChange?: (tab: "state" | "trace") => void;
 }) {
-  // The REAL backward slice for the Data Trace tab — computed once per
-  // (snapshot, cursor) pair. `readsAvailable: false` becomes an honesty note
-  // so an edge-less trace is never mistaken for "no dependencies".
-  const dataTrace = useMemo(
-    () =>
-      runtimeSnapshot?.commitLog
-        ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, snapshots[selectedIndex]?.runtimeStageId ?? "")
-        : { frames: [], readsAvailable: true },
-    [runtimeSnapshot, snapshots, selectedIndex],
-  );
   return (
     <>
       {/* Mode toggle */}
@@ -804,6 +803,7 @@ const RightPanel = memo(function RightPanel({
             selectedIndex={selectedIndex}
             dataTraceFrames={dataTrace.frames}
             dataTraceNote={dataTrace.readsAvailable ? undefined : '⚠ reads were not recorded (readTracking off) — dependencies are unknowable, not absent.'}
+            onTabChange={onInspectorTabChange}
             selectedStageId={snapshots[selectedIndex]?.runtimeStageId}
             onNavigateToStage={onNavigateToStage}
           />
@@ -876,10 +876,11 @@ export function ExplainableShell({
   // the single source of truth.
   const tracedFlowRenderer = useMemo(() => {
     if (!traceGraph) return undefined;
-    return ({ selectedIndex, snapshots, onNodeClick }: {
+    return ({ selectedIndex, snapshots, onNodeClick, sliceCone }: {
       spec: SpecNode | null; snapshots: StageSnapshot[]; selectedIndex: number;
       onNodeClick?: (indexOrId: number | string) => void;
       showStageId?: boolean;
+      sliceCone?: ReadonlyMap<string, number>;
     }) => {
       // The shell's `selectedIndex` indexes into `snapshots[]` (which
       // may be filtered to a drill-down subset). The overlay's
@@ -924,6 +925,7 @@ export function ExplainableShell({
         <TracedFlow
           graph={traceGraph}
           overlay={runtimeOverlay ?? undefined}
+          sliceCone={sliceCone ?? undefined}
           colors={traceColors || undefined}
           scrubIndex={overlayIdx}
           onNodeClick={(stageId) => onNodeClick?.(stageId)}
@@ -1009,6 +1011,11 @@ export function ExplainableShell({
   const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
   const [rightExpanded, setRightExpanded] = useState(defaultExpanded?.details ?? true);
   const [rightPanelMode, setRightPanelMode] = useState<"insights" | "what">("insights");
+  // Inspector's active tab, lifted so the chart can paint the dependency
+  // CONE exactly while the Data Trace tab is open (Inspector mode).
+  const [inspectorTab, setInspectorTab] = useState<"state" | "trace">("state");
+
+
   const [leftExpanded, setLeftExpanded] = useState(defaultExpanded?.topology ?? false);
   const [timelineExpanded, setTimelineExpanded] = useState(defaultExpanded?.timeline ?? false);
 
@@ -1045,6 +1052,34 @@ export function ExplainableShell({
   const safeIdx = activeSnapshots.length > 0
     ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1))
     : 0;
+
+  // ONE backward slice, THREE consumers: the Data Trace tab (frames), its
+  // honesty note, and the chart's dependency cone. Computed once per
+  // (snapshot, cursor) so the panel and the chart can never disagree.
+  const shellDataTrace = useMemo(
+    () =>
+      runtimeSnapshot?.commitLog
+        ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "")
+        : { frames: [] as import("./_internal/dataTrace").DataTraceFrame[], readsAvailable: true },
+    [runtimeSnapshot, activeSnapshots, safeIdx],
+  );
+
+  // The cone: chart node id (stage part — strip the '#N' execution index) →
+  // BFS depth. Painted ONLY while the Inspector's Data Trace tab is open, so
+  // it never fights the scrub overlay's visited/current story.
+  const sliceCone = useMemo<ReadonlyMap<string, number> | undefined>(() => {
+    // Gate: the Inspector panel's INTERNAL mode name is 'what' (its button
+    // label is "Inspector"); 'insights' is the Story/narrative side.
+    if (rightPanelMode !== "what" || inspectorTab !== "trace") return undefined;
+    if (shellDataTrace.frames.length < 2) return undefined; // an anchor alone is not a cone
+    const cone = new Map<string, number>();
+    for (const f of shellDataTrace.frames) {
+      const stagePart = f.runtimeStageId.split("#")[0];
+      const prev = cone.get(stagePart);
+      if (prev === undefined || f.depth < prev) cone.set(stagePart, f.depth);
+    }
+    return cone;
+  }, [rightPanelMode, inspectorTab, shellDataTrace]);
 
   // While drilled in, feed the Story the subflow-scoped, subflow-renumbered
   // narrative (Bug 3) so it reveals to the subflow-local cursor — not the
@@ -1153,7 +1188,7 @@ export function ExplainableShell({
             <>
               <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled />
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
-              {traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId })}
+              {traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, ...(sliceCone && { sliceCone }) })}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
               <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} unstyled />
               <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
@@ -1314,6 +1349,7 @@ export function ExplainableShell({
                   selectedIndex: safeIdx,
                   onNodeClick: handleNodeClick,
                   showStageId,
+                  ...(sliceCone && { sliceCone }),
                 })}
               </div>
             )}
@@ -1387,7 +1423,8 @@ export function ExplainableShell({
                     snapshots: activeSnapshots,
                     selectedIndex: safeIdx,
                     onNodeClick: handleNodeClick,
-                  showStageId,
+                    showStageId,
+                    ...(sliceCone && { sliceCone }),
                   })}
                 </div>
               ) : (
@@ -1403,6 +1440,8 @@ export function ExplainableShell({
                 <RightPanel
                   mode={rightPanelMode}
                   onModeChange={setRightPanelMode}
+                  dataTrace={shellDataTrace}
+                  onInspectorTabChange={setInspectorTab}
                   snapshots={activeSnapshots}
                   selectedIndex={safeIdx}
                   runtimeSnapshot={runtimeSnapshot}

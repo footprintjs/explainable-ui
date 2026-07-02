@@ -998,6 +998,17 @@ interface TracedFlowProps extends BaseComponentProps {
      */
     coActiveStageIds?: ReadonlySet<string>;
     /**
+     * Dependency-CONE overlay (the variable backward slice painted on the
+     * chart): a map of chart node id → BFS depth (0 = the slice anchor/writer).
+     * Nodes NOT in the map dim to near-transparency; members re-light with a
+     * staggered transition-delay by depth — causality walks BACKWARDS across
+     * the chart when the cone changes. Edges with either endpoint outside the
+     * cone dim too. `undefined`/`null` = no cone, byte-identical rendering.
+     * Keys are chart node ids (the stage part of a runtimeStageId — strip
+     * `#N` before passing).
+     */
+    sliceCone?: ReadonlyMap<string, number> | null;
+    /**
      * Subflow ids to render as GROUP CONTAINER boxes — the subflow's member
      * stages render NESTED inside the box (xyflow `parentId` + `extent`),
      * instead of behind a click-to-zoom DRILL card. Per-subflow choice: any
@@ -1024,7 +1035,7 @@ interface TracedFlowProps extends BaseComponentProps {
      */
     children?: react.ReactNode;
 }
-declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, children, className, style, }: TracedFlowProps): react.JSX.Element;
+declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, sliceCone, children, className, style, }: TracedFlowProps): react.JSX.Element;
 
 interface GroupContainerNodeData {
     label: string;
