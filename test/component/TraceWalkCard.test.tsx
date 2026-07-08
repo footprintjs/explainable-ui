@@ -13,7 +13,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 
 import { TraceWalkCard } from "../../src/components/DataTracePanel/TraceWalkCard";
 import {
@@ -175,5 +175,77 @@ describe("TraceWalkCard", () => {
       />,
     );
     expect(screen.getByText(/= 109.45/)).toBeTruthy();
+  });
+});
+
+describe("TraceWalkCard — fork chooser (F2)", () => {
+  it("renders the chooser when forkChooserOpen and the stop has 2+ ingredients; chips follow as usual", () => {
+    const onFollow = vi.fn();
+    const { container } = render(
+      <TraceWalkCard
+        walk={WALK}
+        cursorRuntimeStageId="computeTotal#4"
+        stepNumberOf={stepOf}
+        onFollowIngredient={onFollow}
+        forkChooserOpen
+        onContinueTimeOrder={vi.fn()}
+      />,
+    );
+    const chooser = container.querySelector('[data-fp="twc-fork-chooser"]') as HTMLElement;
+    expect(chooser).toBeTruthy();
+    expect(chooser.textContent).toContain(
+      "This value was made from 2 ingredients — which one should the walk follow?",
+    );
+    // The SAME ingredient chips (both followable) live inside the chooser.
+    const chips = within(chooser).getAllByTitle(/Follow /);
+    expect(chips).toHaveLength(2);
+    fireEvent.click(chips.find((c) => c.textContent?.includes("tax"))!);
+    expect(onFollow).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "tax", writerRuntimeStageId: "applyTax#3" }),
+    );
+  });
+
+  it("fires onContinueTimeOrder from the neutral 'visit all (time order)' button", () => {
+    const onContinue = vi.fn();
+    const { container } = render(
+      <TraceWalkCard
+        walk={WALK}
+        cursorRuntimeStageId="computeTotal#4"
+        stepNumberOf={stepOf}
+        forkChooserOpen
+        onContinueTimeOrder={onContinue}
+      />,
+    );
+    fireEvent.click(
+      within(container.querySelector('[data-fp="twc-fork-chooser"]') as HTMLElement).getByText(
+        "visit all, oldest cause last (time order)",
+      ),
+    );
+    expect(onContinue).toHaveBeenCalledOnce();
+  });
+
+  it("no chooser when the stop has a single ingredient (nothing to choose)", () => {
+    const { container } = render(
+      <TraceWalkCard
+        walk={WALK}
+        cursorRuntimeStageId="sum#1"
+        stepNumberOf={stepOf}
+        forkChooserOpen
+        onContinueTimeOrder={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('[data-fp="twc-fork-chooser"]')).toBeNull();
+  });
+
+  it("no chooser when forkChooserOpen is false, even at a fork stop", () => {
+    const { container } = render(
+      <TraceWalkCard
+        walk={WALK}
+        cursorRuntimeStageId="computeTotal#4"
+        stepNumberOf={stepOf}
+        onContinueTimeOrder={vi.fn()}
+      />,
+    );
+    expect(container.querySelector('[data-fp="twc-fork-chooser"]')).toBeNull();
   });
 });

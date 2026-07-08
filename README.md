@@ -163,6 +163,18 @@ have. One cursor, no new axis.
 - **[Copy story]** emits the same text an LLM backtrack tool returns — the
   human's board and the agent's answer are one artifact.
 - Tracing lives on the root rail: drilling into a subflow exits it honestly.
+- **Trace anything**: below the current step's chips, a search box lists
+  *every* variable the run ever wrote — trace any of them from wherever you
+  stand.
+- **Forks ask, never assume**: at a value made from two or more ingredients
+  the walk-back button becomes **⑂ choose cause…** and asks which ingredient
+  to follow (or "visit all, in time order"). Nothing is ever silently picked.
+
+![The fork chooser: which cause should the walk follow?](demo/fork-chooser-verified.png)
+
+- **Unmistakable mode**: the whole tracing rail wears its own color
+  (`--fp-tracing`, teal by default — themeable) so tracing can never be
+  confused with normal time-travel.
 
 ### Panel Labels
 

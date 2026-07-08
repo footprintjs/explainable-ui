@@ -9,6 +9,12 @@ import { theme, fontSize } from "../../theme";
  * is set, slice members stay landable ("stops"), everything else fades to
  * unlandable ticks, and prev/next walk stop-to-stop ("◀ earlier cause").
  * The cursor stays the ONE `selectedIndex` — no second position exists.
+ *
+ * THEMING: tracing mode recolors its chrome with ONE token, `--fp-tracing`
+ * (default #0d9488 teal) — the TRACING badge, the rail's bottom border, the
+ * stop ticks, the walk buttons, and Done — so the tracing rail is
+ * unmistakably not normal time-travel. Consumers retheme by setting
+ * `--fp-tracing` on any ancestor. Normal mode never reads the token.
  */
 export interface TracingRail {
   /** The traced variable — rendered in the mode header. */
@@ -26,6 +32,14 @@ export interface TracingRail {
   onExit: () => void;
   /** Clear the via filter back to the full walk (breadcrumb's "show all"). */
   onShowAll?: () => void;
+  /** Ingredient count at the CURRENT stop. Together with `onForkPrompt`,
+   *  >= 2 turns the walk-back control into "choose cause…": it PROMPTS
+   *  instead of moving, so a silent default never hides one parent of a
+   *  fork. 0/undefined = not a fork — classic earlier-cause behavior. */
+  forkCount?: number;
+  /** Open the fork chooser — fired INSTEAD of a cursor move when
+   *  `forkCount >= 2` (click or ArrowLeft on the walk-back control). */
+  onForkPrompt?: () => void;
 }
 
 export interface TimeTravelControlsProps extends BaseComponentProps {
@@ -74,15 +88,24 @@ export function TimeTravelControls({
     return tracing.stopIndices.find((i) => i > selectedIndex) ?? null;
   }, [tracing, selectedIndex]);
 
-  const canPrev = isTracing ? earlierStop !== null : selectedIndex > 0;
+  // A fork stop PROMPTS instead of moving: the walk-back control asks which
+  // ingredient to follow (F2). Enabled even when there is no earlier stop —
+  // it opens a chooser, it does not move the cursor.
+  const forkPrompt = isTracing && (tracing!.forkCount ?? 0) >= 2 && !!tracing!.onForkPrompt;
+
+  const canPrev = isTracing ? forkPrompt || earlierStop !== null : selectedIndex > 0;
   const canNext = isTracing ? laterStop !== null : selectedIndex < total - 1;
 
   const goPrev = useCallback(() => {
     setPlaying(false);
     if (isTracing) {
+      if (forkPrompt) {
+        tracing!.onForkPrompt!();
+        return;
+      }
       if (earlierStop !== null) onIndexChange(earlierStop);
     } else if (selectedIndex > 0) onIndexChange(selectedIndex - 1);
-  }, [isTracing, earlierStop, selectedIndex, onIndexChange]);
+  }, [isTracing, forkPrompt, tracing, earlierStop, selectedIndex, onIndexChange]);
   const goNext = useCallback(() => {
     setPlaying(false);
     if (isTracing) {
@@ -141,7 +164,10 @@ export function TimeTravelControls({
   );
 
   const fs = fontSize[size];
-  const accent = "var(--fp-accent, #6366f1)";
+  // F3: tracing chrome uses its OWN token — teal by default, distinct from
+  // the violet accent, green done-ticks, and the orange NOW ring — so a
+  // glance tells tracing from normal time-travel. Never read in normal mode.
+  const tracingColor = "var(--fp-tracing, #0d9488)";
 
   if (unstyled) {
     return (
@@ -172,9 +198,9 @@ export function TimeTravelControls({
           data-fp="tt-prev"
           disabled={!canPrev || playing}
           onClick={goPrev}
-          aria-label={isTracing ? "Earlier cause" : "Previous stage"}
+          aria-label={isTracing ? (forkPrompt ? "Choose cause" : "Earlier cause") : "Previous stage"}
         >
-          {isTracing ? "Earlier cause" : "Prev"}
+          {isTracing ? (forkPrompt ? "Choose cause…" : "Earlier cause") : "Prev"}
         </button>
         {autoPlayable && !isTracing && (
           <button data-fp="tt-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
@@ -210,10 +236,12 @@ export function TimeTravelControls({
     );
   }
 
+  // In tracing mode the walk buttons (and Done) carry the tracing color on
+  // border + label — part of F3's "unmistakably different" rail chrome.
   const btnStyle = (disabled: boolean): React.CSSProperties => ({
     background: theme.bgTertiary,
-    border: `1px solid ${theme.border}`,
-    color: disabled ? theme.textMuted : theme.textPrimary,
+    border: `1px solid ${isTracing ? tracingColor : theme.border}`,
+    color: disabled ? theme.textMuted : isTracing ? tracingColor : theme.textPrimary,
     borderRadius: "6px",
     padding: "4px 12px",
     fontSize: fs.body,
@@ -229,7 +257,7 @@ export function TimeTravelControls({
       style={{
         padding: "6px 12px",
         background: theme.bgSecondary,
-        borderBottom: isTracing ? `2px solid ${accent}` : `1px solid ${theme.border}`,
+        borderBottom: isTracing ? `2px solid ${tracingColor}` : `1px solid ${theme.border}`,
         display: "flex",
         alignItems: "center",
         gap: 6,
@@ -262,14 +290,14 @@ export function TimeTravelControls({
               letterSpacing: "0.06em",
               textTransform: "uppercase",
               color: "#fff",
-              background: accent,
+              background: tracingColor,
               borderRadius: 4,
               padding: "2px 7px",
             }}
           >
             Tracing
           </span>
-          <span style={{ fontFamily: "monospace", fontWeight: 600, color: accent }}>
+          <span style={{ fontFamily: "monospace", fontWeight: 600, color: tracingColor }}>
             {tracing!.tracedKey}
           </span>
           {tracing!.viaKey && (
@@ -284,7 +312,7 @@ export function TimeTravelControls({
                 style={{
                   border: "none",
                   background: "transparent",
-                  color: accent,
+                  color: tracingColor,
                   cursor: "pointer",
                   fontSize: fs.body,
                   textDecoration: "underline",
@@ -305,11 +333,17 @@ export function TimeTravelControls({
         style={btnStyle(!canPrev || playing)}
         disabled={!canPrev || playing}
         onClick={goPrev}
-        aria-label={isTracing ? "Earlier cause" : "Previous stage"}
-        title={isTracing ? "Earlier cause" : "Previous stage"}
+        aria-label={isTracing ? (forkPrompt ? "Choose cause" : "Earlier cause") : "Previous stage"}
+        title={
+          isTracing
+            ? forkPrompt
+              ? "This stop is a fork — choose which cause to follow"
+              : "Earlier cause"
+            : "Previous stage"
+        }
         data-fp="tt-prev"
       >
-        {isTracing ? "◀ earlier cause" : "◀"}
+        {isTracing ? (forkPrompt ? "⑂ choose cause…" : "◀ earlier cause") : "◀"}
       </button>
 
       {autoPlayable && !isTracing && (
@@ -380,9 +414,9 @@ export function TimeTravelControls({
                 cursor: unlandable ? "default" : "pointer",
                 background: isTracing
                   ? isActive
-                    ? accent
+                    ? tracingColor
                     : isStop
-                      ? "color-mix(in srgb, " + accent + " 55%, transparent)"
+                      ? "color-mix(in srgb, " + tracingColor + " 55%, transparent)"
                       : theme.bgTertiary
                   : isActive
                     ? theme.primary

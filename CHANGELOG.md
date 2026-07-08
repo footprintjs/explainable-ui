@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.30.0] - 2026-07-03
+
+### Added
+
+- **Trace ANY variable** — the Data Trace tab gains a second entry block: a
+  search over every key the run ever wrote (max 12 shown, type to filter).
+  A key not yet written at the cursor gets the honest "not written yet"
+  card; never-written gets its card — no special cases.
+- **The fork chooser** — at a stop made from 2+ followable ingredients the
+  walk-back control becomes "⑂ choose cause…" and PROMPTS: follow one
+  ingredient (chips) or "visit all, oldest cause last (time order)" — the
+  classic behavior. The chooser closes on any cursor move; run-input
+  termini don't count as a choice (nothing to follow); at the walk's
+  earliest stop the time-order option is honestly disabled.
+- **`--fp-tracing`** — one theme token (default #0d9488 teal) recolors ALL
+  tracing chrome (badge, rail border, stops, walk buttons, chooser) so the
+  tracing rail is unmistakably not normal time-travel. Normal mode never
+  reads it. `TracingRail` gains `forkCount`/`onForkPrompt`; `TraceWalkCard`
+  gains `forkChooserOpen`/`onContinueTimeOrder`/`canContinueTimeOrder`.
+- Built by an implementer agent against a locked spec, adversarially
+  reviewed (ship verdict; all should-fixes applied), browser-verified —
+  demo/fork-chooser-verified.png.
+
 ## [0.29.0] - 2026-07-02
 
 ### Added

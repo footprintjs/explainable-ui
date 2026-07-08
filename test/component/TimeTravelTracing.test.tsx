@@ -16,6 +16,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
 import { TimeTravelControls } from "../../src/components/TimeTravelControls/TimeTravelControls";
+import type { TracingRail } from "../../src/components/TimeTravelControls/TimeTravelControls";
 import type { StageSnapshot } from "../../src/types";
 
 const snap = (label: string): StageSnapshot => ({
@@ -30,7 +31,10 @@ const snap = (label: string): StageSnapshot => ({
 
 const SNAPSHOTS = ["Seed", "Sum", "Audit", "ApplyTax", "Total"].map(snap);
 
-function renderTracing(overrides: Partial<Parameters<typeof TimeTravelControls>[0]> = {}) {
+function renderTracing(
+  overrides: Partial<Parameters<typeof TimeTravelControls>[0]> = {},
+  tracingOverrides: Partial<TracingRail> = {},
+) {
   const onIndexChange = vi.fn();
   const onExit = vi.fn();
   const utils = render(
@@ -44,6 +48,7 @@ function renderTracing(overrides: Partial<Parameters<typeof TimeTravelControls>[
         stopOrdinal: 1,
         totalStops: 4,
         onExit,
+        ...tracingOverrides,
       }}
       {...overrides}
     />,
@@ -141,5 +146,49 @@ describe("TimeTravelControls — tracing mode", () => {
     expect(screen.getByLabelText("Play")).toBeTruthy();
     fireEvent.click(screen.getByLabelText("Previous stage"));
     expect(onIndexChange).toHaveBeenCalledWith(1);
+  });
+});
+
+describe("TimeTravelControls — fork chooser (F2)", () => {
+  it("forkCount >= 2 turns the walk-back control into 'choose cause' and fires onForkPrompt without moving", () => {
+    const onForkPrompt = vi.fn();
+    const { onIndexChange } = renderTracing({ selectedIndex: 4 }, { forkCount: 2, onForkPrompt });
+    const btn = screen.getByLabelText("Choose cause") as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toMatch(/choose cause/);
+    fireEvent.click(btn);
+    expect(onForkPrompt).toHaveBeenCalledOnce();
+    expect(onIndexChange).not.toHaveBeenCalled(); // a prompt, never a move
+  });
+
+  it("ArrowLeft at a fork fires onForkPrompt instead of moving the cursor", () => {
+    const onForkPrompt = vi.fn();
+    const { onIndexChange } = renderTracing({ selectedIndex: 4 }, { forkCount: 3, onForkPrompt });
+    fireEvent.keyDown(screen.getByRole("toolbar"), { key: "ArrowLeft" });
+    expect(onForkPrompt).toHaveBeenCalledOnce();
+    expect(onIndexChange).not.toHaveBeenCalled();
+  });
+
+  it("forkCount undefined keeps the classic earlier-cause behavior", () => {
+    const { onIndexChange } = renderTracing({ selectedIndex: 4 }, { onForkPrompt: vi.fn() });
+    fireEvent.click(screen.getByLabelText("Earlier cause"));
+    expect(onIndexChange).toHaveBeenCalledWith(3);
+  });
+
+  it("forkCount 1 (not a fork) keeps the classic earlier-cause behavior", () => {
+    const onForkPrompt = vi.fn();
+    const { onIndexChange } = renderTracing({ selectedIndex: 4 }, { forkCount: 1, onForkPrompt });
+    fireEvent.click(screen.getByLabelText("Earlier cause"));
+    expect(onIndexChange).toHaveBeenCalledWith(3);
+    expect(onForkPrompt).not.toHaveBeenCalled();
+  });
+
+  it("'choose cause' stays enabled even at the earliest stop — it prompts, it does not move", () => {
+    const onForkPrompt = vi.fn();
+    renderTracing({ selectedIndex: 0 }, { forkCount: 2, onForkPrompt });
+    const btn = screen.getByLabelText("Choose cause") as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    fireEvent.click(btn);
+    expect(onForkPrompt).toHaveBeenCalledOnce();
   });
 });

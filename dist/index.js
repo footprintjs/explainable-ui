@@ -2014,14 +2014,19 @@ function TimeTravelControls({
     if (!tracing) return null;
     return tracing.stopIndices.find((i) => i > selectedIndex) ?? null;
   }, [tracing, selectedIndex]);
-  const canPrev = isTracing ? earlierStop !== null : selectedIndex > 0;
+  const forkPrompt = isTracing && (tracing.forkCount ?? 0) >= 2 && !!tracing.onForkPrompt;
+  const canPrev = isTracing ? forkPrompt || earlierStop !== null : selectedIndex > 0;
   const canNext = isTracing ? laterStop !== null : selectedIndex < total - 1;
   const goPrev = useCallback3(() => {
     setPlaying(false);
     if (isTracing) {
+      if (forkPrompt) {
+        tracing.onForkPrompt();
+        return;
+      }
       if (earlierStop !== null) onIndexChange(earlierStop);
     } else if (selectedIndex > 0) onIndexChange(selectedIndex - 1);
-  }, [isTracing, earlierStop, selectedIndex, onIndexChange]);
+  }, [isTracing, forkPrompt, tracing, earlierStop, selectedIndex, onIndexChange]);
   const goNext = useCallback3(() => {
     setPlaying(false);
     if (isTracing) {
@@ -2073,7 +2078,7 @@ function TimeTravelControls({
     [canPrev, canNext, playing, goPrev, goNext, autoPlayable, togglePlay, isTracing, tracing]
   );
   const fs = fontSize[size];
-  const accent = "var(--fp-accent, #6366f1)";
+  const tracingColor = "var(--fp-tracing, #0d9488)";
   if (unstyled) {
     return /* @__PURE__ */ jsxs9(
       "div",
@@ -2110,8 +2115,8 @@ function TimeTravelControls({
               "data-fp": "tt-prev",
               disabled: !canPrev || playing,
               onClick: goPrev,
-              "aria-label": isTracing ? "Earlier cause" : "Previous stage",
-              children: isTracing ? "Earlier cause" : "Prev"
+              "aria-label": isTracing ? forkPrompt ? "Choose cause" : "Earlier cause" : "Previous stage",
+              children: isTracing ? forkPrompt ? "Choose cause\u2026" : "Earlier cause" : "Prev"
             }
           ),
           autoPlayable && !isTracing && /* @__PURE__ */ jsx10("button", { "data-fp": "tt-play", onClick: togglePlay, "aria-label": playing ? "Pause" : "Play", children: playing ? "Pause" : "Play" }),
@@ -2150,8 +2155,8 @@ function TimeTravelControls({
   }
   const btnStyle = (disabled) => ({
     background: theme.bgTertiary,
-    border: `1px solid ${theme.border}`,
-    color: disabled ? theme.textMuted : theme.textPrimary,
+    border: `1px solid ${isTracing ? tracingColor : theme.border}`,
+    color: disabled ? theme.textMuted : isTracing ? tracingColor : theme.textPrimary,
     borderRadius: "6px",
     padding: "4px 12px",
     fontSize: fs.body,
@@ -2167,7 +2172,7 @@ function TimeTravelControls({
       style: {
         padding: "6px 12px",
         background: theme.bgSecondary,
-        borderBottom: isTracing ? `2px solid ${accent}` : `1px solid ${theme.border}`,
+        borderBottom: isTracing ? `2px solid ${tracingColor}` : `1px solid ${theme.border}`,
         display: "flex",
         alignItems: "center",
         gap: 6,
@@ -2202,14 +2207,14 @@ function TimeTravelControls({
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
                     color: "#fff",
-                    background: accent,
+                    background: tracingColor,
                     borderRadius: 4,
                     padding: "2px 7px"
                   },
                   children: "Tracing"
                 }
               ),
-              /* @__PURE__ */ jsx10("span", { style: { fontFamily: "monospace", fontWeight: 600, color: accent }, children: tracing.tracedKey }),
+              /* @__PURE__ */ jsx10("span", { style: { fontFamily: "monospace", fontWeight: 600, color: tracingColor }, children: tracing.tracedKey }),
               tracing.viaKey && /* @__PURE__ */ jsxs9("span", { style: { color: theme.textMuted }, children: [
                 "\u25B8 via",
                 " ",
@@ -2223,7 +2228,7 @@ function TimeTravelControls({
                     style: {
                       border: "none",
                       background: "transparent",
-                      color: accent,
+                      color: tracingColor,
                       cursor: "pointer",
                       fontSize: fs.body,
                       textDecoration: "underline",
@@ -2248,10 +2253,10 @@ function TimeTravelControls({
             style: btnStyle(!canPrev || playing),
             disabled: !canPrev || playing,
             onClick: goPrev,
-            "aria-label": isTracing ? "Earlier cause" : "Previous stage",
-            title: isTracing ? "Earlier cause" : "Previous stage",
+            "aria-label": isTracing ? forkPrompt ? "Choose cause" : "Earlier cause" : "Previous stage",
+            title: isTracing ? forkPrompt ? "This stop is a fork \u2014 choose which cause to follow" : "Earlier cause" : "Previous stage",
             "data-fp": "tt-prev",
-            children: isTracing ? "\u25C0 earlier cause" : "\u25C0"
+            children: isTracing ? forkPrompt ? "\u2442 choose cause\u2026" : "\u25C0 earlier cause" : "\u25C0"
           }
         ),
         autoPlayable && !isTracing && /* @__PURE__ */ jsx10(
@@ -2322,7 +2327,7 @@ function TimeTravelControls({
                     borderRadius: 3,
                     border: "none",
                     cursor: unlandable ? "default" : "pointer",
-                    background: isTracing ? isActive ? accent : isStop ? "color-mix(in srgb, " + accent + " 55%, transparent)" : theme.bgTertiary : isActive ? theme.primary : isDone ? theme.success : theme.bgTertiary,
+                    background: isTracing ? isActive ? tracingColor : isStop ? "color-mix(in srgb, " + tracingColor + " 55%, transparent)" : theme.bgTertiary : isActive ? theme.primary : isDone ? theme.success : theme.bgTertiary,
                     opacity: unlandable ? 0.3 : isTracing || isDone || isActive ? 1 : 0.4,
                     transition: "all 0.15s ease"
                   }
@@ -2573,16 +2578,22 @@ var TraceWalkCard = memo(function TraceWalkCard2({
   onFollowIngredient,
   onJumpToStop,
   onShowAll,
-  onExit
+  onExit,
+  forkChooserOpen,
+  onContinueTimeOrder,
+  canContinueTimeOrder = true
 }) {
   const [copied, setCopied] = useState7(false);
   const accent = "var(--fp-accent, #6366f1)";
+  const tracingColor = "var(--fp-tracing, #0d9488)";
   const currentIdx = useMemo8(() => {
     if (!cursorRuntimeStageId) return 0;
     const i = walk.stops.findIndex((s) => s.runtimeStageId === cursorRuntimeStageId);
     return i >= 0 ? i : 0;
   }, [walk, cursorRuntimeStageId]);
   const current = walk.stops[currentIdx];
+  const followableCount = current ? current.ingredients.filter((ing) => ing.writerRuntimeStageId !== null).length : 0;
+  const chooserVisible = !!forkChooserOpen && followableCount >= 2;
   const copyStory = () => {
     const text = formatTraceWalk(walk, stepNumberOf);
     void navigator.clipboard?.writeText(text).then(() => {
@@ -2668,7 +2679,60 @@ var TraceWalkCard = memo(function TraceWalkCard2({
         preview
       ] })
     ] }),
-    /* @__PURE__ */ jsx11("div", { style: { marginTop: 10 }, children: current.ingredients.length > 0 ? /* @__PURE__ */ jsxs10(Fragment4, { children: [
+    chooserVisible && /* @__PURE__ */ jsxs10(
+      "div",
+      {
+        "data-fp": "twc-fork-chooser",
+        style: {
+          marginTop: 10,
+          padding: "10px 12px",
+          border: `1.5px solid ${tracingColor}`,
+          borderRadius: 8,
+          background: `color-mix(in srgb, ${tracingColor} 8%, transparent)`
+        },
+        children: [
+          /* @__PURE__ */ jsxs10("div", { style: { fontWeight: 600, fontSize: 12, color: theme.textPrimary }, children: [
+            "This value was made from ",
+            current.ingredients.length,
+            " ingredients \u2014 which one should the walk follow?"
+          ] }),
+          /* @__PURE__ */ jsx11("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }, children: current.ingredients.map((ing, i) => /* @__PURE__ */ jsx11(
+            IngredientChip,
+            {
+              ing,
+              color: i < CHIP_COLORS.length ? CHIP_COLORS[i] : theme.textMuted,
+              step: ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null,
+              onFollow: onFollowIngredient
+            },
+            ing.key
+          )) }),
+          /* @__PURE__ */ jsx11(
+            "button",
+            {
+              "data-fp": "twc-continue-time",
+              onClick: canContinueTimeOrder ? onContinueTimeOrder : void 0,
+              disabled: !canContinueTimeOrder,
+              title: canContinueTimeOrder ? void 0 : "This is the walk's earliest stop \u2014 there is nothing earlier to visit",
+              style: {
+                display: "block",
+                width: "100%",
+                marginTop: 8,
+                border: `1px solid ${theme.border}`,
+                background: theme.bgTertiary,
+                color: theme.textPrimary,
+                borderRadius: 6,
+                padding: "5px 10px",
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer"
+              },
+              children: "visit all, oldest cause last (time order)"
+            }
+          )
+        ]
+      }
+    ),
+    /* @__PURE__ */ jsx11("div", { style: { marginTop: 10 }, children: chooserVisible ? null : current.ingredients.length > 0 ? /* @__PURE__ */ jsxs10(Fragment4, { children: [
       /* @__PURE__ */ jsxs10("div", { style: { fontSize: 11, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }, children: [
         "Made from ",
         current.ingredients.length,
@@ -6805,6 +6869,11 @@ function ExplainableShell({
   const [rightPanelMode, setRightPanelMode] = useState15("insights");
   const [inspectorTab, setInspectorTab] = useState15("state");
   const [tracing, setTracing] = useState15(null);
+  const [forkChooserOpen, setForkChooserOpen] = useState15(false);
+  const [traceSearch, setTraceSearch] = useState15("");
+  useEffect11(() => {
+    setForkChooserOpen(false);
+  }, [snapshotIdx]);
   const [leftExpanded, setLeftExpanded] = useState15(defaultExpanded?.topology ?? false);
   const [timelineExpanded, setTimelineExpanded] = useState15(defaultExpanded?.timeline ?? false);
   useEffect11(() => {
@@ -6844,6 +6913,21 @@ function ExplainableShell({
     () => runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "") : { frames: [], readsAvailable: true },
     [runtimeSnapshot, activeSnapshots, safeIdx]
   );
+  const allTracedKeys = useMemo14(() => {
+    const log = runtimeSnapshot?.commitLog;
+    if (!log?.length) return [];
+    const seen = /* @__PURE__ */ new Set();
+    const keys = [];
+    for (const c of log) {
+      for (const t of c.trace ?? []) {
+        if (!seen.has(t.path)) {
+          seen.add(t.path);
+          keys.push(t.path);
+        }
+      }
+    }
+    return keys;
+  }, [runtimeSnapshot]);
   const traceWalk = useMemo14(() => {
     if (!tracing || !runtimeSnapshot?.commitLog) return null;
     const scope = tracing.via.length > 0 ? tracing.via[tracing.via.length - 1] : tracing;
@@ -6917,6 +7001,8 @@ function ExplainableShell({
       const cursorCommitIdx = log.findIndex((c) => c.runtimeStageId === cursorRsid);
       const beforeCommitIdx = cursorCommitIdx >= 0 ? cursorCommitIdx + 1 : void 0;
       setTracing({ key, beforeCommitIdx, via: [] });
+      setForkChooserOpen(false);
+      setTraceSearch("");
       setRightPanelMode("what");
       setInspectorTab("trace");
       jumpToAnchor(
@@ -6930,6 +7016,7 @@ function ExplainableShell({
       if (!tracing || !runtimeSnapshot?.commitLog || ing.writerCommitIdx === null) return;
       const scope = { key: ing.key, beforeCommitIdx: ing.writerCommitIdx + 1 };
       setTracing({ ...tracing, via: [...tracing.via, scope] });
+      setForkChooserOpen(false);
       jumpToAnchor(
         buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
           beforeCommitIdx: scope.beforeCommitIdx
@@ -6941,18 +7028,29 @@ function ExplainableShell({
   const handleShowAllIngredients = useCallback8(() => {
     if (!tracing || !runtimeSnapshot?.commitLog) return;
     setTracing({ ...tracing, via: [] });
+    setForkChooserOpen(false);
     jumpToAnchor(
       buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, tracing.key, {
         beforeCommitIdx: tracing.beforeCommitIdx
       })
     );
   }, [tracing, runtimeSnapshot, jumpToAnchor]);
-  const handleExitTracing = useCallback8(() => setTracing(null), []);
+  const handleExitTracing = useCallback8(() => {
+    setTracing(null);
+    setForkChooserOpen(false);
+  }, []);
+  const handleForkPrompt = useCallback8(() => setForkChooserOpen(true), []);
+  const handleContinueTimeOrder = useCallback8(() => {
+    const earlier = traceStopIndices.filter((i) => i < safeIdx);
+    if (earlier.length > 0) setSnapshotIdx(earlier[earlier.length - 1]);
+    setForkChooserOpen(false);
+  }, [traceStopIndices, safeIdx]);
   const handleDrillDown = useCallback8(
     (nodeName) => {
       const entry = resolveSubflowFromRuntime(activeSnapshots, nodeName, narrativeEntries);
       if (entry) {
         setTracing(null);
+        setForkChooserOpen(false);
         setDrillDownStack((prev) => [...prev, { ...entry, parentSnapshotIdx: snapshotIdx }]);
         setSnapshotIdx(0);
       }
@@ -7018,6 +7116,7 @@ function ExplainableShell({
     if (!tracing || !traceWalk || traceWalk.missing || traceStopIndices.length === 0) return null;
     const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
     const walkIdx = traceWalk.stops.findIndex((st) => st.runtimeStageId === cursorRsid);
+    const currentStop = traceWalk.stops[walkIdx >= 0 ? walkIdx : 0];
     return {
       tracedKey: tracing.key,
       viaKey: activeViaKey,
@@ -7025,59 +7124,116 @@ function ExplainableShell({
       stopOrdinal: walkIdx >= 0 ? walkIdx + 1 : 1,
       totalStops: traceWalk.stops.length,
       onExit: handleExitTracing,
-      onShowAll: activeViaKey ? handleShowAllIngredients : void 0
-    };
-  }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients]);
-  const traceTabContent = useMemo14(() => tracing && traceWalk ? /* @__PURE__ */ jsx27(
-    TraceWalkCard,
-    {
-      walk: traceWalk,
-      cursorRuntimeStageId: activeSnapshots[safeIdx]?.runtimeStageId ?? null,
-      viaKey: activeViaKey,
-      stepNumberOf,
-      previewValueOf: (k) => activeSnapshots[safeIdx]?.memory?.[k],
-      onFollowIngredient: handleFollowIngredient,
-      onJumpToStop: navigateToStage,
       onShowAll: activeViaKey ? handleShowAllIngredients : void 0,
-      onExit: handleExitTracing
-    }
-  ) : /* @__PURE__ */ jsxs24(Fragment8, { children: [
-    !isInSubflow && (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && /* @__PURE__ */ jsxs24("div", { "data-fp": "trace-entry", style: { padding: "10px 14px 0", fontSize: 12 }, children: [
-      /* @__PURE__ */ jsx27("span", { style: { color: theme.textMuted, marginRight: 6 }, children: "Trace a value:" }),
-      shellDataTrace.frames[0].keysWritten.map((k) => /* @__PURE__ */ jsx27(
-        "button",
+      // Followable ingredients only — termini can't be chosen, so a stop of
+      // run-inputs must not prompt (matches the card's chooser gate).
+      forkCount: currentStop?.ingredients.filter((ing) => ing.writerRuntimeStageId !== null).length ?? 0,
+      onForkPrompt: handleForkPrompt
+    };
+  }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients, handleForkPrompt]);
+  const traceTabContent = useMemo14(() => {
+    if (tracing && traceWalk) {
+      return /* @__PURE__ */ jsx27(
+        TraceWalkCard,
         {
-          "data-fp": "trace-entry-chip",
-          onClick: () => handleStartTracing(k),
-          title: "Where did " + k + " come from? Walk its causes on the timeline.",
-          style: {
-            border: "1px solid var(--fp-accent, #6366f1)",
-            background: "transparent",
-            color: "var(--fp-accent, #6366f1)",
-            borderRadius: 12,
-            padding: "2px 10px",
-            margin: "0 6px 6px 0",
-            fontSize: 11,
-            fontWeight: 600,
-            fontFamily: "monospace",
-            cursor: "pointer"
+          walk: traceWalk,
+          cursorRuntimeStageId: activeSnapshots[safeIdx]?.runtimeStageId ?? null,
+          viaKey: activeViaKey,
+          stepNumberOf,
+          previewValueOf: (k) => activeSnapshots[safeIdx]?.memory?.[k],
+          onFollowIngredient: handleFollowIngredient,
+          onJumpToStop: navigateToStage,
+          onShowAll: activeViaKey ? handleShowAllIngredients : void 0,
+          onExit: handleExitTracing,
+          forkChooserOpen,
+          onContinueTimeOrder: handleContinueTimeOrder,
+          canContinueTimeOrder: traceStopIndices.some((i) => i < safeIdx)
+        }
+      );
+    }
+    const chipStyle = {
+      border: "1px solid var(--fp-accent, #6366f1)",
+      background: "transparent",
+      color: "var(--fp-accent, #6366f1)",
+      borderRadius: 12,
+      padding: "2px 10px",
+      margin: "0 6px 6px 0",
+      fontSize: 11,
+      fontWeight: 600,
+      fontFamily: "monospace",
+      cursor: "pointer"
+    };
+    const query = traceSearch.trim().toLowerCase();
+    const matchedKeys = query ? allTracedKeys.filter((k) => k.toLowerCase().includes(query)) : allTracedKeys;
+    const shownKeys = matchedKeys.slice(0, 12);
+    return /* @__PURE__ */ jsxs24(Fragment8, { children: [
+      !isInSubflow && (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && /* @__PURE__ */ jsxs24("div", { "data-fp": "trace-entry", style: { padding: "10px 14px 0", fontSize: 12 }, children: [
+        /* @__PURE__ */ jsx27("span", { style: { color: theme.textMuted, marginRight: 6 }, children: "This step wrote:" }),
+        shellDataTrace.frames[0].keysWritten.map((k) => /* @__PURE__ */ jsx27(
+          "button",
+          {
+            "data-fp": "trace-entry-chip",
+            onClick: () => handleStartTracing(k),
+            title: "Where did " + k + " come from? Walk its causes on the timeline.",
+            style: chipStyle,
+            children: k
           },
-          children: k
-        },
-        k
-      ))
-    ] }),
-    /* @__PURE__ */ jsx27(
-      DataTracePanel,
-      {
-        frames: shellDataTrace.frames,
-        note: shellDataTrace.readsAvailable ? void 0 : "\u26A0 reads were not recorded (readTracking off) \u2014 dependencies are unknowable, not absent.",
-        selectedStageId: activeSnapshots[safeIdx]?.runtimeStageId,
-        onFrameClick: navigateToStage,
-        fromStageName: activeSnapshots[safeIdx]?.stageName
-      }
-    )
-  ] }), [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace]);
+          k
+        ))
+      ] }),
+      !isInSubflow && allTracedKeys.length > 0 && /* @__PURE__ */ jsxs24("div", { "data-fp": "trace-any", style: { padding: "6px 14px 0", fontSize: 12 }, children: [
+        /* @__PURE__ */ jsx27("div", { style: { color: theme.textMuted, marginBottom: 4 }, children: "Trace any variable:" }),
+        /* @__PURE__ */ jsx27(
+          "input",
+          {
+            "data-fp": "trace-search",
+            value: traceSearch,
+            onChange: (e) => setTraceSearch(e.target.value),
+            placeholder: "search any variable...",
+            style: {
+              display: "block",
+              width: "100%",
+              boxSizing: "border-box",
+              background: theme.bgTertiary,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 6,
+              color: theme.textPrimary,
+              fontSize: 11,
+              fontFamily: "monospace",
+              padding: "4px 8px",
+              marginBottom: 6
+            }
+          }
+        ),
+        shownKeys.map((k) => /* @__PURE__ */ jsx27(
+          "button",
+          {
+            "data-fp": "trace-any-chip",
+            onClick: () => handleStartTracing(k),
+            title: "Where did " + k + " come from? Walk its causes on the timeline.",
+            style: chipStyle,
+            children: k
+          },
+          k
+        )),
+        query === "" && matchedKeys.length > shownKeys.length && /* @__PURE__ */ jsxs24("span", { style: { color: theme.textMuted, fontSize: 11 }, children: [
+          "+",
+          matchedKeys.length - shownKeys.length,
+          " more \u2014 type to search"
+        ] })
+      ] }),
+      /* @__PURE__ */ jsx27(
+        DataTracePanel,
+        {
+          frames: shellDataTrace.frames,
+          note: shellDataTrace.readsAvailable ? void 0 : "\u26A0 reads were not recorded (readTracking off) \u2014 dependencies are unknowable, not absent.",
+          selectedStageId: activeSnapshots[safeIdx]?.runtimeStageId,
+          onFrameClick: navigateToStage,
+          fromStageName: activeSnapshots[safeIdx]?.stageName
+        }
+      )
+    ] });
+  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
   if (unstyled) {
     return /* @__PURE__ */ jsxs24("div", { className, style, "data-fp": "explainable-shell", children: [

@@ -43,6 +43,17 @@ export interface TraceWalkCardProps {
   onJumpToStop?: (runtimeStageId: string) => void;
   onShowAll?: () => void;
   onExit?: () => void;
+  /** F2 fork chooser: when true AND the current stop has 2+ ingredients,
+   *  a loud chooser block asks WHICH ingredient the walk should follow —
+   *  the rail's walk-back control opens it instead of moving. */
+  forkChooserOpen?: boolean;
+  /** The chooser's neutral option — today's behavior: step to the nearest
+   *  earlier stop in time. The SHELL computes the move; the card only
+   *  fires this. */
+  onContinueTimeOrder?: () => void;
+  /** False at the walk's earliest stop — there IS no earlier stop, so the
+   *  chooser's time-order button must not pretend to move (review fix). */
+  canContinueTimeOrder?: boolean;
 }
 
 export const TraceWalkCard = memo(function TraceWalkCard({
@@ -55,9 +66,14 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   onJumpToStop,
   onShowAll,
   onExit,
+  forkChooserOpen,
+  onContinueTimeOrder,
+  canContinueTimeOrder = true,
 }: TraceWalkCardProps) {
   const [copied, setCopied] = useState(false);
   const accent = "var(--fp-accent, #6366f1)";
+  // Same token the tracing rail uses (F3) — the chooser is tracing chrome.
+  const tracingColor = "var(--fp-tracing, #0d9488)";
 
   const currentIdx = useMemo(() => {
     if (!cursorRuntimeStageId) return 0;
@@ -65,6 +81,13 @@ export const TraceWalkCard = memo(function TraceWalkCard({
     return i >= 0 ? i : 0;
   }, [walk, cursorRuntimeStageId]);
   const current: TraceStop | undefined = walk.stops[currentIdx];
+  // Only FOLLOWABLE ingredients (with a writer) constitute a choice — a stop
+  // whose 2+ ingredients are all run-input termini has nothing to follow,
+  // so the chooser must not open a dead end (review fix).
+  const followableCount = current
+    ? current.ingredients.filter((ing) => ing.writerRuntimeStageId !== null).length
+    : 0;
+  const chooserVisible = !!forkChooserOpen && followableCount >= 2;
 
   const copyStory = () => {
     const text = formatTraceWalk(walk, stepNumberOf);
@@ -156,9 +179,66 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         )}
       </div>
 
-      {/* ── Ingredients (a fork = 2+ chips, both ALWAYS shown) ── */}
+      {/* ── Fork chooser (F2) — opened by the rail's walk-back control at a
+          2+-ingredient stop: the user picks WHICH cause to follow, or keeps
+          today's visit-all time order. Loud on purpose (tracing border +
+          tint): it interrupts a walk, so it must not look like content. ── */}
+      {chooserVisible && (
+        <div
+          data-fp="twc-fork-chooser"
+          style={{
+            marginTop: 10,
+            padding: "10px 12px",
+            border: `1.5px solid ${tracingColor}`,
+            borderRadius: 8,
+            background: `color-mix(in srgb, ${tracingColor} 8%, transparent)`,
+          }}
+        >
+          <div style={{ fontWeight: 600, fontSize: 12, color: theme.textPrimary }}>
+            This value was made from {current.ingredients.length} ingredients — which one should
+            the walk follow?
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+            {current.ingredients.map((ing, i) => (
+              <IngredientChip
+                key={ing.key}
+                ing={ing}
+                color={i < CHIP_COLORS.length ? CHIP_COLORS[i] : theme.textMuted}
+                step={ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null}
+                onFollow={onFollowIngredient}
+              />
+            ))}
+          </div>
+          <button
+            data-fp="twc-continue-time"
+            onClick={canContinueTimeOrder ? onContinueTimeOrder : undefined}
+            disabled={!canContinueTimeOrder}
+            title={canContinueTimeOrder ? undefined : "This is the walk's earliest stop — there is nothing earlier to visit"}
+            style={{
+              display: "block",
+              width: "100%",
+              marginTop: 8,
+              border: `1px solid ${theme.border}`,
+              background: theme.bgTertiary,
+              color: theme.textPrimary,
+              borderRadius: 6,
+              padding: "5px 10px",
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            visit all, oldest cause last (time order)
+          </button>
+        </div>
+      )}
+
+      {/* ── Ingredients (a fork = 2+ chips, both ALWAYS shown) — except
+          while the chooser is open, which shows the SAME chips as the
+          question; rendering both would be noise (implementer's own note,
+          promoted to a fix). ── */}
       <div style={{ marginTop: 10 }}>
-        {current.ingredients.length > 0 ? (
+        {chooserVisible ? null : current.ingredients.length > 0 ? (
           <>
             <div style={{ fontSize: 11, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }}>
               Made from {current.ingredients.length} ingredient{current.ingredients.length > 1 ? "s" : ""}

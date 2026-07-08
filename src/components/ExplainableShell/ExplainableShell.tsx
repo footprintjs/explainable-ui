@@ -1038,6 +1038,18 @@ export function ExplainableShell({
     beforeCommitIdx?: number;
     via: Array<{ key: string; beforeCommitIdx: number }>;
   }>(null);
+  // F2: is the fork chooser open? Pure UI flag on top of the tracing lens —
+  // NOT a cursor, NOT part of the walk question. Any cursor move closes it
+  // (the chooser asked about the OLD stop).
+  const [forkChooserOpen, setForkChooserOpen] = useState(false);
+  // F1: filter text for the "Trace any variable" entry block.
+  const [traceSearch, setTraceSearch] = useState("");
+
+  // Any cursor move invalidates the chooser — it asked about the stop the
+  // cursor was on, and the ONE cursor just left it.
+  useEffect(() => {
+    setForkChooserOpen(false);
+  }, [snapshotIdx]);
 
 
   const [leftExpanded, setLeftExpanded] = useState(defaultExpanded?.topology ?? false);
@@ -1087,6 +1099,28 @@ export function ExplainableShell({
         : { frames: [] as import("./_internal/dataTrace").DataTraceFrame[], readsAvailable: true },
     [runtimeSnapshot, activeSnapshots, safeIdx],
   );
+
+  // F1: every key the RUN ever wrote, in first-write order — so the user can
+  // ask "why is X this value?" from anywhere, not only at X's writer stage.
+  // handleStartTracing already answers honestly for keys not yet written at
+  // the cursor (the 'not-yet-written' card), so no special-casing here.
+  const allTracedKeys = useMemo<string[]>(() => {
+    const log = runtimeSnapshot?.commitLog as
+      | Array<{ trace?: Array<{ path: string }> }>
+      | undefined;
+    if (!log?.length) return [];
+    const seen = new Set<string>();
+    const keys: string[] = [];
+    for (const c of log) {
+      for (const t of c.trace ?? []) {
+        if (!seen.has(t.path)) {
+          seen.add(t.path);
+          keys.push(t.path);
+        }
+      }
+    }
+    return keys;
+  }, [runtimeSnapshot]);
 
   // The active tracing walk — recomputed only when the SESSION changes
   // (entry / follow / show-all), never on scrub: the anchor is frozen in
@@ -1201,6 +1235,8 @@ export function ExplainableShell({
       // and the entry jump may land after the cursor — defined, not a bug.
       const beforeCommitIdx = cursorCommitIdx >= 0 ? cursorCommitIdx + 1 : undefined;
       setTracing({ key, beforeCommitIdx, via: [] });
+      setForkChooserOpen(false); // a fresh question — no stale chooser
+      setTraceSearch(""); // and no stale filter greeting the next visit (review fix)
       setRightPanelMode("what");
       setInspectorTab("trace");
       jumpToAnchor(
@@ -1215,6 +1251,7 @@ export function ExplainableShell({
       if (!tracing || !runtimeSnapshot?.commitLog || ing.writerCommitIdx === null) return;
       const scope = { key: ing.key, beforeCommitIdx: ing.writerCommitIdx + 1 };
       setTracing({ ...tracing, via: [...tracing.via, scope] });
+      setForkChooserOpen(false); // following IS the answer to the chooser
       jumpToAnchor(
         buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
           beforeCommitIdx: scope.beforeCommitIdx,
@@ -1227,6 +1264,7 @@ export function ExplainableShell({
   const handleShowAllIngredients = useCallback(() => {
     if (!tracing || !runtimeSnapshot?.commitLog) return;
     setTracing({ ...tracing, via: [] });
+    setForkChooserOpen(false);
     jumpToAnchor(
       buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, tracing.key, {
         beforeCommitIdx: tracing.beforeCommitIdx,
@@ -1236,7 +1274,24 @@ export function ExplainableShell({
 
   // Exit keeps the cursor exactly where the walk left it — you land in
   // normal time-travel at the cause you found.
-  const handleExitTracing = useCallback(() => setTracing(null), []);
+  const handleExitTracing = useCallback(() => {
+    setTracing(null);
+    setForkChooserOpen(false);
+  }, []);
+
+  // ── Fork chooser (F2) ──
+  // The rail's walk-back control fires this INSTEAD of moving when the
+  // current stop has 2+ ingredients: the user chooses which cause to follow.
+  const handleForkPrompt = useCallback(() => setForkChooserOpen(true), []);
+
+  // The chooser's neutral option = today's behavior: the nearest earlier
+  // stop in time. Same computation as the rail's "earlier cause" (largest
+  // stop index < safeIdx); the shell owns it so the card stays dumb.
+  const handleContinueTimeOrder = useCallback(() => {
+    const earlier = traceStopIndices.filter((i) => i < safeIdx);
+    if (earlier.length > 0) setSnapshotIdx(earlier[earlier.length - 1]);
+    setForkChooserOpen(false);
+  }, [traceStopIndices, safeIdx]);
 
   const handleDrillDown = useCallback(
     (nodeName: string) => {
@@ -1246,6 +1301,7 @@ export function ExplainableShell({
       const entry = resolveSubflowFromRuntime(activeSnapshots, nodeName, narrativeEntries);
       if (entry) {
         setTracing(null); // the walk lives on the ROOT rail — drilling exits it honestly
+        setForkChooserOpen(false);
         setDrillDownStack((prev) => [...prev, { ...entry, parentSnapshotIdx: snapshotIdx }]);
         setSnapshotIdx(0);
       }
@@ -1312,6 +1368,10 @@ export function ExplainableShell({
     if (!tracing || !traceWalk || traceWalk.missing || traceStopIndices.length === 0) return null;
     const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
     const walkIdx = traceWalk.stops.findIndex((st) => st.runtimeStageId === cursorRsid);
+    // The card falls back to the ANCHOR when the cursor is off-walk, so the
+    // rail's forkCount uses the same fallback — the prompt and the chooser
+    // must always talk about the same stop.
+    const currentStop = traceWalk.stops[walkIdx >= 0 ? walkIdx : 0];
     return {
       tracedKey: tracing.key,
       viaKey: activeViaKey,
@@ -1320,62 +1380,124 @@ export function ExplainableShell({
       totalStops: traceWalk.stops.length,
       onExit: handleExitTracing,
       onShowAll: activeViaKey ? handleShowAllIngredients : undefined,
+      // Followable ingredients only — termini can't be chosen, so a stop of
+      // run-inputs must not prompt (matches the card's chooser gate).
+      forkCount: currentStop?.ingredients.filter((ing) => ing.writerRuntimeStageId !== null).length ?? 0,
+      onForkPrompt: handleForkPrompt,
     };
-  }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients]);
+  }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients, handleForkPrompt]);
 
   // Data Trace tab body: the stop card while tracing; otherwise the classic
-  // frames list with "Trace a value" entry chips (the keys the cursor's
-  // stage wrote — the natural place to ask "where did THIS come from?").
-  const traceTabContent: ReactNode = useMemo(() => tracing && traceWalk ? (
-    <TraceWalkCard
-      walk={traceWalk}
-      cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null}
-      viaKey={activeViaKey}
-      stepNumberOf={stepNumberOf}
-      previewValueOf={(k) => activeSnapshots[safeIdx]?.memory?.[k]}
-      onFollowIngredient={handleFollowIngredient}
-      onJumpToStop={navigateToStage}
-      onShowAll={activeViaKey ? handleShowAllIngredients : undefined}
-      onExit={handleExitTracing}
-    />
-  ) : (
-    <>
-      {!isInSubflow && (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && (
-        <div data-fp="trace-entry" style={{ padding: "10px 14px 0", fontSize: 12 }}>
-          <span style={{ color: theme.textMuted, marginRight: 6 }}>Trace a value:</span>
-          {shellDataTrace.frames[0].keysWritten.map((k) => (
-            <button
-              key={k}
-              data-fp="trace-entry-chip"
-              onClick={() => handleStartTracing(k)}
-              title={"Where did " + k + " come from? Walk its causes on the timeline."}
+  // frames list with TWO entry blocks — the cursor stage's writes ("This
+  // step wrote:") and, below it, a search over EVERY key the run ever wrote
+  // ("Trace any variable:", F1). Both roads lead to handleStartTracing.
+  const traceTabContent: ReactNode = useMemo(() => {
+    if (tracing && traceWalk) {
+      return (
+        <TraceWalkCard
+          walk={traceWalk}
+          cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null}
+          viaKey={activeViaKey}
+          stepNumberOf={stepNumberOf}
+          previewValueOf={(k) => activeSnapshots[safeIdx]?.memory?.[k]}
+          onFollowIngredient={handleFollowIngredient}
+          onJumpToStop={navigateToStage}
+          onShowAll={activeViaKey ? handleShowAllIngredients : undefined}
+          onExit={handleExitTracing}
+          forkChooserOpen={forkChooserOpen}
+          onContinueTimeOrder={handleContinueTimeOrder}
+          canContinueTimeOrder={traceStopIndices.some((i) => i < safeIdx)}
+        />
+      );
+    }
+    // Same chip look for both entry blocks — one affordance, one meaning.
+    const chipStyle: React.CSSProperties = {
+      border: "1px solid var(--fp-accent, #6366f1)",
+      background: "transparent",
+      color: "var(--fp-accent, #6366f1)",
+      borderRadius: 12,
+      padding: "2px 10px",
+      margin: "0 6px 6px 0",
+      fontSize: 11,
+      fontWeight: 600,
+      fontFamily: "monospace",
+      cursor: "pointer",
+    };
+    // F1 filter: case-insensitive substring; empty filter previews the first
+    // 12 keys (first-write order) with a "+N more" nudge to type.
+    const query = traceSearch.trim().toLowerCase();
+    const matchedKeys = query
+      ? allTracedKeys.filter((k) => k.toLowerCase().includes(query))
+      : allTracedKeys;
+    const shownKeys = matchedKeys.slice(0, 12);
+    return (
+      <>
+        {!isInSubflow && (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && (
+          <div data-fp="trace-entry" style={{ padding: "10px 14px 0", fontSize: 12 }}>
+            <span style={{ color: theme.textMuted, marginRight: 6 }}>This step wrote:</span>
+            {shellDataTrace.frames[0].keysWritten.map((k) => (
+              <button
+                key={k}
+                data-fp="trace-entry-chip"
+                onClick={() => handleStartTracing(k)}
+                title={"Where did " + k + " come from? Walk its causes on the timeline."}
+                style={chipStyle}
+              >
+                {k}
+              </button>
+            ))}
+          </div>
+        )}
+        {!isInSubflow && allTracedKeys.length > 0 && (
+          <div data-fp="trace-any" style={{ padding: "6px 14px 0", fontSize: 12 }}>
+            <div style={{ color: theme.textMuted, marginBottom: 4 }}>Trace any variable:</div>
+            <input
+              data-fp="trace-search"
+              value={traceSearch}
+              onChange={(e) => setTraceSearch(e.target.value)}
+              placeholder="search any variable..."
               style={{
-                border: "1px solid var(--fp-accent, #6366f1)",
-                background: "transparent",
-                color: "var(--fp-accent, #6366f1)",
-                borderRadius: 12,
-                padding: "2px 10px",
-                margin: "0 6px 6px 0",
+                display: "block",
+                width: "100%",
+                boxSizing: "border-box",
+                background: theme.bgTertiary,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 6,
+                color: theme.textPrimary,
                 fontSize: 11,
-                fontWeight: 600,
                 fontFamily: "monospace",
-                cursor: "pointer",
+                padding: "4px 8px",
+                marginBottom: 6,
               }}
-            >
-              {k}
-            </button>
-          ))}
-        </div>
-      )}
-      <DataTracePanel
-        frames={shellDataTrace.frames}
-        note={shellDataTrace.readsAvailable ? undefined : "⚠ reads were not recorded (readTracking off) — dependencies are unknowable, not absent."}
-        selectedStageId={activeSnapshots[safeIdx]?.runtimeStageId}
-        onFrameClick={navigateToStage}
-        fromStageName={activeSnapshots[safeIdx]?.stageName}
-      />
-    </>
-  ), [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace]);
+            />
+            {shownKeys.map((k) => (
+              <button
+                key={k}
+                data-fp="trace-any-chip"
+                onClick={() => handleStartTracing(k)}
+                title={"Where did " + k + " come from? Walk its causes on the timeline."}
+                style={chipStyle}
+              >
+                {k}
+              </button>
+            ))}
+            {query === "" && matchedKeys.length > shownKeys.length && (
+              <span style={{ color: theme.textMuted, fontSize: 11 }}>
+                +{matchedKeys.length - shownKeys.length} more — type to search
+              </span>
+            )}
+          </div>
+        )}
+        <DataTracePanel
+          frames={shellDataTrace.frames}
+          note={shellDataTrace.readsAvailable ? undefined : "⚠ reads were not recorded (readTracking off) — dependencies are unknowable, not absent."}
+          selectedStageId={activeSnapshots[safeIdx]?.runtimeStageId}
+          onFrameClick={navigateToStage}
+          fromStageName={activeSnapshots[safeIdx]?.stageName}
+        />
+      </>
+    );
+  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
 
   // Map tab id → label for rendering
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));

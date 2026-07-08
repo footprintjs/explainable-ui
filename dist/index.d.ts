@@ -326,6 +326,12 @@ declare function StageDetailPanel({ snapshots, selectedIndex, mode: controlledMo
  * is set, slice members stay landable ("stops"), everything else fades to
  * unlandable ticks, and prev/next walk stop-to-stop ("◀ earlier cause").
  * The cursor stays the ONE `selectedIndex` — no second position exists.
+ *
+ * THEMING: tracing mode recolors its chrome with ONE token, `--fp-tracing`
+ * (default #0d9488 teal) — the TRACING badge, the rail's bottom border, the
+ * stop ticks, the walk buttons, and Done — so the tracing rail is
+ * unmistakably not normal time-travel. Consumers retheme by setting
+ * `--fp-tracing` on any ancestor. Normal mode never reads the token.
  */
 interface TracingRail {
     /** The traced variable — rendered in the mode header. */
@@ -343,6 +349,14 @@ interface TracingRail {
     onExit: () => void;
     /** Clear the via filter back to the full walk (breadcrumb's "show all"). */
     onShowAll?: () => void;
+    /** Ingredient count at the CURRENT stop. Together with `onForkPrompt`,
+     *  >= 2 turns the walk-back control into "choose cause…": it PROMPTS
+     *  instead of moving, so a silent default never hides one parent of a
+     *  fork. 0/undefined = not a fork — classic earlier-cause behavior. */
+    forkCount?: number;
+    /** Open the fork chooser — fired INSTEAD of a cursor move when
+     *  `forkCount >= 2` (click or ArrowLeft on the walk-back control). */
+    onForkPrompt?: () => void;
 }
 interface TimeTravelControlsProps extends BaseComponentProps {
     /** Stage snapshots */
@@ -1265,6 +1279,17 @@ interface TraceWalkCardProps {
     onJumpToStop?: (runtimeStageId: string) => void;
     onShowAll?: () => void;
     onExit?: () => void;
+    /** F2 fork chooser: when true AND the current stop has 2+ ingredients,
+     *  a loud chooser block asks WHICH ingredient the walk should follow —
+     *  the rail's walk-back control opens it instead of moving. */
+    forkChooserOpen?: boolean;
+    /** The chooser's neutral option — today's behavior: step to the nearest
+     *  earlier stop in time. The SHELL computes the move; the card only
+     *  fires this. */
+    onContinueTimeOrder?: () => void;
+    /** False at the walk's earliest stop — there IS no earlier stop, so the
+     *  chooser's time-order button must not pretend to move (review fix). */
+    canContinueTimeOrder?: boolean;
 }
 declare const TraceWalkCard: react.NamedExoticComponent<TraceWalkCardProps>;
 
