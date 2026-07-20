@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software in your research, please cite it as below."
+type: software
+title: "footprint-explainable-ui: visualize footprintjs runs — flowchart, time travel, causal rewind"
+authors:
+  - family-names: "Anbalagan"
+    given-names: "Sanjay Krishna"
+license: MIT
+repository-code: "https://github.com/footprintjs/explainable-ui"
+url: "https://footprintjs.github.io/explainable-ui/"
+keywords:
+  - "explainable AI"
+  - "trace visualization"
+  - "time-travel debugging"
+  - "React components"
