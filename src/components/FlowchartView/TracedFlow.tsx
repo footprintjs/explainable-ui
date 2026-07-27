@@ -56,6 +56,8 @@ import { sliceOverlay } from "./createTraceRuntimeOverlay";
 import { StageNode } from "../StageNode";
 import type { StageNodeData } from "../StageNode";
 import { rawDefaults } from "../../theme/tokens";
+import { themeModeVars } from "../../theme/mode";
+import type { ThemeModeProps } from "../../theme/mode";
 import type { BaseComponentProps } from "../../types";
 import { filterGraphForDrill, buildSubflowBreadcrumb } from "./_internal/subflowDrill";
 import { aggregateMountStatus } from "./_internal/overlayProjection";
@@ -281,7 +283,7 @@ function styleEdgeWithOverlay(
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface TracedFlowProps extends BaseComponentProps {
+export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
   /** Build-time graph from `createTraceStructureRecorder().getGraph()`. */
   graph: TraceGraph;
   /** Runtime overlay from `createTraceRuntimeOverlay().getOverlay()`. */
@@ -391,6 +393,7 @@ export function TracedFlow({
   edgeTypes: userEdgeTypes,
   coActiveStageIds,
   sliceCone,
+  theme: themeMode,
   children,
   className,
   style,
@@ -626,6 +629,9 @@ export function TracedFlow({
       ref={wrapperRef}
       className={className}
       style={{
+        // The one-word switch, applied to this chart's own root so a chart
+        // mounted alone in a light app is light (see theme/mode.ts).
+        ...themeModeVars(themeMode),
         width: "100%",
         height: "100%",
         minHeight: 300,

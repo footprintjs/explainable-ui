@@ -13,14 +13,20 @@
 import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
-import { theme, tokensToCSSVars, coolLight, coolDark } from "../../theme";
+import { theme, themeModeVars } from "../../theme";
 import { buildDataTrace } from "./_internal/dataTrace";
 import { buildTraceWalk, type TraceIngredient, type TraceWalk } from "./_internal/traceWalk";
 import { TraceWalkCard } from "../DataTracePanel/TraceWalkCard";
 import { DataTracePanel } from "../DataTracePanel/DataTracePanel";
 import type { TracingRail } from "../TimeTravelControls/TimeTravelControls";
 import { extractSubflowNarrative } from "../../utils/narrativeSync";
-import { toVisualizationSnapshots, subflowResultToSnapshots } from "../../adapters/fromRuntimeSnapshot";
+import {
+  toVisualizationSnapshots,
+  subflowResultToSnapshots,
+  narrativeRecorderFromSnapshot,
+} from "../../adapters/fromRuntimeSnapshot";
+import { overlayFromSnapshot } from "../../adapters/overlayFromSnapshot";
+import { devWarn } from "../FlowchartView/_internal/devWarn";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
 import { TimeTravelControls } from "../TimeTravelControls";
@@ -186,9 +192,21 @@ export interface ExplainableShellProps extends BaseComponentProps {
    */
   traceGraph?: import("../FlowchartView/traceStructureRecorder").TraceGraph | null;
   /**
-   * Runtime overlay captured live via `createTraceRuntimeOverlay`.
-   * Pair with `traceGraph` to drive `<TracedFlow>` for the full
-   * time-travel trace UI.
+   * Runtime overlay captured live via `createTraceRuntimeOverlay` — the
+   * per-step colouring that lights the executed path.
+   *
+   * **Usually leave it off.** When `runtimeSnapshot` is given and this prop
+   * is absent, the shell rebuilds the overlay from the snapshot's own commit
+   * log (`overlayFromSnapshot`), so a replayed recording colours its chart
+   * exactly like the live run did. Pass it only to override that — a live
+   * `createTraceRuntimeOverlay` handle sees a little more than a recording
+   * can (errors, subflow internals, wall-clock).
+   *
+   * For a deliberately uncoloured (build-time-only) chart pass an EMPTY
+   * overlay — `{ executionOrder: [], errors: new Map(), running: false }`.
+   * Omitting the prop no longer means "no colours"; it means "work it out
+   * from the snapshot", because omitting it was how every replay ended up
+   * grey.
    */
   runtimeOverlay?: import("../FlowchartView/createTraceRuntimeOverlay").RuntimeOverlay | null;
   /**
@@ -205,7 +223,12 @@ export interface ExplainableShellProps extends BaseComponentProps {
   logs?: string[];
   /** Structured narrative entries from `executor.getNarrativeEntries()`.
    *  This is the only narrative input — the flat-string form was
-   *  removed; call `.map(e => e.text)` if you need it. */
+   *  removed; call `.map(e => e.text)` if you need it.
+   *
+   *  Optional when `runtimeSnapshot` is given: a run recorded with
+   *  footprintjs's narrative recorder carries its entries inside the
+   *  snapshot, and the shell reads them from there. Pass this prop to
+   *  override that (it always wins). */
   narrativeEntries?: NarrativeEntry[];
   tabs?: ShellTab[];
   defaultTab?: ShellTab;
@@ -366,6 +389,113 @@ const VLinePill = memo(function VLinePill({
         {label}
       </button>
       <div style={{ flex: 1, width: 1, background: theme.border }} />
+    </div>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Diagnosis panels — what to do when an ingredient is missing
+// ---------------------------------------------------------------------------
+//
+// Both of these exist because the shell used to fail by rendering LESS: no
+// chart region, or full chrome with zero rows. Silence reads as "the library
+// is broken"; naming the missing ingredient reads as "add this line".
+
+/** Shown in the chart's place when there is a run to draw but no graph. */
+const MissingChartNote = memo(function MissingChartNote({ unstyled }: { unstyled?: boolean }) {
+  const body = (
+    <>
+      <strong>No chart — `traceGraph` was not provided.</strong>
+      <div>
+        A snapshot holds the memory, the story and the timeline. Only the chart's own
+        structure can draw the chart. Two ways to get one:
+      </div>
+      <pre style={unstyled ? undefined : { margin: 0, whiteSpace: "pre-wrap", fontFamily: theme.fontMono, fontSize: 11 }}>
+{`// live build
+const trace = createTraceStructureRecorder();
+flowChart(..., { structureRecorders: [trace.recorder] });
+<ExplainableShell traceGraph={trace.getGraph()} />
+
+// saved run — save chart.buildTimeStructure with your snapshot
+<ExplainableShell traceGraph={graphFromStructure(saved.structure)} />`}
+      </pre>
+    </>
+  );
+  if (unstyled) return <div data-fp="shell-missing-chart">{body}</div>;
+  return (
+    <div
+      data-fp="shell-missing-chart"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        justifyContent: "center",
+        alignItems: "flex-start",
+        height: "100%",
+        padding: 20,
+        color: theme.textMuted,
+        fontSize: 12,
+        lineHeight: 1.5,
+        maxWidth: 520,
+        margin: "0 auto",
+      }}
+    >
+      {body}
+    </div>
+  );
+});
+
+/** Shown instead of empty chrome when there are no stages to show at all. */
+const EmptyShell = memo(function EmptyShell({
+  reason,
+  detail,
+  unstyled,
+  className,
+  style,
+}: {
+  reason: string;
+  detail: React.ReactNode;
+  unstyled?: boolean;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const body = (
+    <>
+      <div style={unstyled ? undefined : { fontWeight: 700, color: theme.textPrimary, fontSize: 13 }}>
+        {reason}
+      </div>
+      <div data-fp="shell-empty-detail">{detail}</div>
+    </>
+  );
+  if (unstyled) {
+    return (
+      <div className={className} style={style} data-fp="shell-empty">
+        {body}
+      </div>
+    );
+  }
+  return (
+    <div
+      className={className}
+      data-fp="shell-empty"
+      style={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        justifyContent: "center",
+        alignItems: "center",
+        textAlign: "center",
+        padding: 24,
+        background: theme.bgPrimary,
+        color: theme.textMuted,
+        fontFamily: theme.fontSans,
+        fontSize: 12,
+        lineHeight: 1.6,
+        ...style,
+      }}
+    >
+      {body}
     </div>
   );
 });
@@ -844,7 +974,7 @@ export function ExplainableShell({
   title,
   resultData: resultDataProp,
   logs = [],
-  narrativeEntries,
+  narrativeEntries: narrativeEntriesProp,
   tabs = ["result", "explainable"],
   defaultTab,
   hideConsole = false,
@@ -855,27 +985,74 @@ export function ExplainableShell({
   renderFlowchart,
   showStageId = false,
   traceGraph,
-  runtimeOverlay,
+  runtimeOverlay: runtimeOverlayProp,
   traceTheme,
   size = "default",
   unstyled = false,
   className,
   style,
 }: ExplainableShellProps) {
-  // Convert runtimeSnapshot → visualization snapshots (zero-boilerplate mode)
+  // A run recorded WITH footprintjs's narrative recorder carries its story
+  // inside the snapshot, so a replayed recording tells the same story the
+  // live run did — no executor left to call getNarrativeEntries() on. The
+  // prop always wins: a caller who passes entries (or deliberately passes
+  // none but has a snapshot they don't want narrated) stays in control.
+  const snapshotNarrative = useMemo(
+    () => narrativeRecorderFromSnapshot(runtimeSnapshot),
+    [runtimeSnapshot],
+  );
+  const narrativeEntries = narrativeEntriesProp ?? snapshotNarrative?.entries;
+
+  // Convert runtimeSnapshot → visualization snapshots (zero-boilerplate mode).
+  // A snapshot we cannot read is REMEMBERED, not swallowed: the empty state
+  // below reports it instead of rendering full chrome with nothing in it.
   const derivedFromRuntime = useMemo(() => {
     if (!runtimeSnapshot) return null;
     try {
       const snaps = toVisualizationSnapshots(runtimeSnapshot as any, narrativeEntries as any);
-      return { snapshots: snaps, resultData: runtimeSnapshot.sharedState };
-    } catch {
-      return null;
+      return { snapshots: snaps, resultData: runtimeSnapshot.sharedState, error: null as string | null };
+    } catch (err) {
+      return {
+        snapshots: [] as StageSnapshot[],
+        resultData: null,
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
   }, [runtimeSnapshot, narrativeEntries]);
 
   // Use derived data when runtimeSnapshot is provided, otherwise use explicit props
   const snapshots = snapshotsProp ?? derivedFromRuntime?.snapshots ?? [];
   const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
+
+  // The chart's colouring, rebuilt from the recording when the caller didn't
+  // hand us a live one. `runtimeSnapshot` + `traceGraph` with no overlay used
+  // to render a fully grey chart with no warning — the single most common way
+  // an integration "worked" but showed nothing. The commit log already holds
+  // the execution order, so there is nothing to ask the consumer for.
+  const runtimeOverlay = useMemo(
+    () => runtimeOverlayProp ?? (runtimeSnapshot ? overlayFromSnapshot(runtimeSnapshot) : undefined),
+    [runtimeOverlayProp, runtimeSnapshot],
+  );
+
+  // A recording is THREE things — events, snapshot, structure — and only the
+  // structure can draw the chart. Handed run data with no `traceGraph` the
+  // shell used to omit the entire chart region in silence, which reads as
+  // "this library doesn't draw charts" rather than "one ingredient is
+  // missing". Say it once in the console, and once on screen (below).
+  const missingChart = snapshots.length > 0 && !traceGraph?.nodes.length;
+  useEffect(() => {
+    if (!missingChart) return;
+    devWarn(
+      () =>
+        "[ExplainableShell] No chart: `traceGraph` is missing, so the flowchart region is not rendered. " +
+        "A snapshot cannot draw the chart — only the chart's own structure can. Two ways to get one:\n" +
+        "  live build — const trace = createTraceStructureRecorder();\n" +
+        "               flowChart(..., { structureRecorders: [trace.recorder] });\n" +
+        "               <ExplainableShell traceGraph={trace.getGraph()} />\n" +
+        "  saved run  — save `chart.buildTimeStructure` next to your snapshot, then\n" +
+        "               <ExplainableShell traceGraph={graphFromStructure(saved.structure)} />",
+    );
+  }, [missingChart]);
 
   // Flowchart renderer selection (v6+ — recorder-driven only):
   //   - explicit `renderFlowchart` always wins (consumer override)
@@ -990,10 +1167,13 @@ export function ExplainableShell({
     if (!recorders?.length) return [];
     // Don't auto-generate for IDs that have explicit recorderViews
     const explicitIds = new Set((recorderViews ?? []).map((v) => v.id));
+    // ...nor for the recorder already rendered AS the Story tab — otherwise
+    // the narrative shows twice: once as the story, once as raw entry JSON.
+    if (snapshotNarrative?.id) explicitIds.add(snapshotNarrative.id);
     return recorders
       .filter((r) => !explicitIds.has(r.id))
       .map((r) => ({ id: r.id, name: r.name, description: r.description, preferredOperation: r.preferredOperation, data: r.data }));
-  }, [runtimeSnapshot, recorderViews]);
+  }, [runtimeSnapshot, recorderViews, snapshotNarrative]);
 
   // Build tab list: Result + Memory (always), Narrative (when data exists),
   // explicit recorder views, auto-detected recorder views
@@ -1502,8 +1682,71 @@ export function ExplainableShell({
   // Map tab id → label for rendering
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
 
+  // ── Nothing to show ──
+  // Full chrome around zero rows looks like a rendering bug and tells the
+  // consumer nothing. Say which ingredient is missing instead. The three
+  // cases below are genuinely different problems with different fixes.
+  //
+  // A plain function, not an early return: the styled tree still has hooks
+  // below this point, and skipping them on an empty render would change hook
+  // ORDER the moment a live run filled the shell in.
+  const renderEmptyState = (themeVars: React.CSSProperties): React.ReactElement => {
+    const shellStyle = { ...themeVars, ...style } as React.CSSProperties;
+    if (derivedFromRuntime?.error) {
+      return (
+        <EmptyShell
+          unstyled={unstyled}
+          className={className}
+          style={shellStyle}
+          reason="That snapshot could not be read."
+          detail={
+            <>
+              <div>
+                Expected a footprintjs <code>executor.getSnapshot()</code> —{" "}
+                <code>{"{ sharedState, executionTree, commitLog }"}</code>.
+              </div>
+              <div style={unstyled ? undefined : { fontFamily: theme.fontMono, fontSize: 11, marginTop: 6 }}>
+                {derivedFromRuntime.error}
+              </div>
+            </>
+          }
+        />
+      );
+    }
+    const gotRunData = !!runtimeSnapshot || !!snapshotsProp;
+    return (
+      <EmptyShell
+        unstyled={unstyled}
+        className={className}
+        style={shellStyle}
+        reason={gotRunData ? "That run has no stages to show." : "No run to show yet."}
+        detail={
+          gotRunData ? (
+            <div>
+              The snapshot was read fine but its <code>executionTree</code> is empty — a run that
+              was never executed, or a snapshot taken before <code>run()</code> finished.
+            </div>
+          ) : (
+            <>
+              <div>
+                Pass a recorded run: <code>runtimeSnapshot={"{executor.getSnapshot()}"}</code> (the
+                shell converts it), or pre-converted{" "}
+                <code>snapshots={"{toVisualizationSnapshots(...)}"}</code>.
+              </div>
+              <div>
+                Add <code>traceGraph</code> for the chart — it comes from the chart&apos;s
+                structure, not the snapshot.
+              </div>
+            </>
+          )
+        }
+      />
+    );
+  };
+
   // ── Unstyled mode ──
   if (unstyled) {
+    if (snapshots.length === 0) return renderEmptyState({});
     return (
       <div className={className} style={style} data-fp="explainable-shell">
         <div data-fp="shell-tabs">
@@ -1518,6 +1761,7 @@ export function ExplainableShell({
               <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} />
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
               {traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, ...(sliceCone && { sliceCone }) })}
+              {missingChart && <MissingChartNote unstyled />}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
               <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} unstyled />
               <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
@@ -1623,15 +1867,18 @@ export function ExplainableShell({
   // `--fp-*` remains the fine escape hatch.
   const shellThemeVars = useMemo<React.CSSProperties>(() => {
     if (!traceTheme) return {};
-    const base = traceTheme.mode
-      ? (tokensToCSSVars(traceTheme.mode === "light" ? coolLight : coolDark) as React.CSSProperties)
-      : {};
     return {
-      ...base,
+      // ONE mapping from mode → palette, shared with the standalone
+      // components' `theme="light"` prop (theme/mode.ts).
+      ...themeModeVars(traceTheme.mode),
       ...(traceTheme.visited !== undefined && { ["--fp-node-visited" as string]: traceTheme.visited }),
       ...(traceTheme.current !== undefined && { ["--fp-node-cursor" as string]: traceTheme.current }),
     } as React.CSSProperties;
   }, [traceTheme]);
+
+  // Every hook has run by here — safe to hand back the diagnosis instead of
+  // chrome wrapped around nothing.
+  if (snapshots.length === 0) return renderEmptyState(shellThemeVars);
 
   return (
     <div
@@ -1683,6 +1930,7 @@ export function ExplainableShell({
                 })}
               </div>
             )}
+            {missingChart && <MissingChartNote />}
 
             {/* Topology (subflow tree) — collapsible */}
             {showTreeSidebar && (
@@ -1758,7 +2006,9 @@ export function ExplainableShell({
                   })}
                 </div>
               ) : (
-                <div style={{ flex: 1 }} />
+                <div style={{ flex: 1, minWidth: 0, overflow: "auto" }}>
+                  {missingChart && <MissingChartNote />}
+                </div>
               )}
 
               {/* VLinePill divider between flowchart and right panel */}

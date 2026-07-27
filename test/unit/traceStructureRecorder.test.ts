@@ -666,26 +666,86 @@ describe("createTraceStructureRecorder — panel-driven regression coverage", ()
     }
   });
 
-  it("onSubflowMounted for unknown rootStageId no-ops (and warns in dev mode)", () => {
+  // ── Out-of-order mounts: late-bind, never drop ─────────────────────
+  // The builder fires onStageAdded before onSubflowMounted, but a BRIDGE
+  // replaying a recorded event stream may not. The recorder used to warn
+  // and drop the metadata, which silently downgraded the subflow to a
+  // plain stage (no drill target, no subflow styling).
+
+  it("onSubflowMounted BEFORE onStageAdded: the patch waits and lands when the node arrives", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "development";
     try {
       const t = createTraceStructureRecorder();
       t.recorder.onSubflowMounted!({
-        subflowId: "sf-orphan",
-        subflowName: "Orphan",
-        rootStageId: "missing-mount",
+        subflowId: "sf-late",
+        subflowName: "Late",
+        rootStageId: "mount-late",
+        isLazy: true,
       });
+      // Nothing to patch yet — and nothing invented either.
       expect(t.getGraph().nodes).toHaveLength(0);
-      expect(warn).toHaveBeenCalledOnce();
-      const message = warn.mock.calls[0]?.[0] as string;
-      expect(message).toContain("missing-mount");
-      expect(message).toContain("sf-orphan");
+
+      t.recorder.onStageAdded!({
+        stageId: "mount-late",
+        name: "Late",
+        type: "stage",
+        spec: spec("mount-late", "Late"),
+      });
+
+      const node = t.getGraph().nodes[0];
+      expect(node.data.isSubflow).toBe(true);
+      expect(node.data.subflowId).toBe("sf-late");
+      expect(node.data.isLazy).toBe(true);
+      // Data preserved, so there is nothing to warn about.
+      expect(warn).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
       process.env.NODE_ENV = originalNodeEnv;
     }
+  });
+
+  it("onSubflowMounted BEFORE onStageAdded: inner structure materializes immediately", () => {
+    const t = createTraceStructureRecorder();
+    const inner = spec("compose", "Compose");
+    t.recorder.onSubflowMounted!({
+      subflowId: "sf-early",
+      subflowName: "Early",
+      rootStageId: "mount-early",
+      subflowSpec: inner,
+      subflowPath: "sf-early",
+    });
+    // The inner walk never needed the mount node, so it runs right away.
+    expect(t.getGraph().nodes.map((n) => n.id)).toContain("sf-early/compose");
+
+    t.recorder.onStageAdded!({
+      stageId: "mount-early",
+      name: "Early",
+      type: "stage",
+      spec: spec("mount-early", "Early"),
+    });
+    const mount = t.getGraph().nodes.find((n) => n.id === "mount-early");
+    expect(mount?.data.isSubflow).toBe(true);
+    expect(mount?.data.subflowId).toBe("sf-early");
+  });
+
+  it("reset() drops buffered mount patches (a new build must not inherit them)", () => {
+    const t = createTraceStructureRecorder();
+    t.recorder.onSubflowMounted!({
+      subflowId: "sf-stale",
+      subflowName: "Stale",
+      rootStageId: "mount-stale",
+    });
+    t.reset();
+    t.recorder.onStageAdded!({
+      stageId: "mount-stale",
+      name: "Stale",
+      type: "stage",
+      spec: spec("mount-stale", "Stale"),
+    });
+    expect(t.getGraph().nodes[0].data.isSubflow).toBe(false);
+    expect(t.getGraph().nodes[0].data.subflowId).toBeUndefined();
   });
 
   it("orphan-patch warnings stay silent in production mode", () => {

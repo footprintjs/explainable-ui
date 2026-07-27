@@ -53,7 +53,9 @@
     "fixtures:regen": "node scripts/generate-golden-fixtures.mjs",
     "demo": "vite",
     "demo:build": "vite build",
-    "demo:preview": "vite preview"
+    "demo:preview": "vite preview",
+    "example:record": "node examples/replay-a-recording/record.mjs",
+    "example:replay": "vite --config examples/replay-a-recording/vite.config.ts"
   },
   "peerDependencies": {
     "react": ">=18.0.0",

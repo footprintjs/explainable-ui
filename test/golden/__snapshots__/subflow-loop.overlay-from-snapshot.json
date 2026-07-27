@@ -1,0 +1,36 @@
+{
+  "executionOrder": [
+    {
+      "runtimeStageId": "seed#0",
+      "stageId": "seed",
+      "stageName": "Seed"
+    },
+    {
+      "runtimeStageId": "sf-enrich#1",
+      "stageId": "sf-enrich",
+      "stageName": "EnrichText"
+    },
+    {
+      "runtimeStageId": "refine#4",
+      "stageId": "refine",
+      "stageName": "Refine"
+    },
+    {
+      "runtimeStageId": "evaluate#5",
+      "stageId": "evaluate",
+      "stageName": "Evaluate"
+    },
+    {
+      "runtimeStageId": "refine#6",
+      "stageId": "refine",
+      "stageName": "Refine"
+    },
+    {
+      "runtimeStageId": "evaluate#7",
+      "stageId": "evaluate",
+      "stageName": "Evaluate"
+    }
+  ],
+  "errors": {},
+  "running": false
+}

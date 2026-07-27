@@ -5,6 +5,179 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Fixes found while a live demo drove this library from frozen recordings instead
+of a live executor, then an audit of why hooking up the DATA and the THEME never
+worked on the first try. The theme through-line: every default here is dark, and
+one word now fixes that on every component. The data through-line: **a recording
+is three things — `snapshot`, `structure`, `events` — and only `structure` can
+draw the chart.** Nothing invents a missing piece; every surface that cannot be
+drawn now names the ingredient it wanted.
+
+### Added
+
+- **`graphFromStructure(buildTimeStructure)`** — the chart, rebuilt from a saved
+  `chart.buildTimeStructure`. The post-hoc twin of
+  `createTraceStructureRecorder`: same node ids, same edges, same order, so
+  either overlay lights the right boxes. Until now the ONLY spec→graph adapter
+  in the ecosystem was lens's `structureGraphFromSpec`, which imports
+  `agentfootprint` — a plain footprintjs consumer had to install an agent
+  framework to draw a saved pipeline run. Exported from both entry points.
+  Verified against the real engine: for linear, decider, selector-convergence,
+  subflow and loop charts the rebuilt graph is deep-equal to the one the live
+  recorder collected, except for a decider's `defaultBranch` — the one field
+  footprintjs does not serialize, so it is omitted rather than guessed.
+- **The one-word theme switch on the components you mount alone** —
+  `theme="light" | "dark"` on `<TraceViewer>`, `<SnapshotPanel>`,
+  `<GanttTimeline>` and `<TracedFlow>`, matching
+  `<ExplainableShell traceTheme={{ mode }}>`. It stamps a full preset as
+  `--fp-*` variables on that component's own root. Omitting it renders exactly
+  as before.
+- **`examples/replay-a-recording/`** — a runnable example that records a real
+  footprintjs run (`npm run example:record`) and renders it from disk
+  (`npm run example:replay`). Its source imports the library BY NAME, so it is
+  copy-pasteable, and `test/integration/replayExample.test.tsx` mounts it
+  against the committed recording so it cannot drift.
+
+- **`overlayFromSnapshot(snapshot)`** — rebuilds the chart's time-travel
+  overlay from a recorded `getSnapshot()`, so replaying a recording colours
+  the flowchart exactly like the live run did. Until now the only source of a
+  `RuntimeOverlay` was a live `createTraceRuntimeOverlay` attach, which left
+  every replayed chart grey. It derives from `snapshot.commitLog` (dedupe by
+  `runtimeStageId`, keep first — bundles arrive in execution order), and is
+  honest about what a commit log does not carry: `timestampMs` is 0 (a
+  display-only field nothing reads), `errors` is empty, `running` is false,
+  and subflow internals are absent where the engine isolated their commits.
+  Exported from both entry points; verified against the golden fixtures —
+  on flat runs it is byte-equal to the live recorder's overlay, and on all
+  four it lines up with the shell's rail step for step.
+- **`narrativeFromSnapshot(snapshot)`** — reads the narrative a recording
+  carries in `snapshot.recorders`. `<ExplainableShell>` and
+  `toVisualizationSnapshots` now use it automatically when no
+  `narrativeEntries` are supplied, so a replayed run tells its real story
+  instead of degrading to "X executed. Wrote: y". The `narrativeEntries`
+  prop still wins, and the recorder feeding the Story panel is no longer
+  ALSO rendered as a raw data tab. Detection is by entry shape, not by
+  recorder name.
+
+### Fixed
+
+- **Theme tokens that no preset emitted.** `--fp-accent` (12 read sites),
+  `--fp-accent-bg`, `--fp-bg` (the Insight panel body, which fell back to a
+  hard-coded `#1a1b26`), `--fp-success`, `--fp-tracing` and
+  `--fp-bg-elevated` were read by components but never written by
+  `tokensToCSSVars` — so `traceTheme={{ mode: 'light' }}` could not fully
+  re-theme the library's own shell. All are now `ThemeTokens` roles carried
+  by every preset (the node-state roles too), with `--fp-accent` defaulting
+  to `primary` and `--fp-success` emitted alongside `--fp-color-success`.
+  Fallback chains are untouched, so unthemed consumers render identically.
+  A new grep-driven test fails when a component reads a token no preset
+  emits.
+- **`<GanttTimeline>` on a run nothing timed.** A snapshot recorded without
+  a metrics recorder has all-zero durations; the chart drew every bar at the
+  invisible 1% minimum against a fabricated 1ms axis and printed "0ms" on
+  every row — it read as broken rather than unmeasured. With all durations
+  zero it now renders equal-width sequence bars (order is real, duration is
+  not), shows "—" per row, and replaces the axis with one plain note. Any
+  non-zero duration keeps today's rendering byte-identical. Durations are
+  never invented.
+- **`createTraceStructureRecorder` dropped out-of-order subflow mounts.**
+  `onSubflowMounted` arriving before its mount node's `onStageAdded` used to
+  warn and discard the metadata, silently downgrading a subflow to a plain
+  stage (no drill target, no subflow styling). The patch is now buffered and
+  applied when the node arrives, and the subflow's inner structure — which
+  never needed the mount node — materializes immediately. `reset()` clears
+  the buffer.
+- **`<ExplainableShell>` drew a grey chart when it had everything it needed.**
+  `runtimeSnapshot` + `traceGraph` with no `runtimeOverlay` painted every node
+  in its base colour — the run's execution order was sitting in the snapshot's
+  own commit log the whole time. The overlay is now DERIVED when the prop is
+  absent, so the failure is impossible rather than documented. An explicit
+  overlay still wins; for a deliberately uncoloured chart pass an empty one.
+- **A missing `traceGraph` is now stated, not hidden.** Handed run data with no
+  graph, the shell omitted the entire chart region in silence — no note, no
+  console line, which reads as "this library doesn't draw charts". It now warns
+  once in dev and shows one note where the chart would be, naming both ways to
+  get a graph (live `createTraceStructureRecorder`, or `graphFromStructure` on
+  a saved structure).
+- **`<ExplainableShell>` with nothing to show renders a diagnosis.** Zero stages
+  used to render the full three-panel chrome with empty rows. There are three
+  different problems there and it now names which: nothing was passed, the
+  snapshot could not be read (with the reason), or the run has no stages.
+  A snapshot with no `executionTree` is now an empty run rather than a crash.
+- **`<TraceViewer>` named a producer that does not exist, dropped the chart, and
+  failed to nothing.** It cited `agentfootprint.exportTrace()` five times (no
+  such API), accepted a `spec` prop and ignored it, never passed `traceGraph` or
+  `runtimeOverlay` to the shell — so a valid trace rendered ZERO chart nodes —
+  and rendered `fallback ?? null` when the adapter threw or yielded no rows. It
+  now takes a `Recording` (`{ snapshot, structure, events }` — the same shape
+  `agentfootprint-lens`' `observeRecording` reads, so one saved file drives both
+  viewers), derives the graph and the overlay itself, and reports every failure
+  through `onError` with a typed reason, including the two that used to be
+  silent: `unreadable-snapshot` and `no-stages`.
+- **The Gantt reported a loop's passes as one summed number.** Per-stage
+  timings were keyed by stage NAME and summed across executions, so a
+  3-iteration loop at 10ms per pass showed 30ms on all three rows — three fast
+  passes rendered as three slow ones. They are now keyed by `runtimeStageId`,
+  which is what the recorder's own data was keyed by all along. The legacy
+  per-name aggregate shape still reads as before.
+- **A renamed timing recorder silently killed every duration.** Detection was
+  `rec.name === 'Metrics'`; a rename or a custom timing recorder dropped all
+  durations and pushed the Gantt into its "no timing recorded" path while the
+  data sat in the snapshot. Detection is now by SHAPE — any recorder publishing
+  per-step `duration` feeds the timeline — the same rule the narrative reader
+  already used.
+- **`useDarkModeTokens` crashed on the server and never matched `.dark`.** It
+  read `document` inside a `useState` initializer (a hard crash in Next.js), and
+  its `selector` option was documented as a CSS selector but used as a class
+  name via `classList.contains`, so `.dark` and `[data-theme=dark]` silently
+  never matched. It is now server-safe (light on the server, corrected on
+  mount), the option is `darkClass` (the old `selector` still reads), and BOTH
+  spellings work — bare class name or any CSS selector.
+- **The three diff badges were the last unthemeable colours.** `ADD` / `UPD` /
+  `DEL` in `<StageDetailPanel>` were hard-coded green/amber/red in a panel a
+  light theme otherwise re-themes completely. They now paint from
+  `theme.success` / `warning` / `error`, with the washes mixed from the same
+  role. Same for the commit-chain selection wash and the trace card's fork
+  marker; the four ingredient-chip hues became `--fp-chip-1..4`.
+- **The insights empty state named no recorder.** "Attach recorders to see data"
+  is true and useless. It now lists the four ingredients with the call and the
+  import that produces each: `narrative()` → Story, `metrics()` → Performance,
+  `QualityRecorder` → Quality, agentfootprint's `costRecorder()` → Cost.
+- **A commit bundle without `trace` no longer white-screens the shell.** The
+  Data Trace walk assumed every bundle carries one; a hand-assembled or older
+  recording crashed the whole panel. A bundle with no trace wrote nothing
+  traceable, which is what it now reports.
+
+### Changed
+
+- **`<TraceViewer>`'s API.** `trace` → `recording` (the old prop name still
+  reads), `AgentfootprintTrace` → `Recording`, and `TraceParseError` gains
+  `missing-snapshot`, `unreadable-snapshot` and `no-stages` while losing
+  `missing-version` — `schemaVersion` is now optional and only refused when it
+  is present and not 1. The producer the old shape was validating for never
+  existed.
+
+### Documentation
+
+- **The README's ExplainableShell props table matched neither the props nor
+  reality.** `snapshots` was marked required (it is optional), `runtimeSnapshot`
+  — the entire replay entry point — was absent, as were `traceTheme`,
+  `recorderViews`, `hideTabs`, `defaultTab`, `hideConsole` and `showStageId`,
+  and it still listed a `narrative: string[]` row for a prop that was removed.
+  Rewritten from the source.
+- **Theming leads with the reason.** The section now opens with "every default
+  in this library is dark" and gives three fixes smallest-first — the one-word
+  `theme` prop, `useDarkModeTokens` (documented for the first time, including
+  the SSR behaviour and both switch spellings), then raw `--fp-*`.
+- **Quick Start captures the chart.** Step 1 now attaches
+  `createTraceStructureRecorder` at BUILD time, because that is the ingredient
+  no snapshot carries, and step 3 spells out the three fields of a recording.
+  The Flowchart section documented two exports that do not exist
+  (`TracedFlowchartView`, `specToReactFlow`) — replaced with `TracedFlow` and a
+  table of where a graph comes from.
+
 ## [0.30.0] - 2026-07-03
 
 ### Added

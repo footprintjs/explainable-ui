@@ -46,6 +46,86 @@ interface RuntimeSnapshot {
 export type { NarrativeEntry } from '../types';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Narrative carried INSIDE the snapshot
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// footprintjs's narrative recorder implements `toSnapshot()`, so a recorded
+// run can carry its own story in `snapshot.recorders` — no second
+// `getNarrativeEntries()` call, and a FROZEN recording (a saved snapshot, a
+// shipped demo) keeps its narrative instead of degrading to the synthetic
+// "X executed. Wrote: ..." lines.
+//
+// DETECTION IS BY SHAPE, NOT BY NAME — deliberately. The recorder's
+// snapshot `name` is upstream's choice ('Narrative' today) and the entries
+// may sit at `data` or `data.entries`. `readEntries()` below is the ONLY
+// place that knows the wire shape: if upstream lands a different envelope
+// (say `data.log`), add the accessor there and nothing else changes. The
+// name is used solely to BREAK TIES when several recorders look narrative-
+// shaped.
+
+/** A narrative entry is recognised by the three fields every renderer needs. */
+function looksLikeNarrativeEntry(value: unknown): boolean {
+  if (value === null || typeof value !== 'object') return false;
+  const e = value as Record<string, unknown>;
+  return typeof e.type === 'string' && typeof e.text === 'string' && typeof e.depth === 'number';
+}
+
+/** Pulls the entry array out of a recorder snapshot's `data`, whichever
+ *  envelope upstream used. Returns undefined when this isn't narrative. */
+function readEntries(data: unknown): NarrativeEntry[] | undefined {
+  const candidate = Array.isArray(data)
+    ? data
+    : isPlainRecord(data) && Array.isArray(data.entries)
+      ? (data.entries as unknown[])
+      : undefined;
+  if (!candidate || candidate.length === 0) return undefined;
+  return looksLikeNarrativeEntry(candidate[0]) ? (candidate as NarrativeEntry[]) : undefined;
+}
+
+/**
+ * Finds the narrative recorder inside a runtime snapshot. Returns its id
+ * alongside the entries so a UI can avoid ALSO rendering the same recorder
+ * as a raw data tab.
+ *
+ * Not exported from the package barrel — consumers want
+ * `narrativeFromSnapshot`; the shell wants the id too.
+ */
+export function narrativeRecorderFromSnapshot(
+  runtime: unknown,
+): { id: string; entries: NarrativeEntry[] } | undefined {
+  const recorders = isPlainRecord(runtime) ? runtime.recorders : undefined;
+  if (!Array.isArray(recorders)) return undefined;
+  let firstMatch: { id: string; entries: NarrativeEntry[] } | undefined;
+  for (const rec of recorders) {
+    if (!isPlainRecord(rec)) continue;
+    const entries = readEntries(rec.data);
+    if (!entries) continue;
+    const match = { id: typeof rec.id === 'string' ? rec.id : '', entries };
+    const name = typeof rec.name === 'string' ? rec.name : '';
+    if (/narrative|story/i.test(name)) return match; // named match wins outright
+    firstMatch ??= match;
+  }
+  return firstMatch;
+}
+
+/**
+ * Reads the execution narrative a recorded run carries with it.
+ *
+ * Use when you have a snapshot but no live executor to call
+ * `getNarrativeEntries()` on:
+ * ```ts
+ * <ExplainableShell runtimeSnapshot={snapshot}
+ *                   narrativeEntries={narrativeFromSnapshot(snapshot)} />
+ * ```
+ * (`<ExplainableShell>` already does this for you — pass the prop only to
+ * override.) Returns `undefined` when the run was recorded without a
+ * narrative recorder: absent narrative stays absent, never invented.
+ */
+export function narrativeFromSnapshot(runtime: unknown): NarrativeEntry[] | undefined {
+  return narrativeRecorderFromSnapshot(runtime)?.entries;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Cumulative-memory accumulation — commit-bundle replay + deep patch merge
 // ─────────────────────────────────────────────────────────────────────────────
 //
@@ -252,9 +332,12 @@ function indexCommitLog(commitLog: unknown[] | undefined): Map<string, CommitBun
  * suitable for visualization components.
  *
  * The `narrativeEntries` parameter (from `executor.getNarrativeEntries()`)
- * distributes the library's rich combined narrative per-stage.
- * When narrative is not enabled, stages get "Narrative not available" —
- * this adapter reflects what the library produces, nothing more.
+ * distributes the library's rich combined narrative per-stage. Omit it and
+ * the narrative the snapshot carries itself (`snapshot.recorders`) is used
+ * instead — so a replayed recording reads like the live run did.
+ * When narrative is not enabled at all, stages get a basic line built from
+ * the stage's own name/description/writes — this adapter reflects what the
+ * library produces, nothing more.
  *
  * Usage:
  * ```ts
@@ -270,9 +353,17 @@ export function toVisualizationSnapshots(
   runtime: RuntimeSnapshot,
   narrativeEntries?: NarrativeEntry[],
 ): StageSnapshot[] {
-  const stageNarrativeMap = narrativeEntries?.length
-    ? buildStageNarrativeMap(narrativeEntries)
+  // Caller's entries win; a snapshot that recorded its own narrative is the
+  // fallback (frozen recordings have no executor left to ask).
+  const entries = narrativeEntries?.length ? narrativeEntries : narrativeFromSnapshot(runtime);
+  const stageNarrativeMap = entries?.length
+    ? buildStageNarrativeMap(entries)
     : new Map<string, string[]>();
+
+  // No execution tree, no stages. A snapshot taken before `run()` finished
+  // (or one whose tree was dropped in transit) is an EMPTY run, not a crash —
+  // viewers show their empty state and name the missing piece.
+  if (runtime?.executionTree === null || typeof runtime?.executionTree !== 'object') return [];
 
   // Extract per-stage timings from MetricRecorder if present in snapshot.recorders.
   const stageTimings = extractStageTimings(runtime.recorders);
@@ -288,46 +379,77 @@ export function toVisualizationSnapshots(
 }
 
 /**
- * Extracts per-stage duration data from recorder snapshots.
+ * Per-execution durations read out of a run's recorder snapshots.
  *
- * Post-KeyedRecorder MetricRecorder serializes as
- *   { name: 'Metrics', data: { steps: { [runtimeStageId]: { stageName, duration, ... } } } }
+ * Keyed by `runtimeStageId` — the id that is UNIQUE per execution
+ * (`[subflowPath/]stageId#executionIndex`). Keying by stage name instead
+ * made a 3-iteration loop report the same number on all three rows: the
+ * three 10ms passes were summed to 30ms and every row read "30ms", which
+ * looks like three slow iterations rather than three fast ones.
  *
- * Older versions emitted `data.stages[stageName].totalDuration` directly;
- * we still accept that shape for back-compat when loading old snapshots.
- *
- * Stages that ran multiple times (e.g. CallLLM inside a loop) have one
- * entry per invocation keyed by runtimeStageId — sum their durations by
- * stageName so the GanttTimeline shows cumulative wall time per stage.
+ * `byStageName` exists only for the LEGACY `data.stages` shape, which
+ * aggregates per name and genuinely has no per-execution key.
  */
-function extractStageTimings(recorders?: RecorderSnapshot[]): Map<string, number> {
-  const timings = new Map<string, number>();
-  if (!recorders) return timings;
+interface StageTimings {
+  /** duration in ms, per execution. */
+  byRuntimeStageId: Map<string, number>;
+  /** duration in ms, per stage name — legacy snapshots only. */
+  byStageName: Map<string, number>;
+}
+
+/**
+ * The current shape: `data.steps[runtimeStageId] = { stageName, duration, … }`.
+ * Recognised by SHAPE, not by recorder name (see `looksLikeNarrativeEntry`
+ * for the same rule on the narrative channel): a renamed metrics recorder,
+ * a custom timing recorder, or an agent framework's own wrapper all feed the
+ * Gantt as long as they publish per-step durations. Matching `name ===
+ * 'Metrics'` meant one rename silently dropped every duration and the chart
+ * degraded to "no timing recorded" while the data sat right there.
+ */
+function readStepDurations(data: unknown): Record<string, { stageName?: string; duration?: number }> | undefined {
+  if (!isPlainRecord(data)) return undefined;
+  const steps = data.steps;
+  if (!isPlainRecord(steps)) return undefined;
+  const first = Object.values(steps)[0];
+  if (!isPlainRecord(first) || typeof first.duration !== 'number') return undefined;
+  return steps as Record<string, { stageName?: string; duration?: number }>;
+}
+
+/** The legacy shape: `data.stages[stageName].totalDuration`. */
+function readAggregateDurations(data: unknown): Record<string, { totalDuration?: number }> | undefined {
+  if (!isPlainRecord(data)) return undefined;
+  const stages = data.stages;
+  if (!isPlainRecord(stages)) return undefined;
+  const first = Object.values(stages)[0];
+  if (!isPlainRecord(first) || typeof first.totalDuration !== 'number') return undefined;
+  return stages as Record<string, { totalDuration?: number }>;
+}
+
+function extractStageTimings(recorders?: RecorderSnapshot[]): StageTimings {
+  const byRuntimeStageId = new Map<string, number>();
+  const byStageName = new Map<string, number>();
+  if (!recorders) return { byRuntimeStageId, byStageName };
   for (const rec of recorders) {
-    if (rec.name !== 'Metrics' || !rec.data || typeof rec.data !== 'object') continue;
-    const data = rec.data as {
-      steps?: Record<string, { stageName?: string; duration?: number }>;
-      stages?: Record<string, { totalDuration?: number }>;
-    };
-    // New shape: data.steps[runtimeStageId] = { stageName, duration, ... }
-    if (data.steps) {
-      for (const step of Object.values(data.steps)) {
-        const name = step?.stageName;
+    const steps = readStepDurations(rec?.data);
+    if (steps) {
+      for (const [runtimeStageId, step] of Object.entries(steps)) {
         const d = step?.duration;
-        if (!name || typeof d !== 'number' || d <= 0) continue;
-        timings.set(name, Math.round((timings.get(name) ?? 0) + d));
+        // One entry per execution — never summed. Two recorders reporting the
+        // same execution would be the same number twice, so first wins.
+        if (typeof d !== 'number' || d <= 0 || byRuntimeStageId.has(runtimeStageId)) continue;
+        byRuntimeStageId.set(runtimeStageId, Math.round(d));
       }
     }
-    // Legacy shape: data.stages[stageName].totalDuration
-    if (data.stages) {
-      for (const [stageName, metrics] of Object.entries(data.stages)) {
+    const stages = readAggregateDurations(rec?.data);
+    if (stages) {
+      for (const [stageName, metrics] of Object.entries(stages)) {
         if (typeof metrics.totalDuration === 'number' && metrics.totalDuration > 0) {
-          timings.set(stageName, Math.round(metrics.totalDuration));
+          byStageName.set(stageName, Math.round(metrics.totalDuration));
         }
       }
     }
   }
-  return timings;
+  return { byRuntimeStageId, byStageName };
 }
 
 /**
@@ -364,13 +486,15 @@ function flattenTree(
   subflowResults?: Record<string, unknown>,
   cumulativeMemory: Record<string, unknown> = {},
   stageNarrativeMap: Map<string, string[]> = new Map(),
-  stageTimings: Map<string, number> = new Map(),
+  stageTimings: StageTimings = { byRuntimeStageId: new Map(), byStageName: new Map() },
   commitIndex: Map<string, CommitBundleLike[]> = new Map(),
 ): number {
-  // Prefer MetricRecorder timing (real wall-clock), then scope.$metric('durationMs'), then 0.
+  // Prefer the timing recorded for THIS execution (a loop's 2nd pass is its
+  // own row), then the legacy per-name aggregate, then scope.$metric, then 0.
   const stageName = node.name ?? node.id;
   const durationMs =
-    (stageName ? stageTimings.get(stageName) : undefined) ??
+    (node.runtimeStageId ? stageTimings.byRuntimeStageId.get(node.runtimeStageId) : undefined) ??
+    (stageName ? stageTimings.byStageName.get(stageName) : undefined) ??
     (typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 0);
 
   const startMs = accumulatedMs;

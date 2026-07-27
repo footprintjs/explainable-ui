@@ -6,3 +6,5 @@ export { themePresets, coolDark, coolLight, warmDark, warmLight } from "./preset
 export type { ThemePresetName } from "./presets";
 export { useDarkModeTokens } from "./useDarkModeTokens";
 export type { DarkModeTokensOptions } from "./useDarkModeTokens";
+export { themeModeVars } from "./mode";
+export type { ThemeMode, ThemeModeProps } from "./mode";

@@ -321,7 +321,9 @@ function Leaf({
               cursor: clickable ? "pointer" : "default",
               borderColor: isSelected ? theme.success : theme.border,
               borderWidth: isSelected ? 2 : 1,
-              background: isSelected ? "rgba(34,197,94,0.08)" : "transparent",
+              // Mixed FROM the same role the border uses, so one `success`
+              // override moves both (raw rgba here was unthemeable).
+              background: isSelected ? `color-mix(in srgb, ${theme.success} 8%, transparent)` : "transparent",
               color: theme.textPrimary,
               textAlign: "left",
               fontFamily: "inherit",

@@ -68,6 +68,8 @@ __export(flowchart_exports, {
   defaultTraceFlowLayout: () => defaultTraceFlowLayout,
   filterGraphForDrill: () => filterGraphForDrill,
   forwardtraceStructural: () => forwardtraceStructural,
+  graphFromStructure: () => graphFromStructure,
+  overlayFromSnapshot: () => overlayFromSnapshot,
   sliceOverlay: () => sliceOverlay,
   snapLinearSuccessors: () => snapLinearSuccessors,
   structureAsChainTree: () => structureAsChainTree,
@@ -88,6 +90,41 @@ var import_react4 = require("@xyflow/react");
 var import_react = require("react");
 
 // src/theme/tokens.ts
+function tokensToCSSVars(tokens) {
+  const vars = {};
+  if (tokens.colors) {
+    const c = tokens.colors;
+    if (c.primary) vars["--fp-color-primary"] = c.primary;
+    if (c.success) vars["--fp-color-success"] = c.success;
+    if (c.error) vars["--fp-color-error"] = c.error;
+    if (c.warning) vars["--fp-color-warning"] = c.warning;
+    if (c.nodeCursor) vars["--fp-node-cursor"] = c.nodeCursor;
+    if (c.nodeVisited) vars["--fp-node-visited"] = c.nodeVisited;
+    if (c.nodeMain) vars["--fp-node-main"] = c.nodeMain;
+    const accent = c.accent ?? c.primary;
+    if (accent) vars["--fp-accent"] = accent;
+    if (c.accentBg) vars["--fp-accent-bg"] = c.accentBg;
+    if (c.success) vars["--fp-success"] = c.success;
+    if (c.tracing) vars["--fp-tracing"] = c.tracing;
+    if (c.chip1) vars["--fp-chip-1"] = c.chip1;
+    if (c.chip2) vars["--fp-chip-2"] = c.chip2;
+    if (c.chip3) vars["--fp-chip-3"] = c.chip3;
+    if (c.chip4) vars["--fp-chip-4"] = c.chip4;
+    if (c.bg) vars["--fp-bg"] = c.bg;
+    if (c.bgElevated) vars["--fp-bg-elevated"] = c.bgElevated;
+    if (c.bgPrimary) vars["--fp-bg-primary"] = c.bgPrimary;
+    if (c.bgSecondary) vars["--fp-bg-secondary"] = c.bgSecondary;
+    if (c.bgTertiary) vars["--fp-bg-tertiary"] = c.bgTertiary;
+    if (c.textPrimary) vars["--fp-text-primary"] = c.textPrimary;
+    if (c.textSecondary) vars["--fp-text-secondary"] = c.textSecondary;
+    if (c.textMuted) vars["--fp-text-muted"] = c.textMuted;
+    if (c.border) vars["--fp-border"] = c.border;
+  }
+  if (tokens.radius) vars["--fp-radius"] = tokens.radius;
+  if (tokens.fontFamily?.sans) vars["--fp-font-sans"] = tokens.fontFamily.sans;
+  if (tokens.fontFamily?.mono) vars["--fp-font-mono"] = tokens.fontFamily.mono;
+  return vars;
+}
 var rawDefaults = {
   colors: {
     primary: "#6366f1",
@@ -97,6 +134,15 @@ var rawDefaults = {
     nodeCursor: "#f59e0b",
     nodeVisited: "#22c55e",
     nodeMain: "#6366f1",
+    accent: "#6366f1",
+    accentBg: "rgba(99,102,241,0.12)",
+    tracing: "#0d9488",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#1a1b26",
+    bgElevated: "#1e293b",
     bgPrimary: "#0f172a",
     bgSecondary: "#1e293b",
     bgTertiary: "#334155",
@@ -120,6 +166,15 @@ var defaultTokens = {
     nodeCursor: `var(--fp-node-cursor, ${rawDefaults.colors.nodeCursor})`,
     nodeVisited: `var(--fp-node-visited, ${rawDefaults.colors.nodeVisited})`,
     nodeMain: `var(--fp-node-main, ${rawDefaults.colors.nodeMain})`,
+    accent: `var(--fp-accent, ${rawDefaults.colors.accent})`,
+    accentBg: `var(--fp-accent-bg, ${rawDefaults.colors.accentBg})`,
+    tracing: `var(--fp-tracing, ${rawDefaults.colors.tracing})`,
+    chip1: `var(--fp-chip-1, ${rawDefaults.colors.chip1})`,
+    chip2: `var(--fp-chip-2, ${rawDefaults.colors.chip2})`,
+    chip3: `var(--fp-chip-3, ${rawDefaults.colors.chip3})`,
+    chip4: `var(--fp-chip-4, ${rawDefaults.colors.chip4})`,
+    bg: `var(--fp-bg, ${rawDefaults.colors.bg})`,
+    bgElevated: `var(--fp-bg-elevated, ${rawDefaults.colors.bgElevated})`,
     bgPrimary: `var(--fp-bg-primary, ${rawDefaults.colors.bgPrimary})`,
     bgSecondary: `var(--fp-bg-secondary, ${rawDefaults.colors.bgSecondary})`,
     bgTertiary: `var(--fp-bg-tertiary, ${rawDefaults.colors.bgTertiary})`,
@@ -157,6 +212,19 @@ var theme = {
   // executed up to the cursor
   nodeMain: v("--fp-node-main", "#6366f1"),
   // the lead / "hero" node of a group
+  // Short-alias roles. Panels written against these read the SAME token the
+  // presets emit (see tokensToCSSVars) — they exist so a component can say
+  // "accent" without deciding whether it means the brand primary.
+  accent: v("--fp-accent", "#6366f1"),
+  // active tab / selected rule
+  accentBg: v("--fp-accent-bg", "rgba(99,102,241,0.12)"),
+  // wash behind an accented row
+  tracing: v("--fp-tracing", "#0d9488"),
+  // the tracing-rail chrome
+  bg: v("--fp-bg", "#1a1b26"),
+  // panel body surface
+  bgElevated: v("--fp-bg-elevated", "#1e293b"),
+  // raised card on the body surface
   bgPrimary: v("--fp-bg-primary", "#0f172a"),
   bgSecondary: v("--fp-bg-secondary", "#1e293b"),
   bgTertiary: v("--fp-bg-tertiary", "#334155"),
@@ -179,8 +247,80 @@ var padding = {
   detailed: 16
 };
 
+// src/theme/presets.ts
+var coolDark = {
+  colors: {
+    primary: "#6366f1",
+    success: "#22c55e",
+    error: "#ef4444",
+    warning: "#f59e0b",
+    nodeCursor: "#f59e0b",
+    nodeVisited: "#22c55e",
+    nodeMain: "#6366f1",
+    accent: "#6366f1",
+    accentBg: "rgba(99,102,241,0.12)",
+    tracing: "#14b8a6",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#0f172a",
+    bgElevated: "#1e293b",
+    bgPrimary: "#0f172a",
+    bgSecondary: "#1e293b",
+    bgTertiary: "#334155",
+    textPrimary: "#f8fafc",
+    textSecondary: "#94a3b8",
+    textMuted: "#64748b",
+    border: "#334155"
+  },
+  radius: "8px",
+  fontFamily: {
+    sans: "Inter, system-ui, -apple-system, sans-serif",
+    mono: "'JetBrains Mono', 'Fira Code', monospace"
+  }
+};
+var coolLight = {
+  colors: {
+    primary: "#6366f1",
+    success: "#22c55e",
+    error: "#ef4444",
+    warning: "#f59e0b",
+    nodeCursor: "#f59e0b",
+    nodeVisited: "#22c55e",
+    nodeMain: "#6366f1",
+    accent: "#6366f1",
+    accentBg: "rgba(99,102,241,0.10)",
+    tracing: "#0d9488",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#ffffff",
+    bgElevated: "#f9fafb",
+    bgPrimary: "#ffffff",
+    bgSecondary: "#f9fafb",
+    bgTertiary: "#e5e7eb",
+    textPrimary: "#18181b",
+    textSecondary: "#52525b",
+    textMuted: "#a1a1aa",
+    border: "#e5e7eb"
+  },
+  radius: "8px",
+  fontFamily: {
+    sans: "Inter, system-ui, -apple-system, sans-serif",
+    mono: "'JetBrains Mono', 'Fira Code', monospace"
+  }
+};
+
 // src/theme/useDarkModeTokens.ts
 var import_react2 = require("react");
+
+// src/theme/mode.ts
+function themeModeVars(mode) {
+  if (!mode) return {};
+  return tokensToCSSVars(mode === "light" ? coolLight : coolDark);
+}
 
 // src/components/StageNode/StageNode.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
@@ -1016,6 +1156,9 @@ function NarrativeLog({
 // src/components/GanttTimeline/GanttTimeline.tsx
 var import_react7 = require("react");
 var import_jsx_runtime5 = require("react/jsx-runtime");
+var NO_TIMING_NOTE = "No timing recorded \u2014 bars show the order stages ran, not how long they took.";
+var NO_TIMING_HINT = "Durations come from footprintjs's metrics recorder; this run was recorded without one.";
+var NO_DURATION = "\u2014";
 function GanttTimeline({
   snapshots,
   selectedIndex = 0,
@@ -1024,6 +1167,7 @@ function GanttTimeline({
   unstyled = false,
   className,
   style,
+  theme: themeMode,
   maxVisibleRows = 5
 }) {
   const [expanded, setExpanded] = (0, import_react7.useState)(false);
@@ -1033,6 +1177,16 @@ function GanttTimeline({
     () => Math.max(...snapshots.map((s) => s.startMs + s.durationMs), 1),
     [snapshots]
   );
+  const untimed = (0, import_react7.useMemo)(
+    () => snapshots.length > 0 && snapshots.every((s) => s.durationMs === 0),
+    [snapshots]
+  );
+  const rowDuration = (snap) => untimed ? NO_DURATION : `${snap.durationMs}ms`;
+  const rowLabel = (snap, idx) => untimed ? `${snap.stageLabel}, step ${idx + 1} of ${snapshots.length}, no timing recorded` : `${snap.stageLabel}, ${snap.durationMs}ms`;
+  const barGeometry = (snap, idx) => untimed ? { leftPct: idx / snapshots.length * 100, widthPct: 100 / snapshots.length } : {
+    leftPct: snap.startMs / totalWallTime * 100,
+    widthPct: Math.max(snap.durationMs / totalWallTime * 100, 1)
+  };
   const fs = fontSize[size];
   const pad = padding[size];
   const labelWidth = size === "compact" ? 50 : size === "detailed" ? 100 : 80;
@@ -1049,33 +1203,45 @@ function GanttTimeline({
     }
   }, [selectedIndex, showAll]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { className, style, "data-fp": "gantt-timeline", role: "listbox", "aria-label": "Execution timeline", children: snapshots.map((snap, idx) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
       "div",
       {
-        "data-fp": "gantt-bar",
-        "data-selected": idx === selectedIndex,
-        "data-visible": idx <= selectedIndex,
-        role: "option",
-        "aria-selected": idx === selectedIndex,
-        "aria-label": `${snap.stageLabel}, ${snap.durationMs}ms`,
-        onClick: () => onSelect?.(idx),
+        className,
+        style,
+        "data-fp": "gantt-timeline",
+        "data-timing": untimed ? "none" : void 0,
+        role: "listbox",
+        "aria-label": "Execution timeline",
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { "data-fp": "gantt-label", children: snap.stageLabel }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { "data-fp": "gantt-duration", children: [
-            snap.durationMs,
-            "ms"
-          ] })
+          snapshots.map((snap, idx) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+            "div",
+            {
+              "data-fp": "gantt-bar",
+              "data-selected": idx === selectedIndex,
+              "data-visible": idx <= selectedIndex,
+              role: "option",
+              "aria-selected": idx === selectedIndex,
+              "aria-label": rowLabel(snap, idx),
+              onClick: () => onSelect?.(idx),
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { "data-fp": "gantt-label", children: snap.stageLabel }),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { "data-fp": "gantt-duration", children: rowDuration(snap) })
+              ]
+            },
+            `${snap.stageName}-${idx}`
+          )),
+          untimed && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { "data-fp": "gantt-no-timing", title: NO_TIMING_HINT, children: NO_TIMING_NOTE })
         ]
-      },
-      `${snap.stageName}-${idx}`
-    )) });
+      }
+    );
   }
   return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
     "div",
     {
       className,
-      style: { padding: pad, fontFamily: theme.fontSans, ...style },
+      style: { ...themeModeVars(themeMode), padding: pad, fontFamily: theme.fontSans, ...style },
       "data-fp": "gantt-timeline",
+      "data-timing": untimed ? "none" : void 0,
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
           "div",
@@ -1137,8 +1303,7 @@ function GanttTimeline({
               }
             },
             children: snapshots.map((snap, idx) => {
-              const leftPct = snap.startMs / totalWallTime * 100;
-              const widthPct = Math.max(snap.durationMs / totalWallTime * 100, 1);
+              const { leftPct, widthPct } = barGeometry(snap, idx);
               const isSelected = idx === selectedIndex;
               const isVisible = idx <= selectedIndex;
               return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
@@ -1147,7 +1312,7 @@ function GanttTimeline({
                   ref: isSelected ? activeRowRef : void 0,
                   role: "option",
                   "aria-selected": isSelected,
-                  "aria-label": `${snap.stageLabel}, ${snap.durationMs}ms`,
+                  "aria-label": rowLabel(snap, idx),
                   onClick: () => onSelect?.(idx),
                   style: {
                     display: "flex",
@@ -1205,7 +1370,7 @@ function GanttTimeline({
                         )
                       }
                     ),
-                    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
                       "span",
                       {
                         style: {
@@ -1215,10 +1380,7 @@ function GanttTimeline({
                           width: msWidth,
                           flexShrink: 0
                         },
-                        children: [
-                          snap.durationMs,
-                          "ms"
-                        ]
+                        children: rowDuration(snap)
                       }
                     )
                   ]
@@ -1228,7 +1390,21 @@ function GanttTimeline({
             })
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+        untimed ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+          "div",
+          {
+            "data-fp": "gantt-no-timing",
+            title: NO_TIMING_HINT,
+            style: {
+              marginTop: 6,
+              fontSize: fs.small,
+              color: theme.textMuted,
+              fontStyle: "italic",
+              lineHeight: 1.4
+            },
+            children: NO_TIMING_NOTE
+          }
+        ) : /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
           "div",
           {
             style: {
@@ -2698,6 +2874,7 @@ function TracedFlow({
   edgeTypes: userEdgeTypes,
   coActiveStageIds,
   sliceCone,
+  theme: themeMode,
   children,
   className,
   style
@@ -2854,6 +3031,9 @@ function TracedFlow({
       ref: wrapperRef,
       className,
       style: {
+        // The one-word switch, applied to this chart's own root so a chart
+        // mounted alone in a light app is light (see theme/mode.ts).
+        ...themeModeVars(themeMode),
         width: "100%",
         height: "100%",
         minHeight: 300,
@@ -3655,6 +3835,7 @@ function createTraceStructureRecorder(options = {}) {
   const seenEdgeIds = /* @__PURE__ */ new Set();
   const prevIdsOf = /* @__PURE__ */ new Map();
   const nextIdsOf = /* @__PURE__ */ new Map();
+  const pendingMountPatches = /* @__PURE__ */ new Map();
   const notifier = createNotifier("traceStructureRecorder");
   function notifyChange() {
     if (onChange) {
@@ -3698,6 +3879,19 @@ function createTraceStructureRecorder(options = {}) {
     prevIdsOf.set(target, prevArr);
     syncNeighborsOnto(source);
     syncNeighborsOnto(target);
+  }
+  function applyMountPatch(event) {
+    const existing = nodeIndex.get(event.rootStageId);
+    if (existing === void 0) return false;
+    const node = nodes[existing];
+    const data = {
+      ...node.data,
+      isSubflow: true,
+      subflowId: event.subflowId
+    };
+    if (event.isLazy === true) data.isLazy = true;
+    nodes[existing] = { ...node, data };
+    return true;
   }
   function syncNeighborsOnto(stageId) {
     const idx = nodeIndex.get(stageId);
@@ -3745,6 +3939,11 @@ function createTraceStructureRecorder(options = {}) {
         position: { x: 0, y: 0 },
         data
       });
+      const pending = pendingMountPatches.get(event.stageId);
+      if (pending) {
+        pendingMountPatches.delete(event.stageId);
+        for (const mount of pending) applyMountPatch(mount);
+      }
       notifyChange();
     },
     onEdgeAdded(event) {
@@ -3792,21 +3991,11 @@ function createTraceStructureRecorder(options = {}) {
       notifyChange();
     },
     onSubflowMounted(event) {
-      const existing = nodeIndex.get(event.rootStageId);
-      if (existing === void 0) {
-        devWarn(
-          () => `[traceStructureRecorder] onSubflowMounted fired for unknown rootStageId "${event.rootStageId}" (subflowId="${event.subflowId}") \u2014 subflow metadata dropped. Did the upstream fire onStageAdded for the mount node first?`
-        );
-        return;
+      if (!applyMountPatch(event)) {
+        const queued = pendingMountPatches.get(event.rootStageId);
+        if (queued) queued.push(event);
+        else pendingMountPatches.set(event.rootStageId, [event]);
       }
-      const node = nodes[existing];
-      const data = {
-        ...node.data,
-        isSubflow: true,
-        subflowId: event.subflowId
-      };
-      if (event.isLazy === true) data.isLazy = true;
-      nodes[existing] = { ...node, data };
       const subflowPath = event.subflowPath ?? event.subflowId;
       if (event.subflowSpec) {
         walkSubflowSpecInto(event.subflowSpec, subflowPath, {
@@ -3837,6 +4026,7 @@ function createTraceStructureRecorder(options = {}) {
       seenEdgeIds.clear();
       prevIdsOf.clear();
       nextIdsOf.clear();
+      pendingMountPatches.clear();
     }
   };
 }
@@ -5301,7 +5491,9 @@ function Leaf({
           cursor: clickable ? "pointer" : "default",
           borderColor: isSelected ? theme.success : theme.border,
           borderWidth: isSelected ? 2 : 1,
-          background: isSelected ? "rgba(34,197,94,0.08)" : "transparent",
+          // Mixed FROM the same role the border uses, so one `success`
+          // override moves both (raw rgba here was unthemeable).
+          background: isSelected ? `color-mix(in srgb, ${theme.success} 8%, transparent)` : "transparent",
           color: theme.textPrimary,
           textAlign: "left",
           fontFamily: "inherit",
@@ -5683,6 +5875,135 @@ var PANE_BASE_STYLE = {
 function Pane({ area, children }) {
   return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { role: "region", "aria-label": area, style: { ...PANE_BASE_STYLE, gridArea: area }, children });
 }
+
+// src/adapters/overlayFromSnapshot.ts
+function baseStageIdOf3(runtimeStageId) {
+  const hashIdx = runtimeStageId.indexOf("#");
+  return hashIdx >= 0 ? runtimeStageId.slice(0, hashIdx) : runtimeStageId;
+}
+function overlayFromSnapshot(snapshot) {
+  const commitLog = snapshot?.commitLog;
+  const executionOrder = [];
+  if (Array.isArray(commitLog)) {
+    const seen = /* @__PURE__ */ new Set();
+    for (const entry of commitLog) {
+      if (entry === null || typeof entry !== "object") continue;
+      const bundle = entry;
+      const runtimeStageId = bundle.runtimeStageId;
+      if (typeof runtimeStageId !== "string" || runtimeStageId.length === 0) continue;
+      if (seen.has(runtimeStageId)) continue;
+      seen.add(runtimeStageId);
+      const stageId = baseStageIdOf3(runtimeStageId);
+      executionOrder.push({
+        runtimeStageId,
+        stageId,
+        // `bundle.stage` is the stage's display name; fall back to the id
+        // rather than inventing a label when an older engine omitted it.
+        stageName: typeof bundle.stage === "string" && bundle.stage.length > 0 ? bundle.stage : stageId,
+        timestampMs: 0
+        // see "honest absence" in the module JSDoc
+      });
+    }
+  }
+  return { executionOrder, errors: /* @__PURE__ */ new Map(), running: false };
+}
+
+// src/adapters/graphFromStructure.ts
+function looksLikeStructure(value) {
+  if (value === null || typeof value !== "object") return false;
+  const n = value;
+  return typeof n.id === "string" && typeof n.name === "string";
+}
+function convergenceEdges(node, targetId) {
+  const children = node.children;
+  const isBranching = (node.type === "fork" || node.type === "decider" || node.type === "selector") && Array.isArray(children) && children.length > 0;
+  if (!isBranching) return [{ from: node.id, to: targetId }];
+  const edges = [];
+  for (const child of children) {
+    if (child.isLoopReference) continue;
+    if (child.next?.isLoopReference) continue;
+    edges.push({ from: child.id, to: child.convergeAt ?? targetId });
+  }
+  return edges;
+}
+function graphFromStructure(structure) {
+  const trace = createTraceStructureRecorder({ id: "graph-from-structure" });
+  if (!looksLikeStructure(structure)) return trace.getGraph();
+  const rec = trace.recorder;
+  const announced = /* @__PURE__ */ new Set();
+  const walked = /* @__PURE__ */ new Set();
+  const announce = (node) => {
+    if (announced.has(node.id)) return;
+    announced.add(node.id);
+    rec.onStageAdded?.({
+      stageId: node.id,
+      name: node.name,
+      // The serialized spelling of a decision stage is `type: 'decider'`;
+      // the live builder's is `type: 'stage'` + `spec.hasDecider`. The
+      // recorder reads BOTH, so either front door yields the same node.
+      type: node.type ?? "stage",
+      ...node.isPausable === true ? { isPausable: true } : {},
+      spec: node
+    });
+  };
+  const mounted = /* @__PURE__ */ new Set();
+  const mount = (node) => {
+    if (!node.isSubflowRoot || node.subflowId === void 0 || mounted.has(node.id)) return;
+    mounted.add(node.id);
+    rec.onSubflowMounted?.({
+      subflowId: node.subflowId,
+      subflowName: node.subflowName ?? node.name,
+      rootStageId: node.id,
+      ...node.isLazy === true ? { isLazy: true } : {},
+      ...node.subflowStructure ? { subflowSpec: node.subflowStructure } : {},
+      subflowPath: node.subflowId
+    });
+  };
+  const walk = (node) => {
+    if (node.isLoopReference || walked.has(node.id)) return;
+    walked.add(node.id);
+    announce(node);
+    mount(node);
+    const children = node.children ?? [];
+    if (children.length > 0) {
+      const kind = node.type === "fork" ? "fork-branch" : "decision-branch";
+      for (const child of children) {
+        announce(child);
+        rec.onEdgeAdded?.({
+          from: node.id,
+          to: child.id,
+          kind,
+          ...kind === "decision-branch" ? { label: child.id } : {}
+        });
+        mount(child);
+      }
+      const isDecision = node.type === "decider" || node.type === "selector" || node.hasDecider === true || node.hasSelector === true;
+      if (isDecision) {
+        rec.onDeciderComplete?.({
+          decider: node.id,
+          type: node.hasSelector === true || node.type === "selector" ? "selector" : "decider",
+          branchIds: node.branchIds ?? children.map((c) => c.id)
+          // `defaultBranch` is deliberately absent — see the module JSDoc.
+        });
+      }
+      for (const child of children) walk(child);
+    }
+    const next = node.next;
+    if (!next) return;
+    if (next.isLoopReference) {
+      rec.onLoopEdgeAdded?.({ from: node.id, to: node.loopTarget ?? next.id });
+      return;
+    }
+    announce(next);
+    for (const edge of convergenceEdges(node, next.id)) {
+      rec.onEdgeAdded?.({ from: edge.from, to: edge.to, kind: "next" });
+    }
+    mount(next);
+    walk(next);
+  };
+  walk(structure);
+  return trace.getGraph();
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   CommitChainView,
@@ -5723,6 +6044,8 @@ function Pane({ area, children }) {
   defaultTraceFlowLayout,
   filterGraphForDrill,
   forwardtraceStructural,
+  graphFromStructure,
+  overlayFromSnapshot,
   sliceOverlay,
   snapLinearSuccessors,
   structureAsChainTree,

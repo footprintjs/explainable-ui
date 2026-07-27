@@ -6,7 +6,10 @@ export { FootprintTheme, useFootprintTheme } from "./theme";
 export { tokensToCSSVars, defaultTokens, rawDefaults } from "./theme";
 export { themePresets, coolDark, coolLight, warmDark, warmLight } from "./theme";
 export { useDarkModeTokens } from "./theme";
-export type { ThemeTokens, ThemePresetName, DarkModeTokensOptions } from "./theme";
+// The one-word light/dark switch: `theme="light"` on a standalone component,
+// `themeModeVars(mode)` to stamp the same variables on your own wrapper.
+export { themeModeVars } from "./theme";
+export type { ThemeTokens, ThemePresetName, DarkModeTokensOptions, ThemeMode, ThemeModeProps } from "./theme";
 
 // Core components (zero external deps beyond React)
 export { MemoryInspector } from "./components/MemoryInspector";
@@ -39,9 +42,10 @@ export type { TimeTravelControlsProps, TracingRail } from "./components/TimeTrav
 export { ExplainableShell } from "./components/ExplainableShell";
 export type { ExplainableShellProps, TraceTheme, RuntimeSnapshotInput, RecorderView, ShellTab, PanelLabels, DefaultExpanded } from "./components/ExplainableShell";
 
-// Drop-in viewer for `agentfootprint.exportTrace()` JSON
+// Drop-in viewer for a saved recording — `{ snapshot, structure }`, the same
+// shape agentfootprint-lens' `observeRecording` reads.
 export { TraceViewer } from "./components/TraceViewer/TraceViewer";
-export type { TraceViewerProps, AgentfootprintTrace, TraceParseError } from "./components/TraceViewer/TraceViewer";
+export type { TraceViewerProps, Recording, TraceParseError } from "./components/TraceViewer/TraceViewer";
 
 // Composite panels (memory + narrative — self-contained right-panel views)
 export { MemoryPanel } from "./components/MemoryPanel";
@@ -58,8 +62,21 @@ export { SubflowTree } from "./components/FlowchartView/SubflowTree";
 export type { SubflowTreeProps, SubflowTreeEntry } from "./components/FlowchartView/SubflowTree";
 
 // Adapters
-export { toVisualizationSnapshots, createSnapshots, subflowResultToSnapshots, mergeWritePatch } from "./adapters/fromRuntimeSnapshot";
+export { toVisualizationSnapshots, createSnapshots, subflowResultToSnapshots, mergeWritePatch, narrativeFromSnapshot } from "./adapters/fromRuntimeSnapshot";
 export type { NarrativeEntry as AdapterNarrativeEntry } from "./adapters/fromRuntimeSnapshot";
+
+// Replay a recording. Two ingredients, two adapters: the SNAPSHOT rebuilds
+// the chart's time-travel colouring, the saved STRUCTURE rebuilds the chart
+// itself. Neither needs a live executor.
+export { overlayFromSnapshot } from "./adapters/overlayFromSnapshot";
+export type { SnapshotWithCommitLog } from "./adapters/overlayFromSnapshot";
+export { graphFromStructure } from "./adapters/graphFromStructure";
+export type { SerializedStructureNode } from "./adapters/graphFromStructure";
+export type {
+  RuntimeOverlay,
+  RuntimeExecutionStep,
+} from "./components/FlowchartView/createTraceRuntimeOverlay";
+export type { TraceGraph } from "./components/FlowchartView/traceStructureRecorder";
 
 // Utilities — narrative sync, subflow extraction
 export { buildEntryRangeIndex, computeRevealedEntryCount, extractSubflowNarrative } from "./utils/narrativeSync";

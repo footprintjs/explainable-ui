@@ -1,5 +1,20 @@
 import type { ThemeTokens } from "./tokens";
 
+/**
+ * Built-in palettes.
+ *
+ * Each preset carries EVERY role the components read — including the
+ * node-state roles, the accent pair, the surfaces and the tracing colour.
+ * A preset with holes is worse than no preset: the components fall back to
+ * their hard-coded (dark) defaults for the missing roles, so a light theme
+ * shows dark patches. `test/unit/themeTokens.test.ts` fails when a preset
+ * stops covering a token the source reads.
+ *
+ * The cool presets keep the historic raw defaults for the node roles
+ * (amber cursor / green visited / indigo lead) so nothing re-colours for
+ * consumers already on them; the warm presets use their own palette.
+ */
+
 /** Cool dark theme (the library default) */
 export const coolDark: ThemeTokens = {
   colors: {
@@ -7,6 +22,18 @@ export const coolDark: ThemeTokens = {
     success: "#22c55e",
     error: "#ef4444",
     warning: "#f59e0b",
+    nodeCursor: "#f59e0b",
+    nodeVisited: "#22c55e",
+    nodeMain: "#6366f1",
+    accent: "#6366f1",
+    accentBg: "rgba(99,102,241,0.12)",
+    tracing: "#14b8a6",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#0f172a",
+    bgElevated: "#1e293b",
     bgPrimary: "#0f172a",
     bgSecondary: "#1e293b",
     bgTertiary: "#334155",
@@ -29,6 +56,18 @@ export const warmDark: ThemeTokens = {
     success: "#3dd68c",
     error: "#f06292",
     warning: "#ffb74d",
+    nodeCursor: "#ffb74d",
+    nodeVisited: "#3dd68c",
+    nodeMain: "#7c6cf0",
+    accent: "#7c6cf0",
+    accentBg: "rgba(124,108,240,0.14)",
+    tracing: "#3ecfb2",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#1e1a2e",
+    bgElevated: "#2a2540",
     bgPrimary: "#1e1a2e",
     bgSecondary: "#2a2540",
     bgTertiary: "#3a3455",
@@ -51,6 +90,18 @@ export const warmLight: ThemeTokens = {
     success: "#22a860",
     error: "#d94452",
     warning: "#e09030",
+    nodeCursor: "#e09030",
+    nodeVisited: "#22a860",
+    nodeMain: "#7c6cf0",
+    accent: "#7c6cf0",
+    accentBg: "rgba(124,108,240,0.12)",
+    tracing: "#0e9c88",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#faf5ef",
+    bgElevated: "#f0e6d6",
     bgPrimary: "#faf5ef",
     bgSecondary: "#f0e6d6",
     bgTertiary: "#e4d5c3",
@@ -73,6 +124,18 @@ export const coolLight: ThemeTokens = {
     success: "#22c55e",
     error: "#ef4444",
     warning: "#f59e0b",
+    nodeCursor: "#f59e0b",
+    nodeVisited: "#22c55e",
+    nodeMain: "#6366f1",
+    accent: "#6366f1",
+    accentBg: "rgba(99,102,241,0.10)",
+    tracing: "#0d9488",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#ffffff",
+    bgElevated: "#f9fafb",
     bgPrimary: "#ffffff",
     bgSecondary: "#f9fafb",
     bgTertiary: "#e5e7eb",

@@ -35,19 +35,22 @@ npm install @xyflow/react
 
 ## Quick Start
 
-### 1. Convert execution data to snapshots
+### 1. Capture the chart while it is built
+
+The chart is the one thing a run does not leave behind, so collect it at BUILD
+time (or save `chart.buildTimeStructure` — see step 3):
 
 ```typescript
-import { FlowChartExecutor } from "footprintjs";
-import { toVisualizationSnapshots } from "footprint-explainable-ui";
+import { flowChart, FlowChartExecutor } from "footprintjs";
+import { createTraceStructureRecorder } from "footprint-explainable-ui/flowchart";
+
+const trace = createTraceStructureRecorder();
+const chart = flowChart("seed", seedFn, "seed", { structureRecorders: [trace.recorder] })
+  .addFunction("work", workFn, "work")
+  .build();
 
 const executor = new FlowChartExecutor(chart);
 await executor.run({ input: data });
-
-const snapshots = toVisualizationSnapshots(
-  executor.getSnapshot(),
-  executor.getNarrativeEntries(), // optional — enables rich narrative
-);
 ```
 
 ### 2. Render with the all-in-one shell
@@ -55,19 +58,18 @@ const snapshots = toVisualizationSnapshots(
 ```tsx
 import { ExplainableShell } from "footprint-explainable-ui";
 
-function DebugView({ snapshots, narrativeEntries, traceGraph, runtimeOverlay }) {
-  return (
-    <ExplainableShell
-      snapshots={snapshots}
-      narrativeEntries={narrativeEntries}
-      traceGraph={traceGraph}
-      runtimeOverlay={runtimeOverlay}
-      title="My Pipeline"
-      panelLabels={{ topology: "What Ran", details: "What Happened", timeline: "How Long" }}
-    />
-  );
-}
+<ExplainableShell
+  runtimeSnapshot={executor.getSnapshot()}
+  traceGraph={trace.getGraph()}
+  title="My Pipeline"
+  panelLabels={{ topology: "What Ran", details: "What Happened", timeline: "How Long" }}
+/>;
 ```
+
+Two props. The shell converts the snapshot into rows, reads the story out of the
+recorders that rode along inside it, and lights the executed path from the
+commit log. Already have `StageSnapshot[]` from `toVisualizationSnapshots()`?
+Pass them as `snapshots` instead.
 
 This gives you:
 - **Flowchart** (center) — execution path overlay, click subflow nodes to drill-down
@@ -78,7 +80,56 @@ This gives you:
 - **Breadcrumbs** — navigate back from subflow drill-down
 - **Mobile responsive** — auto-stacks vertically below 640px
 
-### 3. Or compose individual components
+### 3. Replaying a recording (no live executor)
+
+**A recording is three things.** Save all three together — miss one and one
+surface goes dark:
+
+```ts
+const recording = {
+  snapshot:  executor.getSnapshot(),     // memory, story, timeline, chart colouring
+  structure: chart.buildTimeStructure,   // THE CHART. Nothing else can draw it.
+  events:    myEventLog,                 // the agent view (agentfootprint-lens)
+};
+fs.writeFileSync("run.json", JSON.stringify(recording));
+```
+
+`structure` is the piece a run does not leave behind on its own: `getSnapshot()`
+never contains it, and no adapter can invent it. Rendering is two props:
+
+```tsx
+import { ExplainableShell, graphFromStructure } from "footprint-explainable-ui";
+
+const run = JSON.parse(await fs.readFile("run.json", "utf8"));
+
+<ExplainableShell
+  runtimeSnapshot={run.snapshot}
+  traceGraph={graphFromStructure(run.structure)}
+  traceTheme={{ mode: "light" }}
+/>;
+```
+
+You do **not** pass a `runtimeOverlay`: the chart's colouring is rebuilt from the
+snapshot's own commit log. Pass one only when you have a live
+`createTraceRuntimeOverlay` handle. The narrative comes along too — if the run
+was recorded with footprintjs's narrative recorder the shell reads the story out
+of `snapshot.recorders`, so `narrativeEntries` is only for overriding it.
+
+Runnable, with a generator that records a real run:
+[`examples/replay-a-recording/`](./examples/replay-a-recording/) —
+`npm run example:record && npm run example:replay`.
+
+Already have the file? `<TraceViewer recording={run} onError={...} />` is the
+same composition in one component.
+
+**What a recording honestly cannot show** — each is stated on screen, never
+faked: per-stage durations without footprintjs's `metrics()` recorder (the Gantt
+shows execution ORDER and says so), error messages (the commit log has no error
+channel — a failing stage's writes land, its message does not), and deep subflow
+internals (footprintjs keeps those out of the run-level commit log, so a replay
+lights the mount stages, not their insides).
+
+### 4. Or compose individual components
 
 ```tsx
 import {
@@ -122,19 +173,30 @@ The all-in-one orchestrator. Handles time-travel, subflow drill-down, memory/nar
 
 ### Props
 
+Pass the run one of two ways — `runtimeSnapshot` (the shell converts it) or
+pre-converted `snapshots`. Both are optional; pass neither and the shell says
+what it wanted instead of rendering empty chrome.
+
 | Prop | Type | Default | Description |
 |---|---|---|---|
-| `snapshots` | `StageSnapshot[]` | required | Visualization snapshots |
-| `traceGraph` | `TraceGraph \| null` | — | Build-time graph — drives the flowchart + subflow drill-down |
-| `runtimeOverlay` | `RuntimeOverlay` | — | Per-step execution overlay — lights the executed path |
+| `runtimeSnapshot` | `RuntimeSnapshotInput \| null` | — | A recorded `executor.getSnapshot()`. Drives the rows, memory, story, provenance, recorder tabs — and the chart's colouring |
+| `snapshots` | `StageSnapshot[]` | — | Pre-converted rows, when you called `toVisualizationSnapshots()` yourself. Wins over `runtimeSnapshot` |
+| `traceGraph` | `TraceGraph \| null` | — | The chart. From `createTraceStructureRecorder()` live, or `graphFromStructure(saved.structure)` for a recording. **No chart without it** |
+| `runtimeOverlay` | `RuntimeOverlay \| null` | derived from `runtimeSnapshot` | The executed-path colouring. Usually omit — pass one only for a live `createTraceRuntimeOverlay` handle |
+| `traceTheme` | `TraceTheme` | — | `{ mode: "light" \| "dark" }` re-themes the whole shell in one word; `visited` / `current` override the two node colours |
+| `narrativeEntries` | `NarrativeEntry[]` | read from the snapshot | Structured narrative. Only needed to override the story the recording carries |
 | `title` | `string` | `"Flowchart"` | Breadcrumb root label |
-| `narrative` | `string[]` | — | Flat narrative lines |
-| `narrativeEntries` | `NarrativeEntry[]` | — | Structured narrative (rich rendering) |
-| `panelLabels` | `PanelLabels` | `{ topology: "Topology", details: "Details", timeline: "Timeline" }` | Customize collapsible pill labels |
+| `resultData` | `Record<string, unknown>` | `snapshot.sharedState` | Final output shown on the Result tab |
+| `logs` | `string[]` | `[]` | Console lines shown under the result |
+| `tabs` | `ShellTab[]` | `["result", "explainable"]` | Top-level views |
+| `defaultTab` | `ShellTab` | first available | Which details tab opens first |
+| `hideTabs` | `string[]` | — | Details tabs to hide by id (e.g. `["result", "memory"]`) |
+| `hideConsole` | `boolean` | `false` | Hide the console block on the Result tab |
+| `recorderViews` | `RecorderView[]` | auto-detected | Extra details tabs. Recorders inside the snapshot already get one each |
+| `panelLabels` | `PanelLabels` | `{ topology: "Topology", details: "Details", timeline: "Timeline" }` | Collapsible pill labels |
 | `defaultExpanded` | `DefaultExpanded` | `{ details: true }` | Which panels start open |
-| `tabs` | `ShellTab[]` | `["result", "explainable"]` | Visible tabs |
-| `renderFlowchart` | `(props) => ReactNode` | — | Flowchart renderer (pass `TracedFlowchartView`) |
-| `resultData` | `Record<string, unknown>` | — | Final output data for Result tab |
+| `renderFlowchart` | `(props) => ReactNode` | `<TracedFlow>` | Replace the chart renderer. Still requires `traceGraph` |
+| `showStageId` | `boolean` | `false` | Print each node's stable `stageId` under its label (teaching aid) |
 | `size` | `"compact" \| "default" \| "detailed"` | `"default"` | Size variant |
 | `unstyled` | `boolean` | `false` | Strip styles, render `data-fp` attributes |
 
@@ -230,63 +292,103 @@ All panels use the **line + pill** pattern:
 
 ## Flowchart Visualization
 
-Import from `footprint-explainable-ui/flowchart`:
+Import from `footprint-explainable-ui/flowchart`. The chart is recorder-driven:
+a `TraceGraph` says what the chart IS, a `RuntimeOverlay` says what ran.
 
-### TracedFlowchartView (recommended)
-
-Self-contained flowchart renderer. Handles overlay computation, auto-fitView on resize.
+### TracedFlow — the chart plus the run
 
 ```tsx
-import { TracedFlowchartView } from "footprint-explainable-ui/flowchart";
+import { TracedFlow } from "footprint-explainable-ui/flowchart";
 
 <div style={{ height: 400 }}>
-  <TracedFlowchartView
-    spec={spec}
-    snapshots={snapshots}
-    snapshotIndex={idx}
-    onNodeClick={(nodeId) => handleClick(nodeId)}
+  <TracedFlow
+    graph={trace.getGraph()}       // from createTraceStructureRecorder
+    overlay={overlayFromSnapshot(snapshot)}   // or a live createTraceRuntimeOverlay
+    scrubIndex={idx}
+    theme="light"
+    onNodeClick={(stageId) => handleClick(stageId)}
   />
 </div>
 ```
 
-Without `snapshots`, renders a plain static flowchart. With `snapshots`, shows the execution trace path with Google Maps-style glow.
+Without an `overlay` it renders the plain build-time chart. With one, the
+executed path lights up, un-run stages fade, and each executed node carries its
+step number. Subflow mount nodes drill on click, and the chart re-fits itself
+whenever its container resizes.
 
-**Auto-fitView:** The flowchart automatically calls `fitView()` when its container resizes (e.g. panel expand/collapse).
+### Where the graph comes from
 
-### Manual control with specToReactFlow
+| You have | Call | Notes |
+|---|---|---|
+| a live build | `createTraceStructureRecorder()` → `flowChart(..., { structureRecorders: [rec] })` | collects the chart AS it is built |
+| a saved run | `graphFromStructure(saved.structure)` | `saved.structure` is `chart.buildTimeStructure` |
 
-```tsx
-import { specToReactFlow, StageNode, type ExecutionOverlay } from "footprint-explainable-ui/flowchart";
-import { ReactFlow } from "@xyflow/react";
-
-const overlay: ExecutionOverlay = {
-  doneStages: new Set(["LoadOrder", "ProcessPayment"]),
-  activeStage: "ShipOrder",
-  executedStages: new Set(["LoadOrder", "ProcessPayment", "ShipOrder"]),
-  executionOrder: ["LoadOrder", "ProcessPayment", "ShipOrder"],
-};
-
-const { nodes, edges } = specToReactFlow(spec, overlay);
-
-<ReactFlow
-  nodes={nodes}
-  edges={edges}
-  nodeTypes={{ stage: StageNode }}
-  fitView
-/>
-```
+Both produce the same `TraceGraph`, with the same node ids — which is what lets
+either overlay light the right boxes.
 
 ---
 
 ## Theming
 
-### CSS Variables (recommended)
+**Every default in this library is dark.** Dropped into a light app with nothing
+set, a panel renders dark — correct by the rules, wrong on the page. There are
+three ways to fix that, smallest first.
+
+### 1. One word, per component
+
+```tsx
+<ExplainableShell traceTheme={{ mode: "light" }} />   {/* the shell */}
+<TraceViewer theme="light" />                          {/* the standalone components */}
+<SnapshotPanel theme="light" />
+<GanttTimeline theme="light" />
+<TracedFlow theme="light" />
+```
+
+`theme` stamps a full built-in preset as `--fp-*` variables on that component's
+own root, so everything under it follows. It is the whole theme wiring for an
+app that just wants light.
+
+### 2. Follow the app's own dark mode — `useDarkModeTokens`
+
+The direct answer to "why is your UI dark inside my light app". The hook watches
+your app's dark-mode switch and hands back the matching preset:
+
+```tsx
+import { FootprintTheme, useDarkModeTokens } from "footprint-explainable-ui";
+
+function MyApp() {
+  const tokens = useDarkModeTokens();              // Tailwind's `.dark` on <html>
+  return (
+    <FootprintTheme tokens={tokens}>
+      <ExplainableShell runtimeSnapshot={snapshot} traceGraph={graph} />
+    </FootprintTheme>
+  );
+}
+```
+
+Whatever switch your app uses, name it:
+
+```tsx
+useDarkModeTokens({ darkClass: "theme-dark" })            // a class name
+useDarkModeTokens({ darkClass: '[data-theme="dark"]' })   // any CSS selector
+useDarkModeTokens({ light: warmLight, dark: warmDark })   // your own palettes
+```
+
+It re-themes live when the switch flips, and it is server-safe: on the server
+there is no `document`, so the first render is light and the client corrects on
+mount.
+
+### 3. CSS variables (full control)
 
 Consumer controls theme via `--fp-*` CSS custom properties. Components use `var(--fp-*, fallback)`:
 
 ```css
 :root {
   --fp-color-primary: #7c6cf0;
+  --fp-accent: #7c6cf0;             /* active tab / selected rule */
+  --fp-accent-bg: rgba(124,108,240,0.14); /* wash behind a selected row */
+  --fp-bg: #1e1a2e;                 /* panel body surface */
+  --fp-bg-elevated: #2a2540;        /* raised cards on that surface */
   --fp-bg-primary: #1e1a2e;
   --fp-bg-secondary: #2a2540;
   --fp-bg-tertiary: #3a3455;
@@ -294,11 +396,21 @@ Consumer controls theme via `--fp-*` CSS custom properties. Components use `var(
   --fp-text-secondary: #b0a898;
   --fp-text-muted: #6b6b80;
   --fp-border: #3a3455;
+  --fp-tracing: #3ecfb2;            /* the "walking a value's causes" rail */
+  --fp-chip-1: #0d9488;             /* the four ingredient-chip hues (categorical) */
+  --fp-chip-2: #d97706;
+  --fp-chip-3: #7c3aed;
+  --fp-chip-4: #e11d48;
   --fp-radius: 8px;
   --fp-font-sans: 'Inter', system-ui, sans-serif;
   --fp-font-mono: 'JetBrains Mono', monospace;
 }
 ```
+
+Every built-in preset sets all of these, so one `mode` re-themes the whole shell
+— no component is left on a hard-coded dark default. `test/unit/themeTokens.test.ts`
+enforces both halves of that: every `--fp-*` a component reads must be emitted by
+every preset, and no component may paint a raw colour the theme cannot reach.
 
 ### ThemeProvider
 
@@ -339,23 +451,31 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | `MemoryInspector` | Accumulated memory state viewer |
 | `GanttTimeline` | Horizontal duration timeline (collapsible) |
 | `SnapshotPanel` | All-in-one inspector (scrubber + memory + narrative + Gantt) |
+| `TraceViewer` | Renders a saved `{ snapshot, structure }` recording — parse, diagnose, draw |
 
 ### Flowchart Components (`footprint-explainable-ui/flowchart`)
 
 | Export | Description |
 |---|---|
-| `TracedFlowchartView` | Self-contained flowchart with trace overlay and auto-fitView |
-| `FlowchartView` | Lower-level ReactFlow wrapper |
+| `TracedFlow` | The chart plus the run — overlay colouring, drill-down, auto-fitView |
+| `TraceFlow` | Build-time chart only (no overlay) |
+| `createTraceStructureRecorder` | Collect the `TraceGraph` while footprintjs builds the chart |
+| `graphFromStructure` | The same graph from a SAVED `chart.buildTimeStructure` |
+| `createTraceRuntimeOverlay` | Collect the `RuntimeOverlay` from a live run |
+| `overlayFromSnapshot` | The same overlay from a recorded snapshot |
 | `StageNode` | Custom node with state-aware coloring, step badges, pulse rings |
-| `specToReactFlow` | Convert pipeline spec → ReactFlow nodes/edges with overlay |
 | `SubflowBreadcrumb` | Breadcrumb bar for subflow drill-down |
 | `SubflowTree` | Tree view of all subflows (used in shell's left panel) |
+| `dagreTraceLayout` | The default structure-derived layout |
 
 ### Adapters
 
 | Export | Description |
 |---|---|
 | `toVisualizationSnapshots` | Convert `FlowChartExecutor.getSnapshot()` → `StageSnapshot[]` |
+| `graphFromStructure` | Rebuild the chart's `TraceGraph` from a saved `chart.buildTimeStructure` — the post-hoc twin of `createTraceStructureRecorder` |
+| `overlayFromSnapshot` | Rebuild the chart's `RuntimeOverlay` from a recorded snapshot (replay without a live executor) |
+| `narrativeFromSnapshot` | Read the narrative a recorded snapshot carries in `snapshot.recorders` |
 | `subflowResultToSnapshots` | Convert subflow result → `StageSnapshot[]` |
 | `createSnapshots` | Build `StageSnapshot[]` from simple arrays (testing/custom data) |
 
@@ -367,6 +487,8 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | `DefaultExpanded` | `{ topology?, details?, timeline? }` — initial panel state |
 | `StageSnapshot` | Core snapshot type for all components |
 | `NarrativeEntry` | Structured narrative entry with type/depth/stageName |
+| `Recording` | `{ snapshot, structure, events }` — one saved run, read by `<TraceViewer>` and by lens's `observeRecording` |
+| `ThemeMode` | `"dark" \| "light"` — the one-word switch |
 
 ---
 

@@ -36,11 +36,7 @@ export const InsightPanel = memo(function InsightPanel({
   mode,
 }: InsightPanelProps) {
   if (insights.length === 0) {
-    return (
-      <div style={{ padding: 12, color: theme.textMuted, fontSize: 13 }}>
-        No insights available. Attach recorders to see data.
-      </div>
-    );
+    return <NoInsights />;
   }
 
   if (mode === "grid") {
@@ -48,6 +44,53 @@ export const InsightPanel = memo(function InsightPanel({
   }
 
   return <InsightTabs insights={insights} defaultId={expandedId} />;
+});
+
+// ── Empty state ────────────────────────────────────────────────────
+
+/**
+ * Each panel here is fed by ONE recorder attached while the run happened —
+ * nothing can be recovered afterwards. "Attach recorders to see data" was
+ * true and useless: it named no recorder, no import and no call. This lists
+ * the four, so the fix is a line to copy rather than a docs hunt.
+ */
+const INGREDIENTS: ReadonlyArray<{ panel: string; call: string; from: string }> = [
+  { panel: "Story", call: "narrative()", from: "footprintjs/recorders" },
+  { panel: "Performance", call: "metrics()", from: "footprintjs/recorders" },
+  { panel: "Quality", call: "new QualityRecorder(scoreFn)", from: "footprintjs/trace" },
+  { panel: "Cost", call: "costRecorder()", from: "agentfootprint/observe" },
+];
+
+const NoInsights = memo(function NoInsights() {
+  return (
+    <div
+      data-fp="insights-empty"
+      style={{ padding: 12, color: theme.textMuted, fontSize: 12, lineHeight: 1.6 }}
+    >
+      <div style={{ marginBottom: 8 }}>
+        Nothing to show — this run was recorded without any of these. Each one lights one panel:
+      </div>
+      <table style={{ borderCollapse: "collapse" }}>
+        <tbody>
+          {INGREDIENTS.map(({ panel, call, from }) => (
+            <tr key={panel} data-fp="insights-empty-row">
+              <td style={{ paddingRight: 10, color: theme.textSecondary, whiteSpace: "nowrap" }}>
+                {panel}
+              </td>
+              <td style={{ fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "nowrap" }}>
+                {call}
+                <span style={{ opacity: 0.7 }}> — from {from}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ marginTop: 8 }}>
+        Attach with <code>executor.attachScopeRecorder(...)</code> before the run, then pass the
+        snapshot here — each recorder&apos;s data rides along inside it.
+      </div>
+    </div>
+  );
 });
 
 // ── Tabs mode (one at a time, full height) ─────────────────────────

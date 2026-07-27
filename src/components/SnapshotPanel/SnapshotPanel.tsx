@@ -1,11 +1,12 @@
 import { useState } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
-import { theme, fontSize, padding } from "../../theme";
+import { theme, fontSize, padding, themeModeVars } from "../../theme";
+import type { ThemeModeProps } from "../../theme";
 import { MemoryInspector } from "../MemoryInspector";
 import { NarrativeLog } from "../NarrativeLog";
 import { GanttTimeline } from "../GanttTimeline";
 
-export interface SnapshotPanelProps extends BaseComponentProps {
+export interface SnapshotPanelProps extends BaseComponentProps, ThemeModeProps {
   /** Stage snapshots from pipeline execution */
   snapshots: StageSnapshot[];
   /** Show the Gantt timeline */
@@ -29,6 +30,7 @@ export function SnapshotPanel({
   unstyled = false,
   className,
   style,
+  theme: themeMode,
 }: SnapshotPanelProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const fs = fontSize[size];
@@ -39,6 +41,7 @@ export function SnapshotPanel({
       <div
         className={className}
         style={{
+          ...themeModeVars(themeMode),
           padding: pad * 2,
           textAlign: "center",
           color: unstyled ? undefined : theme.textMuted,
@@ -91,6 +94,9 @@ export function SnapshotPanel({
     <div
       className={className}
       style={{
+        // The one-word switch (see theme/mode.ts) — this panel is the one
+        // people drop into an existing app on its own.
+        ...themeModeVars(themeMode),
         display: "flex",
         flexDirection: "column",
         height: "100%",

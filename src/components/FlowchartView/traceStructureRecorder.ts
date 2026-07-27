@@ -349,6 +349,9 @@ export function createTraceStructureRecorder(
   // free" (no separate NodeView translator needed for chart rendering).
   const prevIdsOf = new Map<string, StageId[]>();
   const nextIdsOf = new Map<string, StageId[]>();
+  // Mount events whose mount node hasn't been announced yet — see
+  // `applyMountPatch`. Keyed by rootStageId; drained by `onStageAdded`.
+  const pendingMountPatches = new Map<string, SubflowMountedEvent[]>();
   // Pub-sub + version via shared infra (microtask-batched listener fan-out).
   const notifier = createNotifier("traceStructureRecorder");
 
@@ -409,6 +412,31 @@ export function createTraceStructureRecorder(
     // the node — `getGraph()` returns defensive copies anyway.
     syncNeighborsOnto(source);
     syncNeighborsOnto(target);
+  }
+
+  /**
+   * Stamps the subflow fields onto an already-announced mount node.
+   * Returns false when the node isn't there yet — the caller buffers.
+   *
+   * Split out of `onSubflowMounted` so the SAME patch can be applied later,
+   * when the mount node finally arrives: producers are not guaranteed to
+   * fire `onStageAdded` before `onSubflowMounted` (a bridge replaying a
+   * recorded event stream can hand us the mount first), and dropping the
+   * patch used to silently downgrade a subflow to a plain stage — no drill
+   * target, no subflow styling.
+   */
+  function applyMountPatch(event: SubflowMountedEvent): boolean {
+    const existing = nodeIndex.get(event.rootStageId);
+    if (existing === undefined) return false;
+    const node = nodes[existing]!;
+    const data: TraceNodeData = {
+      ...node.data,
+      isSubflow: true,
+      subflowId: event.subflowId,
+    };
+    if (event.isLazy === true) data.isLazy = true;
+    nodes[existing] = { ...node, data };
+    return true;
   }
 
   function syncNeighborsOnto(stageId: StageId): void {
@@ -477,6 +505,14 @@ export function createTraceStructureRecorder(
         position: { x: 0, y: 0 },
         data,
       });
+
+      // Late-bind: a mount event that arrived before this node did left its
+      // patch waiting. Apply it now, so out-of-order producers cost nothing.
+      const pending = pendingMountPatches.get(event.stageId);
+      if (pending) {
+        pendingMountPatches.delete(event.stageId);
+        for (const mount of pending) applyMountPatch(mount);
+      }
       notifyChange();
     },
 
@@ -535,25 +571,16 @@ export function createTraceStructureRecorder(
     },
 
     onSubflowMounted(event) {
-      // The mount node was already announced via `onStageAdded`; here
-      // we patch in the subflow-specific data fields, then materialize
-      // the subflow's inner structure.
-      const existing = nodeIndex.get(event.rootStageId);
-      if (existing === undefined) {
-        devWarn(
-          () =>
-            `[traceStructureRecorder] onSubflowMounted fired for unknown rootStageId "${event.rootStageId}" (subflowId="${event.subflowId}") — subflow metadata dropped. Did the upstream fire onStageAdded for the mount node first?`,
-        );
-        return;
+      // Usually the mount node was already announced via `onStageAdded` and
+      // this just patches in the subflow fields. When it wasn't (an
+      // out-of-order producer), the patch WAITS for the node instead of
+      // being dropped — and the inner structure below is materialized
+      // either way, since it doesn't depend on the mount node existing.
+      if (!applyMountPatch(event)) {
+        const queued = pendingMountPatches.get(event.rootStageId);
+        if (queued) queued.push(event);
+        else pendingMountPatches.set(event.rootStageId, [event]);
       }
-      const node = nodes[existing]!;
-      const data: TraceNodeData = {
-        ...node.data,
-        isSubflow: true,
-        subflowId: event.subflowId,
-      };
-      if (event.isLazy === true) data.isLazy = true;
-      nodes[existing] = { ...node, data };
 
       // Eager mounts (footprintjs v6.0+): walk the full subflow spec
       // delivered on the event to emit inner nodes + edges with
@@ -595,6 +622,7 @@ export function createTraceStructureRecorder(
       seenEdgeIds.clear();
       prevIdsOf.clear();
       nextIdsOf.clear();
+      pendingMountPatches.clear();
       // Why `reset()` does NOT bump version or notify listeners:
       // a notify here would cause `<TraceFlow recorder={handle} />`
       // to re-render with an empty graph for one frame, then re-render

@@ -13,7 +13,7 @@
  * human's board and an LLM's backtrack answer are the same text.
  */
 import { memo, useMemo, useState } from "react";
-import { theme } from "../../theme";
+import { theme, v } from "../../theme";
 import {
   formatTraceWalk,
   type TraceIngredient,
@@ -23,8 +23,18 @@ import {
 
 /** Junction-local ingredient palette — colors mean "chips of THIS stop",
  *  nothing across stops (a stable global key→color map would exhaust and
- *  mislead; the design review was explicit). Overflow past 4 goes gray. */
-const CHIP_COLORS = ["#0d9488", "#d97706", "#7c3aed", "#e11d48"];
+ *  mislead; the design review was explicit). Overflow past 4 goes gray.
+ *
+ *  Themeable per hue: the four are CATEGORICAL (they must stay tellable
+ *  apart), so they are their own tokens rather than semantic roles. The
+ *  defaults are the original hues, so nothing re-colors for existing
+ *  consumers. */
+const CHIP_COLORS = [
+  v("--fp-chip-1", "#0d9488"),
+  v("--fp-chip-2", "#d97706"),
+  v("--fp-chip-3", "#7c3aed"),
+  v("--fp-chip-4", "#e11d48"),
+];
 
 export interface TraceWalkCardProps {
   walk: TraceWalk;
@@ -301,7 +311,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
                 <span style={{ color: theme.textMuted }}> · step {stepNumberOf(s.runtimeStageId)}</span>
               )}
               {s.ingredients.length > 1 && (
-                <span style={{ color: "#d97706", fontWeight: 600 }}> ⑂ {s.ingredients.length}</span>
+                <span style={{ color: theme.warning, fontWeight: 600 }}> ⑂ {s.ingredients.length}</span>
               )}
             </button>
           );
@@ -321,7 +331,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           </div>
         )}
         {walk.truncated && (
-          <div data-fp="twc-truncated" style={{ fontSize: 11, color: "#d97706" }}>
+          <div data-fp="twc-truncated" style={{ fontSize: 11, color: theme.warning }}>
             ⚠ walk truncated at its frame budget — the earliest stop may not be the true origin.
           </div>
         )}

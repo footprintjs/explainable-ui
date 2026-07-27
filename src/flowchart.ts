@@ -60,6 +60,17 @@ export type {
   CreateTraceRuntimeOverlayOptions,
 } from "./components/FlowchartView";
 
+// The post-hoc twin of createTraceRuntimeOverlay — same overlay, rebuilt
+// from a recorded snapshot instead of a live run. Also on the root entry.
+export { overlayFromSnapshot } from "./adapters/overlayFromSnapshot";
+export type { SnapshotWithCommitLog } from "./adapters/overlayFromSnapshot";
+
+// The post-hoc twin of createTraceStructureRecorder — the same chart, rebuilt
+// from a saved `chart.buildTimeStructure` instead of a live build. Also on
+// the root entry (drawing a saved run shouldn't need the flowchart subpath).
+export { graphFromStructure } from "./adapters/graphFromStructure";
+export type { SerializedStructureNode } from "./adapters/graphFromStructure";
+
 export { TracedFlow } from "./components/FlowchartView";
 export type { TracedFlowProps, TracedFlowColors } from "./components/FlowchartView";
 

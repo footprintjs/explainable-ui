@@ -901,6 +901,42 @@ type TraceFlowProps = BaseComponentProps & TraceFlowSource & {
 declare function TraceFlow(props: TraceFlowProps): react.JSX.Element;
 
 /**
+ * The one-word theme switch.
+ *
+ * Every component in this library paints from `--fp-*` variables whose
+ * built-in fallbacks are DARK. Mounted inside a light app with nothing set,
+ * a panel renders dark — correct by the rules, wrong on the page. Setting a
+ * dozen variables by hand to fix that is not a first-try experience.
+ *
+ * `<Component theme="light" />` is that fix in one word: it stamps a full
+ * preset as inline `--fp-*` variables on the component's own root, so
+ * everything under it — including nested children — follows. It is the same
+ * mechanism `<ExplainableShell traceTheme={{ mode }}>` uses; this module is
+ * the single place that maps a mode to its palette.
+ *
+ * Precedence, from weakest to strongest:
+ *   1. the components' hard-coded fallbacks (dark)
+ *   2. `--fp-*` an ancestor sets (`<FootprintTheme>`, your own CSS)
+ *   3. `theme="light" | "dark"` on the component  ← wins, because it is local
+ *
+ * So `theme` is a per-component override, not a replacement for
+ * `<FootprintTheme tokens={...}>` — reach for the provider when you want one
+ * palette for a whole tree, and for a custom palette rather than a preset.
+ */
+
+/** Light or dark. The whole switch. */
+type ThemeMode = "dark" | "light";
+/** Props mixin for components that accept the switch. */
+interface ThemeModeProps {
+    /**
+     * Light or dark, in one word — applies the built-in preset as `--fp-*`
+     * variables on this component's root. Omit to inherit whatever the page
+     * (or a `<FootprintTheme>` ancestor) already set.
+     */
+    theme?: ThemeMode;
+}
+
+/**
  * TracedFlow — runtime-overlay variant of `<TraceFlow>`.
  *
  * Pairs a build-time `TraceGraph` (from `createTraceStructureRecorder`)
@@ -948,7 +984,7 @@ interface TracedFlowColors {
     /** Loop back-edge color. */
     loop: string;
 }
-interface TracedFlowProps extends BaseComponentProps {
+interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
     /** Build-time graph from `createTraceStructureRecorder().getGraph()`. */
     graph: TraceGraph;
     /** Runtime overlay from `createTraceRuntimeOverlay().getOverlay()`. */
@@ -1035,7 +1071,7 @@ interface TracedFlowProps extends BaseComponentProps {
      */
     children?: react.ReactNode;
 }
-declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, sliceCone, children, className, style, }: TracedFlowProps): react.JSX.Element;
+declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, sliceCone, theme: themeMode, children, className, style, }: TracedFlowProps): react.JSX.Element;
 
 interface GroupContainerNodeData {
     label: string;
@@ -2402,4 +2438,157 @@ interface RunSliderProps extends BaseComponentProps {
 }
 declare function RunSlider({ index, cursorRuntimeStageId, onCursorChange, renderLabel, className, style, }: RunSliderProps): react.JSX.Element;
 
-export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };
+/**
+ * overlayFromSnapshot — the runtime overlay, rebuilt from a FROZEN snapshot.
+ *
+ * `<TracedFlow>` colours its chart from ONE input: the `RuntimeOverlay`
+ * (TracedFlow.tsx → `sliceOverlay`). Until now the only way to get one was
+ * to attach `createTraceRuntimeOverlay()` to a LIVE executor — so a
+ * consumer replaying a recording (a saved `executor.getSnapshot()`, a
+ * shipped demo, a bug report pasted into a viewer) had a rail, a memory
+ * panel and a narrative but a dead, uncoloured chart.
+ *
+ * Nothing about the overlay needs to be live: `snapshot.commitLog` already
+ * holds the execution order. Bundles are appended in execution order
+ * (`bundle.idx` == array position) and one stage execution can emit MORE
+ * than one bundle (a subflow mount commits its outputMapper result, then a
+ * boundary bundle), so we dedupe by `runtimeStageId` keeping the FIRST —
+ * the same dedupe the live recorder does on `onStageExecuted`.
+ *
+ * ```ts
+ * const snapshot = JSON.parse(await fs.readFile('run.json', 'utf8'));
+ * <ExplainableShell
+ *   runtimeSnapshot={snapshot}
+ *   traceGraph={graph}
+ *   runtimeOverlay={overlayFromSnapshot(snapshot)}   // ← chart lights up
+ * />
+ * ```
+ *
+ * What it CANNOT know (honest absence — never fabricated)
+ * ──────────────────────────────────────────────────────
+ *   - **`timestampMs` is 0 on every step.** Commit bundles carry no
+ *     wall clock. The field is display-only — `sliceOverlay` and
+ *     `<TracedFlow>` never read it — so 0 is the honest value, not a
+ *     guess. For real timings attach footprintjs's metrics recorder;
+ *     `toVisualizationSnapshots` reads those into `StageSnapshot.durationMs`.
+ *   - **`errors` is empty.** The commit log has no error channel; a
+ *     failing stage's writes land (footprintjs commits before rethrow)
+ *     but the message does not. Error painting needs the live recorder.
+ *   - **`running` is false.** A recording is a finished run by definition.
+ *   - **Subflow-internal steps are absent when the engine isolated them.**
+ *     footprintjs keeps deep-subflow commits out of the run-level
+ *     commitLog by design, so a recording of a chart with subflows yields
+ *     overlay steps for the MOUNT stages, not their internals — the same
+ *     stages the snapshot's own rail (`toVisualizationSnapshots`) shows.
+ *     A live `createTraceRuntimeOverlay` sees both.
+ */
+
+/** Duck-typed input: any object carrying a footprintjs commit log —
+ *  a whole `executor.getSnapshot()` or just `{ commitLog }`. */
+interface SnapshotWithCommitLog {
+    commitLog?: unknown;
+}
+/**
+ * Builds a `RuntimeOverlay` from a recorded run — the post-hoc twin of
+ * `createTraceRuntimeOverlay()`. Pass the result straight to
+ * `<TracedFlow overlay={...}>` or `<ExplainableShell runtimeOverlay={...}>`.
+ *
+ * Returns an empty overlay (no steps) for a missing or empty commit log —
+ * an unrecorded run colours nothing, which is the truthful rendering.
+ */
+declare function overlayFromSnapshot(snapshot: SnapshotWithCommitLog | null | undefined): RuntimeOverlay;
+
+/**
+ * graphFromStructure — the chart, rebuilt from a SAVED structure.
+ *
+ * `createTraceStructureRecorder` collects the chart while footprintjs
+ * BUILDS it. This is its post-hoc twin: hand it the `buildTimeStructure`
+ * a chart carries (`chart.buildTimeStructure`, plain JSON) and it produces
+ * the same `TraceGraph` — no builder, no live process, no agent framework.
+ *
+ * Why it exists
+ * ─────────────
+ * A recording is three things: `events`, `snapshot`, and `structure`.
+ * The snapshot draws the memory panel, the story and the rail; only the
+ * structure can draw the CHART. Until now the one spec→graph adapter in
+ * the ecosystem was `structureGraphFromSpec` in `agentfootprint-lens`,
+ * which reaches into `agentfootprint` for agent vocabulary — so a plain
+ * footprintjs consumer had to install an agent framework to draw a saved
+ * pipeline run. This is that adapter, with no agent semantics.
+ *
+ * ```ts
+ * // Recording side (in the app that ran the pipeline):
+ * const recording = {
+ *   snapshot:  executor.getSnapshot(),
+ *   structure: chart.buildTimeStructure,   // ← the chart. Nothing else can draw it.
+ * };
+ *
+ * // Rendering side, anywhere later:
+ * <ExplainableShell
+ *   runtimeSnapshot={recording.snapshot}
+ *   traceGraph={graphFromStructure(recording.structure)}
+ * />
+ * ```
+ *
+ * Same graph, same ids
+ * ────────────────────
+ * Node ids are the chart's own stage ids at the top level and
+ * `subflowPath/stageId` inside a subflow — byte-identical to the live
+ * recorder, which is what lets the runtime overlay (live OR
+ * `overlayFromSnapshot`) light the right boxes. The events are replayed
+ * into `createTraceStructureRecorder` itself rather than re-implemented,
+ * so the two paths cannot drift: one graph builder, two front doors.
+ *
+ * What a saved structure cannot carry (honest absence — never invented)
+ * ────────────────────────────────────────────────────────────────────
+ *   - **A decider's `defaultBranch`.** footprintjs's live
+ *     `onDeciderComplete` event names the fallback branch, but
+ *     `SerializedPipelineStructure` has no field for it, so a rebuilt
+ *     decider node carries `branchIds` without `defaultBranch`. Renderers
+ *     that badge the default simply don't badge it.
+ *   - **A lazy subflow's internals.** `isLazy` mounts resolve at run time;
+ *     the saved structure holds the mount node alone, exactly as the live
+ *     recorder saw it at build time.
+ */
+
+/**
+ * The slice of footprintjs's `SerializedPipelineStructure` this walker
+ * reads. Duck-typed on purpose — explainable-ui declares no `footprintjs`
+ * dependency (see traceStructureRecorder.ts for the boundary rationale).
+ */
+interface SerializedStructureNode {
+    readonly id: string;
+    readonly name: string;
+    readonly type?: "stage" | "decider" | "selector" | "fork" | "streaming" | "subflow" | "loop";
+    readonly description?: string;
+    readonly icon?: string;
+    readonly hasDecider?: boolean;
+    readonly hasSelector?: boolean;
+    readonly branchIds?: readonly string[];
+    readonly children?: readonly SerializedStructureNode[];
+    readonly next?: SerializedStructureNode;
+    readonly loopTarget?: string;
+    readonly isLoopReference?: boolean;
+    readonly isSubflowRoot?: boolean;
+    readonly subflowId?: string;
+    readonly subflowName?: string;
+    readonly subflowStructure?: SerializedStructureNode;
+    readonly isLazy?: boolean;
+    readonly isPausable?: boolean;
+    /** Structure-only: this branch rejoins at its OWN named stage instead of
+     *  the shared convergence stage (an unequal-depth merge). */
+    readonly convergeAt?: string;
+    readonly [key: string]: unknown;
+}
+/**
+ * Builds the chart's `TraceGraph` from a serialized `buildTimeStructure`.
+ *
+ * Pass the result to `<ExplainableShell traceGraph={...}>` or
+ * `<TracedFlow graph={...}>`. Returns an EMPTY graph (`{nodes: [], edges: []}`)
+ * when the input isn't a structure — a recording saved without its
+ * structure draws no chart, which is the truthful rendering. Check
+ * `graph.nodes.length` if you want to branch on that.
+ */
+declare function graphFromStructure(structure: unknown): TraceGraph;
+
+export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, graphFromStructure, overlayFromSnapshot, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };

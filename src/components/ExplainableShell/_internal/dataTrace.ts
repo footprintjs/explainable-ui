@@ -45,7 +45,9 @@ interface CommitEntry {
   stage: string;
   stageId: string;
   runtimeStageId: string;
-  trace: Array<{ path: string }>;
+  /** Optional: present on every bundle the current engine writes, absent on
+   *  older or hand-assembled recordings. See `tracedPaths`. */
+  trace?: Array<{ path: string }>;
 }
 
 /** Duck-typed execution-tree node (stageReads keys are the read record). */
@@ -98,9 +100,14 @@ export function buildDataTrace(
   const startIdx = idxOf.get(targetRuntimeStageId);
   if (startIdx === undefined) return { frames: [], readsAvailable };
 
+  // `trace` is what the engine records per commit; a bundle that arrives
+  // without it (an older engine, a hand-assembled recording) means "wrote
+  // nothing traceable", not "crash the whole shell".
+  const tracedPaths = (entry: CommitEntry): { path: string }[] => entry.trace ?? [];
+
   const findLastWriter = (key: string, beforeIdx: number): number => {
     for (let i = beforeIdx - 1; i >= 0; i--) {
-      if (log[i].trace.some((t) => t.path === key)) return i;
+      if (tracedPaths(log[i]).some((t) => t.path === key)) return i;
     }
     return -1;
   };
@@ -120,7 +127,7 @@ export function buildDataTrace(
       runtimeStageId: commit.runtimeStageId,
       stageId: commit.stageId,
       stageName: commit.stage,
-      keysWritten: commit.trace.map((t) => t.path),
+      keysWritten: tracedPaths(commit).map((t) => t.path),
       linkedBy,
       depth,
     });

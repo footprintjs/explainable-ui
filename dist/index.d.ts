@@ -1,5 +1,5 @@
 import * as react from 'react';
-import { ReactNode } from 'react';
+import { CSSProperties, ReactNode } from 'react';
 import { Node, Edge } from '@xyflow/react';
 
 /** Snapshot of a single pipeline stage — the core data shape for all components. */
@@ -74,6 +74,25 @@ interface ThemeTokens {
         nodeCursor?: string;
         nodeVisited?: string;
         nodeMain?: string;
+        /** Interactive accent — active tab, selected row rule, focused chip.
+         *  Defaults to `primary` when omitted, so setting one colour is enough. */
+        accent?: string;
+        /** The translucent wash BEHIND an accented row (selected trace step). */
+        accentBg?: string;
+        /** Panel body surface — the plain background a panel paints itself with. */
+        bg?: string;
+        /** Raised surface (cards, popovers) sitting ON the body surface. */
+        bgElevated?: string;
+        /** Tracing-rail chrome — the "you are walking a value's causes" colour.
+         *  One token drives the badge, rail border, stops and walk buttons. */
+        tracing?: string;
+        /** CATEGORICAL chip palette (four hues) for the ingredient chips on one
+         *  trace stop. Not semantic — their only job is to stay tellable apart,
+         *  which is why they are their own roles and not `primary`/`success`. */
+        chip1?: string;
+        chip2?: string;
+        chip3?: string;
+        chip4?: string;
         bgPrimary?: string;
         bgSecondary?: string;
         bgTertiary?: string;
@@ -88,7 +107,16 @@ interface ThemeTokens {
         mono?: string;
     };
 }
-/** Maps ThemeTokens to CSS custom property assignments. */
+/**
+ * Maps ThemeTokens to CSS custom property assignments.
+ *
+ * Every `--fp-*` variable the components actually read must be emitted
+ * here — a component reading a variable this function never writes can
+ * only ever show its hard-coded fallback, which is how a "light" theme
+ * ends up with dark patches. `test/unit/themeTokens.test.ts` greps the
+ * source for `--fp-*` reads and fails when one has no emitter, so a new
+ * token can't silently drift back out of the theme.
+ */
 declare function tokensToCSSVars(tokens: ThemeTokens): Record<string, string>;
 /** Raw fallback values — used by tokensToCSSVars() and anywhere a real color is needed. */
 declare const rawDefaults: {
@@ -100,6 +128,15 @@ declare const rawDefaults: {
         readonly nodeCursor: "#f59e0b";
         readonly nodeVisited: "#22c55e";
         readonly nodeMain: "#6366f1";
+        readonly accent: "#6366f1";
+        readonly accentBg: "rgba(99,102,241,0.12)";
+        readonly tracing: "#0d9488";
+        readonly chip1: "#0d9488";
+        readonly chip2: "#d97706";
+        readonly chip3: "#7c3aed";
+        readonly chip4: "#e11d48";
+        readonly bg: "#1a1b26";
+        readonly bgElevated: "#1e293b";
         readonly bgPrimary: "#0f172a";
         readonly bgSecondary: "#1e293b";
         readonly bgTertiary: "#334155";
@@ -144,6 +181,20 @@ interface FootprintThemeProps {
  */
 declare function FootprintTheme({ tokens, children }: FootprintThemeProps): react.JSX.Element;
 
+/**
+ * Built-in palettes.
+ *
+ * Each preset carries EVERY role the components read — including the
+ * node-state roles, the accent pair, the surfaces and the tracing colour.
+ * A preset with holes is worse than no preset: the components fall back to
+ * their hard-coded (dark) defaults for the missing roles, so a light theme
+ * shows dark patches. `test/unit/themeTokens.test.ts` fails when a preset
+ * stops covering a token the source reads.
+ *
+ * The cool presets keep the historic raw defaults for the node roles
+ * (amber cursor / green visited / indigo lead) so nothing re-colours for
+ * consumers already on them; the warm presets use their own palette.
+ */
 /** Cool dark theme (the library default) */
 declare const coolDark: ThemeTokens;
 /** Warm dark theme — charcoal-purple palette */
@@ -162,25 +213,34 @@ declare const themePresets: {
 type ThemePresetName = keyof typeof themePresets;
 
 /**
- * useDarkModeTokens — Auto-bridge between CSS class-based dark mode and FootprintTheme.
+ * useDarkModeTokens — follow the host app's dark mode.
  *
- * Watches for a `.dark` class on <html> (Tailwind convention) and returns
- * the appropriate ThemeTokens preset. Pairs with FootprintTheme:
+ * The direct answer to "why is your UI dark inside my light app": this
+ * library's `--fp-*` fallbacks are dark, so a component with nothing set
+ * renders dark. This hook watches the app's own dark-mode switch and hands
+ * back the matching preset.
  *
  *   import { FootprintTheme, useDarkModeTokens } from 'footprint-explainable-ui';
  *
  *   function MyApp() {
- *     const tokens = useDarkModeTokens();
+ *     const tokens = useDarkModeTokens();          // Tailwind's `.dark` on <html>
  *     return (
  *       <FootprintTheme tokens={tokens}>
- *         <NarrativeTrace ... />
+ *         <ExplainableShell ... />
  *       </FootprintTheme>
  *     );
  *   }
  *
- * Consumers can override the light/dark presets:
+ * Other switches work too — pass whatever your app uses:
  *
- *   const tokens = useDarkModeTokens({ light: warmLight, dark: warmDark });
+ *   useDarkModeTokens({ darkClass: 'theme-dark' })          // a class name
+ *   useDarkModeTokens({ darkClass: '[data-theme="dark"]' }) // a CSS selector
+ *   useDarkModeTokens({ light: warmLight, dark: warmDark }) // your palettes
+ *
+ * Server rendering: on the server there is no `document`, so the first render
+ * returns the LIGHT tokens and the client corrects on mount. (It used to read
+ * `document` inside the `useState` initializer, which is a hard crash in
+ * Next.js — a light flash is the honest cost of not knowing yet.)
  */
 
 interface DarkModeTokensOptions {
@@ -188,10 +248,59 @@ interface DarkModeTokensOptions {
     light?: ThemeTokens;
     /** Tokens to use in dark mode. Defaults to coolDark. */
     dark?: ThemeTokens;
-    /** CSS selector to watch for dark mode. Defaults to checking .dark on documentElement. */
+    /**
+     * How the app says "dark". A bare CLASS NAME on `<html>` (`'dark'` —
+     * Tailwind's convention, the default), or any CSS SELECTOR the root
+     * element should match (`'.dark'`, `'[data-theme="dark"]'`, `'#app.night'`).
+     * Anything starting with `.`, `[`, `#` or `:` is treated as a selector.
+     */
+    darkClass?: string;
+    /** @deprecated Renamed to `darkClass`. Still read, same meaning. */
     selector?: string;
 }
 declare function useDarkModeTokens(options?: DarkModeTokensOptions): ThemeTokens;
+
+/**
+ * The one-word theme switch.
+ *
+ * Every component in this library paints from `--fp-*` variables whose
+ * built-in fallbacks are DARK. Mounted inside a light app with nothing set,
+ * a panel renders dark — correct by the rules, wrong on the page. Setting a
+ * dozen variables by hand to fix that is not a first-try experience.
+ *
+ * `<Component theme="light" />` is that fix in one word: it stamps a full
+ * preset as inline `--fp-*` variables on the component's own root, so
+ * everything under it — including nested children — follows. It is the same
+ * mechanism `<ExplainableShell traceTheme={{ mode }}>` uses; this module is
+ * the single place that maps a mode to its palette.
+ *
+ * Precedence, from weakest to strongest:
+ *   1. the components' hard-coded fallbacks (dark)
+ *   2. `--fp-*` an ancestor sets (`<FootprintTheme>`, your own CSS)
+ *   3. `theme="light" | "dark"` on the component  ← wins, because it is local
+ *
+ * So `theme` is a per-component override, not a replacement for
+ * `<FootprintTheme tokens={...}>` — reach for the provider when you want one
+ * palette for a whole tree, and for a custom palette rather than a preset.
+ */
+
+/** Light or dark. The whole switch. */
+type ThemeMode = "dark" | "light";
+/** Props mixin for components that accept the switch. */
+interface ThemeModeProps {
+    /**
+     * Light or dark, in one word — applies the built-in preset as `--fp-*`
+     * variables on this component's root. Omit to inherit whatever the page
+     * (or a `<FootprintTheme>` ancestor) already set.
+     */
+    theme?: ThemeMode;
+}
+/**
+ * CSS variables for a mode, ready to spread into a root element's `style`.
+ * Returns `{}` for `undefined` so an unthemed component is byte-identical to
+ * how it rendered before the prop existed.
+ */
+declare function themeModeVars(mode?: ThemeMode): CSSProperties;
 
 interface MemoryInspectorProps extends BaseComponentProps {
     /** Single memory object or snapshots (will accumulate up to selectedIndex) */
@@ -237,7 +346,7 @@ interface NarrativeTraceProps extends BaseComponentProps {
 }
 declare function NarrativeTrace({ narrative, revealedCount, defaultCollapsed, onStageClick, size, unstyled, className, style, }: NarrativeTraceProps): react.JSX.Element;
 
-interface GanttTimelineProps extends BaseComponentProps {
+interface GanttTimelineProps extends BaseComponentProps, ThemeModeProps {
     /** Stage snapshots with timing info */
     snapshots: StageSnapshot[];
     /** Currently selected stage index */
@@ -251,10 +360,16 @@ interface GanttTimelineProps extends BaseComponentProps {
  * Horizontal Gantt-style timeline showing stage durations and overlap.
  * Collapses to `maxVisibleRows` with expand/collapse toggle.
  * Auto-scrolls to keep the active stage visible when collapsed.
+ *
+ * Honest degrade: a run recorded without a metrics recorder has all-zero
+ * durations. Rather than draw invisible 1%-wide bars against a fabricated
+ * 1ms axis and label every row "0ms", the component switches to SEQUENCE
+ * bars — equal width, positioned by execution order — plus one note saying
+ * so. Order is real; duration is not, and is never invented.
  */
-declare function GanttTimeline({ snapshots, selectedIndex, onSelect, size, unstyled, className, style, maxVisibleRows, }: GanttTimelineProps): react.JSX.Element;
+declare function GanttTimeline({ snapshots, selectedIndex, onSelect, size, unstyled, className, style, theme: themeMode, maxVisibleRows, }: GanttTimelineProps): react.JSX.Element;
 
-interface SnapshotPanelProps extends BaseComponentProps {
+interface SnapshotPanelProps extends BaseComponentProps, ThemeModeProps {
     /** Stage snapshots from pipeline execution */
     snapshots: StageSnapshot[];
     /** Show the Gantt timeline */
@@ -268,7 +383,7 @@ interface SnapshotPanelProps extends BaseComponentProps {
  * All-in-one panel: time-travel scrubber + memory inspector + narrative log + gantt.
  * Drop this into any page to make a pipeline run inspectable.
  */
-declare function SnapshotPanel({ snapshots, showGantt, showScrubber, title, size, unstyled, className, style, }: SnapshotPanelProps): react.JSX.Element;
+declare function SnapshotPanel({ snapshots, showGantt, showScrubber, title, size, unstyled, className, style, theme: themeMode, }: SnapshotPanelProps): react.JSX.Element;
 
 interface DiffEntry {
     key: string;
@@ -718,9 +833,21 @@ interface ExplainableShellProps extends BaseComponentProps {
      */
     traceGraph?: TraceGraph | null;
     /**
-     * Runtime overlay captured live via `createTraceRuntimeOverlay`.
-     * Pair with `traceGraph` to drive `<TracedFlow>` for the full
-     * time-travel trace UI.
+     * Runtime overlay captured live via `createTraceRuntimeOverlay` — the
+     * per-step colouring that lights the executed path.
+     *
+     * **Usually leave it off.** When `runtimeSnapshot` is given and this prop
+     * is absent, the shell rebuilds the overlay from the snapshot's own commit
+     * log (`overlayFromSnapshot`), so a replayed recording colours its chart
+     * exactly like the live run did. Pass it only to override that — a live
+     * `createTraceRuntimeOverlay` handle sees a little more than a recording
+     * can (errors, subflow internals, wall-clock).
+     *
+     * For a deliberately uncoloured (build-time-only) chart pass an EMPTY
+     * overlay — `{ executionOrder: [], errors: new Map(), running: false }`.
+     * Omitting the prop no longer means "no colours"; it means "work it out
+     * from the snapshot", because omitting it was how every replay ended up
+     * grey.
      */
     runtimeOverlay?: RuntimeOverlay | null;
     /**
@@ -737,7 +864,12 @@ interface ExplainableShellProps extends BaseComponentProps {
     logs?: string[];
     /** Structured narrative entries from `executor.getNarrativeEntries()`.
      *  This is the only narrative input — the flat-string form was
-     *  removed; call `.map(e => e.text)` if you need it. */
+     *  removed; call `.map(e => e.text)` if you need it.
+     *
+     *  Optional when `runtimeSnapshot` is given: a run recorded with
+     *  footprintjs's narrative recorder carries its entries inside the
+     *  snapshot, and the shell reads them from there. Pass this prop to
+     *  override that (it always wins). */
     narrativeEntries?: NarrativeEntry[];
     tabs?: ShellTab[];
     defaultTab?: ShellTab;
@@ -787,66 +919,70 @@ interface ExplainableShellProps extends BaseComponentProps {
      */
     showStageId?: boolean;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
+declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
 
 /**
- * TraceViewer — drop-in component that renders an `agentfootprint.exportTrace()`
- * JSON as a fully interactive Behind-the-Scenes view.
+ * TraceViewer — renders a saved recording. No live executor, no re-run.
  *
- * The pattern:
- *   1. Producer side calls `agentfootprint.exportTrace(runner)` to capture
- *      a portable JSON `AgentfootprintTrace` (schemaVersion 1).
- *   2. The JSON is shipped anywhere — file, HTTP, clipboard, database.
- *   3. Consumer side passes it to `<TraceViewer trace={...} />` and gets
- *      the full BTS view: flowchart topology, narrative timeline, snapshot
- *      memory state, recorder data — without re-executing anything.
+ * A recording is three things, and each one lights a different surface:
  *
- * Accepts EITHER a parsed object OR a raw JSON string. Validates
- * `schemaVersion === 1` and surfaces parse / validation errors via the
- * optional `onError` callback. When the trace is invalid, renders the
- * `fallback` prop (or nothing if not provided).
+ *   ```ts
+ *   const recording = {
+ *     snapshot:  executor.getSnapshot(),      // memory, story, timeline, colouring
+ *     structure: chart.buildTimeStructure,    // the CHART. Nothing else can draw it.
+ *     events:    [...],                       // the agent view (agentfootprint-lens)
+ *   };
+ *   fs.writeFileSync('run.json', JSON.stringify(recording));
+ *   ```
  *
- * @example
- * ```tsx
- * import { TraceViewer } from 'footprint-explainable-ui';
+ *   ```tsx
+ *   <TraceViewer recording={JSON.parse(raw)} onError={(e) => setStatus(e.message)} />
+ *   ```
  *
- * function MyDebugPage({ trace }: { trace: unknown }) {
- *   return <TraceViewer trace={trace} />;
- * }
- * ```
+ * This is the same `Recording` shape `observeRecording` takes in
+ * `agentfootprint-lens` — one saved file, two viewers. `events` is read by
+ * Lens, not here; a recording with only two of the three fields still works,
+ * and the missing surface says which piece it wanted.
  *
- * @example Paste-from-clipboard pattern (the playground viewer)
- * ```tsx
- * const [raw, setRaw] = useState('');
- * <textarea value={raw} onChange={(e) => setRaw(e.target.value)} />
- * <TraceViewer
- *   trace={raw}
- *   onError={(err) => setStatus(err)}
- *   fallback={<div>Paste a trace JSON to begin.</div>}
- * />
- * ```
+ * Accepts a parsed object OR a raw JSON string (the paste-a-run workflow).
+ * Everything that can go wrong goes to `onError` with a typed reason —
+ * including the two that used to render nothing at all: a snapshot this
+ * library cannot read, and a recording whose run has no stages.
  *
- * The component is a thin shell over `toVisualizationSnapshots` +
- * `<ExplainableShell />` — exactly the composition consumers would write
- * by hand. Source is short on purpose; read it as the reference.
+ * The component is a thin composition over `graphFromStructure` +
+ * `overlayFromSnapshot` + `<ExplainableShell />` — exactly what a consumer
+ * would write by hand. Source is short on purpose; read it as the reference.
  */
 
 /**
- * Schema-versioned trace shape produced by `agentfootprint.exportTrace`.
- * Pinned to `schemaVersion: 1`; future shape changes will bump the version
- * and TraceViewer will gain a multi-version dispatch table.
+ * One frozen run. Field-for-field the shape `agentfootprint-lens`'
+ * `observeRecording` reads, so the same file drives both viewers.
  */
-interface AgentfootprintTrace {
-    readonly schemaVersion: 1;
-    readonly exportedAt?: string;
-    readonly redacted?: boolean;
+interface Recording {
+    /** The run's footprintjs snapshot (`executor.getSnapshot()`). Required —
+     *  without it there is no run to show. */
     readonly snapshot?: unknown;
+    /** The chart's build-time structure (`chart.buildTimeStructure`). The only
+     *  thing that can draw the flowchart; a snapshot cannot. */
+    readonly structure?: unknown;
+    /** The same chart under the name many recordings were frozen with. Read
+     *  when `structure` is absent, so an existing file drops straight in. */
+    readonly blueprint?: unknown;
+    /** The run's event log. Read by `<Lens>`; ignored here. */
+    readonly events?: readonly unknown[];
+    /** Narrative entries, when the producer captured them separately. Usually
+     *  unnecessary — a run recorded with footprintjs's narrative recorder
+     *  carries its story inside the snapshot. */
     readonly narrativeEntries?: unknown[];
-    readonly spec?: unknown;
+    /** Optional producer version stamp. Anything other than 1 is refused
+     *  loudly rather than half-rendered. */
+    readonly schemaVersion?: number;
+    /** When the producer stamped extra fields, they ride along untouched. */
+    readonly [key: string]: unknown;
 }
 /**
- * Result of parsing + validating raw input. Internal — exposed via
- * `onError` so consumers can show their own error UI.
+ * Why a recording could not be shown. Every branch reports one of these —
+ * the viewer never renders `fallback` without saying why.
  */
 type TraceParseError = {
     kind: 'invalid-json';
@@ -855,29 +991,37 @@ type TraceParseError = {
     kind: 'not-object';
     message: string;
 } | {
-    kind: 'missing-version';
-    message: string;
-} | {
     kind: 'unsupported-version';
     message: string;
     version: number;
+} | {
+    kind: 'missing-snapshot';
+    message: string;
+} | {
+    kind: 'unreadable-snapshot';
+    message: string;
+} | {
+    kind: 'no-stages';
+    message: string;
 };
-interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart'> {
+interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'traceTheme'>, ThemeModeProps {
     /**
-     * Trace to render. Accepts a parsed `AgentfootprintTrace` object or a
-     * raw JSON string (the component parses + validates it). `null` /
-     * `undefined` / empty-string render the `fallback`.
+     * The recording to render — a parsed object or a raw JSON string.
+     * `null` / `undefined` / empty-string render the `fallback`.
      */
-    readonly trace?: AgentfootprintTrace | string | null;
+    readonly recording?: Recording | string | null;
+    /** Former name for `recording`. Still read; prefer `recording`. */
+    readonly trace?: Recording | string | null;
     /**
-     * Called on parse / validation errors. If you need to show your own
-     * error UI, capture the error here and render alongside.
+     * Called with the typed reason whenever nothing can be rendered. Show it:
+     * every one of these is actionable, and half of them name a missing
+     * ingredient rather than a corrupt file.
      */
     readonly onError?: (error: TraceParseError) => void;
-    /** Element rendered when no valid trace is available. */
+    /** Element rendered when no valid recording is available. */
     readonly fallback?: react.ReactNode;
 }
-declare function TraceViewer({ trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, }: TraceViewerProps): react.ReactElement | null;
+declare function TraceViewer({ recording, trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, traceTheme, theme: themeMode, }: TraceViewerProps): react.ReactElement | null;
 
 interface MemoryPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
@@ -982,6 +1126,20 @@ interface RuntimeSnapshot {
 }
 
 /**
+ * Reads the execution narrative a recorded run carries with it.
+ *
+ * Use when you have a snapshot but no live executor to call
+ * `getNarrativeEntries()` on:
+ * ```ts
+ * <ExplainableShell runtimeSnapshot={snapshot}
+ *                   narrativeEntries={narrativeFromSnapshot(snapshot)} />
+ * ```
+ * (`<ExplainableShell>` already does this for you — pass the prop only to
+ * override.) Returns `undefined` when the run was recorded without a
+ * narrative recorder: absent narrative stays absent, never invented.
+ */
+declare function narrativeFromSnapshot(runtime: unknown): NarrativeEntry[] | undefined;
+/**
  * Deep-merges a net-change write PATCH into a base value for the
  * cumulative-memory VIEW — the visualization-side mirror of footprintjs's
  * `deepSmartMerge` (the `merge`-verb arm of `applySmartMerge`).
@@ -1011,9 +1169,12 @@ declare function mergeWritePatch(base: unknown, patch: unknown): unknown;
  * suitable for visualization components.
  *
  * The `narrativeEntries` parameter (from `executor.getNarrativeEntries()`)
- * distributes the library's rich combined narrative per-stage.
- * When narrative is not enabled, stages get "Narrative not available" —
- * this adapter reflects what the library produces, nothing more.
+ * distributes the library's rich combined narrative per-stage. Omit it and
+ * the narrative the snapshot carries itself (`snapshot.recorders`) is used
+ * instead — so a replayed recording reads like the live run did.
+ * When narrative is not enabled at all, stages get a basic line built from
+ * the stage's own name/description/writes — this adapter reflects what the
+ * library produces, nothing more.
  *
  * Usage:
  * ```ts
@@ -1049,6 +1210,159 @@ declare function createSnapshots(stages: Array<{
     description?: string;
     subflowId?: string;
 }>): StageSnapshot[];
+
+/**
+ * overlayFromSnapshot — the runtime overlay, rebuilt from a FROZEN snapshot.
+ *
+ * `<TracedFlow>` colours its chart from ONE input: the `RuntimeOverlay`
+ * (TracedFlow.tsx → `sliceOverlay`). Until now the only way to get one was
+ * to attach `createTraceRuntimeOverlay()` to a LIVE executor — so a
+ * consumer replaying a recording (a saved `executor.getSnapshot()`, a
+ * shipped demo, a bug report pasted into a viewer) had a rail, a memory
+ * panel and a narrative but a dead, uncoloured chart.
+ *
+ * Nothing about the overlay needs to be live: `snapshot.commitLog` already
+ * holds the execution order. Bundles are appended in execution order
+ * (`bundle.idx` == array position) and one stage execution can emit MORE
+ * than one bundle (a subflow mount commits its outputMapper result, then a
+ * boundary bundle), so we dedupe by `runtimeStageId` keeping the FIRST —
+ * the same dedupe the live recorder does on `onStageExecuted`.
+ *
+ * ```ts
+ * const snapshot = JSON.parse(await fs.readFile('run.json', 'utf8'));
+ * <ExplainableShell
+ *   runtimeSnapshot={snapshot}
+ *   traceGraph={graph}
+ *   runtimeOverlay={overlayFromSnapshot(snapshot)}   // ← chart lights up
+ * />
+ * ```
+ *
+ * What it CANNOT know (honest absence — never fabricated)
+ * ──────────────────────────────────────────────────────
+ *   - **`timestampMs` is 0 on every step.** Commit bundles carry no
+ *     wall clock. The field is display-only — `sliceOverlay` and
+ *     `<TracedFlow>` never read it — so 0 is the honest value, not a
+ *     guess. For real timings attach footprintjs's metrics recorder;
+ *     `toVisualizationSnapshots` reads those into `StageSnapshot.durationMs`.
+ *   - **`errors` is empty.** The commit log has no error channel; a
+ *     failing stage's writes land (footprintjs commits before rethrow)
+ *     but the message does not. Error painting needs the live recorder.
+ *   - **`running` is false.** A recording is a finished run by definition.
+ *   - **Subflow-internal steps are absent when the engine isolated them.**
+ *     footprintjs keeps deep-subflow commits out of the run-level
+ *     commitLog by design, so a recording of a chart with subflows yields
+ *     overlay steps for the MOUNT stages, not their internals — the same
+ *     stages the snapshot's own rail (`toVisualizationSnapshots`) shows.
+ *     A live `createTraceRuntimeOverlay` sees both.
+ */
+
+/** Duck-typed input: any object carrying a footprintjs commit log —
+ *  a whole `executor.getSnapshot()` or just `{ commitLog }`. */
+interface SnapshotWithCommitLog {
+    commitLog?: unknown;
+}
+/**
+ * Builds a `RuntimeOverlay` from a recorded run — the post-hoc twin of
+ * `createTraceRuntimeOverlay()`. Pass the result straight to
+ * `<TracedFlow overlay={...}>` or `<ExplainableShell runtimeOverlay={...}>`.
+ *
+ * Returns an empty overlay (no steps) for a missing or empty commit log —
+ * an unrecorded run colours nothing, which is the truthful rendering.
+ */
+declare function overlayFromSnapshot(snapshot: SnapshotWithCommitLog | null | undefined): RuntimeOverlay;
+
+/**
+ * graphFromStructure — the chart, rebuilt from a SAVED structure.
+ *
+ * `createTraceStructureRecorder` collects the chart while footprintjs
+ * BUILDS it. This is its post-hoc twin: hand it the `buildTimeStructure`
+ * a chart carries (`chart.buildTimeStructure`, plain JSON) and it produces
+ * the same `TraceGraph` — no builder, no live process, no agent framework.
+ *
+ * Why it exists
+ * ─────────────
+ * A recording is three things: `events`, `snapshot`, and `structure`.
+ * The snapshot draws the memory panel, the story and the rail; only the
+ * structure can draw the CHART. Until now the one spec→graph adapter in
+ * the ecosystem was `structureGraphFromSpec` in `agentfootprint-lens`,
+ * which reaches into `agentfootprint` for agent vocabulary — so a plain
+ * footprintjs consumer had to install an agent framework to draw a saved
+ * pipeline run. This is that adapter, with no agent semantics.
+ *
+ * ```ts
+ * // Recording side (in the app that ran the pipeline):
+ * const recording = {
+ *   snapshot:  executor.getSnapshot(),
+ *   structure: chart.buildTimeStructure,   // ← the chart. Nothing else can draw it.
+ * };
+ *
+ * // Rendering side, anywhere later:
+ * <ExplainableShell
+ *   runtimeSnapshot={recording.snapshot}
+ *   traceGraph={graphFromStructure(recording.structure)}
+ * />
+ * ```
+ *
+ * Same graph, same ids
+ * ────────────────────
+ * Node ids are the chart's own stage ids at the top level and
+ * `subflowPath/stageId` inside a subflow — byte-identical to the live
+ * recorder, which is what lets the runtime overlay (live OR
+ * `overlayFromSnapshot`) light the right boxes. The events are replayed
+ * into `createTraceStructureRecorder` itself rather than re-implemented,
+ * so the two paths cannot drift: one graph builder, two front doors.
+ *
+ * What a saved structure cannot carry (honest absence — never invented)
+ * ────────────────────────────────────────────────────────────────────
+ *   - **A decider's `defaultBranch`.** footprintjs's live
+ *     `onDeciderComplete` event names the fallback branch, but
+ *     `SerializedPipelineStructure` has no field for it, so a rebuilt
+ *     decider node carries `branchIds` without `defaultBranch`. Renderers
+ *     that badge the default simply don't badge it.
+ *   - **A lazy subflow's internals.** `isLazy` mounts resolve at run time;
+ *     the saved structure holds the mount node alone, exactly as the live
+ *     recorder saw it at build time.
+ */
+
+/**
+ * The slice of footprintjs's `SerializedPipelineStructure` this walker
+ * reads. Duck-typed on purpose — explainable-ui declares no `footprintjs`
+ * dependency (see traceStructureRecorder.ts for the boundary rationale).
+ */
+interface SerializedStructureNode {
+    readonly id: string;
+    readonly name: string;
+    readonly type?: "stage" | "decider" | "selector" | "fork" | "streaming" | "subflow" | "loop";
+    readonly description?: string;
+    readonly icon?: string;
+    readonly hasDecider?: boolean;
+    readonly hasSelector?: boolean;
+    readonly branchIds?: readonly string[];
+    readonly children?: readonly SerializedStructureNode[];
+    readonly next?: SerializedStructureNode;
+    readonly loopTarget?: string;
+    readonly isLoopReference?: boolean;
+    readonly isSubflowRoot?: boolean;
+    readonly subflowId?: string;
+    readonly subflowName?: string;
+    readonly subflowStructure?: SerializedStructureNode;
+    readonly isLazy?: boolean;
+    readonly isPausable?: boolean;
+    /** Structure-only: this branch rejoins at its OWN named stage instead of
+     *  the shared convergence stage (an unequal-depth merge). */
+    readonly convergeAt?: string;
+    readonly [key: string]: unknown;
+}
+/**
+ * Builds the chart's `TraceGraph` from a serialized `buildTimeStructure`.
+ *
+ * Pass the result to `<ExplainableShell traceGraph={...}>` or
+ * `<TracedFlow graph={...}>`. Returns an EMPTY graph (`{nodes: [], edges: []}`)
+ * when the input isn't a structure — a recording saved without its
+ * structure draws no chart, which is the truthful rendering. Check
+ * `graph.nodes.length` if you want to branch on that.
+ */
+declare function graphFromStructure(structure: unknown): TraceGraph;
 
 /**
  * Narrative sync utilities — shared logic for mapping timeline position
@@ -1320,4 +1634,4 @@ interface CompactTimelineProps {
 }
 declare const CompactTimeline: react.NamedExoticComponent<CompactTimelineProps>;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type AgentfootprintTrace, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, ResultPanel, type ResultPanelProps, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, mergeWritePatch, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, type TraceGraph, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };

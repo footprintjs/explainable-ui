@@ -13,6 +13,17 @@ function tokensToCSSVars(tokens) {
     if (c.nodeCursor) vars["--fp-node-cursor"] = c.nodeCursor;
     if (c.nodeVisited) vars["--fp-node-visited"] = c.nodeVisited;
     if (c.nodeMain) vars["--fp-node-main"] = c.nodeMain;
+    const accent = c.accent ?? c.primary;
+    if (accent) vars["--fp-accent"] = accent;
+    if (c.accentBg) vars["--fp-accent-bg"] = c.accentBg;
+    if (c.success) vars["--fp-success"] = c.success;
+    if (c.tracing) vars["--fp-tracing"] = c.tracing;
+    if (c.chip1) vars["--fp-chip-1"] = c.chip1;
+    if (c.chip2) vars["--fp-chip-2"] = c.chip2;
+    if (c.chip3) vars["--fp-chip-3"] = c.chip3;
+    if (c.chip4) vars["--fp-chip-4"] = c.chip4;
+    if (c.bg) vars["--fp-bg"] = c.bg;
+    if (c.bgElevated) vars["--fp-bg-elevated"] = c.bgElevated;
     if (c.bgPrimary) vars["--fp-bg-primary"] = c.bgPrimary;
     if (c.bgSecondary) vars["--fp-bg-secondary"] = c.bgSecondary;
     if (c.bgTertiary) vars["--fp-bg-tertiary"] = c.bgTertiary;
@@ -35,6 +46,15 @@ var rawDefaults = {
     nodeCursor: "#f59e0b",
     nodeVisited: "#22c55e",
     nodeMain: "#6366f1",
+    accent: "#6366f1",
+    accentBg: "rgba(99,102,241,0.12)",
+    tracing: "#0d9488",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#1a1b26",
+    bgElevated: "#1e293b",
     bgPrimary: "#0f172a",
     bgSecondary: "#1e293b",
     bgTertiary: "#334155",
@@ -58,6 +78,15 @@ var defaultTokens = {
     nodeCursor: `var(--fp-node-cursor, ${rawDefaults.colors.nodeCursor})`,
     nodeVisited: `var(--fp-node-visited, ${rawDefaults.colors.nodeVisited})`,
     nodeMain: `var(--fp-node-main, ${rawDefaults.colors.nodeMain})`,
+    accent: `var(--fp-accent, ${rawDefaults.colors.accent})`,
+    accentBg: `var(--fp-accent-bg, ${rawDefaults.colors.accentBg})`,
+    tracing: `var(--fp-tracing, ${rawDefaults.colors.tracing})`,
+    chip1: `var(--fp-chip-1, ${rawDefaults.colors.chip1})`,
+    chip2: `var(--fp-chip-2, ${rawDefaults.colors.chip2})`,
+    chip3: `var(--fp-chip-3, ${rawDefaults.colors.chip3})`,
+    chip4: `var(--fp-chip-4, ${rawDefaults.colors.chip4})`,
+    bg: `var(--fp-bg, ${rawDefaults.colors.bg})`,
+    bgElevated: `var(--fp-bg-elevated, ${rawDefaults.colors.bgElevated})`,
     bgPrimary: `var(--fp-bg-primary, ${rawDefaults.colors.bgPrimary})`,
     bgSecondary: `var(--fp-bg-secondary, ${rawDefaults.colors.bgSecondary})`,
     bgTertiary: `var(--fp-bg-tertiary, ${rawDefaults.colors.bgTertiary})`,
@@ -109,6 +138,19 @@ var theme = {
   // executed up to the cursor
   nodeMain: v("--fp-node-main", "#6366f1"),
   // the lead / "hero" node of a group
+  // Short-alias roles. Panels written against these read the SAME token the
+  // presets emit (see tokensToCSSVars) — they exist so a component can say
+  // "accent" without deciding whether it means the brand primary.
+  accent: v("--fp-accent", "#6366f1"),
+  // active tab / selected rule
+  accentBg: v("--fp-accent-bg", "rgba(99,102,241,0.12)"),
+  // wash behind an accented row
+  tracing: v("--fp-tracing", "#0d9488"),
+  // the tracing-rail chrome
+  bg: v("--fp-bg", "#1a1b26"),
+  // panel body surface
+  bgElevated: v("--fp-bg-elevated", "#1e293b"),
+  // raised card on the body surface
   bgPrimary: v("--fp-bg-primary", "#0f172a"),
   bgSecondary: v("--fp-bg-secondary", "#1e293b"),
   bgTertiary: v("--fp-bg-tertiary", "#334155"),
@@ -138,6 +180,18 @@ var coolDark = {
     success: "#22c55e",
     error: "#ef4444",
     warning: "#f59e0b",
+    nodeCursor: "#f59e0b",
+    nodeVisited: "#22c55e",
+    nodeMain: "#6366f1",
+    accent: "#6366f1",
+    accentBg: "rgba(99,102,241,0.12)",
+    tracing: "#14b8a6",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#0f172a",
+    bgElevated: "#1e293b",
     bgPrimary: "#0f172a",
     bgSecondary: "#1e293b",
     bgTertiary: "#334155",
@@ -158,6 +212,18 @@ var warmDark = {
     success: "#3dd68c",
     error: "#f06292",
     warning: "#ffb74d",
+    nodeCursor: "#ffb74d",
+    nodeVisited: "#3dd68c",
+    nodeMain: "#7c6cf0",
+    accent: "#7c6cf0",
+    accentBg: "rgba(124,108,240,0.14)",
+    tracing: "#3ecfb2",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#1e1a2e",
+    bgElevated: "#2a2540",
     bgPrimary: "#1e1a2e",
     bgSecondary: "#2a2540",
     bgTertiary: "#3a3455",
@@ -178,6 +244,18 @@ var warmLight = {
     success: "#22a860",
     error: "#d94452",
     warning: "#e09030",
+    nodeCursor: "#e09030",
+    nodeVisited: "#22a860",
+    nodeMain: "#7c6cf0",
+    accent: "#7c6cf0",
+    accentBg: "rgba(124,108,240,0.12)",
+    tracing: "#0e9c88",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#faf5ef",
+    bgElevated: "#f0e6d6",
     bgPrimary: "#faf5ef",
     bgSecondary: "#f0e6d6",
     bgTertiary: "#e4d5c3",
@@ -198,6 +276,18 @@ var coolLight = {
     success: "#22c55e",
     error: "#ef4444",
     warning: "#f59e0b",
+    nodeCursor: "#f59e0b",
+    nodeVisited: "#22c55e",
+    nodeMain: "#6366f1",
+    accent: "#6366f1",
+    accentBg: "rgba(99,102,241,0.10)",
+    tracing: "#0d9488",
+    chip1: "#0d9488",
+    chip2: "#d97706",
+    chip3: "#7c3aed",
+    chip4: "#e11d48",
+    bg: "#ffffff",
+    bgElevated: "#f9fafb",
     bgPrimary: "#ffffff",
     bgSecondary: "#f9fafb",
     bgTertiary: "#e5e7eb",
@@ -221,24 +311,40 @@ var themePresets = {
 
 // src/theme/useDarkModeTokens.ts
 import { useState, useEffect } from "react";
+function isDark(spec) {
+  if (typeof document === "undefined") return false;
+  const root = document.documentElement;
+  if (!root) return false;
+  if (/^[.[#:]/.test(spec)) {
+    try {
+      return root.matches(spec);
+    } catch {
+      return root.classList.contains(spec.replace(/^\./, ""));
+    }
+  }
+  return root.classList.contains(spec);
+}
 function useDarkModeTokens(options) {
   const lightTokens = options?.light ?? coolLight;
   const darkTokens = options?.dark ?? coolDark;
-  const [isDark, setIsDark] = useState(
-    () => document.documentElement.classList.contains(options?.selector ?? "dark")
-  );
+  const spec = options?.darkClass ?? options?.selector ?? "dark";
+  const [isDarkMode, setIsDarkMode] = useState(false);
   useEffect(() => {
-    const cls = options?.selector ?? "dark";
-    const obs = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains(cls));
-    });
-    obs.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"]
-    });
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    if (!root) return;
+    setIsDarkMode(isDark(spec));
+    const obs = new MutationObserver(() => setIsDarkMode(isDark(spec)));
+    obs.observe(root, { attributes: true });
     return () => obs.disconnect();
-  }, [options?.selector]);
-  return isDark ? darkTokens : lightTokens;
+  }, [spec]);
+  return isDarkMode ? darkTokens : lightTokens;
+}
+
+// src/theme/mode.ts
+function themeModeVars(mode) {
+  if (!mode) return {};
+  return tokensToCSSVars(mode === "light" ? coolLight : coolDark);
 }
 
 // src/components/MemoryInspector/MemoryInspector.tsx
@@ -759,6 +865,9 @@ function NarrativeTrace({
 // src/components/GanttTimeline/GanttTimeline.tsx
 import { useState as useState3, useMemo as useMemo4, useRef as useRef3, useEffect as useEffect3 } from "react";
 import { jsx as jsx5, jsxs as jsxs4 } from "react/jsx-runtime";
+var NO_TIMING_NOTE = "No timing recorded \u2014 bars show the order stages ran, not how long they took.";
+var NO_TIMING_HINT = "Durations come from footprintjs's metrics recorder; this run was recorded without one.";
+var NO_DURATION = "\u2014";
 function GanttTimeline({
   snapshots,
   selectedIndex = 0,
@@ -767,6 +876,7 @@ function GanttTimeline({
   unstyled = false,
   className,
   style,
+  theme: themeMode,
   maxVisibleRows = 5
 }) {
   const [expanded, setExpanded] = useState3(false);
@@ -776,6 +886,16 @@ function GanttTimeline({
     () => Math.max(...snapshots.map((s) => s.startMs + s.durationMs), 1),
     [snapshots]
   );
+  const untimed = useMemo4(
+    () => snapshots.length > 0 && snapshots.every((s) => s.durationMs === 0),
+    [snapshots]
+  );
+  const rowDuration = (snap) => untimed ? NO_DURATION : `${snap.durationMs}ms`;
+  const rowLabel = (snap, idx) => untimed ? `${snap.stageLabel}, step ${idx + 1} of ${snapshots.length}, no timing recorded` : `${snap.stageLabel}, ${snap.durationMs}ms`;
+  const barGeometry = (snap, idx) => untimed ? { leftPct: idx / snapshots.length * 100, widthPct: 100 / snapshots.length } : {
+    leftPct: snap.startMs / totalWallTime * 100,
+    widthPct: Math.max(snap.durationMs / totalWallTime * 100, 1)
+  };
   const fs = fontSize[size];
   const pad = padding[size];
   const labelWidth = size === "compact" ? 50 : size === "detailed" ? 100 : 80;
@@ -792,33 +912,45 @@ function GanttTimeline({
     }
   }, [selectedIndex, showAll]);
   if (unstyled) {
-    return /* @__PURE__ */ jsx5("div", { className, style, "data-fp": "gantt-timeline", role: "listbox", "aria-label": "Execution timeline", children: snapshots.map((snap, idx) => /* @__PURE__ */ jsxs4(
+    return /* @__PURE__ */ jsxs4(
       "div",
       {
-        "data-fp": "gantt-bar",
-        "data-selected": idx === selectedIndex,
-        "data-visible": idx <= selectedIndex,
-        role: "option",
-        "aria-selected": idx === selectedIndex,
-        "aria-label": `${snap.stageLabel}, ${snap.durationMs}ms`,
-        onClick: () => onSelect?.(idx),
+        className,
+        style,
+        "data-fp": "gantt-timeline",
+        "data-timing": untimed ? "none" : void 0,
+        role: "listbox",
+        "aria-label": "Execution timeline",
         children: [
-          /* @__PURE__ */ jsx5("span", { "data-fp": "gantt-label", children: snap.stageLabel }),
-          /* @__PURE__ */ jsxs4("span", { "data-fp": "gantt-duration", children: [
-            snap.durationMs,
-            "ms"
-          ] })
+          snapshots.map((snap, idx) => /* @__PURE__ */ jsxs4(
+            "div",
+            {
+              "data-fp": "gantt-bar",
+              "data-selected": idx === selectedIndex,
+              "data-visible": idx <= selectedIndex,
+              role: "option",
+              "aria-selected": idx === selectedIndex,
+              "aria-label": rowLabel(snap, idx),
+              onClick: () => onSelect?.(idx),
+              children: [
+                /* @__PURE__ */ jsx5("span", { "data-fp": "gantt-label", children: snap.stageLabel }),
+                /* @__PURE__ */ jsx5("span", { "data-fp": "gantt-duration", children: rowDuration(snap) })
+              ]
+            },
+            `${snap.stageName}-${idx}`
+          )),
+          untimed && /* @__PURE__ */ jsx5("div", { "data-fp": "gantt-no-timing", title: NO_TIMING_HINT, children: NO_TIMING_NOTE })
         ]
-      },
-      `${snap.stageName}-${idx}`
-    )) });
+      }
+    );
   }
   return /* @__PURE__ */ jsxs4(
     "div",
     {
       className,
-      style: { padding: pad, fontFamily: theme.fontSans, ...style },
+      style: { ...themeModeVars(themeMode), padding: pad, fontFamily: theme.fontSans, ...style },
       "data-fp": "gantt-timeline",
+      "data-timing": untimed ? "none" : void 0,
       children: [
         /* @__PURE__ */ jsxs4(
           "div",
@@ -880,8 +1012,7 @@ function GanttTimeline({
               }
             },
             children: snapshots.map((snap, idx) => {
-              const leftPct = snap.startMs / totalWallTime * 100;
-              const widthPct = Math.max(snap.durationMs / totalWallTime * 100, 1);
+              const { leftPct, widthPct } = barGeometry(snap, idx);
               const isSelected = idx === selectedIndex;
               const isVisible = idx <= selectedIndex;
               return /* @__PURE__ */ jsxs4(
@@ -890,7 +1021,7 @@ function GanttTimeline({
                   ref: isSelected ? activeRowRef : void 0,
                   role: "option",
                   "aria-selected": isSelected,
-                  "aria-label": `${snap.stageLabel}, ${snap.durationMs}ms`,
+                  "aria-label": rowLabel(snap, idx),
                   onClick: () => onSelect?.(idx),
                   style: {
                     display: "flex",
@@ -948,7 +1079,7 @@ function GanttTimeline({
                         )
                       }
                     ),
-                    /* @__PURE__ */ jsxs4(
+                    /* @__PURE__ */ jsx5(
                       "span",
                       {
                         style: {
@@ -958,10 +1089,7 @@ function GanttTimeline({
                           width: msWidth,
                           flexShrink: 0
                         },
-                        children: [
-                          snap.durationMs,
-                          "ms"
-                        ]
+                        children: rowDuration(snap)
                       }
                     )
                   ]
@@ -971,7 +1099,21 @@ function GanttTimeline({
             })
           }
         ),
-        /* @__PURE__ */ jsxs4(
+        untimed ? /* @__PURE__ */ jsx5(
+          "div",
+          {
+            "data-fp": "gantt-no-timing",
+            title: NO_TIMING_HINT,
+            style: {
+              marginTop: 6,
+              fontSize: fs.small,
+              color: theme.textMuted,
+              fontStyle: "italic",
+              lineHeight: 1.4
+            },
+            children: NO_TIMING_NOTE
+          }
+        ) : /* @__PURE__ */ jsxs4(
           "div",
           {
             style: {
@@ -1013,7 +1155,8 @@ function SnapshotPanel({
   size = "default",
   unstyled = false,
   className,
-  style
+  style,
+  theme: themeMode
 }) {
   const [selectedIndex, setSelectedIndex] = useState4(0);
   const fs = fontSize[size];
@@ -1024,6 +1167,7 @@ function SnapshotPanel({
       {
         className,
         style: {
+          ...themeModeVars(themeMode),
           padding: pad * 2,
           textAlign: "center",
           color: unstyled ? void 0 : theme.textMuted,
@@ -1080,6 +1224,9 @@ function SnapshotPanel({
     {
       className,
       style: {
+        // The one-word switch (see theme/mode.ts) — this panel is the one
+        // people drop into an existing app on its own.
+        ...themeModeVars(themeMode),
         display: "flex",
         flexDirection: "column",
         height: "100%",
@@ -1533,10 +1680,11 @@ function fmt2(v2) {
   if (typeof v2 === "object" && v2 !== null) return JSON.stringify(v2, null, 2);
   return String(v2);
 }
+var wash = (color) => `color-mix(in srgb, ${color} 12%, transparent)`;
 var changeBadge = {
-  added: { bg: "rgba(34,197,94,0.12)", fg: "#22c55e", label: "ADD" },
-  updated: { bg: "rgba(245,158,11,0.12)", fg: "#f59e0b", label: "UPD" },
-  removed: { bg: "rgba(239,68,68,0.12)", fg: "#ef4444", label: "DEL" }
+  added: { bg: wash(theme.success), fg: theme.success, label: "ADD" },
+  updated: { bg: wash(theme.warning), fg: theme.warning, label: "UPD" },
+  removed: { bg: wash(theme.error), fg: theme.error, label: "DEL" }
 };
 function SimpleView({
   snapshot,
@@ -2383,9 +2531,10 @@ function buildDataTrace(commitLog, executionTree, targetRuntimeStageId, maxDepth
   for (let i = 0; i < log.length; i++) idxOf.set(log[i].runtimeStageId, i);
   const startIdx = idxOf.get(targetRuntimeStageId);
   if (startIdx === void 0) return { frames: [], readsAvailable };
+  const tracedPaths = (entry) => entry.trace ?? [];
   const findLastWriter = (key, beforeIdx) => {
     for (let i = beforeIdx - 1; i >= 0; i--) {
-      if (log[i].trace.some((t) => t.path === key)) return i;
+      if (tracedPaths(log[i]).some((t) => t.path === key)) return i;
     }
     return -1;
   };
@@ -2401,7 +2550,7 @@ function buildDataTrace(commitLog, executionTree, targetRuntimeStageId, maxDepth
       runtimeStageId: commit.runtimeStageId,
       stageId: commit.stageId,
       stageName: commit.stage,
-      keysWritten: commit.trace.map((t) => t.path),
+      keysWritten: tracedPaths(commit).map((t) => t.path),
       linkedBy,
       depth
     });
@@ -2568,7 +2717,12 @@ function formatTraceWalk(walk, stepNumberOf) {
 // src/components/DataTracePanel/TraceWalkCard.tsx
 import { memo, useMemo as useMemo8, useState as useState7 } from "react";
 import { Fragment as Fragment4, jsx as jsx11, jsxs as jsxs10 } from "react/jsx-runtime";
-var CHIP_COLORS = ["#0d9488", "#d97706", "#7c3aed", "#e11d48"];
+var CHIP_COLORS = [
+  v("--fp-chip-1", "#0d9488"),
+  v("--fp-chip-2", "#d97706"),
+  v("--fp-chip-3", "#7c3aed"),
+  v("--fp-chip-4", "#e11d48")
+];
 var TraceWalkCard = memo(function TraceWalkCard2({
   walk,
   cursorRuntimeStageId,
@@ -2790,7 +2944,7 @@ var TraceWalkCard = memo(function TraceWalkCard2({
                 " \xB7 step ",
                 stepNumberOf(s.runtimeStageId)
               ] }),
-              s.ingredients.length > 1 && /* @__PURE__ */ jsxs10("span", { style: { color: "#d97706", fontWeight: 600 }, children: [
+              s.ingredients.length > 1 && /* @__PURE__ */ jsxs10("span", { style: { color: theme.warning, fontWeight: 600 }, children: [
                 " \u2442 ",
                 s.ingredients.length
               ] })
@@ -2808,7 +2962,7 @@ var TraceWalkCard = memo(function TraceWalkCard2({
           k
         ] }, k))
       ] }),
-      walk.truncated && /* @__PURE__ */ jsx11("div", { "data-fp": "twc-truncated", style: { fontSize: 11, color: "#d97706" }, children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
+      walk.truncated && /* @__PURE__ */ jsx11("div", { "data-fp": "twc-truncated", style: { fontSize: 11, color: theme.warning }, children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
       /* @__PURE__ */ jsx11(
         "button",
         {
@@ -3134,6 +3288,34 @@ function extractSubflowNarrative(entries, subflowId, subflowName) {
 }
 
 // src/adapters/fromRuntimeSnapshot.ts
+function looksLikeNarrativeEntry(value) {
+  if (value === null || typeof value !== "object") return false;
+  const e = value;
+  return typeof e.type === "string" && typeof e.text === "string" && typeof e.depth === "number";
+}
+function readEntries(data) {
+  const candidate = Array.isArray(data) ? data : isPlainRecord(data) && Array.isArray(data.entries) ? data.entries : void 0;
+  if (!candidate || candidate.length === 0) return void 0;
+  return looksLikeNarrativeEntry(candidate[0]) ? candidate : void 0;
+}
+function narrativeRecorderFromSnapshot(runtime) {
+  const recorders = isPlainRecord(runtime) ? runtime.recorders : void 0;
+  if (!Array.isArray(recorders)) return void 0;
+  let firstMatch;
+  for (const rec of recorders) {
+    if (!isPlainRecord(rec)) continue;
+    const entries = readEntries(rec.data);
+    if (!entries) continue;
+    const match = { id: typeof rec.id === "string" ? rec.id : "", entries };
+    const name = typeof rec.name === "string" ? rec.name : "";
+    if (/narrative|story/i.test(name)) return match;
+    firstMatch ?? (firstMatch = match);
+  }
+  return firstMatch;
+}
+function narrativeFromSnapshot(runtime) {
+  return narrativeRecorderFromSnapshot(runtime)?.entries;
+}
 var COMMIT_PATH_DELIM = "";
 var UNSAFE_KEYS = /* @__PURE__ */ new Set(["__proto__", "constructor", "prototype"]);
 function isSummaryMarker(value) {
@@ -3226,36 +3408,54 @@ function indexCommitLog(commitLog) {
   return index;
 }
 function toVisualizationSnapshots(runtime, narrativeEntries) {
-  const stageNarrativeMap = narrativeEntries?.length ? buildStageNarrativeMap(narrativeEntries) : /* @__PURE__ */ new Map();
+  const entries = narrativeEntries?.length ? narrativeEntries : narrativeFromSnapshot(runtime);
+  const stageNarrativeMap = entries?.length ? buildStageNarrativeMap(entries) : /* @__PURE__ */ new Map();
+  if (runtime?.executionTree === null || typeof runtime?.executionTree !== "object") return [];
   const stageTimings = extractStageTimings(runtime.recorders);
   const commitIndex = indexCommitLog(runtime.commitLog);
   const snapshots = [];
   flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap, stageTimings, commitIndex);
   return snapshots;
 }
+function readStepDurations(data) {
+  if (!isPlainRecord(data)) return void 0;
+  const steps = data.steps;
+  if (!isPlainRecord(steps)) return void 0;
+  const first = Object.values(steps)[0];
+  if (!isPlainRecord(first) || typeof first.duration !== "number") return void 0;
+  return steps;
+}
+function readAggregateDurations(data) {
+  if (!isPlainRecord(data)) return void 0;
+  const stages = data.stages;
+  if (!isPlainRecord(stages)) return void 0;
+  const first = Object.values(stages)[0];
+  if (!isPlainRecord(first) || typeof first.totalDuration !== "number") return void 0;
+  return stages;
+}
 function extractStageTimings(recorders) {
-  const timings = /* @__PURE__ */ new Map();
-  if (!recorders) return timings;
+  const byRuntimeStageId = /* @__PURE__ */ new Map();
+  const byStageName = /* @__PURE__ */ new Map();
+  if (!recorders) return { byRuntimeStageId, byStageName };
   for (const rec of recorders) {
-    if (rec.name !== "Metrics" || !rec.data || typeof rec.data !== "object") continue;
-    const data = rec.data;
-    if (data.steps) {
-      for (const step of Object.values(data.steps)) {
-        const name = step?.stageName;
+    const steps = readStepDurations(rec?.data);
+    if (steps) {
+      for (const [runtimeStageId, step] of Object.entries(steps)) {
         const d = step?.duration;
-        if (!name || typeof d !== "number" || d <= 0) continue;
-        timings.set(name, Math.round((timings.get(name) ?? 0) + d));
+        if (typeof d !== "number" || d <= 0 || byRuntimeStageId.has(runtimeStageId)) continue;
+        byRuntimeStageId.set(runtimeStageId, Math.round(d));
       }
     }
-    if (data.stages) {
-      for (const [stageName, metrics] of Object.entries(data.stages)) {
+    const stages = readAggregateDurations(rec?.data);
+    if (stages) {
+      for (const [stageName, metrics] of Object.entries(stages)) {
         if (typeof metrics.totalDuration === "number" && metrics.totalDuration > 0) {
-          timings.set(stageName, Math.round(metrics.totalDuration));
+          byStageName.set(stageName, Math.round(metrics.totalDuration));
         }
       }
     }
   }
-  return timings;
+  return { byRuntimeStageId, byStageName };
 }
 function buildStageNarrativeMap(entries) {
   const map = /* @__PURE__ */ new Map();
@@ -3274,9 +3474,9 @@ function buildStageNarrativeMap(entries) {
   }
   return map;
 }
-function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, cumulativeMemory = {}, stageNarrativeMap = /* @__PURE__ */ new Map(), stageTimings = /* @__PURE__ */ new Map(), commitIndex = /* @__PURE__ */ new Map()) {
+function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, cumulativeMemory = {}, stageNarrativeMap = /* @__PURE__ */ new Map(), stageTimings = { byRuntimeStageId: /* @__PURE__ */ new Map(), byStageName: /* @__PURE__ */ new Map() }, commitIndex = /* @__PURE__ */ new Map()) {
   const stageName = node.name ?? node.id;
-  const durationMs = (stageName ? stageTimings.get(stageName) : void 0) ?? (typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 0);
+  const durationMs = (node.runtimeStageId ? stageTimings.byRuntimeStageId.get(node.runtimeStageId) : void 0) ?? (stageName ? stageTimings.byStageName.get(stageName) : void 0) ?? (typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 0);
   const startMs = accumulatedMs;
   const stageId = node.id || node.name || "unknown";
   const displayName = node.name || node.id || "unknown";
@@ -3376,6 +3576,48 @@ function createSnapshots(stages) {
     accMs += duration;
     return snap;
   });
+}
+
+// src/adapters/overlayFromSnapshot.ts
+function baseStageIdOf(runtimeStageId) {
+  const hashIdx = runtimeStageId.indexOf("#");
+  return hashIdx >= 0 ? runtimeStageId.slice(0, hashIdx) : runtimeStageId;
+}
+function overlayFromSnapshot(snapshot) {
+  const commitLog = snapshot?.commitLog;
+  const executionOrder = [];
+  if (Array.isArray(commitLog)) {
+    const seen = /* @__PURE__ */ new Set();
+    for (const entry of commitLog) {
+      if (entry === null || typeof entry !== "object") continue;
+      const bundle = entry;
+      const runtimeStageId = bundle.runtimeStageId;
+      if (typeof runtimeStageId !== "string" || runtimeStageId.length === 0) continue;
+      if (seen.has(runtimeStageId)) continue;
+      seen.add(runtimeStageId);
+      const stageId = baseStageIdOf(runtimeStageId);
+      executionOrder.push({
+        runtimeStageId,
+        stageId,
+        // `bundle.stage` is the stage's display name; fall back to the id
+        // rather than inventing a label when an older engine omitted it.
+        stageName: typeof bundle.stage === "string" && bundle.stage.length > 0 ? bundle.stage : stageId,
+        timestampMs: 0
+        // see "honest absence" in the module JSDoc
+      });
+    }
+  }
+  return { executionOrder, errors: /* @__PURE__ */ new Map(), running: false };
+}
+
+// src/components/FlowchartView/_internal/devWarn.ts
+function isDevModeEnv() {
+  const proc = globalThis.process;
+  return proc?.env?.NODE_ENV !== "production";
+}
+function devWarn(messageFn, ...extras) {
+  if (!isDevModeEnv()) return;
+  console.warn(messageFn(), ...extras);
 }
 
 // src/components/MemoryPanel/MemoryPanel.tsx
@@ -4301,16 +4543,6 @@ function createDagreTraceLayout(options = {}) {
   return (graph) => dagreTraceLayout(graph, options);
 }
 
-// src/components/FlowchartView/_internal/devWarn.ts
-function isDevModeEnv() {
-  const proc = globalThis.process;
-  return proc?.env?.NODE_ENV !== "production";
-}
-function devWarn(messageFn, ...extras) {
-  if (!isDevModeEnv()) return;
-  console.warn(messageFn(), ...extras);
-}
-
 // src/components/FlowchartView/_internal/snapLinearSuccessors.ts
 function snapLinearSuccessors(graph, options = {}) {
   if (graph.nodes.length === 0) return graph;
@@ -4492,6 +4724,48 @@ function centerForkParents(graph, options = {}) {
 }
 function withForkCentering(base, options = {}) {
   return (graph) => centerForkParents(base(graph), options);
+}
+
+// src/components/FlowchartView/_internal/notifyChange.ts
+function createNotifier(label = "notifier") {
+  const listeners = /* @__PURE__ */ new Set();
+  let v2 = 0;
+  let pending = false;
+  function flush() {
+    if (!pending) return;
+    pending = false;
+    const snapshot = Array.from(listeners);
+    for (const l of snapshot) {
+      try {
+        l();
+      } catch (err) {
+        devWarn(
+          () => `[${label}] subscribe() listener threw \u2014 isolated; other subscribers continue.`,
+          err
+        );
+      }
+    }
+  }
+  return {
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    version() {
+      return v2;
+    },
+    notify() {
+      v2 += 1;
+      if (pending) return;
+      pending = true;
+      queueMicrotask(flush);
+    },
+    flushPending() {
+      flush();
+    }
+  };
 }
 
 // src/components/FlowchartView/createTraceRuntimeOverlay.ts
@@ -5795,6 +6069,7 @@ function TracedFlow({
   edgeTypes: userEdgeTypes,
   coActiveStageIds,
   sliceCone,
+  theme: themeMode,
   children,
   className,
   style
@@ -5951,6 +6226,9 @@ function TracedFlow({
       ref: wrapperRef,
       className,
       style: {
+        // The one-word switch, applied to this chart's own root so a chart
+        // mounted alone in a light app is light (see theme/mode.ts).
+        ...themeModeVars(themeMode),
         width: "100%",
         height: "100%",
         minHeight: 300,
@@ -6127,12 +6405,45 @@ var InsightPanel = memo7(function InsightPanel2({
   mode
 }) {
   if (insights.length === 0) {
-    return /* @__PURE__ */ jsx25("div", { style: { padding: 12, color: theme.textMuted, fontSize: 13 }, children: "No insights available. Attach recorders to see data." });
+    return /* @__PURE__ */ jsx25(NoInsights, {});
   }
   if (mode === "grid") {
     return /* @__PURE__ */ jsx25(InsightGrid, { insights });
   }
   return /* @__PURE__ */ jsx25(InsightTabs, { insights, defaultId: expandedId });
+});
+var INGREDIENTS = [
+  { panel: "Story", call: "narrative()", from: "footprintjs/recorders" },
+  { panel: "Performance", call: "metrics()", from: "footprintjs/recorders" },
+  { panel: "Quality", call: "new QualityRecorder(scoreFn)", from: "footprintjs/trace" },
+  { panel: "Cost", call: "costRecorder()", from: "agentfootprint/observe" }
+];
+var NoInsights = memo7(function NoInsights2() {
+  return /* @__PURE__ */ jsxs22(
+    "div",
+    {
+      "data-fp": "insights-empty",
+      style: { padding: 12, color: theme.textMuted, fontSize: 12, lineHeight: 1.6 },
+      children: [
+        /* @__PURE__ */ jsx25("div", { style: { marginBottom: 8 }, children: "Nothing to show \u2014 this run was recorded without any of these. Each one lights one panel:" }),
+        /* @__PURE__ */ jsx25("table", { style: { borderCollapse: "collapse" }, children: /* @__PURE__ */ jsx25("tbody", { children: INGREDIENTS.map(({ panel, call, from }) => /* @__PURE__ */ jsxs22("tr", { "data-fp": "insights-empty-row", children: [
+          /* @__PURE__ */ jsx25("td", { style: { paddingRight: 10, color: theme.textSecondary, whiteSpace: "nowrap" }, children: panel }),
+          /* @__PURE__ */ jsxs22("td", { style: { fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "nowrap" }, children: [
+            call,
+            /* @__PURE__ */ jsxs22("span", { style: { opacity: 0.7 }, children: [
+              " \u2014 from ",
+              from
+            ] })
+          ] })
+        ] }, panel)) }) }),
+        /* @__PURE__ */ jsxs22("div", { style: { marginTop: 8 }, children: [
+          "Attach with ",
+          /* @__PURE__ */ jsx25("code", { children: "executor.attachScopeRecorder(...)" }),
+          " before the run, then pass the snapshot here \u2014 each recorder's data rides along inside it."
+        ] })
+      ]
+    }
+  );
 });
 var InsightTabs = memo7(function InsightTabs2({
   insights,
@@ -6435,6 +6746,80 @@ var VLinePill = memo9(function VLinePill2({
     ),
     /* @__PURE__ */ jsx27("div", { style: { flex: 1, width: 1, background: theme.border } })
   ] });
+});
+var MissingChartNote = memo9(function MissingChartNote2({ unstyled }) {
+  const body = /* @__PURE__ */ jsxs24(Fragment8, { children: [
+    /* @__PURE__ */ jsx27("strong", { children: "No chart \u2014 `traceGraph` was not provided." }),
+    /* @__PURE__ */ jsx27("div", { children: "A snapshot holds the memory, the story and the timeline. Only the chart's own structure can draw the chart. Two ways to get one:" }),
+    /* @__PURE__ */ jsx27("pre", { style: unstyled ? void 0 : { margin: 0, whiteSpace: "pre-wrap", fontFamily: theme.fontMono, fontSize: 11 }, children: `// live build
+const trace = createTraceStructureRecorder();
+flowChart(..., { structureRecorders: [trace.recorder] });
+<ExplainableShell traceGraph={trace.getGraph()} />
+
+// saved run \u2014 save chart.buildTimeStructure with your snapshot
+<ExplainableShell traceGraph={graphFromStructure(saved.structure)} />` })
+  ] });
+  if (unstyled) return /* @__PURE__ */ jsx27("div", { "data-fp": "shell-missing-chart", children: body });
+  return /* @__PURE__ */ jsx27(
+    "div",
+    {
+      "data-fp": "shell-missing-chart",
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        justifyContent: "center",
+        alignItems: "flex-start",
+        height: "100%",
+        padding: 20,
+        color: theme.textMuted,
+        fontSize: 12,
+        lineHeight: 1.5,
+        maxWidth: 520,
+        margin: "0 auto"
+      },
+      children: body
+    }
+  );
+});
+var EmptyShell = memo9(function EmptyShell2({
+  reason,
+  detail,
+  unstyled,
+  className,
+  style
+}) {
+  const body = /* @__PURE__ */ jsxs24(Fragment8, { children: [
+    /* @__PURE__ */ jsx27("div", { style: unstyled ? void 0 : { fontWeight: 700, color: theme.textPrimary, fontSize: 13 }, children: reason }),
+    /* @__PURE__ */ jsx27("div", { "data-fp": "shell-empty-detail", children: detail })
+  ] });
+  if (unstyled) {
+    return /* @__PURE__ */ jsx27("div", { className, style, "data-fp": "shell-empty", children: body });
+  }
+  return /* @__PURE__ */ jsx27(
+    "div",
+    {
+      className,
+      "data-fp": "shell-empty",
+      style: {
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        justifyContent: "center",
+        alignItems: "center",
+        textAlign: "center",
+        padding: 24,
+        background: theme.bgPrimary,
+        color: theme.textMuted,
+        fontFamily: theme.fontSans,
+        fontSize: 12,
+        lineHeight: 1.6,
+        ...style
+      },
+      children: body
+    }
+  );
 });
 function detectKeyedSteps(data) {
   if (!data || typeof data !== "object") return null;
@@ -6751,7 +7136,7 @@ function ExplainableShell({
   title,
   resultData: resultDataProp,
   logs = [],
-  narrativeEntries,
+  narrativeEntries: narrativeEntriesProp,
   tabs = ["result", "explainable"],
   defaultTab,
   hideConsole = false,
@@ -6762,24 +7147,44 @@ function ExplainableShell({
   renderFlowchart,
   showStageId = false,
   traceGraph,
-  runtimeOverlay,
+  runtimeOverlay: runtimeOverlayProp,
   traceTheme,
   size = "default",
   unstyled = false,
   className,
   style
 }) {
+  const snapshotNarrative = useMemo14(
+    () => narrativeRecorderFromSnapshot(runtimeSnapshot),
+    [runtimeSnapshot]
+  );
+  const narrativeEntries = narrativeEntriesProp ?? snapshotNarrative?.entries;
   const derivedFromRuntime = useMemo14(() => {
     if (!runtimeSnapshot) return null;
     try {
       const snaps = toVisualizationSnapshots(runtimeSnapshot, narrativeEntries);
-      return { snapshots: snaps, resultData: runtimeSnapshot.sharedState };
-    } catch {
-      return null;
+      return { snapshots: snaps, resultData: runtimeSnapshot.sharedState, error: null };
+    } catch (err) {
+      return {
+        snapshots: [],
+        resultData: null,
+        error: err instanceof Error ? err.message : String(err)
+      };
     }
   }, [runtimeSnapshot, narrativeEntries]);
   const snapshots = snapshotsProp ?? derivedFromRuntime?.snapshots ?? [];
   const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
+  const runtimeOverlay = useMemo14(
+    () => runtimeOverlayProp ?? (runtimeSnapshot ? overlayFromSnapshot(runtimeSnapshot) : void 0),
+    [runtimeOverlayProp, runtimeSnapshot]
+  );
+  const missingChart = snapshots.length > 0 && !traceGraph?.nodes.length;
+  useEffect11(() => {
+    if (!missingChart) return;
+    devWarn(
+      () => "[ExplainableShell] No chart: `traceGraph` is missing, so the flowchart region is not rendered. A snapshot cannot draw the chart \u2014 only the chart's own structure can. Two ways to get one:\n  live build \u2014 const trace = createTraceStructureRecorder();\n               flowChart(..., { structureRecorders: [trace.recorder] });\n               <ExplainableShell traceGraph={trace.getGraph()} />\n  saved run  \u2014 save `chart.buildTimeStructure` next to your snapshot, then\n               <ExplainableShell traceGraph={graphFromStructure(saved.structure)} />"
+    );
+  }, [missingChart]);
   const tracedFlowRenderer = useMemo14(() => {
     if (!traceGraph) return void 0;
     return ({ selectedIndex, snapshots: snapshots2, onNodeClick, sliceCone: sliceCone2 }) => {
@@ -6840,8 +7245,9 @@ function ExplainableShell({
     const recorders = runtimeSnapshot?.recorders;
     if (!recorders?.length) return [];
     const explicitIds = new Set((recorderViews ?? []).map((v2) => v2.id));
+    if (snapshotNarrative?.id) explicitIds.add(snapshotNarrative.id);
     return recorders.filter((r) => !explicitIds.has(r.id)).map((r) => ({ id: r.id, name: r.name, description: r.description, preferredOperation: r.preferredOperation, data: r.data }));
-  }, [runtimeSnapshot, recorderViews]);
+  }, [runtimeSnapshot, recorderViews, snapshotNarrative]);
   const hasNarrative = !!narrativeEntries?.length;
   const allTabs = useMemo14(() => {
     const tabs2 = [
@@ -7235,7 +7641,70 @@ function ExplainableShell({
     ] });
   }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
+  const renderEmptyState = (themeVars) => {
+    const shellStyle = { ...themeVars, ...style };
+    if (derivedFromRuntime?.error) {
+      return /* @__PURE__ */ jsx27(
+        EmptyShell,
+        {
+          unstyled,
+          className,
+          style: shellStyle,
+          reason: "That snapshot could not be read.",
+          detail: /* @__PURE__ */ jsxs24(Fragment8, { children: [
+            /* @__PURE__ */ jsxs24("div", { children: [
+              "Expected a footprintjs ",
+              /* @__PURE__ */ jsx27("code", { children: "executor.getSnapshot()" }),
+              " \u2014",
+              " ",
+              /* @__PURE__ */ jsx27("code", { children: "{ sharedState, executionTree, commitLog }" }),
+              "."
+            ] }),
+            /* @__PURE__ */ jsx27("div", { style: unstyled ? void 0 : { fontFamily: theme.fontMono, fontSize: 11, marginTop: 6 }, children: derivedFromRuntime.error })
+          ] })
+        }
+      );
+    }
+    const gotRunData = !!runtimeSnapshot || !!snapshotsProp;
+    return /* @__PURE__ */ jsx27(
+      EmptyShell,
+      {
+        unstyled,
+        className,
+        style: shellStyle,
+        reason: gotRunData ? "That run has no stages to show." : "No run to show yet.",
+        detail: gotRunData ? /* @__PURE__ */ jsxs24("div", { children: [
+          "The snapshot was read fine but its ",
+          /* @__PURE__ */ jsx27("code", { children: "executionTree" }),
+          " is empty \u2014 a run that was never executed, or a snapshot taken before ",
+          /* @__PURE__ */ jsx27("code", { children: "run()" }),
+          " finished."
+        ] }) : /* @__PURE__ */ jsxs24(Fragment8, { children: [
+          /* @__PURE__ */ jsxs24("div", { children: [
+            "Pass a recorded run: ",
+            /* @__PURE__ */ jsxs24("code", { children: [
+              "runtimeSnapshot=",
+              "{executor.getSnapshot()}"
+            ] }),
+            " (the shell converts it), or pre-converted",
+            " ",
+            /* @__PURE__ */ jsxs24("code", { children: [
+              "snapshots=",
+              "{toVisualizationSnapshots(...)}"
+            ] }),
+            "."
+          ] }),
+          /* @__PURE__ */ jsxs24("div", { children: [
+            "Add ",
+            /* @__PURE__ */ jsx27("code", { children: "traceGraph" }),
+            " for the chart \u2014 it comes from the chart's structure, not the snapshot."
+          ] })
+        ] })
+      }
+    );
+  };
   if (unstyled) {
+    if (snapshots.length === 0) return renderEmptyState({});
     return /* @__PURE__ */ jsxs24("div", { className, style, "data-fp": "explainable-shell", children: [
       /* @__PURE__ */ jsx27("div", { "data-fp": "shell-tabs", children: allTabs.map((tab) => /* @__PURE__ */ jsx27("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
       /* @__PURE__ */ jsxs24("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
@@ -7244,6 +7713,7 @@ function ExplainableShell({
           /* @__PURE__ */ jsx27(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail }),
           isInSubflow && /* @__PURE__ */ jsx27(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
           traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, ...sliceCone && { sliceCone } }),
+          missingChart && /* @__PURE__ */ jsx27(MissingChartNote, { unstyled: true }),
           /* @__PURE__ */ jsx27(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
           /* @__PURE__ */ jsx27(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, unstyled: true }),
           /* @__PURE__ */ jsx27(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
@@ -7318,13 +7788,15 @@ function ExplainableShell({
   ] });
   const shellThemeVars = useMemo14(() => {
     if (!traceTheme) return {};
-    const base = traceTheme.mode ? tokensToCSSVars(traceTheme.mode === "light" ? coolLight : coolDark) : {};
     return {
-      ...base,
+      // ONE mapping from mode → palette, shared with the standalone
+      // components' `theme="light"` prop (theme/mode.ts).
+      ...themeModeVars(traceTheme.mode),
       ...traceTheme.visited !== void 0 && { ["--fp-node-visited"]: traceTheme.visited },
       ...traceTheme.current !== void 0 && { ["--fp-node-cursor"]: traceTheme.current }
     };
   }, [traceTheme]);
+  if (snapshots.length === 0) return renderEmptyState(shellThemeVars);
   return /* @__PURE__ */ jsxs24(
     "div",
     {
@@ -7366,6 +7838,7 @@ function ExplainableShell({
               showStageId,
               ...sliceCone && { sliceCone }
             }) }),
+            missingChart && /* @__PURE__ */ jsx27(MissingChartNote, {}),
             showTreeSidebar && /* @__PURE__ */ jsxs24(Fragment8, { children: [
               /* @__PURE__ */ jsx27(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
               leftExpanded && /* @__PURE__ */ jsx27("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx27(
@@ -7406,7 +7879,7 @@ function ExplainableShell({
                 onNodeClick: handleNodeClick,
                 showStageId,
                 ...sliceCone && { sliceCone }
-              }) }) : /* @__PURE__ */ jsx27("div", { style: { flex: 1 } }),
+              }) }) : /* @__PURE__ */ jsx27("div", { style: { flex: 1, minWidth: 0, overflow: "auto" }, children: missingChart && /* @__PURE__ */ jsx27(MissingChartNote, {}) }),
               /* @__PURE__ */ jsx27(VLinePill, { label: "Details", expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
               rightExpanded && /* @__PURE__ */ jsx27("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ jsx27(
                 RightPanel,
@@ -7448,13 +7921,403 @@ function ExplainableShell({
 // src/components/TraceViewer/TraceViewer.tsx
 import * as React from "react";
 import { useMemo as useMemo15 } from "react";
-import { jsx as jsx28 } from "react/jsx-runtime";
-function parseTrace(input) {
-  if (input == null) {
-    return {
-      ok: false,
-      error: { kind: "invalid-json", message: "No trace provided." }
+
+// src/components/FlowchartView/_internal/keys.ts
+function asStageId(s) {
+  return s;
+}
+
+// src/components/FlowchartView/_internal/walkSubflowSpecInto.ts
+function walkSubflowSpecInto(spec, subflowPath, sink) {
+  walkNode(spec, subflowPath, sink, /* @__PURE__ */ new Set());
+}
+function qid(subflowPath, localId) {
+  return `${subflowPath}/${localId}`;
+}
+function walkNode(node, subflowPath, sink, visited) {
+  const fullId = qid(subflowPath, node.id);
+  if (visited.has(fullId)) return;
+  visited.add(fullId);
+  if (node.isLoopReference) return;
+  if (node.isSubflowRoot && node.subflowId !== void 0 && node.subflowStructure) {
+    const nestedPath = `${subflowPath}/${node.subflowId}`;
+    walkNode(node.subflowStructure, nestedPath, sink, visited);
+  }
+  const type = node.type ?? "stage";
+  const isDecider = type === "decider" || type === "selector" || node.hasDecider === true || node.hasSelector === true;
+  const isFork = type === "fork";
+  const isStreaming = type === "streaming";
+  const isSubflow = !!node.isSubflowRoot;
+  const data = {
+    label: node.name,
+    isDecider,
+    isFork,
+    isStreaming,
+    isSubflow,
+    subflowOf: subflowPath,
+    prevIds: [],
+    nextIds: []
+  };
+  if (node.description !== void 0) data.description = node.description;
+  if (node.icon !== void 0) data.icon = node.icon;
+  if (node.subflowId !== void 0) data.subflowId = node.subflowId;
+  if (node.isLazy === true) data.isLazy = true;
+  if (node.isPausable === true) data.isPausable = true;
+  sink.upsertNode({
+    id: asStageId(fullId),
+    type: "stage",
+    position: { x: 0, y: 0 },
+    data
+  });
+  if (node.children && node.children.length > 0) {
+    const edgeKind = type === "fork" ? "fork-branch" : "decision-branch";
+    for (const child of node.children) {
+      const childFullId = qid(subflowPath, child.id);
+      const edgeId = `${fullId}->${childFullId}:${edgeKind}${edgeKind === "decision-branch" ? `:${child.id}` : ""}`;
+      const edgeData = { kind: edgeKind };
+      if (edgeKind === "decision-branch") edgeData.label = child.id;
+      const edge = {
+        id: edgeId,
+        source: fullId,
+        target: childFullId,
+        data: edgeData
+      };
+      if (edgeKind === "decision-branch") edge.label = child.id;
+      sink.pushEdge(edge);
+      walkNode(child, subflowPath, sink, visited);
+    }
+  }
+  if (node.next) {
+    if (node.next.isLoopReference && node.loopTarget) {
+      const loopFullId = qid(subflowPath, node.loopTarget);
+      sink.pushEdge({
+        id: `${fullId}->${loopFullId}:loop`,
+        source: fullId,
+        target: loopFullId,
+        data: { kind: "loop" }
+      });
+    } else {
+      const nextFullId = qid(subflowPath, node.next.id);
+      const edgeId = `${fullId}->${nextFullId}:next`;
+      sink.pushEdge({
+        id: edgeId,
+        source: fullId,
+        target: nextFullId,
+        data: { kind: "next" }
+      });
+      walkNode(node.next, subflowPath, sink, visited);
+    }
+  }
+}
+
+// src/components/FlowchartView/traceStructureRecorder.ts
+function createTraceStructureRecorder(options = {}) {
+  const id = options.id ?? "trace-structure";
+  const onChange = options.onChange;
+  let nodes = [];
+  let edges = [];
+  const nodeIndex = /* @__PURE__ */ new Map();
+  const seenEdgeIds = /* @__PURE__ */ new Set();
+  const prevIdsOf = /* @__PURE__ */ new Map();
+  const nextIdsOf = /* @__PURE__ */ new Map();
+  const pendingMountPatches = /* @__PURE__ */ new Map();
+  const notifier = createNotifier("traceStructureRecorder");
+  function notifyChange() {
+    if (onChange) {
+      try {
+        onChange({ nodes, edges });
+      } catch (err) {
+        devWarn(
+          () => "[traceStructureRecorder] onChange callback threw \u2014 isolated.",
+          err
+        );
+      }
+    }
+    notifier.notify();
+  }
+  function upsertNode(node) {
+    const existing = nodeIndex.get(node.id);
+    if (existing !== void 0) {
+      nodes[existing] = {
+        ...nodes[existing],
+        ...node,
+        data: { ...nodes[existing].data, ...node.data }
+      };
+    } else {
+      nodeIndex.set(node.id, nodes.length);
+      nodes.push(node);
+    }
+  }
+  function pushEdge(edge) {
+    if (seenEdgeIds.has(edge.id)) return;
+    seenEdgeIds.add(edge.id);
+    edges.push(edge);
+    const kind = edge.data?.kind;
+    if (kind === "loop") return;
+    const source = asStageId(edge.source);
+    const target = asStageId(edge.target);
+    const nextArr = nextIdsOf.get(source) ?? [];
+    nextArr.push(target);
+    nextIdsOf.set(source, nextArr);
+    const prevArr = prevIdsOf.get(target) ?? [];
+    prevArr.push(source);
+    prevIdsOf.set(target, prevArr);
+    syncNeighborsOnto(source);
+    syncNeighborsOnto(target);
+  }
+  function applyMountPatch(event) {
+    const existing = nodeIndex.get(event.rootStageId);
+    if (existing === void 0) return false;
+    const node = nodes[existing];
+    const data = {
+      ...node.data,
+      isSubflow: true,
+      subflowId: event.subflowId
     };
+    if (event.isLazy === true) data.isLazy = true;
+    nodes[existing] = { ...node, data };
+    return true;
+  }
+  function syncNeighborsOnto(stageId) {
+    const idx = nodeIndex.get(stageId);
+    if (idx === void 0) return;
+    const node = nodes[idx];
+    const prevs = prevIdsOf.get(stageId);
+    const nexts = nextIdsOf.get(stageId);
+    node.data.prevIds = prevs ? prevs.slice() : [];
+    node.data.nextIds = nexts ? nexts.slice() : [];
+  }
+  const recorder = {
+    id,
+    onStageAdded(event) {
+      const spec = event.spec;
+      const type = event.type;
+      const isDecider = type === "decider" || type === "selector" || spec.hasDecider === true || spec.hasSelector === true;
+      const isFork = type === "fork";
+      const isStreaming = type === "streaming";
+      const isSubflow = !!spec.isSubflowRoot;
+      const stageId = asStageId(event.stageId);
+      const data = {
+        label: event.name,
+        isDecider,
+        isFork,
+        isStreaming,
+        isSubflow,
+        // L8.0 — seed prev/next from any edges that already fired
+        // pointing AT this node. Convergence case: a fork-branch edge
+        // from LoadOrder fires BEFORE the child's onStageAdded; this
+        // line ensures the child's prevIds picks up the back-pointer.
+        // Atomic copy (not shared ref) — see `syncNeighborsOnto` for
+        // the panel-flagged consumer-safety rationale.
+        prevIds: (prevIdsOf.get(stageId) ?? []).slice(),
+        nextIds: (nextIdsOf.get(stageId) ?? []).slice()
+      };
+      if (spec.description !== void 0) data.description = spec.description;
+      if (spec.icon !== void 0) data.icon = spec.icon;
+      if (spec.subflowId !== void 0) data.subflowId = spec.subflowId;
+      if (spec.isLazy === true) data.isLazy = true;
+      if (event.isPausable === true) data.isPausable = true;
+      upsertNode({
+        id: event.stageId,
+        type: "stage",
+        // No layout here — downstream consumer applies positions.
+        position: { x: 0, y: 0 },
+        data
+      });
+      const pending = pendingMountPatches.get(event.stageId);
+      if (pending) {
+        pendingMountPatches.delete(event.stageId);
+        for (const mount of pending) applyMountPatch(mount);
+      }
+      notifyChange();
+    },
+    onEdgeAdded(event) {
+      const edgeId = `${event.from}->${event.to}:${event.kind}${event.label ? `:${event.label}` : ""}`;
+      const data = { kind: event.kind };
+      if (event.label !== void 0) data.label = event.label;
+      const edge = {
+        id: edgeId,
+        source: event.from,
+        target: event.to,
+        data
+      };
+      if (event.label !== void 0) edge.label = event.label;
+      pushEdge(edge);
+      notifyChange();
+    },
+    onLoopEdgeAdded(event) {
+      const edgeId = `${event.from}->${event.to}:loop`;
+      pushEdge({
+        id: edgeId,
+        source: event.from,
+        target: event.to,
+        data: { kind: "loop" }
+      });
+      notifyChange();
+    },
+    onDeciderComplete(event) {
+      const existing = nodeIndex.get(event.decider);
+      if (existing === void 0) {
+        devWarn(
+          () => `[traceStructureRecorder] onDeciderComplete fired for unknown stageId "${event.decider}" \u2014 branch metadata dropped. Did the upstream fire onStageAdded for this id first?`
+        );
+        return;
+      }
+      const node = nodes[existing];
+      const data = {
+        ...node.data,
+        branchIds: event.branchIds,
+        // A sealed branch list IS decider-ness — engines that stamp neither
+        // `type: 'decider'` nor `spec.hasDecider` still get a decision node.
+        isDecider: true
+      };
+      if (event.defaultBranch !== void 0) data.defaultBranch = event.defaultBranch;
+      nodes[existing] = { ...node, data };
+      notifyChange();
+    },
+    onSubflowMounted(event) {
+      if (!applyMountPatch(event)) {
+        const queued = pendingMountPatches.get(event.rootStageId);
+        if (queued) queued.push(event);
+        else pendingMountPatches.set(event.rootStageId, [event]);
+      }
+      const subflowPath = event.subflowPath ?? event.subflowId;
+      if (event.subflowSpec) {
+        walkSubflowSpecInto(event.subflowSpec, subflowPath, {
+          upsertNode,
+          pushEdge
+        });
+      }
+      notifyChange();
+    }
+  };
+  return {
+    recorder,
+    getGraph() {
+      return {
+        nodes: nodes.map((n) => ({ ...n, data: { ...n.data } })),
+        edges: edges.map((e) => ({ ...e, data: e.data ? { ...e.data } : void 0 }))
+      };
+    },
+    getGraphRef() {
+      return { nodes, edges };
+    },
+    subscribe: notifier.subscribe,
+    version: notifier.version,
+    reset() {
+      nodes = [];
+      edges = [];
+      nodeIndex.clear();
+      seenEdgeIds.clear();
+      prevIdsOf.clear();
+      nextIdsOf.clear();
+      pendingMountPatches.clear();
+    }
+  };
+}
+
+// src/adapters/graphFromStructure.ts
+function looksLikeStructure(value) {
+  if (value === null || typeof value !== "object") return false;
+  const n = value;
+  return typeof n.id === "string" && typeof n.name === "string";
+}
+function convergenceEdges(node, targetId) {
+  const children = node.children;
+  const isBranching = (node.type === "fork" || node.type === "decider" || node.type === "selector") && Array.isArray(children) && children.length > 0;
+  if (!isBranching) return [{ from: node.id, to: targetId }];
+  const edges = [];
+  for (const child of children) {
+    if (child.isLoopReference) continue;
+    if (child.next?.isLoopReference) continue;
+    edges.push({ from: child.id, to: child.convergeAt ?? targetId });
+  }
+  return edges;
+}
+function graphFromStructure(structure) {
+  const trace = createTraceStructureRecorder({ id: "graph-from-structure" });
+  if (!looksLikeStructure(structure)) return trace.getGraph();
+  const rec = trace.recorder;
+  const announced = /* @__PURE__ */ new Set();
+  const walked = /* @__PURE__ */ new Set();
+  const announce = (node) => {
+    if (announced.has(node.id)) return;
+    announced.add(node.id);
+    rec.onStageAdded?.({
+      stageId: node.id,
+      name: node.name,
+      // The serialized spelling of a decision stage is `type: 'decider'`;
+      // the live builder's is `type: 'stage'` + `spec.hasDecider`. The
+      // recorder reads BOTH, so either front door yields the same node.
+      type: node.type ?? "stage",
+      ...node.isPausable === true ? { isPausable: true } : {},
+      spec: node
+    });
+  };
+  const mounted = /* @__PURE__ */ new Set();
+  const mount = (node) => {
+    if (!node.isSubflowRoot || node.subflowId === void 0 || mounted.has(node.id)) return;
+    mounted.add(node.id);
+    rec.onSubflowMounted?.({
+      subflowId: node.subflowId,
+      subflowName: node.subflowName ?? node.name,
+      rootStageId: node.id,
+      ...node.isLazy === true ? { isLazy: true } : {},
+      ...node.subflowStructure ? { subflowSpec: node.subflowStructure } : {},
+      subflowPath: node.subflowId
+    });
+  };
+  const walk = (node) => {
+    if (node.isLoopReference || walked.has(node.id)) return;
+    walked.add(node.id);
+    announce(node);
+    mount(node);
+    const children = node.children ?? [];
+    if (children.length > 0) {
+      const kind = node.type === "fork" ? "fork-branch" : "decision-branch";
+      for (const child of children) {
+        announce(child);
+        rec.onEdgeAdded?.({
+          from: node.id,
+          to: child.id,
+          kind,
+          ...kind === "decision-branch" ? { label: child.id } : {}
+        });
+        mount(child);
+      }
+      const isDecision = node.type === "decider" || node.type === "selector" || node.hasDecider === true || node.hasSelector === true;
+      if (isDecision) {
+        rec.onDeciderComplete?.({
+          decider: node.id,
+          type: node.hasSelector === true || node.type === "selector" ? "selector" : "decider",
+          branchIds: node.branchIds ?? children.map((c) => c.id)
+          // `defaultBranch` is deliberately absent — see the module JSDoc.
+        });
+      }
+      for (const child of children) walk(child);
+    }
+    const next = node.next;
+    if (!next) return;
+    if (next.isLoopReference) {
+      rec.onLoopEdgeAdded?.({ from: node.id, to: node.loopTarget ?? next.id });
+      return;
+    }
+    announce(next);
+    for (const edge of convergenceEdges(node, next.id)) {
+      rec.onEdgeAdded?.({ from: edge.from, to: edge.to, kind: "next" });
+    }
+    mount(next);
+    walk(next);
+  };
+  walk(structure);
+  return trace.getGraph();
+}
+
+// src/components/TraceViewer/TraceViewer.tsx
+import { jsx as jsx28 } from "react/jsx-runtime";
+function parseRecording(input) {
+  if (input == null) {
+    return { ok: false, error: { kind: "invalid-json", message: "No recording provided." } };
   }
   let candidate = input;
   if (typeof input === "string") {
@@ -7464,42 +8327,68 @@ function parseTrace(input) {
     try {
       candidate = JSON.parse(input);
     } catch (err) {
-      return {
-        ok: false,
-        error: { kind: "invalid-json", message: err.message }
-      };
+      return { ok: false, error: { kind: "invalid-json", message: err.message } };
     }
   }
-  if (!candidate || typeof candidate !== "object") {
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
     return {
       ok: false,
-      error: { kind: "not-object", message: "Trace must be a JSON object." }
+      error: { kind: "not-object", message: "A recording must be a JSON object." }
     };
   }
-  const t = candidate;
-  if (typeof t.schemaVersion !== "number") {
-    return {
-      ok: false,
-      error: {
-        kind: "missing-version",
-        message: "Trace is missing required field `schemaVersion`. Did you pass an exportTrace() output?"
-      }
-    };
-  }
-  if (t.schemaVersion !== 1) {
+  const rec = candidate;
+  if (rec.schemaVersion !== void 0 && rec.schemaVersion !== 1) {
     return {
       ok: false,
       error: {
         kind: "unsupported-version",
-        message: `Unsupported schemaVersion ${t.schemaVersion}. This TraceViewer renders schemaVersion 1.`,
-        version: t.schemaVersion
+        message: `Unsupported schemaVersion ${String(rec.schemaVersion)}. This viewer reads version 1.`,
+        version: Number(rec.schemaVersion)
       }
     };
   }
-  return { ok: true, trace: t };
+  if (!rec.snapshot || typeof rec.snapshot !== "object") {
+    return {
+      ok: false,
+      error: {
+        kind: "missing-snapshot",
+        message: "This recording has no `snapshot`. A recording is { snapshot: executor.getSnapshot(), structure: chart.buildTimeStructure }."
+      }
+    };
+  }
+  return { ok: true, recording: rec };
+}
+function prepare(input) {
+  const parsed = parseRecording(input);
+  if (!parsed.ok) return parsed;
+  try {
+    const snapshots = toVisualizationSnapshots(
+      parsed.recording.snapshot,
+      parsed.recording.narrativeEntries ?? void 0
+    );
+    if (snapshots.length === 0) {
+      return {
+        ok: false,
+        error: {
+          kind: "no-stages",
+          message: "This recording's snapshot has no executed stages \u2014 its `executionTree` is empty. Was the snapshot taken before run() finished?"
+        }
+      };
+    }
+    return { ok: true, recording: parsed.recording, snapshotCount: snapshots.length };
+  } catch (err) {
+    return {
+      ok: false,
+      error: {
+        kind: "unreadable-snapshot",
+        message: `Could not read this snapshot: ${err instanceof Error ? err.message : String(err)}`
+      }
+    };
+  }
 }
 var DEFAULT_TABS = ["explainable"];
 function TraceViewer({
+  recording,
   trace,
   onError,
   fallback,
@@ -7509,38 +8398,43 @@ function TraceViewer({
   size,
   panelLabels,
   recorderViews,
-  renderFlowchart
+  renderFlowchart,
+  traceTheme,
+  theme: themeMode
 }) {
-  const parsed = useMemo15(() => parseTrace(trace), [trace]);
+  const input = recording ?? trace;
+  const prepared = useMemo15(() => prepare(input), [input]);
   React.useEffect(() => {
-    if (!parsed.ok && onError) onError(parsed.error);
-  }, [parsed, onError]);
-  const snapshots = useMemo15(() => {
-    if (!parsed.ok || !parsed.trace.snapshot) return [];
-    try {
-      return toVisualizationSnapshots(
-        parsed.trace.snapshot,
-        parsed.trace.narrativeEntries ?? void 0
-      );
-    } catch {
-      return [];
-    }
-  }, [parsed]);
-  if (!parsed.ok || snapshots.length === 0) {
+    if (!prepared.ok && onError) onError(prepared.error);
+  }, [prepared, onError]);
+  const traceGraph = useMemo15(() => {
+    if (!prepared.ok) return void 0;
+    const structure = prepared.recording.structure ?? prepared.recording.blueprint;
+    const graph = graphFromStructure(structure);
+    return graph.nodes.length > 0 ? graph : void 0;
+  }, [prepared]);
+  const runtimeOverlay = useMemo15(
+    () => prepared.ok ? overlayFromSnapshot(prepared.recording.snapshot) : void 0,
+    [prepared]
+  );
+  if (!prepared.ok) {
     return fallback ?? null;
   }
   return /* @__PURE__ */ jsx28(
     ExplainableShell,
     {
-      snapshots,
-      narrativeEntries: parsed.trace.narrativeEntries,
+      runtimeSnapshot: prepared.recording.snapshot,
+      traceGraph,
+      runtimeOverlay,
+      narrativeEntries: prepared.recording.narrativeEntries,
       tabs,
       defaultTab,
       hideTabs,
       size,
       panelLabels,
       recorderViews,
-      renderFlowchart
+      renderFlowchart,
+      traceTheme: traceTheme ?? (themeMode ? { mode: themeMode } : void 0)
     }
   );
 }
@@ -7575,9 +8469,13 @@ export {
   defaultTokens,
   extractSubflowNarrative,
   formatTraceWalk,
+  graphFromStructure,
   mergeWritePatch,
+  narrativeFromSnapshot,
+  overlayFromSnapshot,
   rawDefaults,
   subflowResultToSnapshots,
+  themeModeVars,
   themePresets,
   toVisualizationSnapshots,
   tokensToCSSVars,

@@ -20,6 +20,14 @@ export const theme = {
   nodeCursor: v("--fp-node-cursor", "#f59e0b"), // the current / scrubbed-to step
   nodeVisited: v("--fp-node-visited", "#22c55e"), // executed up to the cursor
   nodeMain: v("--fp-node-main", "#6366f1"), // the lead / "hero" node of a group
+  // Short-alias roles. Panels written against these read the SAME token the
+  // presets emit (see tokensToCSSVars) — they exist so a component can say
+  // "accent" without deciding whether it means the brand primary.
+  accent: v("--fp-accent", "#6366f1"), // active tab / selected rule
+  accentBg: v("--fp-accent-bg", "rgba(99,102,241,0.12)"), // wash behind an accented row
+  tracing: v("--fp-tracing", "#0d9488"), // the tracing-rail chrome
+  bg: v("--fp-bg", "#1a1b26"), // panel body surface
+  bgElevated: v("--fp-bg-elevated", "#1e293b"), // raised card on the body surface
   bgPrimary: v("--fp-bg-primary", "#0f172a"),
   bgSecondary: v("--fp-bg-secondary", "#1e293b"),
   bgTertiary: v("--fp-bg-tertiary", "#334155"),

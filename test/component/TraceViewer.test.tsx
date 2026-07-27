@@ -1,130 +1,182 @@
 /** @vitest-environment jsdom */
 /**
- * TraceViewer — 5-pattern tests.
+ * TraceViewer — renders a saved recording, and says why when it can't.
  *
- * Verifies the parse + validate + render path. We don't rely on React
- * rendering here (jsdom + ExplainableShell would pull in heavy deps);
- * instead we exercise the validation surface directly via the onError
- * callback by mounting React with React.createElement + a stub renderer.
+ * Two things this file pins that the old component got wrong:
+ *
+ * 1. **It draws the chart.** A recording carrying `structure` renders chart
+ *    nodes. The old viewer accepted a `spec` prop, ignored it, and never
+ *    passed `traceGraph` or `runtimeOverlay` to the shell — so a valid
+ *    recording produced ZERO chart nodes, every time.
+ * 2. **It never fails to nothing.** An unreadable snapshot and a run with no
+ *    stages both reach `onError` with a typed reason. The old viewer
+ *    swallowed the adapter's throw and rendered `fallback ?? null` in
+ *    silence.
+ *
+ * (The API it was named for — `agentfootprint.exportTrace()` — does not
+ * exist; the shape here is the `Recording` that `agentfootprint-lens`'
+ * `observeRecording` reads, so one saved file drives both viewers.)
  */
-import { describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { render, cleanup, waitFor } from '@testing-library/react';
 import * as React from 'react';
+import { flowChart } from 'footprintjs';
 import { TraceViewer } from '../../src/components/TraceViewer/TraceViewer';
 import type { TraceParseError } from '../../src/components/TraceViewer/TraceViewer';
 
-const validTrace = {
-  schemaVersion: 1 as const,
-  exportedAt: '2026-04-18T00:00:00.000Z',
-  redacted: true,
-  snapshot: {
-    sharedState: { foo: 'bar' },
-    executionTree: { id: 'root', name: 'Root', children: [] },
-    commitLog: [],
+const noop = async () => {};
+
+/** A real two-stage chart, so `structure` is the engine's own serialization. */
+const CHART = flowChart('Alpha', noop, 'alpha').addFunction('Beta', noop, 'beta').build();
+
+const SNAPSHOT = {
+  sharedState: { total: 3 },
+  commitLog: [
+    { idx: 0, stage: 'Alpha', stageId: 'alpha', runtimeStageId: 'alpha#0', trace: [], overwrite: {}, updates: {} },
+    { idx: 1, stage: 'Beta', stageId: 'beta', runtimeStageId: 'beta#1', trace: [], overwrite: {}, updates: {} },
+  ],
+  executionTree: {
+    id: 'alpha',
+    name: 'Alpha',
+    runtimeStageId: 'alpha#0',
+    logs: {},
+    errors: {},
+    metrics: {},
+    evals: {},
+    next: {
+      id: 'beta',
+      name: 'Beta',
+      runtimeStageId: 'beta#1',
+      logs: {},
+      errors: {},
+      metrics: {},
+      evals: {},
+    },
   },
-  narrative: ['line 1', 'line 2'],
-  narrativeEntries: [],
-  spec: { id: 'spec', name: 'Test' },
 };
+
+const RECORDING = { snapshot: SNAPSHOT, structure: CHART.buildTimeStructure, events: [] };
+
+afterEach(cleanup);
 
 // ── Unit ────────────────────────────────────────────────────
 
 describe('TraceViewer — unit', () => {
-  it('renders fallback when no trace is provided', () => {
+  it('renders fallback when no recording is provided', () => {
     const { container } = render(
       React.createElement(TraceViewer, {
-        trace: null,
+        recording: null,
         fallback: React.createElement('div', { 'data-testid': 'fb' }, 'empty'),
       }),
     );
     expect(container.querySelector('[data-testid="fb"]')).not.toBeNull();
   });
 
-  it('renders fallback for empty string input (no error fired for whitespace)', () => {
+  it('reports invalid-json for whitespace input', () => {
     const onError = vi.fn();
-    render(
-      React.createElement(TraceViewer, {
-        trace: '   ',
-        onError,
-        fallback: React.createElement('div', { 'data-testid': 'fb' }, 'empty'),
-      }),
-    );
-    expect(onError).toHaveBeenCalled();
-    const err = onError.mock.calls[0]?.[0] as TraceParseError;
-    expect(err.kind).toBe('invalid-json');
+    render(React.createElement(TraceViewer, { recording: '   ', onError }));
+    expect((onError.mock.calls[0]?.[0] as TraceParseError).kind).toBe('invalid-json');
   });
 
-  it('accepts a parsed trace object directly', () => {
+  it('accepts a parsed recording object', () => {
     const onError = vi.fn();
-    const { container } = render(
-      React.createElement(TraceViewer, {
-        trace: validTrace,
-        onError,
-        fallback: React.createElement('div', { 'data-testid': 'fb' }, 'fallback'),
-      }),
-    );
+    render(React.createElement(TraceViewer, { recording: RECORDING as never, onError }));
     expect(onError).not.toHaveBeenCalled();
-    // Either the shell rendered, or we got the empty-snapshots fallback —
-    // both prove the parse step succeeded (no error callback fired).
-    expect(container).toBeDefined();
   });
 
-  it('parses a JSON string input', () => {
+  it('parses a JSON string — the paste-a-run workflow', () => {
     const onError = vi.fn();
-    render(
-      React.createElement(TraceViewer, {
-        trace: JSON.stringify(validTrace),
-        onError,
-      }),
-    );
+    render(React.createElement(TraceViewer, { recording: JSON.stringify(RECORDING), onError }));
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it('still reads the former `trace` prop name', () => {
+    const onError = vi.fn();
+    render(React.createElement(TraceViewer, { trace: RECORDING as never, onError }));
     expect(onError).not.toHaveBeenCalled();
   });
 });
 
-// ── Boundary ────────────────────────────────────────────────
+// ── Integration — the chart the old viewer never drew ───────
+
+describe('TraceViewer — draws the recorded chart', () => {
+  it('renders one chart node per stage in the saved structure', async () => {
+    const { container } = render(React.createElement(TraceViewer, { recording: RECORDING as never }));
+    await waitFor(() =>
+      expect(container.querySelectorAll('.react-flow__node').length).toBe(2),
+    );
+    expect(container.querySelector('.react-flow__node[data-id="alpha"]')).toBeTruthy();
+    expect(container.querySelector('.react-flow__node[data-id="beta"]')).toBeTruthy();
+  });
+
+  it('lights the executed path — the overlay is rebuilt from the commit log', async () => {
+    // Only alpha ran; beta must fade rather than sit at its base colour.
+    const oneStage = {
+      ...RECORDING,
+      snapshot: { ...SNAPSHOT, commitLog: [SNAPSHOT.commitLog[0]] },
+    };
+    const { container } = render(React.createElement(TraceViewer, { recording: oneStage as never }));
+    await waitFor(() => expect(container.querySelectorAll('.react-flow__node').length).toBe(2));
+    await waitFor(() =>
+      expect(
+        container.querySelector<HTMLElement>('.react-flow__node[data-id="beta"]')!.style.opacity,
+      ).toBe('0.35'),
+    );
+  });
+
+  it('reads `blueprint` when that is the name the run was frozen under', async () => {
+    const { blueprint: _none, structure, ...rest } = RECORDING as Record<string, unknown>;
+    const { container } = render(
+      React.createElement(TraceViewer, { recording: { ...rest, blueprint: structure } as never }),
+    );
+    await waitFor(() => expect(container.querySelectorAll('.react-flow__node').length).toBe(2));
+  });
+
+  it('a recording without structure still shows the run, and names what is missing', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { container } = render(
+      React.createElement(TraceViewer, { recording: { snapshot: SNAPSHOT } as never }),
+    );
+    expect(container.querySelectorAll('.react-flow__node').length).toBe(0);
+    await waitFor(() =>
+      expect(container.querySelector('[data-fp="shell-missing-chart"]')).toBeTruthy(),
+    );
+    warn.mockRestore();
+  });
+});
+
+// ── Boundary — every silent path now speaks ────────────────
 
 describe('TraceViewer — boundary', () => {
   it('reports invalid-json on malformed string input', () => {
     const onError = vi.fn();
-    render(
-      React.createElement(TraceViewer, {
-        trace: '{not valid json',
-        onError,
-      }),
-    );
+    render(React.createElement(TraceViewer, { recording: '{not valid json', onError }));
     expect(onError).toHaveBeenCalledTimes(1);
-    const err = onError.mock.calls[0]?.[0] as TraceParseError;
-    expect(err.kind).toBe('invalid-json');
+    expect((onError.mock.calls[0]?.[0] as TraceParseError).kind).toBe('invalid-json');
   });
 
-  it('reports not-object when input parses to a primitive', () => {
+  it('reports not-object for primitives and arrays', () => {
     const onError = vi.fn();
-    render(React.createElement(TraceViewer, { trace: '42', onError }));
+    render(React.createElement(TraceViewer, { recording: '42', onError }));
     expect((onError.mock.calls[0]?.[0] as TraceParseError).kind).toBe('not-object');
-
-    // Arrays ARE objects in JS, so they pass the not-object guard and fail
-    // at missing-version instead — that's the documented behavior.
     onError.mockClear();
-    render(React.createElement(TraceViewer, { trace: '[]', onError }));
-    expect((onError.mock.calls[0]?.[0] as TraceParseError).kind).toBe('missing-version');
+    render(React.createElement(TraceViewer, { recording: '[]', onError }));
+    expect((onError.mock.calls[0]?.[0] as TraceParseError).kind).toBe('not-object');
   });
 
-  it('reports missing-version when schemaVersion is absent', () => {
+  it('reports missing-snapshot and says what a recording is', () => {
+    const onError = vi.fn();
+    render(React.createElement(TraceViewer, { recording: { events: [] } as never, onError }));
+    const err = onError.mock.calls[0]?.[0] as TraceParseError;
+    expect(err.kind).toBe('missing-snapshot');
+    expect(err.message).toContain('buildTimeStructure');
+  });
+
+  it('reports unsupported-version for a stamped version it cannot read', () => {
     const onError = vi.fn();
     render(
       React.createElement(TraceViewer, {
-        trace: { snapshot: {} } as never,
-        onError,
-      }),
-    );
-    expect((onError.mock.calls[0]?.[0] as TraceParseError).kind).toBe('missing-version');
-  });
-
-  it('reports unsupported-version for non-1 schemaVersion', () => {
-    const onError = vi.fn();
-    render(
-      React.createElement(TraceViewer, {
-        trace: { schemaVersion: 99, snapshot: {} } as never,
+        recording: { schemaVersion: 99, snapshot: SNAPSHOT } as never,
         onError,
       }),
     );
@@ -132,20 +184,43 @@ describe('TraceViewer — boundary', () => {
     expect(err.kind).toBe('unsupported-version');
     expect(err.kind === 'unsupported-version' && err.version).toBe(99);
   });
+
+  it('reports unreadable-snapshot instead of rendering nothing', () => {
+    const onError = vi.fn();
+    render(
+      React.createElement(TraceViewer, {
+        // `recorders` must be a list of recorder snapshots; a number is not
+        // something this library can read, and it used to be swallowed.
+        recording: { snapshot: { ...SNAPSHOT, recorders: 42 } } as never,
+        onError,
+        fallback: React.createElement('div', null, 'nothing'),
+      }),
+    );
+    const err = onError.mock.calls[0]?.[0] as TraceParseError;
+    expect(err.kind).toBe('unreadable-snapshot');
+    expect(err.message).toContain('Could not read this snapshot');
+  });
+
+  it('reports no-stages when the run never executed anything', () => {
+    const onError = vi.fn();
+    render(
+      React.createElement(TraceViewer, {
+        recording: { snapshot: { sharedState: {}, commitLog: [], executionTree: null } } as never,
+        onError,
+      }),
+    );
+    expect((onError.mock.calls[0]?.[0] as TraceParseError).kind).toBe('no-stages');
+  });
 });
 
 // ── Scenario ────────────────────────────────────────────────
 
 describe('TraceViewer — scenario', () => {
-  it('switching from invalid to valid trace fires onError once, then clears', () => {
+  it('switching from invalid to valid fires onError once, then clears', () => {
     const onError = vi.fn();
-    const { rerender } = render(
-      React.createElement(TraceViewer, { trace: '{', onError }),
-    );
+    const { rerender } = render(React.createElement(TraceViewer, { recording: '{', onError }));
     expect(onError).toHaveBeenCalledTimes(1);
-
-    rerender(React.createElement(TraceViewer, { trace: validTrace, onError }));
-    // Re-render with valid trace — no new error fired
+    rerender(React.createElement(TraceViewer, { recording: RECORDING as never, onError }));
     expect(onError).toHaveBeenCalledTimes(1);
   });
 });
@@ -153,7 +228,7 @@ describe('TraceViewer — scenario', () => {
 // ── Property ────────────────────────────────────────────────
 
 describe('TraceViewer — property', () => {
-  it('any onError call carries a kind from the documented union', () => {
+  it('every onError call carries a kind from the documented union', () => {
     const onError = vi.fn();
     const inputs: unknown[] = [
       '',
@@ -161,21 +236,26 @@ describe('TraceViewer — property', () => {
       '42',
       '"string"',
       '[]',
-      { schemaVersion: 'v1' },
-      { schemaVersion: 99 },
+      { events: [] },
+      { schemaVersion: 99, snapshot: SNAPSHOT },
+      { snapshot: { sharedState: {}, commitLog: [], executionTree: null } },
+      { snapshot: { ...SNAPSHOT, recorders: 42 } },
     ];
-    for (const input of inputs) {
-      render(React.createElement(TraceViewer, { trace: input as never, onError }));
+    for (const recording of inputs) {
+      render(React.createElement(TraceViewer, { recording: recording as never, onError }));
     }
     const allowed = new Set([
       'invalid-json',
       'not-object',
-      'missing-version',
       'unsupported-version',
+      'missing-snapshot',
+      'unreadable-snapshot',
+      'no-stages',
     ]);
+    expect(onError.mock.calls.length).toBe(inputs.length);
     for (const call of onError.mock.calls) {
-      const err = call[0] as TraceParseError;
-      expect(allowed.has(err.kind)).toBe(true);
+      expect(allowed.has((call[0] as TraceParseError).kind)).toBe(true);
+      expect((call[0] as TraceParseError).message).toMatch(/\S/);
     }
   });
 });
@@ -183,15 +263,16 @@ describe('TraceViewer — property', () => {
 // ── Security ────────────────────────────────────────────────
 
 describe('TraceViewer — security', () => {
-  it('does not throw on adversarial JSON shapes (deeply nested, prototype attempts)', () => {
+  it('does not throw on adversarial JSON shapes', () => {
     const adversarial: unknown[] = [
-      JSON.stringify({ schemaVersion: 1, snapshot: { __proto__: { evil: true } } }),
-      JSON.stringify({ schemaVersion: 1, snapshot: Object.fromEntries(Array.from({ length: 1000 }, (_, i) => [`k${i}`, i])) }),
+      JSON.stringify({ snapshot: { __proto__: { evil: true } } }),
+      JSON.stringify({
+        snapshot: Object.fromEntries(Array.from({ length: 1000 }, (_, i) => [`k${i}`, i])),
+      }),
+      JSON.stringify({ snapshot: SNAPSHOT, structure: { id: 'x' } }),
     ];
-    for (const trace of adversarial) {
-      expect(() => {
-        render(React.createElement(TraceViewer, { trace }));
-      }).not.toThrow();
+    for (const recording of adversarial) {
+      expect(() => render(React.createElement(TraceViewer, { recording }))).not.toThrow();
     }
   });
 });

@@ -1,0 +1,26 @@
+{
+  "executionOrder": [
+    {
+      "runtimeStageId": "intake#0",
+      "stageId": "intake",
+      "stageName": "Intake"
+    },
+    {
+      "runtimeStageId": "enrich#1",
+      "stageId": "enrich",
+      "stageName": "Enrich"
+    },
+    {
+      "runtimeStageId": "classify-risk#2",
+      "stageId": "classify-risk",
+      "stageName": "ClassifyRisk"
+    },
+    {
+      "runtimeStageId": "approve#3",
+      "stageId": "approve",
+      "stageName": "Approve"
+    }
+  ],
+  "errors": {},
+  "running": false
+}

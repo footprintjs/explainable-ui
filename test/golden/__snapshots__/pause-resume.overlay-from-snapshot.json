@@ -1,0 +1,26 @@
+{
+  "executionOrder": [
+    {
+      "runtimeStageId": "receive#0",
+      "stageId": "receive",
+      "stageName": "ReceiveRequest"
+    },
+    {
+      "runtimeStageId": "approval#1",
+      "stageId": "approval",
+      "stageName": "ManagerApproval"
+    },
+    {
+      "runtimeStageId": "approval#2",
+      "stageId": "approval",
+      "stageName": "ManagerApproval"
+    },
+    {
+      "runtimeStageId": "process#3",
+      "stageId": "process",
+      "stageName": "ProcessRefund"
+    }
+  ],
+  "errors": {},
+  "running": false
+}

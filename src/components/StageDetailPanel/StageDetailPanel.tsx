@@ -70,10 +70,21 @@ function fmt(v: unknown): string {
   return String(v);
 }
 
+/**
+ * ADD / UPD / DEL badges, painted from the theme's semantic roles.
+ *
+ * These three were the last hard-coded colours in a panel a light theme
+ * otherwise re-themes completely — and being literals, they were invisible
+ * to the token-coverage test (which only sees `var(--fp-*)` reads). The
+ * washes are mixed FROM the same role, so one `success` override moves the
+ * text and its background together.
+ */
+const wash = (color: string): string => `color-mix(in srgb, ${color} 12%, transparent)`;
+
 const changeBadge: Record<MemoryChange["type"], { bg: string; fg: string; label: string }> = {
-  added:   { bg: "rgba(34,197,94,0.12)",  fg: "#22c55e", label: "ADD" },
-  updated: { bg: "rgba(245,158,11,0.12)", fg: "#f59e0b", label: "UPD" },
-  removed: { bg: "rgba(239,68,68,0.12)",  fg: "#ef4444", label: "DEL" },
+  added:   { bg: wash(theme.success), fg: theme.success, label: "ADD" },
+  updated: { bg: wash(theme.warning), fg: theme.warning, label: "UPD" },
+  removed: { bg: wash(theme.error),   fg: theme.error,   label: "DEL" },
 };
 
 // ---------------------------------------------------------------------------

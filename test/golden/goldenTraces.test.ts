@@ -43,6 +43,7 @@ import { createNodeViewRecorder } from "../../src/components/FlowchartView/creat
 import { createCommitFlowRecorder } from "../../src/components/FlowchartView/createCommitFlowRecorder";
 import { dagreTraceLayout } from "../../src/components/FlowchartView/_internal/dagreTraceLayout";
 import { toVisualizationSnapshots, type NarrativeEntry } from "../../src/adapters/fromRuntimeSnapshot";
+import { overlayFromSnapshot } from "../../src/adapters/overlayFromSnapshot";
 import {
   buildEntryRangeIndex,
   computeRevealedEntryCount,
@@ -158,6 +159,19 @@ for (const fx of fixtures) {
         running,
       };
       await expect(stringify(out)).toMatchFileSnapshot(snapshotPath(fx.name, "overlay"));
+    });
+
+    it("snapshot alone → runtime overlay (post-hoc, no live recorder)", async () => {
+      const overlay = overlayFromSnapshot(fx.snapshot);
+      const out = {
+        // timestampMs is 0 by construction (commit bundles carry no clock).
+        executionOrder: overlay.executionOrder.map(({ timestampMs: _t, ...rest }) => rest),
+        errors: overlay.errors,
+        running: overlay.running,
+      };
+      await expect(stringify(out)).toMatchFileSnapshot(
+        snapshotPath(fx.name, "overlay-from-snapshot"),
+      );
     });
 
     it("flow+scope events → NodeView index", async () => {
@@ -296,6 +310,73 @@ describe("golden: semantic invariants", () => {
     expect(committedStageIds.has("obesity")).toBe(true);
     expect(committedStageIds.has("diabetes")).toBe(false); // glucose 96 ≤ 100
     expect(committedStageIds.has("summarize")).toBe(true); // convergence ran
+  });
+
+  // ── Post-hoc overlay (replaying a recording) ─────────────────────────────
+  //
+  // A saved snapshot has no live recorder, so `overlayFromSnapshot` rebuilds
+  // the overlay from `snapshot.commitLog`. What must hold is ALIGNMENT WITH
+  // THE RAIL: the shell translates its cursor by looking up
+  // `snapshots[selectedIndex].runtimeStageId` inside `overlay.executionOrder`
+  // (ExplainableShell.tsx), so one overlay step per rail step, same order, is
+  // exactly the property that makes a replayed chart scrub correctly.
+
+  it("every fixture: the derived overlay lines up with the rail, step for step", () => {
+    for (const fx of fixtures) {
+      const rail = toVisualizationSnapshots(fx.snapshot, fx.narrativeEntries);
+      const overlay = overlayFromSnapshot(fx.snapshot);
+      expect(
+        overlay.executionOrder.map((s) => s.runtimeStageId),
+        `fixture ${fx.name}`,
+      ).toEqual(rail.map((s) => s.runtimeStageId));
+    }
+  });
+
+  it("flat runs: the derived overlay IS the live recorder's overlay", () => {
+    // No pause, no subflows — the two paths see the same set of executions,
+    // so the post-hoc rebuild is byte-equal to what the live run recorded.
+    for (const name of ["linear-decider", "parallel-fork"]) {
+      const fx = byName(name);
+      const live = createTraceRuntimeOverlay();
+      replay(fx.runtimeEvents, live.recorder as unknown as Record<string, unknown>);
+      const strip = (steps: readonly { timestampMs: number }[]) =>
+        steps.map(({ timestampMs: _t, ...rest }) => rest);
+      expect(strip(overlayFromSnapshot(fx.snapshot).executionOrder), `fixture ${name}`).toEqual(
+        strip(live.getOverlay().executionOrder),
+      );
+    }
+  });
+
+  it("pause-resume: the derived overlay ALSO holds the pre-pause execution", () => {
+    // The stage that paused had already committed its writes (footprintjs
+    // commits before the pause unwinds), so the commit log carries
+    // approval#1 as well as the post-resume approval#2. The live recorder
+    // only ever saw #2 complete. The rail shows both — so the derived
+    // overlay showing both is what keeps the two in step.
+    const fx = byName("pause-resume");
+    const derived = overlayFromSnapshot(fx.snapshot).executionOrder.map((s) => s.runtimeStageId);
+    const live = createTraceRuntimeOverlay();
+    replay(fx.runtimeEvents, live.recorder as unknown as Record<string, unknown>);
+    const liveIds = live.getOverlay().executionOrder.map((s) => s.runtimeStageId);
+    expect(derived).toContain("approval#1");
+    expect(liveIds).not.toContain("approval#1");
+    // Superset, not a different story: everything the live run recorded is
+    // still there, in the same order.
+    expect(derived.filter((id) => liveIds.includes(id))).toEqual(liveIds);
+  });
+
+  it("subflow-loop: the derived overlay stops at mounts (engine isolates subflow commits)", () => {
+    // Deep-subflow commits never reach the run-level commitLog by design, so
+    // a recording can light the MOUNT node but not the stages inside it —
+    // the same stages the snapshot's own rail shows. Documented, not hidden:
+    // a live overlay sees the internals, a replayed one honestly cannot.
+    const fx = byName("subflow-loop");
+    const derived = overlayFromSnapshot(fx.snapshot).executionOrder.map((s) => s.stageId);
+    expect(derived).toContain("sf-enrich");
+    expect(derived).not.toContain("sf-enrich/normalize");
+    const live = createTraceRuntimeOverlay();
+    replay(fx.runtimeEvents, live.recorder as unknown as Record<string, unknown>);
+    expect(live.getOverlay().executionOrder.map((s) => s.stageId)).toContain("sf-enrich/normalize");
   });
 
   it("pause-resume: narrative spans the pause boundary; resume starts a fresh runId", () => {

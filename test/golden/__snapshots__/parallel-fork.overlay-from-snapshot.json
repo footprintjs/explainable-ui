@@ -1,0 +1,31 @@
+{
+  "executionOrder": [
+    {
+      "runtimeStageId": "load-patient#0",
+      "stageId": "load-patient",
+      "stageName": "LoadPatient"
+    },
+    {
+      "runtimeStageId": "screen#1",
+      "stageId": "screen",
+      "stageName": "Screen"
+    },
+    {
+      "runtimeStageId": "hypertension#2",
+      "stageId": "hypertension",
+      "stageName": "HypertensionCheck"
+    },
+    {
+      "runtimeStageId": "obesity#3",
+      "stageId": "obesity",
+      "stageName": "ObesityAssessment"
+    },
+    {
+      "runtimeStageId": "summarize#4",
+      "stageId": "summarize",
+      "stageName": "Summarize"
+    }
+  ],
+  "errors": {},
+  "running": false
+}
