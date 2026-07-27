@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.31.0] - 2026-07-28
 
 Fixes found while a live demo drove this library from frozen recordings instead
 of a live executor, then an audit of why hooking up the DATA and the THEME never
