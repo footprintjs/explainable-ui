@@ -1,4 +1,8 @@
-# footprint-explainable-ui
+# Flow Lens
+
+<sub>npm package: <a href="https://www.npmjs.com/package/footprint-explainable-ui"><code>footprint-explainable-ui</code></a></sub>
+
+**every step: watch the flowchart unfold**
 
 <p>
   <a href="https://www.npmjs.com/package/footprint-explainable-ui"><img src="https://img.shields.io/npm/v/footprint-explainable-ui.svg?style=flat" alt="npm version"></a>
@@ -8,9 +12,15 @@
   <a href="https://footprintjs.github.io/footprint-playground/"><img src="https://img.shields.io/badge/Playground-Try_it-6366f1?style=flat" alt="Playground"></a>
 </p>
 
-Themeable React components for visualizing [footprintjs](https://github.com/footprintjs/footPrint) pipeline execution — time-travel debugging, flowchart overlays, subflow drill-down, and collapsible detail panels.
+**Flow Lens** is the step-by-step view of a causal trace: themeable React components for
+visualizing [footprintjs](https://github.com/footprintjs/footPrint) pipeline execution —
+time-travel debugging, flowchart overlays, subflow drill-down, and collapsible detail panels.
 
 > Part of the **[footprintjs ecosystem](https://footprintjs.github.io/)** — the self-explaining stack.
+>
+> One causal trace. Replay it as every step (**Flow Lens**), grouped steps
+> ([**Why Lens**](https://github.com/footprintjs/agentfootprint-lens)), or the story
+> ([**Story Lens**](https://github.com/footprintjs/agentThinkingUI)).
 
 ## Install
 
@@ -79,6 +89,101 @@ This gives you:
 - **Time-travel slider** — scrub through execution steps
 - **Breadcrumbs** — navigate back from subflow drill-down
 - **Mobile responsive** — auto-stacks vertically below 640px
+
+### Compose the surfaces from external JSON
+
+`ExplainableView` reads the same frozen `{ snapshot, structure, narrativeEntries }`
+recording as `TraceViewer`, but its surfaces are independent components sharing
+one cursor:
+
+```tsx
+import {
+  ExplainableProvider,
+  TimeTravelBar,
+  CompactTimelinePanel,
+  TimelinePanel,
+  FlowchartPanel,
+  ValueInspector,
+  CommentaryPanel,
+  ExplainableView,
+} from "footprint-explainable-ui";
+
+const recording = JSON.parse(savedRunJson);
+
+// Ready-made view
+<ExplainableView
+  recording={recording}
+  layout="product"
+  theme={{
+    mode: "light",
+    tokens: { colors: { primary: "#245c45", warning: "#df6a4e" } },
+    flowchart: { done: "#245c45", active: "#df6a4e" },
+  }}
+/>
+
+// Or own the layout completely. Every component reads and moves the same cursor.
+<ExplainableProvider recording={recording}>
+  <header><TimeTravelBar /></header>
+  <main><FlowchartPanel /></main>
+  <section><ValueInspector /></section>
+  <section><CommentaryPanel /></section>
+  <footer><CompactTimelinePanel /></footer>
+</ExplainableProvider>
+```
+
+Layout policy stays with the consumer:
+
+| Preset | Surfaces |
+| --- | --- |
+| `developer` | Original workbench: time controls top, flowchart center, collapsible inspector right, compact timeline bottom |
+| `product` | Time controls top, flowchart with collapsible inspector, full-width commentary below; no compact timeline |
+| `studio` | Every surface together, including the optional vertical stage rail |
+| `linear` | Every surface in one vertical stack |
+
+Pass a named-area definition when a preset is not enough. Omitting a surface
+from `areas` hides it; repeating a name spans that surface across cells:
+
+```tsx
+<ExplainableView
+  recording={recording}
+  layout={{
+    columns: "320px minmax(0, 1fr)",
+    rows: "auto minmax(480px, 1fr) auto",
+    areas: [
+      ["timeTravel", "timeTravel"],
+      ["commentary", "flowchart"],
+      ["timeline", "timeline"],
+    ],
+  }}
+/>
+```
+
+The `developer` preset is the old workbench geometry rebuilt from these exported
+pieces. `ExplainableShell` also remains available for the richer legacy topology,
+details, tracing, and subflow features.
+
+The assembled workbench exposes `detailsExpanded`, `defaultDetailsExpanded`,
+`onDetailsExpandedChange`, and `detailsLabel` when consumers need to control the
+old Details handle themselves.
+
+Use `slots` to replace one surface without rebuilding the workbench:
+
+```tsx
+<ExplainableView
+  recording={recording}
+  slots={{
+    commentary: ({ selectedSnapshot }) => (
+      <MyCommentary stage={selectedSnapshot} />
+    ),
+  }}
+/>
+```
+
+The recording can be an object or a raw JSON string. The provider parses it,
+reconstructs the timeline, chart, runtime overlay, state snapshots, and narrative,
+then keeps every surface synchronized through a single controlled or uncontrolled
+`selectedIndex`. Consumers can inject a built-in mode, fine token overrides,
+flowchart state colors, or plain `--fp-*` variables on any ancestor.
 
 ### 3. Replaying a recording (no live executor)
 
