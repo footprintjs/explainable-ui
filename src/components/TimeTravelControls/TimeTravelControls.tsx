@@ -88,10 +88,25 @@ export function TimeTravelControls({
     return tracing.stopIndices.find((i) => i > selectedIndex) ?? null;
   }, [tracing, selectedIndex]);
 
-  // A fork stop PROMPTS instead of moving: the walk-back control asks which
-  // ingredient to follow (F2). Enabled even when there is no earlier stop —
-  // it opens a chooser, it does not move the cursor.
-  const forkPrompt = isTracing && (tracing!.forkCount ?? 0) >= 2 && !!tracing!.onForkPrompt;
+  // A fork stop PROMPTS instead of moving — but ONLY at the walk's earliest
+  // stop, where the monotone walk has nowhere left to go.
+  //
+  // WHY THE GUARD (regression fix): the walk is reverse-commit order, and
+  // every dependency committed earlier than the value it fed, so "◀ earlier
+  // cause" already visits EVERY frame — including both parents of a fork
+  // (traceWalk.ts's load-bearing fact: "forks are explained, not navigated").
+  // Prompting whenever `forkCount >= 2` therefore hijacked the walk-back
+  // button at nearly every stop of a real run — a stage that reads 6-9
+  // written keys is a "fork" by that count — so the rail's ◀ never moved the
+  // cursor and the walk was unreachable from the rail. Following an
+  // ingredient RE-ANCHORS to a longer walk, which is genuine forward motion
+  // only when there is no earlier stop; anywhere else it is a shortcut the
+  // card already offers (its ingredient chips are always on screen).
+  const forkPrompt =
+    isTracing &&
+    earlierStop === null &&
+    (tracing!.forkCount ?? 0) >= 2 &&
+    !!tracing!.onForkPrompt;
 
   const canPrev = isTracing ? forkPrompt || earlierStop !== null : selectedIndex > 0;
   const canNext = isTracing ? laterStop !== null : selectedIndex < total - 1;

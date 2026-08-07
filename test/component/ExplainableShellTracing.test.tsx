@@ -107,47 +107,73 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
     expect((audit as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("WALK: a fork stop prompts; 'visit all (time order)' performs the classic step; non-forks walk as before", () => {
+  // THE LAW: the walk visits every frame in reverse-commit order, so a fork
+  // MID-WALK is explained (its chips stay on the card), never navigated —
+  // "earlier cause" just moves. Prompting on ingredient count alone froze
+  // the cursor at the anchor of every real run (the neo dead state).
+  it("WALK: forks mid-walk still step; the rail walks all the way to the origin", () => {
     renderShell();
     enterTracing();
-    // The anchor (ComputeTotal ← subtotal + tax) IS a fork: the walk-back
-    // control prompts instead of moving.
-    fireEvent.click(screen.getByLabelText("Choose cause"));
-    const chooser = forkChooser()!;
-    expect(chooser).toBeTruthy();
-    expect(within(chooser).getAllByTitle(/Follow /)).toHaveLength(2);
-    // Neutral option = today's behavior: nearest earlier stop = ApplyTax.
-    fireEvent.click(within(chooser).getByText(/visit all, oldest cause last/));
+    // The anchor (ComputeTotal ← subtotal + tax) IS a fork by ingredient
+    // count — and still walks, because an earlier stop exists.
+    const back = () => screen.getByLabelText("Earlier cause") as HTMLButtonElement;
+    expect(back().textContent).toMatch(/earlier cause/);
+    fireEvent.click(back());
     expect(within(toolbar()).getByText(/stop 2 of 4/)).toBeTruthy();
     expect(screen.getByText(/Step 4 ·/)).toBeTruthy(); // ApplyTax is rail step 4 — Audit was skipped
-    expect(forkChooser()).toBeNull(); // the cursor move closed the chooser
-    // ApplyTax (← rate + subtotal) is ALSO a fork — prompt again, visit all → Sum.
-    fireEvent.click(screen.getByLabelText("Choose cause"));
-    fireEvent.click(screen.getByText(/visit all, oldest cause last/));
+    expect(forkChooser()).toBeNull(); // no prompt hijacked the step
+    // ApplyTax (← rate + subtotal) is ALSO a fork — and also just steps.
+    fireEvent.click(back());
     expect(within(toolbar()).getByText(/stop 3 of 4/)).toBeTruthy();
-    // Sum has ONE ingredient — the classic button is back and steps to Seed.
-    fireEvent.click(screen.getByLabelText("Earlier cause"));
+    // Sum has ONE ingredient — same button, same behavior, on to Seed.
+    fireEvent.click(back());
     expect(within(toolbar()).getByText(/stop 4 of 4/)).toBeTruthy();
-    expect((screen.getByLabelText("Earlier cause") as HTMLButtonElement).disabled).toBe(true);
+    // Seed is the origin: nothing earlier and nothing followable → disabled.
+    expect(back().disabled).toBe(true);
   });
 
-  it("CHOOSER closes on any cursor move (a stop-tick click), leaving the walk intact", () => {
-    renderShell();
-    enterTracing();
-    fireEvent.click(screen.getByLabelText("Choose cause"));
+  // The guard's REAL purpose: when the walk's earliest RAIL stop still has
+  // followable ingredients (stops that fell off the rail — a subflow-inner
+  // writer, or a budget-truncated walk), following IS the only way further
+  // back in time. There, and only there, walk-back prompts.
+  it("CHOOSER opens at the earliest RAIL stop that still has causes, and closes on any cursor move", () => {
+    // Rail omits Seed and Sum, so the walk's tail falls off it: the earliest
+    // landable stop is ApplyTax, which still reads rate + subtotal.
+    render(
+      React.createElement(ExplainableShell, {
+        snapshots: SNAPSHOTS.slice(2),
+        runtimeSnapshot: makeRuntimeSnapshot() as never,
+        title: "Quote",
+      }),
+    );
+    const next = screen.getByLabelText("Next stage");
+    fireEvent.click(next);
+    fireEvent.click(next);
+    fireEvent.click(screen.getByText("Inspector"));
+    fireEvent.click(screen.getByText("Data Trace"));
+    fireEvent.click(
+      within(screen.getByText("This step wrote:").parentElement as HTMLElement).getByText("total"),
+    );
+    // One step back lands on ApplyTax — the earliest stop left on this rail.
+    fireEvent.click(screen.getByLabelText("Earlier cause"));
+    const prompt = screen.getByLabelText("Choose cause") as HTMLButtonElement;
+    expect(prompt.disabled).toBe(false);
+    fireEvent.click(prompt);
     expect(forkChooser()).toBeTruthy();
-    // Click the Sum stop tick directly — a cursor move that is not a walk step.
-    const ticks = document.querySelectorAll('[data-fp="tt-tick"]');
-    fireEvent.click(ticks[1]);
+    // Any cursor move invalidates the chooser — it asked about the old stop.
+    fireEvent.click(document.querySelectorAll('[data-fp="tt-tick"]')[2]);
     expect(forkChooser()).toBeNull();
-    expect(within(toolbar()).getByText(/stop 3 of 4/)).toBeTruthy(); // still tracing, on Sum
+    expect(toolbar().getAttribute("data-tracing")).toBe("true"); // still tracing
   });
 
-  it("FOLLOW from the chooser: an ingredient chip re-anchors the walk with the via breadcrumb; show-all restores", () => {
+  it("FOLLOW from the stop card: an ingredient chip re-anchors the walk with the via breadcrumb; show-all restores", () => {
     renderShell();
     enterTracing();
-    fireEvent.click(screen.getByLabelText("Choose cause")); // anchor fork: subtotal + tax
-    const chips = within(forkChooser()!).getAllByTitle(/Follow /);
+    // The card's ingredient chips are ALWAYS on screen (no chooser needed) —
+    // that is why walk-back no longer has to prompt to keep following usable.
+    const card = document.querySelector('[data-fp="trace-walk-card"]') as HTMLElement;
+    const chips = within(card).getAllByTitle(/Follow /);
+    expect(chips).toHaveLength(2); // anchor fork: subtotal + tax
     fireEvent.click(chips.find((c) => c.textContent?.includes("subtotal"))!);
     // Re-anchored on subtotal's writer (Sum): the header + breadcrumb say so.
     expect(screen.getAllByText(/via/).length).toBeGreaterThan(0);
@@ -161,8 +187,7 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
   it("EXIT: Done restores the normal rail and the cursor stays at the found cause", () => {
     renderShell();
     enterTracing();
-    fireEvent.click(screen.getByLabelText("Choose cause"));
-    fireEvent.click(screen.getByText(/visit all, oldest cause last/)); // → ApplyTax
+    fireEvent.click(screen.getByLabelText("Earlier cause")); // → ApplyTax
     fireEvent.click(within(toolbar()).getByLabelText("Exit tracing"));
     expect(toolbar().getAttribute("data-tracing")).toBeNull();
     // Normal rail is back (play button returns) and no teleport happened:

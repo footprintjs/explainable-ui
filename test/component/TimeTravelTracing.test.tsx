@@ -150,23 +150,67 @@ describe("TimeTravelControls — tracing mode", () => {
 });
 
 describe("TimeTravelControls — fork chooser (F2)", () => {
-  it("forkCount >= 2 turns the walk-back control into 'choose cause' and fires onForkPrompt without moving", () => {
+  // THE LAW (traceWalk.ts): the walk is reverse-commit order and already
+  // visits EVERY frame, both parents of a fork included — "forks are
+  // explained, not navigated". So walking back MOVES at every stop that
+  // still has an earlier stop. The chooser is the terminus affordance:
+  // following an ingredient RE-ANCHORS to a longer walk, which is only
+  // genuine forward motion once there is nothing earlier left to visit.
+  it("a fork MID-WALK still moves the cursor — the chooser never hijacks the walk", () => {
     const onForkPrompt = vi.fn();
-    const { onIndexChange } = renderTracing({ selectedIndex: 4 }, { forkCount: 2, onForkPrompt });
-    const btn = screen.getByLabelText("Choose cause") as HTMLButtonElement;
+    const { onIndexChange } = renderTracing({ selectedIndex: 4 }, { forkCount: 6, onForkPrompt });
+    const btn = screen.getByLabelText("Earlier cause") as HTMLButtonElement;
     expect(btn.disabled).toBe(false);
-    expect(btn.textContent).toMatch(/choose cause/);
+    expect(btn.textContent).toMatch(/earlier cause/);
     fireEvent.click(btn);
-    expect(onForkPrompt).toHaveBeenCalledOnce();
-    expect(onIndexChange).not.toHaveBeenCalled(); // a prompt, never a move
+    expect(onIndexChange).toHaveBeenCalledWith(3);
+    expect(onForkPrompt).not.toHaveBeenCalled();
   });
 
-  it("ArrowLeft at a fork fires onForkPrompt instead of moving the cursor", () => {
+  it("ArrowLeft at a mid-walk fork moves the cursor too", () => {
     const onForkPrompt = vi.fn();
     const { onIndexChange } = renderTracing({ selectedIndex: 4 }, { forkCount: 3, onForkPrompt });
     fireEvent.keyDown(screen.getByRole("toolbar"), { key: "ArrowLeft" });
+    expect(onIndexChange).toHaveBeenCalledWith(3);
+    expect(onForkPrompt).not.toHaveBeenCalled();
+  });
+
+  // REGRESSION (the neo dead state): every stop of a real agent walk is a
+  // "fork" by ingredient count (stages read 6-9 written keys). Prompting on
+  // forkCount alone froze the cursor at the anchor forever. Walking the whole
+  // rail with a fork at EVERY stop must reach the origin.
+  it("walks the entire rail even when every stop is a fork (no dead state)", () => {
+    const onForkPrompt = vi.fn();
+    const visited: number[] = [];
+    let idx = 4;
+    for (let hop = 0; hop < 5; hop++) {
+      const onIndexChange = vi.fn();
+      const { unmount } = render(
+        <TimeTravelControls
+          snapshots={SNAPSHOTS}
+          selectedIndex={idx}
+          onIndexChange={onIndexChange}
+          tracing={{
+            tracedKey: "total",
+            stopIndices: [0, 1, 3, 4],
+            stopOrdinal: 1,
+            totalStops: 4,
+            onExit: vi.fn(),
+            forkCount: 9,
+            onForkPrompt,
+          }}
+        />,
+      );
+      const btn = screen.getByLabelText(/Earlier cause|Choose cause/) as HTMLButtonElement;
+      fireEvent.click(btn);
+      unmount();
+      if (onIndexChange.mock.calls.length === 0) break; // terminus reached
+      idx = onIndexChange.mock.calls[0][0] as number;
+      visited.push(idx);
+    }
+    // 4 → 3 → 1 → 0, then the origin prompts instead of moving.
+    expect(visited).toEqual([3, 1, 0]);
     expect(onForkPrompt).toHaveBeenCalledOnce();
-    expect(onIndexChange).not.toHaveBeenCalled();
   });
 
   it("forkCount undefined keeps the classic earlier-cause behavior", () => {
@@ -183,12 +227,21 @@ describe("TimeTravelControls — fork chooser (F2)", () => {
     expect(onForkPrompt).not.toHaveBeenCalled();
   });
 
-  it("'choose cause' stays enabled even at the earliest stop — it prompts, it does not move", () => {
+  it("'choose cause' stays enabled AT the earliest stop — it prompts, it does not move", () => {
     const onForkPrompt = vi.fn();
-    renderTracing({ selectedIndex: 0 }, { forkCount: 2, onForkPrompt });
+    const { onIndexChange } = renderTracing({ selectedIndex: 0 }, { forkCount: 2, onForkPrompt });
     const btn = screen.getByLabelText("Choose cause") as HTMLButtonElement;
     expect(btn.disabled).toBe(false);
+    expect(btn.textContent).toMatch(/choose cause/);
     fireEvent.click(btn);
     expect(onForkPrompt).toHaveBeenCalledOnce();
+    expect(onIndexChange).not.toHaveBeenCalled();
+  });
+
+  it("the earliest stop with nothing to follow simply disables walk-back", () => {
+    const { onIndexChange } = renderTracing({ selectedIndex: 0 }, { forkCount: 1, onForkPrompt: vi.fn() });
+    const btn = screen.getByLabelText("Earlier cause") as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(onIndexChange).not.toHaveBeenCalled();
   });
 });
