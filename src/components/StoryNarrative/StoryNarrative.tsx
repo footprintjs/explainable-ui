@@ -3,7 +3,7 @@
  *
  * Recorder-based view: renders CombinedNarrativeRecorder output with
  * progressive reveal synced to snapshot index. Each entry is typed
- * (stage, step, condition, fork, subflow, loop, break, error) and
+ * (stage, step, condition, fork, subflow, loop, break, error, retry) and
  * rendered with appropriate icon + indentation.
  *
  * Data source: FlowRecorder (fires AFTER stage execution)
@@ -29,6 +29,15 @@ const ENTRY_ICONS: Record<string, { icon: string; color: string; label: string }
   loop:      { icon: "↻", color: theme.warning,        label: "Loop" },
   break:     { icon: "■", color: theme.error,          label: "Break" },
   error:     { icon: "✗", color: theme.error,          label: "Error" },
+  // Retry is ATTEMPT telemetry, not an outcome: attempt N failed and the same
+  // stage is about to run again, so it may still succeed. That is why it is
+  // warning-weight (like `condition`) and not error-weight (like `error` /
+  // `break`) — colouring it red would tell the reader the run failed when it
+  // may not have. The mirrored arrow keeps the "went round again" reading while
+  // staying tellable apart from `loop`'s ↻, which is a by-design back-edge in
+  // the chart rather than a failure. Precedent for icon reuse with a distinct
+  // label: `fork` and `selector` already share ⑃.
+  retry:     { icon: "↺", color: theme.warning,        label: "Retry" },
 };
 
 export function StoryNarrative({
@@ -143,8 +152,10 @@ export function StoryNarrative({
       }
 
       prevType = entry.type;
-      // loop, break, step, error — no heading number
-      // Loop is a back-edge (not a new node), break is termination signal
+      // loop, break, step, error, retry — no heading number
+      // Loop is a back-edge (not a new node), break is a termination signal,
+      // and retry is one failed attempt WITHIN the stage above it — numbering
+      // any of them would invent a step the flowchart never took.
       return { ...entry, heading: null, isHeading: false };
     });
   }, [revealed]);
@@ -192,6 +203,9 @@ export function StoryNarrative({
         const isDecision = entry.type === "condition";
         const isError = entry.type === "error";
         const isBreak = entry.type === "break";
+        // Warning-weight alongside decisions: a failed attempt is a fact worth
+        // catching the eye, but the stage has not failed yet.
+        const isRetry = entry.type === "retry";
         const isSubflow = (entry as any).isSubflow;
         const isLast = i === numberedEntries.length - 1;
         const headingType = (entry as any).headingType as string | undefined;
@@ -229,7 +243,7 @@ export function StoryNarrative({
                 fontWeight: isHeading ? 600 : 400,
                 color: isError || isBreak
                   ? theme.error
-                  : isDecision
+                  : isDecision || isRetry
                     ? theme.warning
                     : isHeading
                       ? theme.textPrimary

@@ -38,7 +38,12 @@ export interface NarrativeEntry {
     | 'error'
     | 'pause'
     | 'resume'
-    | 'emit';
+    | 'emit'
+    /** One failed attempt at a stage that declares a `retry` policy — the
+     *  stage is about to run again. Attempt telemetry, not an outcome: the
+     *  stage may still succeed, so this is warning-weight, not error-weight.
+     *  Emitted by footprintjs >= 9.15.0, nested inside its own stage. */
+    | 'retry';
   text: string;
   depth: number;
   stageName?: string;

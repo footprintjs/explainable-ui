@@ -117,4 +117,46 @@ describe('StoryNarrative component', () => {
     );
     expect(container.querySelector('[data-fp="story-narrative"]')).toBeTruthy();
   });
+
+  // ── retry (footprintjs >= 9.15.0) ──────────────────────────────────────
+  // A retry entry is attempt telemetry nested inside its own stage. Before eui
+  // learned the type it fell through to the generic `step` icon and a bridge
+  // upstream had to relabel it, so the badge lied. These pin the treatment.
+
+  it('renders a retry entry with its own type marker, not step', () => {
+    const entries = [
+      e('stage', 'Stage 1: Call the flaky API.'),
+      e('retry', '[Retry]: attempt 1 of 3 at CallApi failed (timeout). Waited 200ms before the next attempt.', { depth: 1 }),
+    ];
+    const { container } = render(
+      <StoryNarrative entries={entries} revealedEntryCount={2} unstyled />,
+    );
+    const marked = container.querySelector('[data-fp="narrative-entry"][data-type="retry"]');
+    expect(marked).toBeTruthy();
+    expect(container.querySelector('[data-type="step"]')).toBeNull();
+  });
+
+  it('gives retry its own icon and label — not the generic step fallback', () => {
+    const entries = [e('retry', '[Retry]: attempt 2 of 3 at CallApi failed (429).', { depth: 1 })];
+    render(<StoryNarrative entries={entries} revealedEntryCount={1} />);
+    const icon = screen.getByLabelText('Retry');
+    expect(icon.textContent).toBe('↺');
+    // Distinct from loop's back-edge glyph — a retry is a failure, not a
+    // by-design loop, and the two must not read as the same event.
+    expect(icon.textContent).not.toBe('↻');
+  });
+
+  it('shows retry text verbatim and gives it no heading number', () => {
+    const entries = [
+      e('stage', 'Stage 1: Call the flaky API.'),
+      e('retry', '[Retry]: attempt 1 of 3 at CallApi failed (timeout).', { depth: 1 }),
+      e('stage', 'Stage 2: Format the answer.'),
+    ];
+    render(<StoryNarrative entries={entries} revealedEntryCount={3} unstyled />);
+    // Verbatim: the renderer upstream already wrote the sentence.
+    expect(screen.getByText(/attempt 1 of 3 at CallApi failed/)).toBeTruthy();
+    // The stage AFTER the retry is still number 2 — a retry does not advance
+    // the flowchart, so it must not consume a heading number.
+    expect(screen.getByText(/^2\./)).toBeTruthy();
+  });
 });
