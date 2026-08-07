@@ -108,3 +108,40 @@ export type { InsightPanelProps, InsightConfig } from "./components/InsightPanel
 // Compact Timeline: dot line → Gantt toggle
 export { CompactTimeline } from "./components/CompactTimeline/CompactTimeline";
 export type { CompactTimelineProps } from "./components/CompactTimeline/CompactTimeline";
+
+// Composable recording UI — one external JSON recording, one shared cursor,
+// exported surfaces, plus an assembled workbench matching the original layout.
+export {
+  ExplainableProvider,
+  useExplainableRun,
+  TimelinePanel,
+  FlowchartPanel,
+  ValueInspector,
+  CommentaryPanel,
+  TimeTravelBar,
+  CompactTimelinePanel,
+  SurfaceCollapseHandle,
+  ExplainableView,
+} from "./components/ExplainableView";
+export type {
+  ExplainableProviderProps,
+  ExplainableRecording,
+  ExplainableRecordingInput,
+  ExplainableRunContextValue,
+  ExplainableViewTheme,
+  TimelinePanelProps,
+  FlowchartPanelProps,
+  ValueInspectorProps,
+  CommentaryPanelProps,
+  CommentaryRenderContext,
+  TimeTravelBarProps,
+  CompactTimelinePanelProps,
+  SurfaceCollapseHandleProps,
+  ExplainableSurface,
+  ExplainableViewPreset,
+  ExplainableLayoutDefinition,
+  ExplainableViewProps,
+  ExplainableViewLayout,
+  ExplainableViewSlot,
+  ExplainableViewSlots,
+} from "./components/ExplainableView";
