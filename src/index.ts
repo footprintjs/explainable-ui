@@ -33,7 +33,7 @@ export type { ScopeDiffProps, DiffEntry } from "./components/ScopeDiff";
 export { ResultPanel } from "./components/ResultPanel";
 export type { ResultPanelProps } from "./components/ResultPanel";
 
-export { StageDetailPanel } from "./components/StageDetailPanel";
+export { StageDetailPanel, DEFAULT_EXCLUDED_KEYS } from "./components/StageDetailPanel";
 export type { StageDetailPanelProps, StageDetailMode, MemoryChange } from "./components/StageDetailPanel";
 
 export { TimeTravelControls } from "./components/TimeTravelControls";

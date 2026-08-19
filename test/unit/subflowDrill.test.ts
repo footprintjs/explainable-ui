@@ -166,3 +166,77 @@ describe('buildSubflowBreadcrumb — full ancestor chain (FUNCTIONAL)', () => {
     ]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 0.35.0 — the DOCUMENTED legacy key (a bare local `subflowId`) on a graph
+// produced by eui's own recorder.
+//
+// `findMountNode` has always resolved that form, and `filterGraphForDrill`'s
+// own docblock promises it ("`X` being the mount NODE id (preferred, unique)
+// or its local `subflowId` (legacy)"). But `resolveDrillScope` never mapped it
+// through the mount, so the scope stayed the bare id — which no child's
+// `subflowOf` carries on a recorder graph — and the filter returned an EMPTY
+// chart. The documented form drew nothing.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('legacy drill key — a bare local subflowId', () => {
+  /** One mount, node id `pipeline/prepare`, local subflowId `prepare`.
+   *  Children are tagged with the mount NODE id (recorder spelling). */
+  const RECORDER_GRAPH: TraceGraph = {
+    nodes: [
+      node('seed', {}),
+      node('pipeline', { isSubflow: true, subflowId: 'pipeline' }),
+      node('pipeline/prepare', { isSubflow: true, subflowId: 'prepare', subflowOf: 'pipeline' }),
+      node('pipeline/prepare/clean', { subflowOf: 'pipeline/prepare' }),
+      node('pipeline/prepare/scale', { subflowOf: 'pipeline/prepare' }),
+    ],
+    edges: [edge('pipeline/prepare/clean', 'pipeline/prepare/scale')],
+  };
+
+  it('resolves the bare local id to the mount node id the children carry', () => {
+    expect(resolveDrillScope(RECORDER_GRAPH, 'prepare')).toBe('pipeline/prepare');
+  });
+
+  it('filterGraphForDrill returns that mount’s stages, not an empty graph', () => {
+    const filtered = filterGraphForDrill(RECORDER_GRAPH, 'prepare');
+    expect(filtered.nodes.map((n) => n.id)).toEqual([
+      'pipeline/prepare/clean',
+      'pipeline/prepare/scale',
+    ]);
+    expect(filtered.edges).toHaveLength(1);
+  });
+
+  it('agrees with findMountNode, which always resolved this form', () => {
+    const mount = findMountNode(RECORDER_GRAPH, 'prepare');
+    expect(mount?.id).toBe('pipeline/prepare');
+    expect(resolveDrillScope(RECORDER_GRAPH, 'prepare')).toBe(mount?.id);
+  });
+
+  it('FIRST MOUNT WINS when a local id names more than one mount', () => {
+    // A local subflowId is not unique — that ambiguity is exactly why the
+    // mount node id is the preferred key. Document order is the only answer
+    // available, so pin it rather than leave it to chance.
+    const twoMounts: TraceGraph = {
+      nodes: [
+        node('first', { isSubflow: true, subflowId: 'shared' }),
+        node('first/a', { subflowOf: 'first' }),
+        node('second', { isSubflow: true, subflowId: 'shared' }),
+        node('second/b', { subflowOf: 'second' }),
+      ],
+      edges: [],
+    };
+    expect(resolveDrillScope(twoMounts, 'shared')).toBe('first');
+    expect(filterGraphForDrill(twoMounts, 'shared').nodes.map((n) => n.id)).toEqual(['first/a']);
+  });
+
+  it('an unrecorded mount still resolves to an honest empty scope', () => {
+    // A lazy mount whose internals were never recorded has no children to
+    // find. The key comes back unchanged and the chart is empty — which is
+    // the truth, not the bug above.
+    const lazy: TraceGraph = {
+      nodes: [node('root', {}), node('lazyMount', { isSubflow: true, subflowId: 'never-ran' })],
+      edges: [],
+    };
+    expect(resolveDrillScope(lazy, 'never-ran')).toBe('never-ran');
+    expect(filterGraphForDrill(lazy, 'never-ran').nodes).toHaveLength(0);
+  });
+});

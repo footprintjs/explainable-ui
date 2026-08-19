@@ -14,12 +14,27 @@ export interface CompactTimelineProps {
   selectedIndex: number;
   /** Start expanded or collapsed. Default: collapsed. */
   defaultExpanded?: boolean;
+  /** Header text. Default: "Timeline". `<ExplainableShell>` passes
+   *  `panelLabels.timeline` here so the desktop footer is labelled by the
+   *  same prop as the mobile pill. */
+  label?: string;
 }
+
+/**
+ * A token is a `var(--fp-…, #fallback)` STRING, so the old
+ * `theme.textMuted + "40"` produced `var(--fp-text-muted, #64748b)40` — not a
+ * colour any browser parses, which is why the pending dots and the connecting
+ * line were invisible in the shipped shell footer. `color-mix` is how the rest
+ * of this library tints a token (see StageDetailPanel's `wash`).
+ */
+const tint = (color: string, percent: number): string =>
+  `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 
 export const CompactTimeline = memo(function CompactTimeline({
   snapshots,
   selectedIndex,
   defaultExpanded = false,
+  label = "Timeline",
 }: CompactTimelineProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
 
@@ -47,7 +62,7 @@ export const CompactTimeline = memo(function CompactTimeline({
         }}
       >
         <span style={{ fontSize: 10 }}>{expanded ? "▼" : "▸"}</span>
-        Timeline
+        {label}
         <span style={{ fontWeight: 400, fontSize: 10 }}>
           {snapshots.length} stages
         </span>
@@ -75,7 +90,7 @@ export const CompactTimeline = memo(function CompactTimeline({
                       ? "var(--fp-success, #22c55e)"
                       : i === selectedIndex
                         ? "var(--fp-accent, #6366f1)"
-                        : theme.textMuted + "40",
+                        : tint(theme.textMuted, 25),
                   transition: "all 0.15s",
                   flexShrink: 0,
                 }}
@@ -87,7 +102,7 @@ export const CompactTimeline = memo(function CompactTimeline({
               style={{
                 flex: 1,
                 height: 1,
-                background: theme.textMuted + "30",
+                background: tint(theme.textMuted, 20),
                 marginLeft: -2,
                 marginRight: 4,
               }}

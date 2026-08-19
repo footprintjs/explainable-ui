@@ -5,6 +5,146 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.35.0] - 2026-08-19
+
+An audit read every documented prop and then went looking for the code that
+honours it. Eleven times it wasn't there. The through-line: a knob that reads
+as wired and is not — a tab you can click that renders nothing, a prop the
+component never destructures, a default that quietly disagrees with the panel
+composed beside it. Nothing here is a new feature; everything here is the
+library finally doing what it already said it does.
+
+Every fix below carries a regression test that was watched go red with the fix
+reverted in place.
+
+### Fixed
+
+- **Unstyled mode shows the whole surface again.** `unstyled` listed Result,
+  Memory, Narrative and every recorder view along the top, but only Result
+  actually drew anything — the flowchart-plus-memory-plus-story view lived
+  behind a tab id that appeared in no list, so it was unreachable, and
+  clicking Memory or Narrative gave you a blank panel. All the tabs render
+  now, the whole-surface view is a listed tab of its own ("Explainable"), and
+  the same one implementation paints every tab in both modes. Unstyled means
+  the same content with no styling; that is the whole contract.
+
+- **`panelLabels` renames the panels on desktop, not just on mobile.** The
+  labels were computed from your prop and then thrown away by the desktop
+  layout, which had "Topology", "Details" and "Timeline" written into it by
+  hand. The README's own hero example passes this prop, so the first thing a
+  reader copied was the thing that didn't work. All three now follow what you
+  pass, at every width.
+
+- **The Result view is reachable on a desktop-width shell.** The tabbed
+  details panel only renders below 640px, and the right-hand panel filtered
+  Result out of its list — so on any normal screen `resultData`, `logs` and
+  `hideConsole` did nothing whatsoever. Result is now a third mode on the
+  right panel's own toggle, beside Insights and Inspector. It stays out of
+  the Insights list on purpose: an Insight comes from a recorder, and putting
+  Result there would have pushed the story off the opening screen.
+
+- **`filterGraphForDrill` honours the legacy drill key it documents.** Passing
+  a subflow's bare local id — the form the docblock promises and
+  `findMountNode` has always resolved — returned an EMPTY chart on any graph
+  this library's own recorder produced, because the scope was never mapped
+  through the mount node whose id the children actually carry. It now maps
+  through. A local id can name more than one mount, so the rule is first mount
+  wins, which is exactly why the unique mount-node id is still the preferred
+  key.
+
+- **A finished run looks finished.** `sliceOverlay` documents that an index at
+  or past the end of the execution order means "everything done, nothing
+  active", but it clamped to the last step instead — so a completed run went
+  on painting its final stage as the one still running. The documented
+  behaviour is now the real one.
+
+- **A node's data reaches your renderer whole.** Swap in your own stage
+  renderer via `nodeTypes` and read your own fields off `data` — that is the
+  documented extension point, and both charts broke it the same way. They
+  rebuilt `data` from a fixed list of the fields the bundled `<StageNode>`
+  happens to read, dropping your custom fields on the floor along with the
+  recorder's own metadata (`isStreaming`, `isPausable`, `branchIds`,
+  `defaultBranch`, `prevIds`, `nextIds`, `subflowOf`). Everything now passes
+  through; the run status the chart derives still wins over anything the
+  source data carried.
+
+- **A subflow entered twice appears twice in the story.** `<StoryNarrative>`
+  decided "entering" versus "exiting" with a toggle keyed on the subflow's
+  stable id: the first marker was the entry and every later one an exit. So a
+  subflow inside a loop — or simply the same child chart mounted twice —
+  showed its first entry and then vanished from the story for good. The
+  entries have carried a `direction` field all along (the Narrative panel
+  next door already reads it); the Story reads it now too.
+
+- **A fork after an earlier fork keeps its heading and its number.** The
+  tracker that tells one fan-out from the next was only ever advanced by the
+  fork branch itself, so after the first fork it read "fork" forever, and the
+  next fork in the run — however far away, whatever ran in between — was
+  numbered as a continuation of the first and lost its heading. Anything
+  between two forks exposed it.
+
+  The reason this stayed hidden is worth naming: its test file had a COPY of
+  the numbering algorithm pasted into it and asserted against the copy. The
+  copy had drifted so far that it was checking headings the shipped component
+  stopped producing several releases ago, and stayed green throughout. It has
+  been deleted and replaced with tests that render the real component.
+
+- **Deleted keys stay deleted in the memory view.** `<MemoryInspector>` built
+  its state by merging every earlier step's memory on top of each other — an
+  operation that can only ever add keys back. A key the run deleted came back
+  to life, and did so directly beside a `<ScopeDiff>` reporting that same key
+  "removed" in the very same panel. Each snapshot's memory is already the
+  accumulated state after that stage, deletions included, so the view simply
+  reads it.
+
+- **`<SnapshotPanel>`'s scrub buttons show arrows.** They were written as
+  `label="\u25C0"` inside a JSX attribute, which is not an escape sequence —
+  so the six characters `\u25C0` printed where an arrow belonged. They are
+  real arrows now, styled to match the transport buttons on
+  `<TimeTravelControls>`, and each one finally names itself for a screen
+  reader instead of being an unlabelled triangle.
+
+- **`excludeKeys` on `<StageDetailPanel>` does something.** The prop was
+  declared and documented and `DEFAULT_EXCLUDED_KEYS` was exported beside it,
+  but the component never read either — passing a set changed nothing on
+  screen. Excluded keys now disappear from the memory ledger AND from the
+  change list, so a hidden key cannot reappear as an ADD/UPD/DEL row.
+  `DEFAULT_EXCLUDED_KEYS` (empty — this library has no reserved keys to hide
+  on your behalf) is now importable from both entry points, so you can extend
+  it rather than guess at it.
+
+- **The pending dots in the shell's timeline footer are visible.**
+  `<CompactTimeline>` mixed its faded colours by gluing a hex alpha suffix
+  onto a theme token — `var(--fp-text-muted, #64748b)40` — which is not a
+  colour any browser parses. The unvisited dots and the line joining them
+  simply didn't render. They are mixed with `color-mix` now, like everything
+  else in the library.
+
+### Deprecated
+
+- **`ExplainableShell`'s `tabs` prop.** It has never had any effect: it was
+  destructured with a default and then shadowed by a local variable of the
+  same name. It now warns in dev and is gone from the README. It is not being
+  wired, because there is no safe way to: its documented default
+  `["result", "explainable"]` names a view that is not a styled-shell tab at
+  all, so honouring the list literally would cut every existing shell down to
+  a lone Result tab. Use `hideTabs` to drop tabs by id and `defaultTab` to
+  choose which one opens first.
+
+### Changed
+
+- **`defaultTokens` warns you not to feed it back in.** Every value in it is
+  already a `var(--fp-…, fallback)` reference, so passing the object to
+  `<FootprintTheme tokens={...}>` emits self-referential declarations like
+  `--fp-accent: var(--fp-accent, #6366f1)` that resolve to nothing and blank
+  out the colours they were meant to set. The JSDoc now says so and points at
+  `rawDefaults` and the presets. (The full fix is a later round; the warning
+  stops the foot-gun today.)
+
+- **`<CompactTimeline>` takes a `label`**, so the shell's desktop timeline
+  footer can carry `panelLabels.timeline` like the mobile pill already did.
+  Defaults to "Timeline".
+
 ## [0.34.0] - 2026-08-19
 
 Three arcs, all about the chart telling you where you are. A bare

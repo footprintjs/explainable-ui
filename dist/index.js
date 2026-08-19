@@ -348,7 +348,7 @@ function themeModeVars(mode) {
 }
 
 // src/components/MemoryInspector/MemoryInspector.tsx
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { jsx as jsx2, jsxs } from "react/jsx-runtime";
 function MemoryInspector({
   data,
@@ -361,7 +361,6 @@ function MemoryInspector({
   className,
   style
 }) {
-  const cacheRef = useRef(null);
   const { memory, newKeys } = useMemo(() => {
     if (data) {
       return { memory: data, newKeys: /* @__PURE__ */ new Set() };
@@ -370,37 +369,13 @@ function MemoryInspector({
       return { memory: {}, newKeys: /* @__PURE__ */ new Set() };
     }
     const safeIdx = Math.min(selectedIndex, snapshots.length - 1);
-    let merged;
-    const cache = cacheRef.current;
-    if (cache && cache.snapshots === snapshots && cache.index <= safeIdx) {
-      merged = { ...cache.accumulated };
-      for (let i = cache.index + 1; i <= safeIdx; i++) {
-        Object.assign(merged, snapshots[i]?.memory);
-      }
-    } else {
-      merged = {};
-      for (let i = 0; i <= safeIdx; i++) {
-        Object.assign(merged, snapshots[i]?.memory);
-      }
-    }
-    cacheRef.current = { snapshots, index: safeIdx, accumulated: merged };
+    const merged = snapshots[safeIdx]?.memory ?? {};
     const nk = /* @__PURE__ */ new Set();
-    if (highlightNew && safeIdx > 0) {
-      let prev;
-      if (cache && cache.snapshots === snapshots && cache.index === safeIdx - 1) {
-        prev = cache.accumulated;
-      } else {
-        prev = {};
-        for (let i = 0; i < safeIdx; i++) {
-          Object.assign(prev, snapshots[i]?.memory);
-        }
-      }
-      const current = snapshots[safeIdx]?.memory ?? {};
-      for (const k of Object.keys(current)) {
+    if (highlightNew) {
+      const prev = safeIdx > 0 ? snapshots[safeIdx - 1]?.memory ?? {} : {};
+      for (const k of Object.keys(merged)) {
         if (!(k in prev)) nk.add(k);
       }
-    } else if (highlightNew && safeIdx === 0 && snapshots[0]) {
-      for (const k of Object.keys(snapshots[0].memory)) nk.add(k);
     }
     return { memory: merged, newKeys: nk };
   }, [data, snapshots, selectedIndex, highlightNew]);
@@ -657,7 +632,7 @@ function NarrativeLog({
 }
 
 // src/components/NarrativeTrace/NarrativeTrace.tsx
-import { useState as useState2, useCallback, useMemo as useMemo3, useEffect as useEffect2, useRef as useRef2 } from "react";
+import { useState as useState2, useCallback, useMemo as useMemo3, useEffect as useEffect2, useRef } from "react";
 import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
 function parseGroups(lines) {
   const groups = [];
@@ -693,7 +668,7 @@ function NarrativeTrace({
     if (!defaultCollapsed) return /* @__PURE__ */ new Set();
     return new Set(parseGroups(narrative).map((g) => g.headerIdx));
   });
-  const latestRef = useRef2(null);
+  const latestRef = useRef(null);
   useEffect2(() => {
     latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [revealedGroups.length]);
@@ -863,7 +838,7 @@ function NarrativeTrace({
 }
 
 // src/components/GanttTimeline/GanttTimeline.tsx
-import { useState as useState3, useMemo as useMemo4, useRef as useRef3, useEffect as useEffect3 } from "react";
+import { useState as useState3, useMemo as useMemo4, useRef as useRef2, useEffect as useEffect3 } from "react";
 import { jsx as jsx5, jsxs as jsxs4 } from "react/jsx-runtime";
 var NO_TIMING_NOTE = "No timing recorded \u2014 bars show the order stages ran, not how long they took.";
 var NO_TIMING_HINT = "Durations come from footprintjs's metrics recorder; this run was recorded without one.";
@@ -880,8 +855,8 @@ function GanttTimeline({
   maxVisibleRows = 5
 }) {
   const [expanded, setExpanded] = useState3(false);
-  const activeRowRef = useRef3(null);
-  const scrollContainerRef = useRef3(null);
+  const activeRowRef = useRef2(null);
+  const scrollContainerRef = useRef2(null);
   const totalWallTime = useMemo4(
     () => Math.max(...snapshots.map((s) => s.startMs + s.durationMs), 1),
     [snapshots]
@@ -1290,7 +1265,8 @@ function SnapshotPanel({
                 /* @__PURE__ */ jsx6(
                   ScrubButton,
                   {
-                    label: "\\u25C0",
+                    glyph: "\u25C0",
+                    label: "Previous stage",
                     disabled: selectedIndex === 0,
                     onClick: () => setSelectedIndex((i) => Math.max(0, i - 1))
                   }
@@ -1314,7 +1290,8 @@ function SnapshotPanel({
                 /* @__PURE__ */ jsx6(
                   ScrubButton,
                   {
-                    label: "\\u25B6",
+                    glyph: "\u25B6",
+                    label: "Next stage",
                     disabled: selectedIndex === snapshots.length - 1,
                     onClick: () => setSelectedIndex((i) => Math.min(snapshots.length - 1, i + 1))
                   }
@@ -1375,6 +1352,7 @@ function SnapshotPanel({
   );
 }
 function ScrubButton({
+  glyph,
   label,
   disabled,
   onClick
@@ -1382,8 +1360,12 @@ function ScrubButton({
   return /* @__PURE__ */ jsx6(
     "button",
     {
+      type: "button",
       onClick,
       disabled,
+      "aria-label": label,
+      title: label,
+      "data-fp": "scrub-button",
       style: {
         background: theme.bgTertiary,
         border: `1px solid ${theme.border}`,
@@ -1397,9 +1379,11 @@ function ScrubButton({
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
         fontSize: 12,
+        fontWeight: 600,
+        lineHeight: 1,
         flexShrink: 0
       },
-      children: label
+      children: /* @__PURE__ */ jsx6("span", { "aria-hidden": "true", children: glyph })
     }
   );
 }
@@ -1655,6 +1639,15 @@ function ResultPanel({
 // src/components/StageDetailPanel/StageDetailPanel.tsx
 import { useState as useState5, useMemo as useMemo6, useCallback as useCallback2 } from "react";
 import { Fragment as Fragment2, jsx as jsx9, jsxs as jsxs8 } from "react/jsx-runtime";
+var DEFAULT_EXCLUDED_KEYS = /* @__PURE__ */ new Set([]);
+function withoutExcluded(memory, exclude) {
+  if (exclude.size === 0) return memory;
+  const out = {};
+  for (const [k, v2] of Object.entries(memory)) {
+    if (!exclude.has(k)) out[k] = v2;
+  }
+  return out;
+}
 function computeChanges(prev, curr) {
   const changes = [];
   const allKeys = /* @__PURE__ */ new Set([...Object.keys(prev ?? {}), ...Object.keys(curr)]);
@@ -2081,6 +2074,7 @@ function StageDetailPanel({
   mode: controlledMode,
   showToggle = false,
   onModeChange,
+  excludeKeys = DEFAULT_EXCLUDED_KEYS,
   size = "default",
   unstyled = false,
   className,
@@ -2094,11 +2088,18 @@ function StageDetailPanel({
     onModeChange?.(next);
   }, [activeMode, onModeChange]);
   const snapshot = snapshots[selectedIndex];
-  const prevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
-  const currMemory = snapshot?.memory ?? {};
+  const rawPrevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
+  const rawCurrMemory = snapshot?.memory ?? {};
+  const currMemory = useMemo6(
+    () => withoutExcluded(rawCurrMemory, excludeKeys),
+    [rawCurrMemory, excludeKeys]
+  );
   const changes = useMemo6(
-    () => computeChanges(prevMemory, currMemory),
-    [prevMemory, currMemory]
+    () => computeChanges(
+      rawPrevMemory === null ? null : withoutExcluded(rawPrevMemory, excludeKeys),
+      currMemory
+    ),
+    [rawPrevMemory, currMemory, excludeKeys]
   );
   const fs = fontSize[size];
   const pad = padding[size];
@@ -2132,7 +2133,7 @@ function StageDetailPanel({
 }
 
 // src/components/TimeTravelControls/TimeTravelControls.tsx
-import { useState as useState6, useEffect as useEffect4, useRef as useRef4, useCallback as useCallback3, useMemo as useMemo7 } from "react";
+import { useState as useState6, useEffect as useEffect4, useRef as useRef3, useCallback as useCallback3, useMemo as useMemo7 } from "react";
 import { Fragment as Fragment3, jsx as jsx10, jsxs as jsxs9 } from "react/jsx-runtime";
 function TimeTravelControls({
   snapshots,
@@ -2146,7 +2147,7 @@ function TimeTravelControls({
   style
 }) {
   const [playing, setPlaying] = useState6(false);
-  const playRef = useRef4(null);
+  const playRef = useRef3(null);
   const total = snapshots.length;
   const isTracing = !!tracing;
   const stopSet = useMemo7(
@@ -2501,7 +2502,7 @@ function TimeTravelControls({
 }
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-import { memo as memo9, useState as useState15, useCallback as useCallback8, useMemo as useMemo14, useRef as useRef9, useEffect as useEffect11 } from "react";
+import { memo as memo9, useState as useState15, useCallback as useCallback8, useMemo as useMemo14, useRef as useRef8, useEffect as useEffect11 } from "react";
 
 // src/components/ExplainableShell/_internal/dataTrace.ts
 function readsByStep(tree) {
@@ -3662,7 +3663,7 @@ function MemoryPanel({
 import { useMemo as useMemo11, useState as useState8, useCallback as useCallback4 } from "react";
 
 // src/components/StoryNarrative/StoryNarrative.tsx
-import { useMemo as useMemo10, useRef as useRef5, useEffect as useEffect5 } from "react";
+import { useMemo as useMemo10, useRef as useRef4, useEffect as useEffect5 } from "react";
 import { Fragment as Fragment5, jsx as jsx14, jsxs as jsxs13 } from "react/jsx-runtime";
 var ENTRY_ICONS = {
   stage: { icon: "\u25B8", color: theme.primary, label: "Stage" },
@@ -3715,7 +3716,7 @@ function StoryNarrative({
     }
     return count;
   }, [entries, revealedCount, isOwnLevel]);
-  const latestRef = useRef5(null);
+  const latestRef = useRef4(null);
   useEffect5(() => {
     latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [revealed.length]);
@@ -3724,13 +3725,16 @@ function StoryNarrative({
     const subflowSeen = /* @__PURE__ */ new Set();
     let prevType = "";
     return revealed.map((entry) => {
+      const prevEntryType = prevType;
+      prevType = entry.type;
       let cleanText = entry.text;
       cleanText = cleanText.replace(/^Stage \d+:\s*/, "");
       const isSelector = entry.type === "fork" && entry.text.includes("[Selected]");
       cleanText = cleanText.replace(/^\[(Selected|Parallel)\]:\s*/, "");
       if (entry.type === "subflow") {
         const toggleKey = entry.stageId ?? entry.text;
-        const isExit = subflowSeen.has(toggleKey);
+        const direction = entry.direction;
+        const isExit = direction !== void 0 ? direction === "exit" : subflowSeen.has(toggleKey);
         if (!isExit) {
           subflowSeen.add(toggleKey);
           counter++;
@@ -3753,8 +3757,7 @@ function StoryNarrative({
         return { ...entry, heading: null, headingType: "Decision", text: cleanText, isHeading: false };
       }
       if (entry.type === "fork" || entry.type === "selector") {
-        const isForkHeading = prevType !== "fork" && prevType !== "selector";
-        prevType = entry.type;
+        const isForkHeading = prevEntryType !== "fork" && prevEntryType !== "selector";
         if (isForkHeading) {
           counter++;
           const typeLabel = entry.type === "selector" || isSelector ? "Selector" : "Fork";
@@ -3762,7 +3765,6 @@ function StoryNarrative({
         }
         return { ...entry, heading: null, isHeading: false, text: cleanText };
       }
-      prevType = entry.type;
       return { ...entry, heading: null, isHeading: false };
     });
   }, [revealed]);
@@ -4438,7 +4440,7 @@ var SubflowBreadcrumb = memo4(function SubflowBreadcrumb2({
 });
 
 // src/components/FlowchartView/TracedFlow.tsx
-import { useCallback as useCallback7, useEffect as useEffect10, useMemo as useMemo13, useRef as useRef8, useState as useState11 } from "react";
+import { useCallback as useCallback7, useEffect as useEffect10, useMemo as useMemo13, useRef as useRef7, useState as useState11 } from "react";
 import {
   ReactFlow,
   Background,
@@ -4797,6 +4799,16 @@ function sliceOverlay(overlay, index) {
       errors: overlay.errors
     };
   }
+  if (index >= order.length) {
+    const allDone = new Set(order.map((s) => s.stageId));
+    return {
+      doneStageIds: allDone,
+      activeStageId: null,
+      executedStageIds: new Set(allDone),
+      executedOrderIds: order.map((s) => s.stageId),
+      errors: overlay.errors
+    };
+  }
   const clampedIndex = Math.max(0, Math.min(index, order.length - 1));
   const doneStageIds = /* @__PURE__ */ new Set();
   for (let i = 0; i < clampedIndex; i++) {
@@ -4817,7 +4829,7 @@ function sliceOverlay(overlay, index) {
 }
 
 // src/components/StageNode/StageNode.tsx
-import { memo as memo5, useEffect as useEffect6, useRef as useRef6 } from "react";
+import { memo as memo5, useEffect as useEffect6, useRef as useRef5 } from "react";
 import { Handle, Position } from "@xyflow/react";
 import { Fragment as Fragment7, jsx as jsx18, jsxs as jsxs17 } from "react/jsx-runtime";
 var KEYFRAMES_ID = "fp-stage-node-keyframes";
@@ -4993,7 +5005,7 @@ var StageNode = memo5(function StageNode2({
   const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId } = data;
   const effectiveIcon = icon || (isLazy ? "lazy" : void 0);
   const isLazyUnresolved = isLazy && !done && !active;
-  const injectedRef = useRef6(false);
+  const injectedRef = useRef5(false);
   useEffect6(() => {
     if (injectedRef.current) return;
     if (typeof document !== "undefined" && !document.getElementById(KEYFRAMES_ID)) {
@@ -5351,6 +5363,14 @@ function resolveDrillScope(graph, drillKey) {
       if (n.data?.subflowOf === local) return local;
     }
   }
+  const mount = graph.nodes.find(
+    (n) => n.data?.isSubflow === true && n.data?.subflowId === drillKey
+  );
+  if (mount !== void 0 && mount.id !== drillKey) {
+    for (const n of graph.nodes) {
+      if (n.data?.subflowOf === mount.id) return mount.id;
+    }
+  }
   return drillKey;
 }
 function filterGraphForDrill(graph, currentSubflowId) {
@@ -5509,19 +5529,19 @@ function edgeCarriesCursor(via, standIns) {
 }
 
 // src/components/FlowchartView/_internal/useSubflowDrill.ts
-import { useCallback as useCallback6, useEffect as useEffect7, useRef as useRef7, useState as useState10 } from "react";
+import { useCallback as useCallback6, useEffect as useEffect7, useRef as useRef6, useState as useState10 } from "react";
 function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
   const isControlled = controlledSubflowId !== void 0;
   const [ownSubflowId, setOwnSubflowId] = useState10(null);
   const currentSubflowId = isControlled ? controlledSubflowId : ownSubflowId;
-  const lastGraphRef = useRef7(null);
+  const lastGraphRef = useRef6(null);
   if (!isControlled && lastGraphRef.current !== graph) {
     lastGraphRef.current = graph;
     if (ownSubflowId !== null && findMountNode(graph, ownSubflowId) === void 0) {
       queueMicrotask(() => setOwnSubflowId(null));
     }
   }
-  const lastNotifiedRef = useRef7(void 0);
+  const lastNotifiedRef = useRef6(void 0);
   useEffect7(() => {
     if (isControlled) return;
     if (lastNotifiedRef.current === currentSubflowId) return;
@@ -6148,17 +6168,18 @@ function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage,
     };
   }
   const stageData = {
+    // Same pass-through rule as the custom-node branch above (and as
+    // TraceFlow's `toStageNode`): the source data goes through WHOLE, so a
+    // consumer's custom fields and the recorder's own metadata
+    // (isStreaming, isPausable, branchIds, defaultBranch, prevIds, nextIds,
+    // subflowOf) survive into `data` for a swapped-in renderer to read.
+    ...node.data,
     label: node.data.label,
     isDecider: node.data.isDecider,
     isFork: node.data.isFork,
     isSubflow: node.data.isSubflow,
-    ...overlayFields,
-    ...node.data.description !== void 0 && { description: node.data.description },
-    ...node.data.icon !== void 0 && { icon: node.data.icon },
-    ...node.data.subflowId !== void 0 && { subflowId: node.data.subflowId },
-    ...node.data.isLazy === true && { isLazy: true },
-    ...node.data.emphasis !== void 0 && { emphasis: node.data.emphasis },
-    ...node.data.size !== void 0 && { size: node.data.size }
+    // Overlay LAST — run status is derived here and always wins.
+    ...overlayFields
   };
   return {
     ...node,
@@ -6368,7 +6389,7 @@ function TracedFlow({
     },
     [drill, onNodeClick, groupedSet]
   );
-  const wrapperRef = useRef8(null);
+  const wrapperRef = useRef7(null);
   const [rfInstance, setRfInstance] = useState11(null);
   useChartAutoRefit(wrapperRef, rfInstance, {
     // Re-fit on drill AND after the measured-size re-layout settles.
@@ -6718,10 +6739,12 @@ var InsightGrid = memo7(function InsightGrid2({
 // src/components/CompactTimeline/CompactTimeline.tsx
 import { memo as memo8, useState as useState14 } from "react";
 import { jsx as jsx26, jsxs as jsxs23 } from "react/jsx-runtime";
+var tint = (color, percent) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 var CompactTimeline = memo8(function CompactTimeline2({
   snapshots,
   selectedIndex,
-  defaultExpanded = false
+  defaultExpanded = false,
+  label = "Timeline"
 }) {
   const [expanded, setExpanded] = useState14(defaultExpanded);
   if (snapshots.length === 0) return null;
@@ -6747,7 +6770,7 @@ var CompactTimeline = memo8(function CompactTimeline2({
         },
         children: [
           /* @__PURE__ */ jsx26("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
-          "Timeline",
+          label,
           /* @__PURE__ */ jsxs23("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
             snapshots.length,
             " stages"
@@ -6770,7 +6793,7 @@ var CompactTimeline = memo8(function CompactTimeline2({
                       width: i === selectedIndex ? 8 : 5,
                       height: i === selectedIndex ? 8 : 5,
                       borderRadius: "50%",
-                      background: i < selectedIndex ? "var(--fp-success, #22c55e)" : i === selectedIndex ? "var(--fp-accent, #6366f1)" : theme.textMuted + "40",
+                      background: i < selectedIndex ? "var(--fp-success, #22c55e)" : i === selectedIndex ? "var(--fp-accent, #6366f1)" : tint(theme.textMuted, 25),
                       transition: "all 0.15s",
                       flexShrink: 0
                     },
@@ -6784,7 +6807,7 @@ var CompactTimeline = memo8(function CompactTimeline2({
                     style: {
                       flex: 1,
                       height: 1,
-                      background: theme.textMuted + "30",
+                      background: tint(theme.textMuted, 20),
                       marginLeft: -2,
                       marginRight: 4
                     }
@@ -6808,6 +6831,10 @@ var CompactTimeline = memo8(function CompactTimeline2({
 
 // src/components/ExplainableShell/ExplainableShell.tsx
 import { Fragment as Fragment8, jsx as jsx27, jsxs as jsxs24 } from "react/jsx-runtime";
+var EXPLAINABLE_TAB_ID = "explainable";
+function isExplainableTab(tabId) {
+  return tabId === EXPLAINABLE_TAB_ID || tabId === "ai-compatible";
+}
 var HLinePill = memo9(function HLinePill2({
   label,
   detail,
@@ -7209,18 +7236,19 @@ function resolveSubflowFromRuntime(parentSnapshots, drillKey, narrativeEntries, 
   if (sfSnapshots.length === 0) return null;
   return { subflowId: drillKey, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
 }
+var RIGHT_PANEL_MODE_LABELS = {
+  insights: "Insights",
+  what: "Inspector",
+  result: "Result"
+};
 var RightPanel = memo9(function RightPanel2({
   mode,
   onModeChange,
   snapshots,
   selectedIndex,
-  runtimeSnapshot,
   activeTab,
   allTabs,
-  activeNarrativeEntries,
-  narrativeScopeSubflowId,
-  recorderViews,
-  autoRecorderViews,
+  renderTabBody,
   size,
   onNavigateToStage,
   dataTrace,
@@ -7228,13 +7256,17 @@ var RightPanel = memo9(function RightPanel2({
   inspectorTab,
   traceContent
 }) {
+  const modes = useMemo14(
+    () => allTabs.some((t) => t.id === "result") ? ["insights", "what", "result"] : ["insights", "what"],
+    [allTabs]
+  );
   return /* @__PURE__ */ jsxs24(Fragment8, { children: [
     /* @__PURE__ */ jsx27("div", { style: {
       display: "flex",
       borderBottom: `1px solid ${theme.border}`,
       flexShrink: 0,
       background: theme.bgSecondary
-    }, children: ["insights", "what"].map((m) => /* @__PURE__ */ jsx27(
+    }, children: modes.map((m) => /* @__PURE__ */ jsx27(
       "button",
       {
         onClick: () => onModeChange(m),
@@ -7252,11 +7284,11 @@ var RightPanel = memo9(function RightPanel2({
           cursor: "pointer",
           fontFamily: "inherit"
         },
-        children: m === "insights" ? "Insights" : "Inspector"
+        children: RIGHT_PANEL_MODE_LABELS[m]
       },
       m
     )) }),
-    /* @__PURE__ */ jsx27("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "insights" ? /* @__PURE__ */ jsx27(
+    /* @__PURE__ */ jsx27("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "result" ? /* @__PURE__ */ jsx27("div", { style: { height: "100%", overflow: "auto" }, children: renderTabBody("result", false) }) : mode === "insights" ? /* @__PURE__ */ jsx27(
       InsightPanel,
       {
         mode: "tabs",
@@ -7264,14 +7296,7 @@ var RightPanel = memo9(function RightPanel2({
         insights: allTabs.filter((t) => t.id !== "result" && t.id !== "memory").map((tab) => ({
           id: tab.id,
           name: insightName(tab.name),
-          render: () => {
-            if (tab.id === "narrative") return /* @__PURE__ */ jsx27(NarrativePanel, { snapshots, selectedIndex, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, runtimeSnapshot, size, style: { height: "100%" } });
-            const customView = recorderViews?.find((v2) => v2.id === tab.id);
-            if (customView?.render) return customView.render({ snapshots, selectedIndex });
-            const autoView = autoRecorderViews.find((v2) => v2.id === tab.id);
-            if (autoView) return /* @__PURE__ */ jsx27(KeyedRecorderView, { data: autoView.data, description: autoView.description, preferredOperation: autoView.preferredOperation, snapshots, selectedIndex });
-            return null;
-          }
+          render: () => renderTabBody(tab.id, false)
         }))
       }
     ) : /* @__PURE__ */ jsx27(
@@ -7307,7 +7332,7 @@ function ExplainableShell({
   resultData: resultDataProp,
   logs = [],
   narrativeEntries: narrativeEntriesProp,
-  tabs = ["result", "explainable"],
+  tabs: deprecatedTabs,
   defaultTab,
   hideConsole = false,
   hideTabs: hideTabsProp,
@@ -7395,7 +7420,7 @@ function ExplainableShell({
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
-  const shellRef = useRef9(null);
+  const shellRef = useRef8(null);
   const [isNarrow, setIsNarrow] = useState15(false);
   const [isMedium, setIsMedium] = useState15(false);
   useEffect11(() => {
@@ -7419,22 +7444,33 @@ function ExplainableShell({
   }, [runtimeSnapshot, recorderViews, snapshotNarrative]);
   const hasNarrative = !!narrativeEntries?.length;
   const allTabs = useMemo14(() => {
-    const tabs2 = [
+    const tabs = [
       { id: "result", name: "Result", description: "Final output and console logs" },
       { id: "memory", name: "Memory", description: "Accumulator \u2014 progressive shared state at each stage" }
     ];
     if (hasNarrative) {
-      tabs2.push({ id: "narrative", name: "Narrative", description: "Translator (SequenceRecorder) \u2014 interleaved flow + data narrative per execution step" });
+      tabs.push({ id: "narrative", name: "Narrative", description: "Translator (SequenceRecorder) \u2014 interleaved flow + data narrative per execution step" });
     }
     for (const v2 of recorderViews ?? []) {
-      tabs2.push({ id: v2.id, name: v2.name, description: v2.description });
+      tabs.push({ id: v2.id, name: v2.name, description: v2.description });
     }
     for (const v2 of autoRecorderViews) {
-      tabs2.push({ id: v2.id, name: v2.name, description: v2.description });
+      tabs.push({ id: v2.id, name: v2.name, description: v2.description });
     }
     const hideSet = new Set(hideTabsProp ?? []);
-    return hideSet.size > 0 ? tabs2.filter((t) => !hideSet.has(t.id)) : tabs2;
+    return hideSet.size > 0 ? tabs.filter((t) => !hideSet.has(t.id)) : tabs;
   }, [hasNarrative, recorderViews, autoRecorderViews, hideTabsProp]);
+  const unstyledTabs = useMemo14(
+    () => [
+      ...allTabs,
+      {
+        id: EXPLAINABLE_TAB_ID,
+        name: "Explainable",
+        description: "Chart, memory, narrative and timeline in one scroll"
+      }
+    ],
+    [allTabs]
+  );
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
   const [activeTab, setActiveTab] = useState15(resolvedDefault);
@@ -7449,6 +7485,12 @@ function ExplainableShell({
   useEffect11(() => {
     setForkChooserOpen(false);
   }, [snapshotIdx]);
+  useEffect11(() => {
+    if (deprecatedTabs === void 0) return;
+    devWarn(
+      () => "[ExplainableShell] the `tabs` prop is deprecated and has no effect. Use `hideTabs` to drop tabs by id, and `defaultTab` to choose which tab opens first."
+    );
+  }, [deprecatedTabs]);
   const [leftExpanded, setLeftExpanded] = useState15(defaultExpanded?.topology ?? false);
   const [timelineExpanded, setTimelineExpanded] = useState15(defaultExpanded?.timeline ?? false);
   useEffect11(() => {
@@ -7854,6 +7896,80 @@ function ExplainableShell({
     ] });
   }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
+  const renderTabBody = useCallback8(
+    (tabId, plain) => {
+      if (tabId === "result") {
+        return /* @__PURE__ */ jsx27(
+          ResultPanel,
+          {
+            data: resultData ?? null,
+            logs,
+            hideConsole,
+            size,
+            unstyled: plain
+          }
+        );
+      }
+      if (tabId === "memory") {
+        return /* @__PURE__ */ jsx27(
+          MemoryPanel,
+          {
+            snapshots: activeSnapshots,
+            selectedIndex: safeIdx,
+            size,
+            unstyled: plain,
+            style: plain ? void 0 : { height: "100%" }
+          }
+        );
+      }
+      if (tabId === "narrative") {
+        return /* @__PURE__ */ jsx27(
+          NarrativePanel,
+          {
+            snapshots: activeSnapshots,
+            selectedIndex: safeIdx,
+            narrativeEntries: activeNarrativeEntries,
+            scopeSubflowId: narrativeScopeSubflowId,
+            runtimeSnapshot,
+            size,
+            unstyled: plain,
+            style: plain ? void 0 : { height: "100%" }
+          }
+        );
+      }
+      const customView = recorderViews?.find((v2) => v2.id === tabId);
+      if (customView?.render) {
+        return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
+      }
+      const autoView = autoRecorderViews.find((v2) => v2.id === tabId);
+      if (autoView) {
+        return /* @__PURE__ */ jsx27(
+          KeyedRecorderView,
+          {
+            data: autoView.data,
+            description: autoView.description,
+            preferredOperation: autoView.preferredOperation,
+            snapshots: activeSnapshots,
+            selectedIndex: safeIdx
+          }
+        );
+      }
+      return null;
+    },
+    [
+      resultData,
+      logs,
+      hideConsole,
+      size,
+      activeSnapshots,
+      safeIdx,
+      activeNarrativeEntries,
+      narrativeScopeSubflowId,
+      runtimeSnapshot,
+      recorderViews,
+      autoRecorderViews
+    ]
+  );
   const renderEmptyState = (themeVars) => {
     const shellStyle = { ...themeVars, ...style };
     if (derivedFromRuntime?.error) {
@@ -7919,51 +8035,20 @@ function ExplainableShell({
   if (unstyled) {
     if (snapshots.length === 0) return renderEmptyState({});
     return /* @__PURE__ */ jsxs24("div", { className, style, "data-fp": "explainable-shell", children: [
-      /* @__PURE__ */ jsx27("div", { "data-fp": "shell-tabs", children: allTabs.map((tab) => /* @__PURE__ */ jsx27("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
-      /* @__PURE__ */ jsxs24("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
-        activeTab === "result" && /* @__PURE__ */ jsx27(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
-        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs24(Fragment8, { children: [
-          /* @__PURE__ */ jsx27(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail }),
-          isInSubflow && /* @__PURE__ */ jsx27(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-          traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...sliceCone && { sliceCone } }),
-          missingChart && /* @__PURE__ */ jsx27(MissingChartNote, { unstyled: true }),
-          /* @__PURE__ */ jsx27(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
-          /* @__PURE__ */ jsx27(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, unstyled: true }),
-          /* @__PURE__ */ jsx27(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
-        ] })
-      ] })
+      /* @__PURE__ */ jsx27("div", { "data-fp": "shell-tabs", children: unstyledTabs.map((tab) => /* @__PURE__ */ jsx27("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
+      /* @__PURE__ */ jsx27("div", { "data-fp": "shell-content", "data-tab": activeTab, children: isExplainableTab(activeTab) ? /* @__PURE__ */ jsxs24(Fragment8, { children: [
+        /* @__PURE__ */ jsx27(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail }),
+        isInSubflow && /* @__PURE__ */ jsx27(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+        traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...sliceCone && { sliceCone } }),
+        missingChart && /* @__PURE__ */ jsx27(MissingChartNote, { unstyled: true }),
+        /* @__PURE__ */ jsx27(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
+        /* @__PURE__ */ jsx27(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, unstyled: true }),
+        /* @__PURE__ */ jsx27(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
+      ] }) : renderTabBody(activeTab, true) })
     ] });
   }
   const showTopology = !!effectiveRenderFlowchart && !!traceGraph;
-  const detailsContent = useMemo14(() => {
-    if (activeTab === "result") {
-      return /* @__PURE__ */ jsx27(ResultPanel, { data: resultData ?? null, logs, hideConsole, size });
-    }
-    if (activeTab === "memory") {
-      return /* @__PURE__ */ jsx27(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, size, style: { height: "100%" } });
-    }
-    if (activeTab === "narrative") {
-      return /* @__PURE__ */ jsx27(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, size, style: { height: "100%" } });
-    }
-    const customView = recorderViews?.find((v2) => v2.id === activeTab);
-    if (customView?.render) {
-      return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
-    }
-    const autoView = autoRecorderViews.find((v2) => v2.id === activeTab);
-    if (autoView) {
-      return /* @__PURE__ */ jsx27(
-        KeyedRecorderView,
-        {
-          data: autoView.data,
-          description: autoView.description,
-          preferredOperation: autoView.preferredOperation,
-          snapshots: activeSnapshots,
-          selectedIndex: safeIdx
-        }
-      );
-    }
-    return null;
-  }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, recorderViews, autoRecorderViews]);
+  const detailsContent = renderTabBody(activeTab, false);
   const detailsPanel = /* @__PURE__ */ jsxs24("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
     /* @__PURE__ */ jsx27("div", { style: {
       display: "flex",
@@ -8085,8 +8170,8 @@ function ExplainableShell({
                     onNodeSelect: handleTreeNodeSelect
                   }
                 ) }),
-                /* @__PURE__ */ jsx27(VLinePill, { label: "Topology", expanded: true, side: "left", onClick: () => toggleLeft(false) })
-              ] }) : /* @__PURE__ */ jsx27(VLinePill, { label: "Topology", expanded: false, side: "left", onClick: () => toggleLeft(true) })),
+                /* @__PURE__ */ jsx27(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
+              ] }) : /* @__PURE__ */ jsx27(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
               showTopology ? /* @__PURE__ */ jsx27("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
                 spec: null,
                 snapshots: activeSnapshots,
@@ -8097,7 +8182,7 @@ function ExplainableShell({
                 onSubflowChange: handleChartSubflowChange,
                 ...sliceCone && { sliceCone }
               }) }) : /* @__PURE__ */ jsx27("div", { style: { flex: 1, minWidth: 0, overflow: "auto" }, children: missingChart && /* @__PURE__ */ jsx27(MissingChartNote, {}) }),
-              /* @__PURE__ */ jsx27(VLinePill, { label: "Details", expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+              /* @__PURE__ */ jsx27(VLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
               rightExpanded && /* @__PURE__ */ jsx27("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ jsx27(
                 RightPanel,
                 {
@@ -8109,13 +8194,9 @@ function ExplainableShell({
                   traceContent: traceTabContent,
                   snapshots: activeSnapshots,
                   selectedIndex: safeIdx,
-                  runtimeSnapshot,
                   activeTab,
                   allTabs,
-                  activeNarrativeEntries,
-                  narrativeScopeSubflowId,
-                  recorderViews,
-                  autoRecorderViews,
+                  renderTabBody,
                   size,
                   onNavigateToStage: navigateToStage
                 }
@@ -8126,7 +8207,8 @@ function ExplainableShell({
               {
                 snapshots: activeSnapshots,
                 selectedIndex: safeIdx,
-                defaultExpanded: timelineExpanded
+                defaultExpanded: timelineExpanded,
+                label: bottomLabel
               }
             )
           ] })
@@ -8789,7 +8871,7 @@ function useExplainableRun() {
 }
 
 // src/components/ExplainableView/TimelinePanel.tsx
-import { useEffect as useEffect13, useRef as useRef10 } from "react";
+import { useEffect as useEffect13, useRef as useRef9 } from "react";
 import { jsx as jsx30, jsxs as jsxs25 } from "react/jsx-runtime";
 function formatOffset(milliseconds) {
   return milliseconds < 1e3 ? `+${Math.round(milliseconds)}ms` : `+${(milliseconds / 1e3).toFixed(1)}s`;
@@ -8802,7 +8884,7 @@ function TimelinePanel({
   style
 }) {
   const { snapshots, selectedIndex, selectIndex, error } = useExplainableRun();
-  const focusedRef = useRef10(null);
+  const focusedRef = useRef9(null);
   useEffect13(() => {
     focusedRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [selectedIndex]);
@@ -9022,7 +9104,7 @@ function ValueInspector({
 }
 
 // src/components/ExplainableView/CommentaryPanel.tsx
-import { useMemo as useMemo18, useRef as useRef11, useEffect as useEffect14 } from "react";
+import { useMemo as useMemo18, useRef as useRef10, useEffect as useEffect14 } from "react";
 import { Fragment as Fragment9, jsx as jsx33, jsxs as jsxs28 } from "react/jsx-runtime";
 function CommentaryPanel({
   title = "Commentary",
@@ -9034,7 +9116,7 @@ function CommentaryPanel({
   style
 }) {
   const { snapshots, selectedIndex, narrativeEntries } = useExplainableRun();
-  const currentRef = useRef11(null);
+  const currentRef = useRef10(null);
   const rangeIndex = useMemo18(
     () => narrativeEntries.length ? buildEntryRangeIndex(narrativeEntries) : void 0,
     [narrativeEntries]
@@ -9620,6 +9702,7 @@ export {
   CommentaryPanel,
   CompactTimeline,
   CompactTimelinePanel,
+  DEFAULT_EXCLUDED_KEYS,
   DataTracePanel,
   ExplainableProvider,
   ExplainableShell,

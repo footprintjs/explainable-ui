@@ -156,7 +156,17 @@ declare const rawDefaults: {
         readonly mono: "'JetBrains Mono', 'Fira Code', monospace";
     };
 };
-/** Default dark theme values with CSS variable references (consumers can override via CSS). */
+/**
+ * Default dark theme values with CSS variable references (consumers can
+ * override via CSS).
+ *
+ * WARNING — do NOT pass this object to `<FootprintTheme tokens={...}>` (or to
+ * `tokensToCSSVars`). Every value here is already a `var(--fp-…, fallback)`
+ * REFERENCE, so feeding them back in emits self-referential declarations like
+ * `--fp-accent: var(--fp-accent, #6366f1)`, which resolve to nothing and blank
+ * out the colours they were meant to set. Start from `rawDefaults` (plain hex)
+ * or from a preset in `theme/presets.ts` and override the fields you want.
+ */
 declare const defaultTokens: Required<{
     [K in keyof ThemeTokens]-?: Required<ThemeTokens[K]>;
 }>;
@@ -308,11 +318,13 @@ interface ThemeModeProps {
 declare function themeModeVars(mode?: ThemeMode): CSSProperties;
 
 interface MemoryInspectorProps extends BaseComponentProps {
-    /** Single memory object or snapshots (will accumulate up to selectedIndex) */
+    /** A memory object to show as-is. Takes precedence over `snapshots`. */
     data?: Record<string, unknown>;
     /** When using snapshots mode, pass these instead of data */
     snapshots?: StageSnapshot[];
-    /** Index to accumulate up to (for time-travel) */
+    /** Which step's state to show (for time-travel). Each snapshot's `memory`
+     *  is already the accumulated state after that stage — including its
+     *  deletions — so this reads that step, it does not re-accumulate. */
     selectedIndex?: number;
     /** Show data types alongside values */
     showTypes?: boolean;
@@ -423,6 +435,15 @@ interface MemoryChange {
     oldValue?: unknown;
     newValue?: unknown;
 }
+/**
+ * Keys hidden from the memory views by default.
+ *
+ * Empty on purpose: footprintjs writes no reserved keys of its own into
+ * shared state, so there is nothing this library can honestly hide for you.
+ * It exists as the DEFAULT for `excludeKeys` — pass your own set to hide the
+ * plumbing keys YOUR pipeline carries.
+ */
+declare const DEFAULT_EXCLUDED_KEYS: Set<string>;
 interface StageDetailPanelProps extends BaseComponentProps {
     /** Stage snapshots for time-travel */
     snapshots: StageSnapshot[];
@@ -434,10 +455,13 @@ interface StageDetailPanelProps extends BaseComponentProps {
     showToggle?: boolean;
     /** Called when user toggles mode via built-in toggle */
     onModeChange?: (mode: StageDetailMode) => void;
-    /** Keys to exclude from memory display (default: engine internals). Pass empty set to show all. */
+    /** Keys to hide from the memory views — they disappear from the ledger AND
+     *  from the change list (no ADD/UPD/DEL badge for an excluded key), in both
+     *  styled and unstyled dev mode. Default: `DEFAULT_EXCLUDED_KEYS` (empty —
+     *  nothing hidden). Pass an empty set to show everything. */
     excludeKeys?: Set<string>;
 }
-declare function StageDetailPanel({ snapshots, selectedIndex, mode: controlledMode, showToggle, onModeChange, size, unstyled, className, style, }: StageDetailPanelProps): React$1.JSX.Element;
+declare function StageDetailPanel({ snapshots, selectedIndex, mode: controlledMode, showToggle, onModeChange, excludeKeys, size, unstyled, className, style, }: StageDetailPanelProps): React$1.JSX.Element;
 
 /**
  * Same-Rail Rewind (tracing mode) — the rail's AXIS never changes, only its
@@ -884,6 +908,17 @@ interface ExplainableShellProps extends BaseComponentProps {
      *  snapshot, and the shell reads them from there. Pass this prop to
      *  override that (it always wins). */
     narrativeEntries?: NarrativeEntry[];
+    /**
+     * @deprecated Never had an effect and now warns in dev. Use `hideTabs` to
+     * drop tabs by id and `defaultTab` to choose which one opens first.
+     *
+     * It was documented as `["result", "explainable"]`, but `"explainable"` is
+     * not a tab in the styled shell at all — it is the unstyled whole-surface
+     * view — so honouring this list literally would have cut every styled shell
+     * down to a lone Result tab. There is no reading of it that is both
+     * faithful to the documented default and safe, which is why it is going
+     * rather than getting wired.
+     */
     tabs?: ShellTab[];
     defaultTab?: ShellTab;
     hideConsole?: boolean;
@@ -940,7 +975,7 @@ interface ExplainableShellProps extends BaseComponentProps {
      */
     showStageId?: boolean;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): React$1.JSX.Element;
+declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs: deprecatedTabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): React$1.JSX.Element;
 
 /**
  * TraceViewer — renders a saved recording. No live executor, no re-run.
@@ -1686,6 +1721,10 @@ interface CompactTimelineProps {
     selectedIndex: number;
     /** Start expanded or collapsed. Default: collapsed. */
     defaultExpanded?: boolean;
+    /** Header text. Default: "Timeline". `<ExplainableShell>` passes
+     *  `panelLabels.timeline` here so the desktop footer is labelled by the
+     *  same prop as the mobile pill. */
+    label?: string;
 }
 declare const CompactTimeline: React$1.NamedExoticComponent<CompactTimelineProps>;
 
@@ -1864,4 +1903,4 @@ interface ExplainableViewProps extends Omit<ExplainableProviderProps, "children"
 }
 declare function ExplainableView({ recording, selectedIndex, defaultSelectedIndex, onSelectedIndexChange, theme: viewTheme, layout, slots, minHeight, detailsExpanded, defaultDetailsExpanded, onDetailsExpandedChange, detailsLabel, unstyled, className, style, }: ExplainableViewProps): React$1.JSX.Element;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };

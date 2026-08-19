@@ -84,7 +84,9 @@ Pass them as `snapshots` instead.
 This gives you:
 - **Flowchart** (center) — execution path overlay, click subflow nodes to drill-down
 - **Topology panel** (left) — subflow tree navigator, collapsible via VLinePill handle
-- **Details panel** (right) — Memory state + Narrative tabs, collapsible
+- **Details panel** (right) — three modes: Insights (the story and any
+  recorder views), Inspector (state + data trace), and Result (the run's
+  output and console lines). Collapsible.
 - **Timeline** (bottom) — Gantt-style stage durations, collapsible
 - **Time-travel slider** — scrub through execution steps
 - **Breadcrumbs** — navigate back from subflow drill-down
@@ -291,12 +293,11 @@ what it wanted instead of rendering empty chrome.
 | `traceTheme` | `TraceTheme` | — | `{ mode: "light" \| "dark" }` re-themes the whole shell in one word; `visited` / `current` override the two node colours |
 | `narrativeEntries` | `NarrativeEntry[]` | read from the snapshot | Structured narrative. Only needed to override the story the recording carries |
 | `title` | `string` | `"Flowchart"` | Breadcrumb root label |
-| `resultData` | `Record<string, unknown>` | `snapshot.sharedState` | Final output shown on the Result tab |
+| `resultData` | `Record<string, unknown>` | `snapshot.sharedState` | Final output shown on the Result view |
 | `logs` | `string[]` | `[]` | Console lines shown under the result |
-| `tabs` | `ShellTab[]` | `["result", "explainable"]` | Top-level views |
 | `defaultTab` | `ShellTab` | first available | Which details tab opens first |
 | `hideTabs` | `string[]` | — | Details tabs to hide by id (e.g. `["result", "memory"]`) |
-| `hideConsole` | `boolean` | `false` | Hide the console block on the Result tab |
+| `hideConsole` | `boolean` | `false` | Hide the console block on the Result view |
 | `recorderViews` | `RecorderView[]` | auto-detected | Extra details tabs. Recorders inside the snapshot already get one each |
 | `panelLabels` | `PanelLabels` | `{ topology: "Topology", details: "Details", timeline: "Timeline" }` | Collapsible pill labels |
 | `defaultExpanded` | `DefaultExpanded` | `{ details: true }` | Which panels start open |

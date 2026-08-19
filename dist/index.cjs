@@ -33,6 +33,7 @@ __export(src_exports, {
   CommentaryPanel: () => CommentaryPanel,
   CompactTimeline: () => CompactTimeline,
   CompactTimelinePanel: () => CompactTimelinePanel,
+  DEFAULT_EXCLUDED_KEYS: () => DEFAULT_EXCLUDED_KEYS,
   DataTracePanel: () => DataTracePanel,
   ExplainableProvider: () => ExplainableProvider,
   ExplainableShell: () => ExplainableShell,
@@ -450,7 +451,6 @@ function MemoryInspector({
   className,
   style
 }) {
-  const cacheRef = (0, import_react3.useRef)(null);
   const { memory, newKeys } = (0, import_react3.useMemo)(() => {
     if (data) {
       return { memory: data, newKeys: /* @__PURE__ */ new Set() };
@@ -459,37 +459,13 @@ function MemoryInspector({
       return { memory: {}, newKeys: /* @__PURE__ */ new Set() };
     }
     const safeIdx = Math.min(selectedIndex, snapshots.length - 1);
-    let merged;
-    const cache = cacheRef.current;
-    if (cache && cache.snapshots === snapshots && cache.index <= safeIdx) {
-      merged = { ...cache.accumulated };
-      for (let i = cache.index + 1; i <= safeIdx; i++) {
-        Object.assign(merged, snapshots[i]?.memory);
-      }
-    } else {
-      merged = {};
-      for (let i = 0; i <= safeIdx; i++) {
-        Object.assign(merged, snapshots[i]?.memory);
-      }
-    }
-    cacheRef.current = { snapshots, index: safeIdx, accumulated: merged };
+    const merged = snapshots[safeIdx]?.memory ?? {};
     const nk = /* @__PURE__ */ new Set();
-    if (highlightNew && safeIdx > 0) {
-      let prev;
-      if (cache && cache.snapshots === snapshots && cache.index === safeIdx - 1) {
-        prev = cache.accumulated;
-      } else {
-        prev = {};
-        for (let i = 0; i < safeIdx; i++) {
-          Object.assign(prev, snapshots[i]?.memory);
-        }
-      }
-      const current = snapshots[safeIdx]?.memory ?? {};
-      for (const k of Object.keys(current)) {
+    if (highlightNew) {
+      const prev = safeIdx > 0 ? snapshots[safeIdx - 1]?.memory ?? {} : {};
+      for (const k of Object.keys(merged)) {
         if (!(k in prev)) nk.add(k);
       }
-    } else if (highlightNew && safeIdx === 0 && snapshots[0]) {
-      for (const k of Object.keys(snapshots[0].memory)) nk.add(k);
     }
     return { memory: merged, newKeys: nk };
   }, [data, snapshots, selectedIndex, highlightNew]);
@@ -1379,7 +1355,8 @@ function SnapshotPanel({
                 /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
                   ScrubButton,
                   {
-                    label: "\\u25C0",
+                    glyph: "\u25C0",
+                    label: "Previous stage",
                     disabled: selectedIndex === 0,
                     onClick: () => setSelectedIndex((i) => Math.max(0, i - 1))
                   }
@@ -1403,7 +1380,8 @@ function SnapshotPanel({
                 /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
                   ScrubButton,
                   {
-                    label: "\\u25B6",
+                    glyph: "\u25B6",
+                    label: "Next stage",
                     disabled: selectedIndex === snapshots.length - 1,
                     onClick: () => setSelectedIndex((i) => Math.min(snapshots.length - 1, i + 1))
                   }
@@ -1464,6 +1442,7 @@ function SnapshotPanel({
   );
 }
 function ScrubButton({
+  glyph,
   label,
   disabled,
   onClick
@@ -1471,8 +1450,12 @@ function ScrubButton({
   return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
     "button",
     {
+      type: "button",
       onClick,
       disabled,
+      "aria-label": label,
+      title: label,
+      "data-fp": "scrub-button",
       style: {
         background: theme.bgTertiary,
         border: `1px solid ${theme.border}`,
@@ -1486,9 +1469,11 @@ function ScrubButton({
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
         fontSize: 12,
+        fontWeight: 600,
+        lineHeight: 1,
         flexShrink: 0
       },
-      children: label
+      children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { "aria-hidden": "true", children: glyph })
     }
   );
 }
@@ -1744,6 +1729,15 @@ function ResultPanel({
 // src/components/StageDetailPanel/StageDetailPanel.tsx
 var import_react9 = require("react");
 var import_jsx_runtime9 = require("react/jsx-runtime");
+var DEFAULT_EXCLUDED_KEYS = /* @__PURE__ */ new Set([]);
+function withoutExcluded(memory, exclude) {
+  if (exclude.size === 0) return memory;
+  const out = {};
+  for (const [k, v2] of Object.entries(memory)) {
+    if (!exclude.has(k)) out[k] = v2;
+  }
+  return out;
+}
 function computeChanges(prev, curr) {
   const changes = [];
   const allKeys = /* @__PURE__ */ new Set([...Object.keys(prev ?? {}), ...Object.keys(curr)]);
@@ -2170,6 +2164,7 @@ function StageDetailPanel({
   mode: controlledMode,
   showToggle = false,
   onModeChange,
+  excludeKeys = DEFAULT_EXCLUDED_KEYS,
   size = "default",
   unstyled = false,
   className,
@@ -2183,11 +2178,18 @@ function StageDetailPanel({
     onModeChange?.(next);
   }, [activeMode, onModeChange]);
   const snapshot = snapshots[selectedIndex];
-  const prevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
-  const currMemory = snapshot?.memory ?? {};
+  const rawPrevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
+  const rawCurrMemory = snapshot?.memory ?? {};
+  const currMemory = (0, import_react9.useMemo)(
+    () => withoutExcluded(rawCurrMemory, excludeKeys),
+    [rawCurrMemory, excludeKeys]
+  );
   const changes = (0, import_react9.useMemo)(
-    () => computeChanges(prevMemory, currMemory),
-    [prevMemory, currMemory]
+    () => computeChanges(
+      rawPrevMemory === null ? null : withoutExcluded(rawPrevMemory, excludeKeys),
+      currMemory
+    ),
+    [rawPrevMemory, currMemory, excludeKeys]
   );
   const fs = fontSize[size];
   const pad = padding[size];
@@ -3813,13 +3815,16 @@ function StoryNarrative({
     const subflowSeen = /* @__PURE__ */ new Set();
     let prevType = "";
     return revealed.map((entry) => {
+      const prevEntryType = prevType;
+      prevType = entry.type;
       let cleanText = entry.text;
       cleanText = cleanText.replace(/^Stage \d+:\s*/, "");
       const isSelector = entry.type === "fork" && entry.text.includes("[Selected]");
       cleanText = cleanText.replace(/^\[(Selected|Parallel)\]:\s*/, "");
       if (entry.type === "subflow") {
         const toggleKey = entry.stageId ?? entry.text;
-        const isExit = subflowSeen.has(toggleKey);
+        const direction = entry.direction;
+        const isExit = direction !== void 0 ? direction === "exit" : subflowSeen.has(toggleKey);
         if (!isExit) {
           subflowSeen.add(toggleKey);
           counter++;
@@ -3842,8 +3847,7 @@ function StoryNarrative({
         return { ...entry, heading: null, headingType: "Decision", text: cleanText, isHeading: false };
       }
       if (entry.type === "fork" || entry.type === "selector") {
-        const isForkHeading = prevType !== "fork" && prevType !== "selector";
-        prevType = entry.type;
+        const isForkHeading = prevEntryType !== "fork" && prevEntryType !== "selector";
         if (isForkHeading) {
           counter++;
           const typeLabel = entry.type === "selector" || isSelector ? "Selector" : "Fork";
@@ -3851,7 +3855,6 @@ function StoryNarrative({
         }
         return { ...entry, heading: null, isHeading: false, text: cleanText };
       }
-      prevType = entry.type;
       return { ...entry, heading: null, isHeading: false };
     });
   }, [revealed]);
@@ -4881,6 +4884,16 @@ function sliceOverlay(overlay, index) {
       errors: overlay.errors
     };
   }
+  if (index >= order.length) {
+    const allDone = new Set(order.map((s) => s.stageId));
+    return {
+      doneStageIds: allDone,
+      activeStageId: null,
+      executedStageIds: new Set(allDone),
+      executedOrderIds: order.map((s) => s.stageId),
+      errors: overlay.errors
+    };
+  }
   const clampedIndex = Math.max(0, Math.min(index, order.length - 1));
   const doneStageIds = /* @__PURE__ */ new Set();
   for (let i = 0; i < clampedIndex; i++) {
@@ -5433,6 +5446,14 @@ function resolveDrillScope(graph, drillKey) {
   if (typeof local === "string" && local !== drillKey) {
     for (const n of graph.nodes) {
       if (n.data?.subflowOf === local) return local;
+    }
+  }
+  const mount = graph.nodes.find(
+    (n) => n.data?.isSubflow === true && n.data?.subflowId === drillKey
+  );
+  if (mount !== void 0 && mount.id !== drillKey) {
+    for (const n of graph.nodes) {
+      if (n.data?.subflowOf === mount.id) return mount.id;
     }
   }
   return drillKey;
@@ -6232,17 +6253,18 @@ function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage,
     };
   }
   const stageData = {
+    // Same pass-through rule as the custom-node branch above (and as
+    // TraceFlow's `toStageNode`): the source data goes through WHOLE, so a
+    // consumer's custom fields and the recorder's own metadata
+    // (isStreaming, isPausable, branchIds, defaultBranch, prevIds, nextIds,
+    // subflowOf) survive into `data` for a swapped-in renderer to read.
+    ...node.data,
     label: node.data.label,
     isDecider: node.data.isDecider,
     isFork: node.data.isFork,
     isSubflow: node.data.isSubflow,
-    ...overlayFields,
-    ...node.data.description !== void 0 && { description: node.data.description },
-    ...node.data.icon !== void 0 && { icon: node.data.icon },
-    ...node.data.subflowId !== void 0 && { subflowId: node.data.subflowId },
-    ...node.data.isLazy === true && { isLazy: true },
-    ...node.data.emphasis !== void 0 && { emphasis: node.data.emphasis },
-    ...node.data.size !== void 0 && { size: node.data.size }
+    // Overlay LAST — run status is derived here and always wins.
+    ...overlayFields
   };
   return {
     ...node,
@@ -6802,10 +6824,12 @@ var InsightGrid = (0, import_react30.memo)(function InsightGrid2({
 // src/components/CompactTimeline/CompactTimeline.tsx
 var import_react31 = require("react");
 var import_jsx_runtime26 = require("react/jsx-runtime");
+var tint = (color, percent) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 var CompactTimeline = (0, import_react31.memo)(function CompactTimeline2({
   snapshots,
   selectedIndex,
-  defaultExpanded = false
+  defaultExpanded = false,
+  label = "Timeline"
 }) {
   const [expanded, setExpanded] = (0, import_react31.useState)(defaultExpanded);
   if (snapshots.length === 0) return null;
@@ -6831,7 +6855,7 @@ var CompactTimeline = (0, import_react31.memo)(function CompactTimeline2({
         },
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
-          "Timeline",
+          label,
           /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
             snapshots.length,
             " stages"
@@ -6854,7 +6878,7 @@ var CompactTimeline = (0, import_react31.memo)(function CompactTimeline2({
                       width: i === selectedIndex ? 8 : 5,
                       height: i === selectedIndex ? 8 : 5,
                       borderRadius: "50%",
-                      background: i < selectedIndex ? "var(--fp-success, #22c55e)" : i === selectedIndex ? "var(--fp-accent, #6366f1)" : theme.textMuted + "40",
+                      background: i < selectedIndex ? "var(--fp-success, #22c55e)" : i === selectedIndex ? "var(--fp-accent, #6366f1)" : tint(theme.textMuted, 25),
                       transition: "all 0.15s",
                       flexShrink: 0
                     },
@@ -6868,7 +6892,7 @@ var CompactTimeline = (0, import_react31.memo)(function CompactTimeline2({
                     style: {
                       flex: 1,
                       height: 1,
-                      background: theme.textMuted + "30",
+                      background: tint(theme.textMuted, 20),
                       marginLeft: -2,
                       marginRight: 4
                     }
@@ -6892,6 +6916,10 @@ var CompactTimeline = (0, import_react31.memo)(function CompactTimeline2({
 
 // src/components/ExplainableShell/ExplainableShell.tsx
 var import_jsx_runtime27 = require("react/jsx-runtime");
+var EXPLAINABLE_TAB_ID = "explainable";
+function isExplainableTab(tabId) {
+  return tabId === EXPLAINABLE_TAB_ID || tabId === "ai-compatible";
+}
 var HLinePill = (0, import_react32.memo)(function HLinePill2({
   label,
   detail,
@@ -7293,18 +7321,19 @@ function resolveSubflowFromRuntime(parentSnapshots, drillKey, narrativeEntries, 
   if (sfSnapshots.length === 0) return null;
   return { subflowId: drillKey, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
 }
+var RIGHT_PANEL_MODE_LABELS = {
+  insights: "Insights",
+  what: "Inspector",
+  result: "Result"
+};
 var RightPanel = (0, import_react32.memo)(function RightPanel2({
   mode,
   onModeChange,
   snapshots,
   selectedIndex,
-  runtimeSnapshot,
   activeTab,
   allTabs,
-  activeNarrativeEntries,
-  narrativeScopeSubflowId,
-  recorderViews,
-  autoRecorderViews,
+  renderTabBody,
   size,
   onNavigateToStage,
   dataTrace,
@@ -7312,13 +7341,17 @@ var RightPanel = (0, import_react32.memo)(function RightPanel2({
   inspectorTab,
   traceContent
 }) {
+  const modes = (0, import_react32.useMemo)(
+    () => allTabs.some((t) => t.id === "result") ? ["insights", "what", "result"] : ["insights", "what"],
+    [allTabs]
+  );
   return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: {
       display: "flex",
       borderBottom: `1px solid ${theme.border}`,
       flexShrink: 0,
       background: theme.bgSecondary
-    }, children: ["insights", "what"].map((m) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+    }, children: modes.map((m) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       "button",
       {
         onClick: () => onModeChange(m),
@@ -7336,11 +7369,11 @@ var RightPanel = (0, import_react32.memo)(function RightPanel2({
           cursor: "pointer",
           fontFamily: "inherit"
         },
-        children: m === "insights" ? "Insights" : "Inspector"
+        children: RIGHT_PANEL_MODE_LABELS[m]
       },
       m
     )) }),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "insights" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "result" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { height: "100%", overflow: "auto" }, children: renderTabBody("result", false) }) : mode === "insights" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       InsightPanel,
       {
         mode: "tabs",
@@ -7348,14 +7381,7 @@ var RightPanel = (0, import_react32.memo)(function RightPanel2({
         insights: allTabs.filter((t) => t.id !== "result" && t.id !== "memory").map((tab) => ({
           id: tab.id,
           name: insightName(tab.name),
-          render: () => {
-            if (tab.id === "narrative") return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(NarrativePanel, { snapshots, selectedIndex, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, runtimeSnapshot, size, style: { height: "100%" } });
-            const customView = recorderViews?.find((v2) => v2.id === tab.id);
-            if (customView?.render) return customView.render({ snapshots, selectedIndex });
-            const autoView = autoRecorderViews.find((v2) => v2.id === tab.id);
-            if (autoView) return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(KeyedRecorderView, { data: autoView.data, description: autoView.description, preferredOperation: autoView.preferredOperation, snapshots, selectedIndex });
-            return null;
-          }
+          render: () => renderTabBody(tab.id, false)
         }))
       }
     ) : /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
@@ -7391,7 +7417,7 @@ function ExplainableShell({
   resultData: resultDataProp,
   logs = [],
   narrativeEntries: narrativeEntriesProp,
-  tabs = ["result", "explainable"],
+  tabs: deprecatedTabs,
   defaultTab,
   hideConsole = false,
   hideTabs: hideTabsProp,
@@ -7503,22 +7529,33 @@ function ExplainableShell({
   }, [runtimeSnapshot, recorderViews, snapshotNarrative]);
   const hasNarrative = !!narrativeEntries?.length;
   const allTabs = (0, import_react32.useMemo)(() => {
-    const tabs2 = [
+    const tabs = [
       { id: "result", name: "Result", description: "Final output and console logs" },
       { id: "memory", name: "Memory", description: "Accumulator \u2014 progressive shared state at each stage" }
     ];
     if (hasNarrative) {
-      tabs2.push({ id: "narrative", name: "Narrative", description: "Translator (SequenceRecorder) \u2014 interleaved flow + data narrative per execution step" });
+      tabs.push({ id: "narrative", name: "Narrative", description: "Translator (SequenceRecorder) \u2014 interleaved flow + data narrative per execution step" });
     }
     for (const v2 of recorderViews ?? []) {
-      tabs2.push({ id: v2.id, name: v2.name, description: v2.description });
+      tabs.push({ id: v2.id, name: v2.name, description: v2.description });
     }
     for (const v2 of autoRecorderViews) {
-      tabs2.push({ id: v2.id, name: v2.name, description: v2.description });
+      tabs.push({ id: v2.id, name: v2.name, description: v2.description });
     }
     const hideSet = new Set(hideTabsProp ?? []);
-    return hideSet.size > 0 ? tabs2.filter((t) => !hideSet.has(t.id)) : tabs2;
+    return hideSet.size > 0 ? tabs.filter((t) => !hideSet.has(t.id)) : tabs;
   }, [hasNarrative, recorderViews, autoRecorderViews, hideTabsProp]);
+  const unstyledTabs = (0, import_react32.useMemo)(
+    () => [
+      ...allTabs,
+      {
+        id: EXPLAINABLE_TAB_ID,
+        name: "Explainable",
+        description: "Chart, memory, narrative and timeline in one scroll"
+      }
+    ],
+    [allTabs]
+  );
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
   const [activeTab, setActiveTab] = (0, import_react32.useState)(resolvedDefault);
@@ -7533,6 +7570,12 @@ function ExplainableShell({
   (0, import_react32.useEffect)(() => {
     setForkChooserOpen(false);
   }, [snapshotIdx]);
+  (0, import_react32.useEffect)(() => {
+    if (deprecatedTabs === void 0) return;
+    devWarn(
+      () => "[ExplainableShell] the `tabs` prop is deprecated and has no effect. Use `hideTabs` to drop tabs by id, and `defaultTab` to choose which tab opens first."
+    );
+  }, [deprecatedTabs]);
   const [leftExpanded, setLeftExpanded] = (0, import_react32.useState)(defaultExpanded?.topology ?? false);
   const [timelineExpanded, setTimelineExpanded] = (0, import_react32.useState)(defaultExpanded?.timeline ?? false);
   (0, import_react32.useEffect)(() => {
@@ -7938,6 +7981,80 @@ function ExplainableShell({
     ] });
   }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
+  const renderTabBody = (0, import_react32.useCallback)(
+    (tabId, plain) => {
+      if (tabId === "result") {
+        return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+          ResultPanel,
+          {
+            data: resultData ?? null,
+            logs,
+            hideConsole,
+            size,
+            unstyled: plain
+          }
+        );
+      }
+      if (tabId === "memory") {
+        return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+          MemoryPanel,
+          {
+            snapshots: activeSnapshots,
+            selectedIndex: safeIdx,
+            size,
+            unstyled: plain,
+            style: plain ? void 0 : { height: "100%" }
+          }
+        );
+      }
+      if (tabId === "narrative") {
+        return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+          NarrativePanel,
+          {
+            snapshots: activeSnapshots,
+            selectedIndex: safeIdx,
+            narrativeEntries: activeNarrativeEntries,
+            scopeSubflowId: narrativeScopeSubflowId,
+            runtimeSnapshot,
+            size,
+            unstyled: plain,
+            style: plain ? void 0 : { height: "100%" }
+          }
+        );
+      }
+      const customView = recorderViews?.find((v2) => v2.id === tabId);
+      if (customView?.render) {
+        return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
+      }
+      const autoView = autoRecorderViews.find((v2) => v2.id === tabId);
+      if (autoView) {
+        return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+          KeyedRecorderView,
+          {
+            data: autoView.data,
+            description: autoView.description,
+            preferredOperation: autoView.preferredOperation,
+            snapshots: activeSnapshots,
+            selectedIndex: safeIdx
+          }
+        );
+      }
+      return null;
+    },
+    [
+      resultData,
+      logs,
+      hideConsole,
+      size,
+      activeSnapshots,
+      safeIdx,
+      activeNarrativeEntries,
+      narrativeScopeSubflowId,
+      runtimeSnapshot,
+      recorderViews,
+      autoRecorderViews
+    ]
+  );
   const renderEmptyState = (themeVars) => {
     const shellStyle = { ...themeVars, ...style };
     if (derivedFromRuntime?.error) {
@@ -8003,51 +8120,20 @@ function ExplainableShell({
   if (unstyled) {
     if (snapshots.length === 0) return renderEmptyState({});
     return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className, style, "data-fp": "explainable-shell", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { "data-fp": "shell-tabs", children: allTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
-      /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { "data-fp": "shell-content", "data-tab": activeTab, children: [
-        activeTab === "result" && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(ResultPanel, { data: resultData ?? null, logs, hideConsole, unstyled: true }),
-        (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail }),
-          isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-          traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...sliceCone && { sliceCone } }),
-          missingChart && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(MissingChartNote, { unstyled: true }),
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, unstyled: true }),
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
-        ] })
-      ] })
+      /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { "data-fp": "shell-tabs", children: unstyledTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
+      /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { "data-fp": "shell-content", "data-tab": activeTab, children: isExplainableTab(activeTab) ? /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail }),
+        isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+        traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...sliceCone && { sliceCone } }),
+        missingChart && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(MissingChartNote, { unstyled: true }),
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, unstyled: true }),
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
+      ] }) : renderTabBody(activeTab, true) })
     ] });
   }
   const showTopology = !!effectiveRenderFlowchart && !!traceGraph;
-  const detailsContent = (0, import_react32.useMemo)(() => {
-    if (activeTab === "result") {
-      return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(ResultPanel, { data: resultData ?? null, logs, hideConsole, size });
-    }
-    if (activeTab === "memory") {
-      return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, size, style: { height: "100%" } });
-    }
-    if (activeTab === "narrative") {
-      return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, size, style: { height: "100%" } });
-    }
-    const customView = recorderViews?.find((v2) => v2.id === activeTab);
-    if (customView?.render) {
-      return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
-    }
-    const autoView = autoRecorderViews.find((v2) => v2.id === activeTab);
-    if (autoView) {
-      return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
-        KeyedRecorderView,
-        {
-          data: autoView.data,
-          description: autoView.description,
-          preferredOperation: autoView.preferredOperation,
-          snapshots: activeSnapshots,
-          selectedIndex: safeIdx
-        }
-      );
-    }
-    return null;
-  }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, recorderViews, autoRecorderViews]);
+  const detailsContent = renderTabBody(activeTab, false);
   const detailsPanel = /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
     /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: {
       display: "flex",
@@ -8169,8 +8255,8 @@ function ExplainableShell({
                     onNodeSelect: handleTreeNodeSelect
                   }
                 ) }),
-                /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(VLinePill, { label: "Topology", expanded: true, side: "left", onClick: () => toggleLeft(false) })
-              ] }) : /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(VLinePill, { label: "Topology", expanded: false, side: "left", onClick: () => toggleLeft(true) })),
+                /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
+              ] }) : /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
               showTopology ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
                 spec: null,
                 snapshots: activeSnapshots,
@@ -8181,7 +8267,7 @@ function ExplainableShell({
                 onSubflowChange: handleChartSubflowChange,
                 ...sliceCone && { sliceCone }
               }) }) : /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, minWidth: 0, overflow: "auto" }, children: missingChart && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(MissingChartNote, {}) }),
-              /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(VLinePill, { label: "Details", expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+              /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(VLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
               rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
                 RightPanel,
                 {
@@ -8193,13 +8279,9 @@ function ExplainableShell({
                   traceContent: traceTabContent,
                   snapshots: activeSnapshots,
                   selectedIndex: safeIdx,
-                  runtimeSnapshot,
                   activeTab,
                   allTabs,
-                  activeNarrativeEntries,
-                  narrativeScopeSubflowId,
-                  recorderViews,
-                  autoRecorderViews,
+                  renderTabBody,
                   size,
                   onNavigateToStage: navigateToStage
                 }
@@ -8210,7 +8292,8 @@ function ExplainableShell({
               {
                 snapshots: activeSnapshots,
                 selectedIndex: safeIdx,
-                defaultExpanded: timelineExpanded
+                defaultExpanded: timelineExpanded,
+                label: bottomLabel
               }
             )
           ] })
@@ -9705,6 +9788,7 @@ function ExplainableView({
   CommentaryPanel,
   CompactTimeline,
   CompactTimelinePanel,
+  DEFAULT_EXCLUDED_KEYS,
   DataTracePanel,
   ExplainableProvider,
   ExplainableShell,

@@ -118,6 +118,15 @@ export function StoryNarrative({
     let prevType = "";
 
     return revealed.map((entry) => {
+      // What came IMMEDIATELY before this entry. Read it here and advance the
+      // tracker in the same breath, because every branch below returns early:
+      // when only the fork branch advanced it, a stage (or subflow, or
+      // condition) between two forks left `prevType` still reading "fork", so
+      // the SECOND fork was treated as a continuation of the first and lost
+      // its heading and its number.
+      const prevEntryType = prevType;
+      prevType = entry.type;
+
       // Strip legacy "Stage N: " prefix from text (default renderer)
       let cleanText = entry.text;
       cleanText = cleanText.replace(/^Stage \d+:\s*/, "");
@@ -125,12 +134,20 @@ export function StoryNarrative({
       const isSelector = entry.type === "fork" && entry.text.includes("[Selected]");
       cleanText = cleanText.replace(/^\[(Selected|Parallel)\]:\s*/, "");
 
-      // ── Subflow: detect enter vs exit by toggle ──
+      // ── Subflow: enter vs exit ──
       if (entry.type === "subflow") {
-        // Use stageId as toggle key (unique per subflow visit).
-        // Fall back to text for renderers that don't set stageId.
+        // The entry SAYS which it is — `direction` is set on both markers by
+        // footprintjs's narrative recorder, and NarrativePanel already reads
+        // it. The old toggle keyed on the STABLE stageId instead: the first
+        // marker for an id was "enter" and every later one was "exit", so a
+        // subflow mounted more than once (a loop, a repeat mount) showed its
+        // first entry and then silently vanished from the story for good.
+        //
+        // The toggle survives only as the fallback for entries that carry no
+        // `direction` (a hand-built narrative, or an older renderer).
         const toggleKey = (entry as { stageId?: string }).stageId ?? entry.text;
-        const isExit = subflowSeen.has(toggleKey);
+        const direction = (entry as { direction?: "entry" | "exit" }).direction;
+        const isExit = direction !== undefined ? direction === "exit" : subflowSeen.has(toggleKey);
         if (!isExit) {
           subflowSeen.add(toggleKey);
           counter++;
@@ -160,8 +177,7 @@ export function StoryNarrative({
 
       // ── Fork / Selector — first in sequence gets number ──
       if (entry.type === "fork" || entry.type === "selector") {
-        const isForkHeading = prevType !== "fork" && prevType !== "selector";
-        prevType = entry.type;
+        const isForkHeading = prevEntryType !== "fork" && prevEntryType !== "selector";
         if (isForkHeading) {
           counter++;
           const typeLabel = entry.type === "selector" || isSelector ? "Selector" : "Fork";
@@ -170,7 +186,6 @@ export function StoryNarrative({
         return { ...entry, heading: null, isHeading: false, text: cleanText };
       }
 
-      prevType = entry.type;
       // loop, break, step, error, retry — no heading number
       // Loop is a back-edge (not a new node), break is a termination signal,
       // and retry is one failed attempt WITHIN the stage above it — numbering

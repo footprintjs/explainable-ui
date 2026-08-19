@@ -129,7 +129,17 @@ export const rawDefaults = {
   },
 } as const;
 
-/** Default dark theme values with CSS variable references (consumers can override via CSS). */
+/**
+ * Default dark theme values with CSS variable references (consumers can
+ * override via CSS).
+ *
+ * WARNING — do NOT pass this object to `<FootprintTheme tokens={...}>` (or to
+ * `tokensToCSSVars`). Every value here is already a `var(--fp-…, fallback)`
+ * REFERENCE, so feeding them back in emits self-referential declarations like
+ * `--fp-accent: var(--fp-accent, #6366f1)`, which resolve to nothing and blank
+ * out the colours they were meant to set. Start from `rawDefaults` (plain hex)
+ * or from a preset in `theme/presets.ts` and override the fields you want.
+ */
 export const defaultTokens: Required<{
   [K in keyof ThemeTokens]-?: Required<ThemeTokens[K]>;
 }> = {

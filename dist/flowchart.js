@@ -761,7 +761,7 @@ var StageNode = memo(function StageNode2({
 import { useState as useState5 } from "react";
 
 // src/components/MemoryInspector/MemoryInspector.tsx
-import { useMemo, useRef as useRef2 } from "react";
+import { useMemo } from "react";
 import { jsx as jsx3, jsxs as jsxs2 } from "react/jsx-runtime";
 function MemoryInspector({
   data,
@@ -774,7 +774,6 @@ function MemoryInspector({
   className,
   style
 }) {
-  const cacheRef = useRef2(null);
   const { memory, newKeys } = useMemo(() => {
     if (data) {
       return { memory: data, newKeys: /* @__PURE__ */ new Set() };
@@ -783,37 +782,13 @@ function MemoryInspector({
       return { memory: {}, newKeys: /* @__PURE__ */ new Set() };
     }
     const safeIdx = Math.min(selectedIndex, snapshots.length - 1);
-    let merged;
-    const cache = cacheRef.current;
-    if (cache && cache.snapshots === snapshots && cache.index <= safeIdx) {
-      merged = { ...cache.accumulated };
-      for (let i = cache.index + 1; i <= safeIdx; i++) {
-        Object.assign(merged, snapshots[i]?.memory);
-      }
-    } else {
-      merged = {};
-      for (let i = 0; i <= safeIdx; i++) {
-        Object.assign(merged, snapshots[i]?.memory);
-      }
-    }
-    cacheRef.current = { snapshots, index: safeIdx, accumulated: merged };
+    const merged = snapshots[safeIdx]?.memory ?? {};
     const nk = /* @__PURE__ */ new Set();
-    if (highlightNew && safeIdx > 0) {
-      let prev;
-      if (cache && cache.snapshots === snapshots && cache.index === safeIdx - 1) {
-        prev = cache.accumulated;
-      } else {
-        prev = {};
-        for (let i = 0; i < safeIdx; i++) {
-          Object.assign(prev, snapshots[i]?.memory);
-        }
-      }
-      const current = snapshots[safeIdx]?.memory ?? {};
-      for (const k of Object.keys(current)) {
+    if (highlightNew) {
+      const prev = safeIdx > 0 ? snapshots[safeIdx - 1]?.memory ?? {} : {};
+      for (const k of Object.keys(merged)) {
         if (!(k in prev)) nk.add(k);
       }
-    } else if (highlightNew && safeIdx === 0 && snapshots[0]) {
-      for (const k of Object.keys(snapshots[0].memory)) nk.add(k);
     }
     return { memory: merged, newKeys: nk };
   }, [data, snapshots, selectedIndex, highlightNew]);
@@ -1070,7 +1045,7 @@ function NarrativeLog({
 }
 
 // src/components/GanttTimeline/GanttTimeline.tsx
-import { useState as useState2, useMemo as useMemo3, useRef as useRef3, useEffect as useEffect3 } from "react";
+import { useState as useState2, useMemo as useMemo3, useRef as useRef2, useEffect as useEffect3 } from "react";
 import { jsx as jsx5, jsxs as jsxs4 } from "react/jsx-runtime";
 var NO_TIMING_NOTE = "No timing recorded \u2014 bars show the order stages ran, not how long they took.";
 var NO_TIMING_HINT = "Durations come from footprintjs's metrics recorder; this run was recorded without one.";
@@ -1087,8 +1062,8 @@ function GanttTimeline({
   maxVisibleRows = 5
 }) {
   const [expanded, setExpanded] = useState2(false);
-  const activeRowRef = useRef3(null);
-  const scrollContainerRef = useRef3(null);
+  const activeRowRef = useRef2(null);
+  const scrollContainerRef = useRef2(null);
   const totalWallTime = useMemo3(
     () => Math.max(...snapshots.map((s) => s.startMs + s.durationMs), 1),
     [snapshots]
@@ -1943,19 +1918,24 @@ function toStageNode(node) {
   }
   const data = node.data;
   const stageData = {
+    // Pass the source data through WHOLE. An allow-list here dropped every
+    // field it did not name: the consumer's OWN custom fields (which the
+    // `nodeTypes` extension contract promises a swapped-in renderer can read
+    // off `data`) and the recorder's own metadata the bundled renderer
+    // happens not to use — isStreaming, isPausable, branchIds, defaultBranch,
+    // prevIds, nextIds, subflowOf. A renderer cannot read what never arrived.
+    ...data,
+    // Then the fields this function OWNS. Run status is blank here by design
+    // — `<TraceFlow>` is the structure-only chart; `<TracedFlow>` is the one
+    // that paints an overlay — so these must win over anything the source
+    // data carried.
     label: data.label,
     isDecider: data.isDecider,
     isFork: data.isFork,
     isSubflow: data.isSubflow,
     active: false,
     done: false,
-    error: false,
-    ...data.description !== void 0 && { description: data.description },
-    ...data.icon !== void 0 && { icon: data.icon },
-    ...data.subflowId !== void 0 && { subflowId: data.subflowId },
-    ...data.isLazy === true && { isLazy: true },
-    ...data.emphasis !== void 0 && { emphasis: data.emphasis },
-    ...data.size !== void 0 && { size: data.size }
+    error: false
   };
   return {
     ...node,
@@ -2064,7 +2044,7 @@ function TraceFlow(props) {
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-import { useCallback as useCallback3, useEffect as useEffect7, useMemo as useMemo5, useRef as useRef5, useState as useState4 } from "react";
+import { useCallback as useCallback3, useEffect as useEffect7, useMemo as useMemo5, useRef as useRef4, useState as useState4 } from "react";
 import {
   ReactFlow as ReactFlow2,
   Background as Background2,
@@ -2392,6 +2372,16 @@ function sliceOverlay(overlay, index) {
       errors: overlay.errors
     };
   }
+  if (index >= order.length) {
+    const allDone = new Set(order.map((s) => s.stageId));
+    return {
+      doneStageIds: allDone,
+      activeStageId: null,
+      executedStageIds: new Set(allDone),
+      executedOrderIds: order.map((s) => s.stageId),
+      errors: overlay.errors
+    };
+  }
   const clampedIndex = Math.max(0, Math.min(index, order.length - 1));
   const doneStageIds = /* @__PURE__ */ new Set();
   for (let i = 0; i < clampedIndex; i++) {
@@ -2423,6 +2413,14 @@ function resolveDrillScope(graph, drillKey) {
   if (typeof local === "string" && local !== drillKey) {
     for (const n of graph.nodes) {
       if (n.data?.subflowOf === local) return local;
+    }
+  }
+  const mount = graph.nodes.find(
+    (n) => n.data?.isSubflow === true && n.data?.subflowId === drillKey
+  );
+  if (mount !== void 0 && mount.id !== drillKey) {
+    for (const n of graph.nodes) {
+      if (n.data?.subflowOf === mount.id) return mount.id;
     }
   }
   return drillKey;
@@ -2583,19 +2581,19 @@ function edgeCarriesCursor(via, standIns) {
 }
 
 // src/components/FlowchartView/_internal/useSubflowDrill.ts
-import { useCallback as useCallback2, useEffect as useEffect4, useRef as useRef4, useState as useState3 } from "react";
+import { useCallback as useCallback2, useEffect as useEffect4, useRef as useRef3, useState as useState3 } from "react";
 function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
   const isControlled = controlledSubflowId !== void 0;
   const [ownSubflowId, setOwnSubflowId] = useState3(null);
   const currentSubflowId = isControlled ? controlledSubflowId : ownSubflowId;
-  const lastGraphRef = useRef4(null);
+  const lastGraphRef = useRef3(null);
   if (!isControlled && lastGraphRef.current !== graph) {
     lastGraphRef.current = graph;
     if (ownSubflowId !== null && findMountNode(graph, ownSubflowId) === void 0) {
       queueMicrotask(() => setOwnSubflowId(null));
     }
   }
-  const lastNotifiedRef = useRef4(void 0);
+  const lastNotifiedRef = useRef3(void 0);
   useEffect4(() => {
     if (isControlled) return;
     if (lastNotifiedRef.current === currentSubflowId) return;
@@ -2871,17 +2869,18 @@ function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage,
     };
   }
   const stageData = {
+    // Same pass-through rule as the custom-node branch above (and as
+    // TraceFlow's `toStageNode`): the source data goes through WHOLE, so a
+    // consumer's custom fields and the recorder's own metadata
+    // (isStreaming, isPausable, branchIds, defaultBranch, prevIds, nextIds,
+    // subflowOf) survive into `data` for a swapped-in renderer to read.
+    ...node.data,
     label: node.data.label,
     isDecider: node.data.isDecider,
     isFork: node.data.isFork,
     isSubflow: node.data.isSubflow,
-    ...overlayFields,
-    ...node.data.description !== void 0 && { description: node.data.description },
-    ...node.data.icon !== void 0 && { icon: node.data.icon },
-    ...node.data.subflowId !== void 0 && { subflowId: node.data.subflowId },
-    ...node.data.isLazy === true && { isLazy: true },
-    ...node.data.emphasis !== void 0 && { emphasis: node.data.emphasis },
-    ...node.data.size !== void 0 && { size: node.data.size }
+    // Overlay LAST — run status is derived here and always wins.
+    ...overlayFields
   };
   return {
     ...node,
@@ -3091,7 +3090,7 @@ function TracedFlow({
     },
     [drill, onNodeClick, groupedSet]
   );
-  const wrapperRef = useRef5(null);
+  const wrapperRef = useRef4(null);
   const [rfInstance, setRfInstance] = useState4(null);
   useChartAutoRefit(wrapperRef, rfInstance, {
     // Re-fit on drill AND after the measured-size re-layout settles.

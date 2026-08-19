@@ -68,6 +68,16 @@ import { CompactTimeline } from "../CompactTimeline/CompactTimeline";
 /** Tab ID — "result", "memory", "narrative", or any custom recorder view ID. */
 export type ShellTab = string;
 
+/**
+ * The whole-surface view that exists ONLY in unstyled mode: chart, memory,
+ * narrative and timeline in one scroll, rather than one tab at a time.
+ * `"ai-compatible"` is the historical spelling and still answers to it.
+ */
+const EXPLAINABLE_TAB_ID = "explainable";
+function isExplainableTab(tabId: string): boolean {
+  return tabId === EXPLAINABLE_TAB_ID || tabId === "ai-compatible";
+}
+
 
 interface SubflowLevel {
   subflowId: string;
@@ -231,6 +241,17 @@ export interface ExplainableShellProps extends BaseComponentProps {
    *  snapshot, and the shell reads them from there. Pass this prop to
    *  override that (it always wins). */
   narrativeEntries?: NarrativeEntry[];
+  /**
+   * @deprecated Never had an effect and now warns in dev. Use `hideTabs` to
+   * drop tabs by id and `defaultTab` to choose which one opens first.
+   *
+   * It was documented as `["result", "explainable"]`, but `"explainable"` is
+   * not a tab in the styled shell at all — it is the unstyled whole-surface
+   * view — so honouring this list literally would have cut every styled shell
+   * down to a lone Result tab. There is no reading of it that is both
+   * faithful to the documented default and safe, which is why it is going
+   * rather than getting wired.
+   */
   tabs?: ShellTab[];
   defaultTab?: ShellTab;
   hideConsole?: boolean;
@@ -875,24 +896,37 @@ function resolveSubflowFromRuntime(
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// RightPanel — two-mode panel: Insights vs What Happened// ---------------------------------------------------------------------------
-// RightPanel — two-mode panel: Insights vs What Happened
+// RightPanel — two-mode panel: Insights vs Inspector
 // ---------------------------------------------------------------------------
 
-type RightPanelMode = "insights" | "what";
+/**
+ * The right column's three modes.
+ *
+ * `result` is the home the Result view never had on desktop: the tabbed
+ * details panel only renders below 640px, and the Insights list deliberately
+ * holds Result back (an Insight is recorder-derived; the Result is the run's
+ * output) — so `resultData`, `logs` and `hideConsole` did nothing at all on
+ * any shell wider than that. A third segment on the toggle that already
+ * exists is the smallest place to put it that does not disturb which Insight
+ * opens first, nor the "no recorders were attached" guidance the Insights
+ * list shows when it is empty.
+ */
+type RightPanelMode = "insights" | "what" | "result";
+
+const RIGHT_PANEL_MODE_LABELS: Record<RightPanelMode, string> = {
+  insights: "Insights",
+  what: "Inspector",
+  result: "Result",
+};
 
 const RightPanel = memo(function RightPanel({
   mode,
   onModeChange,
   snapshots,
   selectedIndex,
-  runtimeSnapshot,
   activeTab,
   allTabs,
-  activeNarrativeEntries,
-  narrativeScopeSubflowId,
-  recorderViews,
-  autoRecorderViews,
+  renderTabBody,
   size,
   onNavigateToStage,
   dataTrace,
@@ -904,16 +938,14 @@ const RightPanel = memo(function RightPanel({
   onModeChange: (mode: RightPanelMode) => void;
   snapshots: StageSnapshot[];
   selectedIndex: number;
-  runtimeSnapshot?: RuntimeSnapshotInput | null;
-  spec?: SpecNode | null;
   activeTab: string;
   allTabs: Array<{ id: string; name: string; description?: string }>;
-  activeNarrativeEntries?: NarrativeEntry[];
-  /** The subflow `activeNarrativeEntries` belong to while drilled in — the
-   *  Story needs it to tell ITS OWN stages from a nested subflow's. */
-  narrativeScopeSubflowId?: string;
-  recorderViews?: RecorderView[];
-  autoRecorderViews: Array<{ id: string; name: string; description?: string; preferredOperation?: string; data: unknown }>;
+  /** Renders ONE tab's body. The shell owns the single implementation and
+   *  hands it down, which is what makes the Result tab reachable here: this
+   *  is the only tabbed surface on a desktop-width shell, so a tab it cannot
+   *  render is a tab — and the `resultData` / `logs` / `hideConsole` props
+   *  behind it — that does nothing. */
+  renderTabBody: (tabId: string, plain: boolean) => ReactNode;
   size: "compact" | "default" | "detailed";
   onNavigateToStage: (id: string) => void;
   /** Precomputed backward slice for the Data Trace tab (lifted to the shell
@@ -925,6 +957,16 @@ const RightPanel = memo(function RightPanel({
   /** The Data Trace tab body (stop card while tracing / entry chips + frames list). */
   traceContent?: ReactNode;
 }) {
+  // The Result segment appears only when a Result tab exists, so
+  // `hideTabs={["result"]}` still removes it everywhere.
+  const modes = useMemo<readonly RightPanelMode[]>(
+    () =>
+      allTabs.some((t) => t.id === "result")
+        ? (["insights", "what", "result"] as const)
+        : (["insights", "what"] as const),
+    [allTabs],
+  );
+
   return (
     <>
       {/* Mode toggle */}
@@ -934,7 +976,7 @@ const RightPanel = memo(function RightPanel({
         flexShrink: 0,
         background: theme.bgSecondary,
       }}>
-        {(["insights", "what"] as const).map((m) => (
+        {modes.map((m) => (
           <button
             key={m}
             onClick={() => onModeChange(m)}
@@ -953,28 +995,27 @@ const RightPanel = memo(function RightPanel({
               fontFamily: "inherit",
             }}
           >
-            {m === "insights" ? "Insights" : "Inspector"}
+            {RIGHT_PANEL_MODE_LABELS[m]}
           </button>
         ))}
       </div>
 
       {/* Content */}
       <div style={{ flex: 1, overflow: "hidden" }}>
-        {mode === "insights" ? (
+        {mode === "result" ? (
+          <div style={{ height: "100%", overflow: "auto" }}>{renderTabBody("result", false)}</div>
+        ) : mode === "insights" ? (
           <InsightPanel
             mode="tabs"
             expandedId={activeTab}
+            // Two tabs are held back, each with its own home: Memory (the
+            // Inspector's State tab beside it is the same data) and Result
+            // (its own mode on the toggle above — an Insight is recorder-
+            // derived, the Result is the run's output).
             insights={allTabs.filter((t) => t.id !== "result" && t.id !== "memory").map((tab) => ({
               id: tab.id,
               name: insightName(tab.name),
-              render: () => {
-                if (tab.id === "narrative") return <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={activeNarrativeEntries} scopeSubflowId={narrativeScopeSubflowId} runtimeSnapshot={runtimeSnapshot} size={size} style={{ height: "100%" }} />;
-                const customView = recorderViews?.find((v) => v.id === tab.id);
-                if (customView?.render) return customView.render({ snapshots, selectedIndex });
-                const autoView = autoRecorderViews.find((v) => v.id === tab.id);
-                if (autoView) return <KeyedRecorderView data={autoView.data} description={autoView.description} preferredOperation={autoView.preferredOperation as any} snapshots={snapshots} selectedIndex={selectedIndex} />;
-                return null;
-              },
+              render: () => renderTabBody(tab.id, false),
             }))}
           />
         ) : (
@@ -1014,7 +1055,7 @@ export function ExplainableShell({
   resultData: resultDataProp,
   logs = [],
   narrativeEntries: narrativeEntriesProp,
-  tabs = ["result", "explainable"],
+  tabs: deprecatedTabs,
   defaultTab,
   hideConsole = false,
   hideTabs: hideTabsProp,
@@ -1229,13 +1270,29 @@ export function ExplainableShell({
     return hideSet.size > 0 ? tabs.filter((t) => !hideSet.has(t.id)) : tabs;
   }, [hasNarrative, recorderViews, autoRecorderViews, hideTabsProp]);
 
+  // Unstyled mode shows the SAME tabs as styled mode, plus the whole-surface
+  // view. It used to render that surface from a tab id that appeared in no
+  // list at all, so Result was the only button that did anything and Memory,
+  // Narrative and every recorder view were dead.
+  const unstyledTabs = useMemo(
+    () => [
+      ...allTabs,
+      {
+        id: EXPLAINABLE_TAB_ID,
+        name: "Explainable",
+        description: "Chart, memory, narrative and timeline in one scroll",
+      },
+    ],
+    [allTabs],
+  );
+
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
   const [activeTab, setActiveTab] = useState<string>(resolvedDefault);
   const [snapshotIdx, setSnapshotIdx] = useState(0);
   const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
   const [rightExpanded, setRightExpanded] = useState(defaultExpanded?.details ?? true);
-  const [rightPanelMode, setRightPanelMode] = useState<"insights" | "what">("insights");
+  const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>("insights");
   // Inspector's active tab, lifted so the chart can paint the dependency
   // CONE exactly while the Data Trace tab is open (Inspector mode).
   const [inspectorTab, setInspectorTab] = useState<"state" | "trace">("state");
@@ -1262,6 +1319,18 @@ export function ExplainableShell({
   useEffect(() => {
     setForkChooserOpen(false);
   }, [snapshotIdx]);
+
+  // `tabs` never did anything. Say so out loud rather than let a consumer go
+  // on believing a list they pass is being honoured.
+  useEffect(() => {
+    if (deprecatedTabs === undefined) return;
+    devWarn(
+      () =>
+        "[ExplainableShell] the `tabs` prop is deprecated and has no effect. " +
+        "Use `hideTabs` to drop tabs by id, and `defaultTab` to choose which " +
+        "tab opens first.",
+    );
+  }, [deprecatedTabs]);
 
 
   const [leftExpanded, setLeftExpanded] = useState(defaultExpanded?.topology ?? false);
@@ -1810,6 +1879,87 @@ export function ExplainableShell({
   // A plain function, not an early return: the styled tree still has hooks
   // below this point, and skipping them on an empty render would change hook
   // ORDER the moment a live run filled the shell in.
+  // Render ONE details tab's body. This is the shell's single implementation,
+  // used by all three surfaces that show a tab: the desktop right panel, the
+  // narrow layout's details panel, and unstyled mode. `plain` only changes how
+  // each panel PAINTS itself — never which panel it is. That is the unstyled
+  // contract (same content, no styling), which unstyled mode used to break by
+  // rendering nothing at all for Memory, Narrative and every recorder view.
+  const renderTabBody = useCallback(
+    (tabId: string, plain: boolean): ReactNode => {
+      if (tabId === "result") {
+        return (
+          <ResultPanel
+            data={resultData ?? null}
+            logs={logs}
+            hideConsole={hideConsole}
+            size={size}
+            unstyled={plain}
+          />
+        );
+      }
+      if (tabId === "memory") {
+        return (
+          <MemoryPanel
+            snapshots={activeSnapshots}
+            selectedIndex={safeIdx}
+            size={size}
+            unstyled={plain}
+            style={plain ? undefined : { height: "100%" }}
+          />
+        );
+      }
+      if (tabId === "narrative") {
+        return (
+          <NarrativePanel
+            snapshots={activeSnapshots}
+            selectedIndex={safeIdx}
+            narrativeEntries={activeNarrativeEntries}
+            scopeSubflowId={narrativeScopeSubflowId}
+            runtimeSnapshot={runtimeSnapshot}
+            size={size}
+            unstyled={plain}
+            style={plain ? undefined : { height: "100%" }}
+          />
+        );
+      }
+      const customView = recorderViews?.find((v) => v.id === tabId);
+      if (customView?.render) {
+        return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
+      }
+      // Auto-detected recorder view — time-travel aware for keyed recorders,
+      // JSON fallback otherwise.
+      const autoView = autoRecorderViews.find((v) => v.id === tabId);
+      if (autoView) {
+        return (
+          <KeyedRecorderView
+            data={autoView.data}
+            description={autoView.description}
+            preferredOperation={
+              autoView.preferredOperation as "translate" | "accumulate" | "aggregate" | undefined
+            }
+            snapshots={activeSnapshots}
+            selectedIndex={safeIdx}
+          />
+        );
+      }
+      return null;
+    },
+    [
+      resultData,
+      logs,
+      hideConsole,
+      size,
+      activeSnapshots,
+      safeIdx,
+      activeNarrativeEntries,
+      narrativeScopeSubflowId,
+      runtimeSnapshot,
+      recorderViews,
+      autoRecorderViews,
+    ],
+  );
+
   const renderEmptyState = (themeVars: React.CSSProperties): React.ReactElement => {
     const shellStyle = { ...themeVars, ...style } as React.CSSProperties;
     if (derivedFromRuntime?.error) {
@@ -1870,13 +2020,12 @@ export function ExplainableShell({
     return (
       <div className={className} style={style} data-fp="explainable-shell">
         <div data-fp="shell-tabs">
-          {allTabs.map((tab) => (
+          {unstyledTabs.map((tab) => (
             <button key={tab.id} data-fp="shell-tab" data-active={tab.id === activeTab} onClick={() => handleTabChange(tab.id)}>{tab.name}</button>
           ))}
         </div>
         <div data-fp="shell-content" data-tab={activeTab}>
-          {activeTab === "result" && <ResultPanel data={resultData ?? null} logs={logs} hideConsole={hideConsole} unstyled />}
-          {(activeTab === "explainable" || activeTab === "ai-compatible") && (
+          {isExplainableTab(activeTab) ? (
             <>
               <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} />
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
@@ -1886,6 +2035,8 @@ export function ExplainableShell({
               <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} scopeSubflowId={narrativeScopeSubflowId} unstyled />
               <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
             </>
+          ) : (
+            renderTabBody(activeTab, true)
           )}
         </div>
       </div>
@@ -1903,35 +2054,7 @@ export function ExplainableShell({
   const showTopology = !!effectiveRenderFlowchart && !!traceGraph;
 
   // Render the active details tab content
-  const detailsContent = useMemo(() => {
-    if (activeTab === "result") {
-      return <ResultPanel data={resultData ?? null} logs={logs} hideConsole={hideConsole} size={size} />;
-    }
-    if (activeTab === "memory") {
-      return <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} size={size} style={{ height: "100%" }} />;
-    }
-    if (activeTab === "narrative") {
-      return <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} scopeSubflowId={narrativeScopeSubflowId} size={size} style={{ height: "100%" }} />;
-    }
-    const customView = recorderViews?.find((v) => v.id === activeTab);
-    if (customView?.render) {
-      return customView.render({ snapshots: activeSnapshots, selectedIndex: safeIdx });
-    }
-    // Auto-detected recorder view — time-travel aware for keyed recorders, JSON fallback
-    const autoView = autoRecorderViews.find((v) => v.id === activeTab);
-    if (autoView) {
-      return (
-        <KeyedRecorderView
-          data={autoView.data}
-          description={autoView.description}
-          preferredOperation={autoView.preferredOperation as "translate" | "accumulate" | "aggregate" | undefined}
-          snapshots={activeSnapshots}
-          selectedIndex={safeIdx}
-        />
-      );
-    }
-    return null;
-  }, [activeTab, resultData, logs, hideConsole, size, activeSnapshots, safeIdx, activeNarrativeEntries, recorderViews, autoRecorderViews]);
+  const detailsContent = renderTabBody(activeTab, false);
 
   // Details panel with internal tabs
   const detailsPanel = (
@@ -2104,10 +2227,10 @@ export function ExplainableShell({
                         onNodeSelect={handleTreeNodeSelect}
                       />
                     </div>
-                    <VLinePill label="Topology" expanded={true} side="left" onClick={() => toggleLeft(false)} />
+                    <VLinePill label={leftLabel} expanded={true} side="left" onClick={() => toggleLeft(false)} />
                   </div>
                 ) : (
-                  <VLinePill label="Topology" expanded={false} side="left" onClick={() => toggleLeft(true)} />
+                  <VLinePill label={leftLabel} expanded={false} side="left" onClick={() => toggleLeft(true)} />
                 )
               )}
 
@@ -2136,7 +2259,7 @@ export function ExplainableShell({
               )}
 
               {/* VLinePill divider between flowchart and right panel */}
-              <VLinePill label="Details" expanded={rightExpanded} onClick={() => toggleRight(!rightExpanded)} />
+              <VLinePill label={rightLabel} expanded={rightExpanded} onClick={() => toggleRight(!rightExpanded)} />
 
               {/* Right: Two-mode panel — Insights vs Inspector */}
               {rightExpanded && (
@@ -2150,13 +2273,9 @@ export function ExplainableShell({
                   traceContent={traceTabContent}
                   snapshots={activeSnapshots}
                   selectedIndex={safeIdx}
-                  runtimeSnapshot={runtimeSnapshot}
                   activeTab={activeTab}
                   allTabs={allTabs}
-                  activeNarrativeEntries={activeNarrativeEntries}
-                  narrativeScopeSubflowId={narrativeScopeSubflowId}
-                  recorderViews={recorderViews}
-                  autoRecorderViews={autoRecorderViews}
+                  renderTabBody={renderTabBody}
                   size={size}
                   onNavigateToStage={navigateToStage}
                 />
@@ -2169,6 +2288,7 @@ export function ExplainableShell({
               snapshots={activeSnapshots}
               selectedIndex={safeIdx}
               defaultExpanded={timelineExpanded}
+              label={bottomLabel}
             />
           </>
         )}

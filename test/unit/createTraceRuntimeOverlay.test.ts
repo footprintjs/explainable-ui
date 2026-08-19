@@ -150,3 +150,61 @@ describe("createTraceRuntimeOverlay — seed (replay adoption)", () => {
     expect(handle.getOverlay().executionOrder[0]!.stageName).toBe("A");
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 0.35.0 — end of run. `sliceOverlay`'s docblock has always said
+// "`index >= executionOrder.length` → all done, no active", but the code
+// clamped the index to the last step instead, so a finished run went on
+// painting its final stage as the one still running. A finished run shows
+// finished.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("sliceOverlay — the end of the run", () => {
+  function overlayOf(...ids: string[]) {
+    const h = createTraceRuntimeOverlay();
+    ids.forEach((id, i) => h.recorder.onStageExecuted!({ stageName: id, traversalContext: tc(`${id}#${i}`) }));
+    return h.getOverlay();
+  }
+
+  it("index === length → every step done, nothing active", () => {
+    const slice = sliceOverlay(overlayOf("a", "b", "c"), 3);
+    expect(slice.activeStageId).toBeNull();
+    expect([...slice.doneStageIds].sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("index past the end → same answer, not the last step re-run", () => {
+    const slice = sliceOverlay(overlayOf("a", "b", "c"), 99);
+    expect(slice.activeStageId).toBeNull();
+    expect([...slice.doneStageIds].sort()).toEqual(["a", "b", "c"]);
+  });
+
+  it("executedStageIds and executedOrderIds cover the WHOLE run", () => {
+    const slice = sliceOverlay(overlayOf("a", "b", "c"), 3);
+    expect([...slice.executedStageIds].sort()).toEqual(["a", "b", "c"]);
+    expect(slice.executedOrderIds).toEqual(["a", "b", "c"]);
+  });
+
+  it("the last IN-RANGE index still has an active step (the boundary)", () => {
+    // length-1 is the cursor sitting ON the final stage — still running it.
+    // Only length and beyond mean the run is over.
+    const slice = sliceOverlay(overlayOf("a", "b", "c"), 2);
+    expect(slice.activeStageId).toBe("c");
+    expect([...slice.doneStageIds].sort()).toEqual(["a", "b"]);
+  });
+
+  it("an empty overlay is unchanged — nothing done, nothing active", () => {
+    const slice = sliceOverlay(overlayOf(), 5);
+    expect(slice.activeStageId).toBeNull();
+    expect(slice.doneStageIds.size).toBe(0);
+    expect(slice.executedOrderIds).toEqual([]);
+  });
+
+  it("a loop's repeated stage is done exactly once at the end", () => {
+    const h = createTraceRuntimeOverlay();
+    h.recorder.onStageExecuted!({ stageName: "P", traversalContext: tc("p#0") });
+    h.recorder.onStageExecuted!({ stageName: "P", traversalContext: tc("p#1") });
+    const slice = sliceOverlay(h.getOverlay(), 2);
+    expect(slice.activeStageId).toBeNull();
+    expect([...slice.doneStageIds]).toEqual(["p"]);
+    expect(slice.executedOrderIds).toEqual(["p", "p"]);
+  });
+});

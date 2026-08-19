@@ -15,8 +15,29 @@ export interface MemoryChange {
   newValue?: unknown;
 }
 
-/** Keys that are footprint engine internals — hidden by default in dev mode. */
+/**
+ * Keys hidden from the memory views by default.
+ *
+ * Empty on purpose: footprintjs writes no reserved keys of its own into
+ * shared state, so there is nothing this library can honestly hide for you.
+ * It exists as the DEFAULT for `excludeKeys` — pass your own set to hide the
+ * plumbing keys YOUR pipeline carries.
+ */
 export const DEFAULT_EXCLUDED_KEYS = new Set<string>([]);
+
+/** Drop the excluded keys from one memory object. Returns the SAME reference
+ *  when nothing is excluded, so the memo below doesn't churn. */
+function withoutExcluded(
+  memory: Record<string, unknown>,
+  exclude: Set<string>,
+): Record<string, unknown> {
+  if (exclude.size === 0) return memory;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(memory)) {
+    if (!exclude.has(k)) out[k] = v;
+  }
+  return out;
+}
 
 export interface StageDetailPanelProps extends BaseComponentProps {
   /** Stage snapshots for time-travel */
@@ -29,7 +50,10 @@ export interface StageDetailPanelProps extends BaseComponentProps {
   showToggle?: boolean;
   /** Called when user toggles mode via built-in toggle */
   onModeChange?: (mode: StageDetailMode) => void;
-  /** Keys to exclude from memory display (default: engine internals). Pass empty set to show all. */
+  /** Keys to hide from the memory views — they disappear from the ledger AND
+   *  from the change list (no ADD/UPD/DEL badge for an excluded key), in both
+   *  styled and unstyled dev mode. Default: `DEFAULT_EXCLUDED_KEYS` (empty —
+   *  nothing hidden). Pass an empty set to show everything. */
   excludeKeys?: Set<string>;
 }
 
@@ -568,6 +592,7 @@ export function StageDetailPanel({
   mode: controlledMode,
   showToggle = false,
   onModeChange,
+  excludeKeys = DEFAULT_EXCLUDED_KEYS,
   size = "default",
   unstyled = false,
   className,
@@ -585,12 +610,23 @@ export function StageDetailPanel({
   }, [activeMode, onModeChange]);
 
   const snapshot = snapshots[selectedIndex];
-  const prevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
-  const currMemory = snapshot?.memory ?? {};
+  const rawPrevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
+  const rawCurrMemory = snapshot?.memory ?? {};
 
+  // Excluded keys are filtered out of BOTH sides before the diff runs, so an
+  // excluded key can't sneak back in as an ADD/UPD/DEL row — hidden means
+  // hidden, in the ledger and in the change list alike.
+  const currMemory = useMemo(
+    () => withoutExcluded(rawCurrMemory, excludeKeys),
+    [rawCurrMemory, excludeKeys],
+  );
   const changes = useMemo(
-    () => computeChanges(prevMemory, currMemory),
-    [prevMemory, currMemory],
+    () =>
+      computeChanges(
+        rawPrevMemory === null ? null : withoutExcluded(rawPrevMemory, excludeKeys),
+        currMemory,
+      ),
+    [rawPrevMemory, currMemory, excludeKeys],
   );
 
   const fs = fontSize[size];

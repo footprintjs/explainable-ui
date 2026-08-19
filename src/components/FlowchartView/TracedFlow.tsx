@@ -223,17 +223,18 @@ function toStageNodeWithOverlay(
   }
 
   const stageData: StageNodeData = {
+    // Same pass-through rule as the custom-node branch above (and as
+    // TraceFlow's `toStageNode`): the source data goes through WHOLE, so a
+    // consumer's custom fields and the recorder's own metadata
+    // (isStreaming, isPausable, branchIds, defaultBranch, prevIds, nextIds,
+    // subflowOf) survive into `data` for a swapped-in renderer to read.
+    ...node.data,
     label: node.data.label,
     isDecider: node.data.isDecider,
     isFork: node.data.isFork,
     isSubflow: node.data.isSubflow,
+    // Overlay LAST — run status is derived here and always wins.
     ...overlayFields,
-    ...(node.data.description !== undefined && { description: node.data.description }),
-    ...(node.data.icon !== undefined && { icon: node.data.icon }),
-    ...(node.data.subflowId !== undefined && { subflowId: node.data.subflowId }),
-    ...(node.data.isLazy === true && { isLazy: true }),
-    ...(node.data.emphasis !== undefined && { emphasis: node.data.emphasis }),
-    ...(node.data.size !== undefined && { size: node.data.size }),
   } as StageNodeData;
 
   return {

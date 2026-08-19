@@ -1,4 +1,4 @@
-export { StageDetailPanel } from "./StageDetailPanel";
+export { StageDetailPanel, DEFAULT_EXCLUDED_KEYS } from "./StageDetailPanel";
 export type {
   StageDetailPanelProps,
   StageDetailMode,

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { StageDetailPanel } from "../../src/components/StageDetailPanel";
+import { StageDetailPanel, DEFAULT_EXCLUDED_KEYS } from "../../src/components/StageDetailPanel";
 import type { StageSnapshot } from "../../src/types";
 
 function snap(overrides: Partial<StageSnapshot> = {}): StageSnapshot {
@@ -163,5 +163,85 @@ describe("StageDetailPanel", () => {
       expect(htmlSimple).toContain('data-mode="simple"');
       expect(htmlDev).toContain('data-mode="dev"');
     });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 0.35.0 — `excludeKeys` does what the prop says.
+//
+// It was declared on the props interface and documented, and
+// `DEFAULT_EXCLUDED_KEYS` was exported beside it — but the component never
+// destructured either one, so both were pure fiction: passing a set changed
+// nothing on screen.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("StageDetailPanel — excludeKeys", () => {
+  const before = snap({ memory: { orderId: "ORD-1", _internal: "noise", total: 100 } });
+  const after = snap({
+    stageLabel: "PriceOrder",
+    memory: { orderId: "ORD-1", _internal: "CHANGED", total: 250, tax: 20 },
+  });
+
+  it("hides an excluded key from the memory ledger", () => {
+    const html = render({
+      snapshots: [before, after],
+      selectedIndex: 1,
+      mode: "dev",
+      excludeKeys: new Set(["_internal"]),
+    });
+    expect(html).not.toContain("_internal");
+    expect(html).toContain("orderId");
+  });
+
+  it("hides it from the CHANGE list too — no badge for a key you cannot see", () => {
+    // `_internal` changed between the two steps. Filtering only the ledger
+    // would have left an UPD row for a key that is not in the ledger.
+    const html = render({
+      snapshots: [before, after],
+      selectedIndex: 1,
+      mode: "dev",
+      excludeKeys: new Set(["_internal"]),
+    });
+    expect(html).not.toContain("CHANGED");
+    expect(html).toContain("250"); // the visible change is still reported
+  });
+
+  it("an excluded key that was DELETED raises no DEL row", () => {
+    const gone = snap({ stageLabel: "Cleanup", memory: { orderId: "ORD-1", total: 100 } });
+    const html = render({
+      snapshots: [before, gone],
+      selectedIndex: 1,
+      mode: "dev",
+      excludeKeys: new Set(["_internal"]),
+    });
+    expect(html).not.toContain("_internal");
+    expect(html).not.toContain('data-type="removed"');
+  });
+
+  it("applies in unstyled dev mode as well", () => {
+    const html = render({
+      snapshots: [before, after],
+      selectedIndex: 1,
+      mode: "dev",
+      unstyled: true,
+      excludeKeys: new Set(["_internal"]),
+    });
+    expect(html).not.toContain("_internal");
+    expect(html).toContain("orderId");
+  });
+
+  it("shows everything by default — the shipped default excludes nothing", () => {
+    const html = render({ snapshots: [before, after], selectedIndex: 1, mode: "dev" });
+    expect(html).toContain("_internal");
+    expect(DEFAULT_EXCLUDED_KEYS.size).toBe(0);
+  });
+
+  it("an explicitly empty set also shows everything", () => {
+    const html = render({
+      snapshots: [before, after],
+      selectedIndex: 1,
+      mode: "dev",
+      excludeKeys: new Set<string>(),
+    });
+    expect(html).toContain("_internal");
   });
 });

@@ -64,6 +64,24 @@ export function resolveDrillScope(graph: TraceGraph, drillKey: string): string {
       if (n.data?.subflowOf === local) return local;
     }
   }
+  // The key is a bare LOCAL subflowId (the documented legacy form) on a graph
+  // whose children are tagged with the mount NODE'S id — which is what eui's
+  // own recorder produces. `findMountNode` already resolves this form, so
+  // without this arm the legacy key named a mount nobody's children pointed
+  // at and the filter returned an EMPTY graph.
+  //
+  // FIRST MOUNT WINS: a local subflowId is not unique — mounting the same
+  // child chart twice gives two mounts the same one — so document order is
+  // the only answer available. That ambiguity is exactly why the mount node
+  // id is the preferred key and this form is legacy.
+  const mount = graph.nodes.find(
+    (n) => n.data?.isSubflow === true && n.data?.subflowId === drillKey,
+  );
+  if (mount !== undefined && mount.id !== drillKey) {
+    for (const n of graph.nodes) {
+      if (n.data?.subflowOf === mount.id) return mount.id;
+    }
+  }
   return drillKey;
 }
 

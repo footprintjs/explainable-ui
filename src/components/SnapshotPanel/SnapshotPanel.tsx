@@ -147,7 +147,8 @@ export function SnapshotPanel({
         {showScrubber && (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <ScrubButton
-              label="\u25C0"
+              glyph="◀"
+              label="Previous stage"
               disabled={selectedIndex === 0}
               onClick={() => setSelectedIndex((i) => Math.max(0, i - 1))}
             />
@@ -165,7 +166,8 @@ export function SnapshotPanel({
               }}
             />
             <ScrubButton
-              label="\u25B6"
+              glyph="▶"
+              label="Next stage"
               disabled={selectedIndex === snapshots.length - 1}
               onClick={() =>
                 setSelectedIndex((i) => Math.min(snapshots.length - 1, i + 1))
@@ -217,19 +219,35 @@ export function SnapshotPanel({
   );
 }
 
+/**
+ * One transport button on the scrubber rail.
+ *
+ * `glyph` is the ARROW (a real character, not an escape — writing "\u25C0"
+ * inside a JSX string attribute is not an escape sequence, so the six
+ * characters printed verbatim where an arrow should have been). `label` is
+ * the accessible name, because a bare triangle names nothing to a screen
+ * reader. Chrome matches `<TimeTravelControls>`'s prev/next buttons — the
+ * same transport controls, so they read as the same family.
+ */
 function ScrubButton({
+  glyph,
   label,
   disabled,
   onClick,
 }: {
+  glyph: string;
   label: string;
   disabled: boolean;
   onClick: () => void;
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-label={label}
+      title={label}
+      data-fp="scrub-button"
       style={{
         background: theme.bgTertiary,
         border: `1px solid ${theme.border}`,
@@ -243,10 +261,12 @@ function ScrubButton({
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.5 : 1,
         fontSize: 12,
+        fontWeight: 600,
+        lineHeight: 1,
         flexShrink: 0,
       }}
     >
-      {label}
+      <span aria-hidden="true">{glyph}</span>
     </button>
   );
 }

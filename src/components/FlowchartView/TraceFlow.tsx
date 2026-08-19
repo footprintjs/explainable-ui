@@ -336,6 +336,17 @@ function toStageNode(node: TraceNode): Node {
 
   const data = node.data;
   const stageData: StageNodeData = {
+    // Pass the source data through WHOLE. An allow-list here dropped every
+    // field it did not name: the consumer's OWN custom fields (which the
+    // `nodeTypes` extension contract promises a swapped-in renderer can read
+    // off `data`) and the recorder's own metadata the bundled renderer
+    // happens not to use — isStreaming, isPausable, branchIds, defaultBranch,
+    // prevIds, nextIds, subflowOf. A renderer cannot read what never arrived.
+    ...data,
+    // Then the fields this function OWNS. Run status is blank here by design
+    // — `<TraceFlow>` is the structure-only chart; `<TracedFlow>` is the one
+    // that paints an overlay — so these must win over anything the source
+    // data carried.
     label: data.label,
     isDecider: data.isDecider,
     isFork: data.isFork,
@@ -343,13 +354,7 @@ function toStageNode(node: TraceNode): Node {
     active: false,
     done: false,
     error: false,
-    ...(data.description !== undefined && { description: data.description }),
-    ...(data.icon !== undefined && { icon: data.icon }),
-    ...(data.subflowId !== undefined && { subflowId: data.subflowId }),
-    ...(data.isLazy === true && { isLazy: true }),
-    ...(data.emphasis !== undefined && { emphasis: data.emphasis }),
-    ...(data.size !== undefined && { size: data.size }),
-  };
+  } as StageNodeData;
   return {
     ...node,
     type: "stageNode",

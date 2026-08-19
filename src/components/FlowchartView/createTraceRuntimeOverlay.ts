@@ -306,6 +306,20 @@ export function sliceOverlay(
       errors: overlay.errors,
     };
   }
+  // Past the end = the run FINISHED: every step is done and nothing is
+  // active. Clamping to the last step instead (what this did) left a
+  // finished run painting its final stage as still-running, which is the
+  // one thing a finished run must not say.
+  if (index >= order.length) {
+    const allDone = new Set(order.map((s) => s.stageId));
+    return {
+      doneStageIds: allDone,
+      activeStageId: null,
+      executedStageIds: new Set(allDone),
+      executedOrderIds: order.map((s) => s.stageId),
+      errors: overlay.errors,
+    };
+  }
   const clampedIndex = Math.max(0, Math.min(index, order.length - 1));
   const doneStageIds = new Set<string>();
   for (let i = 0; i < clampedIndex; i++) {

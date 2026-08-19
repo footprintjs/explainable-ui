@@ -1,25 +1,20 @@
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { theme, fontSize, padding } from "../../theme";
 
 export interface MemoryInspectorProps extends BaseComponentProps {
-  /** Single memory object or snapshots (will accumulate up to selectedIndex) */
+  /** A memory object to show as-is. Takes precedence over `snapshots`. */
   data?: Record<string, unknown>;
   /** When using snapshots mode, pass these instead of data */
   snapshots?: StageSnapshot[];
-  /** Index to accumulate up to (for time-travel) */
+  /** Which step's state to show (for time-travel). Each snapshot's `memory`
+   *  is already the accumulated state after that stage — including its
+   *  deletions — so this reads that step, it does not re-accumulate. */
   selectedIndex?: number;
   /** Show data types alongside values */
   showTypes?: boolean;
   /** Highlight keys that are new at this step */
   highlightNew?: boolean;
-}
-
-/** Cache for incremental memory accumulation — avoids O(n) rebuild on every slider scrub. */
-interface MemoryCache {
-  snapshots: StageSnapshot[];
-  index: number;
-  accumulated: Record<string, unknown>;
 }
 
 /**
@@ -37,9 +32,6 @@ export function MemoryInspector({
   className,
   style,
 }: MemoryInspectorProps) {
-  // Incremental cache: accumulate forward from last known index instead of rebuilding from 0
-  const cacheRef = useRef<MemoryCache | null>(null);
-
   const { memory, newKeys } = useMemo(() => {
     if (data) {
       return { memory: data, newKeys: new Set<string>() };
@@ -49,44 +41,25 @@ export function MemoryInspector({
     }
 
     const safeIdx = Math.min(selectedIndex, snapshots.length - 1);
-    let merged: Record<string, unknown>;
-    const cache = cacheRef.current;
 
-    if (cache && cache.snapshots === snapshots && cache.index <= safeIdx) {
-      // Forward scrub: extend from cached state
-      merged = { ...cache.accumulated };
-      for (let i = cache.index + 1; i <= safeIdx; i++) {
-        Object.assign(merged, snapshots[i]?.memory);
-      }
-    } else {
-      // Backward scrub or new snapshots: rebuild from scratch
-      merged = {};
-      for (let i = 0; i <= safeIdx; i++) {
-        Object.assign(merged, snapshots[i]?.memory);
-      }
-    }
-
-    // Update cache
-    cacheRef.current = { snapshots, index: safeIdx, accumulated: merged };
+    // A snapshot's `memory` IS the accumulated state after that stage ran
+    // (see `StageSnapshot.memory`) — the adapter has already replayed every
+    // commit onto it, deletes included. So the state at this step is simply
+    // this step's memory.
+    //
+    // This used to `Object.assign` every earlier snapshot's memory on top of
+    // each other, which can only ever ADD keys back: a key the run DELETED
+    // was resurrected from the step before it, and the ScopeDiff composed
+    // right beside this panel (MemoryPanel) reported that same key "removed"
+    // in the very same view. Deleted stays deleted.
+    const merged = snapshots[safeIdx]?.memory ?? {};
 
     const nk = new Set<string>();
-    if (highlightNew && safeIdx > 0) {
-      // Previous state is cache at safeIdx-1, or rebuild if needed
-      let prev: Record<string, unknown>;
-      if (cache && cache.snapshots === snapshots && cache.index === safeIdx - 1) {
-        prev = cache.accumulated;
-      } else {
-        prev = {};
-        for (let i = 0; i < safeIdx; i++) {
-          Object.assign(prev, snapshots[i]?.memory);
-        }
-      }
-      const current = snapshots[safeIdx]?.memory ?? {};
-      for (const k of Object.keys(current)) {
+    if (highlightNew) {
+      const prev = safeIdx > 0 ? snapshots[safeIdx - 1]?.memory ?? {} : {};
+      for (const k of Object.keys(merged)) {
         if (!(k in prev)) nk.add(k);
       }
-    } else if (highlightNew && safeIdx === 0 && snapshots[0]) {
-      for (const k of Object.keys(snapshots[0].memory)) nk.add(k);
     }
 
     return { memory: merged, newKeys: nk };
