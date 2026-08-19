@@ -5,7 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.34.0] - 2026-08-19
+
+Three arcs, all about the chart telling you where you are. A bare
+`npm install` of this package also stops crashing (see the last Fixed entry —
+it had been broken on every published version since at least 0.29.0).
+
+### Added
+
+- **The chart shows WHERE YOU ARE.** The current stage lights with a NOW
+  badge, the executed path colors in with per-pass step numbers, and when the
+  cursor is on a stage inside a subflow, the mount node lights for it
+  (`aggregateMountStatus` walks to the nearest VISIBLE ancestor). A cursor is
+  never dead: if the current node is hidden by a collapse, the edge that
+  contracted through it takes the active color instead.
+- **`collapseTraceGraph(graph, hide)` + `<TracedFlow collapseNode>`** — hide
+  nodes honestly. Matched nodes (and their drill internals) are removed and
+  edges contract through them — chains fully, loop-kind preserved, no
+  self-loops — and the result names `hiddenNodeIds` so the caller can say
+  "N steps hidden" instead of pretending they never ran. Contracted edges
+  carry `data.via` (the hidden node ids they stand in for), which is what
+  lets a collapsed cursor light its edge.
+- **`TraceRuntimeOverlayHandle.seed(overlay)`** — adopt a post-hoc overlay
+  (from `overlayFromSnapshot`) into the live handle. This is the missing
+  piece for REPLAYED recordings: a replay never traverses, so the live
+  recorder never hears anything and the chart could not light — seeding from
+  the commit log gives replays the same lit chart a live run gets.
+- **A packaging gate that loads the BUILT entries** —
+  `test/packaging/entry-imports.test.ts` fails if any built bundle imports a
+  package the manifest does not declare. Written for the bug fixed below, so
+  it cannot come back.
+
+### Fixed
+
+- **`npm install footprint-explainable-ui` alone no longer crashes at first
+  import.** The root bundle statically imports `@xyflow/react` (7 sites,
+  through the shell), but the manifest declared NO version range for it — it
+  sat only in `peerDependenciesMeta` as "optional", and devDependencies do
+  not publish. It is now a required peer (`^12.0.0`), which npm 7+ installs
+  for you. Every real consumer already had xyflow through another path,
+  which is exactly why nobody saw it.
+
+### The drill fix, in the same release
+
 
 One bug, reported as "clicking a subflow in the Topology panel doesn't show the
 subflow's chart". Two causes, both about IDENTITY: the drill was keyed by a name
