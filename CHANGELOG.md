@@ -97,6 +97,14 @@ reverted in place.
   accumulated state after that stage, deletions included, so the view simply
   reads it.
 
+  BEHAVIOUR CHANGE if you hand-build snapshots: `StageSnapshot.memory` has
+  always been documented as "accumulated memory state after this stage ran",
+  and every adapter in this library produces exactly that — but the old
+  MemoryInspector prop doc said "will accumulate up to selectedIndex", so a
+  hand-fed array of per-stage DELTAS used to display merged. It no longer
+  does: pass each snapshot's full accumulated state, as the type has always
+  said.
+
 - **`<SnapshotPanel>`'s scrub buttons show arrows.** They were written as
   `label="\u25C0"` inside a JSX attribute, which is not an escape sequence —
   so the six characters `\u25C0` printed where an arrow belonged. They are
@@ -110,8 +118,8 @@ reverted in place.
   screen. Excluded keys now disappear from the memory ledger AND from the
   change list, so a hidden key cannot reappear as an ADD/UPD/DEL row.
   `DEFAULT_EXCLUDED_KEYS` (empty — this library has no reserved keys to hide
-  on your behalf) is now importable from both entry points, so you can extend
-  it rather than guess at it.
+  on your behalf) is now importable from the package root, right beside
+  `StageDetailPanel` itself, so you can extend it rather than guess at it.
 
 - **The pending dots in the shell's timeline footer are visible.**
   `<CompactTimeline>` mixed its faded colours by gluing a hex alpha suffix
@@ -119,6 +127,12 @@ reverted in place.
   colour any browser parses. The unvisited dots and the line joining them
   simply didn't render. They are mixed with `color-mix` now, like everything
   else in the library.
+
+- **Flipping `unstyled` between renders no longer crashes.** One memo (the
+  shell's theme variables) still ran below unstyled mode's early return, so a
+  shell that switched from unstyled to styled (or back) between renders
+  changed its own hook count and React threw. Every hook now runs above the
+  early return, and a regression test renders the flip in both directions.
 
 ### Deprecated
 

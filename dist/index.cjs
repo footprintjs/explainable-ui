@@ -8055,6 +8055,16 @@ function ExplainableShell({
       autoRecorderViews
     ]
   );
+  const shellThemeVars = (0, import_react32.useMemo)(() => {
+    if (!traceTheme) return {};
+    return {
+      // ONE mapping from mode → palette, shared with the standalone
+      // components' `theme="light"` prop (theme/mode.ts).
+      ...themeModeVars(traceTheme.mode),
+      ...traceTheme.visited !== void 0 && { ["--fp-node-visited"]: traceTheme.visited },
+      ...traceTheme.current !== void 0 && { ["--fp-node-cursor"]: traceTheme.current }
+    };
+  }, [traceTheme]);
   const renderEmptyState = (themeVars) => {
     const shellStyle = { ...themeVars, ...style };
     if (derivedFromRuntime?.error) {
@@ -8169,16 +8179,6 @@ function ExplainableShell({
     }) }),
     /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
   ] });
-  const shellThemeVars = (0, import_react32.useMemo)(() => {
-    if (!traceTheme) return {};
-    return {
-      // ONE mapping from mode → palette, shared with the standalone
-      // components' `theme="light"` prop (theme/mode.ts).
-      ...themeModeVars(traceTheme.mode),
-      ...traceTheme.visited !== void 0 && { ["--fp-node-visited"]: traceTheme.visited },
-      ...traceTheme.current !== void 0 && { ["--fp-node-cursor"]: traceTheme.current }
-    };
-  }, [traceTheme]);
   if (snapshots.length === 0) return renderEmptyState(shellThemeVars);
   return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
     "div",

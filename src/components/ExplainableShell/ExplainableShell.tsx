@@ -1960,6 +1960,30 @@ export function ExplainableShell({
     ],
   );
 
+  // `traceTheme.mode` applies eui's full light/dark preset as `--fp-*` vars on
+  // the shell root, so the WHOLE shell (canvas, panels, nodes, text, borders)
+  // follows dark/light from one prop — the consumer never hand-sets the palette.
+  // `visited`/`current` layer node-fill overrides on top (they win over the
+  // preset). Any `--fp-*` the consumer sets on an ancestor is still respected
+  // for tokens the preset/overrides don't touch. This is the coarse switch;
+  // `--fp-*` remains the fine escape hatch.
+  //
+  // This hook must stay ABOVE the unstyled early return below: a hook after
+  // an early return runs only on the renders that get past it, so flipping
+  // `unstyled` between renders would change the hook count and React would
+  // throw. (Unstyled mode itself never uses these vars — that is the point
+  // of unstyled — but the hook must still RUN.)
+  const shellThemeVars = useMemo<React.CSSProperties>(() => {
+    if (!traceTheme) return {};
+    return {
+      // ONE mapping from mode → palette, shared with the standalone
+      // components' `theme="light"` prop (theme/mode.ts).
+      ...themeModeVars(traceTheme.mode),
+      ...(traceTheme.visited !== undefined && { ["--fp-node-visited" as string]: traceTheme.visited }),
+      ...(traceTheme.current !== undefined && { ["--fp-node-cursor" as string]: traceTheme.current }),
+    } as React.CSSProperties;
+  }, [traceTheme]);
+
   const renderEmptyState = (themeVars: React.CSSProperties): React.ReactElement => {
     const shellStyle = { ...themeVars, ...style } as React.CSSProperties;
     if (derivedFromRuntime?.error) {
@@ -2101,26 +2125,8 @@ export function ExplainableShell({
     </div>
   );
 
-  // `traceTheme.mode` applies eui's full light/dark preset as `--fp-*` vars on
-  // the shell root, so the WHOLE shell (canvas, panels, nodes, text, borders)
-  // follows dark/light from one prop — the consumer never hand-sets the palette.
-  // `visited`/`current` layer node-fill overrides on top (they win over the
-  // preset). Any `--fp-*` the consumer sets on an ancestor is still respected
-  // for tokens the preset/overrides don't touch. This is the coarse switch;
-  // `--fp-*` remains the fine escape hatch.
-  const shellThemeVars = useMemo<React.CSSProperties>(() => {
-    if (!traceTheme) return {};
-    return {
-      // ONE mapping from mode → palette, shared with the standalone
-      // components' `theme="light"` prop (theme/mode.ts).
-      ...themeModeVars(traceTheme.mode),
-      ...(traceTheme.visited !== undefined && { ["--fp-node-visited" as string]: traceTheme.visited }),
-      ...(traceTheme.current !== undefined && { ["--fp-node-cursor" as string]: traceTheme.current }),
-    } as React.CSSProperties;
-  }, [traceTheme]);
-
-  // Every hook has run by here — safe to hand back the diagnosis instead of
-  // chrome wrapped around nothing.
+  // Safe to hand back the diagnosis instead of chrome wrapped around nothing
+  // (every hook ran above the unstyled return already).
   if (snapshots.length === 0) return renderEmptyState(shellThemeVars);
 
   return (

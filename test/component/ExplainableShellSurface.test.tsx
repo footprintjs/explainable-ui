@@ -311,3 +311,40 @@ describe("ExplainableShell — the `tabs` prop is loudly deprecated", () => {
     expect(container.textContent).toContain("Seeded the run.");
   });
 });
+
+// ── 5. Hook order survives an unstyled flip ────────────────────────────────
+
+describe("ExplainableShell — hook order survives an `unstyled` flip", () => {
+  // The unstyled branch returns early. Every hook must therefore run BEFORE
+  // that return: a hook below it runs only on styled renders, so flipping
+  // `unstyled` between renders changes the hook count and React throws
+  // ("Rendered more hooks than during the previous render"). This is the
+  // same defect class the renderTabBody unification fixed for the old
+  // detailsContent useMemo — this test pins the whole component, so a future
+  // hook added below the early return fails here instead of in production.
+  it("unstyled → styled does not change the hook count", () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { rerender } = render(
+      <ExplainableShell snapshots={SNAPSHOTS} traceGraph={GRAPH} unstyled />,
+    );
+    expect(() =>
+      rerender(<ExplainableShell snapshots={SNAPSHOTS} traceGraph={GRAPH} />),
+    ).not.toThrow();
+    const said = err.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(said).not.toContain("Rendered more hooks");
+    err.mockRestore();
+  });
+
+  it("styled → unstyled does not change the hook count either", () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { rerender } = render(
+      <ExplainableShell snapshots={SNAPSHOTS} traceGraph={GRAPH} />,
+    );
+    expect(() =>
+      rerender(<ExplainableShell snapshots={SNAPSHOTS} traceGraph={GRAPH} unstyled />),
+    ).not.toThrow();
+    const said = err.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(said).not.toContain("Rendered fewer hooks");
+    err.mockRestore();
+  });
+});
