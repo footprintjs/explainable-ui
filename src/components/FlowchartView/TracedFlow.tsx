@@ -60,6 +60,7 @@ import { themeModeVars } from "../../theme/mode";
 import type { ThemeModeProps } from "../../theme/mode";
 import type { BaseComponentProps } from "../../types";
 import { filterGraphForDrill, buildSubflowBreadcrumb } from "./_internal/subflowDrill";
+import { collapseTraceGraph } from "./_internal/collapseGraph";
 import { aggregateMountStatus } from "./_internal/overlayProjection";
 import { useSubflowDrill } from "./_internal/useSubflowDrill";
 import { useChartAutoRefit } from "./_internal/useChartAutoRefit";
@@ -356,6 +357,16 @@ export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
    */
   sliceCone?: ReadonlyMap<string, number> | null;
   /**
+   * Hide the nodes this predicate matches (a hidden subflow card takes its
+   * drill-internals with it); edges re-connect THROUGH hidden nodes so every
+   * surviving path still reads. The predicate is the CALLER's judgement — this
+   * component special-cases no id convention. The pure transform behind it is
+   * exported as `collapseTraceGraph` for callers that also need the hidden-id
+   * list (to render an honest "N steps hidden" note — hiding without saying so
+   * is the one way not to use this prop). Unset → nothing is hidden.
+   */
+  collapseNode?: (node: TraceNode) => boolean;
+  /**
    * Subflow ids to render as GROUP CONTAINER boxes — the subflow's member
    * stages render NESTED inside the box (xyflow `parentId` + `extent`),
    * instead of behind a click-to-zoom DRILL card. Per-subflow choice: any
@@ -400,6 +411,7 @@ export function TracedFlow({
   onNodeClick,
   onSubflowChange,
   currentSubflowId: controlledSubflowId,
+  collapseNode,
   groupedSubflows,
   mainChartBox,
   nodeTypes: userNodeTypes,
@@ -444,17 +456,23 @@ export function TracedFlow({
     [userEdgeTypes],
   );
 
+  // ── Node collapse (before drill: a hidden card cannot be drilled) ──
+  const effectiveGraph = useMemo(
+    () => (collapseNode ? collapseTraceGraph(graph, collapseNode).graph : graph),
+    [graph, collapseNode],
+  );
+
   // ── Drill state + visibility derivations ──────────────────────────
-  const drill = useSubflowDrill(graph, onSubflowChange, controlledSubflowId);
+  const drill = useSubflowDrill(effectiveGraph, onSubflowChange, controlledSubflowId);
   const groupedSet = useMemo(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
   // Drill-filter the graph, but KEEP members of grouped subflows visible:
   // a grouped subflow renders its members nested in a container box rather
   // than hidden behind a drill card, so it opts out of drill hiding.
   const filteredGraph = useMemo(() => {
-    const base = filterGraphForDrill(graph, drill.currentSubflowId);
+    const base = filterGraphForDrill(effectiveGraph, drill.currentSubflowId);
     if (groupedSet.size === 0) return base;
     const baseIds = new Set(base.nodes.map((n) => n.id));
-    const extraNodes = graph.nodes.filter(
+    const extraNodes = effectiveGraph.nodes.filter(
       (n) =>
         n.data?.subflowOf !== undefined &&
         groupedSet.has(n.data.subflowOf) &&
@@ -463,14 +481,14 @@ export function TracedFlow({
     if (extraNodes.length === 0) return base;
     const allIds = new Set([...baseIds, ...extraNodes.map((n) => n.id)]);
     const baseEdgeIds = new Set(base.edges.map((e) => e.id));
-    const extraEdges = graph.edges.filter(
+    const extraEdges = effectiveGraph.edges.filter(
       (e) => !baseEdgeIds.has(e.id) && allIds.has(e.source) && allIds.has(e.target),
     );
     return { nodes: [...base.nodes, ...extraNodes], edges: [...base.edges, ...extraEdges] };
-  }, [graph, drill.currentSubflowId, groupedSet]);
+  }, [effectiveGraph, drill.currentSubflowId, groupedSet]);
   const breadcrumb = useMemo(
-    () => buildSubflowBreadcrumb(graph, drill.currentSubflowId),
-    [graph, drill.currentSubflowId],
+    () => buildSubflowBreadcrumb(effectiveGraph, drill.currentSubflowId),
+    [effectiveGraph, drill.currentSubflowId],
   );
   // Real rendered node sizes, captured by the <MeasuredNodeSizes> probe once
   // xyflow has measured them — fed into the dagre `nodeSize` resolver below so
@@ -542,8 +560,8 @@ export function TracedFlow({
     };
     if (!overlay) return empty;
     const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
-    return aggregateMountStatus(sliceOverlay(overlay, idx), graph, drill.currentSubflowId);
-  }, [overlay, scrubIndex, graph, drill.currentSubflowId]);
+    return aggregateMountStatus(sliceOverlay(overlay, idx), effectiveGraph, drill.currentSubflowId);
+  }, [overlay, scrubIndex, effectiveGraph, drill.currentSubflowId]);
 
   // ── xyflow nodes + edges (re-run per scrub tick) ──────────────────
   const reactFlowNodes = useMemo<Node[]>(

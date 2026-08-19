@@ -406,10 +406,10 @@ interface TraceEdgeData extends Record<string, unknown> {
     kind: EdgeKind | "loop";
     label?: string;
 }
-type TraceNode = Node<TraceNodeData>;
+type TraceNode$1 = Node<TraceNodeData>;
 type TraceEdge = Edge<TraceEdgeData>;
 interface TraceGraph {
-    nodes: TraceNode[];
+    nodes: TraceNode$1[];
     edges: TraceEdge[];
 }
 interface TraceStructureRecorderHandle {
@@ -769,6 +769,53 @@ interface BreadcrumbEntry {
  */
 declare function buildSubflowBreadcrumb(graph: TraceGraph, currentSubflowId: string | null): BreadcrumbEntry[];
 
+/**
+ * collapseTraceGraph — hide a caller-chosen set of nodes from a `TraceGraph`,
+ * honestly: the nodes disappear, the edges through them are re-connected, and
+ * the caller gets the list of what was hidden so the UI can SAY so.
+ *
+ * The mechanism is deliberately NEUTRAL: this library has no idea what makes a
+ * node worth hiding — that judgement belongs to whoever built the graph (a
+ * domain layer might hide its framework's own plumbing subflows, a dashboard
+ * might hide retries). The predicate receives the whole node, so a caller can
+ * decide by id, by `data.emphasis`, by `data.isSubflow` — anything the graph
+ * already carries. No id convention is special-cased here.
+ *
+ * Rules, stated so they can be tested (and they are — collapseTraceGraph.test):
+ *
+ *   1. A node the predicate matches is removed, and listed in `hiddenNodeIds`.
+ *   2. A removed subflow card takes its internals with it (the nodes whose
+ *      `subflowOf` scope it owns, transitively). They are NOT listed — they
+ *      were only ever reachable by drilling a card that no longer exists, and
+ *      counting invisible internals would overstate what the collapse hid.
+ *   3. Every path THROUGH a removed node survives: predecessors connect to
+ *      successors (chains of removed nodes contract fully). A contracted edge
+ *      that would point a node at itself is dropped; duplicates are deduped.
+ *   4. A loop edge stays a loop edge: if either contracted leg was `kind:
+ *      'loop'`, the resulting edge is too — hiding a stage inside a loop must
+ *      not straighten the loop.
+ *   5. Nothing matched → the ORIGINAL graph reference comes back (upstream
+ *      memoization is preserved), with an empty `hiddenNodeIds`.
+ *
+ * The transform is pure and synchronous. It says what it hid; it never decides
+ * what SHOULD be hidden and it never renders the sentence — absent and hidden
+ * are different facts, and only the caller knows the words for them.
+ */
+
+type TraceNode = TraceGraph["nodes"][number];
+interface CollapsedTraceGraph {
+    /** The graph with the hidden nodes removed and their edges contracted. The
+     *  ORIGINAL reference when nothing matched. */
+    readonly graph: TraceGraph;
+    /**
+     * The ids of the nodes the predicate matched, in graph order — what the
+     * collapse HID, for the caller's honest sentence ("N steps hidden"). A
+     * removed card's internals are not listed (see rule 2 above).
+     */
+    readonly hiddenNodeIds: readonly string[];
+}
+declare function collapseTraceGraph(graph: TraceGraph, hide: (node: TraceNode) => boolean): CollapsedTraceGraph;
+
 interface SubflowTreeEntry {
     /** Node name / identifier */
     name: string;
@@ -1092,6 +1139,16 @@ interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
      */
     sliceCone?: ReadonlyMap<string, number> | null;
     /**
+     * Hide the nodes this predicate matches (a hidden subflow card takes its
+     * drill-internals with it); edges re-connect THROUGH hidden nodes so every
+     * surviving path still reads. The predicate is the CALLER's judgement — this
+     * component special-cases no id convention. The pure transform behind it is
+     * exported as `collapseTraceGraph` for callers that also need the hidden-id
+     * list (to render an honest "N steps hidden" note — hiding without saying so
+     * is the one way not to use this prop). Unset → nothing is hidden.
+     */
+    collapseNode?: (node: TraceNode$1) => boolean;
+    /**
      * Subflow ids to render as GROUP CONTAINER boxes — the subflow's member
      * stages render NESTED inside the box (xyflow `parentId` + `extent`),
      * instead of behind a click-to-zoom DRILL card. Per-subflow choice: any
@@ -1118,7 +1175,7 @@ interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
      */
     children?: react.ReactNode;
 }
-declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, currentSubflowId: controlledSubflowId, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, sliceCone, theme: themeMode, children, className, style, }: TracedFlowProps): react.JSX.Element;
+declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, currentSubflowId: controlledSubflowId, collapseNode, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, sliceCone, theme: themeMode, children, className, style, }: TracedFlowProps): react.JSX.Element;
 
 interface GroupContainerNodeData {
     label: string;
@@ -1293,7 +1350,7 @@ interface NodeFootprint {
  * whatever criteria THEY choose. E.g. make one specific slot a slim bar
  * while another stays a full card; make the LLM-call node large; etc.
  */
-type NodeSizeResolver = (node: TraceNode) => NodeFootprint | undefined;
+type NodeSizeResolver = (node: TraceNode$1) => NodeFootprint | undefined;
 /** Consumer-supplied per-edge layout-weight resolver. Higher weight pulls
  *  the two endpoints into a tighter, straighter column (dagre `weight`).
  *  Return `undefined` for the default (1). */
@@ -2638,4 +2695,4 @@ interface SerializedStructureNode {
  */
 declare function graphFromStructure(structure: unknown): TraceGraph;
 
-export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, graphFromStructure, overlayFromSnapshot, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };
+export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, graphFromStructure, overlayFromSnapshot, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };

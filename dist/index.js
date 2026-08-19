@@ -5384,6 +5384,69 @@ function buildSubflowBreadcrumb(graph, currentSubflowId) {
   return [{ subflowId: null, label: "Chart" }, ...trail];
 }
 
+// src/components/FlowchartView/_internal/collapseGraph.ts
+function scopesOf(node) {
+  const local = node.data?.subflowId;
+  return typeof local === "string" && local !== node.id ? [node.id, local] : [node.id];
+}
+function collapseTraceGraph(graph, hide) {
+  const hiddenNodeIds = [];
+  const removed = /* @__PURE__ */ new Set();
+  const removedScopes = /* @__PURE__ */ new Set();
+  for (const node of graph.nodes) {
+    if (!hide(node)) continue;
+    hiddenNodeIds.push(node.id);
+    removed.add(node.id);
+    for (const scope of scopesOf(node)) removedScopes.add(scope);
+  }
+  if (hiddenNodeIds.length === 0) return { graph, hiddenNodeIds };
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const node of graph.nodes) {
+      if (removed.has(node.id)) continue;
+      const parent = node.data?.subflowOf;
+      if (parent !== void 0 && removedScopes.has(parent)) {
+        removed.add(node.id);
+        for (const scope of scopesOf(node)) removedScopes.add(scope);
+        grew = true;
+      }
+    }
+  }
+  let edges = [...graph.edges];
+  for (const hiddenId of removed) {
+    const incoming = edges.filter((e) => e.target === hiddenId && e.source !== hiddenId);
+    const outgoing = edges.filter((e) => e.source === hiddenId && e.target !== hiddenId);
+    edges = edges.filter((e) => e.source !== hiddenId && e.target !== hiddenId);
+    for (const inEdge of incoming) {
+      for (const outEdge of outgoing) {
+        if (inEdge.source === outEdge.target) continue;
+        const kind = inEdge.data?.kind === "loop" || outEdge.data?.kind === "loop" ? "loop" : outEdge.data?.kind ?? inEdge.data?.kind ?? "next";
+        edges.push({
+          id: `${inEdge.source}->${outEdge.target}~collapsed`,
+          source: inEdge.source,
+          target: outEdge.target,
+          data: { kind }
+        });
+      }
+    }
+  }
+  const seen = /* @__PURE__ */ new Set();
+  const dedupedEdges = edges.filter((e) => {
+    const key = `${e.source}\0${e.target}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return {
+    graph: {
+      nodes: graph.nodes.filter((n) => !removed.has(n.id)),
+      edges: dedupedEdges
+    },
+    hiddenNodeIds
+  };
+}
+
 // src/components/FlowchartView/_internal/overlayProjection.ts
 function aggregateMountStatus(slice, graph, currentSubflowId) {
   if (graph.nodes.length === 0) return slice;
@@ -6106,6 +6169,7 @@ function TracedFlow({
   onNodeClick,
   onSubflowChange,
   currentSubflowId: controlledSubflowId,
+  collapseNode,
   groupedSubflows,
   mainChartBox,
   nodeTypes: userNodeTypes,
@@ -6137,26 +6201,30 @@ function TracedFlow({
     () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES, ...userEdgeTypes } : DEFAULT_EDGE_TYPES,
     [userEdgeTypes]
   );
-  const drill = useSubflowDrill(graph, onSubflowChange, controlledSubflowId);
+  const effectiveGraph = useMemo13(
+    () => collapseNode ? collapseTraceGraph(graph, collapseNode).graph : graph,
+    [graph, collapseNode]
+  );
+  const drill = useSubflowDrill(effectiveGraph, onSubflowChange, controlledSubflowId);
   const groupedSet = useMemo13(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
   const filteredGraph = useMemo13(() => {
-    const base = filterGraphForDrill(graph, drill.currentSubflowId);
+    const base = filterGraphForDrill(effectiveGraph, drill.currentSubflowId);
     if (groupedSet.size === 0) return base;
     const baseIds = new Set(base.nodes.map((n) => n.id));
-    const extraNodes = graph.nodes.filter(
+    const extraNodes = effectiveGraph.nodes.filter(
       (n) => n.data?.subflowOf !== void 0 && groupedSet.has(n.data.subflowOf) && !baseIds.has(n.id)
     );
     if (extraNodes.length === 0) return base;
     const allIds = /* @__PURE__ */ new Set([...baseIds, ...extraNodes.map((n) => n.id)]);
     const baseEdgeIds = new Set(base.edges.map((e) => e.id));
-    const extraEdges = graph.edges.filter(
+    const extraEdges = effectiveGraph.edges.filter(
       (e) => !baseEdgeIds.has(e.id) && allIds.has(e.source) && allIds.has(e.target)
     );
     return { nodes: [...base.nodes, ...extraNodes], edges: [...base.edges, ...extraEdges] };
-  }, [graph, drill.currentSubflowId, groupedSet]);
+  }, [effectiveGraph, drill.currentSubflowId, groupedSet]);
   const breadcrumb = useMemo13(
-    () => buildSubflowBreadcrumb(graph, drill.currentSubflowId),
-    [graph, drill.currentSubflowId]
+    () => buildSubflowBreadcrumb(effectiveGraph, drill.currentSubflowId),
+    [effectiveGraph, drill.currentSubflowId]
   );
   const [measuredSizes, setMeasuredSizes] = useState11(null);
   const positioned = useMemo13(() => {
@@ -6193,8 +6261,8 @@ function TracedFlow({
     };
     if (!overlay) return empty;
     const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
-    return aggregateMountStatus(sliceOverlay(overlay, idx), graph, drill.currentSubflowId);
-  }, [overlay, scrubIndex, graph, drill.currentSubflowId]);
+    return aggregateMountStatus(sliceOverlay(overlay, idx), effectiveGraph, drill.currentSubflowId);
+  }, [overlay, scrubIndex, effectiveGraph, drill.currentSubflowId]);
   const reactFlowNodes = useMemo13(
     () => positioned.nodes.map(
       (n) => toStageNodeWithOverlay(

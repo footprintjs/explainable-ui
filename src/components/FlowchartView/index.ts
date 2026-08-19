@@ -9,6 +9,12 @@ export type { SubflowNavigation, BreadcrumbEntry } from "./useSubflowNavigation"
 // single drill cards (their internals hidden until drilled). Pure.
 export { filterGraphForDrill, buildSubflowBreadcrumb } from "./_internal/subflowDrill";
 
+// Node-collapse transform — hide caller-chosen nodes (edges contract through
+// them) and get back WHAT was hidden, so the UI can say so. Neutral: the
+// predicate is the caller's; no id convention is special-cased here. Pure.
+export { collapseTraceGraph } from "./_internal/collapseGraph";
+export type { CollapsedTraceGraph } from "./_internal/collapseGraph";
+
 export { SubflowTree } from "./SubflowTree";
 export type { SubflowTreeProps, SubflowTreeEntry } from "./SubflowTree";
 

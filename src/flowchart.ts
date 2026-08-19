@@ -22,6 +22,13 @@ export type { SubflowNavigation, BreadcrumbEntry } from "./components/FlowchartV
 // Drill-scope graph filter (top-level view = subflows as single cards).
 export { filterGraphForDrill, buildSubflowBreadcrumb } from "./components/FlowchartView";
 
+// Node-collapse transform — hide caller-chosen nodes (edges contract through
+// them) and get back what was hidden so the UI can say so. Also available as
+// `<TracedFlow collapseNode={...}>`. The predicate is the caller's; this
+// library special-cases no id convention.
+export { collapseTraceGraph } from "./components/FlowchartView";
+export type { CollapsedTraceGraph } from "./components/FlowchartView";
+
 // Subflow manifest tree (no ReactFlow dependency — pure React)
 export { SubflowTree } from "./components/FlowchartView";
 export type { SubflowTreeProps, SubflowTreeEntry } from "./components/FlowchartView";
