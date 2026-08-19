@@ -83,3 +83,70 @@ describe("createTraceRuntimeOverlay — visited state", () => {
     expect(h.getOverlay().executionOrder).toHaveLength(1);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// seed() — adopting a rebuilt overlay (the replay path)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { overlayFromSnapshot } from "../../src/adapters/overlayFromSnapshot";
+
+describe("createTraceRuntimeOverlay — seed (replay adoption)", () => {
+  it("adopts a rebuilt overlay: steps land, version bumps, subscribers hear it", async () => {
+    const handle = createTraceRuntimeOverlay();
+    let notified = 0;
+    handle.subscribe(() => { notified += 1; });
+    const before = handle.version();
+
+    const rebuilt = overlayFromSnapshot({
+      commitLog: [
+        { runtimeStageId: "seed#0", stage: "Initialize" },
+        { runtimeStageId: "sf-inj#2", stage: "Injection Engine" },
+        { runtimeStageId: "sf-inj#2", stage: "Injection Engine" }, // dup bundle → one step
+        { runtimeStageId: "sf-inj/gather#4", stage: "Gather" },
+      ],
+    });
+    handle.seed(rebuilt);
+
+    const overlay = handle.getOverlay();
+    expect(overlay.executionOrder.map((s) => s.runtimeStageId)).toEqual([
+      "seed#0",
+      "sf-inj#2",
+      "sf-inj/gather#4",
+    ]);
+    expect(overlay.executionOrder[2]!.stageId).toBe("sf-inj/gather"); // path kept, #N stripped
+    expect(overlay.running).toBe(false);
+    expect(handle.version()).toBeGreaterThan(before);
+    await Promise.resolve(); // listener fires are microtask-batched (createNotifier)
+    expect(notified).toBeGreaterThan(0);
+  });
+
+  it("seed REPLACES prior state and stays dedupe-consistent with later live events", () => {
+    const handle = createTraceRuntimeOverlay();
+    handle.recorder.onStageExecuted?.({
+      stageName: "Old",
+      stageType: "linear",
+      traversalContext: { runtimeStageId: "old#0" },
+    });
+    handle.seed(overlayFromSnapshot({ commitLog: [{ runtimeStageId: "a#0", stage: "A" }] }));
+    // A live event for an already-seeded step dedupes; a new one appends.
+    handle.recorder.onStageExecuted?.({
+      stageName: "A",
+      stageType: "linear",
+      traversalContext: { runtimeStageId: "a#0" },
+    });
+    handle.recorder.onStageExecuted?.({
+      stageName: "B",
+      stageType: "linear",
+      traversalContext: { runtimeStageId: "b#1" },
+    });
+    expect(handle.getOverlay().executionOrder.map((s) => s.runtimeStageId)).toEqual(["a#0", "b#1"]);
+  });
+
+  it("getOverlay hands out copies — mutating the seeded input never reaches the handle", () => {
+    const handle = createTraceRuntimeOverlay();
+    const rebuilt = overlayFromSnapshot({ commitLog: [{ runtimeStageId: "a#0", stage: "A" }] });
+    handle.seed(rebuilt);
+    (rebuilt.executionOrder as unknown as { stageName: string }[])[0]!.stageName = "MUTATED";
+    expect(handle.getOverlay().executionOrder[0]!.stageName).toBe("A");
+  });
+});

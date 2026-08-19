@@ -61,7 +61,7 @@ import type { ThemeModeProps } from "../../theme/mode";
 import type { BaseComponentProps } from "../../types";
 import { filterGraphForDrill, buildSubflowBreadcrumb } from "./_internal/subflowDrill";
 import { collapseTraceGraph } from "./_internal/collapseGraph";
-import { aggregateMountStatus } from "./_internal/overlayProjection";
+import { aggregateMountStatus, cursorStandInIds, edgeCarriesCursor } from "./_internal/overlayProjection";
 import { useSubflowDrill } from "./_internal/useSubflowDrill";
 import { useChartAutoRefit } from "./_internal/useChartAutoRefit";
 import { SubflowBreadcrumbBar } from "./SubflowBreadcrumbBar";
@@ -249,15 +249,23 @@ function styleEdgeWithOverlay(
   doneStageIds: ReadonlySet<string>,
   activeStageId: string | null,
   colors: TracedFlowColors,
+  cursorStandIns: ReadonlySet<string>,
 ): Edge {
   const kind = edge.data?.kind ?? "next";
   const sourceExecuted = doneStageIds.has(edge.source) || activeStageId === edge.source;
   const targetExecuted = doneStageIds.has(edge.target) || activeStageId === edge.target;
   const traversed = sourceExecuted && targetExecuted;
-  const isLeadingEdge = activeStageId === edge.source && !doneStageIds.has(edge.target);
+  // The cursor stands on a node this edge CONTRACTED THROUGH (collapse hid
+  // it): the edge is the only visible thing standing in for that node, so it
+  // takes the active colour and animates — the "you are here" a hidden node
+  // cannot show itself.
+  const carriesCursor = edgeCarriesCursor(edge.data?.via, cursorStandIns);
+  const isLeadingEdge =
+    carriesCursor || (activeStageId === edge.source && !doneStageIds.has(edge.target));
 
   let color: string = colors.default;
-  if (kind === "loop") color = colors.loop;
+  if (carriesCursor) color = colors.active;
+  else if (kind === "loop") color = colors.loop;
   else if (isLeadingEdge) color = colors.active;
   else if (traversed) color = colors.done;
 
@@ -271,7 +279,7 @@ function styleEdgeWithOverlay(
     // RANK-SKIPPING edge around the node it skips (else identical to smoothstep).
     type: kind === "loop" ? "loopBack" : "smartStep",
     animated: isLeadingEdge,
-    style: { stroke: color, strokeWidth: traversed ? 2 : 1.5 },
+    style: { stroke: color, strokeWidth: traversed || carriesCursor ? 2 : 1.5 },
     markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16 },
   };
   if (kind === "loop") {
@@ -578,12 +586,15 @@ export function TracedFlow({
       ),
     [positioned.nodes, slice, coActiveStageIds],
   );
+  // The ids that stand for the cursor on this chart: the active id plus its
+  // path ancestors — what a contracted edge's `via` list is checked against.
+  const cursorStandIns = useMemo(() => cursorStandInIds(slice.activeStageId), [slice.activeStageId]);
   const reactFlowEdges = useMemo<Edge[]>(
     () =>
       positioned.edges.map((e) =>
-        styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors),
+        styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns),
       ),
-    [positioned.edges, slice, colors],
+    [positioned.edges, slice, colors, cursorStandIns],
   );
 
   // ── Dependency-cone overlay (sliceCone) ────────────────────────────

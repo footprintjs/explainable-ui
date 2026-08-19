@@ -702,6 +702,14 @@ interface TraceNodeData extends Record<string, unknown> {
 interface TraceEdgeData extends Record<string, unknown> {
     kind: EdgeKind | "loop";
     label?: string;
+    /**
+     * Node ids this edge CONTRACTED THROUGH — stamped by `collapseTraceGraph`
+     * when hidden nodes are removed and their paths re-connected. Lets a
+     * renderer keep a time cursor visible when it stands on a hidden node:
+     * the edge that stands in for that node lights instead (see
+     * `edgeCarriesCursor`). Absent on ordinary edges.
+     */
+    via?: readonly string[];
 }
 type TraceNode = Node<TraceNodeData>;
 type TraceEdge = Edge<TraceEdgeData>;

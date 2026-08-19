@@ -405,6 +405,14 @@ interface TraceNodeData extends Record<string, unknown> {
 interface TraceEdgeData extends Record<string, unknown> {
     kind: EdgeKind | "loop";
     label?: string;
+    /**
+     * Node ids this edge CONTRACTED THROUGH — stamped by `collapseTraceGraph`
+     * when hidden nodes are removed and their paths re-connected. Lets a
+     * renderer keep a time cursor visible when it stands on a hidden node:
+     * the edge that stands in for that node lights instead (see
+     * `edgeCarriesCursor`). Absent on ordinary edges.
+     */
+    via?: readonly string[];
 }
 type TraceNode$1 = Node<TraceNodeData>;
 type TraceEdge = Edge<TraceEdgeData>;
@@ -569,6 +577,16 @@ interface TraceRuntimeOverlayHandle {
     /** Reset for reuse across runs. Does NOT bump version or notify (matches
      *  traceStructureRecorder's reset contract). */
     reset(): void;
+    /**
+     * Adopt a rebuilt overlay into this handle — the REPLAY path's way to give
+     * every consumer of the handle the same truth the live FlowRecorder channel
+     * would have fired. Pass `overlayFromSnapshot(snapshot)` after replaying a
+     * recording: a frozen run has no traversal, so nothing ever calls the
+     * handle's recorder, and without this the chart of a replayed run stays
+     * dark. REPLACES the current state (steps, errors, running), bumps
+     * `version()` and notifies subscribers, so a UI already mounted re-reads.
+     */
+    seed(overlay: RuntimeOverlay): void;
 }
 interface CreateTraceRuntimeOverlayOptions {
     id?: string;
@@ -794,6 +812,12 @@ declare function buildSubflowBreadcrumb(graph: TraceGraph, currentSubflowId: str
  *   4. A loop edge stays a loop edge: if either contracted leg was `kind:
  *      'loop'`, the resulting edge is too — hiding a stage inside a loop must
  *      not straighten the loop.
+ *   4b. A contracted edge REMEMBERS what it contracted through: `data.via`
+ *      lists the removed node ids the edge now stands in for (chains
+ *      accumulate; duplicate contractions union their lists). That is how a
+ *      time cursor standing on a hidden node stays visible — the renderer
+ *      lights the edge that carries it (`edgeCarriesCursor`) instead of
+ *      going dark.
  *   5. Nothing matched → the ORIGINAL graph reference comes back (upstream
  *      memoization is preserved), with an empty `hiddenNodeIds`.
  *

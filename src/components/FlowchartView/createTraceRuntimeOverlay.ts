@@ -127,6 +127,16 @@ export interface TraceRuntimeOverlayHandle {
   /** Reset for reuse across runs. Does NOT bump version or notify (matches
    *  traceStructureRecorder's reset contract). */
   reset(): void;
+  /**
+   * Adopt a rebuilt overlay into this handle — the REPLAY path's way to give
+   * every consumer of the handle the same truth the live FlowRecorder channel
+   * would have fired. Pass `overlayFromSnapshot(snapshot)` after replaying a
+   * recording: a frozen run has no traversal, so nothing ever calls the
+   * handle's recorder, and without this the chart of a replayed run stays
+   * dark. REPLACES the current state (steps, errors, running), bumps
+   * `version()` and notifies subscribers, so a UI already mounted re-reads.
+   */
+  seed(overlay: RuntimeOverlay): void;
 }
 
 export interface CreateTraceRuntimeOverlayOptions {
@@ -233,6 +243,19 @@ export function createTraceRuntimeOverlay(
       // Note: reset does NOT bump version or notify (matches
       // traceStructureRecorder contract — see its `reset()` JSDoc
       // for the consumer-facing recipe).
+    },
+    seed(overlay: RuntimeOverlay): void {
+      // Copy in, never alias: the handle owns its state the same way the
+      // live path does (getOverlay hands out defensive copies for the same
+      // reason). The dedupe set is rebuilt so a live event arriving AFTER a
+      // seed (unusual, but legal) still dedupes against the seeded steps.
+      executionOrder = overlay.executionOrder.map((s) => ({ ...s }));
+      recordedRuntimeStageIds.clear();
+      for (const step of executionOrder) recordedRuntimeStageIds.add(step.runtimeStageId);
+      errors.clear();
+      for (const [stageId, message] of overlay.errors) errors.set(stageId, message);
+      running = overlay.running;
+      notifyChange();
     },
   };
 }

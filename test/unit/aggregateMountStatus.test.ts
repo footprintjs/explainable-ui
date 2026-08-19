@@ -54,3 +54,65 @@ describe('aggregateMountStatus', () => {
     expect(partial.activeStageId).toBe('tool-calls'); // and no active theft
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Nearest-visible-ancestor fallback + cursor stand-ins (collapse-aware cursor)
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { cursorStandInIds, edgeCarriesCursor } from '../../src/components/FlowchartView/_internal/overlayProjection';
+
+describe('aggregateMountStatus — nearest-visible-ancestor fallback', () => {
+  it('promotes an active id the graph does not contain to its nearest visible path ancestor', () => {
+    // The graph shows the mount but its internals were never materialised —
+    // an active inner id must light the mount, not go dark.
+    const bare = {
+      nodes: [
+        { id: 'sf-inj', position: { x: 0, y: 0 }, data: { isSubflow: true, subflowId: 'sf-inj', label: 'IE' } },
+        { id: 'tool-calls', position: { x: 0, y: 0 }, data: { label: 'ToolCalls' } },
+      ],
+      edges: [],
+    } as unknown as TraceGraph;
+    const out = aggregateMountStatus(slice([], 'sf-inj/gather'), bare, null);
+    expect(out.activeStageId).toBe('sf-inj');
+  });
+
+  it('walks PAST a hidden mount to a deeper visible ancestor', () => {
+    const nested = {
+      nodes: [{ id: 'outer', position: { x: 0, y: 0 }, data: { label: 'Outer' } }],
+      edges: [],
+    } as unknown as TraceGraph;
+    const out = aggregateMountStatus(slice([], 'outer/inner/leaf'), nested, null);
+    expect(out.activeStageId).toBe('outer');
+  });
+
+  it('leaves the active id untouched when it has no visible ancestor (top-level hidden node)', () => {
+    const collapsed = {
+      nodes: [{ id: 'work', position: { x: 0, y: 0 }, data: { label: 'Work' } }],
+      edges: [],
+    } as unknown as TraceGraph;
+    const out = aggregateMountStatus(slice([], 'sf-hidden'), collapsed, null);
+    expect(out.activeStageId).toBe('sf-hidden'); // the EDGE stand-in takes over (edgeCarriesCursor)
+  });
+
+  it('never fires for an id the graph does contain', () => {
+    const out = aggregateMountStatus(slice(['gather', 'route'], 'tool-calls'), graph, null);
+    expect(out.activeStageId).toBe('tool-calls');
+  });
+});
+
+describe('cursorStandInIds / edgeCarriesCursor', () => {
+  it('stand-ins are the active id plus every path ancestor', () => {
+    expect([...cursorStandInIds('a/b/c')].sort()).toEqual(['a', 'a/b', 'a/b/c']);
+    expect([...cursorStandInIds('top')]).toEqual(['top']);
+    expect(cursorStandInIds(null).size).toBe(0);
+  });
+
+  it('an edge carries the cursor when its via intersects the stand-ins', () => {
+    const standIns = cursorStandInIds('sf-inj/gather');
+    expect(edgeCarriesCursor(['sf-inj'], standIns)).toBe(true); // mount hidden, cursor inside it
+    expect(edgeCarriesCursor(['sf-inj/gather'], standIns)).toBe(true); // the id itself
+    expect(edgeCarriesCursor(['sf-other'], standIns)).toBe(false);
+    expect(edgeCarriesCursor(undefined, standIns)).toBe(false);
+    expect(edgeCarriesCursor(['sf-inj'], cursorStandInIds(null))).toBe(false);
+  });
+});

@@ -2369,6 +2369,15 @@ function createTraceRuntimeOverlay(options = {}) {
       recordedRuntimeStageIds.clear();
       errors.clear();
       running = false;
+    },
+    seed(overlay) {
+      executionOrder = overlay.executionOrder.map((s) => ({ ...s }));
+      recordedRuntimeStageIds.clear();
+      for (const step of executionOrder) recordedRuntimeStageIds.add(step.runtimeStageId);
+      errors.clear();
+      for (const [stageId, message] of overlay.errors) errors.set(stageId, message);
+      running = overlay.running;
+      notifyChange();
     }
   };
 }
@@ -2478,6 +2487,7 @@ function collapseTraceGraph(graph, hide) {
       }
     }
   }
+  const viaOf = (e) => Array.isArray(e.data?.via) ? e.data.via : [];
   let edges = [...graph.edges];
   for (const hiddenId of removed) {
     const incoming = edges.filter((e) => e.target === hiddenId && e.source !== hiddenId);
@@ -2487,22 +2497,33 @@ function collapseTraceGraph(graph, hide) {
       for (const outEdge of outgoing) {
         if (inEdge.source === outEdge.target) continue;
         const kind = inEdge.data?.kind === "loop" || outEdge.data?.kind === "loop" ? "loop" : outEdge.data?.kind ?? inEdge.data?.kind ?? "next";
+        const via = [.../* @__PURE__ */ new Set([...viaOf(inEdge), hiddenId, ...viaOf(outEdge)])];
         edges.push({
           id: `${inEdge.source}->${outEdge.target}~collapsed`,
           source: inEdge.source,
           target: outEdge.target,
-          data: { kind }
+          data: { kind, via }
         });
       }
     }
   }
-  const seen = /* @__PURE__ */ new Set();
-  const dedupedEdges = edges.filter((e) => {
+  const byEndpoints = /* @__PURE__ */ new Map();
+  for (const e of edges) {
     const key = `${e.source}\0${e.target}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+    const kept = byEndpoints.get(key);
+    if (kept === void 0) {
+      byEndpoints.set(key, e);
+      continue;
+    }
+    const mergedVia = [.../* @__PURE__ */ new Set([...viaOf(kept), ...viaOf(e)])];
+    if (mergedVia.length > viaOf(kept).length) {
+      byEndpoints.set(key, {
+        ...kept,
+        data: { ...kept.data ?? { kind: "next" }, via: mergedVia }
+      });
+    }
+  }
+  const dedupedEdges = [...byEndpoints.values()];
   return {
     graph: {
       nodes: graph.nodes.filter((n) => !removed.has(n.id)),
@@ -2515,8 +2536,8 @@ function collapseTraceGraph(graph, hide) {
 // src/components/FlowchartView/_internal/overlayProjection.ts
 function aggregateMountStatus(slice, graph, currentSubflowId) {
   if (graph.nodes.length === 0) return slice;
+  const nodeIds = new Set(graph.nodes.map((n) => n.id));
   const mounts = graph.nodes.filter((n) => n.data?.isSubflow && n.data?.subflowId);
-  if (mounts.length === 0) return slice;
   const doneIds = new Set(slice.doneStageIds);
   let activeId = slice.activeStageId;
   for (const mount of mounts) {
@@ -2530,7 +2551,35 @@ function aggregateMountStatus(slice, graph, currentSubflowId) {
       activeId = mount.id;
     }
   }
+  if (activeId !== null && !nodeIds.has(activeId)) {
+    for (const ancestor of pathAncestorsOf(activeId)) {
+      if (nodeIds.has(ancestor)) {
+        activeId = ancestor;
+        break;
+      }
+    }
+  }
   return { ...slice, doneStageIds: doneIds, activeStageId: activeId };
+}
+function pathAncestorsOf(stageId) {
+  const ancestors = [];
+  let id = stageId;
+  for (; ; ) {
+    const cut = id.lastIndexOf("/");
+    if (cut < 0) break;
+    id = id.slice(0, cut);
+    ancestors.push(id);
+  }
+  return ancestors;
+}
+var NO_IDS = /* @__PURE__ */ new Set();
+function cursorStandInIds(activeStageId) {
+  if (activeStageId === null || activeStageId.length === 0) return NO_IDS;
+  return /* @__PURE__ */ new Set([activeStageId, ...pathAncestorsOf(activeStageId)]);
+}
+function edgeCarriesCursor(via, standIns) {
+  if (standIns.size === 0 || !Array.isArray(via)) return false;
+  return via.some((v2) => typeof v2 === "string" && standIns.has(v2));
 }
 
 // src/components/FlowchartView/_internal/useSubflowDrill.ts
@@ -2841,14 +2890,16 @@ function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage,
     ...dimmed && { style: { opacity: 0.35 } }
   };
 }
-function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors) {
+function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors, cursorStandIns) {
   const kind = edge.data?.kind ?? "next";
   const sourceExecuted = doneStageIds.has(edge.source) || activeStageId === edge.source;
   const targetExecuted = doneStageIds.has(edge.target) || activeStageId === edge.target;
   const traversed = sourceExecuted && targetExecuted;
-  const isLeadingEdge = activeStageId === edge.source && !doneStageIds.has(edge.target);
+  const carriesCursor = edgeCarriesCursor(edge.data?.via, cursorStandIns);
+  const isLeadingEdge = carriesCursor || activeStageId === edge.source && !doneStageIds.has(edge.target);
   let color = colors.default;
-  if (kind === "loop") color = colors.loop;
+  if (carriesCursor) color = colors.active;
+  else if (kind === "loop") color = colors.loop;
   else if (isLeadingEdge) color = colors.active;
   else if (traversed) color = colors.done;
   const styled = {
@@ -2861,7 +2912,7 @@ function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors) {
     // RANK-SKIPPING edge around the node it skips (else identical to smoothstep).
     type: kind === "loop" ? "loopBack" : "smartStep",
     animated: isLeadingEdge,
-    style: { stroke: color, strokeWidth: traversed ? 2 : 1.5 },
+    style: { stroke: color, strokeWidth: traversed || carriesCursor ? 2 : 1.5 },
     markerEnd: { type: MarkerType2.ArrowClosed, color, width: 16, height: 16 }
   };
   if (kind === "loop") {
@@ -2990,11 +3041,12 @@ function TracedFlow({
     ),
     [positioned.nodes, slice, coActiveStageIds]
   );
+  const cursorStandIns = useMemo5(() => cursorStandInIds(slice.activeStageId), [slice.activeStageId]);
   const reactFlowEdges = useMemo5(
     () => positioned.edges.map(
-      (e) => styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors)
+      (e) => styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns)
     ),
-    [positioned.edges, slice, colors]
+    [positioned.edges, slice, colors, cursorStandIns]
   );
   const [coneRevealed, setConeRevealed] = useState4(false);
   useEffect7(() => {

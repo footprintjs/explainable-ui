@@ -118,3 +118,63 @@ describe('collapseTraceGraph', () => {
     expect(hiddenNodeIds).toEqual([]);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Rule 4b — contracted edges remember what they contracted through (`via`)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('collapseTraceGraph — via (what a contracted edge stands in for)', () => {
+  const hide = (n: { data?: { flavour?: unknown } }) => n.data?.flavour === 'plumbing';
+
+  it('stamps via with the hidden node a contraction passed through', () => {
+    const { graph } = collapseTraceGraph(CHART, hide);
+    // seed → work contracted through plumb-a AND plumb-b (a chain): one edge,
+    // both ids remembered.
+    const contracted = graph.edges.find((e) => e.source === 'seed' && e.target === 'work');
+    expect(contracted).toBeDefined();
+    expect([...(contracted!.data!.via as string[])].sort()).toEqual(['plumb-a', 'plumb-b']);
+  });
+
+  it('a removed card carries its internals into via too (the cursor may stand on an inner id)', () => {
+    const { graph } = collapseTraceGraph(CHART, hide);
+    const contracted = graph.edges.find((e) => e.source === 'seed' && e.target === 'work');
+    // plumb-a/inner has its own edge into plumb-a/deeper (both removed with the
+    // card); those internal-only paths vanish entirely — but the MAIN path's
+    // via must never claim less than the nodes it actually replaced.
+    expect(contracted!.data!.via).toContain('plumb-a');
+  });
+
+  it('original (untouched) edges carry no via', () => {
+    const { graph } = collapseTraceGraph(CHART, hide);
+    const untouched = graph.edges.find((e) => e.source === 'work' && e.target === 'done');
+    expect(untouched).toBeDefined();
+    expect(untouched!.data!.via).toBeUndefined();
+  });
+
+  it('duplicate contractions union their via lists instead of dropping one', () => {
+    // A diamond: seed → (x | y) → work, both x and y hidden. Contraction yields
+    // seed→work twice; the survivor must stand in for BOTH x and y.
+    const diamond = {
+      nodes: [node('seed'), node('x', { flavour: 'plumbing' }), node('y', { flavour: 'plumbing' }), node('work')],
+      edges: [edge('seed', 'x'), edge('x', 'work'), edge('seed', 'y'), edge('y', 'work')],
+    } as unknown as TraceGraph;
+    const { graph } = collapseTraceGraph(diamond, hide);
+    const survivors = graph.edges.filter((e) => e.source === 'seed' && e.target === 'work');
+    expect(survivors).toHaveLength(1);
+    expect([...(survivors[0]!.data!.via as string[])].sort()).toEqual(['x', 'y']);
+  });
+
+  it('a duplicate that collides with an ORIGINAL edge folds its via into it', () => {
+    // seed → work exists directly AND through hidden x. The original edge wins
+    // the dedupe, but it must still say it stands in for x.
+    const parallel = {
+      nodes: [node('seed'), node('x', { flavour: 'plumbing' }), node('work')],
+      edges: [edge('seed', 'work'), edge('seed', 'x'), edge('x', 'work')],
+    } as unknown as TraceGraph;
+    const { graph } = collapseTraceGraph(parallel, hide);
+    const survivors = graph.edges.filter((e) => e.source === 'seed' && e.target === 'work');
+    expect(survivors).toHaveLength(1);
+    expect(survivors[0]!.id).toBe('seed->work'); // the original edge survived
+    expect(survivors[0]!.data!.via).toEqual(['x']); // and remembers the hidden path
+  });
+});
