@@ -146,6 +146,73 @@ describe('StoryNarrative component', () => {
     expect(icon.textContent).not.toBe('↻');
   });
 
+  // ── pause / resume / emit ──────────────────────────────────────────────
+  // These three were in the entry union — and in real engine output — while
+  // the badge map still keyed off `string`, so each one rendered with the
+  // `step` badge: icon `·`, and `aria-label="Data operation"`. A screen
+  // reader was told a paused run was a data operation. The map is now keyed
+  // by the union itself, so a missing kind is a compile error; these pin the
+  // rendering a reader actually gets.
+
+  it('gives pause, resume and emit their own badges — none falls back to step', () => {
+    const cases: [NarrativeEntry['type'], string, string][] = [
+      ['pause', 'Paused', '‖'],
+      ['resume', 'Resumed', '▷'],
+      ['emit', 'Emitted event', '◈'],
+    ];
+    for (const [type, label, icon] of cases) {
+      const { unmount } = render(
+        <StoryNarrative entries={[e(type, `a ${type} happened`, { depth: 1 })]} revealedEntryCount={1} />,
+      );
+      const badge = screen.getByLabelText(label);
+      expect(badge.textContent).toBe(icon);
+      expect(screen.queryByLabelText('Data operation')).toBeNull();
+      unmount();
+    }
+  });
+
+  it('every narrative kind renders a badge of its own', () => {
+    // The runtime half of the compile-time gate: a kind added to the map
+    // without a union member (or listed here and then dropped) shows up.
+    const kinds: NarrativeEntry['type'][] = [
+      'stage', 'step', 'condition', 'fork', 'selector', 'subflow',
+      'loop', 'break', 'error', 'pause', 'resume', 'emit', 'retry',
+    ];
+    const labels = kinds.map((type) => {
+      const { container, unmount } = render(
+        <StoryNarrative entries={[e(type, `${type} line`, { depth: 1 })]} revealedEntryCount={1} />,
+      );
+      // The badge is the icon span; the list root carries its own aria-label.
+      const label = container.querySelector('span[aria-label]')?.getAttribute('aria-label');
+      unmount();
+      return label;
+    });
+    // Only `step` may say "Data operation" — for anything else that label is
+    // the fallback firing, which is exactly the bug this guards.
+    expect(labels.filter((l) => l === 'Data operation')).toEqual(['Data operation']);
+    expect(labels.every((l) => typeof l === 'string' && l.length > 0)).toBe(true);
+  });
+
+  it('an entry kind from a NEWER footprintjs still renders, labelled honestly', () => {
+    // Forward compatibility: the fallback is not dead code, it is what an
+    // unknown-to-us kind gets. It must render, not crash or vanish.
+    const entries = [{ type: 'teleport', text: 'something new happened', depth: 1 } as unknown as NarrativeEntry];
+    const styled = render(<StoryNarrative entries={entries} revealedEntryCount={1} />);
+    expect(screen.getByText(/something new happened/)).toBeTruthy();
+    // It gets the neutral step badge — the honest answer for "we don't know
+    // this kind yet", and the reason the `??` fallback stays at the call site.
+    expect(styled.container.querySelector('span[aria-label]')?.getAttribute('aria-label')).toBe(
+      'Data operation',
+    );
+    styled.unmount();
+    // Unstyled mode passes the raw kind through as `data-type`, so a consumer
+    // styling by selector can reach a kind this release never heard of.
+    const { container } = render(
+      <StoryNarrative entries={entries} revealedEntryCount={1} unstyled />,
+    );
+    expect(container.querySelector('[data-type="teleport"]')).toBeTruthy();
+  });
+
   it('shows retry text verbatim and gives it no heading number', () => {
     const entries = [
       e('stage', 'Stage 1: Call the flaky API.'),

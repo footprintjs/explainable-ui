@@ -1,0 +1,70 @@
+{
+  "all": [
+    {
+      "stageId": "fetch-quote",
+      "label": "FetchQuote",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Fetch a quote from a flaky upstream",
+      "prevIds": [],
+      "nextIds": [
+        "settle"
+      ],
+      "executions": [
+        {
+          "runtimeStageId": "fetch-quote#0"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "fetch-quote#0"
+      ]
+    },
+    {
+      "stageId": "settle",
+      "label": "Settle",
+      "type": "stage",
+      "isDecider": false,
+      "isFork": false,
+      "isSubflow": false,
+      "isStreaming": false,
+      "isPausable": false,
+      "description": "Settle at the fetched price",
+      "prevIds": [
+        "fetch-quote"
+      ],
+      "nextIds": [],
+      "executions": [
+        {
+          "runtimeStageId": "settle#1"
+        }
+      ],
+      "visitedInRun": true,
+      "executionCount": 1,
+      "firstExecutedAt": null,
+      "lastExecutedAt": null,
+      "totalDurationMs": 0,
+      "errorCount": 0,
+      "commitRuntimeStageIds": [
+        "settle#1"
+      ]
+    }
+  ],
+  "byStageIdKeys": [
+    "fetch-quote",
+    "settle"
+  ],
+  "byRuntimeStageIdKeys": [
+    "fetch-quote#0",
+    "settle#1"
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "nodes": [
+    {
+      "id": "fetch-quote",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "FetchQuote",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [],
+        "nextIds": [
+          "settle"
+        ],
+        "description": "Fetch a quote from a flaky upstream"
+      }
+    },
+    {
+      "id": "settle",
+      "type": "stage",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "label": "Settle",
+        "isDecider": false,
+        "isFork": false,
+        "isStreaming": false,
+        "isSubflow": false,
+        "prevIds": [
+          "fetch-quote"
+        ],
+        "nextIds": [],
+        "description": "Settle at the fetched price"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "fetch-quote->settle:next",
+      "source": "fetch-quote",
+      "target": "settle",
+      "data": {
+        "kind": "next"
+      }
+    }
+  ]
+}

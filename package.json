@@ -58,9 +58,9 @@
     "example:replay": "vite --config examples/replay-a-recording/vite.config.ts"
   },
   "peerDependencies": {
+    "@xyflow/react": "^12.0.0",
     "react": ">=18.0.0",
-    "react-dom": ">=18.0.0",
-    "@xyflow/react": "^12.0.0"
+    "react-dom": ">=18.0.0"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.1",
@@ -72,7 +72,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
-    "footprintjs": "^9.0.0",
+    "footprintjs": "9.15.1",
     "jsdom": "^29.0.1",
     "publint": "^0.3.0",
     "react": "^19.2.5",

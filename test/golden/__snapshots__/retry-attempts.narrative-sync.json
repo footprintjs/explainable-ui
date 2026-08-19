@@ -1,0 +1,20 @@
+{
+  "rangeIndex": {
+    "fetch-quote#0": {
+      "firstIdx": 0,
+      "endIdx": 7
+    },
+    "settle#1": {
+      "firstIdx": 7,
+      "endIdx": 11
+    }
+  },
+  "revealedWithIndex": [
+    7,
+    11
+  ],
+  "revealedWithoutIndex": [
+    7,
+    11
+  ]
+}

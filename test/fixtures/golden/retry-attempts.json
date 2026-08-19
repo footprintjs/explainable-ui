@@ -1,0 +1,444 @@
+{
+  "name": "retry-attempts",
+  "description": "A flaky fetch with a 3-attempt retry policy fails twice then succeeds, followed by a stage whose policy never fires. Exercises: footprintjs >= 9.15.0 onStageRetry events, 'retry' narrative entries carrying attempt-of-total, ONE runtimeStageId and ONE commit bundle across all three attempts, and retryAttempts on the structure event of a stage that declared a policy it never needed.",
+  "structureEvents": [
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "fetch-quote",
+        "name": "FetchQuote",
+        "type": "stage",
+        "spec": {
+          "name": "FetchQuote",
+          "id": "fetch-quote",
+          "type": "stage",
+          "description": "Fetch a quote from a flaky upstream",
+          "retryAttempts": 3
+        }
+      }
+    },
+    {
+      "method": "onStageAdded",
+      "event": {
+        "stageId": "settle",
+        "name": "Settle",
+        "type": "stage",
+        "spec": {
+          "name": "Settle",
+          "id": "settle",
+          "type": "stage",
+          "description": "Settle at the fetched price"
+        }
+      }
+    },
+    {
+      "method": "onEdgeAdded",
+      "event": {
+        "from": "fetch-quote",
+        "to": "settle",
+        "kind": "next"
+      }
+    }
+  ],
+  "runtimeEvents": [
+    {
+      "channel": "flow",
+      "method": "onRunStart",
+      "event": {
+        "payload": {
+          "symbol": "ACME"
+        },
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "__root__",
+          "runtimeStageId": "__root__#0",
+          "stageName": "__root__",
+          "depth": 0
+        }
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageRetry",
+      "event": {
+        "stageName": "FetchQuote",
+        "stageId": "fetch-quote",
+        "attempt": 1,
+        "maxAttempts": 3,
+        "delayMs": 0,
+        "message": "quote service unavailable (503)",
+        "structuredError": {
+          "message": "quote service unavailable (503)",
+          "name": "Error",
+          "raw": {}
+        },
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "fetch-quote",
+          "runtimeStageId": "fetch-quote#0",
+          "stageName": "FetchQuote",
+          "depth": 0
+        },
+        "channel": "flow"
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageRetry",
+      "event": {
+        "stageName": "FetchQuote",
+        "stageId": "fetch-quote",
+        "attempt": 2,
+        "maxAttempts": 3,
+        "delayMs": 0,
+        "message": "quote service unavailable (503)",
+        "structuredError": {
+          "message": "quote service unavailable (503)",
+          "name": "Error",
+          "raw": {}
+        },
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "fetch-quote",
+          "runtimeStageId": "fetch-quote#0",
+          "stageName": "FetchQuote",
+          "depth": 0
+        },
+        "channel": "flow"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "FetchQuote",
+        "stageId": "fetch-quote",
+        "runtimeStageId": "fetch-quote#0",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "quoteAttempt",
+            "value": 3,
+            "operation": "set"
+          },
+          {
+            "key": "quote",
+            "value": {
+              "symbol": "ACME",
+              "price": 41.5
+            },
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "FetchQuote",
+        "description": "Fetch a quote from a flaky upstream",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "fetch-quote",
+          "runtimeStageId": "fetch-quote#0",
+          "stageName": "FetchQuote",
+          "depth": 0
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "scope",
+      "method": "onCommit",
+      "event": {
+        "stageName": "Settle",
+        "stageId": "settle",
+        "runtimeStageId": "settle#1",
+        "pipelineId": "",
+        "timestamp": 0,
+        "mutations": [
+          {
+            "key": "settled",
+            "value": {
+              "symbol": "ACME",
+              "total": 4150
+            },
+            "operation": "set"
+          }
+        ]
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onStageExecuted",
+      "event": {
+        "stageName": "Settle",
+        "description": "Settle at the fetched price",
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "settle",
+          "runtimeStageId": "settle#1",
+          "stageName": "Settle",
+          "parentStageId": "fetch-quote",
+          "parentRuntimeStageId": "fetch-quote#0",
+          "depth": 1
+        },
+        "stageType": "linear"
+      }
+    },
+    {
+      "channel": "flow",
+      "method": "onRunEnd",
+      "event": {
+        "traversalContext": {
+          "runId": "run-1",
+          "stageId": "__root__",
+          "runtimeStageId": "__root__#0",
+          "stageName": "__root__",
+          "depth": 0
+        }
+      }
+    }
+  ],
+  "narrativeEntries": [
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Fetch a quote from a flaky upstream.",
+      "depth": 0,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#0"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write quoteAttempt = 1",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#0",
+      "stepNumber": 1,
+      "key": "quoteAttempt",
+      "rawValue": 1
+    },
+    {
+      "type": "retry",
+      "text": "[Retry]: attempt 1 of 3 at FetchQuote failed (quote service unavailable (503)).",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#0",
+      "stepNumber": 2
+    },
+    {
+      "type": "step",
+      "text": "Step 3: Write quoteAttempt = 2",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#0",
+      "stepNumber": 3,
+      "key": "quoteAttempt",
+      "rawValue": 2
+    },
+    {
+      "type": "retry",
+      "text": "[Retry]: attempt 2 of 3 at FetchQuote failed (quote service unavailable (503)).",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#0",
+      "stepNumber": 4
+    },
+    {
+      "type": "step",
+      "text": "Step 5: Write quoteAttempt = 3",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#0",
+      "stepNumber": 5,
+      "key": "quoteAttempt",
+      "rawValue": 3
+    },
+    {
+      "type": "step",
+      "text": "Step 6: Write quote = {symbol, price}",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#0",
+      "stepNumber": 6,
+      "key": "quote",
+      "rawValue": {
+        "symbol": "ACME",
+        "price": 41.5
+      }
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next step: Settle at the fetched price.",
+      "depth": 0,
+      "stageName": "Settle",
+      "stageId": "settle",
+      "runtimeStageId": "settle#1"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read quote = {symbol, price}",
+      "depth": 1,
+      "stageName": "Settle",
+      "stageId": "settle",
+      "runtimeStageId": "settle#1",
+      "stepNumber": 1,
+      "key": "quote",
+      "rawValue": {
+        "symbol": "ACME",
+        "price": 41.5
+      }
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Read quote = {symbol, price}",
+      "depth": 1,
+      "stageName": "Settle",
+      "stageId": "settle",
+      "runtimeStageId": "settle#1",
+      "stepNumber": 2,
+      "key": "quote",
+      "rawValue": {
+        "symbol": "ACME",
+        "price": 41.5
+      }
+    },
+    {
+      "type": "step",
+      "text": "Step 3: Write settled = {symbol, total}",
+      "depth": 1,
+      "stageName": "Settle",
+      "stageId": "settle",
+      "runtimeStageId": "settle#1",
+      "stepNumber": 3,
+      "key": "settled",
+      "rawValue": {
+        "symbol": "ACME",
+        "total": 4150
+      }
+    }
+  ],
+  "snapshot": {
+    "sharedState": {
+      "quoteAttempt": 3,
+      "quote": {
+        "symbol": "ACME",
+        "price": 41.5
+      },
+      "settled": {
+        "symbol": "ACME",
+        "total": 4150
+      }
+    },
+    "executionTree": {
+      "id": "fetch-quote",
+      "runtimeStageId": "fetch-quote#0",
+      "name": "FetchQuote",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageWrites": {
+        "quoteAttempt": 3,
+        "quote": {
+          "symbol": "ACME",
+          "price": 41.5
+        }
+      },
+      "description": "Fetch a quote from a flaky upstream",
+      "flowMessages": [
+        {
+          "type": "next",
+          "description": "Moving to Settle stage",
+          "timestamp": 0,
+          "targetStage": "Settle"
+        }
+      ],
+      "next": {
+        "id": "settle",
+        "runtimeStageId": "settle#1",
+        "name": "Settle",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "settled": {
+            "symbol": "ACME",
+            "total": 4150
+          }
+        },
+        "stageReads": {
+          "quote": {
+            "symbol": "ACME",
+            "price": 41.5
+          }
+        },
+        "description": "Settle at the fetched price"
+      }
+    },
+    "commitLog": [
+      {
+        "overwrite": {
+          "quoteAttempt": 3,
+          "quote": {
+            "symbol": "ACME",
+            "price": 41.5
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "quoteAttempt",
+            "verb": "set"
+          },
+          {
+            "path": "quote",
+            "verb": "set"
+          }
+        ],
+        "stage": "FetchQuote",
+        "stageId": "fetch-quote",
+        "runtimeStageId": "fetch-quote#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "settled": {
+            "symbol": "ACME",
+            "total": 4150
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "settled",
+            "verb": "set"
+          }
+        ],
+        "stage": "Settle",
+        "stageId": "settle",
+        "runtimeStageId": "settle#1",
+        "idx": 1
+      }
+    ],
+    "commitValues": "full",
+    "writeProvenance": "off",
+    "runId": "run-1"
+  }
+}

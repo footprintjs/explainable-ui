@@ -596,6 +596,45 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | `Recording` | `{ snapshot, structure, events }` — one saved run, read by `<TraceViewer>` and by lens's `observeRecording` |
 | `ThemeMode` | `"dark" \| "light"` — the one-word switch |
 
+### Narrative entry kinds
+
+Every `NarrativeEntry` carries a `type`. `<StoryNarrative>` gives each one its
+own badge — the icon you see, and the label a screen reader hears:
+
+| `type` | Badge | Label | What it means |
+|---|:---:|---|---|
+| `stage` | ▸ | Stage | A stage ran. Gets a heading number. |
+| `step` | · | Data operation | One read or write inside a stage. |
+| `condition` | ◇ | Decision | A decider chose a branch. |
+| `fork` | ⑃ | Parallel | A fan-out started. |
+| `selector` | ⑃ | Selector | A selector chose which branches run. |
+| `subflow` | ↳ | Subflow | Entering or leaving a mounted subflow. |
+| `loop` | ↻ | Loop | A `loopTo` back-edge was taken. |
+| `break` | ■ | Break | `$break()` ended the loop. |
+| `error` | ✗ | Error | The stage failed. |
+| `pause` | ‖ | Paused | The run stopped and is waiting on someone. |
+| `resume` | ▷ | Resumed | It carried on from the checkpoint. |
+| `emit` | ◈ | Emitted event | Your own `scope.$emit` telemetry. |
+| `retry` | ↺ | Retry | One attempt failed and the stage is running again. |
+
+Two kinds are worth reading twice. **`retry`** (footprintjs ≥ 9.15.0) is
+*attempt* telemetry, not an outcome — the entry's text carries the arithmetic
+("attempt 2 of 3 at FetchQuote failed"), it nests inside its own stage, and the
+stage may still succeed, so it is warning-weight rather than error-weight. All
+attempts share ONE step on the time-travel rail, so a retried stage never
+multiplies your cursor. **`loop`** and **`retry`** deliberately use different
+arrows: ↻ is a by-design back-edge, ↺ is a failure going round again.
+
+A kind from a newer footprintjs than this release knows about still renders —
+it gets the neutral `step` badge rather than disappearing.
+
+In `unstyled` mode each entry also carries `data-type="<kind>"`, so you can
+style any kind — including a future one — by selector:
+
+```css
+[data-fp="narrative-entry"][data-type="retry"] { color: #b45309; }
+```
+
 ---
 
 ## Size Variants
@@ -626,9 +665,9 @@ Strip all built-in styles for full CSS control. Components render semantic `data
 
 The pipeline (structure/runtime translators, dagre layout, snapshot adapter,
 narrative sync) is pinned against **real footprintjs engine output**, not
-hand-built mocks. `test/fixtures/golden/` holds recorded traces from 4
+hand-built mocks. `test/fixtures/golden/` holds recorded traces from 5
 representative charts (linear+decider, subflow+loop, parallel fork,
-pause/resume); `test/golden/goldenTraces.test.ts` replays them through the full
+pause/resume, retry attempts); `test/golden/goldenTraces.test.ts` replays them through the full
 pipeline and snapshot-asserts the outputs in `test/golden/__snapshots__/`.
 
 - **Engine shape changed** (new footprintjs): `npm i -D --save-exact footprintjs@<version> && npm run fixtures:regen`. The generator runs every chart twice and fails on any nondeterminism.

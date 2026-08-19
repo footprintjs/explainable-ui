@@ -1,7 +1,7 @@
 {
   "note": "Golden-trace fixtures recorded from the REAL footprintjs engine. Do not hand-edit — regenerate with `npm run fixtures:regen`.",
   "generator": "scripts/generate-golden-fixtures.mjs",
-  "footprintjs": "9.5.0",
+  "footprintjs": "9.15.1",
   "fixtures": [
     {
       "file": "linear-decider.json",
@@ -34,6 +34,14 @@
       "structureEvents": 5,
       "runtimeEvents": 10,
       "narrativeEntries": 13
+    },
+    {
+      "file": "retry-attempts.json",
+      "name": "retry-attempts",
+      "description": "A flaky fetch with a 3-attempt retry policy fails twice then succeeds, followed by a stage whose policy never fires. Exercises: footprintjs >= 9.15.0 onStageRetry events, 'retry' narrative entries carrying attempt-of-total, ONE runtimeStageId and ONE commit bundle across all three attempts, and retryAttempts on the structure event of a stage that declared a policy it never needed.",
+      "structureEvents": 3,
+      "runtimeEvents": 8,
+      "narrativeEntries": 11
     }
   ]
 }

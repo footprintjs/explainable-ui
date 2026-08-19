@@ -242,6 +242,7 @@
           "runtimeStageId": "enrich#1",
           "stageName": "Enrich",
           "parentStageId": "intake",
+          "parentRuntimeStageId": "intake#0",
           "depth": 1
         },
         "stageType": "linear"
@@ -271,6 +272,7 @@
           "runtimeStageId": "classify-risk#2",
           "stageName": "ClassifyRisk",
           "parentStageId": "enrich",
+          "parentRuntimeStageId": "enrich#1",
           "depth": 2
         },
         "stageType": "decider"
@@ -311,6 +313,7 @@
           "runtimeStageId": "approve#3",
           "stageName": "Approve",
           "parentStageId": "classify-risk",
+          "parentRuntimeStageId": "classify-risk#2",
           "depth": 3
         },
         "stageType": "linear"
@@ -728,6 +731,9 @@
         "runtimeStageId": "approve#3",
         "idx": 3
       }
-    ]
+    ],
+    "commitValues": "full",
+    "writeProvenance": "off",
+    "runId": "run-1"
   }
 }

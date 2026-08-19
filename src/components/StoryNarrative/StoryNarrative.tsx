@@ -30,7 +30,19 @@ export interface StoryNarrativeProps extends BaseComponentProps {
   scopeSubflowId?: string;
 }
 
-const ENTRY_ICONS: Record<string, { icon: string; color: string; label: string }> = {
+/**
+ * Badge per narrative kind — icon, colour and the accessible label.
+ *
+ * Keyed by `NarrativeEntry["type"]` ON PURPOSE, not by `string`: a kind added
+ * to the union without a badge here is now a COMPILE error. It used to be
+ * `Record<string, …>`, and the cost of that was silent — `pause`, `resume` and
+ * `emit` had been in the union (and in real engine output) for releases while
+ * rendering with the `step` fallback, which told a screen reader that a paused
+ * run was a "Data operation". The fallback at the call site stays for entries
+ * that arrive from a NEWER footprintjs than this package compiles against, but
+ * it is no longer how a kind we already know about gets rendered.
+ */
+const ENTRY_ICONS: Record<NarrativeEntry["type"], { icon: string; color: string; label: string }> = {
   stage:     { icon: "▸", color: theme.primary,       label: "Stage" },
   step:      { icon: "·", color: theme.textMuted,      label: "Data operation" },
   condition: { icon: "◇", color: theme.warning,        label: "Decision" },
@@ -49,6 +61,15 @@ const ENTRY_ICONS: Record<string, { icon: string; color: string; label: string }
   // the chart rather than a failure. Precedent for icon reuse with a distinct
   // label: `fork` and `selector` already share ⑃.
   retry:     { icon: "↺", color: theme.warning,        label: "Retry" },
+  // The run stopped and is waiting on someone — warning-weight for the same
+  // reason `retry` is: it wants the eye, but nothing has failed. Hollow ▷ for
+  // the resume so it reads against `stage`'s filled ▸ at a glance, and
+  // success-coloured because a resumed run is a run that carried on.
+  pause:     { icon: "‖", color: theme.warning,        label: "Paused" },
+  resume:    { icon: "▷", color: theme.success,        label: "Resumed" },
+  // `scope.$emit` — the consumer's own telemetry riding the narrative. Neutral
+  // weight: it is the app talking, not the engine reporting on itself.
+  emit:      { icon: "◈", color: theme.textSecondary,  label: "Emitted event" },
 };
 
 export function StoryNarrative({

@@ -1,7 +1,7 @@
 /**
  * generate-golden-fixtures.mjs — U2 golden-trace fixture generator.
  *
- * Runs 4 small but representative flowcharts through the REAL footprintjs
+ * Runs 5 small but representative flowcharts through the REAL footprintjs
  * engine (exact devDependency, see package.json) and serializes the exact
  * consumer-facing artifacts explainable-ui's pipeline consumes:
  *
@@ -79,6 +79,11 @@ function createCapture() {
     id: "golden-capture-flow",
     onStageExecuted: push(runtimeEvents, "flow", "onStageExecuted"),
     onError: push(runtimeEvents, "flow", "onError"),
+    // footprintjs >= 9.15.0 — one event per FAILED attempt at a stage that
+    // declares a retry policy, fired DURING the stage (before its own
+    // onStageExecuted). Captured so the fixture carries the real interleaving,
+    // not a reconstruction of it.
+    onStageRetry: push(runtimeEvents, "flow", "onStageRetry"),
     onRunStart: push(runtimeEvents, "flow", "onRunStart"),
     onRunEnd: push(runtimeEvents, "flow", "onRunEnd"),
   };
@@ -129,7 +134,7 @@ function normalize(value, runIdMap, key) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The 4 representative charts
+// The 5 representative charts
 // ─────────────────────────────────────────────────────────────────────────────
 //
 // Each scenario is a FACTORY (charts hold per-run state like structure
@@ -385,7 +390,70 @@ const pauseResume = {
   },
 };
 
-const SCENARIOS = [linearDecider, subflowLoop, parallelFork, pauseResume];
+/** 5. Declared retry policy — one stage that fails twice and then succeeds. */
+const retryAttempts = {
+  name: "retry-attempts",
+  description:
+    "A flaky fetch with a 3-attempt retry policy fails twice then succeeds, followed by a " +
+    "stage whose policy never fires. Exercises: footprintjs >= 9.15.0 onStageRetry events, " +
+    "'retry' narrative entries carrying attempt-of-total, ONE runtimeStageId and ONE commit " +
+    "bundle across all three attempts, and retryAttempts on the structure event of a stage " +
+    "that declared a policy it never needed.",
+  async run(capture) {
+    // The attempt counter lives in the CLOSURE, not in scope: a failed attempt
+    // discards its staged writes, so scope cannot count its own attempts. Fresh
+    // per run() call, which is what keeps the double-run determinism check honest.
+    let fetchAttempt = 0;
+
+    const chart = flowChart(
+      "FetchQuote",
+      async (scope) => {
+        fetchAttempt += 1;
+        // Written on every attempt — only the surviving attempt's write commits,
+        // so the fixture also pins "the record shows 3, not 1, 2, 3".
+        scope.quoteAttempt = fetchAttempt;
+        if (fetchAttempt < 3) {
+          throw new Error(`quote service unavailable (503)`);
+        }
+        scope.quote = { symbol: "ACME", price: 41.5 };
+      },
+      "fetch-quote",
+      {
+        description: "Fetch a quote from a flaky upstream",
+        structureRecorders: [capture.structureRecorder],
+        // No backoffMs: a golden fixture must not spend real seconds waiting,
+        // and `delayMs: 0` is a legitimate policy, not a workaround.
+        retry: { attempts: 3 },
+      },
+    )
+      .addFunction(
+        "Settle",
+        async (scope) => {
+          scope.settled = { symbol: scope.quote.symbol, total: scope.quote.price * 100 };
+        },
+        "settle",
+        "Settle at the fetched price",
+      )
+      // A policy that is declared and never fires — the quiet arm. The structure
+      // event carries retryAttempts: 2; the runtime stream carries no retry event.
+      .retry({ attempts: 2 })
+      .build();
+
+    const executor = new FlowChartExecutor(chart);
+    executor.enableNarrative();
+    executor.attachFlowRecorder(capture.flowRecorder);
+    executor.attachScopeRecorder(capture.scopeRecorder);
+    await executor.run({ input: { symbol: "ACME" } });
+    if (fetchAttempt !== 3) {
+      throw new Error(
+        `retry-attempts fixture: expected FetchQuote to run 3 times, it ran ${fetchAttempt}`,
+      );
+    }
+    return executor;
+  },
+};
+
+const SCENARIOS = [linearDecider, subflowLoop, parallelFork, pauseResume, retryAttempts];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Generation + determinism check

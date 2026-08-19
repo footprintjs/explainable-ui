@@ -190,6 +190,7 @@
           "runtimeStageId": "sf-enrich#1",
           "stageName": "EnrichText",
           "parentStageId": "seed",
+          "parentRuntimeStageId": "seed#0",
           "subflowId": "sf-enrich",
           "depth": 1
         },
@@ -225,6 +226,7 @@
           "stageId": "sf-enrich/normalize",
           "runtimeStageId": "sf-enrich/normalize#2",
           "stageName": "sf-enrich/Normalize",
+          "parentRuntimeStageId": "sf-enrich#1",
           "subflowId": "sf-enrich",
           "depth": 0
         },
@@ -261,6 +263,7 @@
           "runtimeStageId": "sf-enrich/score#3",
           "stageName": "sf-enrich/Score",
           "parentStageId": "sf-enrich/normalize",
+          "parentRuntimeStageId": "sf-enrich/normalize#2",
           "subflowId": "sf-enrich",
           "depth": 1
         },
@@ -302,6 +305,7 @@
           "runtimeStageId": "refine#4",
           "stageName": "Refine",
           "parentStageId": "sf-enrich",
+          "parentRuntimeStageId": "sf-enrich#1",
           "depth": 2
         },
         "stageType": "linear"
@@ -331,6 +335,7 @@
           "runtimeStageId": "evaluate#5",
           "stageName": "Evaluate",
           "parentStageId": "refine",
+          "parentRuntimeStageId": "refine#4",
           "depth": 3
         },
         "stageType": "linear"
@@ -371,6 +376,8 @@
           "runtimeStageId": "refine#6",
           "stageName": "Refine",
           "parentStageId": "evaluate",
+          "parentRuntimeStageId": "evaluate#5",
+          "loopIteration": 1,
           "depth": 4
         },
         "stageType": "linear"
@@ -406,6 +413,8 @@
           "runtimeStageId": "evaluate#7",
           "stageName": "Evaluate",
           "parentStageId": "refine",
+          "parentRuntimeStageId": "refine#6",
+          "loopIteration": 1,
           "depth": 5
         },
         "stageType": "linear"
@@ -1019,8 +1028,120 @@
         "idx": 6
       }
     ],
+    "commitValues": "full",
+    "writeProvenance": "off",
+    "runId": "run-1",
     "subflowResults": {
       "sf-enrich": {
+        "subflowId": "sf-enrich",
+        "subflowName": "EnrichText",
+        "treeContext": {
+          "globalContext": {
+            "rawText": "  Hello GOLDEN Trace  ",
+            "text": "hello golden trace",
+            "score": 36
+          },
+          "stageContexts": {
+            "id": "sf-enrich/normalize",
+            "runtimeStageId": "sf-enrich/normalize#2",
+            "name": "sf-enrich/Normalize",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "text": "hello golden trace"
+            },
+            "stageReads": {
+              "rawText": "  Hello GOLDEN Trace  "
+            },
+            "description": "Normalize raw input",
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to sf-enrich/Score stage",
+                "timestamp": 0,
+                "targetStage": "sf-enrich/Score"
+              }
+            ],
+            "next": {
+              "id": "sf-enrich/score",
+              "runtimeStageId": "sf-enrich/score#3",
+              "name": "sf-enrich/Score",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "score": 36
+              },
+              "stageReads": {
+                "text": "hello golden trace"
+              },
+              "description": "Score the normalized text"
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "rawText": "  Hello GOLDEN Trace  "
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "rawText",
+                  "verb": "set"
+                }
+              ],
+              "stage": "sf-enrich/Normalize",
+              "stageId": "sf-enrich/normalize",
+              "runtimeStageId": "",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "text": "hello golden trace"
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "text",
+                  "verb": "set"
+                }
+              ],
+              "stage": "sf-enrich/Normalize",
+              "stageId": "sf-enrich/normalize",
+              "runtimeStageId": "sf-enrich/normalize#2",
+              "idx": 1
+            },
+            {
+              "overwrite": {
+                "score": 36
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "score",
+                  "verb": "set"
+                }
+              ],
+              "stage": "sf-enrich/Score",
+              "stageId": "sf-enrich/score",
+              "runtimeStageId": "sf-enrich/score#3",
+              "idx": 2
+            }
+          ]
+        },
+        "parentStageId": "EnrichText"
+      },
+      "sf-enrich#1": {
         "subflowId": "sf-enrich",
         "subflowName": "EnrichText",
         "treeContext": {

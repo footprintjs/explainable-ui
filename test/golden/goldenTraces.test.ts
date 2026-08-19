@@ -227,7 +227,7 @@ for (const fx of fixtures) {
 describe("golden: semantic invariants", () => {
   it("manifest pins the footprintjs version the fixtures were recorded with", () => {
     expect(manifest.footprintjs).toMatch(/^\d+\.\d+\.\d+/);
-    expect(fixtures.length).toBeGreaterThanOrEqual(4);
+    expect(fixtures.length).toBeGreaterThanOrEqual(5);
   });
 
   it("linear-decider: real decider node is a decision node (isDecider + sealed branchIds)", () => {
@@ -391,5 +391,101 @@ describe("golden: semantic invariants", () => {
         .filter((id): id is string => typeof id === "string"),
     );
     expect(runIds).toEqual(new Set(["run-1", "run-2"]));
+  });
+
+  // ── Retry (footprintjs >= 9.15.0) ────────────────────────────────────────
+  //
+  // Retry is the one flow event that fires DURING a stage rather than at its
+  // boundary, so the shapes eui renders against are worth pinning against a
+  // real run rather than a hand-built entry: two failed attempts, one stage.
+
+  it("retry-attempts: the narrative carries one entry per FAILED attempt, with the count", () => {
+    const fx = byName("retry-attempts");
+    const retries = fx.narrativeEntries.filter((e) => e.type === "retry");
+    // Three attempts, two failures — the attempt that SUCCEEDED is not a retry.
+    expect(retries.length).toBe(2);
+    expect(retries.map((e) => e.text)).toEqual([
+      "[Retry]: attempt 1 of 3 at FetchQuote failed (quote service unavailable (503)).",
+      "[Retry]: attempt 2 of 3 at FetchQuote failed (quote service unavailable (503)).",
+    ]);
+    // Depth 1: nested inside its own stage, never a stage boundary of its own.
+    // (NarrativeTrace's legacy string path classifies groups by leading
+    //  indentation, so a depth-0 retry would be promoted to a stage header.)
+    expect(retries.every((e) => e.depth === 1)).toBe(true);
+    expect(retries.every((e) => e.stageId === "fetch-quote")).toBe(true);
+  });
+
+  it("retry-attempts: all three attempts are ONE step on the rail, not three", () => {
+    const fx = byName("retry-attempts");
+    // One runtimeStageId across every attempt — the engine's law, and the
+    // reason a retried stage must not multiply the time-travel cursor.
+    const retryRids = new Set(
+      fx.narrativeEntries.filter((e) => e.type === "retry").map((e) => e.runtimeStageId),
+    );
+    expect(retryRids).toEqual(new Set(["fetch-quote#0"]));
+
+    const rail = toVisualizationSnapshots(fx.snapshot, fx.narrativeEntries);
+    expect(rail.map((s) => s.runtimeStageId)).toEqual(["fetch-quote#0", "settle#1"]);
+
+    // ...and ONE commit bundle, so the memory panel shows the surviving
+    // attempt's write (3), never the discarded ones.
+    const commitFlow = createCommitFlowRecorder({ structure: (() => {
+      const s = createTraceStructureRecorder();
+      replay(fx.structureEvents, s.recorder as unknown as Record<string, unknown>);
+      return s;
+    })() });
+    replay(fx.runtimeEvents, commitFlow.recorder as unknown as Record<string, unknown>);
+    const fetchCommits = commitFlow.getIndex().commits.filter((c) => c.stageId === "fetch-quote");
+    expect(fetchCommits.length).toBe(1);
+    expect(rail[0]?.memory.quoteAttempt).toBe(3);
+  });
+
+  it("retry-attempts: onStageRetry fires DURING the stage — before its own onStageExecuted", () => {
+    const fx = byName("retry-attempts");
+    const methods = fx.runtimeEvents.map((e) => e.method);
+    expect(methods.filter((m) => m === "onStageRetry").length).toBe(2);
+    const lastRetry = methods.lastIndexOf("onStageRetry");
+    const firstExecuted = methods.indexOf("onStageExecuted");
+    expect(lastRetry).toBeLessThan(firstExecuted);
+    // The run SUCCEEDED: a retried-then-recovered stage files no error at all.
+    expect(methods).not.toContain("onError");
+
+    // Attempt arithmetic, stamped by the engine, not parsed out of prose.
+    const retryEvents = fx.runtimeEvents
+      .filter((e) => e.method === "onStageRetry")
+      .map((e) => e.event as { attempt: number; maxAttempts: number; delayMs: number });
+    expect(retryEvents.map((e) => e.attempt)).toEqual([1, 2]);
+    expect(retryEvents.every((e) => e.maxAttempts === 3)).toBe(true);
+    expect(retryEvents.every((e) => e.delayMs === 0)).toBe(true);
+  });
+
+  it("retry-attempts: a declared policy that never fires stays silent at runtime", () => {
+    const fx = byName("retry-attempts");
+    // `settle` declares 2 attempts and never needs them: no retry event names
+    // it, so a chart cannot be made to look flaky by declaring a policy.
+    const retriedStages = new Set(
+      fx.runtimeEvents
+        .filter((e) => e.method === "onStageRetry")
+        .map((e) => (e.event as { stageId?: string }).stageId),
+    );
+    expect(retriedStages).toEqual(new Set(["fetch-quote"]));
+  });
+
+  it("retry-attempts: structure events carry retryAttempts only for the OPTION form", () => {
+    // An honesty pin on an upstream asymmetry, so nothing in eui is built on
+    // the wrong half of it. footprintjs stamps `spec.retryAttempts` when the
+    // policy arrives as a stage OPTION (`fetch-quote`), but the `.retry()`
+    // MODIFIER is chained after the stage is added, so `onStageAdded` has
+    // already fired by then (`settle`). Structure events are therefore a LOWER
+    // BOUND on which stages can retry — the built spec is the full answer.
+    // Any future "this stage can retry" badge on the chart must read the spec,
+    // not this event, or it will silently miss every modifier-form policy.
+    const fx = byName("retry-attempts");
+    const specOf = (stageId: string) =>
+      fx.structureEvents.find(
+        (e) => e.method === "onStageAdded" && (e.event as { stageId?: string }).stageId === stageId,
+      )?.event as { spec?: { retryAttempts?: number } } | undefined;
+    expect(specOf("fetch-quote")?.spec?.retryAttempts).toBe(3);
+    expect(specOf("settle")?.spec?.retryAttempts).toBeUndefined();
   });
 });

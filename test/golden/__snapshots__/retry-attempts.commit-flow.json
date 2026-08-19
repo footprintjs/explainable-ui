@@ -1,0 +1,41 @@
+{
+  "commits": [
+    {
+      "runtimeStageId": "fetch-quote#0",
+      "stageId": "fetch-quote",
+      "commitIdx": 0,
+      "structuralPrevIds": [],
+      "structuralNextIds": [
+        "settle"
+      ],
+      "runtimePrevIds": [],
+      "runtimeNextIds": [
+        "settle#1"
+      ],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    },
+    {
+      "runtimeStageId": "settle#1",
+      "stageId": "settle",
+      "commitIdx": 1,
+      "structuralPrevIds": [
+        "fetch-quote"
+      ],
+      "structuralNextIds": [],
+      "runtimePrevIds": [
+        "fetch-quote#0"
+      ],
+      "runtimeNextIds": [],
+      "dataDependencies": [],
+      "updates": {},
+      "reads": []
+    }
+  ],
+  "dataEdges": [],
+  "byRuntimeStageIdKeys": [
+    "fetch-quote#0",
+    "settle#1"
+  ]
+}

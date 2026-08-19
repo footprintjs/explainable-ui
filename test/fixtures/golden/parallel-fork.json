@@ -240,6 +240,7 @@
           "runtimeStageId": "screen#1",
           "stageName": "Screen",
           "parentStageId": "load-patient",
+          "parentRuntimeStageId": "load-patient#0",
           "depth": 1
         },
         "stageType": "selector"
@@ -256,6 +257,7 @@
           "runtimeStageId": "screen#1",
           "stageName": "Screen",
           "parentStageId": "load-patient",
+          "parentRuntimeStageId": "load-patient#0",
           "depth": 1
         },
         "stageType": "fork"
@@ -291,6 +293,7 @@
           "runtimeStageId": "hypertension#2",
           "stageName": "HypertensionCheck",
           "parentStageId": "screen",
+          "parentRuntimeStageId": "screen#1",
           "subflowPath": "hypertension",
           "depth": 2
         },
@@ -327,6 +330,7 @@
           "runtimeStageId": "obesity#3",
           "stageName": "ObesityAssessment",
           "parentStageId": "screen",
+          "parentRuntimeStageId": "screen#1",
           "subflowPath": "obesity",
           "depth": 2
         },
@@ -403,6 +407,7 @@
           "runtimeStageId": "summarize#4",
           "stageName": "Summarize",
           "parentStageId": "screen",
+          "parentRuntimeStageId": "screen#1",
           "depth": 2
         },
         "stageType": "linear"
@@ -825,6 +830,9 @@
         "runtimeStageId": "summarize#4",
         "idx": 6
       }
-    ]
+    ],
+    "commitValues": "full",
+    "writeProvenance": "off",
+    "runId": "run-1"
   }
 }

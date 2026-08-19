@@ -3773,7 +3773,16 @@ var ENTRY_ICONS = {
   // staying tellable apart from `loop`'s ↻, which is a by-design back-edge in
   // the chart rather than a failure. Precedent for icon reuse with a distinct
   // label: `fork` and `selector` already share ⑃.
-  retry: { icon: "\u21BA", color: theme.warning, label: "Retry" }
+  retry: { icon: "\u21BA", color: theme.warning, label: "Retry" },
+  // The run stopped and is waiting on someone — warning-weight for the same
+  // reason `retry` is: it wants the eye, but nothing has failed. Hollow ▷ for
+  // the resume so it reads against `stage`'s filled ▸ at a glance, and
+  // success-coloured because a resumed run is a run that carried on.
+  pause: { icon: "\u2016", color: theme.warning, label: "Paused" },
+  resume: { icon: "\u25B7", color: theme.success, label: "Resumed" },
+  // `scope.$emit` — the consumer's own telemetry riding the narrative. Neutral
+  // weight: it is the app talking, not the engine reporting on itself.
+  emit: { icon: "\u25C8", color: theme.textSecondary, label: "Emitted event" }
 };
 function StoryNarrative({
   entries,

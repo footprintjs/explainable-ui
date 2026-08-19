@@ -1,0 +1,40 @@
+[
+  {
+    "stageName": "FetchQuote",
+    "stageLabel": "fetch-quote",
+    "runtimeStageId": "fetch-quote#0",
+    "memory": {
+      "quoteAttempt": 3,
+      "quote": {
+        "symbol": "ACME",
+        "price": 41.5
+      }
+    },
+    "narrative": "Stage 1: The process began: Fetch a quote from a flaky upstream.\n  Step 1: Write quoteAttempt = 1\n  [Retry]: attempt 1 of 3 at FetchQuote failed (quote service unavailable (503)).\n  Step 3: Write quoteAttempt = 2\n  [Retry]: attempt 2 of 3 at FetchQuote failed (quote service unavailable (503)).\n  Step 5: Write quoteAttempt = 3\n  Step 6: Write quote = {symbol, price}",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Fetch a quote from a flaky upstream"
+  },
+  {
+    "stageName": "Settle",
+    "stageLabel": "settle",
+    "runtimeStageId": "settle#1",
+    "memory": {
+      "quoteAttempt": 3,
+      "quote": {
+        "symbol": "ACME",
+        "price": 41.5
+      },
+      "settled": {
+        "symbol": "ACME",
+        "total": 4150
+      }
+    },
+    "narrative": "Stage 2: Next step: Settle at the fetched price.\n  Step 1: Read quote = {symbol, price}\n  Step 2: Read quote = {symbol, price}\n  Step 3: Write settled = {symbol, total}",
+    "startMs": 0,
+    "durationMs": 0,
+    "status": "done",
+    "description": "Settle at the fetched price"
+  }
+]
