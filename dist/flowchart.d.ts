@@ -711,6 +711,27 @@ declare const SubflowBreadcrumb: react.NamedExoticComponent<SubflowBreadcrumbPro
  * at `onSubflowMounted` time. Both functions are pure (no I/O, no
  * React) so they can be unit-tested in isolation and reused by any
  * renderer.
+ *
+ * Drill KEY vs. child SCOPE (why `resolveDrillScope` exists)
+ * ──────────────────────────────────────────────────────────
+ * A drill is identified by the MOUNT NODE'S id — `pipeline/prepare` —
+ * because node ids are globally unique. `data.subflowId` is NOT: it is
+ * the child chart's own LOCAL id, so mounting the same chart twice
+ * (top level AND inside another subflow) gives two mounts the same
+ * `subflowId`. Drilling by that shared id showed the OTHER mount's
+ * stages, or — when only the nested mount existed — nothing at all.
+ *
+ * The children's `subflowOf` tag is what the filter actually matches,
+ * and two producers spell it differently:
+ *
+ *   - eui's own recorder (`walkSubflowSpecInto`) tags inner stages with
+ *     the mount PATH, which equals the mount node's id.
+ *   - a consumer bridge may materialise internals tagged with the
+ *     mount's LOCAL `subflowId` instead.
+ *
+ * `resolveDrillScope` turns a drill key into whichever of the two the
+ * graph in hand actually uses, so both producers drill correctly and a
+ * caller that still passes a bare `subflowId` keeps working.
  */
 
 /**
@@ -719,8 +740,9 @@ declare const SubflowBreadcrumb: react.NamedExoticComponent<SubflowBreadcrumbPro
  *   - `currentSubflowId === null`  → show top-level (nodes with no
  *     `subflowOf`). Subflow internals are hidden; their mount node
  *     stays visible as a single clickable card.
- *   - `currentSubflowId === 'X'`   → show only nodes where
- *     `subflowOf === 'X'` (the drilled-in subflow's internals).
+ *   - `currentSubflowId === 'X'`   → show only the stages of the mount
+ *     `X` names — `X` being the mount NODE id (preferred, unique) or
+ *     its local `subflowId` (legacy).
  *
  * Edges follow the same filter — only edges where both endpoints
  * are in the visible set survive. When nothing would be filtered
@@ -728,7 +750,9 @@ declare const SubflowBreadcrumb: react.NamedExoticComponent<SubflowBreadcrumbPro
  * memoization).
  */
 declare function filterGraphForDrill(graph: TraceGraph, currentSubflowId: string | null): TraceGraph;
-/** Entry in the breadcrumb path. `subflowId === null` is the root. */
+/** Entry in the breadcrumb path. `subflowId === null` is the root.
+ *  For a drilled level this carries the DRILL KEY (the mount node's id),
+ *  which is what `onNavigate` hands back to the drill. */
 interface BreadcrumbEntry {
     subflowId: string | null;
     label: string;
@@ -736,12 +760,12 @@ interface BreadcrumbEntry {
 /**
  * Build the breadcrumb path for the current drill level.
  *
- * Always starts with the root `{ subflowId: null, label: 'Chart' }`.
- * When drilled into a subflow, appends one entry with the mount
- * node's display label (falling back to the subflow id). Multi-level
- * drill chains are NOT supported by the current chart UX (drill is
- * always from root or sibling — clicking a deeper subflow's mount
- * replaces the current scope), so the path has at most 2 entries.
+ * Always starts with the root `{ subflowId: null, label: 'Chart' }`, then
+ * one entry per ancestor mount, outermost first — walked by following each
+ * mount's own `subflowOf` up to the top level. Drill keys are unique node
+ * ids, so the FULL chain is recoverable: drilling `Pipeline` → `Prepare`
+ * reads `Chart › Pipeline › Prepare`, and clicking `Pipeline` goes back one
+ * level instead of all the way out.
  */
 declare function buildSubflowBreadcrumb(graph: TraceGraph, currentSubflowId: string | null): BreadcrumbEntry[];
 
@@ -750,6 +774,12 @@ interface SubflowTreeEntry {
     name: string;
     /** Human-readable description */
     description?: string;
+    /**
+     * The mount node's id in the graph — the DRILL KEY. Unique even when the
+     * same child chart is mounted twice, which `subflowId` and `name` are not
+     * (see `_internal/subflowDrill.ts`). Hosts should drill with this.
+     */
+    nodeId?: string;
     /** Subflow ID (when this node represents a subflow) */
     subflowId?: string;
     /** Whether this node is a subflow root (has nested structure) */
@@ -765,8 +795,13 @@ interface SubflowTreeProps extends BaseComponentProps {
     activeStage?: string | null;
     /** Set of completed stage names */
     doneStages?: Set<string>;
-    /** Called when a tree node is clicked */
-    onNodeSelect?: (name: string, isSubflow: boolean) => void;
+    /**
+     * Called when a tree node is clicked. `nodeId` is the mount node's graph id
+     * — the unambiguous drill key. Prefer it over `name`: two mounts of the
+     * same child chart share a label, so drilling by name lands on whichever
+     * one happens to be found first.
+     */
+    onNodeSelect?: (name: string, isSubflow: boolean, nodeId?: string) => void;
 }
 declare const SubflowTree: react.NamedExoticComponent<SubflowTreeProps>;
 
@@ -999,11 +1034,23 @@ interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
     onNodeClick?: (stageId: string) => void;
     /**
      * Fires when the chart drills into or out of a subflow (explicit
-     * user click on a mount node). Receives the mount stage id (drill
-     * in) or `null` (pop back). Container shells use this to keep
-     * their data panels in lock-step with the chart's drill state.
+     * user click on a mount node, or a click on the chart's own
+     * breadcrumb). Receives the mount stage id (drill in) or `null`
+     * (pop back). Container shells use this to keep their data panels
+     * in lock-step with the chart's drill state.
      */
     onSubflowChange?: (mountStageId: string | null) => void;
+    /**
+     * CONTROLLED drill scope — the mount node id to show the internals of,
+     * or `null` for the top level. Pass it (together with
+     * `onSubflowChange`) when the host owns the drill because it ALSO
+     * drills from somewhere else — a subflow tree, a breadcrumb, a
+     * deep-link. The chart then renders the host's scope instead of a
+     * second, private one that can drift out of step with the panels
+     * beside it. Omit for a standalone chart: the drill stays internal
+     * and clicking a mount card just works.
+     */
+    currentSubflowId?: string | null;
     /**
      * Consumer-supplied xyflow node types. Merged with the built-in
      * `{ stageNode: StageNode }` registry — keys you supply OVERRIDE
@@ -1071,7 +1118,7 @@ interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
      */
     children?: react.ReactNode;
 }
-declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, sliceCone, theme: themeMode, children, className, style, }: TracedFlowProps): react.JSX.Element;
+declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, currentSubflowId: controlledSubflowId, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, sliceCone, theme: themeMode, children, className, style, }: TracedFlowProps): react.JSX.Element;
 
 interface GroupContainerNodeData {
     label: string;

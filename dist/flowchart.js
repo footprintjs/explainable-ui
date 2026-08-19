@@ -2403,9 +2403,25 @@ function sliceOverlay(overlay, index) {
 }
 
 // src/components/FlowchartView/_internal/subflowDrill.ts
+function findMountNode(graph, drillKey) {
+  return graph.nodes.find((n) => n.id === drillKey && n.data?.isSubflow === true) ?? graph.nodes.find((n) => n.data?.isSubflow === true && n.data?.subflowId === drillKey);
+}
+function resolveDrillScope(graph, drillKey) {
+  for (const n of graph.nodes) {
+    if (n.data?.subflowOf === drillKey) return drillKey;
+  }
+  const local = graph.nodes.find((n) => n.id === drillKey)?.data?.subflowId;
+  if (typeof local === "string" && local !== drillKey) {
+    for (const n of graph.nodes) {
+      if (n.data?.subflowOf === local) return local;
+    }
+  }
+  return drillKey;
+}
 function filterGraphForDrill(graph, currentSubflowId) {
   if (graph.nodes.length === 0) return graph;
-  const matchesScope = (subflowOf) => currentSubflowId === null ? subflowOf === void 0 : subflowOf === currentSubflowId;
+  const scope = currentSubflowId === null ? null : resolveDrillScope(graph, currentSubflowId);
+  const matchesScope = (subflowOf) => scope === null ? subflowOf === void 0 : subflowOf === scope;
   const visibleIds = /* @__PURE__ */ new Set();
   for (const n of graph.nodes) {
     if (matchesScope(n.data?.subflowOf)) visibleIds.add(n.id);
@@ -2417,15 +2433,20 @@ function filterGraphForDrill(graph, currentSubflowId) {
   };
 }
 function buildSubflowBreadcrumb(graph, currentSubflowId) {
-  const out = [{ subflowId: null, label: "Chart" }];
-  if (currentSubflowId !== null) {
-    const mount = graph.nodes.find((n) => n.data?.subflowId === currentSubflowId);
-    out.push({
-      subflowId: currentSubflowId,
-      label: mount?.data?.label ?? currentSubflowId
-    });
+  const trail = [];
+  const seen = /* @__PURE__ */ new Set();
+  let key = currentSubflowId ?? void 0;
+  while (key !== void 0 && !seen.has(key)) {
+    seen.add(key);
+    const mount = findMountNode(graph, key);
+    if (mount === void 0) {
+      trail.unshift({ subflowId: key, label: key });
+      break;
+    }
+    trail.unshift({ subflowId: mount.id, label: mount.data?.label ?? mount.id });
+    key = mount.data?.subflowOf;
   }
-  return out;
+  return [{ subflowId: null, label: "Chart" }, ...trail];
 }
 
 // src/components/FlowchartView/_internal/overlayProjection.ts
@@ -2436,8 +2457,8 @@ function aggregateMountStatus(slice, graph, currentSubflowId) {
   const doneIds = new Set(slice.doneStageIds);
   let activeId = slice.activeStageId;
   for (const mount of mounts) {
-    const sfId = mount.data.subflowId;
-    const members = graph.nodes.filter((n) => n.data?.subflowOf === sfId);
+    const scope = resolveDrillScope(graph, mount.id);
+    const members = graph.nodes.filter((n) => n.data?.subflowOf === scope);
     if (members.length === 0) continue;
     const anyActive = members.some((m) => m.id === slice.activeStageId);
     const allDone = members.every((m) => slice.doneStageIds.has(m.id));
@@ -2451,32 +2472,36 @@ function aggregateMountStatus(slice, graph, currentSubflowId) {
 
 // src/components/FlowchartView/_internal/useSubflowDrill.ts
 import { useCallback as useCallback2, useEffect as useEffect4, useRef as useRef4, useState as useState3 } from "react";
-function useSubflowDrill(graph, onSubflowChange) {
-  const [currentSubflowId, setCurrentSubflowId] = useState3(null);
+function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
+  const isControlled = controlledSubflowId !== void 0;
+  const [ownSubflowId, setOwnSubflowId] = useState3(null);
+  const currentSubflowId = isControlled ? controlledSubflowId : ownSubflowId;
   const lastGraphRef = useRef4(null);
-  if (lastGraphRef.current !== graph) {
+  if (!isControlled && lastGraphRef.current !== graph) {
     lastGraphRef.current = graph;
-    if (currentSubflowId !== null && !graph.nodes.some((n) => n.data?.subflowId === currentSubflowId)) {
-      queueMicrotask(() => setCurrentSubflowId(null));
+    if (ownSubflowId !== null && findMountNode(graph, ownSubflowId) === void 0) {
+      queueMicrotask(() => setOwnSubflowId(null));
     }
   }
   const lastNotifiedRef = useRef4(void 0);
   useEffect4(() => {
+    if (isControlled) return;
     if (lastNotifiedRef.current === currentSubflowId) return;
     lastNotifiedRef.current = currentSubflowId;
-    if (currentSubflowId === null) {
-      onSubflowChange?.(null);
-    } else {
-      const mount = graph.nodes.find((n) => n.data?.subflowId === currentSubflowId);
-      if (mount) onSubflowChange?.(mount.id);
-    }
-  }, [currentSubflowId, graph, onSubflowChange]);
-  const drillInto = useCallback2((subflowId) => {
-    setCurrentSubflowId(subflowId);
-  }, []);
-  const drillUp = useCallback2(() => {
-    setCurrentSubflowId(null);
-  }, []);
+    onSubflowChange?.(currentSubflowId);
+  }, [isControlled, currentSubflowId, onSubflowChange]);
+  const setCurrentSubflowId = useCallback2(
+    (id) => {
+      if (isControlled) onSubflowChange?.(id);
+      else setOwnSubflowId(id);
+    },
+    [isControlled, onSubflowChange]
+  );
+  const drillInto = useCallback2(
+    (mountNodeId) => setCurrentSubflowId(mountNodeId),
+    [setCurrentSubflowId]
+  );
+  const drillUp = useCallback2(() => setCurrentSubflowId(null), [setCurrentSubflowId]);
   return { currentSubflowId, drillInto, drillUp, setCurrentSubflowId };
 }
 
@@ -2794,6 +2819,7 @@ function TracedFlow({
   colors: colorOverrides,
   onNodeClick,
   onSubflowChange,
+  currentSubflowId: controlledSubflowId,
   groupedSubflows,
   mainChartBox,
   nodeTypes: userNodeTypes,
@@ -2825,7 +2851,7 @@ function TracedFlow({
     () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES2, ...userEdgeTypes } : DEFAULT_EDGE_TYPES2,
     [userEdgeTypes]
   );
-  const drill = useSubflowDrill(graph, onSubflowChange);
+  const drill = useSubflowDrill(graph, onSubflowChange, controlledSubflowId);
   const groupedSet = useMemo5(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
   const filteredGraph = useMemo5(() => {
     const base = filterGraphForDrill(graph, drill.currentSubflowId);
@@ -2937,8 +2963,9 @@ function TracedFlow({
   const handleNodeClick = useCallback3(
     (_, node) => {
       const data = node.data ?? {};
-      if (data.isSubflow && data.subflowId && !groupedSet.has(data.subflowId)) {
-        drill.drillInto(data.subflowId);
+      const isGrouped = groupedSet.has(node.id) || !!data.subflowId && groupedSet.has(data.subflowId);
+      if (data.isSubflow && !isGrouped) {
+        drill.drillInto(node.id);
       }
       onNodeClick?.(node.id);
     },
@@ -3466,7 +3493,8 @@ function graphToSubflowEntries(graph) {
     if (!node.data?.isSubflow) continue;
     const entry = {
       name: typeof node.data.label === "string" ? node.data.label : node.id,
-      isSubflow: true
+      isSubflow: true,
+      nodeId: node.id
     };
     if (typeof node.data.description === "string") entry.description = node.data.description;
     if (typeof node.data.subflowId === "string") entry.subflowId = node.data.subflowId;
@@ -3489,8 +3517,8 @@ var TreeNode = memo3(function TreeNode2({
     if (hasChildren) {
       setExpanded((prev) => !prev);
     }
-    onNodeSelect?.(entry.name, !!entry.isSubflow);
-  }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow]);
+    onNodeSelect?.(entry.name, !!entry.isSubflow, entry.nodeId);
+  }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow, entry.nodeId]);
   return /* @__PURE__ */ jsxs11(Fragment2, { children: [
     /* @__PURE__ */ jsxs11(
       "button",
@@ -3594,7 +3622,7 @@ var TreeNode = memo3(function TreeNode2({
         doneStages,
         onNodeSelect
       },
-      child.subflowId ?? `${child.name}-${i}`
+      child.nodeId ?? child.subflowId ?? `${child.name}-${i}`
     )) })
   ] });
 });
@@ -3653,7 +3681,7 @@ var SubflowTree = memo3(function SubflowTree2({
             doneStages,
             onNodeSelect
           },
-          entry.subflowId ?? `${entry.name}-${i}`
+          entry.nodeId ?? entry.subflowId ?? `${entry.name}-${i}`
         ))
       ]
     }

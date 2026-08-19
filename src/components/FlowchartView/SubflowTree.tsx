@@ -33,6 +33,12 @@ export interface SubflowTreeEntry {
   name: string;
   /** Human-readable description */
   description?: string;
+  /**
+   * The mount node's id in the graph — the DRILL KEY. Unique even when the
+   * same child chart is mounted twice, which `subflowId` and `name` are not
+   * (see `_internal/subflowDrill.ts`). Hosts should drill with this.
+   */
+  nodeId?: string;
   /** Subflow ID (when this node represents a subflow) */
   subflowId?: string;
   /** Whether this node is a subflow root (has nested structure) */
@@ -49,8 +55,13 @@ export interface SubflowTreeProps extends BaseComponentProps {
   activeStage?: string | null;
   /** Set of completed stage names */
   doneStages?: Set<string>;
-  /** Called when a tree node is clicked */
-  onNodeSelect?: (name: string, isSubflow: boolean) => void;
+  /**
+   * Called when a tree node is clicked. `nodeId` is the mount node's graph id
+   * — the unambiguous drill key. Prefer it over `name`: two mounts of the
+   * same child chart share a label, so drilling by name lands on whichever
+   * one happens to be found first.
+   */
+  onNodeSelect?: (name: string, isSubflow: boolean, nodeId?: string) => void;
 }
 
 /** Extracts subflow entries from a recorder graph. Insertion-order preserving. */
@@ -62,6 +73,7 @@ export function graphToSubflowEntries(graph: TraceGraph): SubflowTreeEntry[] {
     const entry: SubflowTreeEntry = {
       name: typeof node.data.label === "string" ? node.data.label : node.id,
       isSubflow: true,
+      nodeId: node.id,
     };
     if (typeof node.data.description === "string") entry.description = node.data.description;
     if (typeof node.data.subflowId === "string") entry.subflowId = node.data.subflowId;
@@ -82,7 +94,7 @@ const TreeNode = memo(function TreeNode({
   depth: number;
   activeStage?: string | null;
   doneStages?: Set<string>;
-  onNodeSelect?: (name: string, isSubflow: boolean) => void;
+  onNodeSelect?: (name: string, isSubflow: boolean, nodeId?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const hasChildren = entry.children && entry.children.length > 0;
@@ -93,8 +105,8 @@ const TreeNode = memo(function TreeNode({
     if (hasChildren) {
       setExpanded((prev) => !prev);
     }
-    onNodeSelect?.(entry.name, !!entry.isSubflow);
-  }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow]);
+    onNodeSelect?.(entry.name, !!entry.isSubflow, entry.nodeId);
+  }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow, entry.nodeId]);
 
   return (
     <>
@@ -205,7 +217,7 @@ const TreeNode = memo(function TreeNode({
         <div>
           {entry.children!.map((child, i) => (
             <TreeNode
-              key={child.subflowId ?? `${child.name}-${i}`}
+              key={child.nodeId ?? child.subflowId ?? `${child.name}-${i}`}
               entry={child}
               depth={depth + 1}
               activeStage={activeStage}
@@ -273,7 +285,7 @@ export const SubflowTree = memo(function SubflowTree({
       {!unstyled && <SectionLabel>Subflows</SectionLabel>}
       {subflowStages.map((entry, i) => (
         <TreeNode
-          key={entry.subflowId ?? `${entry.name}-${i}`}
+          key={entry.nodeId ?? entry.subflowId ?? `${entry.name}-${i}`}
           entry={entry}
           depth={0}
           activeStage={activeStage}

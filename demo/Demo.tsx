@@ -4,6 +4,7 @@ import { ExplainableShell } from "../src/components/ExplainableShell/Explainable
 import type { TraceGraph } from "../src/components/FlowchartView/traceStructureRecorder";
 import graphData from "./sample-graph.json";
 import runData from "./sample-run.json";
+import subflowRunData from "./sample-subflow-run.json";
 
 // Rehydrate the JSON fixture: RuntimeOverlay.errors is a Map at runtime,
 // serialized as entry pairs by generate-run.ts.
@@ -12,6 +13,13 @@ const liveRun = {
   runtimeOverlay: {
     ...runData.runtimeOverlay,
     errors: new Map((runData.runtimeOverlay.errors as [string, string][]) ?? []),
+  },
+};
+const subflowRun = {
+  ...subflowRunData,
+  runtimeOverlay: {
+    ...subflowRunData.runtimeOverlay,
+    errors: new Map((subflowRunData.runtimeOverlay.errors as [string, string][]) ?? []),
   },
 };
 import { GALLERY, COMBINE, CONNECTED_AGENT } from "./sample-graphs";
@@ -77,6 +85,25 @@ export function Demo() {
           traceTheme={{ mode: "light" }}
         />
       </div>
+      {/* The shell on a run that mounts NESTED subflows (demo/generate-subflow-run.ts).
+          `Prepare` is mounted twice — top level and inside `Pipeline` — so drilling
+          the inner one proves the drill scopes by the MOUNT, not by the shared id.
+          Open the Topology rail on the left and click a subflow there too: every
+          entry path must land on the same chart. */}
+      <div
+        data-testid="shell-subflow-run"
+        style={{ border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden", background: "#fff", height: 640, marginBottom: 20 }}
+      >
+        <ExplainableShell
+          runtimeSnapshot={subflowRun.runtimeSnapshot as never}
+          narrativeEntries={subflowRun.narrativeEntries as never}
+          traceGraph={subflowRun.traceGraph as never}
+          runtimeOverlay={subflowRun.runtimeOverlay as never}
+          traceTheme={{ mode: "light" }}
+          defaultExpanded={{ topology: true }}
+        />
+      </div>
+
       <p style={{ color: "#64748b", margin: "0 0 20px", fontSize: 14 }}>
         One chart per composition pattern (so the layout is readable), then the real agent chart —
         the combine target. Edit <code>src/components/FlowchartView/*</code> and every chart

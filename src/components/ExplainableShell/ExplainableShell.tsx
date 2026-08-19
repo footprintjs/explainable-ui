@@ -35,6 +35,7 @@ import { NarrativePanel } from "../NarrativePanel";
 import { SubflowTree } from "../FlowchartView/SubflowTree";
 import { SubflowBreadcrumb } from "../FlowchartView/SubflowBreadcrumb";
 import { TracedFlow } from "../FlowchartView/TracedFlow";
+import { buildSubflowBreadcrumb } from "../FlowchartView/_internal/subflowDrill";
 
 /**
  * Minimal subflow-walking spec shape. Used INTERNALLY by drill-down
@@ -267,6 +268,14 @@ export interface ExplainableShellProps extends BaseComponentProps {
     /** Dependency-cone overlay (chart node id → BFS depth) — painted while
      *  the Inspector's Data Trace tab is open. Custom renderers may ignore it. */
     sliceCone?: ReadonlyMap<string, number>;
+    /** The shell's CURRENT drill scope — the mount node's id, or `null` at the
+     *  top level. The shell owns the one drill state, so a chart that keeps
+     *  its own must follow this or it will show a different level than the
+     *  breadcrumb, story and timeline beside it. */
+    currentSubflowId?: string | null;
+    /** Call to MOVE the shell's drill: a mount node's id to drill in, `null`
+     *  to pop back to the top. */
+    onSubflowChange?: (mountStageId: string | null) => void;
   }) => React.ReactNode;
   /**
    * When true, render each node's stable `stageId` as a small monospace
@@ -806,33 +815,59 @@ const DetailsContent = memo(function DetailsContent({
  * path, so the subflow level is resolved straight from the mount stage's
  * recorded `subflowResult` — so all four panels (slider / story / overlay /
  * chart) rescope to the subflow together.
+ *
+ * `drillKey` is the mount NODE's id, which is path-qualified
+ * (`pipeline/prepare`) whenever the mount sits inside another subflow.
+ * Matching is TIERED — full path first, then a path suffix, and only then the
+ * bare-local-id fallbacks. The order matters: two mounts of the same child
+ * chart share a local id, so a loose match lands on whichever mount comes
+ * first in the array rather than the one that was clicked.
  */
 function resolveSubflowFromRuntime(
   parentSnapshots: StageSnapshot[],
-  subflowId: string,
+  drillKey: string,
   narrativeEntries?: NarrativeEntry[],
+  subflowResults?: Record<string, unknown>,
 ): SubflowLevel | null {
-  const localId = subflowId.split("/").pop() ?? subflowId;
-  const parentSnap = parentSnapshots.find((s) => {
-    if (!s.subflowResult) return false;
-    const sfStageId = s.runtimeStageId?.split("#")[0]?.split("/").pop();
-    return (
-      s.subflowId === subflowId ||
-      s.subflowId === localId ||
-      s.stageName === subflowId ||
-      s.stageLabel === subflowId ||
-      sfStageId === subflowId ||
-      sfStageId === localId
-    );
-  });
+  const localId = drillKey.split("/").pop() ?? drillKey;
+  const pathOf = (s: StageSnapshot): string | undefined =>
+    s.runtimeStageId?.split("#")[0];
+  const withResult = parentSnapshots.filter((s) => !!s.subflowResult);
+  const parentSnap =
+    // Tier 1 — this exact mount, by full path.
+    withResult.find((s) => s.subflowId === drillKey || pathOf(s) === drillKey) ??
+    // Tier 2 — the same mount seen from inside its own subflow, where the
+    // enclosing prefix has been stripped off the ids.
+    withResult.find((s) => {
+      const p = pathOf(s);
+      return (
+        (p !== undefined && drillKey.endsWith("/" + p)) ||
+        (s.subflowId !== undefined && drillKey.endsWith("/" + s.subflowId))
+      );
+    }) ??
+    // Tier 3 — legacy callers that drill by a bare subflow id or a label.
+    withResult.find((s) => {
+      const leaf = pathOf(s)?.split("/").pop();
+      return (
+        s.subflowId === localId ||
+        s.stageName === drillKey ||
+        s.stageLabel === drillKey ||
+        leaf === drillKey ||
+        leaf === localId
+      );
+    });
   if (!parentSnap?.subflowResult) return null;
   const label = parentSnap.stageLabel ?? parentSnap.stageName ?? localId;
   const sfNarrative = narrativeEntries
-    ? extractSubflowNarrative(narrativeEntries, subflowId, label)
+    ? extractSubflowNarrative(narrativeEntries, drillKey, label)
     : undefined;
-  const sfSnapshots = subflowResultToSnapshots(parentSnap.subflowResult, sfNarrative);
+  const sfSnapshots = subflowResultToSnapshots(
+    parentSnap.subflowResult,
+    sfNarrative,
+    subflowResults,
+  );
   if (sfSnapshots.length === 0) return null;
-  return { subflowId, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
+  return { subflowId: drillKey, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
 }
 
 // ---------------------------------------------------------------------------
@@ -855,6 +890,7 @@ const RightPanel = memo(function RightPanel({
   activeTab,
   allTabs,
   activeNarrativeEntries,
+  narrativeScopeSubflowId,
   recorderViews,
   autoRecorderViews,
   size,
@@ -873,6 +909,9 @@ const RightPanel = memo(function RightPanel({
   activeTab: string;
   allTabs: Array<{ id: string; name: string; description?: string }>;
   activeNarrativeEntries?: NarrativeEntry[];
+  /** The subflow `activeNarrativeEntries` belong to while drilled in — the
+   *  Story needs it to tell ITS OWN stages from a nested subflow's. */
+  narrativeScopeSubflowId?: string;
   recorderViews?: RecorderView[];
   autoRecorderViews: Array<{ id: string; name: string; description?: string; preferredOperation?: string; data: unknown }>;
   size: "compact" | "default" | "detailed";
@@ -929,7 +968,7 @@ const RightPanel = memo(function RightPanel({
               id: tab.id,
               name: insightName(tab.name),
               render: () => {
-                if (tab.id === "narrative") return <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={activeNarrativeEntries} runtimeSnapshot={runtimeSnapshot} size={size} style={{ height: "100%" }} />;
+                if (tab.id === "narrative") return <NarrativePanel snapshots={snapshots} selectedIndex={selectedIndex} narrativeEntries={activeNarrativeEntries} scopeSubflowId={narrativeScopeSubflowId} runtimeSnapshot={runtimeSnapshot} size={size} style={{ height: "100%" }} />;
                 const customView = recorderViews?.find((v) => v.id === tab.id);
                 if (customView?.render) return customView.render({ snapshots, selectedIndex });
                 const autoView = autoRecorderViews.find((v) => v.id === tab.id);
@@ -1066,11 +1105,13 @@ export function ExplainableShell({
   // the single source of truth.
   const tracedFlowRenderer = useMemo(() => {
     if (!traceGraph) return undefined;
-    return ({ selectedIndex, snapshots, onNodeClick, sliceCone }: {
+    return ({ selectedIndex, snapshots, onNodeClick, sliceCone, currentSubflowId, onSubflowChange }: {
       spec: SpecNode | null; snapshots: StageSnapshot[]; selectedIndex: number;
       onNodeClick?: (indexOrId: number | string) => void;
       showStageId?: boolean;
       sliceCone?: ReadonlyMap<string, number>;
+      currentSubflowId?: string | null;
+      onSubflowChange?: (mountStageId: string | null) => void;
     }) => {
       // The shell's `selectedIndex` indexes into `snapshots[]` (which
       // may be filtered to a drill-down subset). The overlay's
@@ -1119,21 +1160,12 @@ export function ExplainableShell({
           colors={traceColors || undefined}
           scrubIndex={overlayIdx}
           onNodeClick={(stageId) => onNodeClick?.(stageId)}
-          onSubflowChange={(mountId) => {
-            // Forward chart's drill state to the shell's drill-down
-            // stack so memory/narrative/timeline panels follow the
-            // chart into/out of subflows. We route through the same
-            // onNodeClick channel — it already triggers drill-down
-            // for subflow mount nodes via the shell's handleNodeClick
-            // → handleDrillDown path.
-            //
-            // The `mountId === null` case (popping back to top) is
-            // intentionally NOT auto-triggered here: the shell's
-            // breadcrumb-back button is the right user gesture for
-            // navigating UP from a subflow. Auto-popping on scrub
-            // would surprise users who manually drilled in.
-            if (mountId !== null) onNodeClick?.(mountId);
-          }}
+          // CONTROLLED drill: the shell owns the scope, the chart renders it.
+          // Every gesture — a mount card here, a row in the Topology tree, the
+          // breadcrumb — moves the same one value, so the chart can never show
+          // a different level than the panels around it.
+          currentSubflowId={currentSubflowId ?? null}
+          onSubflowChange={(mountId) => onSubflowChange?.(mountId)}
         />
       );
     };
@@ -1259,9 +1291,9 @@ export function ExplainableShell({
   const currentLevel = useMemo(() => {
     if (drillDownStack.length > 0) {
       const top = drillDownStack[drillDownStack.length - 1];
-      return { spec: top.spec, snapshots: top.snapshots, narrative: top.narrative };
+      return { spec: top.spec, snapshots: top.snapshots, narrative: top.narrative, subflowId: top.subflowId as string | undefined };
     }
-    return { spec: null, snapshots, narrative: undefined as NarrativeEntry[] | undefined };
+    return { spec: null, snapshots, narrative: undefined as NarrativeEntry[] | undefined, subflowId: undefined as string | undefined };
   }, [drillDownStack, snapshots]);
 
   const activeSnapshots = currentLevel.snapshots;
@@ -1355,6 +1387,26 @@ export function ExplainableShell({
   // whole-run-numbered per-stage fallback text (which is why it used to start
   // at "Step 24" instead of step 1).
   const activeNarrativeEntries = isInSubflow ? currentLevel.narrative : narrativeEntries;
+
+  // Which subflow the Story is showing. Every entry in a drilled list carries
+  // a `subflowId`, so without this the Story would hide the whole level as
+  // "subflow internals". The drill key usually IS the runtime subflow path;
+  // when a consumer's node ids don't line up with it, fall back to the
+  // SHALLOWEST subflowId present — that is this level, and anything longer is
+  // a subflow nested inside it.
+  const narrativeScopeSubflowId = useMemo<string | undefined>(() => {
+    if (!isInSubflow) return undefined;
+    const key = currentLevel.subflowId;
+    const entries = currentLevel.narrative ?? [];
+    if (key !== undefined && entries.some((e) => e.subflowId === key)) return key;
+    let shallowest: string | undefined;
+    for (const e of entries) {
+      const id = e.subflowId;
+      if (id === undefined) continue;
+      if (shallowest === undefined || id.length < shallowest.length) shallowest = id;
+    }
+    return shallowest ?? key;
+  }, [isInSubflow, currentLevel]);
 
   const breadcrumbs = useMemo(() => {
     const root = { label: title || "Flowchart", spec: null, description: undefined as string | undefined };
@@ -1473,20 +1525,70 @@ export function ExplainableShell({
     setForkChooserOpen(false);
   }, [traceStopIndices, safeIdx]);
 
+  // ── The ONE drill ───────────────────────────────────────────────────
+  // `drillDownStack` is the shell's single source of truth for "where are
+  // we?", and its top entry's `subflowId` (a mount NODE id) is handed to the
+  // chart as its CONTROLLED scope. The chart no longer keeps a private drill
+  // state, so a drill started from the Topology tree, the breadcrumb or a
+  // chart card can no longer disagree with the chart on screen.
+  const chartDrillKey = drillDownStack.length > 0
+    ? drillDownStack[drillDownStack.length - 1].subflowId
+    : null;
+
+  /**
+   * Build the WHOLE stack for a mount, from the root down. Every entry path
+   * calls this with the mount node's id, so drilling a nested subflow
+   * straight from the tree lands on the same state as walking there card by
+   * card — including the ancestors in the breadcrumb.
+   *
+   * Returns null when the run has no recorded result for some level (a lazy
+   * mount that never executed, say) — the caller then leaves the view alone
+   * rather than half-drilling.
+   */
+  const buildDrillStack = useCallback(
+    (mountKey: string): DrillDownEntry[] | null => {
+      // The graph knows the ancestor chain; the runtime knows each level's
+      // data. Walk the chain outermost-first, resolving each level inside
+      // the level above it.
+      const chain = traceGraph
+        ? buildSubflowBreadcrumb(traceGraph, mountKey)
+            .slice(1) // drop the synthetic root entry
+            .map((c) => c.subflowId)
+            .filter((id): id is string => id !== null)
+        : [mountKey];
+      const keys = chain.length > 0 ? chain : [mountKey];
+      const stack: DrillDownEntry[] = [];
+      let levelSnapshots = snapshots;
+      for (const key of keys) {
+        const entry = resolveSubflowFromRuntime(
+          levelSnapshots,
+          key,
+          narrativeEntries,
+          runtimeSnapshot?.subflowResults,
+        );
+        if (!entry) return null;
+        stack.push({ ...entry, parentSnapshotIdx: stack.length === 0 ? snapshotIdx : 0 });
+        levelSnapshots = entry.snapshots;
+      }
+      return stack.length > 0 ? stack : null;
+    },
+    [traceGraph, snapshots, narrativeEntries, runtimeSnapshot, snapshotIdx],
+  );
+
   const handleDrillDown = useCallback(
-    (nodeName: string) => {
-      // Recorder path: resolve the subflow level from the mount stage's recorded
-      // `subflowResult` (no spec tree needed). Pushing the shell's drillDownStack
-      // rescopes the slider / story / overlay to the subflow.
-      const entry = resolveSubflowFromRuntime(activeSnapshots, nodeName, narrativeEntries);
-      if (entry) {
+    (mountKey: string) => {
+      // Recorder path: resolve each level from its mount stage's recorded
+      // `subflowResult` (no spec tree needed). Replacing the drillDownStack
+      // rescopes the slider / story / overlay / chart together.
+      const stack = buildDrillStack(mountKey);
+      if (stack) {
         setTracing(null); // the walk lives on the ROOT rail — drilling exits it honestly
         setForkChooserOpen(false);
-        setDrillDownStack((prev) => [...prev, { ...entry, parentSnapshotIdx: snapshotIdx }]);
+        setDrillDownStack(stack);
         setSnapshotIdx(0);
       }
     },
-    [activeSnapshots, narrativeEntries, snapshotIdx]
+    [buildDrillStack],
   );
 
   const handleBreadcrumbNavigate = useCallback((level: number) => {
@@ -1497,32 +1599,50 @@ export function ExplainableShell({
     });
   }, []);
 
+  /**
+   * The chart's drill scope changed (a mount card, or the chart's own
+   * breadcrumb). Popping BACK to a level already on the stack must not push
+   * a duplicate, so an existing key navigates instead of drilling.
+   */
+  const handleChartSubflowChange = useCallback(
+    (mountKey: string | null) => {
+      if (mountKey === null) { handleBreadcrumbNavigate(0); return; }
+      const at = drillDownStack.findIndex((e) => e.subflowId === mountKey);
+      if (at >= 0) {
+        if (at < drillDownStack.length - 1) handleBreadcrumbNavigate(at + 1);
+        return;
+      }
+      handleDrillDown(mountKey);
+    },
+    [drillDownStack, handleBreadcrumbNavigate, handleDrillDown],
+  );
+
   const handleNodeClick = useCallback(
     (indexOrId: number | string) => {
       if (typeof indexOrId === "number") { setSnapshotIdx(indexOrId); return; }
       // Drill if this names a subflow — via the recorder path (the chart
-      // forwards a subflowId here through onSubflowChange).
-      const drillable = resolveSubflowFromRuntime(activeSnapshots, indexOrId, narrativeEntries);
-      if (drillable) { handleDrillDown(indexOrId); return; }
+      // forwards a mount node id here through onSubflowChange).
+      if (buildDrillStack(indexOrId)) { handleChartSubflowChange(indexOrId); return; }
       const idx = activeSnapshots.findIndex((s) => s.stageLabel === indexOrId);
       if (idx >= 0) setSnapshotIdx(idx);
     },
-    [activeSnapshots, narrativeEntries, handleDrillDown]
+    [activeSnapshots, buildDrillStack, handleChartSubflowChange]
   );
 
   const handleTreeNodeSelect = useCallback(
-    (name: string, isSubflow: boolean) => {
+    (name: string, isSubflow: boolean, nodeId?: string) => {
       if (isSubflow) {
-        setDrillDownStack([]);
-        const entry = resolveSubflowFromRuntime(snapshots, name, narrativeEntries);
-        if (entry) { setDrillDownStack([{ ...entry, parentSnapshotIdx: snapshotIdx }]); setSnapshotIdx(0); }
+        // Drill by the mount NODE id when the tree supplies one: the label is
+        // ambiguous (mount the same child chart twice and both rows read
+        // "Prepare"), and a nested mount needs its ancestors drilled too.
+        handleDrillDown(nodeId ?? name);
       } else {
         setDrillDownStack([]);
         const idx = snapshots.findIndex((s) => s.stageLabel === name);
         if (idx >= 0) setSnapshotIdx(idx);
       }
     },
-    [snapshots, narrativeEntries, snapshotIdx]
+    [snapshots, handleDrillDown]
   );
 
   const navigateToStage = useCallback(
@@ -1760,10 +1880,10 @@ export function ExplainableShell({
             <>
               <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} />
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
-              {traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, ...(sliceCone && { sliceCone }) })}
+              {traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...(sliceCone && { sliceCone }) })}
               {missingChart && <MissingChartNote unstyled />}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
-              <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} unstyled />
+              <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} scopeSubflowId={narrativeScopeSubflowId} unstyled />
               <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
             </>
           )}
@@ -1791,7 +1911,7 @@ export function ExplainableShell({
       return <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} size={size} style={{ height: "100%" }} />;
     }
     if (activeTab === "narrative") {
-      return <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} size={size} style={{ height: "100%" }} />;
+      return <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} scopeSubflowId={narrativeScopeSubflowId} size={size} style={{ height: "100%" }} />;
     }
     const customView = recorderViews?.find((v) => v.id === activeTab);
     if (customView?.render) {
@@ -1926,6 +2046,8 @@ export function ExplainableShell({
                   selectedIndex: safeIdx,
                   onNodeClick: handleNodeClick,
                   showStageId,
+                  currentSubflowId: chartDrillKey,
+                  onSubflowChange: handleChartSubflowChange,
                   ...(sliceCone && { sliceCone }),
                 })}
               </div>
@@ -2002,6 +2124,8 @@ export function ExplainableShell({
                     selectedIndex: safeIdx,
                     onNodeClick: handleNodeClick,
                     showStageId,
+                    currentSubflowId: chartDrillKey,
+                    onSubflowChange: handleChartSubflowChange,
                     ...(sliceCone && { sliceCone }),
                   })}
                 </div>
@@ -2030,6 +2154,7 @@ export function ExplainableShell({
                   activeTab={activeTab}
                   allTabs={allTabs}
                   activeNarrativeEntries={activeNarrativeEntries}
+                  narrativeScopeSubflowId={narrativeScopeSubflowId}
                   recorderViews={recorderViews}
                   autoRecorderViews={autoRecorderViews}
                   size={size}

@@ -2162,7 +2162,7 @@ function TimeTravelControls({
     if (!tracing) return null;
     return tracing.stopIndices.find((i) => i > selectedIndex) ?? null;
   }, [tracing, selectedIndex]);
-  const forkPrompt = isTracing && (tracing.forkCount ?? 0) >= 2 && !!tracing.onForkPrompt;
+  const forkPrompt = isTracing && earlierStop === null && (tracing.forkCount ?? 0) >= 2 && !!tracing.onForkPrompt;
   const canPrev = isTracing ? forkPrompt || earlierStop !== null : selectedIndex > 0;
   const canNext = isTracing ? laterStop !== null : selectedIndex < total - 1;
   const goPrev = useCallback3(() => {
@@ -3535,14 +3535,15 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
   }
   return nextMs;
 }
-function subflowResultToSnapshots(subflowResult, narrativeEntries) {
+function subflowResultToSnapshots(subflowResult, narrativeEntries, subflowResults) {
   if (!subflowResult || typeof subflowResult !== "object") return [];
   const sf = subflowResult;
   if (!sf.treeContext?.stageContexts) return [];
   const runtime = {
     sharedState: sf.treeContext.globalContext ?? {},
     executionTree: sf.treeContext.stageContexts,
-    commitLog: sf.treeContext.history ?? []
+    commitLog: sf.treeContext.history ?? [],
+    ...subflowResults ? { subflowResults } : void 0
   };
   const snapshots = toVisualizationSnapshots(runtime, narrativeEntries);
   const prefix = sf.subflowId ? `${sf.subflowId}/` : "";
@@ -3672,11 +3673,21 @@ var ENTRY_ICONS = {
   subflow: { icon: "\u21B3", color: theme.textSecondary, label: "Subflow" },
   loop: { icon: "\u21BB", color: theme.warning, label: "Loop" },
   break: { icon: "\u25A0", color: theme.error, label: "Break" },
-  error: { icon: "\u2717", color: theme.error, label: "Error" }
+  error: { icon: "\u2717", color: theme.error, label: "Error" },
+  // Retry is ATTEMPT telemetry, not an outcome: attempt N failed and the same
+  // stage is about to run again, so it may still succeed. That is why it is
+  // warning-weight (like `condition`) and not error-weight (like `error` /
+  // `break`) — colouring it red would tell the reader the run failed when it
+  // may not have. The mirrored arrow keeps the "went round again" reading while
+  // staying tellable apart from `loop`'s ↻, which is a by-design back-edge in
+  // the chart rather than a failure. Precedent for icon reuse with a distinct
+  // label: `fork` and `selector` already share ⑃.
+  retry: { icon: "\u21BA", color: theme.warning, label: "Retry" }
 };
 function StoryNarrative({
   entries,
   revealedEntryCount,
+  scopeSubflowId,
   size = "default",
   unstyled = false,
   className,
@@ -3685,23 +3696,25 @@ function StoryNarrative({
   const fs = fontSize[size];
   const pad = padding[size];
   const revealedCount = revealedEntryCount;
-  const revealed = useMemo10(() => {
-    const raw = entries.slice(0, revealedCount);
-    return raw.filter((e) => {
+  const isOwnLevel = useMemo10(() => {
+    return (e) => {
       const sfId = e.subflowId;
-      if (!sfId) return true;
+      if (!sfId) return scopeSubflowId === void 0;
       if (e.type === "subflow") return true;
-      return false;
-    });
-  }, [entries, revealedCount]);
+      return sfId === scopeSubflowId;
+    };
+  }, [scopeSubflowId]);
+  const revealed = useMemo10(
+    () => entries.slice(0, revealedCount).filter(isOwnLevel),
+    [entries, revealedCount, isOwnLevel]
+  );
   const futureCount = useMemo10(() => {
     let count = 0;
     for (let i = revealedCount; i < entries.length; i++) {
-      const e = entries[i];
-      if (!e.subflowId || entries[i].type === "subflow") count++;
+      if (isOwnLevel(entries[i])) count++;
     }
     return count;
-  }, [entries, revealedCount]);
+  }, [entries, revealedCount, isOwnLevel]);
   const latestRef = useRef5(null);
   useEffect5(() => {
     latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
@@ -3782,6 +3795,7 @@ function StoryNarrative({
           const isDecision = entry.type === "condition";
           const isError = entry.type === "error";
           const isBreak = entry.type === "break";
+          const isRetry = entry.type === "retry";
           const isSubflow = entry.isSubflow;
           const isLast = i === numberedEntries.length - 1;
           const headingType = entry.headingType;
@@ -3820,7 +3834,7 @@ function StoryNarrative({
                     style: {
                       fontSize: isHeading ? fs.body : fs.small,
                       fontWeight: isHeading ? 600 : 400,
-                      color: isError || isBreak ? theme.error : isDecision ? theme.warning : isHeading ? theme.textPrimary : theme.textSecondary,
+                      color: isError || isBreak ? theme.error : isDecision || isRetry ? theme.warning : isHeading ? theme.textPrimary : theme.textSecondary,
                       lineHeight: 1.6,
                       fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
                     },
@@ -3896,6 +3910,7 @@ function NarrativePanel({
   snapshots,
   selectedIndex,
   narrativeEntries,
+  scopeSubflowId,
   runtimeSnapshot,
   spec,
   size = "default",
@@ -4059,7 +4074,7 @@ function NarrativePanel({
     setTimeout(() => setCopied(false), 2e3);
   }, [buildLLMNarrative]);
   if (unstyled) {
-    return /* @__PURE__ */ jsx15("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ jsx15(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, unstyled: true }) : /* @__PURE__ */ jsx15(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
+    return /* @__PURE__ */ jsx15("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ jsx15(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, scopeSubflowId, unstyled: true }) : /* @__PURE__ */ jsx15(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
   }
   return /* @__PURE__ */ jsxs14(
     "div",
@@ -4116,6 +4131,7 @@ function NarrativePanel({
           {
             entries: narrativeEntries,
             revealedEntryCount,
+            scopeSubflowId,
             size,
             style: { flex: 1 }
           }
@@ -4143,7 +4159,8 @@ function graphToSubflowEntries(graph) {
     if (!node.data?.isSubflow) continue;
     const entry = {
       name: typeof node.data.label === "string" ? node.data.label : node.id,
-      isSubflow: true
+      isSubflow: true,
+      nodeId: node.id
     };
     if (typeof node.data.description === "string") entry.description = node.data.description;
     if (typeof node.data.subflowId === "string") entry.subflowId = node.data.subflowId;
@@ -4166,8 +4183,8 @@ var TreeNode = memo3(function TreeNode2({
     if (hasChildren) {
       setExpanded((prev) => !prev);
     }
-    onNodeSelect?.(entry.name, !!entry.isSubflow);
-  }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow]);
+    onNodeSelect?.(entry.name, !!entry.isSubflow, entry.nodeId);
+  }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow, entry.nodeId]);
   return /* @__PURE__ */ jsxs15(Fragment6, { children: [
     /* @__PURE__ */ jsxs15(
       "button",
@@ -4271,7 +4288,7 @@ var TreeNode = memo3(function TreeNode2({
         doneStages,
         onNodeSelect
       },
-      child.subflowId ?? `${child.name}-${i}`
+      child.nodeId ?? child.subflowId ?? `${child.name}-${i}`
     )) })
   ] });
 });
@@ -4330,7 +4347,7 @@ var SubflowTree = memo3(function SubflowTree2({
             doneStages,
             onNodeSelect
           },
-          entry.subflowId ?? `${entry.name}-${i}`
+          entry.nodeId ?? entry.subflowId ?? `${entry.name}-${i}`
         ))
       ]
     }
@@ -5321,9 +5338,25 @@ var StageNode = memo5(function StageNode2({
 });
 
 // src/components/FlowchartView/_internal/subflowDrill.ts
+function findMountNode(graph, drillKey) {
+  return graph.nodes.find((n) => n.id === drillKey && n.data?.isSubflow === true) ?? graph.nodes.find((n) => n.data?.isSubflow === true && n.data?.subflowId === drillKey);
+}
+function resolveDrillScope(graph, drillKey) {
+  for (const n of graph.nodes) {
+    if (n.data?.subflowOf === drillKey) return drillKey;
+  }
+  const local = graph.nodes.find((n) => n.id === drillKey)?.data?.subflowId;
+  if (typeof local === "string" && local !== drillKey) {
+    for (const n of graph.nodes) {
+      if (n.data?.subflowOf === local) return local;
+    }
+  }
+  return drillKey;
+}
 function filterGraphForDrill(graph, currentSubflowId) {
   if (graph.nodes.length === 0) return graph;
-  const matchesScope = (subflowOf) => currentSubflowId === null ? subflowOf === void 0 : subflowOf === currentSubflowId;
+  const scope = currentSubflowId === null ? null : resolveDrillScope(graph, currentSubflowId);
+  const matchesScope = (subflowOf) => scope === null ? subflowOf === void 0 : subflowOf === scope;
   const visibleIds = /* @__PURE__ */ new Set();
   for (const n of graph.nodes) {
     if (matchesScope(n.data?.subflowOf)) visibleIds.add(n.id);
@@ -5335,15 +5368,20 @@ function filterGraphForDrill(graph, currentSubflowId) {
   };
 }
 function buildSubflowBreadcrumb(graph, currentSubflowId) {
-  const out = [{ subflowId: null, label: "Chart" }];
-  if (currentSubflowId !== null) {
-    const mount = graph.nodes.find((n) => n.data?.subflowId === currentSubflowId);
-    out.push({
-      subflowId: currentSubflowId,
-      label: mount?.data?.label ?? currentSubflowId
-    });
+  const trail = [];
+  const seen = /* @__PURE__ */ new Set();
+  let key = currentSubflowId ?? void 0;
+  while (key !== void 0 && !seen.has(key)) {
+    seen.add(key);
+    const mount = findMountNode(graph, key);
+    if (mount === void 0) {
+      trail.unshift({ subflowId: key, label: key });
+      break;
+    }
+    trail.unshift({ subflowId: mount.id, label: mount.data?.label ?? mount.id });
+    key = mount.data?.subflowOf;
   }
-  return out;
+  return [{ subflowId: null, label: "Chart" }, ...trail];
 }
 
 // src/components/FlowchartView/_internal/overlayProjection.ts
@@ -5354,8 +5392,8 @@ function aggregateMountStatus(slice, graph, currentSubflowId) {
   const doneIds = new Set(slice.doneStageIds);
   let activeId = slice.activeStageId;
   for (const mount of mounts) {
-    const sfId = mount.data.subflowId;
-    const members = graph.nodes.filter((n) => n.data?.subflowOf === sfId);
+    const scope = resolveDrillScope(graph, mount.id);
+    const members = graph.nodes.filter((n) => n.data?.subflowOf === scope);
     if (members.length === 0) continue;
     const anyActive = members.some((m) => m.id === slice.activeStageId);
     const allDone = members.every((m) => slice.doneStageIds.has(m.id));
@@ -5369,32 +5407,36 @@ function aggregateMountStatus(slice, graph, currentSubflowId) {
 
 // src/components/FlowchartView/_internal/useSubflowDrill.ts
 import { useCallback as useCallback6, useEffect as useEffect7, useRef as useRef7, useState as useState10 } from "react";
-function useSubflowDrill(graph, onSubflowChange) {
-  const [currentSubflowId, setCurrentSubflowId] = useState10(null);
+function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
+  const isControlled = controlledSubflowId !== void 0;
+  const [ownSubflowId, setOwnSubflowId] = useState10(null);
+  const currentSubflowId = isControlled ? controlledSubflowId : ownSubflowId;
   const lastGraphRef = useRef7(null);
-  if (lastGraphRef.current !== graph) {
+  if (!isControlled && lastGraphRef.current !== graph) {
     lastGraphRef.current = graph;
-    if (currentSubflowId !== null && !graph.nodes.some((n) => n.data?.subflowId === currentSubflowId)) {
-      queueMicrotask(() => setCurrentSubflowId(null));
+    if (ownSubflowId !== null && findMountNode(graph, ownSubflowId) === void 0) {
+      queueMicrotask(() => setOwnSubflowId(null));
     }
   }
   const lastNotifiedRef = useRef7(void 0);
   useEffect7(() => {
+    if (isControlled) return;
     if (lastNotifiedRef.current === currentSubflowId) return;
     lastNotifiedRef.current = currentSubflowId;
-    if (currentSubflowId === null) {
-      onSubflowChange?.(null);
-    } else {
-      const mount = graph.nodes.find((n) => n.data?.subflowId === currentSubflowId);
-      if (mount) onSubflowChange?.(mount.id);
-    }
-  }, [currentSubflowId, graph, onSubflowChange]);
-  const drillInto = useCallback6((subflowId) => {
-    setCurrentSubflowId(subflowId);
-  }, []);
-  const drillUp = useCallback6(() => {
-    setCurrentSubflowId(null);
-  }, []);
+    onSubflowChange?.(currentSubflowId);
+  }, [isControlled, currentSubflowId, onSubflowChange]);
+  const setCurrentSubflowId = useCallback6(
+    (id) => {
+      if (isControlled) onSubflowChange?.(id);
+      else setOwnSubflowId(id);
+    },
+    [isControlled, onSubflowChange]
+  );
+  const drillInto = useCallback6(
+    (mountNodeId) => setCurrentSubflowId(mountNodeId),
+    [setCurrentSubflowId]
+  );
+  const drillUp = useCallback6(() => setCurrentSubflowId(null), [setCurrentSubflowId]);
   return { currentSubflowId, drillInto, drillUp, setCurrentSubflowId };
 }
 
@@ -6063,6 +6105,7 @@ function TracedFlow({
   colors: colorOverrides,
   onNodeClick,
   onSubflowChange,
+  currentSubflowId: controlledSubflowId,
   groupedSubflows,
   mainChartBox,
   nodeTypes: userNodeTypes,
@@ -6094,7 +6137,7 @@ function TracedFlow({
     () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES, ...userEdgeTypes } : DEFAULT_EDGE_TYPES,
     [userEdgeTypes]
   );
-  const drill = useSubflowDrill(graph, onSubflowChange);
+  const drill = useSubflowDrill(graph, onSubflowChange, controlledSubflowId);
   const groupedSet = useMemo13(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
   const filteredGraph = useMemo13(() => {
     const base = filterGraphForDrill(graph, drill.currentSubflowId);
@@ -6206,8 +6249,9 @@ function TracedFlow({
   const handleNodeClick = useCallback7(
     (_, node) => {
       const data = node.data ?? {};
-      if (data.isSubflow && data.subflowId && !groupedSet.has(data.subflowId)) {
-        drill.drillInto(data.subflowId);
+      const isGrouped = groupedSet.has(node.id) || !!data.subflowId && groupedSet.has(data.subflowId);
+      if (data.isSubflow && !isGrouped) {
+        drill.drillInto(node.id);
       }
       onNodeClick?.(node.id);
     },
@@ -7026,19 +7070,33 @@ var DetailsContent = memo9(function DetailsContent2({
     /* @__PURE__ */ jsx27("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
   ] });
 });
-function resolveSubflowFromRuntime(parentSnapshots, subflowId, narrativeEntries) {
-  const localId = subflowId.split("/").pop() ?? subflowId;
-  const parentSnap = parentSnapshots.find((s) => {
-    if (!s.subflowResult) return false;
-    const sfStageId = s.runtimeStageId?.split("#")[0]?.split("/").pop();
-    return s.subflowId === subflowId || s.subflowId === localId || s.stageName === subflowId || s.stageLabel === subflowId || sfStageId === subflowId || sfStageId === localId;
-  });
+function resolveSubflowFromRuntime(parentSnapshots, drillKey, narrativeEntries, subflowResults) {
+  const localId = drillKey.split("/").pop() ?? drillKey;
+  const pathOf = (s) => s.runtimeStageId?.split("#")[0];
+  const withResult = parentSnapshots.filter((s) => !!s.subflowResult);
+  const parentSnap = (
+    // Tier 1 — this exact mount, by full path.
+    withResult.find((s) => s.subflowId === drillKey || pathOf(s) === drillKey) ?? // Tier 2 — the same mount seen from inside its own subflow, where the
+    // enclosing prefix has been stripped off the ids.
+    withResult.find((s) => {
+      const p = pathOf(s);
+      return p !== void 0 && drillKey.endsWith("/" + p) || s.subflowId !== void 0 && drillKey.endsWith("/" + s.subflowId);
+    }) ?? // Tier 3 — legacy callers that drill by a bare subflow id or a label.
+    withResult.find((s) => {
+      const leaf = pathOf(s)?.split("/").pop();
+      return s.subflowId === localId || s.stageName === drillKey || s.stageLabel === drillKey || leaf === drillKey || leaf === localId;
+    })
+  );
   if (!parentSnap?.subflowResult) return null;
   const label = parentSnap.stageLabel ?? parentSnap.stageName ?? localId;
-  const sfNarrative = narrativeEntries ? extractSubflowNarrative(narrativeEntries, subflowId, label) : void 0;
-  const sfSnapshots = subflowResultToSnapshots(parentSnap.subflowResult, sfNarrative);
+  const sfNarrative = narrativeEntries ? extractSubflowNarrative(narrativeEntries, drillKey, label) : void 0;
+  const sfSnapshots = subflowResultToSnapshots(
+    parentSnap.subflowResult,
+    sfNarrative,
+    subflowResults
+  );
   if (sfSnapshots.length === 0) return null;
-  return { subflowId, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
+  return { subflowId: drillKey, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
 }
 var RightPanel = memo9(function RightPanel2({
   mode,
@@ -7049,6 +7107,7 @@ var RightPanel = memo9(function RightPanel2({
   activeTab,
   allTabs,
   activeNarrativeEntries,
+  narrativeScopeSubflowId,
   recorderViews,
   autoRecorderViews,
   size,
@@ -7095,7 +7154,7 @@ var RightPanel = memo9(function RightPanel2({
           id: tab.id,
           name: insightName(tab.name),
           render: () => {
-            if (tab.id === "narrative") return /* @__PURE__ */ jsx27(NarrativePanel, { snapshots, selectedIndex, narrativeEntries: activeNarrativeEntries, runtimeSnapshot, size, style: { height: "100%" } });
+            if (tab.id === "narrative") return /* @__PURE__ */ jsx27(NarrativePanel, { snapshots, selectedIndex, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, runtimeSnapshot, size, style: { height: "100%" } });
             const customView = recorderViews?.find((v2) => v2.id === tab.id);
             if (customView?.render) return customView.render({ snapshots, selectedIndex });
             const autoView = autoRecorderViews.find((v2) => v2.id === tab.id);
@@ -7187,7 +7246,7 @@ function ExplainableShell({
   }, [missingChart]);
   const tracedFlowRenderer = useMemo14(() => {
     if (!traceGraph) return void 0;
-    return ({ selectedIndex, snapshots: snapshots2, onNodeClick, sliceCone: sliceCone2 }) => {
+    return ({ selectedIndex, snapshots: snapshots2, onNodeClick, sliceCone: sliceCone2, currentSubflowId, onSubflowChange }) => {
       const activeRsid = snapshots2[selectedIndex]?.runtimeStageId;
       let overlayIdx = selectedIndex;
       if (activeRsid && runtimeOverlay) {
@@ -7215,9 +7274,8 @@ function ExplainableShell({
           colors: traceColors || void 0,
           scrubIndex: overlayIdx,
           onNodeClick: (stageId) => onNodeClick?.(stageId),
-          onSubflowChange: (mountId) => {
-            if (mountId !== null) onNodeClick?.(mountId);
-          }
+          currentSubflowId: currentSubflowId ?? null,
+          onSubflowChange: (mountId) => onSubflowChange?.(mountId)
         }
       );
     };
@@ -7309,9 +7367,9 @@ function ExplainableShell({
   const currentLevel = useMemo14(() => {
     if (drillDownStack.length > 0) {
       const top = drillDownStack[drillDownStack.length - 1];
-      return { spec: top.spec, snapshots: top.snapshots, narrative: top.narrative };
+      return { spec: top.spec, snapshots: top.snapshots, narrative: top.narrative, subflowId: top.subflowId };
     }
-    return { spec: null, snapshots, narrative: void 0 };
+    return { spec: null, snapshots, narrative: void 0, subflowId: void 0 };
   }, [drillDownStack, snapshots]);
   const activeSnapshots = currentLevel.snapshots;
   const safeIdx = activeSnapshots.length > 0 ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1)) : 0;
@@ -7367,6 +7425,19 @@ function ExplainableShell({
     return cone;
   }, [traceWalk, rightPanelMode, inspectorTab, shellDataTrace]);
   const activeNarrativeEntries = isInSubflow ? currentLevel.narrative : narrativeEntries;
+  const narrativeScopeSubflowId = useMemo14(() => {
+    if (!isInSubflow) return void 0;
+    const key = currentLevel.subflowId;
+    const entries = currentLevel.narrative ?? [];
+    if (key !== void 0 && entries.some((e) => e.subflowId === key)) return key;
+    let shallowest;
+    for (const e of entries) {
+      const id = e.subflowId;
+      if (id === void 0) continue;
+      if (shallowest === void 0 || id.length < shallowest.length) shallowest = id;
+    }
+    return shallowest ?? key;
+  }, [isInSubflow, currentLevel]);
   const breadcrumbs = useMemo14(() => {
     const root = { label: title || "Flowchart", spec: null, description: void 0 };
     return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: void 0 }))];
@@ -7451,17 +7522,39 @@ function ExplainableShell({
     if (earlier.length > 0) setSnapshotIdx(earlier[earlier.length - 1]);
     setForkChooserOpen(false);
   }, [traceStopIndices, safeIdx]);
+  const chartDrillKey = drillDownStack.length > 0 ? drillDownStack[drillDownStack.length - 1].subflowId : null;
+  const buildDrillStack = useCallback8(
+    (mountKey) => {
+      const chain = traceGraph ? buildSubflowBreadcrumb(traceGraph, mountKey).slice(1).map((c) => c.subflowId).filter((id) => id !== null) : [mountKey];
+      const keys = chain.length > 0 ? chain : [mountKey];
+      const stack = [];
+      let levelSnapshots = snapshots;
+      for (const key of keys) {
+        const entry = resolveSubflowFromRuntime(
+          levelSnapshots,
+          key,
+          narrativeEntries,
+          runtimeSnapshot?.subflowResults
+        );
+        if (!entry) return null;
+        stack.push({ ...entry, parentSnapshotIdx: stack.length === 0 ? snapshotIdx : 0 });
+        levelSnapshots = entry.snapshots;
+      }
+      return stack.length > 0 ? stack : null;
+    },
+    [traceGraph, snapshots, narrativeEntries, runtimeSnapshot, snapshotIdx]
+  );
   const handleDrillDown = useCallback8(
-    (nodeName) => {
-      const entry = resolveSubflowFromRuntime(activeSnapshots, nodeName, narrativeEntries);
-      if (entry) {
+    (mountKey) => {
+      const stack = buildDrillStack(mountKey);
+      if (stack) {
         setTracing(null);
         setForkChooserOpen(false);
-        setDrillDownStack((prev) => [...prev, { ...entry, parentSnapshotIdx: snapshotIdx }]);
+        setDrillDownStack(stack);
         setSnapshotIdx(0);
       }
     },
-    [activeSnapshots, narrativeEntries, snapshotIdx]
+    [buildDrillStack]
   );
   const handleBreadcrumbNavigate = useCallback8((level) => {
     setDrillDownStack((prev) => {
@@ -7470,38 +7563,47 @@ function ExplainableShell({
       return level === 0 ? [] : prev.slice(0, level);
     });
   }, []);
+  const handleChartSubflowChange = useCallback8(
+    (mountKey) => {
+      if (mountKey === null) {
+        handleBreadcrumbNavigate(0);
+        return;
+      }
+      const at = drillDownStack.findIndex((e) => e.subflowId === mountKey);
+      if (at >= 0) {
+        if (at < drillDownStack.length - 1) handleBreadcrumbNavigate(at + 1);
+        return;
+      }
+      handleDrillDown(mountKey);
+    },
+    [drillDownStack, handleBreadcrumbNavigate, handleDrillDown]
+  );
   const handleNodeClick = useCallback8(
     (indexOrId) => {
       if (typeof indexOrId === "number") {
         setSnapshotIdx(indexOrId);
         return;
       }
-      const drillable = resolveSubflowFromRuntime(activeSnapshots, indexOrId, narrativeEntries);
-      if (drillable) {
-        handleDrillDown(indexOrId);
+      if (buildDrillStack(indexOrId)) {
+        handleChartSubflowChange(indexOrId);
         return;
       }
       const idx = activeSnapshots.findIndex((s) => s.stageLabel === indexOrId);
       if (idx >= 0) setSnapshotIdx(idx);
     },
-    [activeSnapshots, narrativeEntries, handleDrillDown]
+    [activeSnapshots, buildDrillStack, handleChartSubflowChange]
   );
   const handleTreeNodeSelect = useCallback8(
-    (name, isSubflow) => {
+    (name, isSubflow, nodeId) => {
       if (isSubflow) {
-        setDrillDownStack([]);
-        const entry = resolveSubflowFromRuntime(snapshots, name, narrativeEntries);
-        if (entry) {
-          setDrillDownStack([{ ...entry, parentSnapshotIdx: snapshotIdx }]);
-          setSnapshotIdx(0);
-        }
+        handleDrillDown(nodeId ?? name);
       } else {
         setDrillDownStack([]);
         const idx = snapshots.findIndex((s) => s.stageLabel === name);
         if (idx >= 0) setSnapshotIdx(idx);
       }
     },
-    [snapshots, narrativeEntries, snapshotIdx]
+    [snapshots, handleDrillDown]
   );
   const navigateToStage = useCallback8(
     (id) => {
@@ -7712,10 +7814,10 @@ function ExplainableShell({
         (activeTab === "explainable" || activeTab === "ai-compatible") && /* @__PURE__ */ jsxs24(Fragment8, { children: [
           /* @__PURE__ */ jsx27(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail }),
           isInSubflow && /* @__PURE__ */ jsx27(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-          traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, ...sliceCone && { sliceCone } }),
+          traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...sliceCone && { sliceCone } }),
           missingChart && /* @__PURE__ */ jsx27(MissingChartNote, { unstyled: true }),
           /* @__PURE__ */ jsx27(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
-          /* @__PURE__ */ jsx27(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, unstyled: true }),
+          /* @__PURE__ */ jsx27(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, unstyled: true }),
           /* @__PURE__ */ jsx27(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
         ] })
       ] })
@@ -7730,7 +7832,7 @@ function ExplainableShell({
       return /* @__PURE__ */ jsx27(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, size, style: { height: "100%" } });
     }
     if (activeTab === "narrative") {
-      return /* @__PURE__ */ jsx27(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, size, style: { height: "100%" } });
+      return /* @__PURE__ */ jsx27(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, size, style: { height: "100%" } });
     }
     const customView = recorderViews?.find((v2) => v2.id === activeTab);
     if (customView?.render) {
@@ -7836,6 +7938,8 @@ function ExplainableShell({
               selectedIndex: safeIdx,
               onNodeClick: handleNodeClick,
               showStageId,
+              currentSubflowId: chartDrillKey,
+              onSubflowChange: handleChartSubflowChange,
               ...sliceCone && { sliceCone }
             }) }),
             missingChart && /* @__PURE__ */ jsx27(MissingChartNote, {}),
@@ -7878,6 +7982,8 @@ function ExplainableShell({
                 selectedIndex: safeIdx,
                 onNodeClick: handleNodeClick,
                 showStageId,
+                currentSubflowId: chartDrillKey,
+                onSubflowChange: handleChartSubflowChange,
                 ...sliceCone && { sliceCone }
               }) }) : /* @__PURE__ */ jsx27("div", { style: { flex: 1, minWidth: 0, overflow: "auto" }, children: missingChart && /* @__PURE__ */ jsx27(MissingChartNote, {}) }),
               /* @__PURE__ */ jsx27(VLinePill, { label: "Details", expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
@@ -7896,6 +8002,7 @@ function ExplainableShell({
                   activeTab,
                   allTabs,
                   activeNarrativeEntries,
+                  narrativeScopeSubflowId,
                   recorderViews,
                   autoRecorderViews,
                   size,
@@ -8438,10 +8545,975 @@ function TraceViewer({
     }
   );
 }
+
+// src/components/ExplainableView/ExplainableContext.tsx
+import { createContext as createContext2, useCallback as useCallback9, useContext as useContext2, useMemo as useMemo16, useState as useState16 } from "react";
+import { jsx as jsx29 } from "react/jsx-runtime";
+var ExplainableRunContext = createContext2(null);
+function parseRecording2(input) {
+  if (input == null || input === "") {
+    return { recording: null, error: "No recording provided." };
+  }
+  let candidate = input;
+  if (typeof input === "string") {
+    try {
+      candidate = JSON.parse(input);
+    } catch (error) {
+      return {
+        recording: null,
+        error: `Could not parse recording JSON: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+    return { recording: null, error: "A recording must be a JSON object." };
+  }
+  const recording = candidate;
+  if (!recording.snapshot || typeof recording.snapshot !== "object") {
+    return { recording: null, error: "The recording is missing its `snapshot`." };
+  }
+  if (recording.schemaVersion !== void 0 && recording.schemaVersion !== 1) {
+    return {
+      recording: null,
+      error: `Unsupported recording schemaVersion ${String(recording.schemaVersion)}.`
+    };
+  }
+  return { recording, error: null };
+}
+function ExplainableProvider({
+  recording: input,
+  selectedIndex: controlledIndex,
+  defaultSelectedIndex = 0,
+  onSelectedIndexChange,
+  theme: theme2,
+  children,
+  className,
+  style
+}) {
+  const parsed = useMemo16(() => parseRecording2(input), [input]);
+  const prepared = useMemo16(() => {
+    if (!parsed.recording) {
+      return {
+        snapshots: [],
+        narrativeEntries: [],
+        traceGraph: graphFromStructure(void 0),
+        runtimeOverlay: overlayFromSnapshot(void 0),
+        error: parsed.error
+      };
+    }
+    const narrativeEntries = parsed.recording.narrativeEntries ?? narrativeFromSnapshot(parsed.recording.snapshot) ?? [];
+    const runtimeSnapshot = parsed.recording.snapshot;
+    try {
+      return {
+        snapshots: toVisualizationSnapshots(runtimeSnapshot, narrativeEntries),
+        narrativeEntries,
+        traceGraph: graphFromStructure(
+          parsed.recording.structure ?? parsed.recording.blueprint
+        ),
+        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot),
+        error: null
+      };
+    } catch (error) {
+      return {
+        snapshots: [],
+        narrativeEntries,
+        traceGraph: graphFromStructure(
+          parsed.recording.structure ?? parsed.recording.blueprint
+        ),
+        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot),
+        error: `Could not read recording snapshot: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }, [parsed]);
+  const [uncontrolledIndex, setUncontrolledIndex] = useState16(defaultSelectedIndex);
+  const requestedIndex = controlledIndex ?? uncontrolledIndex;
+  const selectedIndex = Math.max(
+    0,
+    Math.min(requestedIndex, Math.max(0, prepared.snapshots.length - 1))
+  );
+  const selectIndex = useCallback9(
+    (nextIndex) => {
+      const clamped = Math.max(
+        0,
+        Math.min(nextIndex, Math.max(0, prepared.snapshots.length - 1))
+      );
+      if (controlledIndex === void 0) setUncontrolledIndex(clamped);
+      onSelectedIndexChange?.(clamped);
+    },
+    [controlledIndex, onSelectedIndexChange, prepared.snapshots.length]
+  );
+  const value = useMemo16(
+    () => ({
+      recording: parsed.recording,
+      snapshots: prepared.snapshots,
+      selectedIndex,
+      selectedSnapshot: prepared.snapshots[selectedIndex],
+      selectIndex,
+      traceGraph: prepared.traceGraph,
+      runtimeOverlay: prepared.runtimeOverlay,
+      narrativeEntries: prepared.narrativeEntries,
+      resultData: parsed.recording?.resultData ?? parsed.recording?.snapshot.sharedState ?? null,
+      logs: parsed.recording?.logs ? [...parsed.recording.logs] : [],
+      flowchartColors: theme2?.flowchart,
+      error: prepared.error
+    }),
+    [parsed.recording, prepared, selectedIndex, selectIndex, theme2?.flowchart]
+  );
+  return /* @__PURE__ */ jsx29(ExplainableRunContext.Provider, { value, children: /* @__PURE__ */ jsx29(
+    "div",
+    {
+      className,
+      "data-fp": "explainable-provider",
+      style: { ...themeModeVars(theme2?.mode), display: "contents", ...style },
+      children: /* @__PURE__ */ jsx29(FootprintTheme, { tokens: theme2?.tokens, children })
+    }
+  ) });
+}
+function useExplainableRun() {
+  const value = useContext2(ExplainableRunContext);
+  if (!value) {
+    throw new Error("Explainable components must be rendered inside <ExplainableProvider>.");
+  }
+  return value;
+}
+
+// src/components/ExplainableView/TimelinePanel.tsx
+import { useEffect as useEffect13, useRef as useRef10 } from "react";
+import { jsx as jsx30, jsxs as jsxs25 } from "react/jsx-runtime";
+function formatOffset(milliseconds) {
+  return milliseconds < 1e3 ? `+${Math.round(milliseconds)}ms` : `+${(milliseconds / 1e3).toFixed(1)}s`;
+}
+function TimelinePanel({
+  title = "Timeline",
+  renderDetail,
+  unstyled = false,
+  className,
+  style
+}) {
+  const { snapshots, selectedIndex, selectIndex, error } = useExplainableRun();
+  const focusedRef = useRef10(null);
+  useEffect13(() => {
+    focusedRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [selectedIndex]);
+  if (unstyled) {
+    return /* @__PURE__ */ jsx30("div", { className, style, "data-fp": "timeline-panel", children: snapshots.map((snapshot, index) => /* @__PURE__ */ jsx30("button", { onClick: () => selectIndex(index), children: snapshot.stageLabel }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index}`)) });
+  }
+  return /* @__PURE__ */ jsxs25(
+    "section",
+    {
+      className,
+      "data-fp": "timeline-panel",
+      style: {
+        display: "flex",
+        height: "100%",
+        minHeight: 0,
+        flexDirection: "column",
+        overflow: "hidden",
+        background: theme.bgSecondary,
+        color: theme.textPrimary,
+        fontFamily: theme.fontSans,
+        ...style
+      },
+      children: [
+        /* @__PURE__ */ jsxs25("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ jsx30("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ jsx30("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: snapshots.length ? `${selectedIndex + 1} / ${snapshots.length}` : "0 stages" })
+        ] }),
+        /* @__PURE__ */ jsx30("div", { role: "listbox", "aria-label": title, style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 0 12px" }, children: snapshots.length === 0 ? /* @__PURE__ */ jsx30("p", { style: { margin: 0, padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "This recording has no stages to walk." }) : snapshots.map((snapshot, index) => {
+          const selected = index === selectedIndex;
+          const visited = index < selectedIndex;
+          return /* @__PURE__ */ jsxs25("div", { ref: selected ? focusedRef : void 0, children: [
+            /* @__PURE__ */ jsxs25(
+              "button",
+              {
+                type: "button",
+                role: "option",
+                "aria-selected": selected,
+                "aria-label": `Go to stage ${index + 1}: ${snapshot.stageLabel}`,
+                onClick: () => selectIndex(index),
+                style: {
+                  display: "grid",
+                  gridTemplateColumns: "50px 18px 1fr",
+                  gap: 9,
+                  alignItems: "center",
+                  width: "100%",
+                  padding: "9px 12px",
+                  border: 0,
+                  borderLeft: selected ? `3px solid ${theme.warning}` : "3px solid transparent",
+                  background: selected ? `color-mix(in srgb, ${theme.warning} 12%, transparent)` : "transparent",
+                  color: selected ? theme.textPrimary : theme.textSecondary,
+                  cursor: "pointer",
+                  font: "inherit",
+                  textAlign: "left"
+                },
+                children: [
+                  /* @__PURE__ */ jsx30("span", { style: { color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10, textAlign: "right" }, children: formatOffset(snapshot.startMs) }),
+                  /* @__PURE__ */ jsx30(
+                    "span",
+                    {
+                      "aria-hidden": "true",
+                      style: {
+                        width: 10,
+                        height: 10,
+                        borderRadius: "50%",
+                        border: `2px solid ${selected ? theme.warning : visited ? theme.success : theme.border}`,
+                        background: selected ? theme.warning : visited ? theme.success : theme.bgSecondary,
+                        boxShadow: selected ? `0 0 0 4px color-mix(in srgb, ${theme.warning} 22%, transparent)` : void 0
+                      }
+                    }
+                  ),
+                  /* @__PURE__ */ jsxs25("span", { children: [
+                    /* @__PURE__ */ jsx30("strong", { style: { display: "block", fontSize: 12 }, children: snapshot.stageLabel }),
+                    /* @__PURE__ */ jsx30("small", { style: { color: theme.textMuted, fontFamily: theme.fontMono }, children: snapshot.runtimeStageId ?? snapshot.stageName })
+                  ] })
+                ]
+              }
+            ),
+            selected && (snapshot.description || renderDetail) ? /* @__PURE__ */ jsxs25("div", { style: { margin: "0 12px 10px 80px", color: theme.textSecondary, fontSize: 12, lineHeight: 1.5 }, children: [
+              snapshot.description ? /* @__PURE__ */ jsx30("p", { style: { margin: "0 0 8px" }, children: snapshot.description }) : null,
+              renderDetail?.(snapshot, index)
+            ] }) : null
+          ] }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index}`);
+        }) })
+      ]
+    }
+  );
+}
+
+// src/components/ExplainableView/FlowchartPanel.tsx
+import { useCallback as useCallback10, useMemo as useMemo17 } from "react";
+import { jsx as jsx31, jsxs as jsxs26 } from "react/jsx-runtime";
+function baseStageId(runtimeStageId) {
+  const hashIndex = runtimeStageId.indexOf("#");
+  return hashIndex >= 0 ? runtimeStageId.slice(0, hashIndex) : runtimeStageId;
+}
+function FlowchartPanel({
+  title = "Flowchart",
+  colors,
+  unstyled = false,
+  className,
+  style
+}) {
+  const {
+    traceGraph,
+    runtimeOverlay,
+    snapshots,
+    selectedIndex,
+    selectIndex,
+    flowchartColors
+  } = useExplainableRun();
+  const scrubIndex = useMemo17(() => {
+    const runtimeStageId = snapshots[selectedIndex]?.runtimeStageId;
+    if (!runtimeStageId) return selectedIndex;
+    const match = runtimeOverlay.executionOrder.findIndex(
+      (step) => step.runtimeStageId === runtimeStageId
+    );
+    return match >= 0 ? match : selectedIndex;
+  }, [runtimeOverlay.executionOrder, selectedIndex, snapshots]);
+  const handleNodeClick = useCallback10(
+    (stageId) => {
+      const candidates = snapshots.map((snapshot, index) => ({
+        index,
+        stageId: baseStageId(snapshot.runtimeStageId ?? snapshot.stageName)
+      })).filter((candidate) => candidate.stageId === stageId);
+      const next = candidates.find((candidate) => candidate.index >= selectedIndex) ?? candidates[candidates.length - 1];
+      if (next) selectIndex(next.index);
+    },
+    [selectedIndex, selectIndex, snapshots]
+  );
+  if (unstyled) {
+    return /* @__PURE__ */ jsx31("div", { className, style, "data-fp": "flowchart-panel", children: traceGraph.nodes.map((node) => /* @__PURE__ */ jsx31("button", { onClick: () => handleNodeClick(node.id), children: String(node.data.label) }, node.id)) });
+  }
+  return /* @__PURE__ */ jsxs26(
+    "section",
+    {
+      className,
+      "data-fp": "flowchart-panel",
+      style: {
+        display: "flex",
+        height: "100%",
+        minHeight: 0,
+        flexDirection: "column",
+        overflow: "hidden",
+        background: theme.bgPrimary,
+        color: theme.textPrimary,
+        fontFamily: theme.fontSans,
+        ...style
+      },
+      children: [
+        /* @__PURE__ */ jsxs26("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ jsx31("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ jsxs26("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
+            traceGraph.nodes.length,
+            " nodes \xB7 click to move the cursor"
+          ] })
+        ] }),
+        /* @__PURE__ */ jsx31("div", { style: { flex: 1, minHeight: 0, overflow: "hidden" }, children: traceGraph.nodes.length ? /* @__PURE__ */ jsx31(
+          TracedFlow,
+          {
+            graph: traceGraph,
+            overlay: runtimeOverlay,
+            scrubIndex,
+            colors: { ...flowchartColors, ...colors },
+            onNodeClick: handleNodeClick
+          }
+        ) : /* @__PURE__ */ jsx31("p", { style: { padding: 18, color: theme.textMuted, fontSize: 12 }, children: "This recording carried no structure, so there is no chart to draw." }) })
+      ]
+    }
+  );
+}
+
+// src/components/ExplainableView/ValueInspector.tsx
+import { jsx as jsx32, jsxs as jsxs27 } from "react/jsx-runtime";
+function ValueInspector({
+  title = "Inspect values",
+  size = "compact",
+  unstyled = false,
+  className,
+  style
+}) {
+  const { snapshots, selectedIndex, selectedSnapshot, error } = useExplainableRun();
+  if (unstyled) {
+    return /* @__PURE__ */ jsxs27("div", { className, style, "data-fp": "value-inspector", children: [
+      /* @__PURE__ */ jsx32("strong", { children: selectedSnapshot?.stageLabel ?? title }),
+      /* @__PURE__ */ jsx32(MemoryPanel, { snapshots, selectedIndex, unstyled: true })
+    ] });
+  }
+  return /* @__PURE__ */ jsxs27(
+    "section",
+    {
+      className,
+      "data-fp": "value-inspector",
+      style: {
+        display: "flex",
+        height: "100%",
+        minHeight: 0,
+        flexDirection: "column",
+        overflow: "hidden",
+        background: theme.bgPrimary,
+        color: theme.textPrimary,
+        fontFamily: theme.fontSans,
+        ...style
+      },
+      children: [
+        /* @__PURE__ */ jsxs27("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ jsx32("strong", { style: { display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          selectedSnapshot ? /* @__PURE__ */ jsxs27("span", { style: { display: "block", marginTop: 4, color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: [
+            selectedSnapshot.stageLabel,
+            " \xB7 ",
+            selectedSnapshot.runtimeStageId ?? selectedSnapshot.stageName
+          ] }) : null
+        ] }),
+        /* @__PURE__ */ jsx32("div", { style: { flex: 1, minHeight: 0, overflow: "auto" }, children: snapshots.length ? /* @__PURE__ */ jsx32(MemoryPanel, { snapshots, selectedIndex, size, style: { height: "100%" } }) : /* @__PURE__ */ jsx32("p", { style: { padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "No values to inspect." }) })
+      ]
+    }
+  );
+}
+
+// src/components/ExplainableView/CommentaryPanel.tsx
+import { useMemo as useMemo18, useRef as useRef11, useEffect as useEffect14 } from "react";
+import { Fragment as Fragment9, jsx as jsx33, jsxs as jsxs28 } from "react/jsx-runtime";
+function CommentaryPanel({
+  title = "Commentary",
+  maxLines = 200,
+  renderEntry,
+  emptyMessage = "This recording carried no narrative commentary.",
+  unstyled = false,
+  className,
+  style
+}) {
+  const { snapshots, selectedIndex, narrativeEntries } = useExplainableRun();
+  const currentRef = useRef11(null);
+  const rangeIndex = useMemo18(
+    () => narrativeEntries.length ? buildEntryRangeIndex(narrativeEntries) : void 0,
+    [narrativeEntries]
+  );
+  const revealedCount = useMemo18(
+    () => narrativeEntries.length ? computeRevealedEntryCount(
+      narrativeEntries,
+      snapshots,
+      selectedIndex,
+      rangeIndex
+    ) : 0,
+    [narrativeEntries, snapshots, selectedIndex, rangeIndex]
+  );
+  const dedupedEntries = useMemo18(() => {
+    const revealed = narrativeEntries.slice(0, revealedCount);
+    return revealed.filter(
+      (entry, index) => index === 0 || entry.text !== revealed[index - 1]?.text
+    );
+  }, [narrativeEntries, revealedCount]);
+  const visibleEntries = dedupedEntries.slice(
+    Math.max(0, dedupedEntries.length - maxLines)
+  );
+  const hiddenCount = Math.max(0, dedupedEntries.length - visibleEntries.length);
+  useEffect14(() => {
+    currentRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [visibleEntries.length]);
+  if (unstyled) {
+    return /* @__PURE__ */ jsx33("div", { className, style, "data-fp": "commentary-panel", role: "log", children: visibleEntries.map((entry, index) => /* @__PURE__ */ jsx33("div", { children: renderEntry?.(entry, { index, current: index === visibleEntries.length - 1 }) ?? entry.text }, `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index}`)) });
+  }
+  return /* @__PURE__ */ jsxs28(
+    "section",
+    {
+      className,
+      "data-fp": "commentary-panel",
+      style: {
+        display: "flex",
+        height: "100%",
+        minHeight: 0,
+        flexDirection: "column",
+        overflow: "hidden",
+        background: theme.bgElevated,
+        color: theme.textPrimary,
+        fontFamily: theme.fontSans,
+        ...style
+      },
+      children: [
+        /* @__PURE__ */ jsxs28("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ jsx33("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ jsxs28("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
+            revealedCount,
+            " of ",
+            narrativeEntries.length,
+            " lines"
+          ] })
+        ] }),
+        /* @__PURE__ */ jsx33("div", { role: "log", "aria-live": "polite", style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 12px" }, children: visibleEntries.length === 0 ? /* @__PURE__ */ jsx33("p", { style: { color: theme.textMuted, fontSize: 12, fontStyle: "italic" }, children: emptyMessage }) : /* @__PURE__ */ jsxs28(Fragment9, { children: [
+          hiddenCount > 0 ? /* @__PURE__ */ jsxs28("p", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic" }, children: [
+            "\u2026 ",
+            hiddenCount,
+            " earlier lines hidden; scrub backward to revisit them."
+          ] }) : null,
+          visibleEntries.map((entry, index) => {
+            const current = index === visibleEntries.length - 1;
+            return /* @__PURE__ */ jsxs28(
+              "div",
+              {
+                ref: current ? currentRef : void 0,
+                "data-current": current,
+                style: {
+                  display: "grid",
+                  gridTemplateColumns: "82px 1fr",
+                  gap: 10,
+                  padding: "7px 8px",
+                  borderBottom: `1px solid ${theme.border}`,
+                  borderLeft: current ? `3px solid ${theme.warning}` : "3px solid transparent",
+                  background: current ? `color-mix(in srgb, ${theme.warning} 14%, transparent)` : "transparent",
+                  color: current ? theme.textPrimary : theme.textSecondary,
+                  lineHeight: 1.55
+                },
+                children: [
+                  /* @__PURE__ */ jsx33("span", { style: { color: current ? theme.warning : theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: entry.type }),
+                  /* @__PURE__ */ jsx33("div", { style: { fontSize: 12 }, children: renderEntry?.(entry, { index, current }) ?? entry.text })
+                ]
+              },
+              `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index}`
+            );
+          })
+        ] }) })
+      ]
+    }
+  );
+}
+
+// src/components/ExplainableView/TimeTravelBar.tsx
+import { jsx as jsx34 } from "react/jsx-runtime";
+function TimeTravelBar({
+  autoPlayable = true,
+  size,
+  unstyled = false,
+  className,
+  style
+}) {
+  const { snapshots, selectedIndex, selectIndex } = useExplainableRun();
+  return /* @__PURE__ */ jsx34(
+    TimeTravelControls,
+    {
+      snapshots,
+      selectedIndex,
+      onIndexChange: selectIndex,
+      autoPlayable,
+      size,
+      unstyled,
+      className,
+      style: {
+        boxSizing: "border-box",
+        width: "100%",
+        minWidth: 0,
+        overflow: "hidden",
+        ...style
+      }
+    }
+  );
+}
+
+// src/components/ExplainableView/CompactTimelinePanel.tsx
+import { jsx as jsx35 } from "react/jsx-runtime";
+function CompactTimelinePanel({
+  defaultExpanded = false,
+  unstyled = false,
+  className,
+  style
+}) {
+  const { snapshots, selectedIndex, selectIndex } = useExplainableRun();
+  if (unstyled) {
+    return /* @__PURE__ */ jsx35("div", { className, "data-fp": "compact-timeline-panel", style, children: snapshots.map((snapshot, index) => /* @__PURE__ */ jsx35(
+      "button",
+      {
+        "aria-current": index === selectedIndex ? "step" : void 0,
+        onClick: () => selectIndex(index),
+        type: "button",
+        children: snapshot.stageLabel
+      },
+      snapshot.runtimeStageId
+    )) });
+  }
+  return /* @__PURE__ */ jsx35(
+    "section",
+    {
+      className,
+      "data-fp": "compact-timeline-panel",
+      style: {
+        width: "100%",
+        minWidth: 0,
+        overflow: "hidden",
+        background: theme.bgPrimary,
+        color: theme.textPrimary,
+        ...style
+      },
+      children: /* @__PURE__ */ jsx35(
+        CompactTimeline,
+        {
+          snapshots,
+          selectedIndex,
+          defaultExpanded
+        }
+      )
+    }
+  );
+}
+
+// src/components/ExplainableView/SurfaceCollapseHandle.tsx
+import { jsx as jsx36, jsxs as jsxs29 } from "react/jsx-runtime";
+function SurfaceCollapseHandle({
+  label = "Details",
+  expanded,
+  orientation = "vertical",
+  onToggle,
+  className,
+  style,
+  unstyled = false
+}) {
+  const action = expanded ? "Collapse" : "Expand";
+  if (unstyled) {
+    return /* @__PURE__ */ jsxs29(
+      "button",
+      {
+        "aria-expanded": expanded,
+        "aria-label": `${action} ${label.toLowerCase()}`,
+        className,
+        "data-fp": "surface-collapse-handle",
+        onClick: onToggle,
+        style,
+        type: "button",
+        children: [
+          action,
+          " ",
+          label
+        ]
+      }
+    );
+  }
+  const vertical = orientation === "vertical";
+  return /* @__PURE__ */ jsxs29(
+    "div",
+    {
+      className,
+      "data-fp": "surface-collapse-handle",
+      "data-orientation": orientation,
+      style: {
+        display: "flex",
+        minWidth: 0,
+        minHeight: 0,
+        flexDirection: vertical ? "column" : "row",
+        alignItems: "center",
+        ...style
+      },
+      children: [
+        /* @__PURE__ */ jsx36(
+          "div",
+          {
+            style: vertical ? { flex: 1, width: 1, background: theme.border } : { flex: 1, height: 1, background: theme.border }
+          }
+        ),
+        /* @__PURE__ */ jsxs29(
+          "button",
+          {
+            "aria-expanded": expanded,
+            "aria-label": `${action} ${label.toLowerCase()}`,
+            onClick: onToggle,
+            type: "button",
+            style: {
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              margin: vertical ? "0 3px" : "4px 0",
+              padding: vertical ? "10px 4px" : "3px 12px",
+              border: `1px solid ${theme.border}`,
+              borderRadius: 10,
+              background: theme.bgSecondary,
+              color: theme.textMuted,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              whiteSpace: "nowrap",
+              writingMode: vertical ? "vertical-lr" : "horizontal-tb"
+            },
+            children: [
+              /* @__PURE__ */ jsx36("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: vertical ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25BC" : "\u25B6" }),
+              label
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsx36(
+          "div",
+          {
+            style: vertical ? { flex: 1, width: 1, background: theme.border } : { flex: 1, height: 1, background: theme.border }
+          }
+        )
+      ]
+    }
+  );
+}
+
+// src/components/ExplainableView/ExplainableView.tsx
+import * as React2 from "react";
+import { jsx as jsx37, jsxs as jsxs30 } from "react/jsx-runtime";
+var layoutPresets = {
+  developer: {
+    columns: "minmax(0, 1.7fr) minmax(300px, 0.8fr)",
+    rows: "auto minmax(0, 1fr) auto",
+    areas: [
+      ["timeTravel", "timeTravel"],
+      ["flowchart", "inspector"],
+      ["timeline", "timeline"]
+    ],
+    minHeight: 720,
+    gap: 1
+  },
+  product: {
+    columns: "minmax(0, 1.7fr) minmax(300px, 0.8fr)",
+    rows: "auto minmax(0, 1fr) minmax(0, 0.55fr)",
+    areas: [
+      ["timeTravel", "timeTravel"],
+      ["flowchart", "inspector"],
+      ["commentary", "commentary"]
+    ],
+    minHeight: 720,
+    gap: 1
+  },
+  studio: {
+    columns: "minmax(0, 1.7fr) minmax(300px, 0.8fr)",
+    rows: "auto minmax(0, 1.35fr) minmax(0, 0.8fr) auto",
+    areas: [
+      ["timeTravel", "timeTravel"],
+      ["flowchart", "stageRail"],
+      ["inspector", "commentary"],
+      ["timeline", "timeline"]
+    ],
+    minHeight: 720,
+    gap: 1
+  },
+  linear: {
+    columns: "minmax(0, 1fr)",
+    rows: "auto minmax(320px, auto) repeat(3, minmax(320px, auto)) auto",
+    areas: [
+      ["timeTravel"],
+      ["stageRail"],
+      ["flowchart"],
+      ["inspector"],
+      ["commentary"],
+      ["timeline"]
+    ],
+    minHeight: 720,
+    gap: 1
+  }
+};
+function resolveLayout(layout) {
+  const definition = typeof layout === "string" ? layoutPresets[layout] : layout;
+  const name = typeof layout === "string" ? layout : "custom";
+  if (definition.areas.length === 0 || definition.areas[0]?.length === 0) {
+    throw new Error("ExplainableView layout areas must contain at least one surface.");
+  }
+  const width = definition.areas[0]?.length ?? 0;
+  if (definition.areas.some((row) => row.length !== width)) {
+    throw new Error("ExplainableView layout area rows must have equal lengths.");
+  }
+  const surfaces = Array.from(
+    new Set(
+      definition.areas.flat().filter((surface) => surface !== ".")
+    )
+  );
+  return {
+    definition,
+    name,
+    surfaces
+  };
+}
+function renderSlot(slot, fallback, context) {
+  if (slot === void 0) return fallback;
+  return typeof slot === "function" ? slot(context) : slot;
+}
+function ViewContents({
+  layout,
+  slots,
+  minHeight,
+  detailsExpanded: controlledDetailsExpanded,
+  defaultDetailsExpanded = true,
+  onDetailsExpandedChange,
+  detailsLabel = "Details",
+  unstyled,
+  className,
+  style
+}) {
+  const context = useExplainableRun();
+  const resolved = resolveLayout(layout);
+  const rootRef = React2.useRef(null);
+  const [isNarrow, setIsNarrow] = React2.useState(false);
+  const [uncontrolledDetailsExpanded, setUncontrolledDetailsExpanded] = React2.useState(defaultDetailsExpanded);
+  const detailsExpanded = controlledDetailsExpanded ?? uncontrolledDetailsExpanded;
+  const toggleDetails = () => {
+    const nextExpanded = !detailsExpanded;
+    if (controlledDetailsExpanded === void 0) {
+      setUncontrolledDetailsExpanded(nextExpanded);
+    }
+    onDetailsExpandedChange?.(nextExpanded);
+  };
+  React2.useEffect(() => {
+    const element = rootRef.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      setIsNarrow(entry.contentRect.width < 640);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const responsiveDefinition = resolved.definition;
+  const responsiveTemplateAreas = responsiveDefinition.areas.map((row) => `"${row.join(" ")}"`).join(" ");
+  const renderSurface = (surface) => {
+    const fallback = {
+      timeTravel: /* @__PURE__ */ jsx37(TimeTravelBar, { unstyled }),
+      timeline: /* @__PURE__ */ jsx37(CompactTimelinePanel, { unstyled }),
+      stageRail: /* @__PURE__ */ jsx37(TimelinePanel, { unstyled }),
+      flowchart: /* @__PURE__ */ jsx37(FlowchartPanel, { unstyled }),
+      inspector: /* @__PURE__ */ jsx37(ValueInspector, { unstyled }),
+      commentary: /* @__PURE__ */ jsx37(CommentaryPanel, { unstyled })
+    }[surface];
+    return renderSlot(slots?.[surface], fallback, context);
+  };
+  if (unstyled) {
+    return /* @__PURE__ */ jsx37("div", { className, style, "data-fp": "explainable-view", "data-layout": resolved.name, children: resolved.surfaces.map((surface) => /* @__PURE__ */ jsx37("div", { "data-fp-surface": surface, children: renderSurface(surface) }, surface)) });
+  }
+  if (resolved.name === "developer" || resolved.name === "product") {
+    const product = resolved.name === "product";
+    const surfaceStyle = {
+      display: "flex",
+      minWidth: 0,
+      minHeight: 0,
+      flexDirection: "column",
+      overflow: "hidden"
+    };
+    return /* @__PURE__ */ jsxs30(
+      "div",
+      {
+        ref: rootRef,
+        className,
+        "data-fp": "explainable-view",
+        "data-layout": resolved.name,
+        "data-narrow": isNarrow || void 0,
+        style: {
+          boxSizing: "border-box",
+          display: "flex",
+          height: "100%",
+          maxHeight: "100%",
+          minHeight: minHeight ?? resolved.definition.minHeight ?? 720,
+          flexDirection: "column",
+          overflow: "hidden",
+          overscrollBehavior: "contain",
+          border: `1px solid ${theme.border}`,
+          borderRadius: "var(--fp-radius, 8px)",
+          background: theme.border,
+          ...style
+        },
+        children: [
+          /* @__PURE__ */ jsx37("div", { "data-fp-surface": "timeTravel", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeTravel") }),
+          /* @__PURE__ */ jsxs30(
+            "div",
+            {
+              "data-fp": "workbench-main",
+              style: {
+                display: "flex",
+                flex: 1,
+                minWidth: 0,
+                minHeight: 0,
+                flexDirection: isNarrow ? "column" : "row",
+                overflow: "hidden"
+              },
+              children: [
+                /* @__PURE__ */ jsx37(
+                  "div",
+                  {
+                    "data-fp-surface": "flowchart",
+                    style: {
+                      ...surfaceStyle,
+                      flex: detailsExpanded && isNarrow ? "1 1 58%" : "1 1 auto"
+                    },
+                    children: renderSurface("flowchart")
+                  }
+                ),
+                /* @__PURE__ */ jsx37(
+                  SurfaceCollapseHandle,
+                  {
+                    expanded: detailsExpanded,
+                    label: detailsLabel,
+                    onToggle: toggleDetails,
+                    orientation: isNarrow ? "horizontal" : "vertical"
+                  }
+                ),
+                detailsExpanded ? /* @__PURE__ */ jsx37(
+                  "div",
+                  {
+                    "data-fp-surface": "inspector",
+                    style: {
+                      ...surfaceStyle,
+                      width: isNarrow ? "100%" : "42%",
+                      minWidth: isNarrow ? 0 : 300,
+                      maxWidth: isNarrow ? "none" : 550,
+                      flex: isNarrow ? "0 1 42%" : "0 0 auto"
+                    },
+                    children: renderSurface("inspector")
+                  }
+                ) : null
+              ]
+            }
+          ),
+          product ? /* @__PURE__ */ jsx37(
+            "div",
+            {
+              "data-fp-surface": "commentary",
+              style: {
+                ...surfaceStyle,
+                width: "100%",
+                flex: "0 0 34%",
+                borderTop: `1px solid ${theme.border}`
+              },
+              children: renderSurface("commentary")
+            }
+          ) : /* @__PURE__ */ jsx37("div", { "data-fp-surface": "timeline", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeline") })
+        ]
+      }
+    );
+  }
+  return /* @__PURE__ */ jsx37(
+    "div",
+    {
+      ref: rootRef,
+      className,
+      "data-fp": "explainable-view",
+      "data-layout": resolved.name,
+      "data-narrow": isNarrow || void 0,
+      style: {
+        boxSizing: "border-box",
+        display: "grid",
+        height: resolved.name === "linear" ? void 0 : "100%",
+        maxHeight: resolved.name === "linear" ? void 0 : "100%",
+        gridTemplateColumns: responsiveDefinition.columns,
+        gridTemplateRows: responsiveDefinition.rows,
+        gridTemplateAreas: responsiveTemplateAreas,
+        gap: responsiveDefinition.gap ?? 1,
+        minHeight: minHeight ?? responsiveDefinition.minHeight ?? 720,
+        overflow: resolved.name === "linear" ? "auto" : "hidden",
+        overscrollBehavior: "contain",
+        border: `1px solid ${theme.border}`,
+        borderRadius: "var(--fp-radius, 8px)",
+        background: theme.border,
+        ...style
+      },
+      children: resolved.surfaces.map((surface) => /* @__PURE__ */ jsx37(
+        "div",
+        {
+          "data-fp-surface": surface,
+          style: {
+            display: "flex",
+            minWidth: 0,
+            minHeight: 0,
+            flexDirection: "column",
+            gridArea: surface,
+            overflow: "hidden"
+          },
+          children: renderSurface(surface)
+        },
+        surface
+      ))
+    }
+  );
+}
+function ExplainableView({
+  recording,
+  selectedIndex,
+  defaultSelectedIndex,
+  onSelectedIndexChange,
+  theme: viewTheme,
+  layout = "developer",
+  slots,
+  minHeight,
+  detailsExpanded,
+  defaultDetailsExpanded,
+  onDetailsExpandedChange,
+  detailsLabel,
+  unstyled = false,
+  className,
+  style
+}) {
+  return /* @__PURE__ */ jsx37(
+    ExplainableProvider,
+    {
+      recording,
+      selectedIndex,
+      defaultSelectedIndex,
+      onSelectedIndexChange,
+      theme: viewTheme,
+      children: /* @__PURE__ */ jsx37(
+        ViewContents,
+        {
+          layout,
+          slots,
+          minHeight,
+          detailsExpanded,
+          defaultDetailsExpanded,
+          onDetailsExpandedChange,
+          detailsLabel,
+          unstyled,
+          className,
+          style
+        }
+      )
+    }
+  );
+}
 export {
+  CommentaryPanel,
   CompactTimeline,
+  CompactTimelinePanel,
   DataTracePanel,
+  ExplainableProvider,
   ExplainableShell,
+  ExplainableView,
+  FlowchartPanel,
   FootprintTheme,
   GanttTimeline,
   InsightPanel,
@@ -8457,9 +9529,13 @@ export {
   StageDetailPanel,
   StoryNarrative,
   SubflowTree,
+  SurfaceCollapseHandle,
+  TimeTravelBar,
   TimeTravelControls,
+  TimelinePanel,
   TraceViewer,
   TraceWalkCard,
+  ValueInspector,
   buildEntryRangeIndex,
   buildTraceWalk,
   computeRevealedEntryCount,
@@ -8480,6 +9556,7 @@ export {
   toVisualizationSnapshots,
   tokensToCSSVars,
   useDarkModeTokens,
+  useExplainableRun,
   useFootprintTheme,
   warmDark,
   warmLight

@@ -17,6 +17,7 @@
  */
 
 import type { TraceGraph } from "../traceStructureRecorder";
+import { resolveDrillScope } from "./subflowDrill";
 
 export interface OverlaySlice {
   doneStageIds: ReadonlySet<string>;
@@ -51,8 +52,11 @@ export function aggregateMountStatus(
   const doneIds = new Set(slice.doneStageIds);
   let activeId = slice.activeStageId;
   for (const mount of mounts) {
-    const sfId = mount.data!.subflowId as string;
-    const members = graph.nodes.filter((n) => n.data?.subflowOf === sfId);
+    // Members are matched through the SAME scope resolution the drill uses:
+    // the mount's local `subflowId` repeats across mounts of one child chart,
+    // so keying on it lights a nested mount from its top-level twin's stages.
+    const scope = resolveDrillScope(graph, mount.id);
+    const members = graph.nodes.filter((n) => n.data?.subflowOf === scope);
     if (members.length === 0) continue;
     const anyActive = members.some((m) => m.id === slice.activeStageId);
     const allDone = members.every((m) => slice.doneStageIds.has(m.id));

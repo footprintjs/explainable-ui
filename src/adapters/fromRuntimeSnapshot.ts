@@ -592,11 +592,20 @@ function flattenTree(
  * SubflowResult shape (from footprintjs):
  *   { subflowId, subflowName, treeContext: { globalContext, stageContexts, history }, parentStageId }
  *
+ * Pass the RUN's `subflowResults` map as the third argument to keep drilling
+ * DEEPER: a subflow that mounts another subflow needs its child's result to
+ * be attached to the stage that mounts it, and that result lives in the run-
+ * level map (footprintjs dual-keys it by both `subflowPath` and
+ * `runtimeStageId`, which is what the inner tree's nodes carry). Without it
+ * the inner mount's snapshot has no `subflowResult` and the second drill
+ * silently does nothing.
+ *
  * Returns empty array if the input is not a valid SubflowResult.
  */
 export function subflowResultToSnapshots(
   subflowResult: unknown,
   narrativeEntries?: NarrativeEntry[],
+  subflowResults?: Record<string, unknown>,
 ): StageSnapshot[] {
   if (!subflowResult || typeof subflowResult !== 'object') return [];
   const sf = subflowResult as {
@@ -613,6 +622,7 @@ export function subflowResultToSnapshots(
     sharedState: sf.treeContext.globalContext ?? {},
     executionTree: sf.treeContext.stageContexts as RuntimeStageSnapshot,
     commitLog: sf.treeContext.history ?? [],
+    ...(subflowResults ? { subflowResults } : undefined),
   };
 
   const snapshots = toVisualizationSnapshots(runtime, narrativeEntries);

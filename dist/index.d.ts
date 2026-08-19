@@ -1,4 +1,4 @@
-import * as react from 'react';
+import * as React$1 from 'react';
 import { CSSProperties, ReactNode } from 'react';
 import { Node, Edge } from '@xyflow/react';
 
@@ -29,7 +29,12 @@ interface StageSnapshot {
 }
 /** Structured narrative entry — preserves type info for semantic rendering. */
 interface NarrativeEntry {
-    type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume' | 'emit';
+    type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume' | 'emit'
+    /** One failed attempt at a stage that declares a `retry` policy — the
+     *  stage is about to run again. Attempt telemetry, not an outcome: the
+     *  stage may still succeed, so this is warning-weight, not error-weight.
+     *  Emitted by footprintjs >= 9.15.0, nested inside its own stage. */
+     | 'retry';
     text: string;
     depth: number;
     stageName?: string;
@@ -179,7 +184,7 @@ interface FootprintThemeProps {
  * accessibility tree in some older browser versions. Our wrapper has
  * no semantic role, so this is fine.
  */
-declare function FootprintTheme({ tokens, children }: FootprintThemeProps): react.JSX.Element;
+declare function FootprintTheme({ tokens, children }: FootprintThemeProps): React$1.JSX.Element;
 
 /**
  * Built-in palettes.
@@ -318,7 +323,7 @@ interface MemoryInspectorProps extends BaseComponentProps {
  * Displays pipeline memory state as formatted JSON.
  * Supports both static (data prop) and time-travel (snapshots + selectedIndex) modes.
  */
-declare function MemoryInspector({ data, snapshots, selectedIndex, showTypes, highlightNew, size, unstyled, className, style, }: MemoryInspectorProps): react.JSX.Element;
+declare function MemoryInspector({ data, snapshots, selectedIndex, showTypes, highlightNew, size, unstyled, className, style, }: MemoryInspectorProps): React$1.JSX.Element;
 
 interface NarrativeLogProps extends BaseComponentProps {
     /** Snapshots to display narratives from */
@@ -332,7 +337,7 @@ interface NarrativeLogProps extends BaseComponentProps {
  * Timeline-style execution log showing what happened at each stage.
  * Supports both full snapshots mode and single-narrative mode.
  */
-declare function NarrativeLog({ snapshots, selectedIndex, narrative, size, unstyled, className, style, }: NarrativeLogProps): react.JSX.Element;
+declare function NarrativeLog({ snapshots, selectedIndex, narrative, size, unstyled, className, style, }: NarrativeLogProps): React$1.JSX.Element;
 
 interface NarrativeTraceProps extends BaseComponentProps {
     /** All narrative lines (full trace) */
@@ -344,7 +349,7 @@ interface NarrativeTraceProps extends BaseComponentProps {
     /** Called when user clicks a stage header */
     onStageClick?: (headerIndex: number) => void;
 }
-declare function NarrativeTrace({ narrative, revealedCount, defaultCollapsed, onStageClick, size, unstyled, className, style, }: NarrativeTraceProps): react.JSX.Element;
+declare function NarrativeTrace({ narrative, revealedCount, defaultCollapsed, onStageClick, size, unstyled, className, style, }: NarrativeTraceProps): React$1.JSX.Element;
 
 interface GanttTimelineProps extends BaseComponentProps, ThemeModeProps {
     /** Stage snapshots with timing info */
@@ -367,7 +372,7 @@ interface GanttTimelineProps extends BaseComponentProps, ThemeModeProps {
  * bars — equal width, positioned by execution order — plus one note saying
  * so. Order is real; duration is not, and is never invented.
  */
-declare function GanttTimeline({ snapshots, selectedIndex, onSelect, size, unstyled, className, style, theme: themeMode, maxVisibleRows, }: GanttTimelineProps): react.JSX.Element;
+declare function GanttTimeline({ snapshots, selectedIndex, onSelect, size, unstyled, className, style, theme: themeMode, maxVisibleRows, }: GanttTimelineProps): React$1.JSX.Element;
 
 interface SnapshotPanelProps extends BaseComponentProps, ThemeModeProps {
     /** Stage snapshots from pipeline execution */
@@ -383,7 +388,7 @@ interface SnapshotPanelProps extends BaseComponentProps, ThemeModeProps {
  * All-in-one panel: time-travel scrubber + memory inspector + narrative log + gantt.
  * Drop this into any page to make a pipeline run inspectable.
  */
-declare function SnapshotPanel({ snapshots, showGantt, showScrubber, title, size, unstyled, className, style, theme: themeMode, }: SnapshotPanelProps): react.JSX.Element;
+declare function SnapshotPanel({ snapshots, showGantt, showScrubber, title, size, unstyled, className, style, theme: themeMode, }: SnapshotPanelProps): React$1.JSX.Element;
 
 interface DiffEntry {
     key: string;
@@ -399,7 +404,7 @@ interface ScopeDiffProps extends BaseComponentProps {
     /** Hide unchanged keys (default: false) */
     hideUnchanged?: boolean;
 }
-declare function ScopeDiff({ previous, current, hideUnchanged, size, unstyled, className, style, }: ScopeDiffProps): react.JSX.Element;
+declare function ScopeDiff({ previous, current, hideUnchanged, size, unstyled, className, style, }: ScopeDiffProps): React$1.JSX.Element;
 
 interface ResultPanelProps extends BaseComponentProps {
     /** Final pipeline output / shared state */
@@ -409,7 +414,7 @@ interface ResultPanelProps extends BaseComponentProps {
     /** Hide console section (default: false) */
     hideConsole?: boolean;
 }
-declare function ResultPanel({ data, logs, hideConsole, size, unstyled, className, style, }: ResultPanelProps): react.JSX.Element;
+declare function ResultPanel({ data, logs, hideConsole, size, unstyled, className, style, }: ResultPanelProps): React$1.JSX.Element;
 
 type StageDetailMode = "simple" | "dev";
 interface MemoryChange {
@@ -432,7 +437,7 @@ interface StageDetailPanelProps extends BaseComponentProps {
     /** Keys to exclude from memory display (default: engine internals). Pass empty set to show all. */
     excludeKeys?: Set<string>;
 }
-declare function StageDetailPanel({ snapshots, selectedIndex, mode: controlledMode, showToggle, onModeChange, size, unstyled, className, style, }: StageDetailPanelProps): react.JSX.Element;
+declare function StageDetailPanel({ snapshots, selectedIndex, mode: controlledMode, showToggle, onModeChange, size, unstyled, className, style, }: StageDetailPanelProps): React$1.JSX.Element;
 
 /**
  * Same-Rail Rewind (tracing mode) — the rail's AXIS never changes, only its
@@ -485,7 +490,7 @@ interface TimeTravelControlsProps extends BaseComponentProps {
     /** Same-Rail Rewind session — when set, the rail is in tracing mode. */
     tracing?: TracingRail | null;
 }
-declare function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, autoPlayable, tracing, size, unstyled, className, style, }: TimeTravelControlsProps): react.JSX.Element;
+declare function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, autoPlayable, tracing, size, unstyled, className, style, }: TimeTravelControlsProps): React$1.JSX.Element;
 
 /**
  * One entry in the execution timeline. `<TracedFlow>` keys time-travel
@@ -908,6 +913,14 @@ interface ExplainableShellProps extends BaseComponentProps {
         /** Dependency-cone overlay (chart node id → BFS depth) — painted while
          *  the Inspector's Data Trace tab is open. Custom renderers may ignore it. */
         sliceCone?: ReadonlyMap<string, number>;
+        /** The shell's CURRENT drill scope — the mount node's id, or `null` at the
+         *  top level. The shell owns the one drill state, so a chart that keeps
+         *  its own must follow this or it will show a different level than the
+         *  breadcrumb, story and timeline beside it. */
+        currentSubflowId?: string | null;
+        /** Call to MOVE the shell's drill: a mount node's id to drill in, `null`
+         *  to pop back to the top. */
+        onSubflowChange?: (mountStageId: string | null) => void;
     }) => React.ReactNode;
     /**
      * When true, render each node's stable `stageId` as a small monospace
@@ -919,7 +932,7 @@ interface ExplainableShellProps extends BaseComponentProps {
      */
     showStageId?: boolean;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
+declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): React$1.JSX.Element;
 
 /**
  * TraceViewer — renders a saved recording. No live executor, no re-run.
@@ -1019,15 +1032,15 @@ interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'default
      */
     readonly onError?: (error: TraceParseError) => void;
     /** Element rendered when no valid recording is available. */
-    readonly fallback?: react.ReactNode;
+    readonly fallback?: React$1.ReactNode;
 }
-declare function TraceViewer({ recording, trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, traceTheme, theme: themeMode, }: TraceViewerProps): react.ReactElement | null;
+declare function TraceViewer({ recording, trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, traceTheme, theme: themeMode, }: TraceViewerProps): React$1.ReactElement | null;
 
 interface MemoryPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
     selectedIndex: number;
 }
-declare function MemoryPanel({ snapshots, selectedIndex, size, unstyled, className, style, }: MemoryPanelProps): react.JSX.Element;
+declare function MemoryPanel({ snapshots, selectedIndex, size, unstyled, className, style, }: MemoryPanelProps): React$1.JSX.Element;
 
 interface NarrativePanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
@@ -1035,6 +1048,10 @@ interface NarrativePanelProps extends BaseComponentProps {
     /** Structured narrative entries (primary source — richer rendering).
      *  When absent, falls back to per-stage `snapshot.narrative` lines. */
     narrativeEntries?: NarrativeEntry[];
+    /** The subflow `narrativeEntries` were scoped to, when this panel is showing
+     *  a drilled-in level. Forwarded to `<StoryNarrative scopeSubflowId>` so the
+     *  level's own stages are shown instead of hidden as "subflow internals". */
+    scopeSubflowId?: string;
     /**
      * Full runtime snapshot from the runner (executor.getSnapshot() /
      * agent.getSnapshot()). When present, "Copy for LLM" includes the
@@ -1051,21 +1068,38 @@ interface NarrativePanelProps extends BaseComponentProps {
      */
     spec?: any;
 }
-declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, runtimeSnapshot, spec, size, unstyled, className, style, }: NarrativePanelProps): react.JSX.Element;
+declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, scopeSubflowId, runtimeSnapshot, spec, size, unstyled, className, style, }: NarrativePanelProps): React$1.JSX.Element;
 
 interface StoryNarrativeProps extends BaseComponentProps {
     /** Structured narrative entries from CombinedNarrativeRecorder */
     entries: NarrativeEntry[];
     /** Number of entries to reveal (position-based sync from NarrativePanel) */
     revealedEntryCount: number;
+    /**
+     * The subflow this story IS. Set it when `entries` were already scoped to
+     * one subflow (a drilled-in view): entries belonging to that subflow are
+     * this story's own stages and must be shown, while entries from subflows
+     * NESTED inside it stay hidden behind their own mount, exactly as
+     * top-level subflows are at the root.
+     *
+     * Unset (the default) means the root story — every subflow's internals are
+     * hidden and only the Entering/Exiting markers show.
+     */
+    scopeSubflowId?: string;
 }
-declare function StoryNarrative({ entries, revealedEntryCount, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): react.JSX.Element;
+declare function StoryNarrative({ entries, revealedEntryCount, scopeSubflowId, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): React$1.JSX.Element;
 
 interface SubflowTreeEntry {
     /** Node name / identifier */
     name: string;
     /** Human-readable description */
     description?: string;
+    /**
+     * The mount node's id in the graph — the DRILL KEY. Unique even when the
+     * same child chart is mounted twice, which `subflowId` and `name` are not
+     * (see `_internal/subflowDrill.ts`). Hosts should drill with this.
+     */
+    nodeId?: string;
     /** Subflow ID (when this node represents a subflow) */
     subflowId?: string;
     /** Whether this node is a subflow root (has nested structure) */
@@ -1081,10 +1115,15 @@ interface SubflowTreeProps extends BaseComponentProps {
     activeStage?: string | null;
     /** Set of completed stage names */
     doneStages?: Set<string>;
-    /** Called when a tree node is clicked */
-    onNodeSelect?: (name: string, isSubflow: boolean) => void;
+    /**
+     * Called when a tree node is clicked. `nodeId` is the mount node's graph id
+     * — the unambiguous drill key. Prefer it over `name`: two mounts of the
+     * same child chart share a label, so drilling by name lands on whichever
+     * one happens to be found first.
+     */
+    onNodeSelect?: (name: string, isSubflow: boolean, nodeId?: string) => void;
 }
-declare const SubflowTree: react.NamedExoticComponent<SubflowTreeProps>;
+declare const SubflowTree: React$1.NamedExoticComponent<SubflowTreeProps>;
 
 /**
  * Shape of FootPrint's RuntimeSnapshot (from FlowChartExecutor.getSnapshot()).
@@ -1194,9 +1233,17 @@ declare function toVisualizationSnapshots(runtime: RuntimeSnapshot, narrativeEnt
  * SubflowResult shape (from footprintjs):
  *   { subflowId, subflowName, treeContext: { globalContext, stageContexts, history }, parentStageId }
  *
+ * Pass the RUN's `subflowResults` map as the third argument to keep drilling
+ * DEEPER: a subflow that mounts another subflow needs its child's result to
+ * be attached to the stage that mounts it, and that result lives in the run-
+ * level map (footprintjs dual-keys it by both `subflowPath` and
+ * `runtimeStageId`, which is what the inner tree's nodes carry). Without it
+ * the inner mount's snapshot has no `subflowResult` and the second drill
+ * silently does nothing.
+ *
  * Returns empty array if the input is not a valid SubflowResult.
  */
-declare function subflowResultToSnapshots(subflowResult: unknown, narrativeEntries?: NarrativeEntry[]): StageSnapshot[];
+declare function subflowResultToSnapshots(subflowResult: unknown, narrativeEntries?: NarrativeEntry[], subflowResults?: Record<string, unknown>): StageSnapshot[];
 /**
  * Creates StageSnapshots from simple arrays (when you don't have a RuntimeSnapshot).
  * Useful for testing or custom data sources.
@@ -1449,7 +1496,7 @@ interface DataTracePanelProps {
  * Each frame shows: stage name, what it wrote, linked by which key.
  * Click a frame to navigate the time-travel slider.
  */
-declare const DataTracePanel: react.NamedExoticComponent<DataTracePanelProps>;
+declare const DataTracePanel: React$1.NamedExoticComponent<DataTracePanelProps>;
 
 interface InspectorPanelProps {
     snapshots: StageSnapshot[];
@@ -1472,7 +1519,7 @@ interface InspectorPanelProps {
      *  Rewind stop card / entry chips); default = the classic frames list. */
     traceContent?: ReactNode;
 }
-declare const InspectorPanel: react.NamedExoticComponent<InspectorPanelProps>;
+declare const InspectorPanel: React$1.NamedExoticComponent<InspectorPanelProps>;
 
 /**
  * traceWalk — the SAME-RAIL REWIND walk: a variable-anchored backward slice,
@@ -1605,7 +1652,7 @@ interface TraceWalkCardProps {
      *  chooser's time-order button must not pretend to move (review fix). */
     canContinueTimeOrder?: boolean;
 }
-declare const TraceWalkCard: react.NamedExoticComponent<TraceWalkCardProps>;
+declare const TraceWalkCard: React$1.NamedExoticComponent<TraceWalkCardProps>;
 
 interface InsightConfig {
     /** Unique ID (matches recorder id). */
@@ -1624,7 +1671,7 @@ interface InsightPanelProps {
     /** Display mode: tabs (one at a time) or grid (all visible). */
     mode: "tabs" | "grid";
 }
-declare const InsightPanel: react.NamedExoticComponent<InsightPanelProps>;
+declare const InsightPanel: React$1.NamedExoticComponent<InsightPanelProps>;
 
 interface CompactTimelineProps {
     snapshots: StageSnapshot[];
@@ -1632,6 +1679,181 @@ interface CompactTimelineProps {
     /** Start expanded or collapsed. Default: collapsed. */
     defaultExpanded?: boolean;
 }
-declare const CompactTimeline: react.NamedExoticComponent<CompactTimelineProps>;
+declare const CompactTimeline: React$1.NamedExoticComponent<CompactTimelineProps>;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CompactTimeline, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, ExplainableShell, type ExplainableShellProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelControls, type TimeTravelControlsProps, type TraceGraph, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useFootprintTheme, warmDark, warmLight };
+/**
+ * TracedFlow — runtime-overlay variant of `<TraceFlow>`.
+ *
+ * Pairs a build-time `TraceGraph` (from `createTraceStructureRecorder`)
+ * with a runtime `RuntimeOverlay` (from `createTraceRuntimeOverlay`)
+ * and a scrub index → renders an xyflow chart with per-node coloring
+ * (done / active / error), per-edge highlighting (executed paths),
+ * loop-edge side-routing, and subflow drill-down.
+ *
+ * The component is orchestration only. Each responsibility lives in
+ * an extracted helper / hook (see `_internal/`):
+ *
+ *   - drill state .................. useSubflowDrill
+ *   - container resize → fitView ... useChartAutoRefit
+ *   - graph filtering by drill ..... filterGraphForDrill
+ *   - breadcrumb path .............. buildSubflowBreadcrumb
+ *   - slice id normalization ....... normalizeSliceLeafIds
+ *   - mount status aggregation ..... aggregateMountStatus
+ *   - node / edge styling .......... toStageNodeWithOverlay + styleEdgeWithOverlay
+ *   - breadcrumb UI ................ <SubflowBreadcrumbBar>
+ *
+ * @example
+ * ```tsx
+ * const trace = useMemo(() => createTraceStructureRecorder(), []);
+ * const runtime = useMemo(() => createTraceRuntimeOverlay(), []);
+ * // ... attach both to executor, run the chart ...
+ * <TracedFlow
+ *   graph={trace.getGraph()}
+ *   overlay={runtime.getOverlay()}
+ *   scrubIndex={sliderValue}
+ *   onNodeClick={(stageId) => focusStage(stageId)}
+ *   onSubflowChange={(mountId) => syncShellDrill(mountId)}
+ * />
+ * ```
+ */
+
+interface TracedFlowColors {
+    /** Default (un-executed) node text + edge stroke. */
+    default: string;
+    /** Done — visually de-emphasised (lighter). */
+    done: string;
+    /** Active — current scrub position. */
+    active: string;
+    /** Error — node with recorded onError. */
+    error: string;
+    /** Loop back-edge color. */
+    loop: string;
+}
+
+interface ExplainableRecording {
+    readonly snapshot: RuntimeSnapshotInput;
+    readonly structure?: unknown;
+    readonly blueprint?: unknown;
+    readonly narrativeEntries?: NarrativeEntry[];
+    readonly resultData?: Record<string, unknown> | null;
+    readonly logs?: readonly string[];
+    readonly schemaVersion?: number;
+    readonly [key: string]: unknown;
+}
+type ExplainableRecordingInput = ExplainableRecording | string | null | undefined;
+interface ExplainableViewTheme {
+    /** Built-in light/dark palette. Omit to inherit the consumer's CSS variables. */
+    readonly mode?: ThemeMode;
+    /** Fine-grained design tokens. These override the selected mode. */
+    readonly tokens?: ThemeTokens;
+    /** Flowchart state colors. These override both mode and tokens for chart nodes. */
+    readonly flowchart?: Partial<TracedFlowColors>;
+}
+interface ExplainableRunContextValue {
+    readonly recording: ExplainableRecording | null;
+    readonly snapshots: StageSnapshot[];
+    readonly selectedIndex: number;
+    readonly selectedSnapshot: StageSnapshot | undefined;
+    readonly selectIndex: (index: number) => void;
+    readonly traceGraph: TraceGraph;
+    readonly runtimeOverlay: RuntimeOverlay;
+    readonly narrativeEntries: NarrativeEntry[];
+    readonly resultData: Record<string, unknown> | null;
+    readonly logs: string[];
+    readonly flowchartColors: Partial<TracedFlowColors> | undefined;
+    readonly error: string | null;
+}
+interface ExplainableProviderProps {
+    readonly recording: ExplainableRecordingInput;
+    readonly selectedIndex?: number;
+    readonly defaultSelectedIndex?: number;
+    readonly onSelectedIndexChange?: (index: number) => void;
+    readonly theme?: ExplainableViewTheme;
+    readonly children: React$1.ReactNode;
+    readonly className?: string;
+    readonly style?: React$1.CSSProperties;
+}
+declare function ExplainableProvider({ recording: input, selectedIndex: controlledIndex, defaultSelectedIndex, onSelectedIndexChange, theme, children, className, style, }: ExplainableProviderProps): React$1.JSX.Element;
+declare function useExplainableRun(): ExplainableRunContextValue;
+
+interface TimelinePanelProps extends BaseComponentProps {
+    readonly title?: string;
+    readonly renderDetail?: (snapshot: StageSnapshot, index: number) => React$1.ReactNode;
+}
+declare function TimelinePanel({ title, renderDetail, unstyled, className, style, }: TimelinePanelProps): React$1.JSX.Element;
+
+interface FlowchartPanelProps extends BaseComponentProps {
+    readonly title?: string;
+    readonly colors?: Partial<TracedFlowColors>;
+}
+declare function FlowchartPanel({ title, colors, unstyled, className, style, }: FlowchartPanelProps): React$1.JSX.Element;
+
+interface ValueInspectorProps extends BaseComponentProps {
+    readonly title?: string;
+}
+declare function ValueInspector({ title, size, unstyled, className, style, }: ValueInspectorProps): React$1.JSX.Element;
+
+interface CommentaryRenderContext {
+    readonly index: number;
+    readonly current: boolean;
+}
+interface CommentaryPanelProps extends BaseComponentProps {
+    readonly title?: string;
+    readonly maxLines?: number;
+    readonly renderEntry?: (entry: NarrativeEntry, context: CommentaryRenderContext) => React$1.ReactNode;
+    readonly emptyMessage?: string;
+}
+declare function CommentaryPanel({ title, maxLines, renderEntry, emptyMessage, unstyled, className, style, }: CommentaryPanelProps): React$1.JSX.Element;
+
+interface TimeTravelBarProps extends BaseComponentProps {
+    readonly autoPlayable?: boolean;
+}
+declare function TimeTravelBar({ autoPlayable, size, unstyled, className, style, }: TimeTravelBarProps): React$1.JSX.Element;
+
+interface CompactTimelinePanelProps extends BaseComponentProps {
+    readonly defaultExpanded?: boolean;
+}
+declare function CompactTimelinePanel({ defaultExpanded, unstyled, className, style, }: CompactTimelinePanelProps): React$1.JSX.Element;
+
+interface SurfaceCollapseHandleProps {
+    readonly label?: string;
+    readonly expanded: boolean;
+    readonly orientation?: "vertical" | "horizontal";
+    readonly onToggle: () => void;
+    readonly className?: string;
+    readonly style?: React$1.CSSProperties;
+    readonly unstyled?: boolean;
+}
+declare function SurfaceCollapseHandle({ label, expanded, orientation, onToggle, className, style, unstyled, }: SurfaceCollapseHandleProps): React$1.JSX.Element;
+
+type ExplainableSurface = "timeTravel" | "timeline" | "stageRail" | "flowchart" | "inspector" | "commentary";
+type ExplainableViewPreset = "developer" | "product" | "studio" | "linear";
+interface ExplainableLayoutDefinition {
+    readonly columns: string;
+    readonly rows?: string;
+    readonly areas: ReadonlyArray<ReadonlyArray<ExplainableSurface | ".">>;
+    readonly minHeight?: number | string;
+    readonly gap?: number | string;
+}
+type ExplainableViewLayout = ExplainableViewPreset | ExplainableLayoutDefinition;
+type ExplainableViewSlot = React$1.ReactNode | ((context: ExplainableRunContextValue) => React$1.ReactNode);
+interface ExplainableViewSlots {
+    readonly timeTravel?: ExplainableViewSlot;
+    readonly timeline?: ExplainableViewSlot;
+    readonly stageRail?: ExplainableViewSlot;
+    readonly flowchart?: ExplainableViewSlot;
+    readonly inspector?: ExplainableViewSlot;
+    readonly commentary?: ExplainableViewSlot;
+}
+interface ExplainableViewProps extends Omit<ExplainableProviderProps, "children" | "className" | "style">, BaseComponentProps {
+    readonly layout?: ExplainableViewLayout;
+    readonly slots?: ExplainableViewSlots;
+    readonly minHeight?: number | string;
+    readonly detailsExpanded?: boolean;
+    readonly defaultDetailsExpanded?: boolean;
+    readonly onDetailsExpandedChange?: (expanded: boolean) => void;
+    readonly detailsLabel?: string;
+}
+declare function ExplainableView({ recording, selectedIndex, defaultSelectedIndex, onSelectedIndexChange, theme: viewTheme, layout, slots, minHeight, detailsExpanded, defaultDetailsExpanded, onDetailsExpandedChange, detailsLabel, unstyled, className, style, }: ExplainableViewProps): React$1.JSX.Element;
+
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };

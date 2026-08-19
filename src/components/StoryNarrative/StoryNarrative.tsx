@@ -17,6 +17,17 @@ export interface StoryNarrativeProps extends BaseComponentProps {
   entries: NarrativeEntry[];
   /** Number of entries to reveal (position-based sync from NarrativePanel) */
   revealedEntryCount: number;
+  /**
+   * The subflow this story IS. Set it when `entries` were already scoped to
+   * one subflow (a drilled-in view): entries belonging to that subflow are
+   * this story's own stages and must be shown, while entries from subflows
+   * NESTED inside it stay hidden behind their own mount, exactly as
+   * top-level subflows are at the root.
+   *
+   * Unset (the default) means the root story — every subflow's internals are
+   * hidden and only the Entering/Exiting markers show.
+   */
+  scopeSubflowId?: string;
 }
 
 const ENTRY_ICONS: Record<string, { icon: string; color: string; label: string }> = {
@@ -43,6 +54,7 @@ const ENTRY_ICONS: Record<string, { icon: string; color: string; label: string }
 export function StoryNarrative({
   entries,
   revealedEntryCount,
+  scopeSubflowId,
   size = "default",
   unstyled = false,
   className,
@@ -56,27 +68,34 @@ export function StoryNarrative({
   // different iterations) and subflow repeats correctly.
   const revealedCount = revealedEntryCount;
 
-  // Filter revealed entries: show root-level entries + subflow Entering/Exiting markers.
-  // Subflow internal entries (stage, step, condition inside a subflow) are hidden —
-  // they appear in the drill-down view.
-  const revealed = useMemo(() => {
-    const raw = entries.slice(0, revealedCount);
-    return raw.filter((e) => {
+  // Filter revealed entries: show the entries of the level being VIEWED plus
+  // subflow Entering/Exiting markers. Entries belonging to a subflow deeper
+  // than this level are hidden — they appear in ITS drill-down view.
+  //
+  // `scopeSubflowId` is what makes that work at every depth: a drilled story
+  // is handed only its own subflow's entries, and every one of them carries a
+  // `subflowId`. Judging by "has a subflowId" alone therefore hid the entire
+  // story the moment the drill started resolving the narrative correctly.
+  const isOwnLevel = useMemo(() => {
+    return (e: NarrativeEntry): boolean => {
       const sfId = (e as { subflowId?: string }).subflowId;
-      if (!sfId) return true; // root-level — always show
+      if (!sfId) return scopeSubflowId === undefined; // root entry
       if (e.type === "subflow") return true; // Entering/Exiting markers — show
-      return false; // internal subflow entries — hide (drill-down only)
-    });
-  }, [entries, revealedCount]);
+      return sfId === scopeSubflowId;
+    };
+  }, [scopeSubflowId]);
+  const revealed = useMemo(
+    () => entries.slice(0, revealedCount).filter(isOwnLevel),
+    [entries, revealedCount, isOwnLevel],
+  );
   // Future count: only count entries that would actually be shown (same filter as revealed)
   const futureCount = useMemo(() => {
     let count = 0;
     for (let i = revealedCount; i < entries.length; i++) {
-      const e = entries[i] as { subflowId?: string };
-      if (!e.subflowId || entries[i].type === "subflow") count++;
+      if (isOwnLevel(entries[i])) count++;
     }
     return count;
-  }, [entries, revealedCount]);
+  }, [entries, revealedCount, isOwnLevel]);
 
   const latestRef = useRef<HTMLDivElement>(null);
   useEffect(() => {

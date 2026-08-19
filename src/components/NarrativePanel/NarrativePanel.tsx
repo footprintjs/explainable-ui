@@ -52,6 +52,10 @@ export interface NarrativePanelProps extends BaseComponentProps {
   /** Structured narrative entries (primary source — richer rendering).
    *  When absent, falls back to per-stage `snapshot.narrative` lines. */
   narrativeEntries?: NarrativeEntry[];
+  /** The subflow `narrativeEntries` were scoped to, when this panel is showing
+   *  a drilled-in level. Forwarded to `<StoryNarrative scopeSubflowId>` so the
+   *  level's own stages are shown instead of hidden as "subflow internals". */
+  scopeSubflowId?: string;
   /**
    * Full runtime snapshot from the runner (executor.getSnapshot() /
    * agent.getSnapshot()). When present, "Copy for LLM" includes the
@@ -75,6 +79,7 @@ export function NarrativePanel({
   snapshots,
   selectedIndex,
   narrativeEntries,
+  scopeSubflowId,
   runtimeSnapshot,
   spec,
   size = "default",
@@ -307,7 +312,7 @@ export function NarrativePanel({
     return (
       <div className={className} style={style} data-fp="narrative-panel">
         {hasStructured ? (
-          <StoryNarrative entries={narrativeEntries!} revealedEntryCount={revealedEntryCount} unstyled />
+          <StoryNarrative entries={narrativeEntries!} revealedEntryCount={revealedEntryCount} scopeSubflowId={scopeSubflowId} unstyled />
         ) : (
           <NarrativeTrace narrative={narrative} revealedCount={revealedCount} unstyled />
         )}
@@ -365,6 +370,7 @@ export function NarrativePanel({
         <StoryNarrative
           entries={narrativeEntries!}
           revealedEntryCount={revealedEntryCount}
+          scopeSubflowId={scopeSubflowId}
           size={size}
           style={{ flex: 1 }}
         />

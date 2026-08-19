@@ -298,11 +298,23 @@ export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
   onNodeClick?: (stageId: string) => void;
   /**
    * Fires when the chart drills into or out of a subflow (explicit
-   * user click on a mount node). Receives the mount stage id (drill
-   * in) or `null` (pop back). Container shells use this to keep
-   * their data panels in lock-step with the chart's drill state.
+   * user click on a mount node, or a click on the chart's own
+   * breadcrumb). Receives the mount stage id (drill in) or `null`
+   * (pop back). Container shells use this to keep their data panels
+   * in lock-step with the chart's drill state.
    */
   onSubflowChange?: (mountStageId: string | null) => void;
+  /**
+   * CONTROLLED drill scope — the mount node id to show the internals of,
+   * or `null` for the top level. Pass it (together with
+   * `onSubflowChange`) when the host owns the drill because it ALSO
+   * drills from somewhere else — a subflow tree, a breadcrumb, a
+   * deep-link. The chart then renders the host's scope instead of a
+   * second, private one that can drift out of step with the panels
+   * beside it. Omit for a standalone chart: the drill stays internal
+   * and clicking a mount card just works.
+   */
+  currentSubflowId?: string | null;
   /**
    * Consumer-supplied xyflow node types. Merged with the built-in
    * `{ stageNode: StageNode }` registry — keys you supply OVERRIDE
@@ -387,6 +399,7 @@ export function TracedFlow({
   colors: colorOverrides,
   onNodeClick,
   onSubflowChange,
+  currentSubflowId: controlledSubflowId,
   groupedSubflows,
   mainChartBox,
   nodeTypes: userNodeTypes,
@@ -432,7 +445,7 @@ export function TracedFlow({
   );
 
   // ── Drill state + visibility derivations ──────────────────────────
-  const drill = useSubflowDrill(graph, onSubflowChange);
+  const drill = useSubflowDrill(graph, onSubflowChange, controlledSubflowId);
   const groupedSet = useMemo(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
   // Drill-filter the graph, but KEEP members of grouped subflows visible:
   // a grouped subflow renders its members nested in a container box rather
@@ -603,9 +616,15 @@ export function TracedFlow({
     (_: unknown, node: Node) => {
       const data = (node.data ?? {}) as StageNodeData;
       // Grouped subflows render inline (no drill) — only drill the ones
-      // still in card mode.
-      if (data.isSubflow && data.subflowId && !groupedSet.has(data.subflowId)) {
-        drill.drillInto(data.subflowId);
+      // still in card mode. `groupedSubflows` is spelled in either
+      // vocabulary (mount node id or local subflow id), so check both.
+      const isGrouped =
+        groupedSet.has(node.id) || (!!data.subflowId && groupedSet.has(data.subflowId));
+      // Drill by the mount NODE id: `data.subflowId` is the child chart's
+      // LOCAL id and repeats across mounts of the same chart, so it would
+      // scope the drill to the wrong instance (see subflowDrill.ts).
+      if (data.isSubflow && !isGrouped) {
+        drill.drillInto(node.id);
       }
       onNodeClick?.(node.id);
     },

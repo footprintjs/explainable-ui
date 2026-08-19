@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+One bug, reported as "clicking a subflow in the Topology panel doesn't show the
+subflow's chart". Two causes, both about IDENTITY: the drill was keyed by a name
+that isn't unique, and it was stored in two places that were never wired
+together.
+
+### Fixed
+
+- **Every way into a subflow now drills the same way.** `<ExplainableShell>`
+  owns ONE drill state and hands it to the chart as `currentSubflowId`. Before,
+  `<TracedFlow>` kept a second, private drill state: a click in the Topology
+  tree moved the breadcrumb, the story and the timeline while the chart went on
+  showing the level above. The tree also drilled by a subflow's LABEL — two
+  mounts of the same child chart read the same, so it could land on the wrong
+  one — and it could only ever drill one level. It now drills by mount id,
+  through the ancestors, so a nested subflow is one click away from the root.
+- **A subflow mounted twice drills into the mount you clicked.** The drill was
+  keyed by `data.subflowId` — the child chart's own LOCAL id, which repeats
+  across mounts. Drilling the nested `Pipeline › Prepare` showed the top-level
+  `Prepare`'s stages, and with no top-level twin to borrow from it showed an
+  empty chart. Drills are keyed by the mount NODE id now (unique), and
+  `filterGraphForDrill` resolves it to whichever `subflowOf` spelling the graph
+  in hand uses. Mount status lighting (`aggregateMountStatus`) was matching
+  members the same wrong way and is fixed with it.
+- **The chart breadcrumb names the whole path.** `Chart › Pipeline › Prepare`
+  instead of `Chart › Prepare`, and clicking an ancestor steps back one level
+  rather than all the way out. The shell follows the chart's breadcrumb now,
+  including back to the top.
+- **You can drill more than one level deep into the DATA.** The drilled level's
+  snapshots carried no `subflowResult` for the subflows mounted inside them, so
+  a second drill silently did nothing. `subflowResultToSnapshots` takes the
+  run's `subflowResults` map as a third argument and threads it down.
+- **The drilled Story shows the level you are on.** It hid every entry that
+  belongs to a subflow — which, in a drilled view, is all of them.
+  `<StoryNarrative scopeSubflowId>` (forwarded by `<NarrativePanel>`) names the
+  level being viewed: its own stages show, the subflows nested inside it stay
+  behind their mounts.
+
+### Added
+
+- **`<TracedFlow currentSubflowId>`** — an optional CONTROLLED drill scope, to
+  pair with `onSubflowChange`. A host that also drills from elsewhere (a tree, a
+  breadcrumb, a deep-link) owns the value and the chart renders it. Omit it and
+  the chart keeps drilling on its own, exactly as before.
+- **`renderFlowchart` receives `currentSubflowId` + `onSubflowChange`** — a
+  custom chart can follow the shell's drill and move it.
+- **`SubflowTreeEntry.nodeId`**, passed as the third argument to
+  `onNodeSelect(name, isSubflow, nodeId)` — the unambiguous drill key.
+- **`demo/generate-subflow-run.ts`** — a real footprintjs run that mounts the
+  same child chart at two depths, rendered by the shell in the demo. The demo
+  had no shell chart with subflows at all, which is why this shipped.
+
 ## [0.31.0] - 2026-07-28
 
 Fixes found while a live demo drove this library from frozen recordings instead

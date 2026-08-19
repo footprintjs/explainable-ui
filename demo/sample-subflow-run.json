@@ -1,0 +1,2429 @@
+{
+  "generatedBy": "demo/generate-subflow-run.ts (real footprintjs run — do not hand-edit)",
+  "runtimeSnapshot": {
+    "sharedState": {
+      "raw": [
+        3,
+        -1,
+        7
+      ],
+      "report": "finished=undefined"
+    },
+    "executionTree": {
+      "id": "seed",
+      "runtimeStageId": "seed#0",
+      "name": "Seed",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {
+        "totalChildren": 2,
+        "orderOfExecution": "ChildrenAfterStage"
+      },
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageWrites": {
+        "raw": [
+          3,
+          -1,
+          7
+        ]
+      },
+      "description": "Seed the run",
+      "flowMessages": [
+        {
+          "type": "children",
+          "description": "Executing all 2 children in parallel: Prepare, Pipeline",
+          "timestamp": 1787114268352,
+          "count": 2,
+          "targetStage": [
+            "Prepare",
+            "Pipeline"
+          ]
+        },
+        {
+          "type": "next",
+          "description": "Moving to Report stage",
+          "timestamp": 1787114268356,
+          "targetStage": "Report"
+        }
+      ],
+      "next": {
+        "id": "report",
+        "runtimeStageId": "report#15",
+        "name": "Report",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "report": "finished=undefined"
+        },
+        "stageReads": {},
+        "description": "Write the report"
+      },
+      "children": [
+        {
+          "id": "prepare",
+          "runtimeStageId": "prepare#1",
+          "name": "Prepare",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "subflowId": "prepare",
+          "flowMessages": [
+            {
+              "type": "subflow",
+              "description": "Entering Prepare subflow",
+              "timestamp": 1787114268353,
+              "targetStage": "prepare"
+            },
+            {
+              "type": "subflow",
+              "description": "Exiting Prepare subflow",
+              "timestamp": 1787114268355,
+              "targetStage": "prepare"
+            }
+          ]
+        },
+        {
+          "id": "pipeline",
+          "runtimeStageId": "pipeline#3",
+          "name": "Pipeline",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "subflowId": "pipeline",
+          "flowMessages": [
+            {
+              "type": "subflow",
+              "description": "Entering Pipeline subflow",
+              "timestamp": 1787114268353,
+              "targetStage": "pipeline"
+            },
+            {
+              "type": "subflow",
+              "description": "Exiting Pipeline subflow",
+              "timestamp": 1787114268356,
+              "targetStage": "pipeline"
+            }
+          ]
+        }
+      ]
+    },
+    "commitLog": [
+      {
+        "overwrite": {
+          "raw": [
+            3,
+            -1,
+            7
+          ]
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "raw",
+            "verb": "set"
+          }
+        ],
+        "stage": "Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Prepare",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#1",
+        "idx": 1
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Prepare",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#1",
+        "idx": 2
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Pipeline",
+        "stageId": "pipeline",
+        "runtimeStageId": "pipeline#3",
+        "idx": 3
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Pipeline",
+        "stageId": "pipeline",
+        "runtimeStageId": "pipeline#3",
+        "idx": 4
+      },
+      {
+        "overwrite": {
+          "report": "finished=undefined"
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "report",
+            "verb": "set"
+          }
+        ],
+        "stage": "Report",
+        "stageId": "report",
+        "runtimeStageId": "report#15",
+        "idx": 5
+      }
+    ],
+    "subflowResults": {
+      "prepare": {
+        "subflowId": "prepare",
+        "subflowName": "Prepare",
+        "treeContext": {
+          "globalContext": {
+            "cleaned": [
+              1,
+              2,
+              3
+            ],
+            "scaled": [
+              10,
+              20,
+              30
+            ],
+            "checked": true
+          },
+          "stageContexts": {
+            "id": "prepare/clean",
+            "runtimeStageId": "prepare/clean#2",
+            "name": "prepare/Clean",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "cleaned": [
+                1,
+                2,
+                3
+              ]
+            },
+            "stageReads": {},
+            "description": "Drop the bad rows",
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to prepare/Scale stage",
+                "timestamp": 1787114268353,
+                "targetStage": "prepare/Scale"
+              }
+            ],
+            "next": {
+              "id": "prepare/scale",
+              "runtimeStageId": "prepare/scale#9",
+              "name": "prepare/Scale",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "scaled": [
+                  10,
+                  20,
+                  30
+                ]
+              },
+              "stageReads": {
+                "cleaned": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "description": "Scale every row",
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to prepare/Check stage",
+                  "timestamp": 1787114268354,
+                  "targetStage": "prepare/Check"
+                }
+              ],
+              "next": {
+                "id": "prepare/check",
+                "runtimeStageId": "prepare/check#12",
+                "name": "prepare/Check",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "checked": true
+                },
+                "stageReads": {
+                  "scaled": [
+                    10,
+                    20,
+                    30
+                  ]
+                },
+                "description": "Sanity-check the result"
+              }
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "cleaned": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "cleaned",
+                  "verb": "set"
+                }
+              ],
+              "stage": "prepare/Clean",
+              "stageId": "prepare/clean",
+              "runtimeStageId": "prepare/clean#2",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "scaled": [
+                  10,
+                  20,
+                  30
+                ]
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "scaled",
+                  "verb": "set"
+                }
+              ],
+              "stage": "prepare/Scale",
+              "stageId": "prepare/scale",
+              "runtimeStageId": "prepare/scale#9",
+              "idx": 1
+            },
+            {
+              "overwrite": {
+                "checked": true
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "checked",
+                  "verb": "set"
+                }
+              ],
+              "stage": "prepare/Check",
+              "stageId": "prepare/check",
+              "runtimeStageId": "prepare/check#12",
+              "idx": 2
+            }
+          ]
+        },
+        "parentStageId": "prepare.Prepare"
+      },
+      "prepare#1": {
+        "subflowId": "prepare",
+        "subflowName": "Prepare",
+        "treeContext": {
+          "globalContext": {
+            "cleaned": [
+              1,
+              2,
+              3
+            ],
+            "scaled": [
+              10,
+              20,
+              30
+            ],
+            "checked": true
+          },
+          "stageContexts": {
+            "id": "prepare/clean",
+            "runtimeStageId": "prepare/clean#2",
+            "name": "prepare/Clean",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "cleaned": [
+                1,
+                2,
+                3
+              ]
+            },
+            "stageReads": {},
+            "description": "Drop the bad rows",
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to prepare/Scale stage",
+                "timestamp": 1787114268353,
+                "targetStage": "prepare/Scale"
+              }
+            ],
+            "next": {
+              "id": "prepare/scale",
+              "runtimeStageId": "prepare/scale#9",
+              "name": "prepare/Scale",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "scaled": [
+                  10,
+                  20,
+                  30
+                ]
+              },
+              "stageReads": {
+                "cleaned": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "description": "Scale every row",
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to prepare/Check stage",
+                  "timestamp": 1787114268354,
+                  "targetStage": "prepare/Check"
+                }
+              ],
+              "next": {
+                "id": "prepare/check",
+                "runtimeStageId": "prepare/check#12",
+                "name": "prepare/Check",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "checked": true
+                },
+                "stageReads": {
+                  "scaled": [
+                    10,
+                    20,
+                    30
+                  ]
+                },
+                "description": "Sanity-check the result"
+              }
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "cleaned": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "cleaned",
+                  "verb": "set"
+                }
+              ],
+              "stage": "prepare/Clean",
+              "stageId": "prepare/clean",
+              "runtimeStageId": "prepare/clean#2",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "scaled": [
+                  10,
+                  20,
+                  30
+                ]
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "scaled",
+                  "verb": "set"
+                }
+              ],
+              "stage": "prepare/Scale",
+              "stageId": "prepare/scale",
+              "runtimeStageId": "prepare/scale#9",
+              "idx": 1
+            },
+            {
+              "overwrite": {
+                "checked": true
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "checked",
+                  "verb": "set"
+                }
+              ],
+              "stage": "prepare/Check",
+              "stageId": "prepare/check",
+              "runtimeStageId": "prepare/check#12",
+              "idx": 2
+            }
+          ]
+        },
+        "parentStageId": "prepare.Prepare"
+      },
+      "pipeline/verify": {
+        "subflowId": "pipeline/verify",
+        "subflowName": "Verify",
+        "treeContext": {
+          "globalContext": {
+            "total": 0,
+            "checked": true
+          },
+          "stageContexts": {
+            "id": "pipeline/verify/tally",
+            "runtimeStageId": "pipeline/verify/tally#8",
+            "name": "pipeline/verify/Tally",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "total": 0
+            },
+            "stageReads": {},
+            "description": "Add the rows up",
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to pipeline/verify/Sign stage",
+                "timestamp": 1787114268354,
+                "targetStage": "pipeline/verify/Sign"
+              }
+            ],
+            "next": {
+              "id": "pipeline/verify/sign",
+              "runtimeStageId": "pipeline/verify/sign#11",
+              "name": "pipeline/verify/Sign",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "checked": true
+              },
+              "description": "Sign the tally off"
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "total": 0
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "total",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/verify/Tally",
+              "stageId": "pipeline/verify/tally",
+              "runtimeStageId": "pipeline/verify/tally#8",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "checked": true
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "checked",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/verify/Sign",
+              "stageId": "pipeline/verify/sign",
+              "runtimeStageId": "pipeline/verify/sign#11",
+              "idx": 1
+            }
+          ]
+        },
+        "parentStageId": "pipeline/verify.pipeline/Verify"
+      },
+      "pipeline/verify#7": {
+        "subflowId": "pipeline/verify",
+        "subflowName": "Verify",
+        "treeContext": {
+          "globalContext": {
+            "total": 0,
+            "checked": true
+          },
+          "stageContexts": {
+            "id": "pipeline/verify/tally",
+            "runtimeStageId": "pipeline/verify/tally#8",
+            "name": "pipeline/verify/Tally",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "total": 0
+            },
+            "stageReads": {},
+            "description": "Add the rows up",
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to pipeline/verify/Sign stage",
+                "timestamp": 1787114268354,
+                "targetStage": "pipeline/verify/Sign"
+              }
+            ],
+            "next": {
+              "id": "pipeline/verify/sign",
+              "runtimeStageId": "pipeline/verify/sign#11",
+              "name": "pipeline/verify/Sign",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "checked": true
+              },
+              "description": "Sign the tally off"
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "total": 0
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "total",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/verify/Tally",
+              "stageId": "pipeline/verify/tally",
+              "runtimeStageId": "pipeline/verify/tally#8",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "checked": true
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "checked",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/verify/Sign",
+              "stageId": "pipeline/verify/sign",
+              "runtimeStageId": "pipeline/verify/sign#11",
+              "idx": 1
+            }
+          ]
+        },
+        "parentStageId": "pipeline/verify.pipeline/Verify"
+      },
+      "pipeline/prepare": {
+        "subflowId": "pipeline/prepare",
+        "subflowName": "Prepare",
+        "treeContext": {
+          "globalContext": {
+            "cleaned": [
+              1,
+              2,
+              3
+            ],
+            "scaled": [
+              10,
+              20,
+              30
+            ],
+            "checked": true
+          },
+          "stageContexts": {
+            "id": "pipeline/prepare/clean",
+            "runtimeStageId": "pipeline/prepare/clean#6",
+            "name": "pipeline/prepare/Clean",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "cleaned": [
+                1,
+                2,
+                3
+              ]
+            },
+            "stageReads": {},
+            "description": "Drop the bad rows",
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to pipeline/prepare/Scale stage",
+                "timestamp": 1787114268354,
+                "targetStage": "pipeline/prepare/Scale"
+              }
+            ],
+            "next": {
+              "id": "pipeline/prepare/scale",
+              "runtimeStageId": "pipeline/prepare/scale#10",
+              "name": "pipeline/prepare/Scale",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "scaled": [
+                  10,
+                  20,
+                  30
+                ]
+              },
+              "stageReads": {
+                "cleaned": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "description": "Scale every row",
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to pipeline/prepare/Check stage",
+                  "timestamp": 1787114268355,
+                  "targetStage": "pipeline/prepare/Check"
+                }
+              ],
+              "next": {
+                "id": "pipeline/prepare/check",
+                "runtimeStageId": "pipeline/prepare/check#13",
+                "name": "pipeline/prepare/Check",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "checked": true
+                },
+                "stageReads": {
+                  "scaled": [
+                    10,
+                    20,
+                    30
+                  ]
+                },
+                "description": "Sanity-check the result"
+              }
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "cleaned": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "cleaned",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/prepare/Clean",
+              "stageId": "pipeline/prepare/clean",
+              "runtimeStageId": "pipeline/prepare/clean#6",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "scaled": [
+                  10,
+                  20,
+                  30
+                ]
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "scaled",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/prepare/Scale",
+              "stageId": "pipeline/prepare/scale",
+              "runtimeStageId": "pipeline/prepare/scale#10",
+              "idx": 1
+            },
+            {
+              "overwrite": {
+                "checked": true
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "checked",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/prepare/Check",
+              "stageId": "pipeline/prepare/check",
+              "runtimeStageId": "pipeline/prepare/check#13",
+              "idx": 2
+            }
+          ]
+        },
+        "parentStageId": "pipeline/prepare.pipeline/Prepare"
+      },
+      "pipeline/prepare#5": {
+        "subflowId": "pipeline/prepare",
+        "subflowName": "Prepare",
+        "treeContext": {
+          "globalContext": {
+            "cleaned": [
+              1,
+              2,
+              3
+            ],
+            "scaled": [
+              10,
+              20,
+              30
+            ],
+            "checked": true
+          },
+          "stageContexts": {
+            "id": "pipeline/prepare/clean",
+            "runtimeStageId": "pipeline/prepare/clean#6",
+            "name": "pipeline/prepare/Clean",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "cleaned": [
+                1,
+                2,
+                3
+              ]
+            },
+            "stageReads": {},
+            "description": "Drop the bad rows",
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to pipeline/prepare/Scale stage",
+                "timestamp": 1787114268354,
+                "targetStage": "pipeline/prepare/Scale"
+              }
+            ],
+            "next": {
+              "id": "pipeline/prepare/scale",
+              "runtimeStageId": "pipeline/prepare/scale#10",
+              "name": "pipeline/prepare/Scale",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "scaled": [
+                  10,
+                  20,
+                  30
+                ]
+              },
+              "stageReads": {
+                "cleaned": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "description": "Scale every row",
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to pipeline/prepare/Check stage",
+                  "timestamp": 1787114268355,
+                  "targetStage": "pipeline/prepare/Check"
+                }
+              ],
+              "next": {
+                "id": "pipeline/prepare/check",
+                "runtimeStageId": "pipeline/prepare/check#13",
+                "name": "pipeline/prepare/Check",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "checked": true
+                },
+                "stageReads": {
+                  "scaled": [
+                    10,
+                    20,
+                    30
+                  ]
+                },
+                "description": "Sanity-check the result"
+              }
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "cleaned": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "cleaned",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/prepare/Clean",
+              "stageId": "pipeline/prepare/clean",
+              "runtimeStageId": "pipeline/prepare/clean#6",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "scaled": [
+                  10,
+                  20,
+                  30
+                ]
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "scaled",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/prepare/Scale",
+              "stageId": "pipeline/prepare/scale",
+              "runtimeStageId": "pipeline/prepare/scale#10",
+              "idx": 1
+            },
+            {
+              "overwrite": {
+                "checked": true
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "checked",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/prepare/Check",
+              "stageId": "pipeline/prepare/check",
+              "runtimeStageId": "pipeline/prepare/check#13",
+              "idx": 2
+            }
+          ]
+        },
+        "parentStageId": "pipeline/prepare.pipeline/Prepare"
+      },
+      "pipeline": {
+        "subflowId": "pipeline",
+        "subflowName": "Pipeline",
+        "treeContext": {
+          "globalContext": {
+            "fetched": "rows",
+            "finished": true
+          },
+          "stageContexts": {
+            "id": "pipeline/fetch",
+            "runtimeStageId": "pipeline/fetch#4",
+            "name": "pipeline/Fetch",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {
+              "totalChildren": 2,
+              "orderOfExecution": "ChildrenAfterStage"
+            },
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "fetched": "rows"
+            },
+            "description": "Pull the rows",
+            "flowMessages": [
+              {
+                "type": "children",
+                "description": "Executing all 2 children in parallel: pipeline/Prepare, pipeline/Verify",
+                "timestamp": 1787114268354,
+                "count": 2,
+                "targetStage": [
+                  "pipeline/Prepare",
+                  "pipeline/Verify"
+                ]
+              },
+              {
+                "type": "next",
+                "description": "Moving to pipeline/Finish stage",
+                "timestamp": 1787114268356,
+                "targetStage": "pipeline/Finish"
+              }
+            ],
+            "next": {
+              "id": "pipeline/finish",
+              "runtimeStageId": "pipeline/finish#14",
+              "name": "pipeline/Finish",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "finished": true
+              },
+              "description": "Close the pipeline"
+            },
+            "children": [
+              {
+                "id": "pipeline/prepare",
+                "runtimeStageId": "pipeline/prepare#5",
+                "name": "pipeline/Prepare",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "subflowId": "pipeline/prepare",
+                "flowMessages": [
+                  {
+                    "type": "subflow",
+                    "description": "Entering Prepare subflow",
+                    "timestamp": 1787114268354,
+                    "targetStage": "pipeline/prepare"
+                  },
+                  {
+                    "type": "subflow",
+                    "description": "Exiting Prepare subflow",
+                    "timestamp": 1787114268356,
+                    "targetStage": "pipeline/prepare"
+                  }
+                ]
+              },
+              {
+                "id": "pipeline/verify",
+                "runtimeStageId": "pipeline/verify#7",
+                "name": "pipeline/Verify",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "subflowId": "pipeline/verify",
+                "flowMessages": [
+                  {
+                    "type": "subflow",
+                    "description": "Entering Verify subflow",
+                    "timestamp": 1787114268354,
+                    "targetStage": "pipeline/verify"
+                  },
+                  {
+                    "type": "subflow",
+                    "description": "Exiting Verify subflow",
+                    "timestamp": 1787114268355,
+                    "targetStage": "pipeline/verify"
+                  }
+                ]
+              }
+            ]
+          },
+          "history": [
+            {
+              "overwrite": {
+                "fetched": "rows"
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "fetched",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/Fetch",
+              "stageId": "pipeline/fetch",
+              "runtimeStageId": "pipeline/fetch#4",
+              "idx": 0
+            },
+            {
+              "overwrite": {},
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [],
+              "stage": "pipeline/Verify",
+              "stageId": "pipeline/verify",
+              "runtimeStageId": "pipeline/verify#7",
+              "idx": 1
+            },
+            {
+              "overwrite": {},
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [],
+              "stage": "pipeline/Verify",
+              "stageId": "pipeline/verify",
+              "runtimeStageId": "pipeline/verify#7",
+              "idx": 2
+            },
+            {
+              "overwrite": {},
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [],
+              "stage": "pipeline/Prepare",
+              "stageId": "pipeline/prepare",
+              "runtimeStageId": "pipeline/prepare#5",
+              "idx": 3
+            },
+            {
+              "overwrite": {},
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [],
+              "stage": "pipeline/Prepare",
+              "stageId": "pipeline/prepare",
+              "runtimeStageId": "pipeline/prepare#5",
+              "idx": 4
+            },
+            {
+              "overwrite": {
+                "finished": true
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "finished",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/Finish",
+              "stageId": "pipeline/finish",
+              "runtimeStageId": "pipeline/finish#14",
+              "idx": 5
+            }
+          ]
+        },
+        "parentStageId": "pipeline.Pipeline"
+      },
+      "pipeline#3": {
+        "subflowId": "pipeline",
+        "subflowName": "Pipeline",
+        "treeContext": {
+          "globalContext": {
+            "fetched": "rows",
+            "finished": true
+          },
+          "stageContexts": {
+            "id": "pipeline/fetch",
+            "runtimeStageId": "pipeline/fetch#4",
+            "name": "pipeline/Fetch",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {
+              "totalChildren": 2,
+              "orderOfExecution": "ChildrenAfterStage"
+            },
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "fetched": "rows"
+            },
+            "description": "Pull the rows",
+            "flowMessages": [
+              {
+                "type": "children",
+                "description": "Executing all 2 children in parallel: pipeline/Prepare, pipeline/Verify",
+                "timestamp": 1787114268354,
+                "count": 2,
+                "targetStage": [
+                  "pipeline/Prepare",
+                  "pipeline/Verify"
+                ]
+              },
+              {
+                "type": "next",
+                "description": "Moving to pipeline/Finish stage",
+                "timestamp": 1787114268356,
+                "targetStage": "pipeline/Finish"
+              }
+            ],
+            "next": {
+              "id": "pipeline/finish",
+              "runtimeStageId": "pipeline/finish#14",
+              "name": "pipeline/Finish",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "finished": true
+              },
+              "description": "Close the pipeline"
+            },
+            "children": [
+              {
+                "id": "pipeline/prepare",
+                "runtimeStageId": "pipeline/prepare#5",
+                "name": "pipeline/Prepare",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "subflowId": "pipeline/prepare",
+                "flowMessages": [
+                  {
+                    "type": "subflow",
+                    "description": "Entering Prepare subflow",
+                    "timestamp": 1787114268354,
+                    "targetStage": "pipeline/prepare"
+                  },
+                  {
+                    "type": "subflow",
+                    "description": "Exiting Prepare subflow",
+                    "timestamp": 1787114268356,
+                    "targetStage": "pipeline/prepare"
+                  }
+                ]
+              },
+              {
+                "id": "pipeline/verify",
+                "runtimeStageId": "pipeline/verify#7",
+                "name": "pipeline/Verify",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "subflowId": "pipeline/verify",
+                "flowMessages": [
+                  {
+                    "type": "subflow",
+                    "description": "Entering Verify subflow",
+                    "timestamp": 1787114268354,
+                    "targetStage": "pipeline/verify"
+                  },
+                  {
+                    "type": "subflow",
+                    "description": "Exiting Verify subflow",
+                    "timestamp": 1787114268355,
+                    "targetStage": "pipeline/verify"
+                  }
+                ]
+              }
+            ]
+          },
+          "history": [
+            {
+              "overwrite": {
+                "fetched": "rows"
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "fetched",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/Fetch",
+              "stageId": "pipeline/fetch",
+              "runtimeStageId": "pipeline/fetch#4",
+              "idx": 0
+            },
+            {
+              "overwrite": {},
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [],
+              "stage": "pipeline/Verify",
+              "stageId": "pipeline/verify",
+              "runtimeStageId": "pipeline/verify#7",
+              "idx": 1
+            },
+            {
+              "overwrite": {},
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [],
+              "stage": "pipeline/Verify",
+              "stageId": "pipeline/verify",
+              "runtimeStageId": "pipeline/verify#7",
+              "idx": 2
+            },
+            {
+              "overwrite": {},
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [],
+              "stage": "pipeline/Prepare",
+              "stageId": "pipeline/prepare",
+              "runtimeStageId": "pipeline/prepare#5",
+              "idx": 3
+            },
+            {
+              "overwrite": {},
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [],
+              "stage": "pipeline/Prepare",
+              "stageId": "pipeline/prepare",
+              "runtimeStageId": "pipeline/prepare#5",
+              "idx": 4
+            },
+            {
+              "overwrite": {
+                "finished": true
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "finished",
+                  "verb": "set"
+                }
+              ],
+              "stage": "pipeline/Finish",
+              "stageId": "pipeline/finish",
+              "runtimeStageId": "pipeline/finish#14",
+              "idx": 5
+            }
+          ]
+        },
+        "parentStageId": "pipeline.Pipeline"
+      }
+    }
+  },
+  "narrativeEntries": [
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Seed the run.",
+      "depth": 0,
+      "stageName": "Seed",
+      "stageId": "seed",
+      "runtimeStageId": "seed#0"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write raw = (3 items)",
+      "depth": 1,
+      "stageName": "Seed",
+      "stageId": "seed",
+      "runtimeStageId": "seed#0",
+      "stepNumber": 1,
+      "key": "raw",
+      "rawValue": [
+        3,
+        -1,
+        7
+      ]
+    },
+    {
+      "type": "fork",
+      "text": "[Parallel]: Forking into 2 parallel paths: Prepare, Pipeline.",
+      "depth": 0,
+      "stageId": "seed",
+      "runtimeStageId": "seed#0"
+    },
+    {
+      "type": "subflow",
+      "text": "Entering Prepare: Drop the bad rows.",
+      "depth": 0,
+      "stageName": "Prepare",
+      "stageId": "prepare",
+      "runtimeStageId": "prepare#1",
+      "subflowId": "prepare",
+      "direction": "entry"
+    },
+    {
+      "type": "subflow",
+      "text": "Entering Pipeline: Pull the rows.",
+      "depth": 0,
+      "stageName": "Pipeline",
+      "stageId": "pipeline",
+      "runtimeStageId": "pipeline#3",
+      "subflowId": "pipeline",
+      "direction": "entry"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Drop the bad rows.",
+      "depth": 0,
+      "stageName": "prepare/Clean",
+      "stageId": "prepare/clean",
+      "runtimeStageId": "prepare/clean#2",
+      "subflowId": "prepare"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read raw = undefined",
+      "depth": 1,
+      "stageName": "prepare/Clean",
+      "stageId": "prepare/clean",
+      "runtimeStageId": "prepare/clean#2",
+      "stepNumber": 1,
+      "subflowId": "prepare",
+      "key": "raw"
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write cleaned = (3 items)",
+      "depth": 1,
+      "stageName": "prepare/Clean",
+      "stageId": "prepare/clean",
+      "runtimeStageId": "prepare/clean#2",
+      "stepNumber": 2,
+      "subflowId": "prepare",
+      "key": "cleaned",
+      "rawValue": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Pull the rows.",
+      "depth": 0,
+      "stageName": "pipeline/Fetch",
+      "stageId": "pipeline/fetch",
+      "runtimeStageId": "pipeline/fetch#4",
+      "subflowId": "pipeline"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write fetched = \"rows\"",
+      "depth": 1,
+      "stageName": "pipeline/Fetch",
+      "stageId": "pipeline/fetch",
+      "runtimeStageId": "pipeline/fetch#4",
+      "stepNumber": 1,
+      "subflowId": "pipeline",
+      "key": "fetched",
+      "rawValue": "rows"
+    },
+    {
+      "type": "fork",
+      "text": "[Parallel]: Forking into 2 parallel paths: pipeline/Prepare, pipeline/Verify.",
+      "depth": 0,
+      "stageId": "pipeline/fetch",
+      "runtimeStageId": "pipeline/fetch#4",
+      "subflowId": "pipeline"
+    },
+    {
+      "type": "subflow",
+      "text": "Entering Prepare: Drop the bad rows.",
+      "depth": 0,
+      "stageName": "Prepare",
+      "stageId": "pipeline/prepare",
+      "runtimeStageId": "pipeline/prepare#5",
+      "subflowId": "pipeline/prepare",
+      "direction": "entry"
+    },
+    {
+      "type": "subflow",
+      "text": "Entering Verify: Add the rows up.",
+      "depth": 0,
+      "stageName": "Verify",
+      "stageId": "pipeline/verify",
+      "runtimeStageId": "pipeline/verify#7",
+      "subflowId": "pipeline/verify",
+      "direction": "entry"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Drop the bad rows.",
+      "depth": 0,
+      "stageName": "pipeline/prepare/Clean",
+      "stageId": "pipeline/prepare/clean",
+      "runtimeStageId": "pipeline/prepare/clean#6",
+      "subflowId": "pipeline/prepare"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read raw = undefined",
+      "depth": 1,
+      "stageName": "pipeline/prepare/Clean",
+      "stageId": "pipeline/prepare/clean",
+      "runtimeStageId": "pipeline/prepare/clean#6",
+      "stepNumber": 1,
+      "subflowId": "pipeline/prepare",
+      "key": "raw"
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write cleaned = (3 items)",
+      "depth": 1,
+      "stageName": "pipeline/prepare/Clean",
+      "stageId": "pipeline/prepare/clean",
+      "runtimeStageId": "pipeline/prepare/clean#6",
+      "stepNumber": 2,
+      "subflowId": "pipeline/prepare",
+      "key": "cleaned",
+      "rawValue": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Add the rows up.",
+      "depth": 0,
+      "stageName": "pipeline/verify/Tally",
+      "stageId": "pipeline/verify/tally",
+      "runtimeStageId": "pipeline/verify/tally#8",
+      "subflowId": "pipeline/verify"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read scaled = undefined",
+      "depth": 1,
+      "stageName": "pipeline/verify/Tally",
+      "stageId": "pipeline/verify/tally",
+      "runtimeStageId": "pipeline/verify/tally#8",
+      "stepNumber": 1,
+      "subflowId": "pipeline/verify",
+      "key": "scaled"
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write total = 0",
+      "depth": 1,
+      "stageName": "pipeline/verify/Tally",
+      "stageId": "pipeline/verify/tally",
+      "runtimeStageId": "pipeline/verify/tally#8",
+      "stepNumber": 2,
+      "subflowId": "pipeline/verify",
+      "key": "total",
+      "rawValue": 0
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next step: Scale every row.",
+      "depth": 0,
+      "stageName": "prepare/Scale",
+      "stageId": "prepare/scale",
+      "runtimeStageId": "prepare/scale#9",
+      "subflowId": "prepare"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read cleaned = (3 items)",
+      "depth": 1,
+      "stageName": "prepare/Scale",
+      "stageId": "prepare/scale",
+      "runtimeStageId": "prepare/scale#9",
+      "stepNumber": 1,
+      "subflowId": "prepare",
+      "key": "cleaned",
+      "rawValue": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write scaled = (3 items)",
+      "depth": 1,
+      "stageName": "prepare/Scale",
+      "stageId": "prepare/scale",
+      "runtimeStageId": "prepare/scale#9",
+      "stepNumber": 2,
+      "subflowId": "prepare",
+      "key": "scaled",
+      "rawValue": [
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next step: Scale every row.",
+      "depth": 0,
+      "stageName": "pipeline/prepare/Scale",
+      "stageId": "pipeline/prepare/scale",
+      "runtimeStageId": "pipeline/prepare/scale#10",
+      "subflowId": "pipeline/prepare"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read cleaned = (3 items)",
+      "depth": 1,
+      "stageName": "pipeline/prepare/Scale",
+      "stageId": "pipeline/prepare/scale",
+      "runtimeStageId": "pipeline/prepare/scale#10",
+      "stepNumber": 1,
+      "subflowId": "pipeline/prepare",
+      "key": "cleaned",
+      "rawValue": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write scaled = (3 items)",
+      "depth": 1,
+      "stageName": "pipeline/prepare/Scale",
+      "stageId": "pipeline/prepare/scale",
+      "runtimeStageId": "pipeline/prepare/scale#10",
+      "stepNumber": 2,
+      "subflowId": "pipeline/prepare",
+      "key": "scaled",
+      "rawValue": [
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next step: Sign the tally off.",
+      "depth": 0,
+      "stageName": "pipeline/verify/Sign",
+      "stageId": "pipeline/verify/sign",
+      "runtimeStageId": "pipeline/verify/sign#11",
+      "subflowId": "pipeline/verify"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write checked = true",
+      "depth": 1,
+      "stageName": "pipeline/verify/Sign",
+      "stageId": "pipeline/verify/sign",
+      "runtimeStageId": "pipeline/verify/sign#11",
+      "stepNumber": 1,
+      "subflowId": "pipeline/verify",
+      "key": "checked",
+      "rawValue": true
+    },
+    {
+      "type": "stage",
+      "text": "Stage 3: Next step: Sanity-check the result.",
+      "depth": 0,
+      "stageName": "prepare/Check",
+      "stageId": "prepare/check",
+      "runtimeStageId": "prepare/check#12",
+      "subflowId": "prepare"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read scaled = (3 items)",
+      "depth": 1,
+      "stageName": "prepare/Check",
+      "stageId": "prepare/check",
+      "runtimeStageId": "prepare/check#12",
+      "stepNumber": 1,
+      "subflowId": "prepare",
+      "key": "scaled",
+      "rawValue": [
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write checked = true",
+      "depth": 1,
+      "stageName": "prepare/Check",
+      "stageId": "prepare/check",
+      "runtimeStageId": "prepare/check#12",
+      "stepNumber": 2,
+      "subflowId": "prepare",
+      "key": "checked",
+      "rawValue": true
+    },
+    {
+      "type": "subflow",
+      "text": "Exiting the Verify subflow.",
+      "depth": 0,
+      "stageName": "Verify",
+      "stageId": "pipeline/verify",
+      "runtimeStageId": "pipeline/verify#7",
+      "subflowId": "pipeline/verify",
+      "direction": "exit"
+    },
+    {
+      "type": "subflow",
+      "text": "Exiting the Prepare subflow.",
+      "depth": 0,
+      "stageName": "Prepare",
+      "stageId": "prepare",
+      "runtimeStageId": "prepare#1",
+      "subflowId": "prepare",
+      "direction": "exit"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 3: Next step: Sanity-check the result.",
+      "depth": 0,
+      "stageName": "pipeline/prepare/Check",
+      "stageId": "pipeline/prepare/check",
+      "runtimeStageId": "pipeline/prepare/check#13",
+      "subflowId": "pipeline/prepare"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read scaled = (3 items)",
+      "depth": 1,
+      "stageName": "pipeline/prepare/Check",
+      "stageId": "pipeline/prepare/check",
+      "runtimeStageId": "pipeline/prepare/check#13",
+      "stepNumber": 1,
+      "subflowId": "pipeline/prepare",
+      "key": "scaled",
+      "rawValue": [
+        10,
+        20,
+        30
+      ]
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write checked = true",
+      "depth": 1,
+      "stageName": "pipeline/prepare/Check",
+      "stageId": "pipeline/prepare/check",
+      "runtimeStageId": "pipeline/prepare/check#13",
+      "stepNumber": 2,
+      "subflowId": "pipeline/prepare",
+      "key": "checked",
+      "rawValue": true
+    },
+    {
+      "type": "subflow",
+      "text": "Exiting the Prepare subflow.",
+      "depth": 0,
+      "stageName": "Prepare",
+      "stageId": "pipeline/prepare",
+      "runtimeStageId": "pipeline/prepare#5",
+      "subflowId": "pipeline/prepare",
+      "direction": "exit"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next step: Close the pipeline.",
+      "depth": 0,
+      "stageName": "pipeline/Finish",
+      "stageId": "pipeline/finish",
+      "runtimeStageId": "pipeline/finish#14",
+      "subflowId": "pipeline"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write finished = true",
+      "depth": 1,
+      "stageName": "pipeline/Finish",
+      "stageId": "pipeline/finish",
+      "runtimeStageId": "pipeline/finish#14",
+      "stepNumber": 1,
+      "subflowId": "pipeline",
+      "key": "finished",
+      "rawValue": true
+    },
+    {
+      "type": "subflow",
+      "text": "Exiting the Pipeline subflow.",
+      "depth": 0,
+      "stageName": "Pipeline",
+      "stageId": "pipeline",
+      "runtimeStageId": "pipeline#3",
+      "subflowId": "pipeline",
+      "direction": "exit"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next step: Write the report.",
+      "depth": 0,
+      "stageName": "Report",
+      "stageId": "report",
+      "runtimeStageId": "report#15"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read finished = undefined",
+      "depth": 1,
+      "stageName": "Report",
+      "stageId": "report",
+      "runtimeStageId": "report#15",
+      "stepNumber": 1,
+      "key": "finished"
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Write report = \"finished=undefined\"",
+      "depth": 1,
+      "stageName": "Report",
+      "stageId": "report",
+      "runtimeStageId": "report#15",
+      "stepNumber": 2,
+      "key": "report",
+      "rawValue": "finished=undefined"
+    }
+  ],
+  "traceGraph": {
+    "nodes": [
+      {
+        "id": "seed",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Seed",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [],
+          "nextIds": [
+            "prepare",
+            "pipeline"
+          ],
+          "description": "Seed the run"
+        }
+      },
+      {
+        "id": "prepare",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Prepare",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": true,
+          "prevIds": [
+            "seed"
+          ],
+          "nextIds": [
+            "report"
+          ],
+          "subflowId": "prepare"
+        }
+      },
+      {
+        "id": "prepare/clean",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Clean",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "prepare",
+          "prevIds": [],
+          "nextIds": [
+            "prepare/scale"
+          ],
+          "description": "Drop the bad rows"
+        }
+      },
+      {
+        "id": "prepare/scale",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Scale",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "prepare",
+          "prevIds": [
+            "prepare/clean"
+          ],
+          "nextIds": [
+            "prepare/check"
+          ],
+          "description": "Scale every row"
+        }
+      },
+      {
+        "id": "prepare/check",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Check",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "prepare",
+          "prevIds": [],
+          "nextIds": [],
+          "description": "Sanity-check the result"
+        }
+      },
+      {
+        "id": "pipeline",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Pipeline",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": true,
+          "prevIds": [
+            "seed"
+          ],
+          "nextIds": [
+            "report"
+          ],
+          "subflowId": "pipeline"
+        }
+      },
+      {
+        "id": "pipeline/fetch",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Fetch",
+          "isDecider": false,
+          "isFork": true,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "pipeline",
+          "prevIds": [],
+          "nextIds": [
+            "pipeline/prepare",
+            "pipeline/verify",
+            "pipeline/finish"
+          ],
+          "description": "Pull the rows"
+        }
+      },
+      {
+        "id": "pipeline/prepare/clean",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Clean",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "pipeline/prepare",
+          "prevIds": [],
+          "nextIds": [
+            "pipeline/prepare/scale"
+          ],
+          "description": "Drop the bad rows"
+        }
+      },
+      {
+        "id": "pipeline/prepare/scale",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Scale",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "pipeline/prepare",
+          "prevIds": [
+            "pipeline/prepare/clean"
+          ],
+          "nextIds": [
+            "pipeline/prepare/check"
+          ],
+          "description": "Scale every row"
+        }
+      },
+      {
+        "id": "pipeline/prepare/check",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Check",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "pipeline/prepare",
+          "prevIds": [],
+          "nextIds": [],
+          "description": "Sanity-check the result"
+        }
+      },
+      {
+        "id": "pipeline/prepare",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Prepare",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": true,
+          "subflowOf": "pipeline",
+          "prevIds": [],
+          "nextIds": [],
+          "subflowId": "prepare"
+        }
+      },
+      {
+        "id": "pipeline/verify/tally",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Tally",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "pipeline/verify",
+          "prevIds": [],
+          "nextIds": [
+            "pipeline/verify/sign"
+          ],
+          "description": "Add the rows up"
+        }
+      },
+      {
+        "id": "pipeline/verify/sign",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Sign",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "pipeline/verify",
+          "prevIds": [],
+          "nextIds": [],
+          "description": "Sign the tally off"
+        }
+      },
+      {
+        "id": "pipeline/verify",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Verify",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": true,
+          "subflowOf": "pipeline",
+          "prevIds": [],
+          "nextIds": [],
+          "subflowId": "verify"
+        }
+      },
+      {
+        "id": "pipeline/finish",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Finish",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "pipeline",
+          "prevIds": [],
+          "nextIds": [],
+          "description": "Close the pipeline"
+        }
+      },
+      {
+        "id": "report",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Report",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "prepare",
+            "pipeline"
+          ],
+          "nextIds": [],
+          "description": "Write the report"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "seed->prepare:fork-branch",
+        "source": "seed",
+        "target": "prepare",
+        "data": {
+          "kind": "fork-branch"
+        }
+      },
+      {
+        "id": "prepare/clean->prepare/scale:next",
+        "source": "prepare/clean",
+        "target": "prepare/scale",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "prepare/scale->prepare/check:next",
+        "source": "prepare/scale",
+        "target": "prepare/check",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "seed->pipeline:fork-branch",
+        "source": "seed",
+        "target": "pipeline",
+        "data": {
+          "kind": "fork-branch"
+        }
+      },
+      {
+        "id": "pipeline/fetch->pipeline/prepare:fork-branch",
+        "source": "pipeline/fetch",
+        "target": "pipeline/prepare",
+        "data": {
+          "kind": "fork-branch"
+        }
+      },
+      {
+        "id": "pipeline/prepare/clean->pipeline/prepare/scale:next",
+        "source": "pipeline/prepare/clean",
+        "target": "pipeline/prepare/scale",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "pipeline/prepare/scale->pipeline/prepare/check:next",
+        "source": "pipeline/prepare/scale",
+        "target": "pipeline/prepare/check",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "pipeline/fetch->pipeline/verify:fork-branch",
+        "source": "pipeline/fetch",
+        "target": "pipeline/verify",
+        "data": {
+          "kind": "fork-branch"
+        }
+      },
+      {
+        "id": "pipeline/verify/tally->pipeline/verify/sign:next",
+        "source": "pipeline/verify/tally",
+        "target": "pipeline/verify/sign",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "pipeline/fetch->pipeline/finish:next",
+        "source": "pipeline/fetch",
+        "target": "pipeline/finish",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "prepare->report:next",
+        "source": "prepare",
+        "target": "report",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "pipeline->report:next",
+        "source": "pipeline",
+        "target": "report",
+        "data": {
+          "kind": "next"
+        }
+      }
+    ]
+  },
+  "runtimeOverlay": {
+    "executionOrder": [
+      {
+        "runtimeStageId": "seed#0",
+        "stageId": "seed",
+        "stageName": "Seed",
+        "timestampMs": 3.6994170000000395
+      },
+      {
+        "runtimeStageId": "prepare#1",
+        "stageId": "prepare",
+        "stageName": "prepare/Clean",
+        "timestampMs": 4.197708000000034
+      },
+      {
+        "runtimeStageId": "pipeline#3",
+        "stageId": "pipeline",
+        "stageName": "pipeline/Fetch",
+        "timestampMs": 4.5685830000000465
+      },
+      {
+        "runtimeStageId": "prepare/clean#2",
+        "stageId": "prepare/clean",
+        "stageName": "prepare/Clean",
+        "timestampMs": 4.8285000000000196
+      },
+      {
+        "runtimeStageId": "pipeline/fetch#4",
+        "stageId": "pipeline/fetch",
+        "stageName": "pipeline/Fetch",
+        "timestampMs": 4.927833000000021
+      },
+      {
+        "runtimeStageId": "pipeline/prepare#5",
+        "stageId": "pipeline/prepare",
+        "stageName": "pipeline/prepare/Clean",
+        "timestampMs": 5.013875000000041
+      },
+      {
+        "runtimeStageId": "pipeline/verify#7",
+        "stageId": "pipeline/verify",
+        "stageName": "pipeline/verify/Tally",
+        "timestampMs": 5.124292000000025
+      },
+      {
+        "runtimeStageId": "pipeline/prepare/clean#6",
+        "stageId": "pipeline/prepare/clean",
+        "stageName": "pipeline/prepare/Clean",
+        "timestampMs": 5.57687500000003
+      },
+      {
+        "runtimeStageId": "pipeline/verify/tally#8",
+        "stageId": "pipeline/verify/tally",
+        "stageName": "pipeline/verify/Tally",
+        "timestampMs": 5.714542000000051
+      },
+      {
+        "runtimeStageId": "prepare/scale#9",
+        "stageId": "prepare/scale",
+        "stageName": "prepare/Scale",
+        "timestampMs": 5.752708000000041
+      },
+      {
+        "runtimeStageId": "pipeline/prepare/scale#10",
+        "stageId": "pipeline/prepare/scale",
+        "stageName": "pipeline/prepare/Scale",
+        "timestampMs": 6.161250000000052
+      },
+      {
+        "runtimeStageId": "pipeline/verify/sign#11",
+        "stageId": "pipeline/verify/sign",
+        "stageName": "pipeline/verify/Sign",
+        "timestampMs": 6.222833000000037
+      },
+      {
+        "runtimeStageId": "prepare/check#12",
+        "stageId": "prepare/check",
+        "stageName": "prepare/Check",
+        "timestampMs": 6.34658300000001
+      },
+      {
+        "runtimeStageId": "pipeline/prepare/check#13",
+        "stageId": "pipeline/prepare/check",
+        "stageName": "pipeline/prepare/Check",
+        "timestampMs": 6.652750000000026
+      },
+      {
+        "runtimeStageId": "pipeline/finish#14",
+        "stageId": "pipeline/finish",
+        "stageName": "pipeline/Finish",
+        "timestampMs": 7.1235000000000355
+      },
+      {
+        "runtimeStageId": "report#15",
+        "stageId": "report",
+        "stageName": "Report",
+        "timestampMs": 7.299833000000035
+      }
+    ],
+    "errors": [],
+    "running": false
+  }
+}
