@@ -227,7 +227,16 @@ export function TraceViewer({
 
   // The chart's colouring, rebuilt from the run's own commit log.
   const runtimeOverlay = useMemo(
-    () => (prepared.ok ? overlayFromSnapshot(prepared.recording.snapshot as never) : undefined),
+    () =>
+      prepared.ok
+        ? overlayFromSnapshot(prepared.recording.snapshot as never, {
+            // Retry attempts live in the narrative, never in the commit log —
+            // a discarded attempt commits nothing.
+            narrativeEntries: prepared.recording.narrativeEntries as
+              | readonly { type?: unknown; runtimeStageId?: unknown }[]
+              | undefined,
+          })
+        : undefined,
     [prepared],
   );
 

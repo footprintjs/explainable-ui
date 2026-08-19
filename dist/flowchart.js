@@ -410,7 +410,7 @@ function StageIcon({ type, color }) {
 var StageNode = memo(function StageNode2({
   data
 }) {
-  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId } = data;
+  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts } = data;
   const effectiveIcon = icon || (isLazy ? "lazy" : void 0);
   const isLazyUnresolved = isLazy && !done && !active;
   const injectedRef = useRef(false);
@@ -425,6 +425,8 @@ var StageNode = memo(function StageNode2({
     injectedRef.current = true;
   }, []);
   const isOnPath = active || done;
+  const showRetryBadge = typeof retryAttempts === "number" && retryAttempts > 1;
+  const retryLabel = showRetryBadge ? `retried, attempt ${retryAttempts} of ${retryAttempts} ${error ? "failed" : "succeeded"}` : void 0;
   const isHero = data.emphasis === "hero";
   const isMuted = data.emphasis === "muted";
   const sizeScale = data.size === "lg" ? 1.3 : data.size === "sm" ? 0.85 : 1;
@@ -534,6 +536,41 @@ var StageNode = memo(function StageNode2({
                 boxShadow: `0 0 10px color-mix(in srgb, ${theme.warning} 60%, transparent)`
               },
               children: "NOW"
+            }
+          ),
+          showRetryBadge && /* @__PURE__ */ jsxs(
+            "div",
+            {
+              role: "img",
+              "aria-label": retryLabel,
+              title: retryLabel,
+              style: {
+                position: "absolute",
+                bottom: -9,
+                right: -8,
+                zIndex: 11,
+                display: "flex",
+                alignItems: "center",
+                gap: 2,
+                background: theme.bgSecondary,
+                border: `1px solid ${theme.warning}`,
+                color: theme.warning,
+                fontFamily: theme.fontSans,
+                fontSize: 9,
+                fontWeight: 700,
+                lineHeight: 1,
+                letterSpacing: 0.2,
+                padding: "2px 5px",
+                borderRadius: 9,
+                whiteSpace: "nowrap"
+              },
+              children: [
+                /* @__PURE__ */ jsx2("span", { "aria-hidden": "true", children: "\u21BA" }),
+                /* @__PURE__ */ jsxs("span", { "aria-hidden": "true", children: [
+                  "\xD7",
+                  retryAttempts
+                ] })
+              ]
             }
           ),
           isDecider ? /* @__PURE__ */ jsxs("div", { style: { position: "relative", width: 120, height: 72 }, children: [
@@ -2298,6 +2335,7 @@ function createTraceRuntimeOverlay(options = {}) {
   let executionOrder = [];
   const recordedRuntimeStageIds = /* @__PURE__ */ new Set();
   const errors = /* @__PURE__ */ new Map();
+  const retryAttempts = /* @__PURE__ */ new Map();
   let running = false;
   const notifier = createNotifier("traceRuntimeOverlay");
   const notifyChange = notifier.notify;
@@ -2327,6 +2365,17 @@ function createTraceRuntimeOverlay(options = {}) {
       const baseStageId = parseStageIdFromRuntimeStageId(runtimeStageId);
       pushStep(runtimeStageId, baseStageId, event.stageName);
     },
+    onStageRetry(event) {
+      const runtimeStageId = event.traversalContext?.runtimeStageId;
+      if (!runtimeStageId) return;
+      const attempt = event.attempt;
+      const attemptsMade = typeof attempt === "number" && Number.isFinite(attempt) && attempt >= 1 ? Math.floor(attempt) + 1 : (retryAttempts.get(runtimeStageId) ?? 1) + 1;
+      const known = retryAttempts.get(runtimeStageId) ?? 1;
+      if (attemptsMade > known) {
+        retryAttempts.set(runtimeStageId, attemptsMade);
+        notifyChange();
+      }
+    },
     onError(event) {
       const fallbackId = event.stageId ?? (event.traversalContext ? parseStageIdFromRuntimeStageId(event.traversalContext.runtimeStageId) : event.stageName);
       errors.set(fallbackId, event.message ?? "error");
@@ -2339,7 +2388,8 @@ function createTraceRuntimeOverlay(options = {}) {
       return {
         executionOrder: executionOrder.map((s) => ({ ...s })),
         errors: new Map(errors),
-        running
+        running,
+        retryAttempts: new Map(retryAttempts)
       };
     },
     subscribe: notifier.subscribe,
@@ -2348,6 +2398,7 @@ function createTraceRuntimeOverlay(options = {}) {
       executionOrder = [];
       recordedRuntimeStageIds.clear();
       errors.clear();
+      retryAttempts.clear();
       running = false;
     },
     seed(overlay) {
@@ -2356,6 +2407,10 @@ function createTraceRuntimeOverlay(options = {}) {
       for (const step of executionOrder) recordedRuntimeStageIds.add(step.runtimeStageId);
       errors.clear();
       for (const [stageId, message] of overlay.errors) errors.set(stageId, message);
+      retryAttempts.clear();
+      if (overlay.retryAttempts) {
+        for (const [rsid, attempts] of overlay.retryAttempts) retryAttempts.set(rsid, attempts);
+      }
       running = overlay.running;
       notifyChange();
     }
@@ -2369,7 +2424,8 @@ function sliceOverlay(overlay, index) {
       activeStageId: null,
       executedStageIds: /* @__PURE__ */ new Set(),
       executedOrderIds: [],
-      errors: overlay.errors
+      errors: overlay.errors,
+      retryAttempts: projectRetryAttempts(overlay, -1)
     };
   }
   if (index >= order.length) {
@@ -2379,7 +2435,8 @@ function sliceOverlay(overlay, index) {
       activeStageId: null,
       executedStageIds: new Set(allDone),
       executedOrderIds: order.map((s) => s.stageId),
-      errors: overlay.errors
+      errors: overlay.errors,
+      retryAttempts: projectRetryAttempts(overlay, order.length - 1)
     };
   }
   const clampedIndex = Math.max(0, Math.min(index, order.length - 1));
@@ -2397,8 +2454,28 @@ function sliceOverlay(overlay, index) {
     activeStageId,
     executedStageIds,
     executedOrderIds,
-    errors: overlay.errors
+    errors: overlay.errors,
+    retryAttempts: projectRetryAttempts(overlay, clampedIndex)
   };
+}
+var NO_RETRIES = /* @__PURE__ */ new Map();
+function projectRetryAttempts(overlay, upToIndex) {
+  const source = overlay.retryAttempts;
+  if (!source || source.size === 0) return NO_RETRIES;
+  const order = overlay.executionOrder;
+  const out = /* @__PURE__ */ new Map();
+  for (let i = 0; i <= upToIndex && i < order.length; i++) {
+    const step = order[i];
+    const attempts = source.get(step.runtimeStageId);
+    if (attempts !== void 0 && attempts > 1) out.set(step.stageId, attempts);
+  }
+  const stepped = new Set(order.map((s) => s.runtimeStageId));
+  for (const [runtimeStageId, attempts] of source) {
+    if (attempts > 1 && !stepped.has(runtimeStageId)) {
+      out.set(parseStageIdFromRuntimeStageId(runtimeStageId), attempts);
+    }
+  }
+  return out;
 }
 
 // src/components/FlowchartView/_internal/subflowDrill.ts
@@ -2810,7 +2887,7 @@ var DEFAULT_COLORS = {
   loop: rawDefaults.colors.warning
 };
 var EMPTY_SET = /* @__PURE__ */ new Set();
-function deriveOverlayFields(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds) {
+function deriveOverlayFields(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds, retryAttempts) {
   const isDone = doneStageIds.has(node.id);
   const isActive = activeStageId === node.id || coActiveStageIds.has(node.id);
   const wasExecuted = isDone || isActive;
@@ -2830,17 +2907,21 @@ function deriveOverlayFields(node, doneStageIds, activeStageId, errorMessage, ex
     error: hasError,
     dimmed,
     ...errorMessage && { errorMessage },
-    ...stepNumbers && { stepNumbers }
+    ...stepNumbers && { stepNumbers },
+    // Attempts are only ever interesting above 1 — a stage that ran once is
+    // the silent default, and "×1" on every node would be noise, not truth.
+    ...retryAttempts !== void 0 && retryAttempts > 1 && { retryAttempts }
   };
 }
-function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds) {
+function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds, retryAttempts) {
   const overlayFields = deriveOverlayFields(
     node,
     doneStageIds,
     activeStageId,
     errorMessage,
     executedOrderIds,
-    coActiveStageIds
+    coActiveStageIds,
+    retryAttempts
   );
   const { dimmed } = overlayFields;
   if (node.type !== void 0 && node.type !== "stage") {
@@ -2863,7 +2944,10 @@ function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage,
           errorMessage: overlayFields.errorMessage
         },
         ...finalDimmed && { dimmed: true },
-        ...overlayFields.stepNumbers && { stepNumbers: overlayFields.stepNumbers }
+        ...overlayFields.stepNumbers && { stepNumbers: overlayFields.stepNumbers },
+        ...overlayFields.retryAttempts !== void 0 && consumerData.retryAttempts === void 0 && {
+          retryAttempts: overlayFields.retryAttempts
+        }
       },
       ...finalDimmed && { style: { ...node.style ?? {}, opacity: 0.35 } }
     };
@@ -3021,7 +3105,8 @@ function TracedFlow({
       activeStageId: null,
       executedStageIds: /* @__PURE__ */ new Set(),
       executedOrderIds: [],
-      errors: /* @__PURE__ */ new Map()
+      errors: /* @__PURE__ */ new Map(),
+      retryAttempts: /* @__PURE__ */ new Map()
     };
     if (!overlay) return empty;
     const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
@@ -3035,7 +3120,8 @@ function TracedFlow({
         slice.activeStageId,
         slice.errors.get(n.id),
         slice.executedOrderIds,
-        coActiveStageIds ?? EMPTY_SET
+        coActiveStageIds ?? EMPTY_SET,
+        slice.retryAttempts?.get(n.id)
       )
     ),
     [positioned.nodes, slice, coActiveStageIds]
@@ -4427,6 +4513,7 @@ function createNodeViewRecorder(options) {
   let executionsOf = /* @__PURE__ */ new Map();
   let commitRefsOf = /* @__PURE__ */ new Map();
   let stageIdOfRuntimeStageId = /* @__PURE__ */ new Map();
+  let attemptsOfRuntimeStageId = /* @__PURE__ */ new Map();
   const notifier = createNotifier("node-view");
   const unsubStructure = structure.subscribe(() => notifier.notify());
   function recordExecution(event) {
@@ -4482,6 +4569,23 @@ function createNodeViewRecorder(options) {
     stageIdOfRuntimeStageId.set(runtimeStageId, stageId);
     notifier.notify();
   }
+  function recordRetry(event) {
+    const rsid = event.traversalContext?.runtimeStageId;
+    if (!rsid) {
+      devWarn(
+        () => `[createNodeViewRecorder] onStageRetry event without traversalContext.runtimeStageId \u2014 attempt attribution dropped (stage=${event.stageName}).`
+      );
+      return;
+    }
+    const attempt = event.attempt;
+    const prior = attemptsOfRuntimeStageId.get(rsid);
+    const attemptsMade = typeof attempt === "number" && Number.isFinite(attempt) && attempt >= 1 ? Math.floor(attempt) + 1 : (prior?.attempts ?? 1) + 1;
+    attemptsOfRuntimeStageId.set(rsid, {
+      attempts: Math.max(attemptsMade, prior?.attempts ?? 0),
+      ...typeof event.maxAttempts === "number" && Number.isFinite(event.maxAttempts) ? { maxAttempts: event.maxAttempts } : prior?.maxAttempts !== void 0 ? { maxAttempts: prior.maxAttempts } : {}
+    });
+    notifier.notify();
+  }
   function recordCommit(event) {
     const rsid = event.runtimeStageId;
     if (!rsid) {
@@ -4501,6 +4605,7 @@ function createNodeViewRecorder(options) {
     id,
     onStageExecuted: recordExecution,
     onError: recordError,
+    onStageRetry: recordRetry,
     onCommit: recordCommit,
     // onRunStart / onRunEnd — no-op for now (state stays alive across
     // runs; consumers call .reset() between runs if they want fresh
@@ -4526,6 +4631,18 @@ function createNodeViewRecorder(options) {
       }
       if (e.errorMessage) errorCount++;
     }
+    const withAttempts = execs.map((e) => {
+      const attemptInfo = attemptsOfRuntimeStageId.get(e.runtimeStageId);
+      if (!attemptInfo || attemptInfo.attempts <= 1) return { ...e };
+      return {
+        ...e,
+        attempts: attemptInfo.attempts,
+        ...attemptInfo.maxAttempts !== void 0 && { maxAttempts: attemptInfo.maxAttempts }
+      };
+    });
+    const retriedExecutionCount = withAttempts.filter(
+      (e) => e.attempts !== void 0 && e.attempts > 1
+    ).length;
     const d = structNode.data;
     return {
       stageId,
@@ -4548,13 +4665,14 @@ function createNodeViewRecorder(options) {
       // undefined). The slice() copies defend against consumer mutation.
       prevIds: d.prevIds.slice(),
       nextIds: d.nextIds.slice(),
-      executions: execs.map((e) => ({ ...e })),
+      executions: withAttempts,
       visitedInRun,
       executionCount,
       firstExecutedAt,
       lastExecutedAt,
       totalDurationMs,
       errorCount,
+      retriedExecutionCount,
       commitRuntimeStageIds: commitRefs.slice()
     };
   }
@@ -4595,6 +4713,7 @@ function createNodeViewRecorder(options) {
       executionsOf = /* @__PURE__ */ new Map();
       commitRefsOf = /* @__PURE__ */ new Map();
       stageIdOfRuntimeStageId = /* @__PURE__ */ new Map();
+      attemptsOfRuntimeStageId = /* @__PURE__ */ new Map();
       cachedIndex = null;
       cachedOwnVersion = -1;
       cachedStructureVersion = -1;
@@ -4617,6 +4736,7 @@ function createCommitFlowRecorder(options) {
     );
   }
   let rawCommits = [];
+  let attemptsOfRuntimeStageId = /* @__PURE__ */ new Map();
   const notifier = createNotifier("commit-flow");
   const unsubStructure = structure.subscribe(() => notifier.notify());
   function recordCommit(event) {
@@ -4637,9 +4757,26 @@ function createCommitFlowRecorder(options) {
     });
     notifier.notify();
   }
+  function recordRetry(event) {
+    const rsid = event.traversalContext?.runtimeStageId;
+    if (!rsid) {
+      devWarn(
+        () => `[createCommitFlowRecorder] onStageRetry without runtimeStageId \u2014 attempt attribution dropped (stage=${event.stageName}).`
+      );
+      return;
+    }
+    const attempt = event.attempt;
+    const prior = attemptsOfRuntimeStageId.get(rsid) ?? 1;
+    const attemptsMade = typeof attempt === "number" && Number.isFinite(attempt) && attempt >= 1 ? Math.floor(attempt) + 1 : prior + 1;
+    if (attemptsMade > prior) {
+      attemptsOfRuntimeStageId.set(rsid, attemptsMade);
+      notifier.notify();
+    }
+  }
   const recorder = {
     id,
     onCommit: recordCommit,
+    onStageRetry: recordRetry,
     onStageExecuted() {
     },
     onError() {
@@ -4733,6 +4870,7 @@ function createCommitFlowRecorder(options) {
           });
         }
       }
+      const attempts = attemptsOfRuntimeStageId.get(rc.runtimeStageId);
       const view = {
         runtimeStageId: rc.runtimeStageId,
         stageId: rc.stageId,
@@ -4743,7 +4881,8 @@ function createCommitFlowRecorder(options) {
         runtimeNextIds,
         dataDependencies,
         updates: { ...rc.updates },
-        reads: rc.reads.slice()
+        reads: rc.reads.slice(),
+        ...attempts !== void 0 && attempts > 1 && { attempts }
       };
       commits.push(view);
       byRuntimeStageId.set(view.runtimeStageId, view);
@@ -4770,6 +4909,7 @@ function createCommitFlowRecorder(options) {
     version: notifier.version,
     reset() {
       rawCommits = [];
+      attemptsOfRuntimeStageId = /* @__PURE__ */ new Map();
       cachedIndex = null;
       cachedOwnVersion = -1;
       cachedStructureVersion = -1;
@@ -5954,7 +6094,7 @@ function baseStageIdOf3(runtimeStageId) {
   const hashIdx = runtimeStageId.indexOf("#");
   return hashIdx >= 0 ? runtimeStageId.slice(0, hashIdx) : runtimeStageId;
 }
-function overlayFromSnapshot(snapshot) {
+function overlayFromSnapshot(snapshot, options = {}) {
   const commitLog = snapshot?.commitLog;
   const executionOrder = [];
   if (Array.isArray(commitLog)) {
@@ -5978,7 +6118,24 @@ function overlayFromSnapshot(snapshot) {
       });
     }
   }
-  return { executionOrder, errors: /* @__PURE__ */ new Map(), running: false };
+  return {
+    executionOrder,
+    errors: /* @__PURE__ */ new Map(),
+    running: false,
+    retryAttempts: retryAttemptsFrom(options.narrativeEntries)
+  };
+}
+function retryAttemptsFrom(entries) {
+  const attempts = /* @__PURE__ */ new Map();
+  if (!Array.isArray(entries)) return attempts;
+  for (const entry of entries) {
+    if (entry === null || typeof entry !== "object") continue;
+    if (entry.type !== "retry") continue;
+    const runtimeStageId = entry.runtimeStageId;
+    if (typeof runtimeStageId !== "string" || runtimeStageId.length === 0) continue;
+    attempts.set(runtimeStageId, (attempts.get(runtimeStageId) ?? 1) + 1);
+  }
+  return attempts;
 }
 
 // src/adapters/graphFromStructure.ts

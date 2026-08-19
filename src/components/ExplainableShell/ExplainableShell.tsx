@@ -1110,8 +1110,15 @@ export function ExplainableShell({
   // an integration "worked" but showed nothing. The commit log already holds
   // the execution order, so there is nothing to ask the consumer for.
   const runtimeOverlay = useMemo(
-    () => runtimeOverlayProp ?? (runtimeSnapshot ? overlayFromSnapshot(runtimeSnapshot) : undefined),
-    [runtimeOverlayProp, runtimeSnapshot],
+    () =>
+      runtimeOverlayProp ??
+      // The narrative rides along because retries leave no mark on the commit
+      // log: a failed attempt discards its writes. Without it a replayed
+      // retried stage would be the one thing the chart could not show.
+      (runtimeSnapshot
+        ? overlayFromSnapshot(runtimeSnapshot, { narrativeEntries })
+        : undefined),
+    [runtimeOverlayProp, runtimeSnapshot, narrativeEntries],
   );
 
   // A recording is THREE things — events, snapshot, structure — and only the

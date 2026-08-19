@@ -3585,7 +3585,7 @@ function baseStageIdOf(runtimeStageId) {
   const hashIdx = runtimeStageId.indexOf("#");
   return hashIdx >= 0 ? runtimeStageId.slice(0, hashIdx) : runtimeStageId;
 }
-function overlayFromSnapshot(snapshot) {
+function overlayFromSnapshot(snapshot, options = {}) {
   const commitLog = snapshot?.commitLog;
   const executionOrder = [];
   if (Array.isArray(commitLog)) {
@@ -3609,7 +3609,24 @@ function overlayFromSnapshot(snapshot) {
       });
     }
   }
-  return { executionOrder, errors: /* @__PURE__ */ new Map(), running: false };
+  return {
+    executionOrder,
+    errors: /* @__PURE__ */ new Map(),
+    running: false,
+    retryAttempts: retryAttemptsFrom(options.narrativeEntries)
+  };
+}
+function retryAttemptsFrom(entries) {
+  const attempts = /* @__PURE__ */ new Map();
+  if (!Array.isArray(entries)) return attempts;
+  for (const entry of entries) {
+    if (entry === null || typeof entry !== "object") continue;
+    if (entry.type !== "retry") continue;
+    const runtimeStageId = entry.runtimeStageId;
+    if (typeof runtimeStageId !== "string" || runtimeStageId.length === 0) continue;
+    attempts.set(runtimeStageId, (attempts.get(runtimeStageId) ?? 1) + 1);
+  }
+  return attempts;
 }
 
 // src/components/FlowchartView/_internal/devWarn.ts
@@ -4797,6 +4814,10 @@ function createNotifier(label = "notifier") {
 }
 
 // src/components/FlowchartView/createTraceRuntimeOverlay.ts
+function parseStageIdFromRuntimeStageId(runtimeStageId) {
+  const hashIdx = runtimeStageId.indexOf("#");
+  return hashIdx >= 0 ? runtimeStageId.slice(0, hashIdx) : runtimeStageId;
+}
 function sliceOverlay(overlay, index) {
   const order = overlay.executionOrder;
   if (order.length === 0) {
@@ -4805,7 +4826,8 @@ function sliceOverlay(overlay, index) {
       activeStageId: null,
       executedStageIds: /* @__PURE__ */ new Set(),
       executedOrderIds: [],
-      errors: overlay.errors
+      errors: overlay.errors,
+      retryAttempts: projectRetryAttempts(overlay, -1)
     };
   }
   if (index >= order.length) {
@@ -4815,7 +4837,8 @@ function sliceOverlay(overlay, index) {
       activeStageId: null,
       executedStageIds: new Set(allDone),
       executedOrderIds: order.map((s) => s.stageId),
-      errors: overlay.errors
+      errors: overlay.errors,
+      retryAttempts: projectRetryAttempts(overlay, order.length - 1)
     };
   }
   const clampedIndex = Math.max(0, Math.min(index, order.length - 1));
@@ -4833,8 +4856,28 @@ function sliceOverlay(overlay, index) {
     activeStageId,
     executedStageIds,
     executedOrderIds,
-    errors: overlay.errors
+    errors: overlay.errors,
+    retryAttempts: projectRetryAttempts(overlay, clampedIndex)
   };
+}
+var NO_RETRIES = /* @__PURE__ */ new Map();
+function projectRetryAttempts(overlay, upToIndex) {
+  const source = overlay.retryAttempts;
+  if (!source || source.size === 0) return NO_RETRIES;
+  const order = overlay.executionOrder;
+  const out = /* @__PURE__ */ new Map();
+  for (let i = 0; i <= upToIndex && i < order.length; i++) {
+    const step = order[i];
+    const attempts = source.get(step.runtimeStageId);
+    if (attempts !== void 0 && attempts > 1) out.set(step.stageId, attempts);
+  }
+  const stepped = new Set(order.map((s) => s.runtimeStageId));
+  for (const [runtimeStageId, attempts] of source) {
+    if (attempts > 1 && !stepped.has(runtimeStageId)) {
+      out.set(parseStageIdFromRuntimeStageId(runtimeStageId), attempts);
+    }
+  }
+  return out;
 }
 
 // src/components/StageNode/StageNode.tsx
@@ -5011,7 +5054,7 @@ function StageIcon({ type, color }) {
 var StageNode = memo5(function StageNode2({
   data
 }) {
-  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId } = data;
+  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts } = data;
   const effectiveIcon = icon || (isLazy ? "lazy" : void 0);
   const isLazyUnresolved = isLazy && !done && !active;
   const injectedRef = useRef5(false);
@@ -5026,6 +5069,8 @@ var StageNode = memo5(function StageNode2({
     injectedRef.current = true;
   }, []);
   const isOnPath = active || done;
+  const showRetryBadge = typeof retryAttempts === "number" && retryAttempts > 1;
+  const retryLabel = showRetryBadge ? `retried, attempt ${retryAttempts} of ${retryAttempts} ${error ? "failed" : "succeeded"}` : void 0;
   const isHero = data.emphasis === "hero";
   const isMuted = data.emphasis === "muted";
   const sizeScale = data.size === "lg" ? 1.3 : data.size === "sm" ? 0.85 : 1;
@@ -5135,6 +5180,41 @@ var StageNode = memo5(function StageNode2({
                 boxShadow: `0 0 10px color-mix(in srgb, ${theme.warning} 60%, transparent)`
               },
               children: "NOW"
+            }
+          ),
+          showRetryBadge && /* @__PURE__ */ jsxs17(
+            "div",
+            {
+              role: "img",
+              "aria-label": retryLabel,
+              title: retryLabel,
+              style: {
+                position: "absolute",
+                bottom: -9,
+                right: -8,
+                zIndex: 11,
+                display: "flex",
+                alignItems: "center",
+                gap: 2,
+                background: theme.bgSecondary,
+                border: `1px solid ${theme.warning}`,
+                color: theme.warning,
+                fontFamily: theme.fontSans,
+                fontSize: 9,
+                fontWeight: 700,
+                lineHeight: 1,
+                letterSpacing: 0.2,
+                padding: "2px 5px",
+                borderRadius: 9,
+                whiteSpace: "nowrap"
+              },
+              children: [
+                /* @__PURE__ */ jsx18("span", { "aria-hidden": "true", children: "\u21BA" }),
+                /* @__PURE__ */ jsxs17("span", { "aria-hidden": "true", children: [
+                  "\xD7",
+                  retryAttempts
+                ] })
+              ]
             }
           ),
           isDecider ? /* @__PURE__ */ jsxs17("div", { style: { position: "relative", width: 120, height: 72 }, children: [
@@ -6118,7 +6198,7 @@ var DEFAULT_COLORS = {
   loop: rawDefaults.colors.warning
 };
 var EMPTY_SET = /* @__PURE__ */ new Set();
-function deriveOverlayFields(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds) {
+function deriveOverlayFields(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds, retryAttempts) {
   const isDone = doneStageIds.has(node.id);
   const isActive = activeStageId === node.id || coActiveStageIds.has(node.id);
   const wasExecuted = isDone || isActive;
@@ -6138,17 +6218,21 @@ function deriveOverlayFields(node, doneStageIds, activeStageId, errorMessage, ex
     error: hasError,
     dimmed,
     ...errorMessage && { errorMessage },
-    ...stepNumbers && { stepNumbers }
+    ...stepNumbers && { stepNumbers },
+    // Attempts are only ever interesting above 1 — a stage that ran once is
+    // the silent default, and "×1" on every node would be noise, not truth.
+    ...retryAttempts !== void 0 && retryAttempts > 1 && { retryAttempts }
   };
 }
-function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds) {
+function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds, retryAttempts) {
   const overlayFields = deriveOverlayFields(
     node,
     doneStageIds,
     activeStageId,
     errorMessage,
     executedOrderIds,
-    coActiveStageIds
+    coActiveStageIds,
+    retryAttempts
   );
   const { dimmed } = overlayFields;
   if (node.type !== void 0 && node.type !== "stage") {
@@ -6171,7 +6255,10 @@ function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage,
           errorMessage: overlayFields.errorMessage
         },
         ...finalDimmed && { dimmed: true },
-        ...overlayFields.stepNumbers && { stepNumbers: overlayFields.stepNumbers }
+        ...overlayFields.stepNumbers && { stepNumbers: overlayFields.stepNumbers },
+        ...overlayFields.retryAttempts !== void 0 && consumerData.retryAttempts === void 0 && {
+          retryAttempts: overlayFields.retryAttempts
+        }
       },
       ...finalDimmed && { style: { ...node.style ?? {}, opacity: 0.35 } }
     };
@@ -6329,7 +6416,8 @@ function TracedFlow({
       activeStageId: null,
       executedStageIds: /* @__PURE__ */ new Set(),
       executedOrderIds: [],
-      errors: /* @__PURE__ */ new Map()
+      errors: /* @__PURE__ */ new Map(),
+      retryAttempts: /* @__PURE__ */ new Map()
     };
     if (!overlay) return empty;
     const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
@@ -6343,7 +6431,8 @@ function TracedFlow({
         slice.activeStageId,
         slice.errors.get(n.id),
         slice.executedOrderIds,
-        coActiveStageIds ?? EMPTY_SET
+        coActiveStageIds ?? EMPTY_SET,
+        slice.retryAttempts?.get(n.id)
       )
     ),
     [positioned.nodes, slice, coActiveStageIds]
@@ -7379,8 +7468,11 @@ function ExplainableShell({
   const snapshots = snapshotsProp ?? derivedFromRuntime?.snapshots ?? [];
   const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
   const runtimeOverlay = useMemo14(
-    () => runtimeOverlayProp ?? (runtimeSnapshot ? overlayFromSnapshot(runtimeSnapshot) : void 0),
-    [runtimeOverlayProp, runtimeSnapshot]
+    () => runtimeOverlayProp ?? // The narrative rides along because retries leave no mark on the commit
+    // log: a failed attempt discards its writes. Without it a replayed
+    // retried stage would be the one thing the chart could not show.
+    (runtimeSnapshot ? overlayFromSnapshot(runtimeSnapshot, { narrativeEntries }) : void 0),
+    [runtimeOverlayProp, runtimeSnapshot, narrativeEntries]
   );
   const missingChart = snapshots.length > 0 && !traceGraph?.nodes.length;
   useEffect11(() => {
@@ -8723,7 +8815,11 @@ function TraceViewer({
     return graph.nodes.length > 0 ? graph : void 0;
   }, [prepared]);
   const runtimeOverlay = useMemo15(
-    () => prepared.ok ? overlayFromSnapshot(prepared.recording.snapshot) : void 0,
+    () => prepared.ok ? overlayFromSnapshot(prepared.recording.snapshot, {
+      // Retry attempts live in the narrative, never in the commit log —
+      // a discarded attempt commits nothing.
+      narrativeEntries: prepared.recording.narrativeEntries
+    }) : void 0,
     [prepared]
   );
   if (!prepared.ok) {
@@ -8812,7 +8908,7 @@ function ExplainableProvider({
         traceGraph: graphFromStructure(
           parsed.recording.structure ?? parsed.recording.blueprint
         ),
-        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot),
+        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot, { narrativeEntries }),
         error: null
       };
     } catch (error) {
@@ -8822,7 +8918,7 @@ function ExplainableProvider({
         traceGraph: graphFromStructure(
           parsed.recording.structure ?? parsed.recording.blueprint
         ),
-        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot),
+        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot, { narrativeEntries }),
         error: `Could not read recording snapshot: ${error instanceof Error ? error.message : String(error)}`
       };
     }

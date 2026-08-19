@@ -5,6 +5,7 @@ import type { TraceGraph } from "../src/components/FlowchartView/traceStructureR
 import graphData from "./sample-graph.json";
 import runData from "./sample-run.json";
 import subflowRunData from "./sample-subflow-run.json";
+import retryRunData from "./sample-retry-run.json";
 
 // Rehydrate the JSON fixture: RuntimeOverlay.errors is a Map at runtime,
 // serialized as entry pairs by generate-run.ts.
@@ -20,6 +21,18 @@ const subflowRun = {
   runtimeOverlay: {
     ...subflowRunData.runtimeOverlay,
     errors: new Map((subflowRunData.runtimeOverlay.errors as [string, string][]) ?? []),
+  },
+};
+// The retried run (demo/generate-retry-run.ts). Both overlay Maps are
+// serialized as entry pairs — JSON.stringify silently turns a Map into {}.
+const retryRun = {
+  ...retryRunData,
+  runtimeOverlay: {
+    ...retryRunData.runtimeOverlay,
+    errors: new Map((retryRunData.runtimeOverlay.errors as [string, string][]) ?? []),
+    retryAttempts: new Map(
+      (retryRunData.runtimeOverlay.retryAttempts as [string, number][]) ?? [],
+    ),
   },
 };
 import { GALLERY, COMBINE, CONNECTED_AGENT } from "./sample-graphs";
@@ -101,6 +114,24 @@ export function Demo() {
           runtimeOverlay={subflowRun.runtimeOverlay as never}
           traceTheme={{ mode: "light" }}
           defaultExpanded={{ topology: true }}
+        />
+      </div>
+
+      {/* A run where one stage had to be TRIED AGAIN (demo/generate-retry-run.ts).
+          `FetchQuote` failed twice against a flaky upstream and succeeded on the
+          third attempt: the chart draws it done, with a `↺ ×3` attempt chip.
+          `Settle` DECLARES a retry policy and never needed it, so it stays
+          unmarked — declared is not the same as happened. */}
+      <div
+        data-testid="shell-retry-run"
+        style={{ border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden", background: "#fff", height: 640, marginBottom: 20 }}
+      >
+        <ExplainableShell
+          runtimeSnapshot={retryRun.runtimeSnapshot as never}
+          narrativeEntries={retryRun.narrativeEntries as never}
+          traceGraph={retryRun.traceGraph as never}
+          runtimeOverlay={retryRun.runtimeOverlay as never}
+          traceTheme={{ mode: "light" }}
         />
       </div>
 

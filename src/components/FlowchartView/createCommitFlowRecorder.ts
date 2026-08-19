@@ -76,6 +76,19 @@ interface FlowErrorEvent {
   readonly traversalContext?: TraversalContext;
 }
 
+/** One FAILED attempt at a stage with a declared `retry` policy
+ *  (footprintjs >= 9.15.0). Fires DURING the stage; only the surviving
+ *  attempt ever commits, which is why this fact has to come from the event
+ *  stream rather than from the commit itself. */
+interface FlowStageRetryEvent {
+  readonly stageName: string;
+  readonly stageId?: string;
+  /** Which attempt just FAILED, 1-based. */
+  readonly attempt?: number;
+  readonly maxAttempts?: number;
+  readonly traversalContext?: TraversalContext;
+}
+
 interface FlowRunLifecycleEvent {
   readonly traversalContext?: TraversalContext;
 }
@@ -104,6 +117,7 @@ export interface MinimalCommitFlowRecorder {
   // Flow channel — for runtimeStageId enrichment + error attribution
   onStageExecuted?(event: FlowStageExecutedEvent): void;
   onError?(event: FlowErrorEvent): void;
+  onStageRetry?(event: FlowStageRetryEvent): void;
   onRunStart?(event: FlowRunLifecycleEvent): void;
   onRunEnd?(event: FlowRunLifecycleEvent): void;
   // Scope channel — the canonical commit + read data source
@@ -196,6 +210,15 @@ export interface CommitView {
    */
   readonly updates: Record<string, unknown>;
   readonly reads: string[];
+
+  // ── Attempts (runtime, from onStageRetry) ───────────────────────
+  /**
+   * How many attempts the stage made before THIS commit landed — present
+   * only when a declared `retry` policy fired (> 1). The discarded attempts
+   * committed nothing, so this is the one place the commit chain can say
+   * "these values are attempt 3's, not attempt 1's".
+   */
+  readonly attempts?: number;
 }
 
 /** Indexed CommitView access. */
@@ -291,6 +314,9 @@ export function createCommitFlowRecorder(
     reads: string[];
   }
   let rawCommits: RawCommit[] = [];
+  // runtimeStageId → attempts made. onStageRetry fires before the commit, so
+  // this is kept aside and joined in buildIndex.
+  let attemptsOfRuntimeStageId: Map<string, number> = new Map();
 
   const notifier = createNotifier("commit-flow");
   const unsubStructure = structure.subscribe(() => notifier.notify());
@@ -324,9 +350,33 @@ export function createCommitFlowRecorder(
   // attach via attachFlowRecorder for parity with other translators.
   // onError doesn't influence CommitView state today — errors belong
   // to NodeView's per-stage projection.
+  function recordRetry(event: FlowStageRetryEvent): void {
+    const rsid = event.traversalContext?.runtimeStageId;
+    if (!rsid) {
+      devWarn(
+        () =>
+          `[createCommitFlowRecorder] onStageRetry without runtimeStageId — attempt attribution dropped (stage=${event.stageName}).`,
+      );
+      return;
+    }
+    // `attempt` is the attempt that FAILED, and another always follows it —
+    // so attempt N failing proves N+1 ran.
+    const attempt = event.attempt;
+    const prior = attemptsOfRuntimeStageId.get(rsid) ?? 1;
+    const attemptsMade =
+      typeof attempt === "number" && Number.isFinite(attempt) && attempt >= 1
+        ? Math.floor(attempt) + 1
+        : prior + 1;
+    if (attemptsMade > prior) {
+      attemptsOfRuntimeStageId.set(rsid, attemptsMade);
+      notifier.notify();
+    }
+  }
+
   const recorder: MinimalCommitFlowRecorder = {
     id,
     onCommit: recordCommit,
+    onStageRetry: recordRetry,
     onStageExecuted() {
       /* no-op — CommitFlow is commit-centric, not execution-centric */
     },
@@ -458,6 +508,7 @@ export function createCommitFlowRecorder(
         }
       }
 
+      const attempts = attemptsOfRuntimeStageId.get(rc.runtimeStageId);
       const view: CommitView = {
         runtimeStageId: rc.runtimeStageId,
         stageId: rc.stageId,
@@ -469,6 +520,7 @@ export function createCommitFlowRecorder(
         dataDependencies,
         updates: { ...rc.updates },
         reads: rc.reads.slice(),
+        ...(attempts !== undefined && attempts > 1 && { attempts }),
       };
       commits.push(view);
       byRuntimeStageId.set(view.runtimeStageId, view);
@@ -504,6 +556,7 @@ export function createCommitFlowRecorder(
     version: notifier.version,
     reset(): void {
       rawCommits = [];
+      attemptsOfRuntimeStageId = new Map();
       // Cache invalidation — version doesn't bump (panel reset contract),
       // but next getIndex() must rebuild from the freshly-empty state.
       cachedIndex = null;

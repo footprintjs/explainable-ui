@@ -31,6 +31,22 @@ export interface StageNodeData {
   icon?: string;
   /** Step numbers in execution order (shown as badges — multiple when revisited via loops) */
   stepNumbers?: number[];
+  /**
+   * How many times this stage's execution was ATTEMPTED — a declared `retry`
+   * policy that actually fired (footprintjs >= 9.15.0). Renders a small
+   * warning-weight `↺ ×N` chip when greater than 1; 1 or absent renders
+   * nothing, because one attempt is the silent default.
+   *
+   * Attempt telemetry, not an outcome. A stage that failed twice and then
+   * succeeded is a DONE node wearing the chip; a stage that exhausted its
+   * policy keeps its error state and wears the chip alongside. The chip
+   * never changes the node's status colour.
+   *
+   * A policy that was DECLARED but never fired shows nothing at all —
+   * declared is not the same as happened, and a chart that cannot tell the
+   * two apart is worse than one that stays quiet.
+   */
+  retryAttempts?: number;
   /** Node was not executed (dim it) */
   dimmed?: boolean;
   /** Node is a subflow root (show nested indicator) */
@@ -295,7 +311,7 @@ function StageIcon({ type, color }: { type: string; color: string }) {
 export const StageNode = memo(function StageNode({
   data,
 }: NodeProps & { data: StageNodeData }) {
-  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId } = data;
+  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts } = data;
 
   // Lazy nodes show cloud icon by default (unless another icon is specified)
   const effectiveIcon = icon || (isLazy ? "lazy" : undefined);
@@ -316,6 +332,18 @@ export const StageNode = memo(function StageNode({
   }, []);
 
   const isOnPath = active || done;
+
+  // Attempt chip. Shown only when the stage genuinely ran more than once —
+  // the same threshold the overlay applies, restated here so a consumer
+  // handing `data` in directly gets the same rule.
+  const showRetryBadge = typeof retryAttempts === "number" && retryAttempts > 1;
+  // Honest either way: the chip says how many attempts were made and how the
+  // LAST one ended. `error` is the node's own run status, so a stage that
+  // exhausted its policy reads "failed" and one that recovered reads
+  // "succeeded" — the chip never has to guess.
+  const retryLabel = showRetryBadge
+    ? `retried, attempt ${retryAttempts} of ${retryAttempts} ${error ? "failed" : "succeeded"}`
+    : undefined;
 
   // Emphasis (importance hierarchy). Generic flags — no domain knowledge.
   const isHero = data.emphasis === "hero";
@@ -497,6 +525,44 @@ export const StageNode = memo(function StageNode({
               }}
             >
               NOW
+            </div>
+          )}
+
+          {/* Attempt chip — a retried stage says so on the CHART, not only in
+              the story. Bottom-right so it never collides with the NOW badge
+              (top-right) or the step-number badges (top-left), and outside the
+              shape layer so the diamond and the rectangle wear it identically.
+              Outlined in warning weight to agree with the narrative's `retry`
+              row (StoryNarrative's retry icon + theme.warning) — the same
+              fact, drawn the same colour, on two surfaces. */}
+          {showRetryBadge && (
+            <div
+              role="img"
+              aria-label={retryLabel}
+              title={retryLabel}
+              style={{
+                position: "absolute",
+                bottom: -9,
+                right: -8,
+                zIndex: 11,
+                display: "flex",
+                alignItems: "center",
+                gap: 2,
+                background: theme.bgSecondary,
+                border: `1px solid ${theme.warning}`,
+                color: theme.warning,
+                fontFamily: theme.fontSans,
+                fontSize: 9,
+                fontWeight: 700,
+                lineHeight: 1,
+                letterSpacing: 0.2,
+                padding: "2px 5px",
+                borderRadius: 9,
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span aria-hidden="true">&#x21BA;</span>
+              <span aria-hidden="true">&#xD7;{retryAttempts}</span>
             </div>
           )}
 

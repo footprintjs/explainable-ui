@@ -38,7 +38,10 @@ import {
   createTraceStructureRecorder,
   type TraceGraph,
 } from "../../src/components/FlowchartView/traceStructureRecorder";
-import { createTraceRuntimeOverlay } from "../../src/components/FlowchartView/createTraceRuntimeOverlay";
+import {
+  createTraceRuntimeOverlay,
+  sliceOverlay,
+} from "../../src/components/FlowchartView/createTraceRuntimeOverlay";
 import { createNodeViewRecorder } from "../../src/components/FlowchartView/createNodeViewRecorder";
 import { createCommitFlowRecorder } from "../../src/components/FlowchartView/createCommitFlowRecorder";
 import { dagreTraceLayout } from "../../src/components/FlowchartView/_internal/dagreTraceLayout";
@@ -148,26 +151,30 @@ for (const fx of fixtures) {
       await expect(stringify(positions)).toMatchFileSnapshot(snapshotPath(fx.name, "layout"));
     });
 
-    it("flow events → runtime overlay (execution order, errors, running)", async () => {
+    it("flow events → runtime overlay (execution order, errors, running, attempts)", async () => {
       const overlay = createTraceRuntimeOverlay();
       replay(fx.runtimeEvents, overlay.recorder as unknown as Record<string, unknown>);
-      const { executionOrder, errors, running } = overlay.getOverlay();
+      const { executionOrder, errors, running, retryAttempts } = overlay.getOverlay();
       const out = {
         // timestampMs is stamped at replay time (wall clock) — excluded.
         executionOrder: executionOrder.map(({ timestampMs: _t, ...rest }) => rest),
         errors,
         running,
+        retryAttempts,
       };
       await expect(stringify(out)).toMatchFileSnapshot(snapshotPath(fx.name, "overlay"));
     });
 
     it("snapshot alone → runtime overlay (post-hoc, no live recorder)", async () => {
-      const overlay = overlayFromSnapshot(fx.snapshot);
+      // The narrative rides along: a retried attempt commits nothing, so the
+      // commit log alone cannot know a stage was attempted more than once.
+      const overlay = overlayFromSnapshot(fx.snapshot, { narrativeEntries: fx.narrativeEntries });
       const out = {
         // timestampMs is 0 by construction (commit bundles carry no clock).
         executionOrder: overlay.executionOrder.map(({ timestampMs: _t, ...rest }) => rest),
         errors: overlay.errors,
         running: overlay.running,
+        retryAttempts: overlay.retryAttempts,
       };
       await expect(stringify(out)).toMatchFileSnapshot(
         snapshotPath(fx.name, "overlay-from-snapshot"),
@@ -469,6 +476,83 @@ describe("golden: semantic invariants", () => {
         .map((e) => (e.event as { stageId?: string }).stageId),
     );
     expect(retriedStages).toEqual(new Set(["fetch-quote"]));
+  });
+
+  it("retry-attempts: the CHART learns the attempts — live and replayed alike", () => {
+    // The gap 0.37.0 closed: the narrative always said "attempt 1 of 3", but
+    // the chart's recorders never heard `onStageRetry`, so the flowchart drew
+    // a flaky stage and a clean one identically.
+    const fx = byName("retry-attempts");
+    const live = createTraceRuntimeOverlay();
+    replay(fx.runtimeEvents, live.recorder as unknown as Record<string, unknown>);
+    const liveOverlay = live.getOverlay();
+    expect(liveOverlay.retryAttempts?.get("fetch-quote#0")).toBe(3);
+
+    // The post-hoc twin reads the same fact out of the narrative (a discarded
+    // attempt commits nothing, so the commit log alone cannot know).
+    const replayed = overlayFromSnapshot(fx.snapshot, { narrativeEntries: fx.narrativeEntries });
+    expect([...(replayed.retryAttempts ?? [])]).toEqual([...(liveOverlay.retryAttempts ?? [])]);
+
+    // ...and the projection `<TracedFlow>` actually paints from — keyed by the
+    // chart's node ids — is identical on both paths.
+    const at = (o: typeof liveOverlay) => [...sliceOverlay(o, o.executionOrder.length - 1).retryAttempts];
+    expect(at(replayed)).toEqual([["fetch-quote", 3]]);
+    expect(at(replayed)).toEqual(at(liveOverlay));
+  });
+
+  it("retry-attempts: the badge is per-NODE, not extra stops on the rail", () => {
+    // The engine's law, restated where the chart can break it: one
+    // runtimeStageId and one commit bundle for all three attempts, so the
+    // overlay must hold ONE step for the retried stage — never three.
+    const fx = byName("retry-attempts");
+    const live = createTraceRuntimeOverlay();
+    replay(fx.runtimeEvents, live.recorder as unknown as Record<string, unknown>);
+    const overlay = live.getOverlay();
+    expect(overlay.executionOrder.map((s) => s.runtimeStageId)).toEqual([
+      "fetch-quote#0",
+      "settle#1",
+    ]);
+    expect(overlay.executionOrder.filter((s) => s.stageId === "fetch-quote")).toHaveLength(1);
+  });
+
+  it("retry-attempts: `settle` declared a policy it never used — the chart says nothing", () => {
+    // Declared is not the same as happened. `settle` carries `.retry({ attempts: 2 })`
+    // and sailed through, so no overlay fact names it and no badge can appear.
+    const fx = byName("retry-attempts");
+    const live = createTraceRuntimeOverlay();
+    replay(fx.runtimeEvents, live.recorder as unknown as Record<string, unknown>);
+    const slice = sliceOverlay(live.getOverlay(), 1);
+    expect(slice.retryAttempts.has("settle")).toBe(false);
+    expect([...slice.retryAttempts.keys()]).toEqual(["fetch-quote"]);
+  });
+
+  it("retry-attempts: the per-stage and per-commit translators learn it too", () => {
+    const fx = byName("retry-attempts");
+    const structure = createTraceStructureRecorder();
+    replay(fx.structureEvents, structure.recorder as unknown as Record<string, unknown>);
+    const nodeView = createNodeViewRecorder({ structure });
+    const commitFlow = createCommitFlowRecorder({ structure });
+    replay(
+      fx.runtimeEvents,
+      nodeView.recorder as unknown as Record<string, unknown>,
+      commitFlow.recorder as unknown as Record<string, unknown>,
+    );
+
+    const fetch = nodeView.getIndex().byStageId.get("fetch-quote" as never);
+    expect(fetch?.retriedExecutionCount).toBe(1);
+    expect(fetch?.executions[0]?.attempts).toBe(3);
+    expect(fetch?.executions[0]?.maxAttempts).toBe(3);
+    // Still ONE execution record — attempts are a property of it, not extras.
+    expect(fetch?.executionCount).toBe(1);
+
+    const settle = nodeView.getIndex().byStageId.get("settle" as never);
+    expect(settle?.retriedExecutionCount).toBe(0);
+    expect(settle?.executions[0]?.attempts).toBeUndefined();
+
+    // The commit chain can now say WHICH attempt's values it is showing.
+    const commits = commitFlow.getIndex().commits;
+    expect(commits.find((c) => c.stageId === "fetch-quote")?.attempts).toBe(3);
+    expect(commits.find((c) => c.stageId === "settle")?.attempts).toBeUndefined();
   });
 
   it("retry-attempts: structure events carry retryAttempts only for the OPTION form", () => {

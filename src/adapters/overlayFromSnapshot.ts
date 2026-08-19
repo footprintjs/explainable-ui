@@ -35,6 +35,13 @@
  *     failing stage's writes land (footprintjs commits before rethrow)
  *     but the message does not. Error painting needs the live recorder.
  *   - **`running` is false.** A recording is a finished run by definition.
+ *   - **Retry attempts need the narrative.** A retried attempt commits
+ *     nothing (footprintjs discards a failed attempt's staged writes), so
+ *     the commit log cannot know a stage was attempted more than once. Pass
+ *     the run's `narrativeEntries` — it records one `type: 'retry'` entry per
+ *     failed attempt, stamped with the stage's runtimeStageId — and the
+ *     rebuilt overlay carries the same `retryAttempts` a live recorder would
+ *     have accumulated. Omit them and attempts are absent, not guessed.
  *   - **Subflow-internal steps are absent when the engine isolated them.**
  *     footprintjs keeps deep-subflow commits out of the run-level
  *     commitLog by design, so a recording of a chart with subflows yields
@@ -66,6 +73,26 @@ export interface SnapshotWithCommitLog {
   commitLog?: unknown;
 }
 
+/** The slice of a narrative entry this reader consumes — duck-typed so both
+ *  footprintjs's `CombinedNarrativeEntry` and this library's `NarrativeEntry`
+ *  fit without either side importing the other. */
+interface NarrativeEntryLike {
+  type?: unknown;
+  runtimeStageId?: unknown;
+}
+
+export interface OverlayFromSnapshotOptions {
+  /**
+   * The run's narrative entries — `executor.getNarrativeEntries()`, or a
+   * recording's `narrativeEntries`. The ONLY post-hoc source of retry facts:
+   * `onStageRetry` fires during a stage and leaves no trace in the commit
+   * log, but the narrative keeps one `type: 'retry'` entry per failed
+   * attempt. Optional: without it the overlay simply carries no attempt
+   * facts (honest absence — never a guess).
+   */
+  readonly narrativeEntries?: readonly NarrativeEntryLike[] | null;
+}
+
 /** Strip the `#executionIndex` suffix — the same parse the live recorder
  *  applies to `traversalContext.runtimeStageId`, so both paths key the
  *  chart's nodes identically (path-qualified, leaf never stripped). */
@@ -84,6 +111,7 @@ function baseStageIdOf(runtimeStageId: string): string {
  */
 export function overlayFromSnapshot(
   snapshot: SnapshotWithCommitLog | null | undefined,
+  options: OverlayFromSnapshotOptions = {},
 ): RuntimeOverlay {
   const commitLog = snapshot?.commitLog;
   const executionOrder: RuntimeExecutionStep[] = [];
@@ -107,5 +135,33 @@ export function overlayFromSnapshot(
       });
     }
   }
-  return { executionOrder, errors: new Map(), running: false };
+  return {
+    executionOrder,
+    errors: new Map(),
+    running: false,
+    retryAttempts: retryAttemptsFrom(options.narrativeEntries),
+  };
+}
+
+/**
+ * Attempt counts per runtimeStageId, rebuilt from the narrative.
+ *
+ * The engine writes one `retry` entry per attempt that FAILED and was
+ * followed by another — so N retry entries means N+1 attempts were made.
+ * That is the same arithmetic the live recorder does on `onStageRetry`
+ * (`attempt + 1`), which is why the two paths agree.
+ */
+function retryAttemptsFrom(
+  entries: readonly NarrativeEntryLike[] | null | undefined,
+): ReadonlyMap<string, number> {
+  const attempts = new Map<string, number>();
+  if (!Array.isArray(entries)) return attempts;
+  for (const entry of entries) {
+    if (entry === null || typeof entry !== "object") continue;
+    if (entry.type !== "retry") continue;
+    const runtimeStageId = entry.runtimeStageId;
+    if (typeof runtimeStageId !== "string" || runtimeStageId.length === 0) continue;
+    attempts.set(runtimeStageId, (attempts.get(runtimeStageId) ?? 1) + 1);
+  }
+  return attempts;
 }

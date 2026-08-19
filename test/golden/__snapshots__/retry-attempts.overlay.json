@@ -12,5 +12,8 @@
     }
   ],
   "errors": {},
-  "running": false
+  "running": false,
+  "retryAttempts": {
+    "fetch-quote#0": 3
+  }
 }

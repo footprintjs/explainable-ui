@@ -58,6 +58,25 @@ interface RuntimeErrorEvent {
   readonly traversalContext?: TraversalContext;
 }
 
+/**
+ * One FAILED attempt at a stage that declares a `retry` policy
+ * (footprintjs >= 9.15.0). Fires DURING the stage — before that stage's own
+ * `onStageExecuted` — and ONLY when another attempt follows: the final
+ * failure takes the ordinary `onError` path instead. So `attempt: 2` means
+ * attempt 2 failed AND attempt 3 ran.
+ */
+interface RuntimeStageRetryEvent {
+  readonly stageName: string;
+  readonly stageId?: string;
+  /** Which attempt just FAILED, 1-based. */
+  readonly attempt?: number;
+  /** Total attempts the policy allows, including the first. */
+  readonly maxAttempts?: number;
+  readonly delayMs?: number;
+  readonly message?: string;
+  readonly traversalContext?: TraversalContext;
+}
+
 interface RuntimeRunStartEvent {
   readonly traversalContext?: TraversalContext;
 }
@@ -78,6 +97,9 @@ export interface MinimalFlowRecorder {
   readonly id: string;
   onStageExecuted?(event: RuntimeStageExecutedEvent): void;
   onError?(event: RuntimeErrorEvent): void;
+  /** footprintjs >= 9.15.0. Without this hook a retried stage leaves NO mark
+   *  on the chart — the whole reason retries were narrative-only before. */
+  onStageRetry?(event: RuntimeStageRetryEvent): void;
   onRunStart?(event: RuntimeRunStartEvent): void;
   onRunEnd?(event: RuntimeRunEndEvent): void;
 }
@@ -109,6 +131,21 @@ export interface RuntimeOverlay {
   readonly errors: ReadonlyMap<string, string>;
   /** True after `onRunStart` until `onRunEnd` — useful for "still running" indicators. */
   readonly running: boolean;
+  /**
+   * How many times each stage EXECUTION was attempted, keyed by
+   * `runtimeStageId` — present only for executions that took more than one
+   * attempt (a declared `retry` policy that actually fired).
+   *
+   * NOT a new axis. footprintjs runs every attempt of a stage under ONE
+   * runtimeStageId and commits ONE bundle for it, so a retried stage is one
+   * stop on the rail, not three. This map is per-NODE state hanging off that
+   * single stop — read it to paint an attempt badge, never to add a step.
+   *
+   * Optional so an overlay hand-built by a consumer (or produced by an older
+   * version of this library) stays type-valid; absent means "nothing known
+   * about attempts", which is exactly how a run with no retry policy looks.
+   */
+  readonly retryAttempts?: ReadonlyMap<string, number>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -179,6 +216,10 @@ export function createTraceRuntimeOverlay(
   // could still produce duplicates; keep the set as belt-and-suspenders.
   const recordedRuntimeStageIds = new Set<string>();
   const errors = new Map<string, string>();
+  // runtimeStageId → attempts MADE for that one execution. Only ever holds
+  // entries > 1: a stage that ran once is the silent default, and writing 1
+  // for every stage would put a "×1" fact in front of every renderer.
+  const retryAttempts = new Map<string, number>();
   let running = false;
   const notifier = createNotifier("traceRuntimeOverlay");
   const notifyChange = notifier.notify;
@@ -213,6 +254,27 @@ export function createTraceRuntimeOverlay(
       const baseStageId = parseStageIdFromRuntimeStageId(runtimeStageId);
       pushStep(runtimeStageId, baseStageId, event.stageName);
     },
+    onStageRetry(event) {
+      // Fires DURING the stage, so there is no execution step yet — the fact
+      // is stored against the runtimeStageId and joined when the step lands
+      // (see sliceOverlay). Retries never push a step of their own.
+      const runtimeStageId = event.traversalContext?.runtimeStageId;
+      if (!runtimeStageId) return;
+      const attempt = event.attempt;
+      // `attempt` is the attempt that FAILED, and the engine only fires this
+      // when another attempt follows — so attempt N failing proves N+1 ran.
+      // No usable number (a hand-built or future event) falls back to
+      // counting the events themselves, which yields the same total.
+      const attemptsMade =
+        typeof attempt === "number" && Number.isFinite(attempt) && attempt >= 1
+          ? Math.floor(attempt) + 1
+          : (retryAttempts.get(runtimeStageId) ?? 1) + 1;
+      const known = retryAttempts.get(runtimeStageId) ?? 1;
+      if (attemptsMade > known) {
+        retryAttempts.set(runtimeStageId, attemptsMade);
+        notifyChange();
+      }
+    },
     onError(event) {
       const fallbackId =
         event.stageId ??
@@ -231,6 +293,7 @@ export function createTraceRuntimeOverlay(
         executionOrder: executionOrder.map((s) => ({ ...s })),
         errors: new Map(errors),
         running,
+        retryAttempts: new Map(retryAttempts),
       };
     },
     subscribe: notifier.subscribe,
@@ -239,6 +302,7 @@ export function createTraceRuntimeOverlay(
       executionOrder = [];
       recordedRuntimeStageIds.clear();
       errors.clear();
+      retryAttempts.clear();
       running = false;
       // Note: reset does NOT bump version or notify (matches
       // traceStructureRecorder contract — see its `reset()` JSDoc
@@ -254,6 +318,10 @@ export function createTraceRuntimeOverlay(
       for (const step of executionOrder) recordedRuntimeStageIds.add(step.runtimeStageId);
       errors.clear();
       for (const [stageId, message] of overlay.errors) errors.set(stageId, message);
+      retryAttempts.clear();
+      if (overlay.retryAttempts) {
+        for (const [rsid, attempts] of overlay.retryAttempts) retryAttempts.set(rsid, attempts);
+      }
       running = overlay.running;
       notifyChange();
     },
@@ -281,6 +349,19 @@ export interface RuntimeOverlaySlice {
   readonly executedOrderIds: readonly string[];
   /** Pass-through errors map for the renderer. */
   readonly errors: ReadonlyMap<string, string>;
+  /**
+   * Per-BASE-stageId attempt count for the executions visible at this scrub
+   * position — the map a renderer paints an attempt badge from. Only entries
+   * > 1 appear: one attempt is the silent default.
+   *
+   * Iteration-accurate where it can be: an execution that has its own step in
+   * `executionOrder` contributes only once the cursor reaches it, and a later
+   * execution of the same stage overwrites an earlier one (most-recent wins,
+   * matching `errors`). An execution that has NO step — the stage threw on its
+   * final attempt, so `onStageExecuted` never fired — contributes regardless
+   * of position, because it has no position of its own to be reached.
+   */
+  readonly retryAttempts: ReadonlyMap<string, number>;
 }
 
 /**
@@ -304,6 +385,7 @@ export function sliceOverlay(
       executedStageIds: new Set(),
       executedOrderIds: [],
       errors: overlay.errors,
+      retryAttempts: projectRetryAttempts(overlay, -1),
     };
   }
   // Past the end = the run FINISHED: every step is done and nothing is
@@ -318,6 +400,7 @@ export function sliceOverlay(
       executedStageIds: new Set(allDone),
       executedOrderIds: order.map((s) => s.stageId),
       errors: overlay.errors,
+      retryAttempts: projectRetryAttempts(overlay, order.length - 1),
     };
   }
   const clampedIndex = Math.max(0, Math.min(index, order.length - 1));
@@ -336,5 +419,42 @@ export function sliceOverlay(
     executedStageIds,
     executedOrderIds,
     errors: overlay.errors,
+    retryAttempts: projectRetryAttempts(overlay, clampedIndex),
   };
+}
+
+/** Stable empty map so a run with no retries allocates nothing per scrub tick. */
+const NO_RETRIES: ReadonlyMap<string, number> = new Map<string, number>();
+
+/**
+ * Join `overlay.retryAttempts` (keyed by runtimeStageId) onto the base stage
+ * ids visible at a scrub position — see `RuntimeOverlaySlice.retryAttempts`
+ * for the two cases. `upToIndex` is INCLUSIVE; pass `-1` for "no steps yet".
+ */
+function projectRetryAttempts(
+  overlay: RuntimeOverlay,
+  upToIndex: number,
+): ReadonlyMap<string, number> {
+  const source = overlay.retryAttempts;
+  if (!source || source.size === 0) return NO_RETRIES;
+  const order = overlay.executionOrder;
+  const out = new Map<string, number>();
+  // Executions the cursor has reached, oldest first — so a later execution of
+  // the same stage overwrites an earlier one.
+  for (let i = 0; i <= upToIndex && i < order.length; i++) {
+    const step = order[i]!;
+    const attempts = source.get(step.runtimeStageId);
+    if (attempts !== undefined && attempts > 1) out.set(step.stageId, attempts);
+  }
+  // Executions that never completed. A stage that exhausted its policy threw,
+  // so `onStageExecuted` never fired and there is no step to reach — without
+  // this the one node whose retries all FAILED would be the only retried node
+  // with no badge, which is precisely backwards.
+  const stepped = new Set(order.map((s) => s.runtimeStageId));
+  for (const [runtimeStageId, attempts] of source) {
+    if (attempts > 1 && !stepped.has(runtimeStageId)) {
+      out.set(parseStageIdFromRuntimeStageId(runtimeStageId), attempts);
+    }
+  }
+  return out;
 }

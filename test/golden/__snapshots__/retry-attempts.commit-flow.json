@@ -14,7 +14,8 @@
       ],
       "dataDependencies": [],
       "updates": {},
-      "reads": []
+      "reads": [],
+      "attempts": 3
     },
     {
       "runtimeStageId": "settle#1",

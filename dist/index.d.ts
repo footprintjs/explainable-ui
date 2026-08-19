@@ -538,6 +538,21 @@ interface RuntimeOverlay {
     readonly errors: ReadonlyMap<string, string>;
     /** True after `onRunStart` until `onRunEnd` — useful for "still running" indicators. */
     readonly running: boolean;
+    /**
+     * How many times each stage EXECUTION was attempted, keyed by
+     * `runtimeStageId` — present only for executions that took more than one
+     * attempt (a declared `retry` policy that actually fired).
+     *
+     * NOT a new axis. footprintjs runs every attempt of a stage under ONE
+     * runtimeStageId and commits ONE bundle for it, so a retried stage is one
+     * stop on the rail, not three. This map is per-NODE state hanging off that
+     * single stop — read it to paint an attempt badge, never to add a step.
+     *
+     * Optional so an overlay hand-built by a consumer (or produced by an older
+     * version of this library) stays type-valid; absent means "nothing known
+     * about attempts", which is exactly how a run with no retry policy looks.
+     */
+    readonly retryAttempts?: ReadonlyMap<string, number>;
 }
 
 /**
@@ -1338,6 +1353,13 @@ declare function createSnapshots(stages: Array<{
  *     failing stage's writes land (footprintjs commits before rethrow)
  *     but the message does not. Error painting needs the live recorder.
  *   - **`running` is false.** A recording is a finished run by definition.
+ *   - **Retry attempts need the narrative.** A retried attempt commits
+ *     nothing (footprintjs discards a failed attempt's staged writes), so
+ *     the commit log cannot know a stage was attempted more than once. Pass
+ *     the run's `narrativeEntries` — it records one `type: 'retry'` entry per
+ *     failed attempt, stamped with the stage's runtimeStageId — and the
+ *     rebuilt overlay carries the same `retryAttempts` a live recorder would
+ *     have accumulated. Omit them and attempts are absent, not guessed.
  *   - **Subflow-internal steps are absent when the engine isolated them.**
  *     footprintjs keeps deep-subflow commits out of the run-level
  *     commitLog by design, so a recording of a chart with subflows yields
@@ -1351,6 +1373,24 @@ declare function createSnapshots(stages: Array<{
 interface SnapshotWithCommitLog {
     commitLog?: unknown;
 }
+/** The slice of a narrative entry this reader consumes — duck-typed so both
+ *  footprintjs's `CombinedNarrativeEntry` and this library's `NarrativeEntry`
+ *  fit without either side importing the other. */
+interface NarrativeEntryLike {
+    type?: unknown;
+    runtimeStageId?: unknown;
+}
+interface OverlayFromSnapshotOptions {
+    /**
+     * The run's narrative entries — `executor.getNarrativeEntries()`, or a
+     * recording's `narrativeEntries`. The ONLY post-hoc source of retry facts:
+     * `onStageRetry` fires during a stage and leaves no trace in the commit
+     * log, but the narrative keeps one `type: 'retry'` entry per failed
+     * attempt. Optional: without it the overlay simply carries no attempt
+     * facts (honest absence — never a guess).
+     */
+    readonly narrativeEntries?: readonly NarrativeEntryLike[] | null;
+}
 /**
  * Builds a `RuntimeOverlay` from a recorded run — the post-hoc twin of
  * `createTraceRuntimeOverlay()`. Pass the result straight to
@@ -1359,7 +1399,7 @@ interface SnapshotWithCommitLog {
  * Returns an empty overlay (no steps) for a missing or empty commit log —
  * an unrecorded run colours nothing, which is the truthful rendering.
  */
-declare function overlayFromSnapshot(snapshot: SnapshotWithCommitLog | null | undefined): RuntimeOverlay;
+declare function overlayFromSnapshot(snapshot: SnapshotWithCommitLog | null | undefined, options?: OverlayFromSnapshotOptions): RuntimeOverlay;
 
 /**
  * graphFromStructure — the chart, rebuilt from a SAVED structure.
@@ -1903,4 +1943,4 @@ interface ExplainableViewProps extends Omit<ExplainableProviderProps, "children"
 }
 declare function ExplainableView({ recording, selectedIndex, defaultSelectedIndex, onSelectedIndexChange, theme: viewTheme, layout, slots, minHeight, detailsExpanded, defaultDetailsExpanded, onDetailsExpandedChange, detailsLabel, unstyled, className, style, }: ExplainableViewProps): React$1.JSX.Element;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };

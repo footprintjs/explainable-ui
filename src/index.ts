@@ -69,7 +69,7 @@ export type { NarrativeEntry as AdapterNarrativeEntry } from "./adapters/fromRun
 // the chart's time-travel colouring, the saved STRUCTURE rebuilds the chart
 // itself. Neither needs a live executor.
 export { overlayFromSnapshot } from "./adapters/overlayFromSnapshot";
-export type { SnapshotWithCommitLog } from "./adapters/overlayFromSnapshot";
+export type { SnapshotWithCommitLog, OverlayFromSnapshotOptions } from "./adapters/overlayFromSnapshot";
 export { graphFromStructure } from "./adapters/graphFromStructure";
 export type { SerializedStructureNode } from "./adapters/graphFromStructure";
 export type {

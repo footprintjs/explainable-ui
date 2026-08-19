@@ -25,6 +25,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "seed#0"
       ]
@@ -56,6 +57,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": []
     },
     {
@@ -83,6 +85,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "sf-enrich/normalize#2"
       ]
@@ -110,6 +113,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "sf-enrich/score#3"
       ]
@@ -144,6 +148,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "refine#4",
         "refine#6"
@@ -177,6 +182,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "evaluate#5",
         "evaluate#7"

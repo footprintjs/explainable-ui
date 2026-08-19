@@ -409,7 +409,7 @@ import { TracedFlow } from "footprint-explainable-ui/flowchart";
 <div style={{ height: 400 }}>
   <TracedFlow
     graph={trace.getGraph()}       // from createTraceStructureRecorder
-    overlay={overlayFromSnapshot(snapshot)}   // or a live createTraceRuntimeOverlay
+    overlay={overlayFromSnapshot(snapshot, { narrativeEntries })}  // or a live createTraceRuntimeOverlay
     scrubIndex={idx}
     theme="light"
     onNodeClick={(stageId) => handleClick(stageId)}
@@ -421,6 +421,37 @@ Without an `overlay` it renders the plain build-time chart. With one, the
 executed path lights up, un-run stages fade, and each executed node carries its
 step number. Subflow mount nodes drill on click, and the chart re-fits itself
 whenever its container resizes.
+
+#### A stage that had to be tried again says so on the chart
+
+When footprintjs (≥ 9.15.0) retries a stage under a declared `retry` policy,
+that node wears a small amber `↺ ×3` chip — "this took three attempts" —
+alongside whatever status it ended in. A stage that recovered stays green with
+the chip; a stage that exhausted its policy stays red with the chip. A screen
+reader hears the whole fact: *"retried, attempt 3 of 3 succeeded"*.
+
+Three things it deliberately will not do:
+
+- **It never adds a step.** All attempts share one `runtimeStageId` and one
+  commit bundle, so a retried stage is still exactly one stop on your rail.
+- **It never shows for a policy that was only declared.** Declared is not the
+  same as happened; a stage that carries `.retry({ attempts: 2 })` and sails
+  through is unmarked.
+- **It never appears at `×1`.** One attempt is the silent default.
+
+The chart reads this from the overlay, so it works live and on replay. Live
+comes free (`createTraceRuntimeOverlay` now listens to `onStageRetry`); on
+replay, hand `overlayFromSnapshot` the run's narrative — a failed attempt
+discards its writes, so the commit log genuinely cannot know:
+
+```tsx
+overlay={overlayFromSnapshot(recording.snapshot, {
+  narrativeEntries: recording.narrativeEntries,   // where the attempts live
+})}
+```
+
+`<ExplainableShell>`, `<ExplainableView>` and `<TraceViewer>` already pass it
+for you.
 
 ### Where the graph comes from
 
@@ -569,7 +600,7 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | `graphFromStructure` | The same graph from a SAVED `chart.buildTimeStructure` |
 | `createTraceRuntimeOverlay` | Collect the `RuntimeOverlay` from a live run |
 | `overlayFromSnapshot` | The same overlay from a recorded snapshot |
-| `StageNode` | Custom node with state-aware coloring, step badges, pulse rings |
+| `StageNode` | Custom node with state-aware coloring, step badges, retry-attempt chip, pulse rings |
 | `SubflowBreadcrumb` | Breadcrumb bar for subflow drill-down |
 | `SubflowTree` | Tree view of all subflows (used in shell's left panel) |
 | `dagreTraceLayout` | The default structure-derived layout |
@@ -580,7 +611,7 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 |---|---|
 | `toVisualizationSnapshots` | Convert `FlowChartExecutor.getSnapshot()` → `StageSnapshot[]` |
 | `graphFromStructure` | Rebuild the chart's `TraceGraph` from a saved `chart.buildTimeStructure` — the post-hoc twin of `createTraceStructureRecorder` |
-| `overlayFromSnapshot` | Rebuild the chart's `RuntimeOverlay` from a recorded snapshot (replay without a live executor) |
+| `overlayFromSnapshot` | Rebuild the chart's `RuntimeOverlay` from a recorded snapshot (replay without a live executor). Pass `{ narrativeEntries }` to recover retry attempts too |
 | `narrativeFromSnapshot` | Read the narrative a recorded snapshot carries in `snapshot.recorders` |
 | `subflowResultToSnapshots` | Convert subflow result → `StageSnapshot[]` |
 | `createSnapshots` | Build `StageSnapshot[]` from simple arrays (testing/custom data) |
@@ -622,8 +653,10 @@ Two kinds are worth reading twice. **`retry`** (footprintjs ≥ 9.15.0) is
 ("attempt 2 of 3 at FetchQuote failed"), it nests inside its own stage, and the
 stage may still succeed, so it is warning-weight rather than error-weight. All
 attempts share ONE step on the time-travel rail, so a retried stage never
-multiplies your cursor. **`loop`** and **`retry`** deliberately use different
-arrows: ↻ is a by-design back-edge, ↺ is a failure going round again.
+multiplies your cursor — and the flowchart says the same thing with the same
+arrow (see the attempt chip above), so the two surfaces never disagree.
+**`loop`** and **`retry`** deliberately use different arrows: ↻ is a by-design
+back-edge, ↺ is a failure going round again.
 
 A kind from a newer footprintjs than this release knows about still renders —
 it gets the neutral `step` badge rather than disappearing.

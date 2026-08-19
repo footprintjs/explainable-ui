@@ -104,8 +104,8 @@ const DEFAULT_COLORS: TracedFlowColors = {
  * Derive overlay state fields for a single node from the current
  * scrub slice. Shared between the default `stageNode` path and the
  * custom-node pass-through path so custom renderers receive the same
- * `active`/`done`/`error`/`dimmed`/`stepNumbers` shape the bundled
- * `<StageNode>` consumes.
+ * `active`/`done`/`error`/`dimmed`/`stepNumbers`/`retryAttempts` shape the
+ * bundled `<StageNode>` consumes.
  */
 /** Stable empty set so the nodes useMemo doesn't re-run when no co-active set is passed. */
 const EMPTY_SET: ReadonlySet<string> = new Set<string>();
@@ -117,6 +117,7 @@ function deriveOverlayFields(
   errorMessage: string | undefined,
   executedOrderIds: readonly string[],
   coActiveStageIds: ReadonlySet<string>,
+  retryAttempts: number | undefined,
 ): {
   active: boolean;
   done: boolean;
@@ -124,6 +125,7 @@ function deriveOverlayFields(
   dimmed: boolean;
   errorMessage?: string;
   stepNumbers?: number[];
+  retryAttempts?: number;
 } {
   const isDone = doneStageIds.has(node.id);
   // `active` is the SINGLE cursor node OR any node in the co-active set — the
@@ -152,6 +154,9 @@ function deriveOverlayFields(
     dimmed,
     ...(errorMessage && { errorMessage }),
     ...(stepNumbers && { stepNumbers }),
+    // Attempts are only ever interesting above 1 — a stage that ran once is
+    // the silent default, and "×1" on every node would be noise, not truth.
+    ...(retryAttempts !== undefined && retryAttempts > 1 && { retryAttempts }),
   };
 }
 
@@ -162,6 +167,7 @@ function toStageNodeWithOverlay(
   errorMessage: string | undefined,
   executedOrderIds: readonly string[],
   coActiveStageIds: ReadonlySet<string>,
+  retryAttempts: number | undefined,
 ): Node {
   const overlayFields = deriveOverlayFields(
     node,
@@ -170,6 +176,7 @@ function toStageNodeWithOverlay(
     errorMessage,
     executedOrderIds,
     coActiveStageIds,
+    retryAttempts,
   );
   const { dimmed } = overlayFields;
 
@@ -177,7 +184,8 @@ function toStageNodeWithOverlay(
   //
   // Behaviour (v0.20+): when a consumer pushes a node with a non-default
   // `type`, we return it with overlay state MERGED INTO `data`
-  // (`active`, `done`, `error`, `errorMessage`, `dimmed`, `stepNumbers`).
+  // (`active`, `done`, `error`, `errorMessage`, `dimmed`, `stepNumbers`,
+  // `retryAttempts`).
   // The consumer's custom renderer can read those fields to style itself
   // the same way the bundled `<StageNode>` does, without re-implementing
   // the scrub-slice derivation.
@@ -217,6 +225,10 @@ function toStageNodeWithOverlay(
           }),
         ...(finalDimmed && { dimmed: true }),
         ...(overlayFields.stepNumbers && { stepNumbers: overlayFields.stepNumbers }),
+        ...(overlayFields.retryAttempts !== undefined &&
+          consumerData.retryAttempts === undefined && {
+            retryAttempts: overlayFields.retryAttempts,
+          }),
       },
       ...(finalDimmed && { style: { ...(node.style ?? {}), opacity: 0.35 } }),
     } as Node;
@@ -334,7 +346,7 @@ export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
    *
    * v0.20+ — overlay state is injected into custom nodes' `data`
    * fields too (`active`, `done`, `error`, `errorMessage`, `dimmed`,
-   * `stepNumbers`), so consumer renderers can style themselves with
+   * `stepNumbers`, `retryAttempts`), so consumer renderers can style with
    * the same scrub-driven done/active/error semantics the bundled
    * `<StageNode>` uses — without re-implementing the overlay slice
    * derivation. Consumer `data` fields pass through untouched alongside.
@@ -566,6 +578,7 @@ export function TracedFlow({
       executedStageIds: new Set<string>(),
       executedOrderIds: [] as string[],
       errors: new Map<string, string>(),
+      retryAttempts: new Map<string, number>(),
     };
     if (!overlay) return empty;
     const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
@@ -583,6 +596,7 @@ export function TracedFlow({
           slice.errors.get(n.id),
           slice.executedOrderIds,
           coActiveStageIds ?? EMPTY_SET,
+          slice.retryAttempts?.get(n.id),
         ),
       ),
     [positioned.nodes, slice, coActiveStageIds],

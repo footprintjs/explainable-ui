@@ -1,0 +1,427 @@
+{
+  "generatedBy": "demo/generate-retry-run.ts (real footprintjs run — do not hand-edit)",
+  "runtimeSnapshot": {
+    "sharedState": {
+      "ticker": "ACME",
+      "quoteAttempt": 3,
+      "quote": {
+        "symbol": "ACME",
+        "price": 41.5
+      },
+      "settled": {
+        "symbol": "ACME",
+        "total": 4150
+      }
+    },
+    "executionTree": {
+      "id": "load-symbol",
+      "runtimeStageId": "load-symbol#0",
+      "name": "LoadSymbol",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageWrites": {
+        "ticker": "ACME"
+      },
+      "description": "Pick the ticker",
+      "flowMessages": [
+        {
+          "type": "next",
+          "description": "Moving to FetchQuote stage",
+          "timestamp": 1787174609902,
+          "targetStage": "FetchQuote"
+        }
+      ],
+      "next": {
+        "id": "fetch-quote",
+        "runtimeStageId": "fetch-quote#1",
+        "name": "FetchQuote",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "quoteAttempt": 3,
+          "quote": {
+            "symbol": "ACME",
+            "price": 41.5
+          }
+        },
+        "stageReads": {
+          "ticker": "ACME"
+        },
+        "description": "Fetch a quote from a flaky upstream",
+        "flowMessages": [
+          {
+            "type": "next",
+            "description": "Moving to Settle stage",
+            "timestamp": 1787174609903,
+            "targetStage": "Settle"
+          }
+        ],
+        "next": {
+          "id": "settle",
+          "runtimeStageId": "settle#2",
+          "name": "Settle",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "settled": {
+              "symbol": "ACME",
+              "total": 4150
+            }
+          },
+          "stageReads": {
+            "quote": {
+              "symbol": "ACME",
+              "price": 41.5
+            }
+          },
+          "description": "Settle at the fetched price"
+        }
+      }
+    },
+    "commitLog": [
+      {
+        "overwrite": {
+          "ticker": "ACME"
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "ticker",
+            "verb": "set"
+          }
+        ],
+        "stage": "LoadSymbol",
+        "stageId": "load-symbol",
+        "runtimeStageId": "load-symbol#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "quoteAttempt": 3,
+          "quote": {
+            "symbol": "ACME",
+            "price": 41.5
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "quoteAttempt",
+            "verb": "set"
+          },
+          {
+            "path": "quote",
+            "verb": "set"
+          }
+        ],
+        "stage": "FetchQuote",
+        "stageId": "fetch-quote",
+        "runtimeStageId": "fetch-quote#1",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "settled": {
+            "symbol": "ACME",
+            "total": 4150
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "settled",
+            "verb": "set"
+          }
+        ],
+        "stage": "Settle",
+        "stageId": "settle",
+        "runtimeStageId": "settle#2",
+        "idx": 2
+      }
+    ]
+  },
+  "narrativeEntries": [
+    {
+      "type": "stage",
+      "text": "Stage 1: The process began: Pick the ticker.",
+      "depth": 0,
+      "stageName": "LoadSymbol",
+      "stageId": "load-symbol",
+      "runtimeStageId": "load-symbol#0"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write ticker = \"ACME\"",
+      "depth": 1,
+      "stageName": "LoadSymbol",
+      "stageId": "load-symbol",
+      "runtimeStageId": "load-symbol#0",
+      "stepNumber": 1,
+      "key": "ticker",
+      "rawValue": "ACME"
+    },
+    {
+      "type": "stage",
+      "text": "Stage 2: Next step: Fetch a quote from a flaky upstream.",
+      "depth": 0,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#1"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Write quoteAttempt = 1",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#1",
+      "stepNumber": 1,
+      "key": "quoteAttempt",
+      "rawValue": 1
+    },
+    {
+      "type": "retry",
+      "text": "[Retry]: attempt 1 of 3 at FetchQuote failed (quote service unavailable (503)).",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#1",
+      "stepNumber": 2
+    },
+    {
+      "type": "step",
+      "text": "Step 3: Write quoteAttempt = 2",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#1",
+      "stepNumber": 3,
+      "key": "quoteAttempt",
+      "rawValue": 2
+    },
+    {
+      "type": "retry",
+      "text": "[Retry]: attempt 2 of 3 at FetchQuote failed (quote service unavailable (503)).",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#1",
+      "stepNumber": 4
+    },
+    {
+      "type": "step",
+      "text": "Step 5: Write quoteAttempt = 3",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#1",
+      "stepNumber": 5,
+      "key": "quoteAttempt",
+      "rawValue": 3
+    },
+    {
+      "type": "step",
+      "text": "Step 6: Read ticker = \"ACME\"",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#1",
+      "stepNumber": 6,
+      "key": "ticker",
+      "rawValue": "ACME"
+    },
+    {
+      "type": "step",
+      "text": "Step 7: Write quote = {symbol, price}",
+      "depth": 1,
+      "stageName": "FetchQuote",
+      "stageId": "fetch-quote",
+      "runtimeStageId": "fetch-quote#1",
+      "stepNumber": 7,
+      "key": "quote",
+      "rawValue": {
+        "symbol": "ACME",
+        "price": 41.5
+      }
+    },
+    {
+      "type": "stage",
+      "text": "Stage 3: Next step: Settle at the fetched price.",
+      "depth": 0,
+      "stageName": "Settle",
+      "stageId": "settle",
+      "runtimeStageId": "settle#2"
+    },
+    {
+      "type": "step",
+      "text": "Step 1: Read quote = {symbol, price}",
+      "depth": 1,
+      "stageName": "Settle",
+      "stageId": "settle",
+      "runtimeStageId": "settle#2",
+      "stepNumber": 1,
+      "key": "quote",
+      "rawValue": {
+        "symbol": "ACME",
+        "price": 41.5
+      }
+    },
+    {
+      "type": "step",
+      "text": "Step 2: Read quote = {symbol, price}",
+      "depth": 1,
+      "stageName": "Settle",
+      "stageId": "settle",
+      "runtimeStageId": "settle#2",
+      "stepNumber": 2,
+      "key": "quote",
+      "rawValue": {
+        "symbol": "ACME",
+        "price": 41.5
+      }
+    },
+    {
+      "type": "step",
+      "text": "Step 3: Write settled = {symbol, total}",
+      "depth": 1,
+      "stageName": "Settle",
+      "stageId": "settle",
+      "runtimeStageId": "settle#2",
+      "stepNumber": 3,
+      "key": "settled",
+      "rawValue": {
+        "symbol": "ACME",
+        "total": 4150
+      }
+    }
+  ],
+  "traceGraph": {
+    "nodes": [
+      {
+        "id": "load-symbol",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "LoadSymbol",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [],
+          "nextIds": [
+            "fetch-quote"
+          ],
+          "description": "Pick the ticker"
+        }
+      },
+      {
+        "id": "fetch-quote",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "FetchQuote",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "load-symbol"
+          ],
+          "nextIds": [
+            "settle"
+          ],
+          "description": "Fetch a quote from a flaky upstream"
+        }
+      },
+      {
+        "id": "settle",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Settle",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "fetch-quote"
+          ],
+          "nextIds": [],
+          "description": "Settle at the fetched price"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "load-symbol->fetch-quote:next",
+        "source": "load-symbol",
+        "target": "fetch-quote",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "fetch-quote->settle:next",
+        "source": "fetch-quote",
+        "target": "settle",
+        "data": {
+          "kind": "next"
+        }
+      }
+    ]
+  },
+  "runtimeOverlay": {
+    "executionOrder": [
+      {
+        "runtimeStageId": "load-symbol#0",
+        "stageId": "load-symbol",
+        "stageName": "LoadSymbol",
+        "timestampMs": 2.7943329999999946
+      },
+      {
+        "runtimeStageId": "fetch-quote#1",
+        "stageId": "fetch-quote",
+        "stageName": "FetchQuote",
+        "timestampMs": 3.9216659999999592
+      },
+      {
+        "runtimeStageId": "settle#2",
+        "stageId": "settle",
+        "stageName": "Settle",
+        "timestampMs": 4.141957999999988
+      }
+    ],
+    "errors": [],
+    "running": false,
+    "retryAttempts": [
+      [
+        "fetch-quote#1",
+        3
+      ]
+    ]
+  }
+}

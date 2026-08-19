@@ -25,6 +25,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "intake#0"
       ]
@@ -56,6 +57,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "enrich#1"
       ]
@@ -95,6 +97,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "classify-risk#2"
       ]
@@ -124,6 +127,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "approve#3"
       ]
@@ -149,6 +153,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": []
     },
     {
@@ -172,6 +177,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": []
     }
   ],

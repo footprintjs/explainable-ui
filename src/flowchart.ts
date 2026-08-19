@@ -70,7 +70,7 @@ export type {
 // The post-hoc twin of createTraceRuntimeOverlay — same overlay, rebuilt
 // from a recorded snapshot instead of a live run. Also on the root entry.
 export { overlayFromSnapshot } from "./adapters/overlayFromSnapshot";
-export type { SnapshotWithCommitLog } from "./adapters/overlayFromSnapshot";
+export type { SnapshotWithCommitLog, OverlayFromSnapshotOptions } from "./adapters/overlayFromSnapshot";
 
 // The post-hoc twin of createTraceStructureRecorder — the same chart, rebuilt
 // from a saved `chart.buildTimeStructure` instead of a live build. Also on

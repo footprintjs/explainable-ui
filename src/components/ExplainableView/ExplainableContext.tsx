@@ -142,7 +142,7 @@ export function ExplainableProvider({
         traceGraph: graphFromStructure(
           parsed.recording.structure ?? parsed.recording.blueprint,
         ),
-        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot),
+        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot, { narrativeEntries }),
         error: null,
       };
     } catch (error) {
@@ -152,7 +152,7 @@ export function ExplainableProvider({
         traceGraph: graphFromStructure(
           parsed.recording.structure ?? parsed.recording.blueprint,
         ),
-        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot),
+        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot, { narrativeEntries }),
         error: `Could not read recording snapshot: ${error instanceof Error ? error.message : String(error)}`,
       };
     }

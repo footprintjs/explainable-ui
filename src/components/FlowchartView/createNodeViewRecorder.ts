@@ -92,6 +92,20 @@ interface FlowErrorEvent {
   readonly traversalContext?: TraversalContext;
 }
 
+/** One FAILED attempt at a stage with a declared `retry` policy
+ *  (footprintjs >= 9.15.0). Fires DURING the stage, before its
+ *  `onStageExecuted`, and only when another attempt follows. */
+interface FlowStageRetryEvent {
+  readonly stageName: string;
+  readonly stageId?: string;
+  /** Which attempt just FAILED, 1-based. */
+  readonly attempt?: number;
+  readonly maxAttempts?: number;
+  readonly delayMs?: number;
+  readonly message?: string;
+  readonly traversalContext?: TraversalContext;
+}
+
 interface FlowRunLifecycleEvent {
   readonly traversalContext?: TraversalContext;
 }
@@ -116,6 +130,7 @@ export interface MinimalNodeViewRecorder {
   // Flow channel
   onStageExecuted?(event: FlowStageExecutedEvent): void;
   onError?(event: FlowErrorEvent): void;
+  onStageRetry?(event: FlowStageRetryEvent): void;
   onRunStart?(event: FlowRunLifecycleEvent): void;
   onRunEnd?(event: FlowRunLifecycleEvent): void;
   // Scope channel
@@ -140,6 +155,16 @@ export interface ExecutionRecord {
   readonly endMs?: number;
   /** Set when `onError` fired for this execution. */
   readonly errorMessage?: string;
+  /**
+   * How many times this ONE execution was attempted — present only when a
+   * declared `retry` policy actually fired (> 1). All attempts share this
+   * record: the engine gives them one runtimeStageId and one commit bundle,
+   * so retrying never multiplies `executions`.
+   */
+  readonly attempts?: number;
+  /** Total attempts the stage's policy allows, as reported by the retry
+   *  event. Present only alongside `attempts`. */
+  readonly maxAttempts?: number;
 }
 
 /**
@@ -182,6 +207,10 @@ export interface NodeView {
   readonly totalDurationMs: number;
   /** Derived: count of executions with an errorMessage. */
   readonly errorCount: number;
+  /** Derived: count of executions that took more than one attempt. `0` for a
+   *  stage that never retried — including one that DECLARED a policy and
+   *  never needed it, which is the honest reading of "was this flaky?". */
+  readonly retriedExecutionCount: number;
 
   // ── Commit refs (join key into CommitFlowIndex from L8.2) ───────
   /** Run-time stage ids of commits made by this stage. Look up the
@@ -267,6 +296,11 @@ export function createNodeViewRecorder(
   // `byRuntimeStageId` map directly to a NodeView without
   // re-parsing.
   let stageIdOfRuntimeStageId: Map<RuntimeStageId, StageId> = new Map();
+  // runtimeStageId → { attempts made, attempts the policy allows }. Filled by
+  // onStageRetry, which fires BEFORE the execution record exists — so it is
+  // kept aside and folded into the record when `buildView` projects.
+  let attemptsOfRuntimeStageId: Map<string, { attempts: number; maxAttempts?: number }> =
+    new Map();
 
   const notifier = createNotifier("node-view");
 
@@ -345,6 +379,34 @@ export function createNodeViewRecorder(
     notifier.notify();
   }
 
+  function recordRetry(event: FlowStageRetryEvent): void {
+    const rsid = event.traversalContext?.runtimeStageId;
+    if (!rsid) {
+      devWarn(
+        () =>
+          `[createNodeViewRecorder] onStageRetry event without traversalContext.runtimeStageId — attempt attribution dropped (stage=${event.stageName}).`,
+      );
+      return;
+    }
+    // `attempt` is the attempt that FAILED, and the engine fires this only
+    // when another attempt follows — so attempt N failing proves N+1 ran.
+    const attempt = event.attempt;
+    const prior = attemptsOfRuntimeStageId.get(rsid);
+    const attemptsMade =
+      typeof attempt === "number" && Number.isFinite(attempt) && attempt >= 1
+        ? Math.floor(attempt) + 1
+        : (prior?.attempts ?? 1) + 1;
+    attemptsOfRuntimeStageId.set(rsid, {
+      attempts: Math.max(attemptsMade, prior?.attempts ?? 0),
+      ...(typeof event.maxAttempts === "number" && Number.isFinite(event.maxAttempts)
+        ? { maxAttempts: event.maxAttempts }
+        : prior?.maxAttempts !== undefined
+          ? { maxAttempts: prior.maxAttempts }
+          : {}),
+    });
+    notifier.notify();
+  }
+
   function recordCommit(event: ScopeCommitEvent): void {
     // Read runtimeStageId directly from the onCommit payload
     // (panel L8.0 ordering invariant: Scope.onCommit fires BEFORE
@@ -369,6 +431,7 @@ export function createNodeViewRecorder(
     id,
     onStageExecuted: recordExecution,
     onError: recordError,
+    onStageRetry: recordRetry,
     onCommit: recordCommit,
     // onRunStart / onRunEnd — no-op for now (state stays alive across
     // runs; consumers call .reset() between runs if they want fresh
@@ -404,6 +467,21 @@ export function createNodeViewRecorder(
       if (e.errorMessage) errorCount++;
     }
 
+    // Fold the attempt facts onto their executions. Kept out of the raw
+    // records because onStageRetry lands before onStageExecuted creates one.
+    const withAttempts = execs.map((e) => {
+      const attemptInfo = attemptsOfRuntimeStageId.get(e.runtimeStageId);
+      if (!attemptInfo || attemptInfo.attempts <= 1) return { ...e };
+      return {
+        ...e,
+        attempts: attemptInfo.attempts,
+        ...(attemptInfo.maxAttempts !== undefined && { maxAttempts: attemptInfo.maxAttempts }),
+      };
+    });
+    const retriedExecutionCount = withAttempts.filter(
+      (e) => e.attempts !== undefined && e.attempts > 1,
+    ).length;
+
     const d = structNode.data;
     return {
       stageId,
@@ -426,13 +504,14 @@ export function createNodeViewRecorder(
       // undefined). The slice() copies defend against consumer mutation.
       prevIds: d.prevIds.slice(),
       nextIds: d.nextIds.slice(),
-      executions: execs.map((e) => ({ ...e })),
+      executions: withAttempts,
       visitedInRun,
       executionCount,
       firstExecutedAt,
       lastExecutedAt,
       totalDurationMs,
       errorCount,
+      retriedExecutionCount,
       commitRuntimeStageIds: commitRefs.slice(),
     };
   }
@@ -493,6 +572,7 @@ export function createNodeViewRecorder(
       executionsOf = new Map();
       commitRefsOf = new Map();
       stageIdOfRuntimeStageId = new Map();
+      attemptsOfRuntimeStageId = new Map();
       // L8.1 — invalidate the version-keyed cache. We do NOT bump
       // version (matches the other translators' reset contract — see
       // traceStructureRecorder's `reset()` JSDoc for the consumer

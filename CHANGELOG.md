@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.37.0] - 2026-08-19
+
+A retried stage now shows it on the chart, not just in the story.
+
+0.36.0 gave `retry` its own narrative badge, and the golden fixture that came
+with it recorded a real 3-attempt run. Reading that fixture back exposed the
+other half of the same gap: the chart's three recorders never listened for
+`onStageRetry` at all. So the story said "attempt 2 of 3 at FetchQuote failed"
+while the flowchart drew FetchQuote exactly like a stage that sailed through
+first time — the one place you look to see *where* something went wrong was the
+one place that didn't say.
+
+### Added
+
+- **An attempt chip on the flowchart.** A stage that ran more than once wears a
+  small amber `↺ ×3` beside it — the same arrow and the same warning weight the
+  narrative uses, so the two surfaces agree on sight. It sits ALONGSIDE the
+  node's status, never instead of it: a stage that recovered stays green with
+  the chip, a stage that exhausted its policy stays red with the chip. Screen
+  readers get the whole fact — *"retried, attempt 3 of 3 succeeded"*.
+
+- **The runtime overlay learns attempts.** `createTraceRuntimeOverlay` now
+  listens to `onStageRetry` and carries `RuntimeOverlay.retryAttempts`
+  (runtimeStageId → attempts made). `sliceOverlay` projects it onto the chart's
+  node ids for the current cursor. This is per-NODE state, not a new axis:
+  footprintjs runs every attempt under one `runtimeStageId` and commits one
+  bundle, so a retried stage is still exactly one stop on your rail — pinned by
+  a test, because that is the invariant a badge is most likely to break.
+
+- **Replays get the badge too.** `overlayFromSnapshot(snapshot, {
+  narrativeEntries })` rebuilds the same attempt facts from a recording. It
+  needs the narrative because a failed attempt discards its writes, so the
+  commit log genuinely cannot know a stage was tried three times — omit the
+  narrative and attempts are absent, never guessed. `<ExplainableShell>`,
+  `<ExplainableView>` and `<TraceViewer>` pass it for you. A golden test proves
+  the live overlay and the rebuilt one produce identical attempt facts, down to
+  the projection the chart paints from.
+
+- **The other two translators learn it as well.** `NodeView.executions[].attempts`
+  / `maxAttempts` plus a derived `retriedExecutionCount`, and
+  `CommitView.attempts` — so a commit inspector can finally say *which* attempt
+  produced the values it is showing.
+
+- **A demo you can see it in.** `demo/generate-retry-run.ts` records a real
+  flaky-fetch run (fails twice, succeeds on the third) next to a stage that
+  declares a policy it never needs, and the demo gallery renders it.
+
+### Honesty notes
+
+- **A declared policy that never fires shows nothing.** Declared is not the same
+  as happened. The chart paints only from runtime retry events — never from
+  `spec.retryAttempts` on the structure event, which footprintjs stamps for the
+  option form but not for the `.retry()` modifier, and which is therefore a
+  lower bound on which stages *could* retry.
+
+- **`×1` never renders.** One attempt is the silent default; a chip on every
+  node would be noise, not truth.
+
 ## [0.36.0] - 2026-08-19
 
 A packaging audit flagged that the narrative badges didn't know about

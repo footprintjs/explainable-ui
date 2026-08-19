@@ -34,6 +34,12 @@ export interface OverlaySlice {
   executedStageIds: ReadonlySet<string>;
   executedOrderIds: readonly string[];
   errors: ReadonlyMap<string, string>;
+  /** Base stage id → attempts made (only ever > 1). Passes through
+   *  `aggregateMountStatus` untouched: attempts are a fact about the stage
+   *  that ran, and a mount does not inherit its internals' attempts any more
+   *  than it inherits their error messages. Optional so a consumer-built
+   *  slice stays type-valid. */
+  retryAttempts?: ReadonlyMap<string, number>;
 }
 
 /**

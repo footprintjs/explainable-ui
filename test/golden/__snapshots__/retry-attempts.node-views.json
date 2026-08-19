@@ -16,7 +16,9 @@
       ],
       "executions": [
         {
-          "runtimeStageId": "fetch-quote#0"
+          "runtimeStageId": "fetch-quote#0",
+          "attempts": 3,
+          "maxAttempts": 3
         }
       ],
       "visitedInRun": true,
@@ -25,6 +27,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 1,
       "commitRuntimeStageIds": [
         "fetch-quote#0"
       ]
@@ -54,6 +57,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "settle#1"
       ]

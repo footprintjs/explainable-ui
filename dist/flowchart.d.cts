@@ -12,6 +12,22 @@ interface StageNodeData {
     icon?: string;
     /** Step numbers in execution order (shown as badges — multiple when revisited via loops) */
     stepNumbers?: number[];
+    /**
+     * How many times this stage's execution was ATTEMPTED — a declared `retry`
+     * policy that actually fired (footprintjs >= 9.15.0). Renders a small
+     * warning-weight `↺ ×N` chip when greater than 1; 1 or absent renders
+     * nothing, because one attempt is the silent default.
+     *
+     * Attempt telemetry, not an outcome. A stage that failed twice and then
+     * succeeded is a DONE node wearing the chip; a stage that exhausted its
+     * policy keeps its error state and wears the chip alongside. The chip
+     * never changes the node's status colour.
+     *
+     * A policy that was DECLARED but never fired shows nothing at all —
+     * declared is not the same as happened, and a chart that cannot tell the
+     * two apart is worse than one that stays quiet.
+     */
+    retryAttempts?: number;
     /** Node was not executed (dim it) */
     dimmed?: boolean;
     /** Node is a subflow root (show nested indicator) */
@@ -521,6 +537,24 @@ interface RuntimeErrorEvent {
     readonly message?: string;
     readonly traversalContext?: TraversalContext$2;
 }
+/**
+ * One FAILED attempt at a stage that declares a `retry` policy
+ * (footprintjs >= 9.15.0). Fires DURING the stage — before that stage's own
+ * `onStageExecuted` — and ONLY when another attempt follows: the final
+ * failure takes the ordinary `onError` path instead. So `attempt: 2` means
+ * attempt 2 failed AND attempt 3 ran.
+ */
+interface RuntimeStageRetryEvent {
+    readonly stageName: string;
+    readonly stageId?: string;
+    /** Which attempt just FAILED, 1-based. */
+    readonly attempt?: number;
+    /** Total attempts the policy allows, including the first. */
+    readonly maxAttempts?: number;
+    readonly delayMs?: number;
+    readonly message?: string;
+    readonly traversalContext?: TraversalContext$2;
+}
 interface RuntimeRunStartEvent {
     readonly traversalContext?: TraversalContext$2;
 }
@@ -539,6 +573,9 @@ interface MinimalFlowRecorder {
     readonly id: string;
     onStageExecuted?(event: RuntimeStageExecutedEvent): void;
     onError?(event: RuntimeErrorEvent): void;
+    /** footprintjs >= 9.15.0. Without this hook a retried stage leaves NO mark
+     *  on the chart — the whole reason retries were narrative-only before. */
+    onStageRetry?(event: RuntimeStageRetryEvent): void;
     onRunStart?(event: RuntimeRunStartEvent): void;
     onRunEnd?(event: RuntimeRunEndEvent): void;
 }
@@ -564,6 +601,21 @@ interface RuntimeOverlay {
     readonly errors: ReadonlyMap<string, string>;
     /** True after `onRunStart` until `onRunEnd` — useful for "still running" indicators. */
     readonly running: boolean;
+    /**
+     * How many times each stage EXECUTION was attempted, keyed by
+     * `runtimeStageId` — present only for executions that took more than one
+     * attempt (a declared `retry` policy that actually fired).
+     *
+     * NOT a new axis. footprintjs runs every attempt of a stage under ONE
+     * runtimeStageId and commits ONE bundle for it, so a retried stage is one
+     * stop on the rail, not three. This map is per-NODE state hanging off that
+     * single stop — read it to paint an attempt badge, never to add a step.
+     *
+     * Optional so an overlay hand-built by a consumer (or produced by an older
+     * version of this library) stays type-valid; absent means "nothing known
+     * about attempts", which is exactly how a run with no retry policy looks.
+     */
+    readonly retryAttempts?: ReadonlyMap<string, number>;
 }
 interface TraceRuntimeOverlayHandle {
     /** The recorder to attach via `executor.attachFlowRecorder(handle.recorder)`. */
@@ -609,6 +661,19 @@ interface RuntimeOverlaySlice {
     readonly executedOrderIds: readonly string[];
     /** Pass-through errors map for the renderer. */
     readonly errors: ReadonlyMap<string, string>;
+    /**
+     * Per-BASE-stageId attempt count for the executions visible at this scrub
+     * position — the map a renderer paints an attempt badge from. Only entries
+     * > 1 appear: one attempt is the silent default.
+     *
+     * Iteration-accurate where it can be: an execution that has its own step in
+     * `executionOrder` contributes only once the cursor reaches it, and a later
+     * execution of the same stage overwrites an earlier one (most-recent wins,
+     * matching `errors`). An execution that has NO step — the stage threw on its
+     * final attempt, so `onStageExecuted` never fired — contributes regardless
+     * of position, because it has no position of its own to be reached.
+     */
+    readonly retryAttempts: ReadonlyMap<string, number>;
 }
 /**
  * Slice `overlay.executionOrder` at the given index:
@@ -1131,7 +1196,7 @@ interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
      *
      * v0.20+ — overlay state is injected into custom nodes' `data`
      * fields too (`active`, `done`, `error`, `errorMessage`, `dimmed`,
-     * `stepNumbers`), so consumer renderers can style themselves with
+     * `stepNumbers`, `retryAttempts`), so consumer renderers can style with
      * the same scrub-driven done/active/error semantics the bundled
      * `<StageNode>` uses — without re-implementing the overlay slice
      * derivation. Consumer `data` fields pass through untouched alongside.
@@ -1686,6 +1751,19 @@ interface FlowErrorEvent$1 {
     readonly message?: string;
     readonly traversalContext?: TraversalContext$1;
 }
+/** One FAILED attempt at a stage with a declared `retry` policy
+ *  (footprintjs >= 9.15.0). Fires DURING the stage, before its
+ *  `onStageExecuted`, and only when another attempt follows. */
+interface FlowStageRetryEvent$1 {
+    readonly stageName: string;
+    readonly stageId?: string;
+    /** Which attempt just FAILED, 1-based. */
+    readonly attempt?: number;
+    readonly maxAttempts?: number;
+    readonly delayMs?: number;
+    readonly message?: string;
+    readonly traversalContext?: TraversalContext$1;
+}
 interface FlowRunLifecycleEvent$1 {
     readonly traversalContext?: TraversalContext$1;
 }
@@ -1707,6 +1785,7 @@ interface MinimalNodeViewRecorder {
     readonly id: string;
     onStageExecuted?(event: FlowStageExecutedEvent$1): void;
     onError?(event: FlowErrorEvent$1): void;
+    onStageRetry?(event: FlowStageRetryEvent$1): void;
     onRunStart?(event: FlowRunLifecycleEvent$1): void;
     onRunEnd?(event: FlowRunLifecycleEvent$1): void;
     onCommit?(event: ScopeCommitEvent$1): void;
@@ -1725,6 +1804,16 @@ interface ExecutionRecord {
     readonly endMs?: number;
     /** Set when `onError` fired for this execution. */
     readonly errorMessage?: string;
+    /**
+     * How many times this ONE execution was attempted — present only when a
+     * declared `retry` policy actually fired (> 1). All attempts share this
+     * record: the engine gives them one runtimeStageId and one commit bundle,
+     * so retrying never multiplies `executions`.
+     */
+    readonly attempts?: number;
+    /** Total attempts the stage's policy allows, as reported by the retry
+     *  event. Present only alongside `attempts`. */
+    readonly maxAttempts?: number;
 }
 /**
  * Per-stage summary. Joins STRUCTURAL data (from the structure
@@ -1761,6 +1850,10 @@ interface NodeView {
     readonly totalDurationMs: number;
     /** Derived: count of executions with an errorMessage. */
     readonly errorCount: number;
+    /** Derived: count of executions that took more than one attempt. `0` for a
+     *  stage that never retried — including one that DECLARED a policy and
+     *  never needed it, which is the honest reading of "was this flaky?". */
+    readonly retriedExecutionCount: number;
     /** Run-time stage ids of commits made by this stage. Look up the
      *  canonical CommitView via `commitFlow.byRuntimeStageId.get(id)`. */
     readonly commitRuntimeStageIds: RuntimeStageId[];
@@ -1865,6 +1958,18 @@ interface FlowErrorEvent {
     readonly message?: string;
     readonly traversalContext?: TraversalContext;
 }
+/** One FAILED attempt at a stage with a declared `retry` policy
+ *  (footprintjs >= 9.15.0). Fires DURING the stage; only the surviving
+ *  attempt ever commits, which is why this fact has to come from the event
+ *  stream rather than from the commit itself. */
+interface FlowStageRetryEvent {
+    readonly stageName: string;
+    readonly stageId?: string;
+    /** Which attempt just FAILED, 1-based. */
+    readonly attempt?: number;
+    readonly maxAttempts?: number;
+    readonly traversalContext?: TraversalContext;
+}
 interface FlowRunLifecycleEvent {
     readonly traversalContext?: TraversalContext;
 }
@@ -1889,6 +1994,7 @@ interface MinimalCommitFlowRecorder {
     readonly id: string;
     onStageExecuted?(event: FlowStageExecutedEvent): void;
     onError?(event: FlowErrorEvent): void;
+    onStageRetry?(event: FlowStageRetryEvent): void;
     onRunStart?(event: FlowRunLifecycleEvent): void;
     onRunEnd?(event: FlowRunLifecycleEvent): void;
     onRead?(event: ScopeReadEvent): void;
@@ -1965,6 +2071,13 @@ interface CommitView {
      */
     readonly updates: Record<string, unknown>;
     readonly reads: string[];
+    /**
+     * How many attempts the stage made before THIS commit landed — present
+     * only when a declared `retry` policy fired (> 1). The discarded attempts
+     * committed nothing, so this is the one place the commit chain can say
+     * "these values are attempt 3's, not attempt 1's".
+     */
+    readonly attempts?: number;
 }
 /** Indexed CommitView access. */
 interface CommitFlowIndex {
@@ -2603,6 +2716,13 @@ declare function RunSlider({ index, cursorRuntimeStageId, onCursorChange, render
  *     failing stage's writes land (footprintjs commits before rethrow)
  *     but the message does not. Error painting needs the live recorder.
  *   - **`running` is false.** A recording is a finished run by definition.
+ *   - **Retry attempts need the narrative.** A retried attempt commits
+ *     nothing (footprintjs discards a failed attempt's staged writes), so
+ *     the commit log cannot know a stage was attempted more than once. Pass
+ *     the run's `narrativeEntries` — it records one `type: 'retry'` entry per
+ *     failed attempt, stamped with the stage's runtimeStageId — and the
+ *     rebuilt overlay carries the same `retryAttempts` a live recorder would
+ *     have accumulated. Omit them and attempts are absent, not guessed.
  *   - **Subflow-internal steps are absent when the engine isolated them.**
  *     footprintjs keeps deep-subflow commits out of the run-level
  *     commitLog by design, so a recording of a chart with subflows yields
@@ -2616,6 +2736,24 @@ declare function RunSlider({ index, cursorRuntimeStageId, onCursorChange, render
 interface SnapshotWithCommitLog {
     commitLog?: unknown;
 }
+/** The slice of a narrative entry this reader consumes — duck-typed so both
+ *  footprintjs's `CombinedNarrativeEntry` and this library's `NarrativeEntry`
+ *  fit without either side importing the other. */
+interface NarrativeEntryLike {
+    type?: unknown;
+    runtimeStageId?: unknown;
+}
+interface OverlayFromSnapshotOptions {
+    /**
+     * The run's narrative entries — `executor.getNarrativeEntries()`, or a
+     * recording's `narrativeEntries`. The ONLY post-hoc source of retry facts:
+     * `onStageRetry` fires during a stage and leaves no trace in the commit
+     * log, but the narrative keeps one `type: 'retry'` entry per failed
+     * attempt. Optional: without it the overlay simply carries no attempt
+     * facts (honest absence — never a guess).
+     */
+    readonly narrativeEntries?: readonly NarrativeEntryLike[] | null;
+}
 /**
  * Builds a `RuntimeOverlay` from a recorded run — the post-hoc twin of
  * `createTraceRuntimeOverlay()`. Pass the result straight to
@@ -2624,7 +2762,7 @@ interface SnapshotWithCommitLog {
  * Returns an empty overlay (no steps) for a missing or empty commit log —
  * an unrecorded run colours nothing, which is the truthful rendering.
  */
-declare function overlayFromSnapshot(snapshot: SnapshotWithCommitLog | null | undefined): RuntimeOverlay;
+declare function overlayFromSnapshot(snapshot: SnapshotWithCommitLog | null | undefined, options?: OverlayFromSnapshotOptions): RuntimeOverlay;
 
 /**
  * graphFromStructure — the chart, rebuilt from a SAVED structure.
@@ -2719,4 +2857,4 @@ interface SerializedStructureNode {
  */
 declare function graphFromStructure(structure: unknown): TraceGraph;
 
-export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, graphFromStructure, overlayFromSnapshot, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };
+export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, type OverlayFromSnapshotOptions, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, graphFromStructure, overlayFromSnapshot, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };

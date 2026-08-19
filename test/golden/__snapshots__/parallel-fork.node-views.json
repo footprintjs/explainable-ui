@@ -25,6 +25,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "load-patient#0"
       ]
@@ -66,6 +67,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "screen#1"
       ]
@@ -93,6 +95,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": []
     },
     {
@@ -122,6 +125,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "hypertension#2",
         "hypertension#2"
@@ -154,6 +158,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "obesity#3",
         "obesity#3"
@@ -186,6 +191,7 @@
       "lastExecutedAt": null,
       "totalDurationMs": 0,
       "errorCount": 0,
+      "retriedExecutionCount": 0,
       "commitRuntimeStageIds": [
         "summarize#4"
       ]
