@@ -1,7 +1,14 @@
 import { memo } from "react";
+import { warnDeprecated } from "../../_internal/deprecate";
 import { theme } from "../../theme";
 import type { BreadcrumbEntry } from "./useSubflowNavigation";
 
+/**
+ * @deprecated Since 0.38.0 — removed in the next major. Its `breadcrumbs`
+ * come from `useSubflowNavigation`, which is deprecated for keying the
+ * drill by a non-unique id. Use `<TracedFlow>`'s own breadcrumb bar, or
+ * `buildSubflowBreadcrumb(graph, mountNodeId)` to render your own trail.
+ */
 export interface SubflowBreadcrumbProps {
   breadcrumbs: BreadcrumbEntry[];
   onNavigate: (level: number) => void;
@@ -10,11 +17,22 @@ export interface SubflowBreadcrumbProps {
 /**
  * Breadcrumb bar for subflow drill-down navigation.
  * Shows: Root > SubflowA > SubflowB — clicking any crumb navigates back.
+ *
+ * @deprecated Since 0.38.0 — removed in the next major. This is the
+ * display half of the legacy `useSubflowNavigation` pair; the modern
+ * chart draws its own trail from `buildSubflowBreadcrumb`. Use
+ * `<TracedFlow>` (breadcrumb included), or call `buildSubflowBreadcrumb`
+ * yourself when you own the layout.
  */
 export const SubflowBreadcrumb = memo(function SubflowBreadcrumb({
   breadcrumbs,
   onNavigate,
 }: SubflowBreadcrumbProps) {
+  warnDeprecated(
+    "SubflowBreadcrumb",
+    "It renders the legacy useSubflowNavigation stack. Use <TracedFlow> " +
+      "(which draws its own trail), or buildSubflowBreadcrumb(graph, mountNodeId).",
+  );
   if (breadcrumbs.length <= 1) return null;
 
   return (

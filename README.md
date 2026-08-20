@@ -43,6 +43,44 @@ npm install @xyflow/react
 | `footprint-explainable-ui` | Core components, themes, adapters |
 | `footprint-explainable-ui/flowchart` | Flowchart visualization (requires `@xyflow/react`) |
 
+## Which component do I mount?
+
+Several all-in-one components ship here, and a fifth front door lives one
+package over. This is the ladder — take the **first** row your run matches,
+and read the last column before you skip one.
+
+| If your run is… | Mount | It gives you | It costs you |
+|---|---|---|---|
+| an **agentfootprint agent run** you recorded (`recordRun` → `{ snapshot, events, structure }`) | [`footprint-viewer`](https://www.npmjs.com/package/footprint-viewer) — a separate package | The whole experience with zero config: Story, Why, Flow, Skill Graph and Data as five tabs over **one shared cursor**, wired for you — or refused in a sentence that names what you passed | Three more packages (`agentfootprint`, `agentfootprint-lens`, and `agentthinkingui` for the Story tab), and a layout that is the viewer's rather than yours |
+| a **footprintjs pipeline run**, live in your app (`executor.getSnapshot()` + a `TraceGraph`) | `ExplainableShell` — this library | Chart + topology tree + inspector + story + timeline + the value-tracing rail, from two props | The agent readings. There is no Story / Why / Skill Graph here: this is the commit-trace lens. (The viewer refuses a bare footprintjs snapshot for exactly that reason — and names this shell as where to go) |
+| a **saved footprintjs run** on disk (`{ snapshot, structure }`) | `TraceViewer` | The same shell from one prop, with parse errors and honest gaps stated on screen instead of an empty frame | Nothing the shell has — it *is* the shell plus the file-reading |
+| a saved run whose **layout must be yours** | `ExplainableProvider` + the surfaces (or `ExplainableView` with a `layout`) | Every surface as its own component, all moving one cursor; presets, CSS-grid areas, and per-surface `slots` | The shell's richer topology, subflow drill-down and tracing chrome — the surfaces do not re-implement those |
+| a run you want to read as **commits and chains** | `TraceExplorerShell` | The L8 translator stack in one master/detail screen: chain tree, commit inspector, node inspector, cursor slider | It is a parts bin rather than a product surface — you create and attach the translators yourself (`createTraceBundle` does that in one call) |
+
+**Not on the ladder:** `TimeTravelDebugger` is deprecated in 0.38.0 — see
+[Deprecated](#deprecated).
+
+### Composing panels by hand costs you the wiring
+
+The panels are exported so you *can* build your own screen — but a pane you
+mount yourself only has the props you remember to pass. Two capabilities go
+quiet when you forget them, and nothing errors:
+
+- **the cursor** — every surface must read *and* move the same index, or your
+  chart and your story drift apart on the second click;
+- **tracing** — the value-tracing rail is wiring the shell does between the
+  inspector, the rail and the chart. A hand-mounted inspector simply has no
+  rail to hand back to.
+
+So: inside this library, get the cursor from `ExplainableProvider` (that is
+what it is for) rather than passing `selectedIndex` down a tree by hand, and
+keep tracing inside `ExplainableShell`, which owns it end to end. And if you
+are replacing a pane in `footprint-viewer`, its slots are
+**capability-accounted**: a replacement pane is handed every capability the
+shipped pane had, and a pane that never uses one gets a named console line in
+dev — silenced only by writing the drop down (`slots: { detail: { component:
+MyPane, drops: ['tracing'] } }`). Silence there is a decision, not an accident.
+
 ## Quick Start
 
 ### 1. Capture the chart while it is built
@@ -589,21 +627,136 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | `GanttTimeline` | Horizontal duration timeline (collapsible) |
 | `SnapshotPanel` | All-in-one inspector (scrubber + memory + narrative + Gantt) |
 | `TraceViewer` | Renders a saved `{ snapshot, structure }` recording — parse, diagnose, draw |
+| `StageDetailPanel` | One stage in full: its reads, its writes, its description |
+| `InspectorPanel` | The Inspector: State tab + Data Trace tab, time-travel synced |
+| `DataTracePanel` | The backward causal chain as a stack trace — click a frame to go there |
+| `TraceWalkCard` | The "why this value" stop card for the tracing rail (ingredient chips, itinerary, Copy story) |
+| `InsightPanel` | Recorder outputs as tabs or a grid — Story, Performance, Quality, Cost |
+| `CompactTimeline` | Collapsed = a row of dots, expanded = the Gantt. The shell's footer |
 
-### Flowchart Components (`footprint-explainable-ui/flowchart`)
+### Composable surfaces (`ExplainableView`)
+
+One frozen recording, one cursor, independent surfaces. Every surface below
+reads and moves the same index — that is what the provider is for.
 
 | Export | Description |
 |---|---|
-| `TracedFlow` | The chart plus the run — overlay colouring, drill-down, auto-fitView |
+| `ExplainableProvider` | Parses the recording once and holds the ONE cursor every surface shares |
+| `useExplainableRun` | Read that cursor (and the parsed run) from your own component |
+| `ExplainableView` | The assembled workbench — a preset, a grid of `areas`, or `slots` |
+| `TimeTravelBar` | Transport controls: play/pause, prev/next, the scrubber |
+| `TimelinePanel` | The vertical stage rail |
+| `FlowchartPanel` | The chart surface, already wired to the cursor |
+| `ValueInspector` | State + changes at the cursor's moment |
+| `CommentaryPanel` | The story, revealed up to the cursor |
+| `CompactTimelinePanel` | The provider-wired `CompactTimeline` — no data props |
+| `SurfaceCollapseHandle` | The line + pill handle, for collapsing a surface of your own |
+
+`CompactTimeline` and `CompactTimelinePanel` are not duplicates and neither is
+going away: the first is the **controlled primitive** (you pass `snapshots` and
+`selectedIndex`, so it works anywhere — it is what `ExplainableShell` puts in
+its footer); the second is the **provider-wired surface** that renders it and
+takes no data props at all. Inside a provider use the Panel; outside one, only
+the primitive can work.
+
+### Theme API
+
+| Export | Description |
+|---|---|
+| `FootprintTheme` | Provider that stamps a token set on everything below it |
+| `useFootprintTheme` | Read the tokens the nearest provider set |
+| `useDarkModeTokens` | Follow your app's OWN dark-mode switch (class or selector) and hand back the matching preset |
+| `themeModeVars` | The `--fp-*` variables for one mode, ready to spread onto your own wrapper |
+| `tokensToCSSVars` | Turn a token object into that variable map yourself |
+| `defaultTokens` | The shipped default token set (dark) |
+| `rawDefaults` | The same defaults as plain values, with no `var()` indirection |
+| `themePresets` | All four built-in presets, by name |
+
+### Utilities
+
+| Export | Description |
+|---|---|
+| `buildEntryRangeIndex` | Index narrative entries by `runtimeStageId` for O(1) slider sync |
+| `computeRevealedEntryCount` | How many story lines are true as of the cursor's step |
+| `extractSubflowNarrative` | Just one subflow's lines out of a run's story |
+| `buildTraceWalk` | The value-tracing walk (stops + ingredients) for one key |
+| `formatTraceWalk` | That walk as the exact text an LLM backtrack tool returns |
+| `mergeWritePatch` | Replay a commit patch onto a state object (objects merge; arrays REPLACE) |
+| `DEFAULT_EXCLUDED_KEYS` | The keys `StageDetailPanel` hides by default |
+
+### Flowchart Components (`footprint-explainable-ui/flowchart`)
+
+This entry has a wider surface than the four names most people use, so here
+is all of it — grouped by the job, one line each. Nothing below is
+experimental; the ones you will actually reach for are in the first table.
+
+**Draw the chart**
+
+| Export | Description |
+|---|---|
+| `TracedFlow` | The chart plus the run — overlay colouring, drill-down, breadcrumb, auto-fitView |
 | `TraceFlow` | Build-time chart only (no overlay) |
+| `StageNode` | The node renderer: state-aware colouring, step badges, retry-attempt chip, pulse rings |
+| `SubflowTree` | Tree view of all subflows (the shell's left panel) |
+| `NodeInspector` | What one node is and where it sits, from a `NodeView` index |
+| `CommitInspector` | What one commit wrote, and what it read to write it |
+| `CommitChainView` | The run as a git-log-style swim lane of commit chains |
+| `TraceExplorerShell` | The whole L8 stack composed: chain tree + inspectors + slider |
+| `RunSlider` | The one-cursor time-travel slider |
+| `LoopBackEdge` | The curved `loopTo` back-edge. Built in — export is for consumers who replace `edgeTypes` wholesale |
+| `SmartStepEdge` | The rank-skipping edge that routes around skipped nodes. Also built in |
+
+**Feed the chart**
+
+| Export | Description |
+|---|---|
 | `createTraceStructureRecorder` | Collect the `TraceGraph` while footprintjs builds the chart |
 | `graphFromStructure` | The same graph from a SAVED `chart.buildTimeStructure` |
 | `createTraceRuntimeOverlay` | Collect the `RuntimeOverlay` from a live run |
 | `overlayFromSnapshot` | The same overlay from a recorded snapshot |
-| `StageNode` | Custom node with state-aware coloring, step badges, retry-attempt chip, pulse rings |
-| `SubflowBreadcrumb` | Breadcrumb bar for subflow drill-down |
-| `SubflowTree` | Tree view of all subflows (used in shell's left panel) |
+| `createTraceBundle` | All four translators + one `attachTo(executor)` call |
+| `useTranslator` | Subscribe a React component to any translator's snapshot |
+
+**Change what the chart shows**
+
+| Export | Description |
+|---|---|
+| `filterGraphForDrill` | Narrow a graph to one subflow's insides — keyed by the MOUNT NODE'S id |
+| `buildSubflowBreadcrumb` | The trail back out of that drill |
+| `collapseTraceGraph` | Hide caller-chosen nodes; edges contract through them, and you get back what was hidden |
+| `sliceOverlay` | The overlay as of step N: done / active / executed / retry counts |
+
+**Layout**
+
+| Export | Description |
+|---|---|
 | `dagreTraceLayout` | The default structure-derived layout |
+| `createDagreTraceLayout` | The same, with your options |
+| `defaultTraceFlowLayout` | The layout `TraceFlow` uses when you pass none |
+| `snapLinearSuccessors` | Post-dagre pass: snap linear successors onto their predecessor's centre-x |
+| `createSnappedDagreLayout` | Dagre + that snap pass, composed |
+| `traceGroupLayout` | Rank bands + span-centred merges, for staggered structured charts |
+| `createTraceGroupLayout` | The same, with your options |
+| `applyGroupLayout` | Nest a graph's nodes inside subflow group containers |
+| `createGroupedLayout` | A layout that applies grouping over any base layout |
+| `wrapInMainChartBox` | Wrap the whole chart in one titled container box |
+| `createMainChartBoxLayout` | A layout that does that wrapping |
+| `GroupContainerNode` | The container node type those layouts emit |
+| `SlotPillNode` | The pill node used for a group's slots |
+| `GROUP_CONTAINER_NODE_TYPE` | Its node-type key, for a custom `nodeTypes` map |
+| `MAIN_CHART_BOX_ID` | The id of the wrapper box, so you can find or skip it |
+
+**Read the run as data (translators + walks)**
+
+| Export | Description |
+|---|---|
+| `createNodeViewRecorder` | Per-stage summary index (what ran, in what order, with what) |
+| `createCommitFlowRecorder` | Per-commit summary index + data lineage |
+| `walkForward` / `walkBackward` | BFS over the structure from one node, either direction |
+| `backtraceStructural` / `forwardtraceStructural` | The same two walks, named for what they answer |
+| `backtraceDataFlow` | Which commits fed this commit — lineage, not topology |
+| `structureAsChainTree` | The chart as series/parallel chains (no run needed) |
+| `buildCommitChainTree` | The same chains, filled in with what actually committed |
 
 ### Adapters
 
@@ -626,6 +779,18 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | `NarrativeEntry` | Structured narrative entry with type/depth/stageName |
 | `Recording` | `{ snapshot, structure, events }` — one saved run, read by `<TraceViewer>` and by lens's `observeRecording` |
 | `ThemeMode` | `"dark" \| "light"` — the one-word switch |
+
+### Deprecated
+
+Still exported, still working, still tested — and going away in the next
+major. Each row says what to use instead; each one also prints the same
+sentence to the console once, in dev, the first time it renders.
+
+| Deprecated in 0.38.0 | Why | Use instead |
+|---|---|---|
+| `TimeTravelDebugger` | It owns its cursor — the scrubber index is local state with no `selectedIndex` / `onIndexChange`, so nothing outside it can move the time position or read it. That is why no shipped surface in this library uses it, and it is why it overlaps `SnapshotPanel` feature for feature without being composable | `SnapshotPanel` (the same panels, controlled), `ExplainableShell` (those plus the chart), or `footprint-viewer` |
+| `useSubflowNavigation` | It keys the drill by the child chart's LOCAL `subflowId`, which is **not unique** — mount the same chart twice and both mounts report the same key, so a filter keyed on it shows the other mount's stages, or nothing. Its `currentGraph` also never swaps to the child's graph, so the chart never actually narrows | `TracedFlow`'s built-in drill (`currentSubflowId` + `onSubflowChange`, keyed by the mount NODE'S id), or `filterGraphForDrill` directly |
+| `SubflowBreadcrumb` | The display half of that same pair — it renders a `useSubflowNavigation` stack and nothing else produces one | `TracedFlow` (it draws its own trail), or `buildSubflowBreadcrumb(graph, mountNodeId)` |
 
 ### Narrative entry kinds
 
@@ -669,6 +834,87 @@ style any kind — including a future one — by selector:
 ```
 
 ---
+
+## Recipes
+
+One runnable snippet per part that the reference tables above name but no
+section shows. Each is the smallest honest use.
+
+**`collapseTraceGraph` — hide nodes, and say how many**
+
+```tsx
+import { collapseTraceGraph, TracedFlow } from "footprint-explainable-ui/flowchart";
+
+// The predicate is YOURS — this library special-cases no id convention.
+const { graph, hiddenNodeIds } = collapseTraceGraph(
+  trace.getGraph(),
+  (node) => node.id.startsWith("sf-internal/"),
+);
+
+<TracedFlow graph={graph} overlay={overlay} />;
+<p>{hiddenNodeIds.length} steps hidden</p>;
+```
+
+**`filterGraphForDrill` — show one subflow's insides**
+
+```tsx
+import { filterGraphForDrill, buildSubflowBreadcrumb, TraceFlow } from "footprint-explainable-ui/flowchart";
+
+const mountId = "pipeline/prepare";                       // the MOUNT NODE'S id
+const inside = filterGraphForDrill(graph, mountId);       // null = top level
+const trail = buildSubflowBreadcrumb(graph, mountId);
+
+<TraceFlow graph={inside} />;
+<nav>{trail.map((crumb) => crumb.label).join(" › ")}</nav>;
+```
+
+**`sliceOverlay` — what had run by step N**
+
+```ts
+import { sliceOverlay } from "footprint-explainable-ui/flowchart";
+
+const at = sliceOverlay(overlay, 3);   // the same slice <TracedFlow scrubIndex={3}> paints
+at.activeStageId;    // "process" — the stage the cursor sits on
+at.doneStageIds;     // Set { "seed", "validate" }
+at.retryAttempts;    // Map { "fetch" => 3 } — only stages that needed more than one attempt
+```
+
+**The narrative-sync trio — reveal the story as the cursor moves**
+
+```ts
+import {
+  buildEntryRangeIndex, computeRevealedEntryCount, extractSubflowNarrative,
+} from "footprint-explainable-ui";
+
+const index = buildEntryRangeIndex(entries);                          // once per run
+const shown = computeRevealedEntryCount(entries, snapshots, idx, index);
+const storySoFar = entries.slice(0, shown);                           // true as of step `idx`
+const justPricing = extractSubflowNarrative(entries, "sf-pricing");   // one subflow's lines
+```
+
+**`themeModeVars` — put the built-in palette on your own wrapper**
+
+```tsx
+import { themeModeVars, MemoryInspector } from "footprint-explainable-ui";
+
+// Same variables `theme="light"` stamps — but on an element you own,
+// so everything underneath (yours included) follows it.
+<div style={{ ...themeModeVars("light"), padding: 16 }}>
+  <MemoryInspector snapshots={snapshots} selectedIndex={idx} />
+</div>;
+```
+
+**`mergeWritePatch` — replay a commit patch onto state you already have**
+
+```ts
+import { mergeWritePatch } from "footprint-explainable-ui";
+
+mergeWritePatch({ user: { id: 1, name: "Ada" } }, { user: { name: "Grace" } });
+// → { user: { id: 1, name: "Grace" } }   objects merge per key
+
+mergeWritePatch({ tags: ["a", "b"] }, { tags: ["c"] });
+// → { tags: ["c"] }                      arrays REPLACE, deliberately
+```
 
 ## Size Variants
 

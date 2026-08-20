@@ -3,6 +3,14 @@
  *
  * Collapsed: single row of colored dots showing execution progress.
  * Expanded: delegates to GanttTimeline for full duration bars.
+ *
+ * Not the same thing as `<CompactTimelinePanel>`, and neither is going
+ * away: this is the CONTROLLED primitive — you pass `snapshots` and
+ * `selectedIndex`, so it works anywhere (it is what `<ExplainableShell>`
+ * puts in its footer). `<CompactTimelinePanel>` is the `ExplainableView`
+ * surface that WRAPS this one: it takes no data props at all, reading the
+ * run and the shared cursor out of `<ExplainableProvider>`. Inside a
+ * provider use the Panel; outside one, only this component can work.
  */
 import { memo, useState } from "react";
 import { theme } from "../../theme";

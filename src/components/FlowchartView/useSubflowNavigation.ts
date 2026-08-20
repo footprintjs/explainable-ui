@@ -1,5 +1,29 @@
 /**
- * useSubflowNavigation — drill-down breadcrumb tracker for recorder-driven charts.
+ * useSubflowNavigation — LEGACY drill-down breadcrumb tracker.
+ *
+ * DEPRECATED since 0.38.0 — removed in the next major. Two reasons, both
+ * structural rather than stylistic:
+ *
+ *   1. **The key it emits is the wrong one.** `currentSubflowId` here is
+ *      the child chart's LOCAL `subflowId`. That is not unique: mount the
+ *      same chart twice and both mounts report the same key, so a filter
+ *      keyed on it shows the other mount's stages — or nothing. The modern
+ *      drill keys by the MOUNT NODE'S id, which is unique by construction
+ *      (see `_internal/subflowDrill.ts`, "Drill KEY vs. child SCOPE").
+ *   2. **It is half a system.** `currentGraph` is documented to swap to the
+ *      child's graph and never has (see the TODO below) — it returns the
+ *      root graph at every level, so the chart never actually narrows.
+ *
+ * Use instead: `<TracedFlow>`'s built-in drill — it owns the scope
+ * (`currentSubflowId` + `onSubflowChange`, mount-node keyed) and renders
+ * its own breadcrumb. Driving it yourself is the same two pure functions
+ * the component calls: `filterGraphForDrill(graph, mountNodeId)` and
+ * `buildSubflowBreadcrumb(graph, mountNodeId)`, both exported from
+ * `footprint-explainable-ui/flowchart`.
+ *
+ * Original notes follow.
+ *
+ * ---
  *
  * Recorder-driven (v6+): replaces the legacy SpecNode-walk path. Accepts
  * a `TraceGraph` (from `createTraceStructureRecorder`) and tracks WHICH
@@ -22,6 +46,7 @@
  */
 
 import { useState, useCallback, useMemo } from "react";
+import { warnDeprecated } from "../../_internal/deprecate";
 import type { TraceGraph } from "./traceStructureRecorder";
 
 export interface BreadcrumbEntry {
@@ -62,10 +87,22 @@ const EMPTY_GRAPH: TraceGraph = { nodes: [], edges: [] };
  * Maintains a breadcrumb stack. When a subflow node is clicked the
  * stack pushes a new entry; breadcrumb clicks pop back to that level.
  * See file-level docs for the deferred per-subflow graph swap.
+ *
+ * @deprecated Since 0.38.0 — removed in the next major. Use
+ * `<TracedFlow>`'s built-in drill (`currentSubflowId` / `onSubflowChange`,
+ * keyed by the mount node's id), or drive it yourself with
+ * `filterGraphForDrill` + `buildSubflowBreadcrumb`.
  */
 export function useSubflowNavigation(
   rootGraph: TraceGraph | null,
 ): SubflowNavigation {
+  warnDeprecated(
+    "useSubflowNavigation",
+    "It keys the drill by the child chart's LOCAL subflowId, which is not " +
+      "unique across two mounts of the same chart. Use <TracedFlow>'s built-in " +
+      "drill (currentSubflowId + onSubflowChange), or filterGraphForDrill + " +
+      "buildSubflowBreadcrumb with the MOUNT NODE'S id.",
+  );
   const [stack, setStack] = useState<BreadcrumbEntry[]>([]);
 
   const safeRootGraph = rootGraph ?? EMPTY_GRAPH;

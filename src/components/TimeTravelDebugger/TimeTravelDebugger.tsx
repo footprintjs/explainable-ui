@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { warnDeprecated } from "../../_internal/deprecate";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { theme, fontSize, padding } from "../../theme";
 import { MemoryInspector } from "../MemoryInspector";
@@ -9,6 +10,13 @@ import { TracedFlow } from "../FlowchartView/TracedFlow";
 import type { TraceGraph } from "../FlowchartView/traceStructureRecorder";
 import type { RuntimeOverlay } from "../FlowchartView/createTraceRuntimeOverlay";
 
+/**
+ * @deprecated Since 0.38.0 — removed in the next major. Use
+ * `<SnapshotPanel>` for the same scrubber + memory + narrative + Gantt
+ * without a chart, `<ExplainableShell>` for the full shell over a
+ * footprintjs run, or the `footprint-viewer` package for the zero-config
+ * five-tab viewer.
+ */
 export interface TimeTravelDebuggerProps extends BaseComponentProps {
   /** Stage snapshots */
   snapshots: StageSnapshot[];
@@ -37,6 +45,20 @@ export interface TimeTravelDebuggerProps extends BaseComponentProps {
  * v6+: chart rendering is recorder-driven. Pass `graph` (always) and
  * optionally `runtimeOverlay` for per-step coloring tied to the
  * scrubber.
+ *
+ * @deprecated Since 0.38.0 — removed in the next major.
+ *
+ * It owns its cursor (the scrubber index is local state with no
+ * `selectedIndex` / `onIndexChange`), so nothing outside it can move the
+ * time-travel position or read it — which is why no shipped surface in
+ * this library uses it. What it renders, three supported components
+ * already render, controlled:
+ *
+ *   - `<SnapshotPanel>` — the same scrubber + memory + narrative + Gantt.
+ *   - `<ExplainableShell>` — that plus the chart, drill-down, tracing and
+ *     the recorder tabs, over a footprintjs run.
+ *   - `footprint-viewer` — the zero-config five-tab viewer, if you want
+ *     the whole experience rather than one panel.
  */
 export function TimeTravelDebugger({
   snapshots,
@@ -50,6 +72,11 @@ export function TimeTravelDebugger({
   className,
   style,
 }: TimeTravelDebuggerProps) {
+  warnDeprecated(
+    "TimeTravelDebugger",
+    "Use <SnapshotPanel> (same panels, controlled cursor), <ExplainableShell> " +
+      "(those plus the chart and drill-down), or the footprint-viewer package.",
+  );
   const [selectedIndex, setSelectedIndex] = useState(0);
   const fs = fontSize[size];
   const pad = padding[size];
