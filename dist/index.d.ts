@@ -1562,7 +1562,7 @@ interface CausalFrame {
     linkedBy: string;
     depth: number;
 }
-interface DataTracePanelProps {
+interface DataTracePanelProps extends BaseComponentProps {
     /** Flattened causal chain frames (BFS order from causalChain + flattenCausalDAG). */
     frames: CausalFrame[];
     /** Currently selected stage's runtimeStageId. */
@@ -1581,7 +1581,7 @@ interface DataTracePanelProps {
  */
 declare const DataTracePanel: React$1.NamedExoticComponent<DataTracePanelProps>;
 
-interface InspectorPanelProps {
+interface InspectorPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
     selectedIndex: number;
     /** Causal chain frames for the selected node (empty = no trace available). */
@@ -1706,7 +1706,7 @@ declare function buildTraceWalk(commitLog: unknown[], executionTree: unknown, ke
  */
 declare function formatTraceWalk(walk: TraceWalk, stepNumberOf: (runtimeStageId: string) => number | null): string;
 
-interface TraceWalkCardProps {
+interface TraceWalkCardProps extends BaseComponentProps {
     walk: TraceWalk;
     /** The ONE cursor — the card highlights its stop; null falls back to the anchor. */
     cursorRuntimeStageId: string | null;
@@ -1747,7 +1747,7 @@ interface InsightConfig {
     /** Render the insight content. */
     render: () => React.ReactNode;
 }
-interface InsightPanelProps {
+interface InsightPanelProps extends BaseComponentProps {
     insights: InsightConfig[];
     /** Which insight is expanded by default (by id). */
     expandedId?: string;

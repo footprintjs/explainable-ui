@@ -882,6 +882,26 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
 // src/components/TimeTravelDebugger/TimeTravelDebugger.tsx
 var import_react20 = require("react");
 
+// src/components/FlowchartView/_internal/devWarn.ts
+function isDevModeEnv() {
+  const proc = globalThis.process;
+  return proc?.env?.NODE_ENV !== "production";
+}
+function devWarn(messageFn, ...extras) {
+  if (!isDevModeEnv()) return;
+  console.warn(messageFn(), ...extras);
+}
+
+// src/_internal/deprecate.ts
+var announced = /* @__PURE__ */ new Set();
+function warnDeprecated(what, useInstead) {
+  if (announced.has(what)) return;
+  announced.add(what);
+  devWarn(
+    () => `[footprint-explainable-ui] ${what} is deprecated and will be removed in the next major. ${useInstead}`
+  );
+}
+
 // src/components/MemoryInspector/MemoryInspector.tsx
 var import_react5 = require("react");
 var import_jsx_runtime3 = require("react/jsx-runtime");
@@ -2164,16 +2184,6 @@ function TraceFlow(props) {
 var import_react18 = require("react");
 var import_react19 = require("@xyflow/react");
 
-// src/components/FlowchartView/_internal/devWarn.ts
-function isDevModeEnv() {
-  const proc = globalThis.process;
-  return proc?.env?.NODE_ENV !== "production";
-}
-function devWarn(messageFn, ...extras) {
-  if (!isDevModeEnv()) return;
-  console.warn(messageFn(), ...extras);
-}
-
 // src/components/FlowchartView/_internal/snapLinearSuccessors.ts
 function snapLinearSuccessors(graph, options = {}) {
   if (graph.nodes.length === 0) return graph;
@@ -3321,6 +3331,10 @@ function TimeTravelDebugger({
   className,
   style
 }) {
+  warnDeprecated(
+    "TimeTravelDebugger",
+    "Use <SnapshotPanel> (same panels, controlled cursor), <ExplainableShell> (those plus the chart and drill-down), or the footprint-viewer package."
+  );
   const [selectedIndex, setSelectedIndex] = (0, import_react20.useState)(0);
   const fs = fontSize[size];
   const pad = padding[size];
@@ -3621,6 +3635,10 @@ var SubflowBreadcrumb = (0, import_react21.memo)(function SubflowBreadcrumb2({
   breadcrumbs,
   onNavigate
 }) {
+  warnDeprecated(
+    "SubflowBreadcrumb",
+    "It renders the legacy useSubflowNavigation stack. Use <TracedFlow> (which draws its own trail), or buildSubflowBreadcrumb(graph, mountNodeId)."
+  );
   if (breadcrumbs.length <= 1) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
     "div",
@@ -3701,6 +3719,10 @@ var SubflowBreadcrumb = (0, import_react21.memo)(function SubflowBreadcrumb2({
 var import_react22 = require("react");
 var EMPTY_GRAPH2 = { nodes: [], edges: [] };
 function useSubflowNavigation(rootGraph) {
+  warnDeprecated(
+    "useSubflowNavigation",
+    "It keys the drill by the child chart's LOCAL subflowId, which is not unique across two mounts of the same chart. Use <TracedFlow>'s built-in drill (currentSubflowId + onSubflowChange), or filterGraphForDrill + buildSubflowBreadcrumb with the MOUNT NODE'S id."
+  );
   const [stack, setStack] = (0, import_react22.useState)([]);
   const safeRootGraph = rootGraph ?? EMPTY_GRAPH2;
   const subflowMounts = (0, import_react22.useMemo)(() => {
@@ -6235,11 +6257,11 @@ function graphFromStructure(structure) {
   const trace = createTraceStructureRecorder({ id: "graph-from-structure" });
   if (!looksLikeStructure(structure)) return trace.getGraph();
   const rec = trace.recorder;
-  const announced = /* @__PURE__ */ new Set();
+  const announced2 = /* @__PURE__ */ new Set();
   const walked = /* @__PURE__ */ new Set();
   const announce = (node) => {
-    if (announced.has(node.id)) return;
-    announced.add(node.id);
+    if (announced2.has(node.id)) return;
+    announced2.add(node.id);
     rec.onStageAdded?.({
       stageId: node.id,
       name: node.name,

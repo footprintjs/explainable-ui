@@ -2724,6 +2724,8 @@ var CHIP_COLORS = [
   v("--fp-chip-3", "#7c3aed"),
   v("--fp-chip-4", "#e11d48")
 ];
+var PAINT = (s) => s;
+var BARE = () => void 0;
 var TraceWalkCard = memo(function TraceWalkCard2({
   walk,
   cursorRuntimeStageId,
@@ -2736,8 +2738,14 @@ var TraceWalkCard = memo(function TraceWalkCard2({
   onExit,
   forkChooserOpen,
   onContinueTimeOrder,
-  canContinueTimeOrder = true
+  canContinueTimeOrder = true,
+  size = "default",
+  unstyled = false,
+  className,
+  style
 }) {
+  const fs = fontSize[size];
+  const sx = unstyled ? BARE : PAINT;
   const [copied, setCopied] = useState7(false);
   const accent = "var(--fp-accent, #6366f1)";
   const tracingColor = "var(--fp-tracing, #0d9488)";
@@ -2757,246 +2765,274 @@ var TraceWalkCard = memo(function TraceWalkCard2({
     });
   };
   if (walk.missing) {
-    return /* @__PURE__ */ jsxs10("div", { "data-fp": "trace-walk-card", "data-missing": walk.missing.reason, style: { padding: "14px", fontSize: 13, lineHeight: 1.55 }, children: [
-      /* @__PURE__ */ jsx11(CardHeader, { label: `Why this value \u2014 \`${walk.key}\``, onExit }),
-      /* @__PURE__ */ jsx11("div", { style: { color: theme.textPrimary, marginTop: 8 }, children: walk.missing.reason === "never-written" ? /* @__PURE__ */ jsxs10(Fragment4, { children: [
-        /* @__PURE__ */ jsx11("code", { style: { color: accent }, children: walk.key }),
-        " was ",
-        /* @__PURE__ */ jsx11("b", { children: "never written in this run" }),
-        " \u2014 it arrived with the run's inputs."
-      ] }) : /* @__PURE__ */ jsxs10(Fragment4, { children: [
-        /* @__PURE__ */ jsx11("code", { style: { color: accent }, children: walk.key }),
-        " has ",
-        /* @__PURE__ */ jsx11("b", { children: "not been written yet at this moment" }),
-        " \u2014 its first write happens later",
-        walk.missing.firstWriterStageName && /* @__PURE__ */ jsxs10(Fragment4, { children: [
-          ", at ",
-          /* @__PURE__ */ jsx11("b", { children: walk.missing.firstWriterStageName }),
-          walk.missing.firstWriterRuntimeStageId && stepNumberOf(walk.missing.firstWriterRuntimeStageId) && /* @__PURE__ */ jsxs10(Fragment4, { children: [
-            " (step ",
-            stepNumberOf(walk.missing.firstWriterRuntimeStageId),
-            ")"
-          ] })
-        ] }),
-        "."
-      ] }) })
-    ] });
+    return /* @__PURE__ */ jsxs10(
+      "div",
+      {
+        className,
+        "data-fp": "trace-walk-card",
+        "data-missing": walk.missing.reason,
+        style: { ...sx({ padding: "14px", fontSize: fs.body + 1, lineHeight: 1.55 }), ...style },
+        children: [
+          /* @__PURE__ */ jsx11(CardHeader, { label: `Why this value \u2014 \`${walk.key}\``, onExit, sx, fs }),
+          /* @__PURE__ */ jsx11("div", { style: sx({ color: theme.textPrimary, marginTop: 8 }), children: walk.missing.reason === "never-written" ? /* @__PURE__ */ jsxs10(Fragment4, { children: [
+            /* @__PURE__ */ jsx11("code", { style: sx({ color: accent }), children: walk.key }),
+            " was ",
+            /* @__PURE__ */ jsx11("b", { children: "never written in this run" }),
+            " \u2014 it arrived with the run's inputs."
+          ] }) : /* @__PURE__ */ jsxs10(Fragment4, { children: [
+            /* @__PURE__ */ jsx11("code", { style: sx({ color: accent }), children: walk.key }),
+            " has ",
+            /* @__PURE__ */ jsx11("b", { children: "not been written yet at this moment" }),
+            " \u2014 its first write happens later",
+            walk.missing.firstWriterStageName && /* @__PURE__ */ jsxs10(Fragment4, { children: [
+              ", at ",
+              /* @__PURE__ */ jsx11("b", { children: walk.missing.firstWriterStageName }),
+              walk.missing.firstWriterRuntimeStageId && stepNumberOf(walk.missing.firstWriterRuntimeStageId) && /* @__PURE__ */ jsxs10(Fragment4, { children: [
+                " (step ",
+                stepNumberOf(walk.missing.firstWriterRuntimeStageId),
+                ")"
+              ] })
+            ] }),
+            "."
+          ] }) })
+        ]
+      }
+    );
   }
   if (!current) return null;
   const step = stepNumberOf(current.runtimeStageId);
   const preview = previewValueOf ? previewValue(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
-  return /* @__PURE__ */ jsxs10("div", { "data-fp": "trace-walk-card", style: { padding: "10px 14px 14px", fontSize: 13, lineHeight: 1.5 }, children: [
-    /* @__PURE__ */ jsx11(
-      CardHeader,
-      {
-        label: `Why this value \u2014 stop ${currentIdx + 1} of ${walk.stops.length}`,
-        onExit
-      }
-    ),
-    viaKey && /* @__PURE__ */ jsxs10("div", { "data-fp": "twc-breadcrumb", style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
-      /* @__PURE__ */ jsx11("code", { style: { color: accent }, children: walk.key }),
-      " \u25B8 via ",
-      /* @__PURE__ */ jsx11("code", { children: viaKey }),
-      onShowAll && /* @__PURE__ */ jsxs10(Fragment4, { children: [
-        " \xB7 ",
+  return /* @__PURE__ */ jsxs10(
+    "div",
+    {
+      className,
+      "data-fp": "trace-walk-card",
+      style: { ...sx({ padding: "10px 14px 14px", fontSize: fs.body + 1, lineHeight: 1.5 }), ...style },
+      children: [
         /* @__PURE__ */ jsx11(
-          "button",
+          CardHeader,
           {
-            onClick: onShowAll,
-            style: { border: "none", background: "transparent", color: accent, cursor: "pointer", fontSize: 11, textDecoration: "underline", padding: 0 },
-            children: "show all ingredients"
+            label: `Why this value \u2014 stop ${currentIdx + 1} of ${walk.stops.length}`,
+            onExit,
+            sx,
+            fs
           }
-        )
-      ] })
-    ] }),
-    /* @__PURE__ */ jsxs10("div", { "data-fp": "twc-stop-headline", style: { marginTop: 10, fontWeight: 600, color: theme.textPrimary }, children: [
-      step && /* @__PURE__ */ jsxs10("span", { style: { color: theme.textMuted, fontWeight: 500 }, children: [
-        "Step ",
-        step,
-        " \xB7 "
-      ] }),
-      current.stageName,
-      current.loopPass > 0 && /* @__PURE__ */ jsxs10("span", { style: { color: theme.textMuted, fontWeight: 500 }, children: [
-        " (pass ",
-        current.loopPass,
-        ")"
-      ] })
-    ] }),
-    /* @__PURE__ */ jsxs10("div", { style: { marginTop: 2, color: theme.textSecondary }, children: [
-      "wrote",
-      " ",
-      current.contributedKeys.map((k, i) => /* @__PURE__ */ jsxs10("code", { style: { color: accent }, children: [
-        i > 0 && ", ",
-        k
-      ] }, k)),
-      preview !== null && /* @__PURE__ */ jsxs10("span", { style: { color: theme.textMuted }, children: [
-        " = ",
-        preview
-      ] })
-    ] }),
-    chooserVisible && /* @__PURE__ */ jsxs10(
-      "div",
-      {
-        "data-fp": "twc-fork-chooser",
-        style: {
-          marginTop: 10,
-          padding: "10px 12px",
-          border: `1.5px solid ${tracingColor}`,
-          borderRadius: 8,
-          background: `color-mix(in srgb, ${tracingColor} 8%, transparent)`
-        },
-        children: [
-          /* @__PURE__ */ jsxs10("div", { style: { fontWeight: 600, fontSize: 12, color: theme.textPrimary }, children: [
-            "This value was made from ",
-            current.ingredients.length,
-            " ingredients \u2014 which one should the walk follow?"
+        ),
+        viaKey && /* @__PURE__ */ jsxs10("div", { "data-fp": "twc-breadcrumb", style: sx({ fontSize: fs.label, color: theme.textMuted, marginTop: 4 }), children: [
+          /* @__PURE__ */ jsx11("code", { style: sx({ color: accent }), children: walk.key }),
+          " \u25B8 via ",
+          /* @__PURE__ */ jsx11("code", { children: viaKey }),
+          onShowAll && /* @__PURE__ */ jsxs10(Fragment4, { children: [
+            " \xB7 ",
+            /* @__PURE__ */ jsx11(
+              "button",
+              {
+                onClick: onShowAll,
+                style: sx({ border: "none", background: "transparent", color: accent, cursor: "pointer", fontSize: fs.label, textDecoration: "underline", padding: 0 }),
+                children: "show all ingredients"
+              }
+            )
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxs10("div", { "data-fp": "twc-stop-headline", style: sx({ marginTop: 10, fontWeight: 600, color: theme.textPrimary }), children: [
+          step && /* @__PURE__ */ jsxs10("span", { style: sx({ color: theme.textMuted, fontWeight: 500 }), children: [
+            "Step ",
+            step,
+            " \xB7 "
           ] }),
-          /* @__PURE__ */ jsx11("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }, children: current.ingredients.map((ing, i) => /* @__PURE__ */ jsx11(
+          current.stageName,
+          current.loopPass > 0 && /* @__PURE__ */ jsxs10("span", { style: sx({ color: theme.textMuted, fontWeight: 500 }), children: [
+            " (pass ",
+            current.loopPass,
+            ")"
+          ] })
+        ] }),
+        /* @__PURE__ */ jsxs10("div", { style: sx({ marginTop: 2, color: theme.textSecondary }), children: [
+          "wrote",
+          " ",
+          current.contributedKeys.map((k, i) => /* @__PURE__ */ jsxs10("code", { style: sx({ color: accent }), children: [
+            i > 0 && ", ",
+            k
+          ] }, k)),
+          preview !== null && /* @__PURE__ */ jsxs10("span", { style: sx({ color: theme.textMuted }), children: [
+            " = ",
+            preview
+          ] })
+        ] }),
+        chooserVisible && /* @__PURE__ */ jsxs10(
+          "div",
+          {
+            "data-fp": "twc-fork-chooser",
+            style: sx({
+              marginTop: 10,
+              padding: "10px 12px",
+              border: `1.5px solid ${tracingColor}`,
+              borderRadius: 8,
+              background: `color-mix(in srgb, ${tracingColor} 8%, transparent)`
+            }),
+            children: [
+              /* @__PURE__ */ jsxs10("div", { style: sx({ fontWeight: 600, fontSize: fs.body, color: theme.textPrimary }), children: [
+                "This value was made from ",
+                current.ingredients.length,
+                " ingredients \u2014 which one should the walk follow?"
+              ] }),
+              /* @__PURE__ */ jsx11("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ jsx11(
+                IngredientChip,
+                {
+                  ing,
+                  color: i < CHIP_COLORS.length ? CHIP_COLORS[i] : theme.textMuted,
+                  step: ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null,
+                  onFollow: onFollowIngredient,
+                  sx,
+                  fs
+                },
+                ing.key
+              )) }),
+              /* @__PURE__ */ jsx11(
+                "button",
+                {
+                  "data-fp": "twc-continue-time",
+                  onClick: canContinueTimeOrder ? onContinueTimeOrder : void 0,
+                  disabled: !canContinueTimeOrder,
+                  title: canContinueTimeOrder ? void 0 : "This is the walk's earliest stop \u2014 there is nothing earlier to visit",
+                  style: sx({
+                    display: "block",
+                    width: "100%",
+                    marginTop: 8,
+                    border: `1px solid ${theme.border}`,
+                    background: theme.bgTertiary,
+                    color: theme.textPrimary,
+                    borderRadius: 6,
+                    padding: "5px 10px",
+                    fontSize: fs.label,
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }),
+                  children: "visit all, oldest cause last (time order)"
+                }
+              )
+            ]
+          }
+        ),
+        /* @__PURE__ */ jsx11("div", { style: sx({ marginTop: 10 }), children: chooserVisible ? null : current.ingredients.length > 0 ? /* @__PURE__ */ jsxs10(Fragment4, { children: [
+          /* @__PURE__ */ jsxs10("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: [
+            "Made from ",
+            current.ingredients.length,
+            " ingredient",
+            current.ingredients.length > 1 ? "s" : ""
+          ] }),
+          /* @__PURE__ */ jsx11("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ jsx11(
             IngredientChip,
             {
               ing,
               color: i < CHIP_COLORS.length ? CHIP_COLORS[i] : theme.textMuted,
               step: ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null,
-              onFollow: onFollowIngredient
+              onFollow: onFollowIngredient,
+              sx,
+              fs
             },
             ing.key
-          )) }),
+          )) })
+        ] }) : walk.readsAvailable ? /* @__PURE__ */ jsx11("div", { "data-fp": "twc-origin", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "reads nothing \u2014 this is an origin." }) : /* @__PURE__ */ jsx11("div", { "data-fp": "twc-unknowable", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "\u26A0 reads were not recorded \u2014 ingredients are unknowable, not absent." }) }),
+        /* @__PURE__ */ jsxs10("div", { style: sx({ marginTop: 14 }), children: [
+          /* @__PURE__ */ jsx11("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, marginBottom: 4 }), children: "The story, newest first" }),
+          walk.stops.map((s, i) => {
+            const isCurrent = i === currentIdx;
+            return /* @__PURE__ */ jsxs10(
+              "button",
+              {
+                "data-fp": "twc-itinerary-row",
+                "data-current": isCurrent || void 0,
+                onClick: () => onJumpToStop?.(s.runtimeStageId),
+                style: sx({
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  border: "none",
+                  borderLeft: isCurrent ? `3px solid ${accent}` : "3px solid transparent",
+                  background: isCurrent ? "var(--fp-accent-bg, rgba(99,102,241,0.12))" : "transparent",
+                  padding: "4px 8px",
+                  cursor: onJumpToStop ? "pointer" : "default",
+                  color: "inherit",
+                  fontSize: fs.body
+                }),
+                children: [
+                  /* @__PURE__ */ jsxs10("span", { style: sx({ color: theme.textMuted }), children: [
+                    i + 1,
+                    "."
+                  ] }),
+                  " ",
+                  /* @__PURE__ */ jsx11("code", { style: sx({ color: accent }), children: s.contributedKeys.join(", ") }),
+                  /* @__PURE__ */ jsx11("span", { style: sx({ color: theme.textMuted }), children: " \u2190 " }),
+                  s.stageName,
+                  s.loopPass > 0 && /* @__PURE__ */ jsxs10("span", { style: sx({ color: theme.textMuted }), children: [
+                    " (pass ",
+                    s.loopPass,
+                    ")"
+                  ] }),
+                  stepNumberOf(s.runtimeStageId) && /* @__PURE__ */ jsxs10("span", { style: sx({ color: theme.textMuted }), children: [
+                    " \xB7 step ",
+                    stepNumberOf(s.runtimeStageId)
+                  ] }),
+                  s.ingredients.length > 1 && /* @__PURE__ */ jsxs10("span", { style: sx({ color: theme.warning, fontWeight: 600 }), children: [
+                    " \u2442 ",
+                    s.ingredients.length
+                  ] })
+                ]
+              },
+              s.runtimeStageId
+            );
+          })
+        ] }),
+        /* @__PURE__ */ jsxs10("div", { style: sx({ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 }), children: [
+          walk.inputTermini.length > 0 && /* @__PURE__ */ jsxs10("div", { "data-fp": "twc-run-inputs", style: sx({ fontSize: fs.label, color: theme.textMuted }), children: [
+            "\u2691 run inputs (never written): ",
+            walk.inputTermini.map((k, i) => /* @__PURE__ */ jsxs10("code", { children: [
+              i > 0 && ", ",
+              k
+            ] }, k))
+          ] }),
+          walk.truncated && /* @__PURE__ */ jsx11("div", { "data-fp": "twc-truncated", style: sx({ fontSize: fs.label, color: theme.warning }), children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
           /* @__PURE__ */ jsx11(
             "button",
             {
-              "data-fp": "twc-continue-time",
-              onClick: canContinueTimeOrder ? onContinueTimeOrder : void 0,
-              disabled: !canContinueTimeOrder,
-              title: canContinueTimeOrder ? void 0 : "This is the walk's earliest stop \u2014 there is nothing earlier to visit",
-              style: {
-                display: "block",
-                width: "100%",
-                marginTop: 8,
+              "data-fp": "twc-copy-story",
+              onClick: copyStory,
+              style: sx({
+                alignSelf: "flex-start",
+                marginTop: 4,
                 border: `1px solid ${theme.border}`,
                 background: theme.bgTertiary,
                 color: theme.textPrimary,
                 borderRadius: 6,
-                padding: "5px 10px",
-                fontSize: 11,
+                padding: "4px 10px",
+                fontSize: fs.label,
                 fontWeight: 600,
                 cursor: "pointer"
-              },
-              children: "visit all, oldest cause last (time order)"
+              }),
+              children: copied ? "Copied \u2713" : "Copy story"
             }
           )
-        ]
-      }
-    ),
-    /* @__PURE__ */ jsx11("div", { style: { marginTop: 10 }, children: chooserVisible ? null : current.ingredients.length > 0 ? /* @__PURE__ */ jsxs10(Fragment4, { children: [
-      /* @__PURE__ */ jsxs10("div", { style: { fontSize: 11, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }, children: [
-        "Made from ",
-        current.ingredients.length,
-        " ingredient",
-        current.ingredients.length > 1 ? "s" : ""
-      ] }),
-      /* @__PURE__ */ jsx11("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }, children: current.ingredients.map((ing, i) => /* @__PURE__ */ jsx11(
-        IngredientChip,
-        {
-          ing,
-          color: i < CHIP_COLORS.length ? CHIP_COLORS[i] : theme.textMuted,
-          step: ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null,
-          onFollow: onFollowIngredient
-        },
-        ing.key
-      )) })
-    ] }) : walk.readsAvailable ? /* @__PURE__ */ jsx11("div", { "data-fp": "twc-origin", style: { fontSize: 12, color: theme.textMuted, fontStyle: "italic" }, children: "reads nothing \u2014 this is an origin." }) : /* @__PURE__ */ jsx11("div", { "data-fp": "twc-unknowable", style: { fontSize: 12, color: theme.textMuted, fontStyle: "italic" }, children: "\u26A0 reads were not recorded \u2014 ingredients are unknowable, not absent." }) }),
-    /* @__PURE__ */ jsxs10("div", { style: { marginTop: 14 }, children: [
-      /* @__PURE__ */ jsx11("div", { style: { fontSize: 11, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, marginBottom: 4 }, children: "The story, newest first" }),
-      walk.stops.map((s, i) => {
-        const isCurrent = i === currentIdx;
-        return /* @__PURE__ */ jsxs10(
-          "button",
-          {
-            "data-fp": "twc-itinerary-row",
-            "data-current": isCurrent || void 0,
-            onClick: () => onJumpToStop?.(s.runtimeStageId),
-            style: {
-              display: "block",
-              width: "100%",
-              textAlign: "left",
-              border: "none",
-              borderLeft: isCurrent ? `3px solid ${accent}` : "3px solid transparent",
-              background: isCurrent ? "var(--fp-accent-bg, rgba(99,102,241,0.12))" : "transparent",
-              padding: "4px 8px",
-              cursor: onJumpToStop ? "pointer" : "default",
-              color: "inherit",
-              fontSize: 12
-            },
-            children: [
-              /* @__PURE__ */ jsxs10("span", { style: { color: theme.textMuted }, children: [
-                i + 1,
-                "."
-              ] }),
-              " ",
-              /* @__PURE__ */ jsx11("code", { style: { color: accent }, children: s.contributedKeys.join(", ") }),
-              /* @__PURE__ */ jsx11("span", { style: { color: theme.textMuted }, children: " \u2190 " }),
-              s.stageName,
-              s.loopPass > 0 && /* @__PURE__ */ jsxs10("span", { style: { color: theme.textMuted }, children: [
-                " (pass ",
-                s.loopPass,
-                ")"
-              ] }),
-              stepNumberOf(s.runtimeStageId) && /* @__PURE__ */ jsxs10("span", { style: { color: theme.textMuted }, children: [
-                " \xB7 step ",
-                stepNumberOf(s.runtimeStageId)
-              ] }),
-              s.ingredients.length > 1 && /* @__PURE__ */ jsxs10("span", { style: { color: theme.warning, fontWeight: 600 }, children: [
-                " \u2442 ",
-                s.ingredients.length
-              ] })
-            ]
-          },
-          s.runtimeStageId
-        );
-      })
-    ] }),
-    /* @__PURE__ */ jsxs10("div", { style: { marginTop: 12, display: "flex", flexDirection: "column", gap: 4 }, children: [
-      walk.inputTermini.length > 0 && /* @__PURE__ */ jsxs10("div", { "data-fp": "twc-run-inputs", style: { fontSize: 11, color: theme.textMuted }, children: [
-        "\u2691 run inputs (never written): ",
-        walk.inputTermini.map((k, i) => /* @__PURE__ */ jsxs10("code", { children: [
-          i > 0 && ", ",
-          k
-        ] }, k))
-      ] }),
-      walk.truncated && /* @__PURE__ */ jsx11("div", { "data-fp": "twc-truncated", style: { fontSize: 11, color: theme.warning }, children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
-      /* @__PURE__ */ jsx11(
-        "button",
-        {
-          "data-fp": "twc-copy-story",
-          onClick: copyStory,
-          style: {
-            alignSelf: "flex-start",
-            marginTop: 4,
-            border: `1px solid ${theme.border}`,
-            background: theme.bgTertiary,
-            color: theme.textPrimary,
-            borderRadius: 6,
-            padding: "4px 10px",
-            fontSize: 11,
-            fontWeight: 600,
-            cursor: "pointer"
-          },
-          children: copied ? "Copied \u2713" : "Copy story"
-        }
-      )
-    ] })
-  ] });
+        ] })
+      ]
+    }
+  );
 });
-function CardHeader({ label, onExit }) {
-  return /* @__PURE__ */ jsxs10("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" }, children: [
-    /* @__PURE__ */ jsx11("div", { style: { fontSize: 11, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }, children: label }),
+function CardHeader({
+  label,
+  onExit,
+  sx,
+  fs
+}) {
+  return /* @__PURE__ */ jsxs10("div", { style: sx({ display: "flex", alignItems: "center", justifyContent: "space-between" }), children: [
+    /* @__PURE__ */ jsx11("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: label }),
     onExit && /* @__PURE__ */ jsx11(
       "button",
       {
         "data-fp": "twc-exit",
         onClick: onExit,
         "aria-label": "Exit tracing",
-        style: { border: "none", background: "transparent", color: theme.textMuted, cursor: "pointer", fontSize: 12 },
+        style: sx({ border: "none", background: "transparent", color: theme.textMuted, cursor: "pointer", fontSize: fs.body }),
         children: "Done \u2715"
       }
     )
@@ -3006,7 +3042,9 @@ function IngredientChip({
   ing,
   color,
   step,
-  onFollow
+  onFollow,
+  sx,
+  fs
 }) {
   const terminus = !ing.writerRuntimeStageId;
   return /* @__PURE__ */ jsxs10(
@@ -3017,7 +3055,7 @@ function IngredientChip({
       disabled: terminus || !onFollow,
       onClick: () => onFollow?.(ing),
       title: terminus ? `${ing.key} was never written \u2014 it came in with the run's inputs` : `Follow ${ing.key} \u2014 re-anchor the walk on its writer`,
-      style: {
+      style: sx({
         display: "inline-flex",
         alignItems: "center",
         gap: 4,
@@ -3026,13 +3064,13 @@ function IngredientChip({
         color: terminus ? theme.textMuted : color,
         borderRadius: 12,
         padding: "3px 10px",
-        fontSize: 11,
+        fontSize: fs.label,
         fontWeight: 600,
         cursor: terminus || !onFollow ? "default" : "pointer"
-      },
+      }),
       children: [
         /* @__PURE__ */ jsx11("code", { children: ing.key }),
-        terminus ? /* @__PURE__ */ jsx11("span", { style: { fontWeight: 400 }, children: "\u2014 run input \u2691" }) : /* @__PURE__ */ jsxs10("span", { style: { fontWeight: 400 }, children: [
+        terminus ? /* @__PURE__ */ jsx11("span", { style: sx({ fontWeight: 400 }), children: "\u2014 run input \u2691" }) : /* @__PURE__ */ jsxs10("span", { style: sx({ fontWeight: 400 }), children: [
           "\u2190 ",
           ing.writerStageName,
           step && ` \xB7 step ${step}`
@@ -3060,87 +3098,119 @@ var DataTracePanel = memo2(function DataTracePanel2({
   selectedStageId,
   onFrameClick,
   fromStageName,
-  note
+  note,
+  size = "default",
+  unstyled = false,
+  className,
+  style
 }) {
-  const noteLine = note ? /* @__PURE__ */ jsx12("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", marginBottom: 8 }, children: note }) : null;
+  const fs = fontSize[size];
+  const pad = padding[size];
+  const base = fs.body + 1;
+  const sx = (s) => unstyled ? void 0 : s;
+  const noteLine = note ? /* @__PURE__ */ jsx12("div", { style: sx({ color: theme.textMuted, fontSize: fs.label, fontStyle: "italic", marginBottom: 8 }), children: note }) : null;
   if (frames.length === 0) {
-    return /* @__PURE__ */ jsxs11("div", { style: { padding: "14px 14px 12px", fontSize: 13, lineHeight: 1.55 }, children: [
-      /* @__PURE__ */ jsx12(
-        "div",
-        {
-          style: {
-            fontSize: 11,
-            color: theme.textMuted,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            fontWeight: 600,
-            marginBottom: 6
-          },
-          children: "Backward causal chain"
-        }
-      ),
-      /* @__PURE__ */ jsx12("div", { style: { color: theme.textSecondary, marginBottom: 10 }, children: "Trace any value back to the stage that created it \u2014 and everything upstream that influenced it." }),
-      noteLine,
-      /* @__PURE__ */ jsx12("div", { style: { color: theme.textMuted, fontSize: 12 }, children: "Select a stage above to see its dependency chain." })
-    ] });
-  }
-  return /* @__PURE__ */ jsxs11("div", { style: { padding: "8px 0", fontSize: 13 }, children: [
-    note && /* @__PURE__ */ jsx12("div", { style: { padding: "4px 12px 0", fontSize: 11, color: theme.textMuted, fontStyle: "italic" }, children: note }),
-    fromStageName && /* @__PURE__ */ jsxs11("div", { style: { padding: "4px 12px 8px" }, children: [
-      /* @__PURE__ */ jsxs11(
-        "div",
-        {
-          style: {
-            fontSize: 11,
-            color: theme.textMuted,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            fontWeight: 600
-          },
-          children: [
-            "Data trace from ",
-            fromStageName
-          ]
-        }
-      ),
-      /* @__PURE__ */ jsx12(
-        "div",
-        {
-          style: {
-            fontSize: 11,
-            color: theme.textMuted,
-            fontStyle: "italic",
-            marginTop: 3
-          },
-          children: "Every value here was derived from the stages below."
-        }
-      )
-    ] }),
-    frames.map((frame, i) => /* @__PURE__ */ jsx12(
-      DataTraceFrame,
+    return /* @__PURE__ */ jsxs11(
+      "div",
       {
-        frame,
-        isFirst: i === 0,
-        isLast: i === frames.length - 1,
-        isSelected: frame.runtimeStageId === selectedStageId,
-        onClick: onFrameClick
-      },
-      frame.runtimeStageId
-    ))
-  ] });
+        className,
+        "data-fp": "data-trace-panel",
+        style: { ...sx({ padding: `${pad + 2}px ${pad + 2}px ${pad}px`, fontSize: base, lineHeight: 1.55 }), ...style },
+        children: [
+          /* @__PURE__ */ jsx12(
+            "div",
+            {
+              style: sx({
+                fontSize: fs.label,
+                color: theme.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+                fontWeight: 600,
+                marginBottom: 6
+              }),
+              children: "Backward causal chain"
+            }
+          ),
+          /* @__PURE__ */ jsx12("div", { style: sx({ color: theme.textSecondary, marginBottom: 10 }), children: "Trace any value back to the stage that created it \u2014 and everything upstream that influenced it." }),
+          noteLine,
+          /* @__PURE__ */ jsx12("div", { style: sx({ color: theme.textMuted, fontSize: fs.body }), children: "Select a stage above to see its dependency chain." })
+        ]
+      }
+    );
+  }
+  return /* @__PURE__ */ jsxs11(
+    "div",
+    {
+      className,
+      "data-fp": "data-trace-panel",
+      style: { ...sx({ padding: "8px 0", fontSize: base }), ...style },
+      children: [
+        note && /* @__PURE__ */ jsx12("div", { style: sx({ padding: "4px 12px 0", fontSize: fs.label, color: theme.textMuted, fontStyle: "italic" }), children: note }),
+        fromStageName && /* @__PURE__ */ jsxs11("div", { style: sx({ padding: "4px 12px 8px" }), children: [
+          /* @__PURE__ */ jsxs11(
+            "div",
+            {
+              style: sx({
+                fontSize: fs.label,
+                color: theme.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+                fontWeight: 600
+              }),
+              children: [
+                "Data trace from ",
+                fromStageName
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsx12(
+            "div",
+            {
+              style: sx({
+                fontSize: fs.label,
+                color: theme.textMuted,
+                fontStyle: "italic",
+                marginTop: 3
+              }),
+              children: "Every value here was derived from the stages below."
+            }
+          )
+        ] }),
+        frames.map((frame, i) => /* @__PURE__ */ jsx12(
+          DataTraceFrame,
+          {
+            frame,
+            isFirst: i === 0,
+            isLast: i === frames.length - 1,
+            isSelected: frame.runtimeStageId === selectedStageId,
+            onClick: onFrameClick,
+            unstyled,
+            size
+          },
+          frame.runtimeStageId
+        ))
+      ]
+    }
+  );
 });
 var DataTraceFrame = memo2(function DataTraceFrame2({
   frame,
   isFirst,
   isLast,
   isSelected,
-  onClick
+  onClick,
+  unstyled = false,
+  size = "default"
 }) {
+  const fs = fontSize[size];
+  const sx = (s) => unstyled ? void 0 : s;
   return /* @__PURE__ */ jsxs11(
     "button",
     {
       onClick: () => onClick?.(frame.runtimeStageId),
-      style: {
+      "data-fp": "data-trace-frame",
+      "data-selected": isSelected || void 0,
+      style: sx({
         display: "block",
         width: "100%",
         textAlign: "left",
@@ -3150,29 +3220,29 @@ var DataTraceFrame = memo2(function DataTraceFrame2({
         cursor: onClick ? "pointer" : "default",
         borderLeft: isSelected ? "3px solid var(--fp-accent, #6366f1)" : "3px solid transparent",
         color: "inherit",
-        fontSize: 13
-      },
+        fontSize: fs.body + 1
+      }),
       children: [
-        /* @__PURE__ */ jsxs11("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-          !isFirst && /* @__PURE__ */ jsx12("span", { style: { color: theme.textMuted, fontSize: 11 }, children: "\u2191" }),
+        /* @__PURE__ */ jsxs11("div", { style: sx({ display: "flex", alignItems: "center", gap: 6 }), children: [
+          !isFirst && /* @__PURE__ */ jsx12("span", { style: sx({ color: theme.textMuted, fontSize: fs.label }), children: "\u2191" }),
           /* @__PURE__ */ jsx12(
             "span",
             {
-              style: {
+              style: sx({
                 fontWeight: isFirst ? 600 : 400,
                 color: isFirst ? "var(--fp-accent, #6366f1)" : theme.textPrimary
-              },
+              }),
               children: frame.stageName
             }
           ),
           isLast && !isFirst && /* @__PURE__ */ jsx12(
             "span",
             {
-              style: {
-                fontSize: 10,
+              style: sx({
+                fontSize: fs.small,
                 color: theme.textMuted,
                 fontStyle: "italic"
-              },
+              }),
               children: "(origin)"
             }
           )
@@ -3180,28 +3250,28 @@ var DataTraceFrame = memo2(function DataTraceFrame2({
         frame.keysWritten.length > 0 && /* @__PURE__ */ jsxs11(
           "div",
           {
-            style: {
-              fontSize: 11,
+            style: sx({
+              fontSize: fs.label,
               color: theme.textMuted,
               paddingLeft: isFirst ? 0 : 18,
               marginTop: 2
-            },
+            }),
             children: [
               "wrote:",
               " ",
-              /* @__PURE__ */ jsx12("span", { style: { color: theme.textSecondary }, children: frame.keysWritten.join(", ") })
+              /* @__PURE__ */ jsx12("span", { style: sx({ color: theme.textSecondary }), children: frame.keysWritten.join(", ") })
             ]
           }
         ),
         frame.linkedBy && /* @__PURE__ */ jsxs11(
           "div",
           {
-            style: {
-              fontSize: 11,
+            style: sx({
+              fontSize: fs.label,
               color: "var(--fp-accent, #6366f1)",
               paddingLeft: 18,
               marginTop: 1
-            },
+            }),
             children: [
               "\u2190 via ",
               frame.linkedBy
@@ -4384,11 +4454,27 @@ var SubflowTree = memo3(function SubflowTree2({
 
 // src/components/FlowchartView/SubflowBreadcrumb.tsx
 import { memo as memo4 } from "react";
+
+// src/_internal/deprecate.ts
+var announced = /* @__PURE__ */ new Set();
+function warnDeprecated(what, useInstead) {
+  if (announced.has(what)) return;
+  announced.add(what);
+  devWarn(
+    () => `[footprint-explainable-ui] ${what} is deprecated and will be removed in the next major. ${useInstead}`
+  );
+}
+
+// src/components/FlowchartView/SubflowBreadcrumb.tsx
 import { jsx as jsx17, jsxs as jsxs16 } from "react/jsx-runtime";
 var SubflowBreadcrumb = memo4(function SubflowBreadcrumb2({
   breadcrumbs,
   onNavigate
 }) {
+  warnDeprecated(
+    "SubflowBreadcrumb",
+    "It renders the legacy useSubflowNavigation stack. Use <TracedFlow> (which draws its own trail), or buildSubflowBreadcrumb(graph, mountNodeId)."
+  );
   if (breadcrumbs.length <= 1) return null;
   return /* @__PURE__ */ jsx17(
     "div",
@@ -6555,7 +6641,11 @@ var InspectorPanel = memo6(function InspectorPanel2({
   onNavigateToStage,
   onTabChange,
   tab: controlledTab,
-  traceContent
+  traceContent,
+  size = "default",
+  unstyled = false,
+  className,
+  style
 }) {
   const [internalTab, setTabState] = useState12("state");
   const tab = controlledTab ?? internalTab;
@@ -6564,31 +6654,40 @@ var InspectorPanel = memo6(function InspectorPanel2({
     onTabChange?.(t);
   };
   const currentSnapshot = snapshots[selectedIndex];
+  const sx = (s) => unstyled ? void 0 : s;
   return /* @__PURE__ */ jsxs21(
     "div",
     {
+      className,
+      "data-fp": "inspector-panel",
       style: {
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        overflow: "hidden"
+        ...sx({
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          overflow: "hidden"
+        }),
+        ...style
       },
       children: [
         /* @__PURE__ */ jsxs21(
           "div",
           {
-            style: {
+            "data-fp": "inspector-tabs",
+            style: sx({
               display: "flex",
               borderBottom: `1px solid ${theme.border}`,
               flexShrink: 0
-            },
+            }),
             children: [
               /* @__PURE__ */ jsx24(
                 TabButton,
                 {
                   active: tab === "state",
                   onClick: () => setTab("state"),
-                  label: "State"
+                  label: "State",
+                  size,
+                  unstyled
                 }
               ),
               /* @__PURE__ */ jsx24(
@@ -6597,18 +6696,22 @@ var InspectorPanel = memo6(function InspectorPanel2({
                   active: tab === "trace",
                   onClick: () => setTab("trace"),
                   label: "Data Trace",
-                  badge: dataTraceFrames.length > 0 ? String(dataTraceFrames.length) : void 0
+                  badge: dataTraceFrames.length > 0 ? String(dataTraceFrames.length) : void 0,
+                  size,
+                  unstyled
                 }
               )
             ]
           }
         ),
-        /* @__PURE__ */ jsxs21("div", { style: { flex: 1, overflow: "auto" }, children: [
+        /* @__PURE__ */ jsxs21("div", { "data-fp": "inspector-body", style: sx({ flex: 1, overflow: "auto" }), children: [
           tab === "state" && /* @__PURE__ */ jsx24(
             MemoryPanel,
             {
               snapshots,
-              selectedIndex
+              selectedIndex,
+              size,
+              unstyled
             }
           ),
           tab === "trace" && (traceContent ?? /* @__PURE__ */ jsx24(
@@ -6618,7 +6721,9 @@ var InspectorPanel = memo6(function InspectorPanel2({
               note: dataTraceNote,
               selectedStageId,
               onFrameClick: onNavigateToStage,
-              fromStageName: currentSnapshot?.stageName
+              fromStageName: currentSnapshot?.stageName,
+              size,
+              unstyled
             }
           ))
         ] })
@@ -6630,38 +6735,44 @@ function TabButton({
   active,
   onClick,
   label,
-  badge
+  badge,
+  size = "default",
+  unstyled = false
 }) {
+  const fs = fontSize[size];
+  const sx = (s) => unstyled ? void 0 : s;
   return /* @__PURE__ */ jsxs21(
     "button",
     {
       onClick,
-      style: {
+      "data-fp": "inspector-tab",
+      "data-active": active || void 0,
+      style: sx({
         padding: "8px 14px",
         border: "none",
         borderBottom: active ? "2px solid var(--fp-accent, #6366f1)" : "2px solid transparent",
         background: "transparent",
         color: active ? "var(--fp-accent, #6366f1)" : theme.textMuted,
         fontWeight: active ? 600 : 400,
-        fontSize: 12,
+        fontSize: fs.body,
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
         gap: 4
-      },
+      }),
       children: [
         label,
         badge && /* @__PURE__ */ jsx24(
           "span",
           {
-            style: {
-              fontSize: 10,
+            style: sx({
+              fontSize: fs.small,
               background: active ? "var(--fp-accent, #6366f1)" : theme.textMuted,
               color: "#fff",
               borderRadius: 8,
               padding: "1px 5px",
               fontWeight: 600
-            },
+            }),
             children: badge
           }
         )
@@ -6676,41 +6787,58 @@ import { jsx as jsx25, jsxs as jsxs22 } from "react/jsx-runtime";
 var InsightPanel = memo7(function InsightPanel2({
   insights,
   expandedId,
-  mode
+  mode,
+  size = "default",
+  unstyled = false,
+  className,
+  style
 }) {
+  const chrome = { size, unstyled, className, style };
   if (insights.length === 0) {
-    return /* @__PURE__ */ jsx25(NoInsights, {});
+    return /* @__PURE__ */ jsx25(NoInsights, { ...chrome });
   }
   if (mode === "grid") {
-    return /* @__PURE__ */ jsx25(InsightGrid, { insights });
+    return /* @__PURE__ */ jsx25(InsightGrid, { insights, ...chrome });
   }
-  return /* @__PURE__ */ jsx25(InsightTabs, { insights, defaultId: expandedId });
+  return /* @__PURE__ */ jsx25(InsightTabs, { insights, defaultId: expandedId, ...chrome });
 });
+var styler = (unstyled) => (s) => unstyled ? void 0 : s;
 var INGREDIENTS = [
   { panel: "Story", call: "narrative()", from: "footprintjs/recorders" },
   { panel: "Performance", call: "metrics()", from: "footprintjs/recorders" },
   { panel: "Quality", call: "new QualityRecorder(scoreFn)", from: "footprintjs/trace" },
   { panel: "Cost", call: "costRecorder()", from: "agentfootprint/observe" }
 ];
-var NoInsights = memo7(function NoInsights2() {
+var NoInsights = memo7(function NoInsights2({
+  size,
+  unstyled,
+  className,
+  style
+}) {
+  const fs = fontSize[size];
+  const sx = styler(unstyled);
   return /* @__PURE__ */ jsxs22(
     "div",
     {
+      className,
       "data-fp": "insights-empty",
-      style: { padding: 12, color: theme.textMuted, fontSize: 12, lineHeight: 1.6 },
+      style: {
+        ...sx({ padding: padding[size], color: theme.textMuted, fontSize: fs.body, lineHeight: 1.6 }),
+        ...style
+      },
       children: [
-        /* @__PURE__ */ jsx25("div", { style: { marginBottom: 8 }, children: "Nothing to show \u2014 this run was recorded without any of these. Each one lights one panel:" }),
-        /* @__PURE__ */ jsx25("table", { style: { borderCollapse: "collapse" }, children: /* @__PURE__ */ jsx25("tbody", { children: INGREDIENTS.map(({ panel, call, from }) => /* @__PURE__ */ jsxs22("tr", { "data-fp": "insights-empty-row", children: [
-          /* @__PURE__ */ jsx25("td", { style: { paddingRight: 10, color: theme.textSecondary, whiteSpace: "nowrap" }, children: panel }),
-          /* @__PURE__ */ jsxs22("td", { style: { fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "nowrap" }, children: [
+        /* @__PURE__ */ jsx25("div", { style: sx({ marginBottom: 8 }), children: "Nothing to show \u2014 this run was recorded without any of these. Each one lights one panel:" }),
+        /* @__PURE__ */ jsx25("table", { style: sx({ borderCollapse: "collapse" }), children: /* @__PURE__ */ jsx25("tbody", { children: INGREDIENTS.map(({ panel, call, from }) => /* @__PURE__ */ jsxs22("tr", { "data-fp": "insights-empty-row", children: [
+          /* @__PURE__ */ jsx25("td", { style: sx({ paddingRight: 10, color: theme.textSecondary, whiteSpace: "nowrap" }), children: panel }),
+          /* @__PURE__ */ jsxs22("td", { style: sx({ fontFamily: theme.fontMono, fontSize: fs.label, whiteSpace: "nowrap" }), children: [
             call,
-            /* @__PURE__ */ jsxs22("span", { style: { opacity: 0.7 }, children: [
+            /* @__PURE__ */ jsxs22("span", { style: sx({ opacity: 0.7 }), children: [
               " \u2014 from ",
               from
             ] })
           ] })
         ] }, panel)) }) }),
-        /* @__PURE__ */ jsxs22("div", { style: { marginTop: 8 }, children: [
+        /* @__PURE__ */ jsxs22("div", { style: sx({ marginTop: 8 }), children: [
           "Attach with ",
           /* @__PURE__ */ jsx25("code", { children: "executor.attachScopeRecorder(...)" }),
           " before the run, then pass the snapshot here \u2014 each recorder's data rides along inside it."
@@ -6721,111 +6849,139 @@ var NoInsights = memo7(function NoInsights2() {
 });
 var InsightTabs = memo7(function InsightTabs2({
   insights,
-  defaultId
+  defaultId,
+  size,
+  unstyled,
+  className,
+  style
 }) {
   const [activeId, setActiveId] = useState13(defaultId ?? insights[0]?.id);
   const active = insights.find((i) => i.id === activeId) ?? insights[0];
+  const fs = fontSize[size];
+  const sx = styler(unstyled);
   return /* @__PURE__ */ jsxs22(
     "div",
     {
+      className,
+      "data-fp": "insight-panel",
+      "data-mode": "tabs",
       style: {
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        overflow: "hidden"
+        ...sx({
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          overflow: "hidden"
+        }),
+        ...style
       },
       children: [
         /* @__PURE__ */ jsx25(
           "div",
           {
-            style: {
+            "data-fp": "insight-tabs",
+            style: sx({
               display: "flex",
               borderBottom: `1px solid ${theme.border}`,
               flexShrink: 0,
               overflowX: "auto"
-            },
+            }),
             children: insights.map((insight) => /* @__PURE__ */ jsx25(
               "button",
               {
                 onClick: () => setActiveId(insight.id),
-                style: {
+                "data-fp": "insight-tab",
+                "data-active": activeId === insight.id || void 0,
+                style: sx({
                   padding: "8px 12px",
                   border: "none",
                   borderBottom: activeId === insight.id ? "2px solid var(--fp-accent, #6366f1)" : "2px solid transparent",
                   background: "transparent",
                   color: activeId === insight.id ? "var(--fp-accent, #6366f1)" : theme.textMuted,
                   fontWeight: activeId === insight.id ? 600 : 400,
-                  fontSize: 12,
+                  fontSize: fs.body,
                   cursor: "pointer",
                   whiteSpace: "nowrap"
-                },
+                }),
                 children: insight.name
               },
               insight.id
             ))
           }
         ),
-        /* @__PURE__ */ jsx25("div", { style: { flex: 1, overflow: "auto" }, children: active?.render() })
+        /* @__PURE__ */ jsx25("div", { "data-fp": "insight-body", style: sx({ flex: 1, overflow: "auto" }), children: active?.render() })
       ]
     }
   );
 });
 var InsightGrid = memo7(function InsightGrid2({
-  insights
+  insights,
+  size,
+  unstyled,
+  className,
+  style
 }) {
   const cols = insights.length <= 2 ? 1 : 2;
+  const fs = fontSize[size];
+  const sx = styler(unstyled);
   return /* @__PURE__ */ jsx25(
     "div",
     {
+      className,
+      "data-fp": "insight-panel",
+      "data-mode": "grid",
       style: {
-        display: "grid",
-        gridTemplateColumns: `repeat(${cols}, 1fr)`,
-        height: "100%",
-        overflow: "auto",
-        gap: 1,
-        background: theme.border
+        ...sx({
+          display: "grid",
+          gridTemplateColumns: `repeat(${cols}, 1fr)`,
+          height: "100%",
+          overflow: "auto",
+          gap: 1,
+          background: theme.border
+        }),
+        ...style
       },
       children: insights.map((insight) => /* @__PURE__ */ jsxs22(
         "div",
         {
-          style: {
+          "data-fp": "insight-cell",
+          style: sx({
             background: "var(--fp-bg, #1a1b26)",
             display: "flex",
             flexDirection: "column",
             overflow: "hidden"
-          },
+          }),
           children: [
             /* @__PURE__ */ jsxs22(
               "div",
               {
-                style: {
+                style: sx({
                   padding: "6px 10px",
-                  fontSize: 11,
+                  fontSize: fs.label,
                   fontWeight: 600,
                   color: theme.textMuted,
                   textTransform: "uppercase",
                   letterSpacing: "0.5px",
                   borderBottom: `1px solid ${theme.border}`,
                   flexShrink: 0
-                },
+                }),
                 children: [
                   insight.name,
                   insight.summary && /* @__PURE__ */ jsx25(
                     "span",
                     {
-                      style: {
+                      style: sx({
                         marginLeft: 8,
                         fontWeight: 400,
-                        fontSize: 10,
+                        fontSize: fs.small,
                         color: theme.textMuted
-                      },
+                      }),
                       children: insight.summary
                     }
                   )
                 ]
               }
             ),
-            /* @__PURE__ */ jsx25("div", { style: { flex: 1, overflow: "auto" }, children: insight.render() })
+            /* @__PURE__ */ jsx25("div", { "data-fp": "insight-cell-body", style: sx({ flex: 1, overflow: "auto" }), children: insight.render() })
           ]
         },
         insight.id
@@ -8639,11 +8795,11 @@ function graphFromStructure(structure) {
   const trace = createTraceStructureRecorder({ id: "graph-from-structure" });
   if (!looksLikeStructure(structure)) return trace.getGraph();
   const rec = trace.recorder;
-  const announced = /* @__PURE__ */ new Set();
+  const announced2 = /* @__PURE__ */ new Set();
   const walked = /* @__PURE__ */ new Set();
   const announce = (node) => {
-    if (announced.has(node.id)) return;
-    announced.add(node.id);
+    if (announced2.has(node.id)) return;
+    announced2.add(node.id);
     rec.onStageAdded?.({
       stageId: node.id,
       name: node.name,

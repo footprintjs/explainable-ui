@@ -686,6 +686,13 @@ interface RuntimeOverlaySlice {
  */
 declare function sliceOverlay(overlay: RuntimeOverlay, index: number): RuntimeOverlaySlice;
 
+/**
+ * @deprecated Since 0.38.0 — removed in the next major. Use
+ * `<SnapshotPanel>` for the same scrubber + memory + narrative + Gantt
+ * without a chart, `<ExplainableShell>` for the full shell over a
+ * footprintjs run, or the `footprint-viewer` package for the zero-config
+ * five-tab viewer.
+ */
 interface TimeTravelDebuggerProps extends BaseComponentProps {
     /** Stage snapshots */
     snapshots: StageSnapshot[];
@@ -713,11 +720,49 @@ interface TimeTravelDebuggerProps extends BaseComponentProps {
  * v6+: chart rendering is recorder-driven. Pass `graph` (always) and
  * optionally `runtimeOverlay` for per-step coloring tied to the
  * scrubber.
+ *
+ * @deprecated Since 0.38.0 — removed in the next major.
+ *
+ * It owns its cursor (the scrubber index is local state with no
+ * `selectedIndex` / `onIndexChange`), so nothing outside it can move the
+ * time-travel position or read it — which is why no shipped surface in
+ * this library uses it. What it renders, three supported components
+ * already render, controlled:
+ *
+ *   - `<SnapshotPanel>` — the same scrubber + memory + narrative + Gantt.
+ *   - `<ExplainableShell>` — that plus the chart, drill-down, tracing and
+ *     the recorder tabs, over a footprintjs run.
+ *   - `footprint-viewer` — the zero-config five-tab viewer, if you want
+ *     the whole experience rather than one panel.
  */
 declare function TimeTravelDebugger({ snapshots, graph, runtimeOverlay, showGantt, layout, title, size, unstyled, className, style, }: TimeTravelDebuggerProps): react.JSX.Element;
 
 /**
- * useSubflowNavigation — drill-down breadcrumb tracker for recorder-driven charts.
+ * useSubflowNavigation — LEGACY drill-down breadcrumb tracker.
+ *
+ * DEPRECATED since 0.38.0 — removed in the next major. Two reasons, both
+ * structural rather than stylistic:
+ *
+ *   1. **The key it emits is the wrong one.** `currentSubflowId` here is
+ *      the child chart's LOCAL `subflowId`. That is not unique: mount the
+ *      same chart twice and both mounts report the same key, so a filter
+ *      keyed on it shows the other mount's stages — or nothing. The modern
+ *      drill keys by the MOUNT NODE'S id, which is unique by construction
+ *      (see `_internal/subflowDrill.ts`, "Drill KEY vs. child SCOPE").
+ *   2. **It is half a system.** `currentGraph` is documented to swap to the
+ *      child's graph and never has (see the TODO below) — it returns the
+ *      root graph at every level, so the chart never actually narrows.
+ *
+ * Use instead: `<TracedFlow>`'s built-in drill — it owns the scope
+ * (`currentSubflowId` + `onSubflowChange`, mount-node keyed) and renders
+ * its own breadcrumb. Driving it yourself is the same two pure functions
+ * the component calls: `filterGraphForDrill(graph, mountNodeId)` and
+ * `buildSubflowBreadcrumb(graph, mountNodeId)`, both exported from
+ * `footprint-explainable-ui/flowchart`.
+ *
+ * Original notes follow.
+ *
+ * ---
  *
  * Recorder-driven (v6+): replaces the legacy SpecNode-walk path. Accepts
  * a `TraceGraph` (from `createTraceStructureRecorder`) and tracks WHICH
@@ -773,9 +818,20 @@ interface SubflowNavigation {
  * Maintains a breadcrumb stack. When a subflow node is clicked the
  * stack pushes a new entry; breadcrumb clicks pop back to that level.
  * See file-level docs for the deferred per-subflow graph swap.
+ *
+ * @deprecated Since 0.38.0 — removed in the next major. Use
+ * `<TracedFlow>`'s built-in drill (`currentSubflowId` / `onSubflowChange`,
+ * keyed by the mount node's id), or drive it yourself with
+ * `filterGraphForDrill` + `buildSubflowBreadcrumb`.
  */
 declare function useSubflowNavigation(rootGraph: TraceGraph | null): SubflowNavigation;
 
+/**
+ * @deprecated Since 0.38.0 — removed in the next major. Its `breadcrumbs`
+ * come from `useSubflowNavigation`, which is deprecated for keying the
+ * drill by a non-unique id. Use `<TracedFlow>`'s own breadcrumb bar, or
+ * `buildSubflowBreadcrumb(graph, mountNodeId)` to render your own trail.
+ */
 interface SubflowBreadcrumbProps {
     breadcrumbs: BreadcrumbEntry$1[];
     onNavigate: (level: number) => void;
@@ -783,6 +839,12 @@ interface SubflowBreadcrumbProps {
 /**
  * Breadcrumb bar for subflow drill-down navigation.
  * Shows: Root > SubflowA > SubflowB — clicking any crumb navigates back.
+ *
+ * @deprecated Since 0.38.0 — removed in the next major. This is the
+ * display half of the legacy `useSubflowNavigation` pair; the modern
+ * chart draws its own trail from `buildSubflowBreadcrumb`. Use
+ * `<TracedFlow>` (breadcrumb included), or call `buildSubflowBreadcrumb`
+ * yourself when you own the layout.
  */
 declare const SubflowBreadcrumb: react.NamedExoticComponent<SubflowBreadcrumbProps>;
 
