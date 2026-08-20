@@ -11,17 +11,19 @@ import { render, screen } from '@testing-library/react';
 import { NarrativePanel } from '../../src/components/NarrativePanel/NarrativePanel';
 import type { NarrativeEntry, StageSnapshot } from '../../src/types';
 
-function snap(stageLabel: string, stageName?: string): StageSnapshot {
+function snap(stageLabel: string, stageName?: string, narrative?: string): StageSnapshot {
   return {
     stageLabel,
     stageName: stageName ?? stageLabel,
-    narrative: `Stage: ${stageLabel}`,
-    state: {},
-  } as StageSnapshot;
+    narrative: narrative ?? `Stage: ${stageLabel}`,
+    memory: {},
+    startMs: 0,
+    durationMs: 0,
+  };
 }
 
 function e(type: NarrativeEntry['type'], text: string, stageId?: string): NarrativeEntry {
-  return { type, text, depth: 0, stageId } as NarrativeEntry & { stageId?: string };
+  return { type, text, depth: 0, stageId };
 }
 
 describe('NarrativePanel component', () => {
@@ -46,15 +48,20 @@ describe('NarrativePanel component', () => {
   });
 
   it('renders NarrativeTrace fallback when no narrativeEntries', () => {
-    const snapshots = [snap('parse')];
-    const { container } = render(
+    // `narrative` is NOT a NarrativePanelProps field (it never was — this test
+    // used to pass a phantom prop that React silently dropped, so the
+    // assertion below only ever proved the fallback marker rendered, never
+    // that the given text drove it). The real source for the fallback path
+    // is each StageSnapshot's own `narrative` field, joined internally.
+    const snapshots = [snap('parse', undefined, 'Stage 1: Parse request.')];
+    const { container, getByText } = render(
       <NarrativePanel
         snapshots={snapshots}
         selectedIndex={0}
-        narrative={['Stage 1: Parse request.']}
       />,
     );
     expect(container.querySelector('[data-fp="narrative-trace"]')).toBeTruthy();
+    expect(getByText('Stage 1: Parse request.')).toBeTruthy();
   });
 
   it('renders intro text in styled mode', () => {

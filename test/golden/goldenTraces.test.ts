@@ -38,6 +38,7 @@ import {
   createTraceStructureRecorder,
   type TraceGraph,
 } from "../../src/components/FlowchartView/traceStructureRecorder";
+import { asStageId } from "../../src/components/FlowchartView/_internal/keys";
 import {
   createTraceRuntimeOverlay,
   sliceOverlay,
@@ -313,10 +314,10 @@ describe("golden: semantic invariants", () => {
     const commitFlow = createCommitFlowRecorder({ structure });
     replay(fx.runtimeEvents, commitFlow.recorder as unknown as Record<string, unknown>);
     const committedStageIds = new Set(commitFlow.getIndex().commits.map((c) => c.stageId));
-    expect(committedStageIds.has("hypertension")).toBe(true);
-    expect(committedStageIds.has("obesity")).toBe(true);
-    expect(committedStageIds.has("diabetes")).toBe(false); // glucose 96 ≤ 100
-    expect(committedStageIds.has("summarize")).toBe(true); // convergence ran
+    expect(committedStageIds.has(asStageId("hypertension"))).toBe(true);
+    expect(committedStageIds.has(asStageId("obesity"))).toBe(true);
+    expect(committedStageIds.has(asStageId("diabetes"))).toBe(false); // glucose 96 ≤ 100
+    expect(committedStageIds.has(asStageId("summarize"))).toBe(true); // convergence ran
   });
 
   // ── Post-hoc overlay (replaying a recording) ─────────────────────────────

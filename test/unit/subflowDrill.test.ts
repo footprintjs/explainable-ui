@@ -19,13 +19,32 @@ import {
   resolveDrillScope,
   findMountNode,
 } from '../../src/components/FlowchartView/_internal/subflowDrill';
-import type { TraceGraph } from '../../src/components/FlowchartView/traceStructureRecorder';
+import type { TraceGraph, TraceNode, TraceNodeData, TraceEdge } from '../../src/components/FlowchartView/traceStructureRecorder';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
-function node(id: string, data: Record<string, unknown>) {
-  return { id, type: 'stage', position: { x: 0, y: 0 }, data: { label: id, ...data } };
+// These fixtures build graph SHAPE (mount/subflowOf tagging) by hand — no
+// recorder in the loop — so `isDecider`/`isFork`/`isStreaming`/`prevIds`/
+// `nextIds` are irrelevant to what's under test here and default to their
+// honest "nothing special" values; callers override only `isSubflow` /
+// `subflowId` / `subflowOf`, which is what every test actually varies.
+function node(id: string, data: Partial<TraceNodeData> = {}): TraceNode {
+  return {
+    id,
+    type: 'stage',
+    position: { x: 0, y: 0 },
+    data: {
+      label: id,
+      isDecider: false,
+      isFork: false,
+      isStreaming: false,
+      isSubflow: false,
+      prevIds: [],
+      nextIds: [],
+      ...data,
+    },
+  };
 }
-function edge(source: string, target: string) {
+function edge(source: string, target: string): TraceEdge {
   return { id: `${source}->${target}`, source, target, data: { kind: 'next' } };
 }
 
@@ -54,7 +73,7 @@ const NESTED: TraceGraph = {
     edge('pipeline/fetch', 'pipeline/prepare'),
     edge('pipeline/prepare/clean', 'pipeline/prepare/scale'),
   ],
-} as unknown as TraceGraph;
+};
 
 /**
  * The other producer spelling: internals tagged with the mount's LOCAL id
@@ -68,7 +87,7 @@ const LOCAL_TAGGED: TraceGraph = {
     node('run/sf-agent/act', { subflowOf: 'sf-agent' }),
   ],
   edges: [edge('run/sf-agent/think', 'run/sf-agent/act')],
-} as unknown as TraceGraph;
+};
 
 // ── Tests ─────────────────────────────────────────────────────────────────
 describe('filterGraphForDrill — nested mounts (REGRESSION)', () => {
@@ -128,13 +147,13 @@ describe('resolveDrillScope / findMountNode (UNIT)', () => {
   });
 
   it('falls back to the local subflow id when children carry that instead', () => {
-    const graph = {
+    const graph: TraceGraph = {
       nodes: [
         node('a/sf', { isSubflow: true, subflowId: 'sf' }),
         node('a/sf/one', { subflowOf: 'sf' }),
       ],
       edges: [],
-    } as unknown as TraceGraph;
+    };
     expect(resolveDrillScope(graph, 'a/sf')).toBe('sf');
   });
 

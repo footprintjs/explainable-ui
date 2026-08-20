@@ -8,7 +8,7 @@
  * lens render stale while pinned to a current eui. TracedFlow dev-warns so a
  * consumer notices; this pins that behavior.
  */
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, type MockInstance } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { createElement } from "react";
 import { TracedFlow, dagreTraceLayout } from "../../src/flowchart";
@@ -39,7 +39,7 @@ const graph: TraceGraph = {
   edges: [{ id: "a->b", source: "a", target: "b", data: { kind: "next" } }],
 };
 
-const warnedBypass = (warn: ReturnType<typeof vi.spyOn>) =>
+const warnedBypass = (warn: MockInstance<typeof console.warn>) =>
   warn.mock.calls.some((c) => String(c[0]).includes("bypasses the"));
 
 afterEach(cleanup);

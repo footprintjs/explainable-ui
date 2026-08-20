@@ -14,27 +14,40 @@ import { describe, it, expect } from "vitest";
 import {
   createTraceRuntimeOverlay,
   sliceOverlay,
+  type MinimalFlowRecorder,
 } from "../../src/components/FlowchartView/createTraceRuntimeOverlay";
 
 const tc = (rsid: string) => ({ runtimeStageId: rsid, runId: "run-1" });
 
+// The real `onStageExecuted` event type (module-private in the source, so
+// pulled off the exported `MinimalFlowRecorder` interface). footprintjs v6+
+// fires this uniformly for every stage kind and stamps `stageType`; the
+// overlay handler itself never reads it (see createTraceRuntimeOverlay.ts),
+// so callers below pass whichever kind the scenario is actually about.
+type StageExecutedEvent = Parameters<NonNullable<MinimalFlowRecorder["onStageExecuted"]>>[0];
+
+function stageEvent(
+  stageName: string,
+  rsid: string,
+  stageType: StageExecutedEvent["stageType"] = "linear",
+): StageExecutedEvent {
+  return { stageName, traversalContext: tc(rsid), stageType };
+}
+
 describe("createTraceRuntimeOverlay — visited state", () => {
   it("plain stages fire onStageExecuted → executionOrder grows", () => {
     const h = createTraceRuntimeOverlay();
-    h.recorder.onStageExecuted!({ stageName: "A", traversalContext: tc("a#0") });
-    h.recorder.onStageExecuted!({ stageName: "B", traversalContext: tc("b#1") });
+    h.recorder.onStageExecuted!(stageEvent("A", "a#0"));
+    h.recorder.onStageExecuted!(stageEvent("B", "b#1"));
     expect(h.getOverlay().executionOrder.map((s) => s.stageId)).toEqual(["a", "b"]);
   });
 
   it("DECIDER — onStageExecuted fires for the decider (v6 #003 uniform)", () => {
     const h = createTraceRuntimeOverlay();
-    h.recorder.onStageExecuted!({ stageName: "A", traversalContext: tc("a#0") });
+    h.recorder.onStageExecuted!(stageEvent("A", "a#0"));
     // v6: engine fires onStageExecuted for deciders after onDecision.
-    h.recorder.onStageExecuted!({
-      stageName: "LoanDecision",
-      traversalContext: tc("loan-decision#1"),
-    });
-    h.recorder.onStageExecuted!({ stageName: "Reject", traversalContext: tc("reject#2") });
+    h.recorder.onStageExecuted!(stageEvent("LoanDecision", "loan-decision#1", "decider"));
+    h.recorder.onStageExecuted!(stageEvent("Reject", "reject#2"));
 
     const order = h.getOverlay().executionOrder;
     expect(order.map((s) => s.stageId)).toEqual(["a", "loan-decision", "reject"]);
@@ -46,40 +59,34 @@ describe("createTraceRuntimeOverlay — visited state", () => {
 
   it("FORK — onStageExecuted fires for the fork parent (v6 #003 uniform)", () => {
     const h = createTraceRuntimeOverlay();
-    h.recorder.onStageExecuted!({ stageName: "Parallel", traversalContext: tc("parallel#0") });
-    h.recorder.onStageExecuted!({ stageName: "A", traversalContext: tc("a#1") });
-    h.recorder.onStageExecuted!({ stageName: "B", traversalContext: tc("b#2") });
+    h.recorder.onStageExecuted!(stageEvent("Parallel", "parallel#0", "fork"));
+    h.recorder.onStageExecuted!(stageEvent("A", "a#1"));
+    h.recorder.onStageExecuted!(stageEvent("B", "b#2"));
     const order = h.getOverlay().executionOrder;
     expect(order.map((s) => s.stageId)).toEqual(["parallel", "a", "b"]);
   });
 
   it("SELECTOR — onStageExecuted fires for the selector (v6 #003 uniform)", () => {
     const h = createTraceRuntimeOverlay();
-    h.recorder.onStageExecuted!({ stageName: "PickPath", traversalContext: tc("pick-path#0") });
-    h.recorder.onStageExecuted!({ stageName: "Fast", traversalContext: tc("fast#1") });
+    h.recorder.onStageExecuted!(stageEvent("PickPath", "pick-path#0", "selector"));
+    h.recorder.onStageExecuted!(stageEvent("Fast", "fast#1"));
     const order = h.getOverlay().executionOrder;
     expect(order.map((s) => s.stageId)).toEqual(["pick-path", "fast"]);
   });
 
   it("DEDUPE — same runtimeStageId fired twice is recorded ONCE", () => {
     const h = createTraceRuntimeOverlay();
-    h.recorder.onStageExecuted!({
-      stageName: "LoanDecision",
-      traversalContext: tc("loan-decision#0"),
-    });
-    h.recorder.onStageExecuted!({
-      stageName: "LoanDecision",
-      traversalContext: tc("loan-decision#0"),
-    });
+    h.recorder.onStageExecuted!(stageEvent("LoanDecision", "loan-decision#0", "decider"));
+    h.recorder.onStageExecuted!(stageEvent("LoanDecision", "loan-decision#0", "decider"));
     expect(h.getOverlay().executionOrder).toHaveLength(1);
   });
 
   it("reset() clears dedupe set so the same runtimeStageId can be re-recorded after reset", () => {
     const h = createTraceRuntimeOverlay();
-    h.recorder.onStageExecuted!({ stageName: "A", traversalContext: tc("a#0") });
+    h.recorder.onStageExecuted!(stageEvent("A", "a#0"));
     expect(h.getOverlay().executionOrder).toHaveLength(1);
     h.reset();
-    h.recorder.onStageExecuted!({ stageName: "A", traversalContext: tc("a#0") });
+    h.recorder.onStageExecuted!(stageEvent("A", "a#0"));
     expect(h.getOverlay().executionOrder).toHaveLength(1);
   });
 });
@@ -161,7 +168,7 @@ describe("createTraceRuntimeOverlay — seed (replay adoption)", () => {
 describe("sliceOverlay — the end of the run", () => {
   function overlayOf(...ids: string[]) {
     const h = createTraceRuntimeOverlay();
-    ids.forEach((id, i) => h.recorder.onStageExecuted!({ stageName: id, traversalContext: tc(`${id}#${i}`) }));
+    ids.forEach((id, i) => h.recorder.onStageExecuted!(stageEvent(id, `${id}#${i}`)));
     return h.getOverlay();
   }
 
@@ -200,8 +207,8 @@ describe("sliceOverlay — the end of the run", () => {
 
   it("a loop's repeated stage is done exactly once at the end", () => {
     const h = createTraceRuntimeOverlay();
-    h.recorder.onStageExecuted!({ stageName: "P", traversalContext: tc("p#0") });
-    h.recorder.onStageExecuted!({ stageName: "P", traversalContext: tc("p#1") });
+    h.recorder.onStageExecuted!(stageEvent("P", "p#0"));
+    h.recorder.onStageExecuted!(stageEvent("P", "p#1"));
     const slice = sliceOverlay(h.getOverlay(), 2);
     expect(slice.activeStageId).toBeNull();
     expect([...slice.doneStageIds]).toEqual(["p"]);

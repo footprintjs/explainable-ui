@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "footprint-explainable-ui": ["./src/index.ts"],
+      "footprint-explainable-ui/flowchart": ["./src/flowchart.ts"]
+    }
+  },
+  "include": ["src", "test", "examples"]
+}

@@ -81,7 +81,7 @@ function loopWithCommits() {
     r.onStageAdded!({ stageId: id, name: id, type: "stage", spec: spec(id, id) });
   }
   r.onEdgeAdded!({ from: "Seed", to: "Body", kind: "next" });
-  r.onEdgeAdded!({ from: "Body", to: "Body", kind: "loop" });
+  r.onLoopEdgeAdded!({ from: "Body", to: "Body" });
   r.onEdgeAdded!({ from: "Body", to: "Exit", kind: "next" });
   const cf = createCommitFlowRecorder({ structure: trace });
   const fire = (rsid: string) =>

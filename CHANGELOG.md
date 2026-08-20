@@ -5,6 +5,107 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.38.0] - 2026-08-19
+
+An audit read this library the way a new consumer does and got stuck on the
+first question: **which component do I mount?** Four all-in-one composites ship
+here, a fifth front door lives one package over, and no page arbitrated — so
+the honest answer was "read four source files and guess". This release answers
+it in one table, retires the composite that could never have been the answer,
+and closes the documentation and test debt the same audit measured.
+
+### Added
+
+- **"Which component do I mount?" — a decision ladder near the top of the
+  README.** Five rows, first-match-wins, and every row names what the choice
+  COSTS as well as what it gives: `footprint-viewer` for a recorded
+  agentfootprint run (five tabs, one cursor, zero config), `ExplainableShell`
+  for a live footprintjs run, `TraceViewer` for a saved one, the
+  `ExplainableProvider` surfaces when the layout must be yours, and
+  `TraceExplorerShell` when you want the run as commits and chains. The
+  boundary is stated rather than implied: the viewer refuses a bare footprintjs
+  snapshot and names this shell as where to go — that refusal IS the ladder's
+  second row.
+
+- **The wiring you lose by hand-composing, said out loud.** A pane you mount
+  yourself only has the props you remember to pass, and two capabilities go
+  quiet with no error: the shared cursor, and the value-tracing rail. The
+  README now says which component owns each, and points at the viewer's
+  capability-accounted slots (a replacement pane gets everything the shipped
+  one had; dropping a capability is something you write down, not something
+  that happens to you).
+
+- **Every callable export has a README row now — and a test that keeps it that
+  way.** `test/packaging/documented-exports.test.ts` parses both barrels, and
+  fails on any export that appears in no README table. It found **69**: 31 on
+  the root entry, 38 on `/flowchart`, which had grown to ~50 public exports
+  while the README named ten. All 69 are documented, grouped by the job they
+  do. Type-only exports are deliberately out of scope (`TracedFlowProps` is
+  documented by `TracedFlow`), and the two genuinely code-documented helpers
+  are allowlisted by name with a reason.
+
+- **The test suite is typechecked.** `tsconfig.test.json` + a `typecheck:test`
+  script, wired into `npm test` so CI runs it. It found **63 errors in 13
+  files** — every one a test fixture that had quietly drifted from the type it
+  claimed to be. The load-bearing one: `NarrativePanel.test.tsx` passed a
+  `narrative` prop the component does not have, so React dropped it and the
+  test proved only that a wrapper element existed. It now drives the real
+  fallback path and asserts the text. Three more tests called
+  `onEdgeAdded({ kind: 'loop' })`, which the recorder's own type does not
+  allow — loop edges arrive on `onLoopEdgeAdded`. They now use the real event.
+
+- **Recipes — one runnable snippet per part the tables name but no section
+  showed:** `collapseTraceGraph`, `filterGraphForDrill`, `sliceOverlay`, the
+  narrative-sync trio, `themeModeVars`, `mergeWritePatch`. Ten lines or fewer
+  each, because no example means not documented.
+
+- **`size` / `unstyled` / `className` / `style` on four newer panels** —
+  `InspectorPanel`, `DataTracePanel`, `TraceWalkCard`, `InsightPanel`. Their
+  older siblings all took these; these four ignored them, so an app themed
+  through `unstyled` hit four panels that painted anyway. Additive and
+  default-off: pass nothing and the render is byte-identical to before (pinned
+  by a test per panel).
+
+### Deprecated
+
+Still exported, still tested, removed in the next major. Each one also prints
+one line to the dev console the first time it runs — once per process, naming
+its replacement, because a JSDoc tag only reaches someone who is already
+reading the types.
+
+- **`TimeTravelDebugger`.** It owns its cursor: the scrubber index is local
+  state with no `selectedIndex` / `onIndexChange`, so nothing outside it can
+  move the time position or read it. That is why no shipped surface in this
+  library uses it, and why it duplicates `SnapshotPanel` feature-for-feature
+  without being composable with anything. Use `SnapshotPanel`,
+  `ExplainableShell`, or `footprint-viewer`.
+
+- **`useSubflowNavigation` + `SubflowBreadcrumb`** — the legacy drill pair. The
+  hook keys the drill by the child chart's LOCAL `subflowId`, which is not
+  unique: mount the same chart twice and both mounts report the same key, so a
+  filter keyed on it shows the other mount's stages — or nothing. Its
+  `currentGraph` also never swaps to the child's graph, so the chart never
+  actually narrows. The modern drill is `<TracedFlow currentSubflowId>` +
+  `filterGraphForDrill` / `buildSubflowBreadcrumb`, keyed by the mount NODE'S
+  id, which is unique by construction.
+
+### Honesty notes
+
+- **`CompactTimeline` stays.** It looked like a duplicate of the documented
+  `CompactTimelinePanel` and is not: the first is the controlled primitive
+  (`snapshots` + `selectedIndex`, works anywhere — it is what
+  `ExplainableShell` puts in its footer), the second is the provider-wired
+  surface that renders it and takes no data props at all. Both are documented
+  now, with the sentence that tells them apart.
+
+- **The docs gate checks tables, not prose.** A name a reader can only find by
+  reading every paragraph is not a reference, so a mention in body text does
+  not satisfy it.
+
+- **Deprecated does not mean broken.** Nothing was removed, no behaviour
+  changed, and the deprecated exports keep their tests. The dev notice is a
+  console line, never a thrown error, and production builds print nothing.
+
 ## [0.37.0] - 2026-08-19
 
 A retried stage now shows it on the chart, not just in the story.

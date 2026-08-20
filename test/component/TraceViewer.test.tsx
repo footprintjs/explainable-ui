@@ -264,7 +264,7 @@ describe('TraceViewer — property', () => {
 
 describe('TraceViewer — security', () => {
   it('does not throw on adversarial JSON shapes', () => {
-    const adversarial: unknown[] = [
+    const adversarial: string[] = [
       JSON.stringify({ snapshot: { __proto__: { evil: true } } }),
       JSON.stringify({
         snapshot: Object.fromEntries(Array.from({ length: 1000 }, (_, i) => [`k${i}`, i])),

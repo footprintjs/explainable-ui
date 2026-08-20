@@ -9,9 +9,10 @@ import {
   ExplainableView,
   TimelinePanel,
   ValueInspector,
+  type ExplainableRecording,
 } from "../../src/components/ExplainableView";
 
-const RECORDING = {
+const RECORDING: ExplainableRecording = {
   schemaVersion: 1,
   snapshot: {
     sharedState: { count: 2, decision: "continue" },

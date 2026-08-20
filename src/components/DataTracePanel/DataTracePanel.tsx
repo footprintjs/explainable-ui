@@ -13,8 +13,9 @@
  * edge-less trace is never mistaken for independence.
  */
 import { memo, useMemo } from "react";
-import { theme } from "../../theme";
-import type { StageSnapshot } from "../../types";
+import type { CSSProperties } from "react";
+import { fontSize, padding, theme } from "../../theme";
+import type { BaseComponentProps, StageSnapshot } from "../../types";
 
 // ── Types for causal chain data ────────────────────────────────────
 
@@ -28,7 +29,7 @@ export interface CausalFrame {
   depth: number;
 }
 
-export interface DataTracePanelProps {
+export interface DataTracePanelProps extends BaseComponentProps {
   /** Flattened causal chain frames (BFS order from causalChain + flattenCausalDAG). */
   frames: CausalFrame[];
   /** Currently selected stage's runtimeStageId. */
@@ -52,33 +53,48 @@ export const DataTracePanel = memo(function DataTracePanel({
   onFrameClick,
   fromStageName,
   note,
+  size = "default",
+  unstyled = false,
+  className,
+  style,
 }: DataTracePanelProps) {
+  const fs = fontSize[size];
+  const pad = padding[size];
+  // `body + 1` keeps the shipped default (13px) byte-identical while giving
+  // `compact` / `detailed` the same one-step scale every other panel uses.
+  const base = fs.body + 1;
+  /** Styles vanish in unstyled mode; the tree stays exactly the same. */
+  const sx = (s: CSSProperties): CSSProperties | undefined => (unstyled ? undefined : s);
   const noteLine = note ? (
-    <div style={{ color: theme.textMuted, fontSize: 11, fontStyle: "italic", marginBottom: 8 }}>
+    <div style={sx({ color: theme.textMuted, fontSize: fs.label, fontStyle: "italic", marginBottom: 8 })}>
       {note}
     </div>
   ) : null;
   if (frames.length === 0) {
     return (
-      <div style={{ padding: "14px 14px 12px", fontSize: 13, lineHeight: 1.55 }}>
+      <div
+        className={className}
+        data-fp="data-trace-panel"
+        style={{ ...sx({ padding: `${pad + 2}px ${pad + 2}px ${pad}px`, fontSize: base, lineHeight: 1.55 }), ...style }}
+      >
         <div
-          style={{
-            fontSize: 11,
+          style={sx({
+            fontSize: fs.label,
             color: theme.textMuted,
             textTransform: "uppercase",
             letterSpacing: "0.5px",
             fontWeight: 600,
             marginBottom: 6,
-          }}
+          })}
         >
           Backward causal chain
         </div>
-        <div style={{ color: theme.textSecondary, marginBottom: 10 }}>
+        <div style={sx({ color: theme.textSecondary, marginBottom: 10 })}>
           Trace any value back to the stage that created it — and everything upstream that
           influenced it.
         </div>
         {noteLine}
-        <div style={{ color: theme.textMuted, fontSize: 12 }}>
+        <div style={sx({ color: theme.textMuted, fontSize: fs.body })}>
           Select a stage above to see its dependency chain.
         </div>
       </div>
@@ -86,28 +102,32 @@ export const DataTracePanel = memo(function DataTracePanel({
   }
 
   return (
-    <div style={{ padding: "8px 0", fontSize: 13 }}>
-      {note && <div style={{ padding: "4px 12px 0", fontSize: 11, color: theme.textMuted, fontStyle: "italic" }}>{note}</div>}
+    <div
+      className={className}
+      data-fp="data-trace-panel"
+      style={{ ...sx({ padding: "8px 0", fontSize: base }), ...style }}
+    >
+      {note && <div style={sx({ padding: "4px 12px 0", fontSize: fs.label, color: theme.textMuted, fontStyle: "italic" })}>{note}</div>}
       {fromStageName && (
-        <div style={{ padding: "4px 12px 8px" }}>
+        <div style={sx({ padding: "4px 12px 8px" })}>
           <div
-            style={{
-              fontSize: 11,
+            style={sx({
+              fontSize: fs.label,
               color: theme.textMuted,
               textTransform: "uppercase",
               letterSpacing: "0.5px",
               fontWeight: 600,
-            }}
+            })}
           >
             Data trace from {fromStageName}
           </div>
           <div
-            style={{
-              fontSize: 11,
+            style={sx({
+              fontSize: fs.label,
               color: theme.textMuted,
               fontStyle: "italic",
               marginTop: 3,
-            }}
+            })}
           >
             Every value here was derived from the stages below.
           </div>
@@ -121,6 +141,8 @@ export const DataTracePanel = memo(function DataTracePanel({
           isLast={i === frames.length - 1}
           isSelected={frame.runtimeStageId === selectedStageId}
           onClick={onFrameClick}
+          unstyled={unstyled}
+          size={size}
         />
       ))}
     </div>
@@ -133,17 +155,25 @@ const DataTraceFrame = memo(function DataTraceFrame({
   isLast,
   isSelected,
   onClick,
+  unstyled = false,
+  size = "default",
 }: {
   frame: CausalFrame;
   isFirst: boolean;
   isLast: boolean;
   isSelected: boolean;
   onClick?: (id: string) => void;
+  unstyled?: boolean;
+  size?: NonNullable<BaseComponentProps["size"]>;
 }) {
+  const fs = fontSize[size];
+  const sx = (s: CSSProperties): CSSProperties | undefined => (unstyled ? undefined : s);
   return (
     <button
       onClick={() => onClick?.(frame.runtimeStageId)}
-      style={{
+      data-fp="data-trace-frame"
+      data-selected={isSelected || undefined}
+      style={sx({
         display: "block",
         width: "100%",
         textAlign: "left",
@@ -157,34 +187,34 @@ const DataTraceFrame = memo(function DataTraceFrame({
           ? "3px solid var(--fp-accent, #6366f1)"
           : "3px solid transparent",
         color: "inherit",
-        fontSize: 13,
-      }}
+        fontSize: fs.body + 1,
+      })}
     >
       {/* Stage name + depth indicator */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={sx({ display: "flex", alignItems: "center", gap: 6 })}>
         {/* Connector line */}
         {!isFirst && (
-          <span style={{ color: theme.textMuted, fontSize: 11 }}>
+          <span style={sx({ color: theme.textMuted, fontSize: fs.label })}>
             ↑
           </span>
         )}
         <span
-          style={{
+          style={sx({
             fontWeight: isFirst ? 600 : 400,
             color: isFirst
               ? "var(--fp-accent, #6366f1)"
               : theme.textPrimary,
-          }}
+          })}
         >
           {frame.stageName}
         </span>
         {isLast && !isFirst && (
           <span
-            style={{
-              fontSize: 10,
+            style={sx({
+              fontSize: fs.small,
               color: theme.textMuted,
               fontStyle: "italic",
-            }}
+            })}
           >
             (origin)
           </span>
@@ -194,15 +224,15 @@ const DataTraceFrame = memo(function DataTraceFrame({
       {/* What this stage wrote */}
       {frame.keysWritten.length > 0 && (
         <div
-          style={{
-            fontSize: 11,
+          style={sx({
+            fontSize: fs.label,
             color: theme.textMuted,
             paddingLeft: isFirst ? 0 : 18,
             marginTop: 2,
-          }}
+          })}
         >
           wrote:{" "}
-          <span style={{ color: theme.textSecondary }}>
+          <span style={sx({ color: theme.textSecondary })}>
             {frame.keysWritten.join(", ")}
           </span>
         </div>
@@ -211,12 +241,12 @@ const DataTraceFrame = memo(function DataTraceFrame({
       {/* Linked by which key */}
       {frame.linkedBy && (
         <div
-          style={{
-            fontSize: 11,
+          style={sx({
+            fontSize: fs.label,
             color: "var(--fp-accent, #6366f1)",
             paddingLeft: 18,
             marginTop: 1,
-          }}
+          })}
         >
           ← via {frame.linkedBy}
         </div>

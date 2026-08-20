@@ -19,8 +19,12 @@ import {
   type TraceNodeData,
 } from "../../src/components/FlowchartView/traceStructureRecorder";
 
-// Minimal spec stub matching the shape the recorder reads.
-function spec(id: string, name: string, extra: Record<string, unknown> = {}) {
+// The real `spec` field type (module-private in the source, so pulled off
+// the exported `MinimalStructureRecorder` interface) — matching the shape
+// the recorder reads.
+type StructureSpecRef = Parameters<NonNullable<MinimalStructureRecorder["onStageAdded"]>>[0]["spec"];
+
+function spec(id: string, name: string, extra: Partial<StructureSpecRef> = {}): StructureSpecRef {
   return { id, name, type: "stage" as const, ...extra };
 }
 

@@ -87,7 +87,7 @@ function setupChartAndRun() {
   r.onEdgeAdded!({ from: "BranchA", to: "Merge", kind: "next" });
   r.onEdgeAdded!({ from: "BranchB", to: "Merge", kind: "next" });
   r.onEdgeAdded!({ from: "Merge", to: "LoopBody", kind: "next" });
-  r.onEdgeAdded!({ from: "LoopBody", to: "LoopBody", kind: "loop" });
+  r.onLoopEdgeAdded!({ from: "LoopBody", to: "LoopBody" });
   r.onEdgeAdded!({ from: "LoopBody", to: "Exit", kind: "next" });
 
   // Fire a realistic event stream for one run.

@@ -124,7 +124,7 @@ describe('collapseTraceGraph', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('collapseTraceGraph — via (what a contracted edge stands in for)', () => {
-  const hide = (n: { data?: { flavour?: unknown } }) => n.data?.flavour === 'plumbing';
+  const hide = (n: TraceGraph['nodes'][number]): boolean => n.data?.flavour === 'plumbing';
 
   it('stamps via with the hidden node a contraction passed through', () => {
     const { graph } = collapseTraceGraph(CHART, hide);

@@ -22,6 +22,7 @@ import {
 import {
   createTraceStructureRecorder,
   type TraceGraph,
+  type TraceNodeData,
 } from "../../src/components/FlowchartView/traceStructureRecorder";
 
 // jsdom doesn't measure SVG, ReactFlow's ResizeObserver shim needs polyfill.
@@ -37,6 +38,24 @@ beforeEach(() => {
 
 function spec(id: string, name: string, extra: Record<string, unknown> = {}) {
   return { id, name, type: "stage" as const, ...extra };
+}
+
+// Standalone `defaultTraceFlowLayout` fixtures build TraceNodeData by hand
+// (no recorder in the loop) — `prevIds`/`nextIds` are structural fields the
+// layout function itself never reads (see traceStructureRecorder.ts), so an
+// empty array is the honest default, matching what real code (groupLayout,
+// walkSubflowSpecInto) defaults them to before the derivation pass runs.
+function nodeData(label: string, extra: Partial<TraceNodeData> = {}): TraceNodeData {
+  return {
+    label,
+    isDecider: false,
+    isFork: false,
+    isStreaming: false,
+    isSubflow: false,
+    prevIds: [],
+    nextIds: [],
+    ...extra,
+  };
 }
 
 // ── 1. Unit — defaultTraceFlowLayout ────────────────────────────────────────
@@ -55,7 +74,7 @@ describe("defaultTraceFlowLayout — unit", () => {
           id: "a",
           type: "stage",
           position: { x: 0, y: 0 },
-          data: { label: "A", isDecider: false, isFork: false, isStreaming: false, isSubflow: false },
+          data: nodeData("A"),
         },
       ],
       edges: [],
@@ -68,7 +87,7 @@ describe("defaultTraceFlowLayout — unit", () => {
       id,
       type: "stage",
       position: { x: 0, y: 0 },
-      data: { label: id.toUpperCase(), isDecider: false, isFork: false, isStreaming: false, isSubflow: false },
+      data: nodeData(id.toUpperCase()),
     }));
     const edges = [
       { id: "a->b", source: "a", target: "b", data: { kind: "next" as const } },
@@ -82,9 +101,9 @@ describe("defaultTraceFlowLayout — unit", () => {
 
   it("fork-children center under parent (X_SPREAD=200)", () => {
     const nodes = [
-      { id: "p", type: "stage", position: { x: 0, y: 0 }, data: { label: "P", isDecider: false, isFork: true, isStreaming: false, isSubflow: false } },
-      { id: "l", type: "stage", position: { x: 0, y: 0 }, data: { label: "L", isDecider: false, isFork: false, isStreaming: false, isSubflow: false } },
-      { id: "r", type: "stage", position: { x: 0, y: 0 }, data: { label: "R", isDecider: false, isFork: false, isStreaming: false, isSubflow: false } },
+      { id: "p", type: "stage", position: { x: 0, y: 0 }, data: nodeData("P", { isFork: true }) },
+      { id: "l", type: "stage", position: { x: 0, y: 0 }, data: nodeData("L") },
+      { id: "r", type: "stage", position: { x: 0, y: 0 }, data: nodeData("R") },
     ];
     const edges = [
       { id: "p->l", source: "p", target: "l", data: { kind: "fork-branch" as const } },
@@ -105,7 +124,7 @@ describe("defaultTraceFlowLayout — unit", () => {
       id,
       type: "stage",
       position: { x: 0, y: 0 },
-      data: { label: id.toUpperCase(), isDecider: false, isFork: false, isStreaming: false, isSubflow: false },
+      data: nodeData(id.toUpperCase()),
     }));
     const edges = [
       { id: "a->b", source: "a", target: "b", data: { kind: "next" as const } },
@@ -130,7 +149,7 @@ describe("defaultTraceFlowLayout — unit", () => {
         id,
         type: "stage",
         position: { x: 0, y: 0 },
-        data: { label: id, isDecider: false, isFork: id === "LoadOrder", isStreaming: false, isSubflow: false },
+        data: nodeData(id, { isFork: id === "LoadOrder" }),
       }),
     );
     const edges = [
@@ -164,7 +183,7 @@ describe("defaultTraceFlowLayout — unit", () => {
       id,
       type: "stage",
       position: { x: 0, y: 0 },
-      data: { label: id, isDecider: false, isFork: false, isStreaming: false, isSubflow: false },
+      data: nodeData(id),
     }));
     const edges = [
       { id: "a->b", source: "a", target: "b", data: { kind: "fork-branch" as const } },
@@ -182,8 +201,8 @@ describe("defaultTraceFlowLayout — unit", () => {
 
   it("multi-root graphs: first node is seed; orphans stack below", () => {
     const nodes = [
-      { id: "root1", type: "stage", position: { x: 0, y: 0 }, data: { label: "R1", isDecider: false, isFork: false, isStreaming: false, isSubflow: false } },
-      { id: "root2", type: "stage", position: { x: 0, y: 0 }, data: { label: "R2", isDecider: false, isFork: false, isStreaming: false, isSubflow: false } },
+      { id: "root1", type: "stage", position: { x: 0, y: 0 }, data: nodeData("R1") },
+      { id: "root2", type: "stage", position: { x: 0, y: 0 }, data: nodeData("R2") },
     ];
     const out = defaultTraceFlowLayout({ nodes, edges: [] });
     // root1 at (0,0); root2 stacks as an orphan below.
@@ -201,13 +220,13 @@ describe("<TraceFlow> — static mode", () => {
         id: "a",
         type: "stage",
         position: { x: 0, y: 0 },
-        data: { label: "Alpha", isDecider: false, isFork: false, isStreaming: false, isSubflow: false },
+        data: nodeData("Alpha"),
       },
       {
         id: "b",
         type: "stage",
         position: { x: 0, y: 0 },
-        data: { label: "Beta", isDecider: false, isFork: false, isStreaming: false, isSubflow: false },
+        data: nodeData("Beta"),
       },
     ],
     edges: [
@@ -232,7 +251,7 @@ describe("<TraceFlow> — static mode", () => {
           id: "x",
           type: "stage",
           position: { x: 42, y: 99 },
-          data: { label: "X", isDecider: false, isFork: false, isStreaming: false, isSubflow: false },
+          data: nodeData("X"),
         },
       ],
       edges: [],
@@ -389,7 +408,7 @@ describe("<TraceFlow> — performance", () => {
       id: `s${i}`,
       type: "stage",
       position: { x: 0, y: 0 },
-      data: { label: `s${i}`, isDecider: false, isFork: false, isStreaming: false, isSubflow: false },
+      data: nodeData(`s${i}`),
     }));
     const edges = nodes.slice(1).map((n, i) => ({
       id: `s${i}->${n.id}`,
