@@ -74,7 +74,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
-    "footprintjs": "9.15.1",
+    "footprintjs": "9.28.0",
     "jsdom": "^29.0.1",
     "publint": "^0.3.0",
     "react": "^19.2.5",
