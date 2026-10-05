@@ -19,7 +19,15 @@ does not animate automatic fitting: d3 reads its extent when an animation starts
 so hiding a tab between request and start can otherwise produce a zero-extent
 tween. Manual viewport controls are unchanged.
 
-The layout key contains geometry and topology, not overlay colors, focus,
-selection or execution progress. Measurements may trigger a fit; ordinary node
-dragging, panning, scrubbing and stable rerenders do not. `MeasuredNodeSizes`
+Fit intent and measurement readiness are separate. xyflow may discard then
+remeasure node dimensions when a scrub replaces overlay node objects; recovering
+the same geometry is not a new fit request. A manual camera transform transfers
+ownership to the user, so subsequent badge/font measurements and derived layout
+settling preserve that camera. A new authored scope/topology/layout or a real
+container size change requests a fit again. Same-size synthetic resize events
+do not. The fitter excludes its own synchronous viewport write from that manual
+gesture detection.
+
+The authored layout key contains geometry and topology, not overlay colors,
+focus, selection or execution progress. `MeasuredNodeSizes`
 continues to own measurement-to-layout feedback; it does not own the viewport.

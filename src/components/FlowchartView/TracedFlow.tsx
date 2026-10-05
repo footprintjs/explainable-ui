@@ -64,7 +64,7 @@ import { collapseTraceGraph } from "./_internal/collapseGraph";
 import { aggregateMountStatus, cursorStandInIds, edgeCarriesCursor } from "./_internal/overlayProjection";
 import { useSubflowDrill } from "./_internal/useSubflowDrill";
 import { ChartAutoRefit } from "./_internal/useChartAutoRefit";
-import { chartLayoutKey } from "./_internal/chartFitGeometry";
+import { chartLayoutKey, chartTopologyKey } from "./_internal/chartFitGeometry";
 import { SubflowBreadcrumbBar } from "./SubflowBreadcrumbBar";
 import { GroupContainerNode } from "../GroupContainerNode";
 import { LoopBackEdge } from "../LoopBackEdge";
@@ -678,7 +678,13 @@ export function TracedFlow({
 
   // One measured-fit owner inside ReactFlow; overlay scrubbing is not a layout.
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const refitKey = chartLayoutKey(positioned.nodes);
+  const layoutKey = chartLayoutKey(positioned.nodes);
+  const refitKey = JSON.stringify([
+    chartLayoutKey(filteredGraph.nodes), chartTopologyKey(positioned.nodes),
+    // A custom layout is an authored layout. Default measured-layout settling
+    // must not take camera ownership back after a manual pan/zoom.
+    layoutProp !== undefined ? layoutKey : null,
+  ]);
 
   return (
     <div
@@ -712,7 +718,7 @@ export function TracedFlow({
           minZoom={0.1}
           proOptions={{ hideAttribution: true }}
         >
-          <ChartAutoRefit wrapperRef={wrapperRef} refitKey={refitKey} padding={0.18} />
+          <ChartAutoRefit wrapperRef={wrapperRef} refitKey={refitKey} layoutKey={layoutKey} padding={0.18} />
           <MeasuredNodeSizes onSizes={setMeasuredSizes} />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
           {children}

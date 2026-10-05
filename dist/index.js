@@ -2502,7 +2502,7 @@ function TimeTravelControls({
 }
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-import { memo as memo9, useState as useState15, useCallback as useCallback8, useMemo as useMemo14, useRef as useRef8, useEffect as useEffect11 } from "react";
+import { memo as memo9, useState as useState15, useCallback as useCallback8, useMemo as useMemo14, useRef as useRef9, useEffect as useEffect11 } from "react";
 
 // src/components/ExplainableShell/_internal/dataTrace.ts
 function readsByStep(tree) {
@@ -4552,7 +4552,7 @@ var SubflowBreadcrumb = memo4(function SubflowBreadcrumb2({
 });
 
 // src/components/FlowchartView/TracedFlow.tsx
-import { useCallback as useCallback7, useEffect as useEffect10, useMemo as useMemo13, useRef as useRef7, useState as useState11 } from "react";
+import { useCallback as useCallback7, useEffect as useEffect10, useMemo as useMemo13, useRef as useRef8, useState as useState11 } from "react";
 import {
   ReactFlow,
   Background,
@@ -5739,7 +5739,7 @@ function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
 }
 
 // src/components/FlowchartView/_internal/useChartAutoRefit.ts
-import { useEffect as useEffect8 } from "react";
+import { useEffect as useEffect8, useRef as useRef7 } from "react";
 import { useReactFlow, useStoreApi } from "@xyflow/react";
 
 // src/components/FlowchartView/_internal/chartFitGeometry.ts
@@ -5797,6 +5797,9 @@ function chartLayoutKey(nodes) {
     node.height
   ]));
 }
+function chartTopologyKey(nodes) {
+  return JSON.stringify(nodes.map((node) => [node.id, node.parentId, node.hidden]));
+}
 
 // src/components/FlowchartView/_internal/useChartAutoRefit.ts
 function hasVisibleArea(element) {
@@ -5804,9 +5807,10 @@ function hasVisibleArea(element) {
   const { width, height } = element.getBoundingClientRect();
   return positiveFinite(width) && positiveFinite(height);
 }
-function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey }) {
+function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey, layoutKey }) {
   const store = useStoreApi();
   const { setViewport } = useReactFlow();
+  const requestLayoutFit = useRef7(null);
   useEffect8(() => {
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
@@ -5815,19 +5819,62 @@ function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey }) {
     let pane = null;
     let measurementKey = chartMeasurementKey(store.getState());
     let panZoom = store.getState().panZoom;
-    const requestFit = () => {
-      if (disposed) return;
+    let lastTransform = [...store.getState().transform];
+    let autoOwned = true;
+    let pendingFit = true;
+    let applyingFit = false;
+    let lastSuccessfulViewport = null;
+    const readContainerKey = () => {
+      const state = store.getState();
+      const outer = wrapper.getBoundingClientRect();
+      const inner = state.domNode?.getBoundingClientRect();
+      return JSON.stringify([outer.width, outer.height, inner?.width, inner?.height, state.width, state.height]);
+    };
+    let containerKey = readContainerKey();
+    const cancelFrame = () => {
       if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+    };
+    const requestFit = () => {
+      if (disposed || !pendingFit) return;
+      cancelFrame();
       frame = requestAnimationFrame(() => {
         frame = null;
-        if (disposed) return;
+        if (disposed || !pendingFit) return;
         const state = store.getState();
         if (!state.panZoom || !hasVisibleArea(wrapper) || !hasVisibleArea(state.domNode)) return;
         const viewport = chartFitViewport(state, padding2);
-        if (viewport) void setViewport(viewport, { duration: 0 });
+        if (!viewport) return;
+        pendingFit = false;
+        lastSuccessfulViewport = JSON.stringify(viewport);
+        applyingFit = true;
+        try {
+          void setViewport(viewport, { duration: 0 });
+        } finally {
+          applyingFit = false;
+        }
       });
     };
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(requestFit);
+    const requestIntent = () => {
+      autoOwned = true;
+      pendingFit = true;
+      requestFit();
+    };
+    const checkContainer = () => {
+      const nextKey = readContainerKey();
+      if (nextKey === containerKey) {
+        requestFit();
+        return;
+      }
+      containerKey = nextKey;
+      requestIntent();
+    };
+    requestLayoutFit.current = () => {
+      if (!autoOwned) return;
+      pendingFit = true;
+      requestFit();
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(checkContainer);
     observer?.observe(wrapper);
     const observePane = () => {
       const current = store.getState().domNode;
@@ -5839,23 +5886,41 @@ function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey }) {
     };
     observePane();
     const unsubscribe = store.subscribe((state) => {
+      const cameraChanged = state.transform.some((value, index) => value !== lastTransform[index]);
+      lastTransform = [...state.transform];
+      if (cameraChanged && !applyingFit) {
+        autoOwned = false;
+        pendingFit = false;
+        cancelFrame();
+      }
       const paneChanged = observePane();
       const nextKey = chartMeasurementKey(state);
-      const changed = paneChanged || nextKey !== measurementKey || state.panZoom !== panZoom;
+      const measurementsChanged = nextKey !== measurementKey;
+      const viewportChanged = state.panZoom !== panZoom;
       measurementKey = nextKey;
       panZoom = state.panZoom;
-      if (changed) requestFit();
+      if (paneChanged || viewportChanged) requestIntent();
+      if (measurementsChanged) {
+        checkContainer();
+        const viewport = chartFitViewport(state, padding2);
+        if (autoOwned && viewport && JSON.stringify(viewport) !== lastSuccessfulViewport) pendingFit = true;
+        requestFit();
+      }
     });
-    window.addEventListener("resize", requestFit);
+    window.addEventListener("resize", checkContainer);
     requestFit();
     return () => {
       disposed = true;
       unsubscribe();
       observer?.disconnect();
-      window.removeEventListener("resize", requestFit);
-      if (frame !== null) cancelAnimationFrame(frame);
+      requestLayoutFit.current = null;
+      window.removeEventListener("resize", checkContainer);
+      cancelFrame();
     };
   }, [store, setViewport, wrapperRef, padding2, refitKey]);
+  useEffect8(() => {
+    requestLayoutFit.current?.();
+  }, [layoutKey]);
 }
 function ChartAutoRefit(props) {
   useChartAutoRefit(props);
@@ -6657,8 +6722,15 @@ function TracedFlow({
     },
     [drill, onNodeClick, groupedSet]
   );
-  const wrapperRef = useRef7(null);
-  const refitKey = chartLayoutKey(positioned.nodes);
+  const wrapperRef = useRef8(null);
+  const layoutKey = chartLayoutKey(positioned.nodes);
+  const refitKey = JSON.stringify([
+    chartLayoutKey(filteredGraph.nodes),
+    chartTopologyKey(positioned.nodes),
+    // A custom layout is an authored layout. Default measured-layout settling
+    // must not take camera ownership back after a manual pan/zoom.
+    layoutProp !== void 0 ? layoutKey : null
+  ]);
   return /* @__PURE__ */ jsxs20(
     "div",
     {
@@ -6694,7 +6766,7 @@ function TracedFlow({
             minZoom: 0.1,
             proOptions: { hideAttribution: true },
             children: [
-              /* @__PURE__ */ jsx23(ChartAutoRefit, { wrapperRef, refitKey, padding: 0.18 }),
+              /* @__PURE__ */ jsx23(ChartAutoRefit, { wrapperRef, refitKey, layoutKey, padding: 0.18 }),
               /* @__PURE__ */ jsx23(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
               /* @__PURE__ */ jsx23(Background, { variant: BackgroundVariant.Dots, gap: 20, size: 1 }),
               children
@@ -7754,7 +7826,7 @@ function ExplainableShell({
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
-  const shellRef = useRef8(null);
+  const shellRef = useRef9(null);
   const [isNarrow, setIsNarrow] = useState15(false);
   const [isMedium, setIsMedium] = useState15(false);
   useEffect11(() => {
@@ -9209,7 +9281,7 @@ function useExplainableRun() {
 }
 
 // src/components/ExplainableView/TimelinePanel.tsx
-import { useEffect as useEffect13, useRef as useRef9 } from "react";
+import { useEffect as useEffect13, useRef as useRef10 } from "react";
 import { jsx as jsx30, jsxs as jsxs25 } from "react/jsx-runtime";
 function formatOffset(milliseconds) {
   return milliseconds < 1e3 ? `+${Math.round(milliseconds)}ms` : `+${(milliseconds / 1e3).toFixed(1)}s`;
@@ -9222,7 +9294,7 @@ function TimelinePanel({
   style
 }) {
   const { snapshots, selectedIndex, selectIndex, error } = useExplainableRun();
-  const focusedRef = useRef9(null);
+  const focusedRef = useRef10(null);
   useEffect13(() => {
     focusedRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [selectedIndex]);
@@ -9442,7 +9514,7 @@ function ValueInspector({
 }
 
 // src/components/ExplainableView/CommentaryPanel.tsx
-import { useMemo as useMemo18, useRef as useRef10, useEffect as useEffect14 } from "react";
+import { useMemo as useMemo18, useRef as useRef11, useEffect as useEffect14 } from "react";
 import { Fragment as Fragment9, jsx as jsx33, jsxs as jsxs28 } from "react/jsx-runtime";
 function CommentaryPanel({
   title = "Commentary",
@@ -9454,7 +9526,7 @@ function CommentaryPanel({
   style
 }) {
   const { snapshots, selectedIndex, narrativeEntries } = useExplainableRun();
-  const currentRef = useRef10(null);
+  const currentRef = useRef11(null);
   const rangeIndex = useMemo18(
     () => narrativeEntries.length ? buildEntryRangeIndex(narrativeEntries) : void 0,
     [narrativeEntries]

@@ -5882,6 +5882,9 @@ function chartLayoutKey(nodes) {
     node.height
   ]));
 }
+function chartTopologyKey(nodes) {
+  return JSON.stringify(nodes.map((node) => [node.id, node.parentId, node.hidden]));
+}
 
 // src/components/FlowchartView/_internal/useChartAutoRefit.ts
 function hasVisibleArea(element) {
@@ -5889,9 +5892,10 @@ function hasVisibleArea(element) {
   const { width, height } = element.getBoundingClientRect();
   return positiveFinite(width) && positiveFinite(height);
 }
-function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey }) {
+function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey, layoutKey }) {
   const store = (0, import_react22.useStoreApi)();
   const { setViewport } = (0, import_react22.useReactFlow)();
+  const requestLayoutFit = (0, import_react21.useRef)(null);
   (0, import_react21.useEffect)(() => {
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
@@ -5900,19 +5904,62 @@ function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey }) {
     let pane = null;
     let measurementKey = chartMeasurementKey(store.getState());
     let panZoom = store.getState().panZoom;
-    const requestFit = () => {
-      if (disposed) return;
+    let lastTransform = [...store.getState().transform];
+    let autoOwned = true;
+    let pendingFit = true;
+    let applyingFit = false;
+    let lastSuccessfulViewport = null;
+    const readContainerKey = () => {
+      const state = store.getState();
+      const outer = wrapper.getBoundingClientRect();
+      const inner = state.domNode?.getBoundingClientRect();
+      return JSON.stringify([outer.width, outer.height, inner?.width, inner?.height, state.width, state.height]);
+    };
+    let containerKey = readContainerKey();
+    const cancelFrame = () => {
       if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+    };
+    const requestFit = () => {
+      if (disposed || !pendingFit) return;
+      cancelFrame();
       frame = requestAnimationFrame(() => {
         frame = null;
-        if (disposed) return;
+        if (disposed || !pendingFit) return;
         const state = store.getState();
         if (!state.panZoom || !hasVisibleArea(wrapper) || !hasVisibleArea(state.domNode)) return;
         const viewport = chartFitViewport(state, padding2);
-        if (viewport) void setViewport(viewport, { duration: 0 });
+        if (!viewport) return;
+        pendingFit = false;
+        lastSuccessfulViewport = JSON.stringify(viewport);
+        applyingFit = true;
+        try {
+          void setViewport(viewport, { duration: 0 });
+        } finally {
+          applyingFit = false;
+        }
       });
     };
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(requestFit);
+    const requestIntent = () => {
+      autoOwned = true;
+      pendingFit = true;
+      requestFit();
+    };
+    const checkContainer = () => {
+      const nextKey = readContainerKey();
+      if (nextKey === containerKey) {
+        requestFit();
+        return;
+      }
+      containerKey = nextKey;
+      requestIntent();
+    };
+    requestLayoutFit.current = () => {
+      if (!autoOwned) return;
+      pendingFit = true;
+      requestFit();
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(checkContainer);
     observer?.observe(wrapper);
     const observePane = () => {
       const current = store.getState().domNode;
@@ -5924,23 +5971,41 @@ function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey }) {
     };
     observePane();
     const unsubscribe = store.subscribe((state) => {
+      const cameraChanged = state.transform.some((value, index) => value !== lastTransform[index]);
+      lastTransform = [...state.transform];
+      if (cameraChanged && !applyingFit) {
+        autoOwned = false;
+        pendingFit = false;
+        cancelFrame();
+      }
       const paneChanged = observePane();
       const nextKey = chartMeasurementKey(state);
-      const changed = paneChanged || nextKey !== measurementKey || state.panZoom !== panZoom;
+      const measurementsChanged = nextKey !== measurementKey;
+      const viewportChanged = state.panZoom !== panZoom;
       measurementKey = nextKey;
       panZoom = state.panZoom;
-      if (changed) requestFit();
+      if (paneChanged || viewportChanged) requestIntent();
+      if (measurementsChanged) {
+        checkContainer();
+        const viewport = chartFitViewport(state, padding2);
+        if (autoOwned && viewport && JSON.stringify(viewport) !== lastSuccessfulViewport) pendingFit = true;
+        requestFit();
+      }
     });
-    window.addEventListener("resize", requestFit);
+    window.addEventListener("resize", checkContainer);
     requestFit();
     return () => {
       disposed = true;
       unsubscribe();
       observer?.disconnect();
-      window.removeEventListener("resize", requestFit);
-      if (frame !== null) cancelAnimationFrame(frame);
+      requestLayoutFit.current = null;
+      window.removeEventListener("resize", checkContainer);
+      cancelFrame();
     };
   }, [store, setViewport, wrapperRef, padding2, refitKey]);
+  (0, import_react21.useEffect)(() => {
+    requestLayoutFit.current?.();
+  }, [layoutKey]);
 }
 function ChartAutoRefit(props) {
   useChartAutoRefit(props);
@@ -6743,7 +6808,14 @@ function TracedFlow({
     [drill, onNodeClick, groupedSet]
   );
   const wrapperRef = (0, import_react29.useRef)(null);
-  const refitKey = chartLayoutKey(positioned.nodes);
+  const layoutKey = chartLayoutKey(positioned.nodes);
+  const refitKey = JSON.stringify([
+    chartLayoutKey(filteredGraph.nodes),
+    chartTopologyKey(positioned.nodes),
+    // A custom layout is an authored layout. Default measured-layout settling
+    // must not take camera ownership back after a manual pan/zoom.
+    layoutProp !== void 0 ? layoutKey : null
+  ]);
   return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
     "div",
     {
@@ -6779,7 +6851,7 @@ function TracedFlow({
             minZoom: 0.1,
             proOptions: { hideAttribution: true },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(ChartAutoRefit, { wrapperRef, refitKey, padding: 0.18 }),
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(ChartAutoRefit, { wrapperRef, refitKey, layoutKey, padding: 0.18 }),
               /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
               /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(import_react30.Background, { variant: import_react30.BackgroundVariant.Dots, gap: 20, size: 1 }),
               children

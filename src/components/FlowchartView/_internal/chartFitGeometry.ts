@@ -79,3 +79,8 @@ export function chartLayoutKey(nodes: readonly Node[]): string {
     node.origin, node.width, node.height,
   ]));
 }
+
+/** New scope/group membership is a fit intent; measured card sizes are not. */
+export function chartTopologyKey(nodes: readonly Node[]): string {
+  return JSON.stringify(nodes.map((node) => [node.id, node.parentId, node.hidden]));
+}

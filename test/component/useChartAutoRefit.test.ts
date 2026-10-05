@@ -21,7 +21,7 @@ function box(width = 800, height = 600) {
   element.getBoundingClientRect = () => ({ ...area } as DOMRect);
   return { element, area };
 }
-type State = ChartFitState & { domNode: HTMLElement | null; panZoom: object | null };
+type State = ChartFitState & { domNode: HTMLElement | null; panZoom: object | null; transform: [number, number, number] };
 let state: State;
 let wrapper: ReturnType<typeof box>;
 let pane: ReturnType<typeof box>;
@@ -55,18 +55,22 @@ function resize() { act(() => observers.filter((observer) => !observer.disconnec
 function mount(key = "root", padding = 0.18) {
   const wrapperRef = { current: wrapper.element };
   return renderHook(
-    (props: { key: string; padding: number }) => useChartAutoRefit({ wrapperRef, refitKey: props.key, padding: props.padding }),
-    { initialProps: { key, padding } },
+    (props: { key: string; padding: number; layoutKey?: string }) => useChartAutoRefit({ wrapperRef, refitKey: props.key, padding: props.padding, layoutKey: props.layoutKey }),
+    { initialProps: { key, padding } as { key: string; padding: number; layoutKey?: string } },
   );
 }
 beforeEach(() => {
   raf = 0; frames = new Map(); listeners = new Set(); observers = [];
   wrapper = box(); pane = box(); nodes = new Map([["a", node()]]);
-  state = { width: 800, height: 600, minZoom: 0.1, maxZoom: 2, nodeLookup: nodes, domNode: pane.element, panZoom: {} };
+  state = { width: 800, height: 600, minZoom: 0.1, maxZoom: 2, nodeLookup: nodes, domNode: pane.element, panZoom: {}, transform: [0, 0, 1] };
   mock.store = { getState: () => state, subscribe: (listener: (state: State) => void) => {
     listeners.add(listener); return () => { listeners.delete(listener); };
   } };
-  mock.setViewport.mockReset().mockResolvedValue(true);
+  mock.setViewport.mockReset().mockImplementation((viewport: { x: number; y: number; zoom: number }) => {
+    state = { ...state, transform: [viewport.x, viewport.y, viewport.zoom] };
+    listeners.forEach((listener) => listener(state));
+    return Promise.resolve(true);
+  });
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.set(++raf, callback); return raf; });
   vi.stubGlobal("cancelAnimationFrame", (id: number) => { frames.delete(id); });
   vi.stubGlobal("ResizeObserver", TestResizeObserver);
@@ -145,6 +149,15 @@ describe("measured chart auto-refit", () => {
     expect(frames.size).toBe(0);
   });
 
+  it("same-size resize can wake an existing fit after a transient hidden frame", () => {
+    mount();
+    pane.area.width = 0; flush(); // Hidden with no ResizeObserver callback.
+    expect(mock.setViewport).not.toHaveBeenCalled();
+    pane.area.width = 800; // Returns to the previously known size.
+    resize(); flush();
+    expect(mock.setViewport).toHaveBeenCalledTimes(1);
+  });
+
   it("coalesces resize and store signals and reads latest dimensions", () => {
     mount(); resize(); resize();
     emit({ width: 600 }); emit({ width: 400 });
@@ -160,6 +173,39 @@ describe("measured chart auto-refit", () => {
     view.rerender({ key: "root", padding: 0.18 });
     expect(frames.size).toBe(0);
     expect(mock.setViewport).not.toHaveBeenCalled();
+  });
+
+  it("measurement loss/recovery after overlay adoption is not a new fit intent", () => {
+    mount(); flush(); mock.setViewport.mockClear();
+    nodes.set("a", { ...node(), measured: undefined }); emit(); flush();
+    nodes.set("a", node()); emit(); flush();
+    expect(mock.setViewport).not.toHaveBeenCalled();
+  });
+
+  it("manual camera ownership survives badge remeasurement and derived layout changes", () => {
+    const view = mount(); flush(); mock.setViewport.mockClear();
+    emit({ transform: [31, -42, 0.43] });
+    nodes.set("a", { ...node(), measured: undefined }); emit(); flush();
+    nodes.set("a", node(179, 40)); emit();
+    view.rerender({ key: "root", padding: 0.18, layoutKey: "remeasured-layout" });
+    resize(); // Same-size observer / synthetic resize is not a new intent either.
+    act(() => window.dispatchEvent(new Event("resize")));
+    flush();
+    expect(mock.setViewport).not.toHaveBeenCalled();
+    expect(state.transform).toEqual([31, -42, 0.43]);
+    view.rerender({ key: "new-drill-scope", padding: 0.18, layoutKey: "new-drill-layout" });
+    flush();
+    expect(mock.setViewport).toHaveBeenCalledTimes(1);
+  });
+
+  it("real container size changes reacquire fit intent after a manual camera gesture", () => {
+    mount(); flush(); mock.setViewport.mockClear();
+    emit({ transform: [31, -42, 0.43] });
+    resize(); flush();
+    expect(mock.setViewport).not.toHaveBeenCalled();
+    pane.area.width = 600;
+    emit({ width: 600 }); resize(); flush();
+    expect(mock.setViewport).toHaveBeenCalledTimes(1);
   });
 
   it("refits on an explicit drill/layout key and uses the new bounds", () => {
@@ -206,6 +252,7 @@ describe("measured chart auto-refit", () => {
   it("keeps window-resize support when ResizeObserver is unavailable", () => {
     vi.stubGlobal("ResizeObserver", undefined);
     mount(); flush(); mock.setViewport.mockClear();
+    pane.area.width = 900;
     act(() => window.dispatchEvent(new Event("resize"))); flush();
     expect(mock.setViewport).toHaveBeenCalledTimes(1);
   });
