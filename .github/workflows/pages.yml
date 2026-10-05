@@ -31,7 +31,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install
+      # Keep the demo's unlocked resolution on the same installer as CI.
+      - run: npx --yes npm@11.21.0 install
       - run: npm run demo:build
       - uses: actions/upload-pages-artifact@v3
         with:

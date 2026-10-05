@@ -11,7 +11,7 @@
  * an extracted helper / hook (see `_internal/`):
  *
  *   - drill state .................. useSubflowDrill
- *   - container resize → fitView ... useChartAutoRefit
+ *   - measured viewport fitting .... ChartAutoRefit
  *   - graph filtering by drill ..... filterGraphForDrill
  *   - breadcrumb path .............. buildSubflowBreadcrumb
  *   - slice id normalization ....... normalizeSliceLeafIds
@@ -42,7 +42,7 @@ import {
   BackgroundVariant,
   MarkerType,
 } from "@xyflow/react";
-import type { Node, Edge, NodeTypes, EdgeTypes, ReactFlowInstance } from "@xyflow/react";
+import type { Node, Edge, NodeTypes, EdgeTypes } from "@xyflow/react";
 import type { TraceGraph, TraceNode, TraceEdge } from "./traceStructureRecorder";
 import type { TraceFlowLayout } from "./TraceFlow";
 import { defaultTraceFlowLayout } from "./TraceFlow";
@@ -63,7 +63,8 @@ import { filterGraphForDrill, buildSubflowBreadcrumb } from "./_internal/subflow
 import { collapseTraceGraph } from "./_internal/collapseGraph";
 import { aggregateMountStatus, cursorStandInIds, edgeCarriesCursor } from "./_internal/overlayProjection";
 import { useSubflowDrill } from "./_internal/useSubflowDrill";
-import { useChartAutoRefit } from "./_internal/useChartAutoRefit";
+import { ChartAutoRefit } from "./_internal/useChartAutoRefit";
+import { chartLayoutKey, chartTopologyKey } from "./_internal/chartFitGeometry";
 import { SubflowBreadcrumbBar } from "./SubflowBreadcrumbBar";
 import { GroupContainerNode } from "../GroupContainerNode";
 import { LoopBackEdge } from "../LoopBackEdge";
@@ -675,17 +676,15 @@ export function TracedFlow({
     [drill, onNodeClick, groupedSet],
   );
 
-  // ── Container auto-refit (xyflow's fitView is mount-only) ─────────
+  // One measured-fit owner inside ReactFlow; overlay scrubbing is not a layout.
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
-  // refitKey = the drill id: drilling in/out swaps the visible subgraph, so the
-  // chart must recenter + rezoom to the new content (otherwise the smaller
-  // drilled graph keeps the parent's pan/zoom and sits cramped in a corner).
-  useChartAutoRefit(wrapperRef, rfInstance, {
-    // Re-fit on drill AND after the measured-size re-layout settles.
-    refitKey: `${drill.currentSubflowId ?? ""}:${measuredSizes ? "measured" : "estimated"}`,
-    padding: 0.18,
-  });
+  const layoutKey = chartLayoutKey(positioned.nodes);
+  const refitKey = JSON.stringify([
+    chartLayoutKey(filteredGraph.nodes), chartTopologyKey(positioned.nodes),
+    // A custom layout is an authored layout. Default measured-layout settling
+    // must not take camera ownership back after a manual pan/zoom.
+    layoutProp !== undefined ? layoutKey : null,
+  ]);
 
   return (
     <div
@@ -716,12 +715,10 @@ export function TracedFlow({
           nodeTypes={mergedNodeTypes}
           edgeTypes={mergedEdgeTypes}
           onNodeClick={handleNodeClick}
-          onInit={setRfInstance}
-          fitView
-          fitViewOptions={{ padding: 0.18 }}
           minZoom={0.1}
           proOptions={{ hideAttribution: true }}
         >
+          <ChartAutoRefit wrapperRef={wrapperRef} refitKey={refitKey} layoutKey={layoutKey} padding={0.18} />
           <MeasuredNodeSizes onSizes={setMeasuredSizes} />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
           {children}

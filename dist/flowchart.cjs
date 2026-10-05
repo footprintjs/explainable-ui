@@ -880,7 +880,7 @@ var StageNode = (0, import_react3.memo)(function StageNode2({
 });
 
 // src/components/TimeTravelDebugger/TimeTravelDebugger.tsx
-var import_react20 = require("react");
+var import_react22 = require("react");
 
 // src/components/FlowchartView/_internal/devWarn.ts
 function isDevModeEnv() {
@@ -1469,8 +1469,8 @@ function GanttTimeline({
 }
 
 // src/components/FlowchartView/TraceFlow.tsx
-var import_react11 = require("react");
-var import_react12 = require("@xyflow/react");
+var import_react14 = require("react");
+var import_react15 = require("@xyflow/react");
 
 // src/components/LoopBackEdge/LoopBackEdge.tsx
 var import_react8 = require("@xyflow/react");
@@ -1943,6 +1943,195 @@ function createDagreTraceLayout(options = {}) {
   return (graph) => dagreTraceLayout(graph, options);
 }
 
+// src/components/FlowchartView/_internal/useChartAutoRefit.ts
+var import_react12 = require("react");
+var import_react13 = require("@xyflow/react");
+
+// src/components/FlowchartView/_internal/chartFitGeometry.ts
+var import_react11 = require("@xyflow/react");
+var positiveFinite = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+function measuredChartBounds(nodes) {
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (const node of nodes.values()) {
+    if (node.hidden) continue;
+    const width2 = node.measured?.width;
+    const height2 = node.measured?.height;
+    const { x, y } = node.internals.positionAbsolute;
+    if (!positiveFinite(width2) || !positiveFinite(height2) || !Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+    left = Math.min(left, x);
+    top = Math.min(top, y);
+    right = Math.max(right, x + width2);
+    bottom = Math.max(bottom, y + height2);
+  }
+  const width = right - left;
+  const height = bottom - top;
+  if (!Number.isFinite(left) || !Number.isFinite(top) || !positiveFinite(width) || !positiveFinite(height)) return null;
+  return { x: left, y: top, width, height };
+}
+function chartFitViewport(state, padding2) {
+  if (!positiveFinite(state.width) || !positiveFinite(state.height) || !positiveFinite(state.minZoom) || !positiveFinite(state.maxZoom) || state.maxZoom < state.minZoom || !Number.isFinite(padding2) || padding2 < 0) return null;
+  const bounds = measuredChartBounds(state.nodeLookup);
+  if (!bounds) return null;
+  const viewport = (0, import_react11.getViewportForBounds)(bounds, state.width, state.height, state.minZoom, state.maxZoom, padding2);
+  return Number.isFinite(viewport.x) && Number.isFinite(viewport.y) && positiveFinite(viewport.zoom) ? viewport : null;
+}
+function chartMeasurementKey(state) {
+  return JSON.stringify([
+    state.width,
+    state.height,
+    state.minZoom,
+    state.maxZoom,
+    measuredChartBounds(state.nodeLookup) !== null,
+    Array.from(state.nodeLookup, ([id, node]) => node.hidden ? [id, "hidden"] : [id, node.measured?.width, node.measured?.height])
+  ]);
+}
+function chartLayoutKey(nodes) {
+  return JSON.stringify(nodes.map((node) => [
+    node.id,
+    node.parentId,
+    node.hidden,
+    node.position.x,
+    node.position.y,
+    node.origin,
+    node.width,
+    node.height
+  ]));
+}
+function chartTopologyKey(nodes) {
+  return JSON.stringify(nodes.map((node) => [node.id, node.parentId, node.hidden]));
+}
+
+// src/components/FlowchartView/_internal/useChartAutoRefit.ts
+function hasVisibleArea(element) {
+  if (!element) return false;
+  const { width, height } = element.getBoundingClientRect();
+  return positiveFinite(width) && positiveFinite(height);
+}
+function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey, layoutKey }) {
+  const store = (0, import_react13.useStoreApi)();
+  const { setViewport } = (0, import_react13.useReactFlow)();
+  const requestLayoutFit = (0, import_react12.useRef)(null);
+  (0, import_react12.useEffect)(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    let disposed = false;
+    let frame = null;
+    let pane = null;
+    let measurementKey = chartMeasurementKey(store.getState());
+    let panZoom = store.getState().panZoom;
+    let lastTransform = [...store.getState().transform];
+    let autoOwned = true;
+    let pendingFit = true;
+    let applyingFit = false;
+    let lastSuccessfulViewport = null;
+    const readContainerKey = () => {
+      const state = store.getState();
+      const outer = wrapper.getBoundingClientRect();
+      const inner = state.domNode?.getBoundingClientRect();
+      return JSON.stringify([outer.width, outer.height, inner?.width, inner?.height, state.width, state.height]);
+    };
+    let containerKey = readContainerKey();
+    const cancelFrame = () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+    };
+    const requestFit = () => {
+      if (disposed || !pendingFit) return;
+      cancelFrame();
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        if (disposed || !pendingFit) return;
+        const state = store.getState();
+        if (!state.panZoom || !hasVisibleArea(wrapper) || !hasVisibleArea(state.domNode)) return;
+        const viewport = chartFitViewport(state, padding2);
+        if (!viewport) return;
+        pendingFit = false;
+        lastSuccessfulViewport = JSON.stringify(viewport);
+        applyingFit = true;
+        try {
+          void setViewport(viewport, { duration: 0 });
+        } finally {
+          applyingFit = false;
+        }
+      });
+    };
+    const requestIntent = () => {
+      autoOwned = true;
+      pendingFit = true;
+      requestFit();
+    };
+    const checkContainer = () => {
+      const nextKey = readContainerKey();
+      if (nextKey === containerKey) {
+        requestFit();
+        return;
+      }
+      containerKey = nextKey;
+      requestIntent();
+    };
+    requestLayoutFit.current = () => {
+      if (!autoOwned) return;
+      pendingFit = true;
+      requestFit();
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(checkContainer);
+    observer?.observe(wrapper);
+    const observePane = () => {
+      const current = store.getState().domNode;
+      if (current === pane) return false;
+      if (pane && pane !== wrapper) observer?.unobserve(pane);
+      pane = current;
+      if (pane && pane !== wrapper) observer?.observe(pane);
+      return true;
+    };
+    observePane();
+    const unsubscribe = store.subscribe((state) => {
+      const cameraChanged = state.transform.some((value, index) => value !== lastTransform[index]);
+      lastTransform = [...state.transform];
+      if (cameraChanged && !applyingFit) {
+        autoOwned = false;
+        pendingFit = false;
+        cancelFrame();
+      }
+      const paneChanged = observePane();
+      const nextKey = chartMeasurementKey(state);
+      const measurementsChanged = nextKey !== measurementKey;
+      const viewportChanged = state.panZoom !== panZoom;
+      measurementKey = nextKey;
+      panZoom = state.panZoom;
+      if (paneChanged || viewportChanged) requestIntent();
+      if (measurementsChanged) {
+        checkContainer();
+        const viewport = chartFitViewport(state, padding2);
+        if (autoOwned && viewport && JSON.stringify(viewport) !== lastSuccessfulViewport) pendingFit = true;
+        requestFit();
+      }
+    });
+    window.addEventListener("resize", checkContainer);
+    requestFit();
+    return () => {
+      disposed = true;
+      unsubscribe();
+      observer?.disconnect();
+      requestLayoutFit.current = null;
+      window.removeEventListener("resize", checkContainer);
+      cancelFrame();
+    };
+  }, [store, setViewport, wrapperRef, padding2, refitKey]);
+  (0, import_react12.useEffect)(() => {
+    requestLayoutFit.current?.();
+  }, [layoutKey]);
+}
+function ChartAutoRefit(props) {
+  useChartAutoRefit(props);
+  return null;
+}
+
 // src/components/FlowchartView/TraceFlow.tsx
 var import_jsx_runtime8 = require("react/jsx-runtime");
 var Y_STEP = 100;
@@ -2040,7 +2229,7 @@ function styleEdge(edge, colors) {
     type: kind === "loop" ? "loopBack" : "smartStep",
     animated: false,
     style: { stroke: color, strokeWidth: 1.5 },
-    markerEnd: { type: import_react12.MarkerType.ArrowClosed, color, width: 16, height: 16 }
+    markerEnd: { type: import_react15.MarkerType.ArrowClosed, color, width: 16, height: 16 }
   };
   if (kind === "loop") {
     styled.style = { ...styled.style, strokeDasharray: "4 3" };
@@ -2103,56 +2292,59 @@ function TraceFlow(props) {
     );
   }
   const layout = props.layout ?? dagreTraceLayout;
-  const edgeColors = (0, import_react11.useMemo)(
+  const edgeColors = (0, import_react14.useMemo)(
     () => ({ ...DEFAULT_EDGE_COLORS, ...props.edgeColors ?? {} }),
     [props.edgeColors]
   );
-  const subscribe = (0, import_react11.useMemo)(
+  const subscribe = (0, import_react14.useMemo)(
     () => subscribeToRecorder(props.recorder),
     [props.recorder]
   );
-  const getVersion = (0, import_react11.useMemo)(
+  const getVersion = (0, import_react14.useMemo)(
     () => getRecorderVersion(props.recorder),
     [props.recorder]
   );
-  const version = (0, import_react11.useSyncExternalStore)(subscribe, getVersion, getVersion);
+  const version = (0, import_react14.useSyncExternalStore)(subscribe, getVersion, getVersion);
   const { recorder, graph: graphProp } = props;
-  const graph = (0, import_react11.useMemo)(() => {
+  const graph = (0, import_react14.useMemo)(() => {
     if (recorder) return recorder.getGraph();
     if (graphProp) return graphProp;
     return EMPTY_GRAPH;
   }, [recorder, graphProp, version]);
-  const positioned = (0, import_react11.useMemo)(() => {
+  const positioned = (0, import_react14.useMemo)(() => {
     if (layout === "passthrough") return graph;
     return layout(graph);
   }, [graph, layout]);
-  const reactFlowNodes = (0, import_react11.useMemo)(
+  const reactFlowNodes = (0, import_react14.useMemo)(
     () => positioned.nodes.map(toStageNode),
     [positioned.nodes]
   );
-  const reactFlowEdges = (0, import_react11.useMemo)(
+  const reactFlowEdges = (0, import_react14.useMemo)(
     () => positioned.edges.map((e) => styleEdge(e, edgeColors)),
     [positioned.edges, edgeColors]
   );
   const onNodeClickRef = props.onNodeClick;
-  const handleNodeClick = (0, import_react11.useCallback)(
+  const handleNodeClick = (0, import_react14.useCallback)(
     (_, node) => {
       onNodeClickRef?.(node.id);
     },
     [onNodeClickRef]
   );
   const { nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes } = props;
-  const mergedNodeTypes = (0, import_react11.useMemo)(
+  const mergedNodeTypes = (0, import_react14.useMemo)(
     () => userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES,
     [userNodeTypes]
   );
-  const mergedEdgeTypes = (0, import_react11.useMemo)(
+  const mergedEdgeTypes = (0, import_react14.useMemo)(
     () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES, ...userEdgeTypes } : DEFAULT_EDGE_TYPES,
     [userEdgeTypes]
   );
+  const wrapperRef = (0, import_react14.useRef)(null);
+  const refitKey = chartLayoutKey(positioned.nodes);
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
     "div",
     {
+      ref: wrapperRef,
       className: props.className,
       style: {
         width: "100%",
@@ -2161,17 +2353,17 @@ function TraceFlow(props) {
         ...props.style
       },
       children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
-        import_react12.ReactFlow,
+        import_react15.ReactFlow,
         {
           nodes: reactFlowNodes,
           edges: reactFlowEdges,
           nodeTypes: mergedNodeTypes,
           edgeTypes: mergedEdgeTypes,
           onNodeClick: handleNodeClick,
-          fitView: true,
           proOptions: { hideAttribution: true },
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(import_react12.Background, { variant: import_react12.BackgroundVariant.Dots, gap: 20, size: 1 }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(ChartAutoRefit, { wrapperRef, refitKey }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(import_react15.Background, { variant: import_react15.BackgroundVariant.Dots, gap: 20, size: 1 }),
             props.children
           ]
         }
@@ -2181,8 +2373,8 @@ function TraceFlow(props) {
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-var import_react18 = require("react");
-var import_react19 = require("@xyflow/react");
+var import_react20 = require("react");
+var import_react21 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/snapLinearSuccessors.ts
 function snapLinearSuccessors(graph, options = {}) {
@@ -2743,78 +2935,38 @@ function edgeCarriesCursor(via, standIns) {
 }
 
 // src/components/FlowchartView/_internal/useSubflowDrill.ts
-var import_react13 = require("react");
+var import_react16 = require("react");
 function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
   const isControlled = controlledSubflowId !== void 0;
-  const [ownSubflowId, setOwnSubflowId] = (0, import_react13.useState)(null);
+  const [ownSubflowId, setOwnSubflowId] = (0, import_react16.useState)(null);
   const currentSubflowId = isControlled ? controlledSubflowId : ownSubflowId;
-  const lastGraphRef = (0, import_react13.useRef)(null);
+  const lastGraphRef = (0, import_react16.useRef)(null);
   if (!isControlled && lastGraphRef.current !== graph) {
     lastGraphRef.current = graph;
     if (ownSubflowId !== null && findMountNode(graph, ownSubflowId) === void 0) {
       queueMicrotask(() => setOwnSubflowId(null));
     }
   }
-  const lastNotifiedRef = (0, import_react13.useRef)(void 0);
-  (0, import_react13.useEffect)(() => {
+  const lastNotifiedRef = (0, import_react16.useRef)(void 0);
+  (0, import_react16.useEffect)(() => {
     if (isControlled) return;
     if (lastNotifiedRef.current === currentSubflowId) return;
     lastNotifiedRef.current = currentSubflowId;
     onSubflowChange?.(currentSubflowId);
   }, [isControlled, currentSubflowId, onSubflowChange]);
-  const setCurrentSubflowId = (0, import_react13.useCallback)(
+  const setCurrentSubflowId = (0, import_react16.useCallback)(
     (id) => {
       if (isControlled) onSubflowChange?.(id);
       else setOwnSubflowId(id);
     },
     [isControlled, onSubflowChange]
   );
-  const drillInto = (0, import_react13.useCallback)(
+  const drillInto = (0, import_react16.useCallback)(
     (mountNodeId) => setCurrentSubflowId(mountNodeId),
     [setCurrentSubflowId]
   );
-  const drillUp = (0, import_react13.useCallback)(() => setCurrentSubflowId(null), [setCurrentSubflowId]);
+  const drillUp = (0, import_react16.useCallback)(() => setCurrentSubflowId(null), [setCurrentSubflowId]);
   return { currentSubflowId, drillInto, drillUp, setCurrentSubflowId };
-}
-
-// src/components/FlowchartView/_internal/useChartAutoRefit.ts
-var import_react14 = require("react");
-function useChartAutoRefit(wrapperRef, rfInstance, options = {}) {
-  const duration = options.duration ?? 200;
-  const padding2 = options.padding ?? 0.1;
-  const refitKey = options.refitKey;
-  (0, import_react14.useEffect)(() => {
-    const el = wrapperRef.current;
-    if (!el || !rfInstance) return;
-    let raf = 0;
-    const refit = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        rfInstance.fitView({ duration, padding: padding2 });
-      });
-    };
-    const ro = new ResizeObserver(refit);
-    ro.observe(el);
-    window.addEventListener("resize", refit);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", refit);
-      cancelAnimationFrame(raf);
-    };
-  }, [rfInstance, wrapperRef, duration, padding2]);
-  (0, import_react14.useEffect)(() => {
-    if (!rfInstance) return;
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        rfInstance.fitView({ duration, padding: padding2 });
-      });
-    });
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-    };
-  }, [rfInstance, refitKey, duration, padding2]);
 }
 
 // src/components/FlowchartView/SubflowBreadcrumbBar.tsx
@@ -2872,7 +3024,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
 }
 
 // src/components/GroupContainerNode/GroupContainerNode.tsx
-var import_react15 = require("@xyflow/react");
+var import_react17 = require("@xyflow/react");
 var import_jsx_runtime10 = require("react/jsx-runtime");
 function GroupContainerNode({ data }) {
   const d = data;
@@ -2912,16 +3064,16 @@ function GroupContainerNode({ data }) {
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react15.Handle, { type: "target", position: import_react15.Position.Top, style: { opacity: 0 } }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react15.Handle, { type: "source", position: import_react15.Position.Bottom, style: { opacity: 0 } })
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react17.Handle, { type: "target", position: import_react17.Position.Top, style: { opacity: 0 } }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(import_react17.Handle, { type: "source", position: import_react17.Position.Bottom, style: { opacity: 0 } })
       ]
     }
   );
 }
 
 // src/components/FlowchartView/_internal/MeasuredNodeSizes.tsx
-var import_react16 = require("react");
-var import_react17 = require("@xyflow/react");
+var import_react18 = require("react");
+var import_react19 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/measuredFootprints.ts
 function extractMeasuredFootprints(entries) {
@@ -2950,12 +3102,12 @@ function MeasuredNodeSizes({
   onSizes,
   includeHiddenNodes = false
 }) {
-  const initialized = (0, import_react17.useNodesInitialized)({ includeHiddenNodes });
-  const sizes = (0, import_react17.useStore)(
+  const initialized = (0, import_react19.useNodesInitialized)({ includeHiddenNodes });
+  const sizes = (0, import_react19.useStore)(
     (s) => extractMeasuredFootprints(s.nodeLookup),
     sameFootprints
   );
-  (0, import_react16.useEffect)(() => {
+  (0, import_react18.useEffect)(() => {
     if (!initialized || sizes.size === 0) return;
     onSizes(sizes);
   }, [initialized, sizes, onSizes]);
@@ -3081,7 +3233,7 @@ function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors, cursorS
     type: kind === "loop" ? "loopBack" : "smartStep",
     animated: isLeadingEdge,
     style: { stroke: color, strokeWidth: traversed || carriesCursor ? 2 : 1.5 },
-    markerEnd: { type: import_react19.MarkerType.ArrowClosed, color, width: 16, height: 16 }
+    markerEnd: { type: import_react21.MarkerType.ArrowClosed, color, width: 16, height: 16 }
   };
   if (kind === "loop") {
     styled.style = { ...styled.style, strokeDasharray: "4 3" };
@@ -3115,32 +3267,32 @@ function TracedFlow({
   style
 }) {
   const layout = layoutProp ?? dagreTraceLayout;
-  (0, import_react18.useEffect)(() => {
+  (0, import_react20.useEffect)(() => {
     if (layoutProp === dagreTraceLayout) {
       devWarn(
         () => "[footprint-explainable-ui] <TracedFlow layout={dagreTraceLayout}> bypasses the built-in measure-then-layout pipeline (content-exact sizing, fork/merge centering, straight spines). OMIT the `layout` prop to use it \u2014 passing the raw dagreTraceLayout silently forfeits every layout improvement eui ships."
       );
     }
   }, [layoutProp]);
-  const colors = (0, import_react18.useMemo)(
+  const colors = (0, import_react20.useMemo)(
     () => ({ ...DEFAULT_COLORS, ...colorOverrides ?? {} }),
     [colorOverrides]
   );
-  const mergedNodeTypes = (0, import_react18.useMemo)(
+  const mergedNodeTypes = (0, import_react20.useMemo)(
     () => userNodeTypes ? { ...DEFAULT_NODE_TYPES2, ...userNodeTypes } : DEFAULT_NODE_TYPES2,
     [userNodeTypes]
   );
-  const mergedEdgeTypes = (0, import_react18.useMemo)(
+  const mergedEdgeTypes = (0, import_react20.useMemo)(
     () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES2, ...userEdgeTypes } : DEFAULT_EDGE_TYPES2,
     [userEdgeTypes]
   );
-  const effectiveGraph = (0, import_react18.useMemo)(
+  const effectiveGraph = (0, import_react20.useMemo)(
     () => collapseNode ? collapseTraceGraph(graph, collapseNode).graph : graph,
     [graph, collapseNode]
   );
   const drill = useSubflowDrill(effectiveGraph, onSubflowChange, controlledSubflowId);
-  const groupedSet = (0, import_react18.useMemo)(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
-  const filteredGraph = (0, import_react18.useMemo)(() => {
+  const groupedSet = (0, import_react20.useMemo)(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
+  const filteredGraph = (0, import_react20.useMemo)(() => {
     const base = filterGraphForDrill(effectiveGraph, drill.currentSubflowId);
     if (groupedSet.size === 0) return base;
     const baseIds = new Set(base.nodes.map((n) => n.id));
@@ -3155,12 +3307,12 @@ function TracedFlow({
     );
     return { nodes: [...base.nodes, ...extraNodes], edges: [...base.edges, ...extraEdges] };
   }, [effectiveGraph, drill.currentSubflowId, groupedSet]);
-  const breadcrumb = (0, import_react18.useMemo)(
+  const breadcrumb = (0, import_react20.useMemo)(
     () => buildSubflowBreadcrumb(effectiveGraph, drill.currentSubflowId),
     [effectiveGraph, drill.currentSubflowId]
   );
-  const [measuredSizes, setMeasuredSizes] = (0, import_react18.useState)(null);
-  const positioned = (0, import_react18.useMemo)(() => {
+  const [measuredSizes, setMeasuredSizes] = (0, import_react20.useState)(null);
+  const positioned = (0, import_react20.useMemo)(() => {
     const nodeSize = measuredSizes ? (n) => measuredSizes.get(n.id) : void 0;
     const sizeOpts = nodeSize ? { nodeSize } : {};
     const dagreBase = withForkCentering(
@@ -3184,7 +3336,7 @@ function TracedFlow({
     }
     return realBase(filteredGraph);
   }, [filteredGraph, layout, layoutProp, groupedSet, mainChartBox, measuredSizes]);
-  const slice = (0, import_react18.useMemo)(() => {
+  const slice = (0, import_react20.useMemo)(() => {
     const empty = {
       doneStageIds: /* @__PURE__ */ new Set(),
       activeStageId: null,
@@ -3197,7 +3349,7 @@ function TracedFlow({
     const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
     return aggregateMountStatus(sliceOverlay(overlay, idx), effectiveGraph, drill.currentSubflowId);
   }, [overlay, scrubIndex, effectiveGraph, drill.currentSubflowId]);
-  const reactFlowNodes = (0, import_react18.useMemo)(
+  const reactFlowNodes = (0, import_react20.useMemo)(
     () => positioned.nodes.map(
       (n) => toStageNodeWithOverlay(
         n,
@@ -3211,21 +3363,21 @@ function TracedFlow({
     ),
     [positioned.nodes, slice, coActiveStageIds]
   );
-  const cursorStandIns = (0, import_react18.useMemo)(() => cursorStandInIds(slice.activeStageId), [slice.activeStageId]);
-  const reactFlowEdges = (0, import_react18.useMemo)(
+  const cursorStandIns = (0, import_react20.useMemo)(() => cursorStandInIds(slice.activeStageId), [slice.activeStageId]);
+  const reactFlowEdges = (0, import_react20.useMemo)(
     () => positioned.edges.map(
       (e) => styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns)
     ),
     [positioned.edges, slice, colors, cursorStandIns]
   );
-  const [coneRevealed, setConeRevealed] = (0, import_react18.useState)(false);
-  (0, import_react18.useEffect)(() => {
+  const [coneRevealed, setConeRevealed] = (0, import_react20.useState)(false);
+  (0, import_react20.useEffect)(() => {
     if (!sliceCone) return;
     setConeRevealed(false);
     const raf = requestAnimationFrame(() => setConeRevealed(true));
     return () => cancelAnimationFrame(raf);
   }, [sliceCone]);
-  const conedNodes = (0, import_react18.useMemo)(() => {
+  const conedNodes = (0, import_react20.useMemo)(() => {
     if (!sliceCone || sliceCone.size === 0) return reactFlowNodes;
     return reactFlowNodes.map((n) => {
       const depth = sliceCone.get(n.id);
@@ -3243,14 +3395,14 @@ function TracedFlow({
       };
     });
   }, [reactFlowNodes, sliceCone, coneRevealed]);
-  const conedEdges = (0, import_react18.useMemo)(() => {
+  const conedEdges = (0, import_react20.useMemo)(() => {
     if (!sliceCone || sliceCone.size === 0) return reactFlowEdges;
     return reactFlowEdges.map((e) => {
       const inCone = sliceCone.has(e.source) && sliceCone.has(e.target);
       return inCone ? e : { ...e, style: { ...e.style, opacity: 0.12, transition: "opacity 260ms ease" } };
     });
   }, [reactFlowEdges, sliceCone]);
-  const handleNodeClick = (0, import_react18.useCallback)(
+  const handleNodeClick = (0, import_react20.useCallback)(
     (_, node) => {
       const data = node.data ?? {};
       const isGrouped = groupedSet.has(node.id) || !!data.subflowId && groupedSet.has(data.subflowId);
@@ -3261,13 +3413,15 @@ function TracedFlow({
     },
     [drill, onNodeClick, groupedSet]
   );
-  const wrapperRef = (0, import_react18.useRef)(null);
-  const [rfInstance, setRfInstance] = (0, import_react18.useState)(null);
-  useChartAutoRefit(wrapperRef, rfInstance, {
-    // Re-fit on drill AND after the measured-size re-layout settles.
-    refitKey: `${drill.currentSubflowId ?? ""}:${measuredSizes ? "measured" : "estimated"}`,
-    padding: 0.18
-  });
+  const wrapperRef = (0, import_react20.useRef)(null);
+  const layoutKey = chartLayoutKey(positioned.nodes);
+  const refitKey = JSON.stringify([
+    chartLayoutKey(filteredGraph.nodes),
+    chartTopologyKey(positioned.nodes),
+    // A custom layout is an authored layout. Default measured-layout settling
+    // must not take camera ownership back after a manual pan/zoom.
+    layoutProp !== void 0 ? layoutKey : null
+  ]);
   return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
     "div",
     {
@@ -3293,21 +3447,19 @@ function TracedFlow({
           }
         ),
         /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
-          import_react19.ReactFlow,
+          import_react21.ReactFlow,
           {
             nodes: conedNodes,
             edges: conedEdges,
             nodeTypes: mergedNodeTypes,
             edgeTypes: mergedEdgeTypes,
             onNodeClick: handleNodeClick,
-            onInit: setRfInstance,
-            fitView: true,
-            fitViewOptions: { padding: 0.18 },
             minZoom: 0.1,
             proOptions: { hideAttribution: true },
             children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(ChartAutoRefit, { wrapperRef, refitKey, layoutKey, padding: 0.18 }),
               /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_react19.Background, { variant: import_react19.BackgroundVariant.Dots, gap: 20, size: 1 }),
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_react21.Background, { variant: import_react21.BackgroundVariant.Dots, gap: 20, size: 1 }),
               children
             ]
           }
@@ -3335,7 +3487,7 @@ function TimeTravelDebugger({
     "TimeTravelDebugger",
     "Use <SnapshotPanel> (same panels, controlled cursor), <ExplainableShell> (those plus the chart and drill-down), or the footprint-viewer package."
   );
-  const [selectedIndex, setSelectedIndex] = (0, import_react20.useState)(0);
+  const [selectedIndex, setSelectedIndex] = (0, import_react22.useState)(0);
   const fs = fontSize[size];
   const pad = padding[size];
   if (snapshots.length === 0) {
@@ -3629,9 +3781,9 @@ function ScrubButton({
 }
 
 // src/components/FlowchartView/SubflowBreadcrumb.tsx
-var import_react21 = require("react");
+var import_react23 = require("react");
 var import_jsx_runtime13 = require("react/jsx-runtime");
-var SubflowBreadcrumb = (0, import_react21.memo)(function SubflowBreadcrumb2({
+var SubflowBreadcrumb = (0, import_react23.memo)(function SubflowBreadcrumb2({
   breadcrumbs,
   onNavigate
 }) {
@@ -3716,16 +3868,16 @@ var SubflowBreadcrumb = (0, import_react21.memo)(function SubflowBreadcrumb2({
 });
 
 // src/components/FlowchartView/useSubflowNavigation.ts
-var import_react22 = require("react");
+var import_react24 = require("react");
 var EMPTY_GRAPH2 = { nodes: [], edges: [] };
 function useSubflowNavigation(rootGraph) {
   warnDeprecated(
     "useSubflowNavigation",
     "It keys the drill by the child chart's LOCAL subflowId, which is not unique across two mounts of the same chart. Use <TracedFlow>'s built-in drill (currentSubflowId + onSubflowChange), or filterGraphForDrill + buildSubflowBreadcrumb with the MOUNT NODE'S id."
   );
-  const [stack, setStack] = (0, import_react22.useState)([]);
+  const [stack, setStack] = (0, import_react24.useState)([]);
   const safeRootGraph = rootGraph ?? EMPTY_GRAPH2;
-  const subflowMounts = (0, import_react22.useMemo)(() => {
+  const subflowMounts = (0, import_react24.useMemo)(() => {
     const map = /* @__PURE__ */ new Map();
     for (const node of safeRootGraph.nodes) {
       if (!node.data?.isSubflow) continue;
@@ -3743,12 +3895,12 @@ function useSubflowNavigation(rootGraph) {
     }
     return map;
   }, [safeRootGraph]);
-  const breadcrumbs = (0, import_react22.useMemo)(() => {
+  const breadcrumbs = (0, import_react24.useMemo)(() => {
     const rootLabel = "Flowchart";
     const root = { label: rootLabel };
     return [root, ...stack];
   }, [stack]);
-  const handleNodeClick = (0, import_react22.useCallback)(
+  const handleNodeClick = (0, import_react24.useCallback)(
     (nodeId) => {
       const mount = subflowMounts.get(nodeId);
       if (!mount) return false;
@@ -3764,7 +3916,7 @@ function useSubflowNavigation(rootGraph) {
     },
     [subflowMounts]
   );
-  const navigateTo = (0, import_react22.useCallback)((level) => {
+  const navigateTo = (0, import_react24.useCallback)((level) => {
     if (level === 0) {
       setStack([]);
     } else {
@@ -3786,7 +3938,7 @@ function useSubflowNavigation(rootGraph) {
 }
 
 // src/components/FlowchartView/SubflowTree.tsx
-var import_react23 = require("react");
+var import_react25 = require("react");
 var import_jsx_runtime14 = require("react/jsx-runtime");
 function graphToSubflowEntries(graph) {
   if (!graph?.nodes?.length) return [];
@@ -3804,18 +3956,18 @@ function graphToSubflowEntries(graph) {
   }
   return entries;
 }
-var TreeNode = (0, import_react23.memo)(function TreeNode2({
+var TreeNode = (0, import_react25.memo)(function TreeNode2({
   entry,
   depth,
   activeStage,
   doneStages,
   onNodeSelect
 }) {
-  const [expanded, setExpanded] = (0, import_react23.useState)(true);
+  const [expanded, setExpanded] = (0, import_react25.useState)(true);
   const hasChildren = entry.children && entry.children.length > 0;
   const isActive = activeStage === entry.name;
   const isDone = doneStages?.has(entry.name);
-  const handleClick = (0, import_react23.useCallback)(() => {
+  const handleClick = (0, import_react25.useCallback)(() => {
     if (hasChildren) {
       setExpanded((prev) => !prev);
     }
@@ -3928,7 +4080,7 @@ var TreeNode = (0, import_react23.memo)(function TreeNode2({
     )) })
   ] });
 });
-var SectionLabel = (0, import_react23.memo)(function SectionLabel2({ children }) {
+var SectionLabel = (0, import_react25.memo)(function SectionLabel2({ children }) {
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
     "div",
     {
@@ -3944,7 +4096,7 @@ var SectionLabel = (0, import_react23.memo)(function SectionLabel2({ children })
     }
   );
 });
-var SubflowTree = (0, import_react23.memo)(function SubflowTree2({
+var SubflowTree = (0, import_react25.memo)(function SubflowTree2({
   graph,
   activeStage,
   doneStages,
@@ -3953,7 +4105,7 @@ var SubflowTree = (0, import_react23.memo)(function SubflowTree2({
   className,
   style
 }) {
-  const subflowStages = (0, import_react23.useMemo)(() => graphToSubflowEntries(graph), [graph]);
+  const subflowStages = (0, import_react25.useMemo)(() => graphToSubflowEntries(graph), [graph]);
   if (subflowStages.length === 0) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
     "div",
@@ -4288,7 +4440,7 @@ function createTraceStructureRecorder(options = {}) {
 }
 
 // src/components/SlotPillNode/SlotPillNode.tsx
-var import_react24 = require("@xyflow/react");
+var import_react26 = require("@xyflow/react");
 var import_jsx_runtime15 = require("react/jsx-runtime");
 function SlotPillNode({ data }) {
   const d = data;
@@ -4339,8 +4491,8 @@ function SlotPillNode({ data }) {
         ),
         d.icon ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { "aria-hidden": true, style: { flexShrink: 0 }, children: d.icon }) : null,
         /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { style: { overflow: "hidden", textOverflow: "ellipsis" }, children: d.label }),
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react24.Handle, { type: "target", position: import_react24.Position.Top, style: { opacity: 0 } }),
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react24.Handle, { type: "source", position: import_react24.Position.Bottom, style: { opacity: 0 } })
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react26.Handle, { type: "target", position: import_react26.Position.Top, style: { opacity: 0 } }),
+        /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_react26.Handle, { type: "source", position: import_react26.Position.Bottom, style: { opacity: 0 } })
       ]
     }
   );
@@ -5069,12 +5221,12 @@ function createTraceBundle(options = {}) {
 }
 
 // src/components/FlowchartView/_internal/useTranslator.ts
-var import_react25 = require("react");
+var import_react27 = require("react");
 function useTranslator(handle, getSnapshot) {
-  const subscribe = (0, import_react25.useMemo)(() => handle.subscribe.bind(handle), [handle]);
-  const getVersion = (0, import_react25.useMemo)(() => handle.version.bind(handle), [handle]);
-  const version = (0, import_react25.useSyncExternalStore)(subscribe, getVersion, getVersion);
-  return (0, import_react25.useMemo)(() => getSnapshot(), [version, getSnapshot]);
+  const subscribe = (0, import_react27.useMemo)(() => handle.subscribe.bind(handle), [handle]);
+  const getVersion = (0, import_react27.useMemo)(() => handle.version.bind(handle), [handle]);
+  const version = (0, import_react27.useSyncExternalStore)(subscribe, getVersion, getVersion);
+  return (0, import_react27.useMemo)(() => getSnapshot(), [version, getSnapshot]);
 }
 
 // src/components/FlowchartView/walkHelpers.ts
@@ -5157,7 +5309,7 @@ function bfsWalk(index, startId, neighborsOf, options) {
 }
 
 // src/components/FlowchartView/NodeInspector.tsx
-var import_react26 = require("react");
+var import_react28 = require("react");
 var import_jsx_runtime16 = require("react/jsx-runtime");
 function NodeInspector({
   index,
@@ -5168,11 +5320,11 @@ function NodeInspector({
   style
 }) {
   const view = selectedId ? index.byStageId.get(selectedId) ?? null : null;
-  const prevChain = (0, import_react26.useMemo)(
+  const prevChain = (0, import_react28.useMemo)(
     () => view ? backtraceStructural(index, view.stageId, { onlyVisited }) : [],
     [index, view, onlyVisited]
   );
-  const nextChain = (0, import_react26.useMemo)(
+  const nextChain = (0, import_react28.useMemo)(
     () => view ? forwardtraceStructural(index, view.stageId, { onlyVisited }) : [],
     [index, view, onlyVisited]
   );
@@ -5298,7 +5450,7 @@ function Crumbs({ nodes, onClick }) {
 }
 
 // src/components/FlowchartView/CommitInspector.tsx
-var import_react27 = require("react");
+var import_react29 = require("react");
 var import_jsx_runtime17 = require("react/jsx-runtime");
 function CommitInspector({
   index,
@@ -5308,7 +5460,7 @@ function CommitInspector({
   style
 }) {
   const view = selectedRuntimeStageId ? index.byRuntimeStageId.get(selectedRuntimeStageId) ?? null : null;
-  const lineage = (0, import_react27.useMemo)(
+  const lineage = (0, import_react29.useMemo)(
     () => view ? backtraceDataFlow(index, view.runtimeStageId) : [],
     [index, view]
   );
@@ -5896,10 +6048,10 @@ var boxBaseStyle = {
 };
 
 // src/components/FlowchartView/TraceExplorerShell.tsx
-var import_react29 = require("react");
+var import_react31 = require("react");
 
 // src/components/FlowchartView/RunSlider.tsx
-var import_react28 = require("react");
+var import_react30 = require("react");
 var import_jsx_runtime19 = require("react/jsx-runtime");
 function RunSlider({
   index,
@@ -5910,12 +6062,12 @@ function RunSlider({
   style
 }) {
   const total = index.commits.length;
-  const cursorCommitIdx = (0, import_react28.useMemo)(() => {
+  const cursorCommitIdx = (0, import_react30.useMemo)(() => {
     if (!cursorRuntimeStageId) return 0;
     const view = index.byRuntimeStageId.get(cursorRuntimeStageId);
     return view ? view.commitIdx : 0;
   }, [index, cursorRuntimeStageId]);
-  const handleSliderChange = (0, import_react28.useCallback)(
+  const handleSliderChange = (0, import_react30.useCallback)(
     (e) => {
       const value = Number(e.target.value);
       const view = index.commits[value];
@@ -5923,7 +6075,7 @@ function RunSlider({
     },
     [index, onCursorChange]
   );
-  const label = (0, import_react28.useMemo)(() => {
+  const label = (0, import_react30.useMemo)(() => {
     const commit = index.commits[cursorCommitIdx] ?? null;
     const rsid = cursorRuntimeStageId ?? commit?.runtimeStageId ?? null;
     if (renderLabel)
@@ -6007,39 +6159,39 @@ function TraceExplorerShell({
   className,
   style
 }) {
-  const [internalSel, setInternalSel] = (0, import_react29.useState)(null);
+  const [internalSel, setInternalSel] = (0, import_react31.useState)(null);
   const isControlled = controlledSel !== void 0;
   const selectedRuntimeStageId = isControlled ? controlledSel : internalSel;
-  const handleSelect = (0, import_react29.useCallback)(
+  const handleSelect = (0, import_react31.useCallback)(
     (rsid) => {
       if (!isControlled) setInternalSel(rsid);
       onSelectionChange?.(rsid);
     },
     [isControlled, onSelectionChange]
   );
-  const handleSelectCommit = (0, import_react29.useCallback)(
+  const handleSelectCommit = (0, import_react31.useCallback)(
     (rsid) => handleSelect(rsid),
     [handleSelect]
   );
-  const selectedStageId = (0, import_react29.useMemo)(() => {
+  const selectedStageId = (0, import_react31.useMemo)(() => {
     if (!selectedRuntimeStageId) return null;
     const hashIdx = selectedRuntimeStageId.lastIndexOf("#");
     if (hashIdx <= 0) return null;
     return asStageId(selectedRuntimeStageId.slice(0, hashIdx));
   }, [selectedRuntimeStageId]);
-  const ChainPane = (0, import_react29.useMemo)(
+  const ChainPane = (0, import_react31.useMemo)(
     () => slots?.chain ?? DefaultChainPane,
     [slots?.chain]
   );
-  const CommitPane = (0, import_react29.useMemo)(
+  const CommitPane = (0, import_react31.useMemo)(
     () => slots?.commitInspector ?? DefaultCommitPane,
     [slots?.commitInspector]
   );
-  const NodePane = (0, import_react29.useMemo)(
+  const NodePane = (0, import_react31.useMemo)(
     () => slots?.nodeInspector ?? DefaultNodePane,
     [slots?.nodeInspector]
   );
-  const SliderPane = (0, import_react29.useMemo)(() => {
+  const SliderPane = (0, import_react31.useMemo)(() => {
     if (slots && "slider" in slots) {
       return slots.slider ?? null;
     }
@@ -6054,7 +6206,7 @@ function TraceExplorerShell({
     () => bundle.commitFlow.getIndex()
   );
   const nodeIndex = useTranslator(bundle.nodeView, () => bundle.nodeView.getIndex());
-  const handleStageNavigate = (0, import_react29.useCallback)(
+  const handleStageNavigate = (0, import_react31.useCallback)(
     (stageId) => {
       const candidates = commitIndex.commits.filter((c) => c.stageId === stageId);
       const first = candidates[0];
@@ -6062,12 +6214,12 @@ function TraceExplorerShell({
     },
     [commitIndex, handleSelect]
   );
-  const revealedThroughCommitIdx = (0, import_react29.useMemo)(() => {
+  const revealedThroughCommitIdx = (0, import_react31.useMemo)(() => {
     if (!selectedRuntimeStageId) return null;
     const view = commitIndex.byRuntimeStageId.get(selectedRuntimeStageId);
     return view ? view.commitIdx : -1;
   }, [selectedRuntimeStageId, commitIndex]);
-  const layoutStyle = (0, import_react29.useMemo)(
+  const layoutStyle = (0, import_react31.useMemo)(
     () => SliderPane ? SHELL_STYLE_WITH_SLIDER : SHELL_STYLE_NO_SLIDER,
     [SliderPane]
   );

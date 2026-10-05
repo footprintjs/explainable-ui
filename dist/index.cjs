@@ -2592,7 +2592,7 @@ function TimeTravelControls({
 }
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-var import_react32 = require("react");
+var import_react34 = require("react");
 
 // src/components/ExplainableShell/_internal/dataTrace.ts
 function readsByStep(tree) {
@@ -4642,8 +4642,8 @@ var SubflowBreadcrumb = (0, import_react16.memo)(function SubflowBreadcrumb2({
 });
 
 // src/components/FlowchartView/TracedFlow.tsx
-var import_react27 = require("react");
-var import_react28 = require("@xyflow/react");
+var import_react29 = require("react");
+var import_react30 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/dagreTraceLayout.ts
 var import_dagre = __toESM(require("dagre"), 1);
@@ -5824,43 +5824,192 @@ function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
 }
 
 // src/components/FlowchartView/_internal/useChartAutoRefit.ts
-var import_react20 = require("react");
-function useChartAutoRefit(wrapperRef, rfInstance, options = {}) {
-  const duration = options.duration ?? 200;
-  const padding2 = options.padding ?? 0.1;
-  const refitKey = options.refitKey;
-  (0, import_react20.useEffect)(() => {
-    const el = wrapperRef.current;
-    if (!el || !rfInstance) return;
-    let raf = 0;
-    const refit = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        rfInstance.fitView({ duration, padding: padding2 });
+var import_react21 = require("react");
+var import_react22 = require("@xyflow/react");
+
+// src/components/FlowchartView/_internal/chartFitGeometry.ts
+var import_react20 = require("@xyflow/react");
+var positiveFinite = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+function measuredChartBounds(nodes) {
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (const node of nodes.values()) {
+    if (node.hidden) continue;
+    const width2 = node.measured?.width;
+    const height2 = node.measured?.height;
+    const { x, y } = node.internals.positionAbsolute;
+    if (!positiveFinite(width2) || !positiveFinite(height2) || !Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+    left = Math.min(left, x);
+    top = Math.min(top, y);
+    right = Math.max(right, x + width2);
+    bottom = Math.max(bottom, y + height2);
+  }
+  const width = right - left;
+  const height = bottom - top;
+  if (!Number.isFinite(left) || !Number.isFinite(top) || !positiveFinite(width) || !positiveFinite(height)) return null;
+  return { x: left, y: top, width, height };
+}
+function chartFitViewport(state, padding2) {
+  if (!positiveFinite(state.width) || !positiveFinite(state.height) || !positiveFinite(state.minZoom) || !positiveFinite(state.maxZoom) || state.maxZoom < state.minZoom || !Number.isFinite(padding2) || padding2 < 0) return null;
+  const bounds = measuredChartBounds(state.nodeLookup);
+  if (!bounds) return null;
+  const viewport = (0, import_react20.getViewportForBounds)(bounds, state.width, state.height, state.minZoom, state.maxZoom, padding2);
+  return Number.isFinite(viewport.x) && Number.isFinite(viewport.y) && positiveFinite(viewport.zoom) ? viewport : null;
+}
+function chartMeasurementKey(state) {
+  return JSON.stringify([
+    state.width,
+    state.height,
+    state.minZoom,
+    state.maxZoom,
+    measuredChartBounds(state.nodeLookup) !== null,
+    Array.from(state.nodeLookup, ([id, node]) => node.hidden ? [id, "hidden"] : [id, node.measured?.width, node.measured?.height])
+  ]);
+}
+function chartLayoutKey(nodes) {
+  return JSON.stringify(nodes.map((node) => [
+    node.id,
+    node.parentId,
+    node.hidden,
+    node.position.x,
+    node.position.y,
+    node.origin,
+    node.width,
+    node.height
+  ]));
+}
+function chartTopologyKey(nodes) {
+  return JSON.stringify(nodes.map((node) => [node.id, node.parentId, node.hidden]));
+}
+
+// src/components/FlowchartView/_internal/useChartAutoRefit.ts
+function hasVisibleArea(element) {
+  if (!element) return false;
+  const { width, height } = element.getBoundingClientRect();
+  return positiveFinite(width) && positiveFinite(height);
+}
+function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey, layoutKey }) {
+  const store = (0, import_react22.useStoreApi)();
+  const { setViewport } = (0, import_react22.useReactFlow)();
+  const requestLayoutFit = (0, import_react21.useRef)(null);
+  (0, import_react21.useEffect)(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    let disposed = false;
+    let frame = null;
+    let pane = null;
+    let measurementKey = chartMeasurementKey(store.getState());
+    let panZoom = store.getState().panZoom;
+    let lastTransform = [...store.getState().transform];
+    let autoOwned = true;
+    let pendingFit = true;
+    let applyingFit = false;
+    let lastSuccessfulViewport = null;
+    const readContainerKey = () => {
+      const state = store.getState();
+      const outer = wrapper.getBoundingClientRect();
+      const inner = state.domNode?.getBoundingClientRect();
+      return JSON.stringify([outer.width, outer.height, inner?.width, inner?.height, state.width, state.height]);
+    };
+    let containerKey = readContainerKey();
+    const cancelFrame = () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = null;
+    };
+    const requestFit = () => {
+      if (disposed || !pendingFit) return;
+      cancelFrame();
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        if (disposed || !pendingFit) return;
+        const state = store.getState();
+        if (!state.panZoom || !hasVisibleArea(wrapper) || !hasVisibleArea(state.domNode)) return;
+        const viewport = chartFitViewport(state, padding2);
+        if (!viewport) return;
+        pendingFit = false;
+        lastSuccessfulViewport = JSON.stringify(viewport);
+        applyingFit = true;
+        try {
+          void setViewport(viewport, { duration: 0 });
+        } finally {
+          applyingFit = false;
+        }
       });
     };
-    const ro = new ResizeObserver(refit);
-    ro.observe(el);
-    window.addEventListener("resize", refit);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", refit);
-      cancelAnimationFrame(raf);
+    const requestIntent = () => {
+      autoOwned = true;
+      pendingFit = true;
+      requestFit();
     };
-  }, [rfInstance, wrapperRef, duration, padding2]);
-  (0, import_react20.useEffect)(() => {
-    if (!rfInstance) return;
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        rfInstance.fitView({ duration, padding: padding2 });
-      });
+    const checkContainer = () => {
+      const nextKey = readContainerKey();
+      if (nextKey === containerKey) {
+        requestFit();
+        return;
+      }
+      containerKey = nextKey;
+      requestIntent();
+    };
+    requestLayoutFit.current = () => {
+      if (!autoOwned) return;
+      pendingFit = true;
+      requestFit();
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(checkContainer);
+    observer?.observe(wrapper);
+    const observePane = () => {
+      const current = store.getState().domNode;
+      if (current === pane) return false;
+      if (pane && pane !== wrapper) observer?.unobserve(pane);
+      pane = current;
+      if (pane && pane !== wrapper) observer?.observe(pane);
+      return true;
+    };
+    observePane();
+    const unsubscribe = store.subscribe((state) => {
+      const cameraChanged = state.transform.some((value, index) => value !== lastTransform[index]);
+      lastTransform = [...state.transform];
+      if (cameraChanged && !applyingFit) {
+        autoOwned = false;
+        pendingFit = false;
+        cancelFrame();
+      }
+      const paneChanged = observePane();
+      const nextKey = chartMeasurementKey(state);
+      const measurementsChanged = nextKey !== measurementKey;
+      const viewportChanged = state.panZoom !== panZoom;
+      measurementKey = nextKey;
+      panZoom = state.panZoom;
+      if (paneChanged || viewportChanged) requestIntent();
+      if (measurementsChanged) {
+        checkContainer();
+        const viewport = chartFitViewport(state, padding2);
+        if (autoOwned && viewport && JSON.stringify(viewport) !== lastSuccessfulViewport) pendingFit = true;
+        requestFit();
+      }
     });
+    window.addEventListener("resize", checkContainer);
+    requestFit();
     return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
+      disposed = true;
+      unsubscribe();
+      observer?.disconnect();
+      requestLayoutFit.current = null;
+      window.removeEventListener("resize", checkContainer);
+      cancelFrame();
     };
-  }, [rfInstance, refitKey, duration, padding2]);
+  }, [store, setViewport, wrapperRef, padding2, refitKey]);
+  (0, import_react21.useEffect)(() => {
+    requestLayoutFit.current?.();
+  }, [layoutKey]);
+}
+function ChartAutoRefit(props) {
+  useChartAutoRefit(props);
+  return null;
 }
 
 // src/components/FlowchartView/SubflowBreadcrumbBar.tsx
@@ -5918,7 +6067,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
 }
 
 // src/components/GroupContainerNode/GroupContainerNode.tsx
-var import_react21 = require("@xyflow/react");
+var import_react23 = require("@xyflow/react");
 var import_jsx_runtime20 = require("react/jsx-runtime");
 function GroupContainerNode({ data }) {
   const d = data;
@@ -5958,15 +6107,15 @@ function GroupContainerNode({ data }) {
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(import_react21.Handle, { type: "target", position: import_react21.Position.Top, style: { opacity: 0 } }),
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(import_react21.Handle, { type: "source", position: import_react21.Position.Bottom, style: { opacity: 0 } })
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(import_react23.Handle, { type: "target", position: import_react23.Position.Top, style: { opacity: 0 } }),
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(import_react23.Handle, { type: "source", position: import_react23.Position.Bottom, style: { opacity: 0 } })
       ]
     }
   );
 }
 
 // src/components/LoopBackEdge/LoopBackEdge.tsx
-var import_react22 = require("@xyflow/react");
+var import_react24 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/loopRouting.ts
 var LOOP_LANE_GAP = 56;
@@ -6206,7 +6355,7 @@ function centerY(node) {
   return node.internals.positionAbsolute.y + (node.measured.height ?? 0) / 2;
 }
 function LoopBackEdge({ id, source, target, markerEnd, style }) {
-  const path = (0, import_react22.useStore)((s) => {
+  const path = (0, import_react24.useStore)((s) => {
     const src = s.nodeLookup.get(source);
     const tgt = s.nodeLookup.get(target);
     if (!src || !tgt) return "";
@@ -6225,7 +6374,7 @@ function LoopBackEdge({ id, source, target, markerEnd, style }) {
   });
   if (!path) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
-    import_react22.BaseEdge,
+    import_react24.BaseEdge,
     {
       id,
       path,
@@ -6237,8 +6386,8 @@ function LoopBackEdge({ id, source, target, markerEnd, style }) {
 }
 
 // src/components/SmartStepEdge/SmartStepEdge.tsx
-var import_react23 = require("@xyflow/react");
-var import_react24 = require("@xyflow/react");
+var import_react25 = require("@xyflow/react");
+var import_react26 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/stepRouting.ts
 function staggeredBendY(sourceBottom, targetTop, others, minGapFromTarget = 8) {
@@ -6276,7 +6425,7 @@ function SmartStepEdge({
   markerEnd,
   style
 }) {
-  const bendY = (0, import_react23.useStore)((s) => {
+  const bendY = (0, import_react25.useStore)((s) => {
     const src = s.nodeLookup.get(source);
     const tgt = s.nodeLookup.get(target);
     if (!src || !tgt) return null;
@@ -6302,23 +6451,23 @@ function SmartStepEdge({
     const staggered = staggeredBendY(sourceBottom, targetTop, others);
     return resolveStepBendY(fan, staggered);
   });
-  const [path] = (0, import_react23.getSmoothStepPath)({
+  const [path] = (0, import_react25.getSmoothStepPath)({
     sourceX,
     sourceY,
-    sourcePosition: sourcePosition ?? import_react24.Position.Bottom,
+    sourcePosition: sourcePosition ?? import_react26.Position.Bottom,
     targetX,
     targetY,
-    targetPosition: targetPosition ?? import_react24.Position.Top,
+    targetPosition: targetPosition ?? import_react26.Position.Top,
     // Override the bend only for a staggered edge; otherwise let getSmoothStepPath
     // use its default centerY (== the built-in `smoothstep` path, byte-for-byte).
     ...bendY !== null ? { centerY: bendY } : {}
   });
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(import_react23.BaseEdge, { id, path, markerEnd, style });
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(import_react25.BaseEdge, { id, path, markerEnd, style });
 }
 
 // src/components/FlowchartView/_internal/MeasuredNodeSizes.tsx
-var import_react25 = require("react");
-var import_react26 = require("@xyflow/react");
+var import_react27 = require("react");
+var import_react28 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/measuredFootprints.ts
 function extractMeasuredFootprints(entries) {
@@ -6347,12 +6496,12 @@ function MeasuredNodeSizes({
   onSizes,
   includeHiddenNodes = false
 }) {
-  const initialized = (0, import_react26.useNodesInitialized)({ includeHiddenNodes });
-  const sizes = (0, import_react26.useStore)(
+  const initialized = (0, import_react28.useNodesInitialized)({ includeHiddenNodes });
+  const sizes = (0, import_react28.useStore)(
     (s) => extractMeasuredFootprints(s.nodeLookup),
     sameFootprints
   );
-  (0, import_react25.useEffect)(() => {
+  (0, import_react27.useEffect)(() => {
     if (!initialized || sizes.size === 0) return;
     onSizes(sizes);
   }, [initialized, sizes, onSizes]);
@@ -6478,7 +6627,7 @@ function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors, cursorS
     type: kind === "loop" ? "loopBack" : "smartStep",
     animated: isLeadingEdge,
     style: { stroke: color, strokeWidth: traversed || carriesCursor ? 2 : 1.5 },
-    markerEnd: { type: import_react28.MarkerType.ArrowClosed, color, width: 16, height: 16 }
+    markerEnd: { type: import_react30.MarkerType.ArrowClosed, color, width: 16, height: 16 }
   };
   if (kind === "loop") {
     styled.style = { ...styled.style, strokeDasharray: "4 3" };
@@ -6512,32 +6661,32 @@ function TracedFlow({
   style
 }) {
   const layout = layoutProp ?? dagreTraceLayout;
-  (0, import_react27.useEffect)(() => {
+  (0, import_react29.useEffect)(() => {
     if (layoutProp === dagreTraceLayout) {
       devWarn(
         () => "[footprint-explainable-ui] <TracedFlow layout={dagreTraceLayout}> bypasses the built-in measure-then-layout pipeline (content-exact sizing, fork/merge centering, straight spines). OMIT the `layout` prop to use it \u2014 passing the raw dagreTraceLayout silently forfeits every layout improvement eui ships."
       );
     }
   }, [layoutProp]);
-  const colors = (0, import_react27.useMemo)(
+  const colors = (0, import_react29.useMemo)(
     () => ({ ...DEFAULT_COLORS, ...colorOverrides ?? {} }),
     [colorOverrides]
   );
-  const mergedNodeTypes = (0, import_react27.useMemo)(
+  const mergedNodeTypes = (0, import_react29.useMemo)(
     () => userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES,
     [userNodeTypes]
   );
-  const mergedEdgeTypes = (0, import_react27.useMemo)(
+  const mergedEdgeTypes = (0, import_react29.useMemo)(
     () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES, ...userEdgeTypes } : DEFAULT_EDGE_TYPES,
     [userEdgeTypes]
   );
-  const effectiveGraph = (0, import_react27.useMemo)(
+  const effectiveGraph = (0, import_react29.useMemo)(
     () => collapseNode ? collapseTraceGraph(graph, collapseNode).graph : graph,
     [graph, collapseNode]
   );
   const drill = useSubflowDrill(effectiveGraph, onSubflowChange, controlledSubflowId);
-  const groupedSet = (0, import_react27.useMemo)(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
-  const filteredGraph = (0, import_react27.useMemo)(() => {
+  const groupedSet = (0, import_react29.useMemo)(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
+  const filteredGraph = (0, import_react29.useMemo)(() => {
     const base = filterGraphForDrill(effectiveGraph, drill.currentSubflowId);
     if (groupedSet.size === 0) return base;
     const baseIds = new Set(base.nodes.map((n) => n.id));
@@ -6552,12 +6701,12 @@ function TracedFlow({
     );
     return { nodes: [...base.nodes, ...extraNodes], edges: [...base.edges, ...extraEdges] };
   }, [effectiveGraph, drill.currentSubflowId, groupedSet]);
-  const breadcrumb = (0, import_react27.useMemo)(
+  const breadcrumb = (0, import_react29.useMemo)(
     () => buildSubflowBreadcrumb(effectiveGraph, drill.currentSubflowId),
     [effectiveGraph, drill.currentSubflowId]
   );
-  const [measuredSizes, setMeasuredSizes] = (0, import_react27.useState)(null);
-  const positioned = (0, import_react27.useMemo)(() => {
+  const [measuredSizes, setMeasuredSizes] = (0, import_react29.useState)(null);
+  const positioned = (0, import_react29.useMemo)(() => {
     const nodeSize = measuredSizes ? (n) => measuredSizes.get(n.id) : void 0;
     const sizeOpts = nodeSize ? { nodeSize } : {};
     const dagreBase = withForkCentering(
@@ -6581,7 +6730,7 @@ function TracedFlow({
     }
     return realBase(filteredGraph);
   }, [filteredGraph, layout, layoutProp, groupedSet, mainChartBox, measuredSizes]);
-  const slice = (0, import_react27.useMemo)(() => {
+  const slice = (0, import_react29.useMemo)(() => {
     const empty = {
       doneStageIds: /* @__PURE__ */ new Set(),
       activeStageId: null,
@@ -6594,7 +6743,7 @@ function TracedFlow({
     const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
     return aggregateMountStatus(sliceOverlay(overlay, idx), effectiveGraph, drill.currentSubflowId);
   }, [overlay, scrubIndex, effectiveGraph, drill.currentSubflowId]);
-  const reactFlowNodes = (0, import_react27.useMemo)(
+  const reactFlowNodes = (0, import_react29.useMemo)(
     () => positioned.nodes.map(
       (n) => toStageNodeWithOverlay(
         n,
@@ -6608,21 +6757,21 @@ function TracedFlow({
     ),
     [positioned.nodes, slice, coActiveStageIds]
   );
-  const cursorStandIns = (0, import_react27.useMemo)(() => cursorStandInIds(slice.activeStageId), [slice.activeStageId]);
-  const reactFlowEdges = (0, import_react27.useMemo)(
+  const cursorStandIns = (0, import_react29.useMemo)(() => cursorStandInIds(slice.activeStageId), [slice.activeStageId]);
+  const reactFlowEdges = (0, import_react29.useMemo)(
     () => positioned.edges.map(
       (e) => styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns)
     ),
     [positioned.edges, slice, colors, cursorStandIns]
   );
-  const [coneRevealed, setConeRevealed] = (0, import_react27.useState)(false);
-  (0, import_react27.useEffect)(() => {
+  const [coneRevealed, setConeRevealed] = (0, import_react29.useState)(false);
+  (0, import_react29.useEffect)(() => {
     if (!sliceCone) return;
     setConeRevealed(false);
     const raf = requestAnimationFrame(() => setConeRevealed(true));
     return () => cancelAnimationFrame(raf);
   }, [sliceCone]);
-  const conedNodes = (0, import_react27.useMemo)(() => {
+  const conedNodes = (0, import_react29.useMemo)(() => {
     if (!sliceCone || sliceCone.size === 0) return reactFlowNodes;
     return reactFlowNodes.map((n) => {
       const depth = sliceCone.get(n.id);
@@ -6640,14 +6789,14 @@ function TracedFlow({
       };
     });
   }, [reactFlowNodes, sliceCone, coneRevealed]);
-  const conedEdges = (0, import_react27.useMemo)(() => {
+  const conedEdges = (0, import_react29.useMemo)(() => {
     if (!sliceCone || sliceCone.size === 0) return reactFlowEdges;
     return reactFlowEdges.map((e) => {
       const inCone = sliceCone.has(e.source) && sliceCone.has(e.target);
       return inCone ? e : { ...e, style: { ...e.style, opacity: 0.12, transition: "opacity 260ms ease" } };
     });
   }, [reactFlowEdges, sliceCone]);
-  const handleNodeClick = (0, import_react27.useCallback)(
+  const handleNodeClick = (0, import_react29.useCallback)(
     (_, node) => {
       const data = node.data ?? {};
       const isGrouped = groupedSet.has(node.id) || !!data.subflowId && groupedSet.has(data.subflowId);
@@ -6658,13 +6807,15 @@ function TracedFlow({
     },
     [drill, onNodeClick, groupedSet]
   );
-  const wrapperRef = (0, import_react27.useRef)(null);
-  const [rfInstance, setRfInstance] = (0, import_react27.useState)(null);
-  useChartAutoRefit(wrapperRef, rfInstance, {
-    // Re-fit on drill AND after the measured-size re-layout settles.
-    refitKey: `${drill.currentSubflowId ?? ""}:${measuredSizes ? "measured" : "estimated"}`,
-    padding: 0.18
-  });
+  const wrapperRef = (0, import_react29.useRef)(null);
+  const layoutKey = chartLayoutKey(positioned.nodes);
+  const refitKey = JSON.stringify([
+    chartLayoutKey(filteredGraph.nodes),
+    chartTopologyKey(positioned.nodes),
+    // A custom layout is an authored layout. Default measured-layout settling
+    // must not take camera ownership back after a manual pan/zoom.
+    layoutProp !== void 0 ? layoutKey : null
+  ]);
   return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
     "div",
     {
@@ -6690,21 +6841,19 @@ function TracedFlow({
           }
         ),
         /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
-          import_react28.ReactFlow,
+          import_react30.ReactFlow,
           {
             nodes: conedNodes,
             edges: conedEdges,
             nodeTypes: mergedNodeTypes,
             edgeTypes: mergedEdgeTypes,
             onNodeClick: handleNodeClick,
-            onInit: setRfInstance,
-            fitView: true,
-            fitViewOptions: { padding: 0.18 },
             minZoom: 0.1,
             proOptions: { hideAttribution: true },
             children: [
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(ChartAutoRefit, { wrapperRef, refitKey, layoutKey, padding: 0.18 }),
               /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
-              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(import_react28.Background, { variant: import_react28.BackgroundVariant.Dots, gap: 20, size: 1 }),
+              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(import_react30.Background, { variant: import_react30.BackgroundVariant.Dots, gap: 20, size: 1 }),
               children
             ]
           }
@@ -6715,9 +6864,9 @@ function TracedFlow({
 }
 
 // src/components/InspectorPanel/InspectorPanel.tsx
-var import_react29 = require("react");
+var import_react31 = require("react");
 var import_jsx_runtime24 = require("react/jsx-runtime");
-var InspectorPanel = (0, import_react29.memo)(function InspectorPanel2({
+var InspectorPanel = (0, import_react31.memo)(function InspectorPanel2({
   snapshots,
   selectedIndex,
   dataTraceFrames,
@@ -6732,7 +6881,7 @@ var InspectorPanel = (0, import_react29.memo)(function InspectorPanel2({
   className,
   style
 }) {
-  const [internalTab, setTabState] = (0, import_react29.useState)("state");
+  const [internalTab, setTabState] = (0, import_react31.useState)("state");
   const tab = controlledTab ?? internalTab;
   const setTab = (t) => {
     setTabState(t);
@@ -6867,9 +7016,9 @@ function TabButton({
 }
 
 // src/components/InsightPanel/InsightPanel.tsx
-var import_react30 = require("react");
+var import_react32 = require("react");
 var import_jsx_runtime25 = require("react/jsx-runtime");
-var InsightPanel = (0, import_react30.memo)(function InsightPanel2({
+var InsightPanel = (0, import_react32.memo)(function InsightPanel2({
   insights,
   expandedId,
   mode,
@@ -6894,7 +7043,7 @@ var INGREDIENTS = [
   { panel: "Quality", call: "new QualityRecorder(scoreFn)", from: "footprintjs/trace" },
   { panel: "Cost", call: "costRecorder()", from: "agentfootprint/observe" }
 ];
-var NoInsights = (0, import_react30.memo)(function NoInsights2({
+var NoInsights = (0, import_react32.memo)(function NoInsights2({
   size,
   unstyled,
   className,
@@ -6932,7 +7081,7 @@ var NoInsights = (0, import_react30.memo)(function NoInsights2({
     }
   );
 });
-var InsightTabs = (0, import_react30.memo)(function InsightTabs2({
+var InsightTabs = (0, import_react32.memo)(function InsightTabs2({
   insights,
   defaultId,
   size,
@@ -6940,7 +7089,7 @@ var InsightTabs = (0, import_react30.memo)(function InsightTabs2({
   className,
   style
 }) {
-  const [activeId, setActiveId] = (0, import_react30.useState)(defaultId ?? insights[0]?.id);
+  const [activeId, setActiveId] = (0, import_react32.useState)(defaultId ?? insights[0]?.id);
   const active = insights.find((i) => i.id === activeId) ?? insights[0];
   const fs = fontSize[size];
   const sx = styler(unstyled);
@@ -6998,7 +7147,7 @@ var InsightTabs = (0, import_react30.memo)(function InsightTabs2({
     }
   );
 });
-var InsightGrid = (0, import_react30.memo)(function InsightGrid2({
+var InsightGrid = (0, import_react32.memo)(function InsightGrid2({
   insights,
   size,
   unstyled,
@@ -7076,16 +7225,16 @@ var InsightGrid = (0, import_react30.memo)(function InsightGrid2({
 });
 
 // src/components/CompactTimeline/CompactTimeline.tsx
-var import_react31 = require("react");
+var import_react33 = require("react");
 var import_jsx_runtime26 = require("react/jsx-runtime");
 var tint = (color, percent) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
-var CompactTimeline = (0, import_react31.memo)(function CompactTimeline2({
+var CompactTimeline = (0, import_react33.memo)(function CompactTimeline2({
   snapshots,
   selectedIndex,
   defaultExpanded = false,
   label = "Timeline"
 }) {
-  const [expanded, setExpanded] = (0, import_react31.useState)(defaultExpanded);
+  const [expanded, setExpanded] = (0, import_react33.useState)(defaultExpanded);
   if (snapshots.length === 0) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { style: { borderTop: `1px solid ${theme.border}` }, children: [
     /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
@@ -7174,7 +7323,7 @@ var EXPLAINABLE_TAB_ID = "explainable";
 function isExplainableTab(tabId) {
   return tabId === EXPLAINABLE_TAB_ID || tabId === "ai-compatible";
 }
-var HLinePill = (0, import_react32.memo)(function HLinePill2({
+var HLinePill = (0, import_react34.memo)(function HLinePill2({
   label,
   detail,
   expanded,
@@ -7220,7 +7369,7 @@ var HLinePill = (0, import_react32.memo)(function HLinePill2({
     /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } })
   ] });
 });
-var VLinePill = (0, import_react32.memo)(function VLinePill2({
+var VLinePill = (0, import_react34.memo)(function VLinePill2({
   label,
   expanded,
   side = "right",
@@ -7268,7 +7417,7 @@ var VLinePill = (0, import_react32.memo)(function VLinePill2({
     /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } })
   ] });
 });
-var MissingChartNote = (0, import_react32.memo)(function MissingChartNote2({ unstyled }) {
+var MissingChartNote = (0, import_react34.memo)(function MissingChartNote2({ unstyled }) {
   const body = /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("strong", { children: "No chart \u2014 `traceGraph` was not provided." }),
     /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { children: "A snapshot holds the memory, the story and the timeline. Only the chart's own structure can draw the chart. Two ways to get one:" }),
@@ -7303,7 +7452,7 @@ flowChart(..., { structureRecorders: [trace.recorder] });
     }
   );
 });
-var EmptyShell = (0, import_react32.memo)(function EmptyShell2({
+var EmptyShell = (0, import_react34.memo)(function EmptyShell2({
   reason,
   detail,
   unstyled,
@@ -7376,9 +7525,9 @@ function KeyedRecorderView({
   snapshots,
   selectedIndex
 }) {
-  const [showAggregate, setShowAggregate] = (0, import_react32.useState)(false);
-  const detected = (0, import_react32.useMemo)(() => detectKeyedSteps(data), [data]);
-  const visibleKeys = (0, import_react32.useMemo)(() => {
+  const [showAggregate, setShowAggregate] = (0, import_react34.useState)(false);
+  const detected = (0, import_react34.useMemo)(() => detectKeyedSteps(data), [data]);
+  const visibleKeys = (0, import_react34.useMemo)(() => {
     const keys = /* @__PURE__ */ new Set();
     for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
       const snap = snapshots[i];
@@ -7488,7 +7637,7 @@ function KeyedRecorderView({
     ] })
   ] });
 }
-var DetailsContent = (0, import_react32.memo)(function DetailsContent2({
+var DetailsContent = (0, import_react34.memo)(function DetailsContent2({
   snapshots,
   selectedIndex,
   narrativeEntries,
@@ -7509,9 +7658,9 @@ var DetailsContent = (0, import_react32.memo)(function DetailsContent2({
     }
   ];
   const allViews = [...builtInViews, ...extraViews ?? []];
-  const [activeViewId, setActiveViewId] = (0, import_react32.useState)(allViews[0]?.id ?? "memory");
+  const [activeViewId, setActiveViewId] = (0, import_react34.useState)(allViews[0]?.id ?? "memory");
   const viewIds = allViews.map((v2) => v2.id).join(",");
-  (0, import_react32.useEffect)(() => {
+  (0, import_react34.useEffect)(() => {
     if (!allViews.find((v2) => v2.id === activeViewId)) {
       setActiveViewId(allViews[0]?.id ?? "memory");
     }
@@ -7580,7 +7729,7 @@ var RIGHT_PANEL_MODE_LABELS = {
   what: "Inspector",
   result: "Result"
 };
-var RightPanel = (0, import_react32.memo)(function RightPanel2({
+var RightPanel = (0, import_react34.memo)(function RightPanel2({
   mode,
   onModeChange,
   snapshots,
@@ -7595,7 +7744,7 @@ var RightPanel = (0, import_react32.memo)(function RightPanel2({
   inspectorTab,
   traceContent
 }) {
-  const modes = (0, import_react32.useMemo)(
+  const modes = (0, import_react34.useMemo)(
     () => allTabs.some((t) => t.id === "result") ? ["insights", "what", "result"] : ["insights", "what"],
     [allTabs]
   );
@@ -7688,12 +7837,12 @@ function ExplainableShell({
   className,
   style
 }) {
-  const snapshotNarrative = (0, import_react32.useMemo)(
+  const snapshotNarrative = (0, import_react34.useMemo)(
     () => narrativeRecorderFromSnapshot(runtimeSnapshot),
     [runtimeSnapshot]
   );
   const narrativeEntries = narrativeEntriesProp ?? snapshotNarrative?.entries;
-  const derivedFromRuntime = (0, import_react32.useMemo)(() => {
+  const derivedFromRuntime = (0, import_react34.useMemo)(() => {
     if (!runtimeSnapshot) return null;
     try {
       const snaps = toVisualizationSnapshots(runtimeSnapshot, narrativeEntries);
@@ -7708,7 +7857,7 @@ function ExplainableShell({
   }, [runtimeSnapshot, narrativeEntries]);
   const snapshots = snapshotsProp ?? derivedFromRuntime?.snapshots ?? [];
   const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
-  const runtimeOverlay = (0, import_react32.useMemo)(
+  const runtimeOverlay = (0, import_react34.useMemo)(
     () => runtimeOverlayProp ?? // The narrative rides along because retries leave no mark on the commit
     // log: a failed attempt discards its writes. Without it a replayed
     // retried stage would be the one thing the chart could not show.
@@ -7716,13 +7865,13 @@ function ExplainableShell({
     [runtimeOverlayProp, runtimeSnapshot, narrativeEntries]
   );
   const missingChart = snapshots.length > 0 && !traceGraph?.nodes.length;
-  (0, import_react32.useEffect)(() => {
+  (0, import_react34.useEffect)(() => {
     if (!missingChart) return;
     devWarn(
       () => "[ExplainableShell] No chart: `traceGraph` is missing, so the flowchart region is not rendered. A snapshot cannot draw the chart \u2014 only the chart's own structure can. Two ways to get one:\n  live build \u2014 const trace = createTraceStructureRecorder();\n               flowChart(..., { structureRecorders: [trace.recorder] });\n               <ExplainableShell traceGraph={trace.getGraph()} />\n  saved run  \u2014 save `chart.buildTimeStructure` next to your snapshot, then\n               <ExplainableShell traceGraph={graphFromStructure(saved.structure)} />"
     );
   }, [missingChart]);
-  const tracedFlowRenderer = (0, import_react32.useMemo)(() => {
+  const tracedFlowRenderer = (0, import_react34.useMemo)(() => {
     if (!traceGraph) return void 0;
     return ({ selectedIndex, snapshots: snapshots2, onNodeClick, sliceCone: sliceCone2, currentSubflowId, onSubflowChange }) => {
       const activeRsid = snapshots2[selectedIndex]?.runtimeStageId;
@@ -7762,10 +7911,10 @@ function ExplainableShell({
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
-  const shellRef = (0, import_react32.useRef)(null);
-  const [isNarrow, setIsNarrow] = (0, import_react32.useState)(false);
-  const [isMedium, setIsMedium] = (0, import_react32.useState)(false);
-  (0, import_react32.useEffect)(() => {
+  const shellRef = (0, import_react34.useRef)(null);
+  const [isNarrow, setIsNarrow] = (0, import_react34.useState)(false);
+  const [isMedium, setIsMedium] = (0, import_react34.useState)(false);
+  (0, import_react34.useEffect)(() => {
     const el = shellRef.current;
     if (!el) return;
     const ro = new ResizeObserver(([entry]) => {
@@ -7777,7 +7926,7 @@ function ExplainableShell({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const autoRecorderViews = (0, import_react32.useMemo)(() => {
+  const autoRecorderViews = (0, import_react34.useMemo)(() => {
     const recorders = runtimeSnapshot?.recorders;
     if (!recorders?.length) return [];
     const explicitIds = new Set((recorderViews ?? []).map((v2) => v2.id));
@@ -7785,7 +7934,7 @@ function ExplainableShell({
     return recorders.filter((r) => !explicitIds.has(r.id)).map((r) => ({ id: r.id, name: r.name, description: r.description, preferredOperation: r.preferredOperation, data: r.data }));
   }, [runtimeSnapshot, recorderViews, snapshotNarrative]);
   const hasNarrative = !!narrativeEntries?.length;
-  const allTabs = (0, import_react32.useMemo)(() => {
+  const allTabs = (0, import_react34.useMemo)(() => {
     const tabs = [
       { id: "result", name: "Result", description: "Final output and console logs" },
       { id: "memory", name: "Memory", description: "Accumulator \u2014 progressive shared state at each stage" }
@@ -7802,7 +7951,7 @@ function ExplainableShell({
     const hideSet = new Set(hideTabsProp ?? []);
     return hideSet.size > 0 ? tabs.filter((t) => !hideSet.has(t.id)) : tabs;
   }, [hasNarrative, recorderViews, autoRecorderViews, hideTabsProp]);
-  const unstyledTabs = (0, import_react32.useMemo)(
+  const unstyledTabs = (0, import_react34.useMemo)(
     () => [
       ...allTabs,
       {
@@ -7815,51 +7964,51 @@ function ExplainableShell({
   );
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
-  const [activeTab, setActiveTab] = (0, import_react32.useState)(resolvedDefault);
-  const [snapshotIdx, setSnapshotIdx] = (0, import_react32.useState)(0);
-  const [drillDownStack, setDrillDownStack] = (0, import_react32.useState)([]);
-  const [rightExpanded, setRightExpanded] = (0, import_react32.useState)(defaultExpanded?.details ?? true);
-  const [rightPanelMode, setRightPanelMode] = (0, import_react32.useState)("insights");
-  const [inspectorTab, setInspectorTab] = (0, import_react32.useState)("state");
-  const [tracing, setTracing] = (0, import_react32.useState)(null);
-  const [forkChooserOpen, setForkChooserOpen] = (0, import_react32.useState)(false);
-  const [traceSearch, setTraceSearch] = (0, import_react32.useState)("");
-  (0, import_react32.useEffect)(() => {
+  const [activeTab, setActiveTab] = (0, import_react34.useState)(resolvedDefault);
+  const [snapshotIdx, setSnapshotIdx] = (0, import_react34.useState)(0);
+  const [drillDownStack, setDrillDownStack] = (0, import_react34.useState)([]);
+  const [rightExpanded, setRightExpanded] = (0, import_react34.useState)(defaultExpanded?.details ?? true);
+  const [rightPanelMode, setRightPanelMode] = (0, import_react34.useState)("insights");
+  const [inspectorTab, setInspectorTab] = (0, import_react34.useState)("state");
+  const [tracing, setTracing] = (0, import_react34.useState)(null);
+  const [forkChooserOpen, setForkChooserOpen] = (0, import_react34.useState)(false);
+  const [traceSearch, setTraceSearch] = (0, import_react34.useState)("");
+  (0, import_react34.useEffect)(() => {
     setForkChooserOpen(false);
   }, [snapshotIdx]);
-  (0, import_react32.useEffect)(() => {
+  (0, import_react34.useEffect)(() => {
     if (deprecatedTabs === void 0) return;
     devWarn(
       () => "[ExplainableShell] the `tabs` prop is deprecated and has no effect. Use `hideTabs` to drop tabs by id, and `defaultTab` to choose which tab opens first."
     );
   }, [deprecatedTabs]);
-  const [leftExpanded, setLeftExpanded] = (0, import_react32.useState)(defaultExpanded?.topology ?? false);
-  const [timelineExpanded, setTimelineExpanded] = (0, import_react32.useState)(defaultExpanded?.timeline ?? false);
-  (0, import_react32.useEffect)(() => {
+  const [leftExpanded, setLeftExpanded] = (0, import_react34.useState)(defaultExpanded?.topology ?? false);
+  const [timelineExpanded, setTimelineExpanded] = (0, import_react34.useState)(defaultExpanded?.timeline ?? false);
+  (0, import_react34.useEffect)(() => {
     if (isNarrow) {
       setLeftExpanded(false);
       setRightExpanded(false);
       setTimelineExpanded(false);
     }
   }, [isNarrow]);
-  const triggerReflow = (0, import_react32.useCallback)(() => {
+  const triggerReflow = (0, import_react34.useCallback)(() => {
     requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
     setTimeout(() => window.dispatchEvent(new Event("resize")), 320);
   }, []);
-  const toggleLeft = (0, import_react32.useCallback)((v2) => {
+  const toggleLeft = (0, import_react34.useCallback)((v2) => {
     setLeftExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleRight = (0, import_react32.useCallback)((v2) => {
+  const toggleRight = (0, import_react34.useCallback)((v2) => {
     setRightExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleTimeline = (0, import_react32.useCallback)(() => {
+  const toggleTimeline = (0, import_react34.useCallback)(() => {
     setTimelineExpanded((p) => !p);
     triggerReflow();
   }, [triggerReflow]);
   const isInSubflow = drillDownStack.length > 0;
-  const currentLevel = (0, import_react32.useMemo)(() => {
+  const currentLevel = (0, import_react34.useMemo)(() => {
     if (drillDownStack.length > 0) {
       const top = drillDownStack[drillDownStack.length - 1];
       return { spec: top.spec, snapshots: top.snapshots, narrative: top.narrative, subflowId: top.subflowId };
@@ -7868,11 +8017,11 @@ function ExplainableShell({
   }, [drillDownStack, snapshots]);
   const activeSnapshots = currentLevel.snapshots;
   const safeIdx = activeSnapshots.length > 0 ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1)) : 0;
-  const shellDataTrace = (0, import_react32.useMemo)(
+  const shellDataTrace = (0, import_react34.useMemo)(
     () => runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "") : { frames: [], readsAvailable: true },
     [runtimeSnapshot, activeSnapshots, safeIdx]
   );
-  const allTracedKeys = (0, import_react32.useMemo)(() => {
+  const allTracedKeys = (0, import_react34.useMemo)(() => {
     const log = runtimeSnapshot?.commitLog;
     if (!log?.length) return [];
     const seen = /* @__PURE__ */ new Set();
@@ -7887,19 +8036,19 @@ function ExplainableShell({
     }
     return keys;
   }, [runtimeSnapshot]);
-  const traceWalk = (0, import_react32.useMemo)(() => {
+  const traceWalk = (0, import_react34.useMemo)(() => {
     if (!tracing || !runtimeSnapshot?.commitLog) return null;
     const scope = tracing.via.length > 0 ? tracing.via[tracing.via.length - 1] : tracing;
     return buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
       beforeCommitIdx: scope.beforeCommitIdx
     });
   }, [tracing, runtimeSnapshot]);
-  const traceStopIndices = (0, import_react32.useMemo)(() => {
+  const traceStopIndices = (0, import_react34.useMemo)(() => {
     if (!traceWalk || traceWalk.missing || isInSubflow) return [];
     const idxByRsid = new Map(activeSnapshots.map((sn, i) => [sn.runtimeStageId, i]));
     return traceWalk.stops.map((stop) => idxByRsid.get(stop.runtimeStageId)).filter((i) => i !== void 0).sort((a, b) => a - b);
   }, [traceWalk, activeSnapshots, isInSubflow]);
-  const sliceCone = (0, import_react32.useMemo)(() => {
+  const sliceCone = (0, import_react34.useMemo)(() => {
     if (traceWalk && !traceWalk.missing && traceWalk.stops.length >= 2) {
       const cone2 = /* @__PURE__ */ new Map();
       for (const stop of traceWalk.stops) {
@@ -7920,7 +8069,7 @@ function ExplainableShell({
     return cone;
   }, [traceWalk, rightPanelMode, inspectorTab, shellDataTrace]);
   const activeNarrativeEntries = isInSubflow ? currentLevel.narrative : narrativeEntries;
-  const narrativeScopeSubflowId = (0, import_react32.useMemo)(() => {
+  const narrativeScopeSubflowId = (0, import_react34.useMemo)(() => {
     if (!isInSubflow) return void 0;
     const key = currentLevel.subflowId;
     const entries = currentLevel.narrative ?? [];
@@ -7933,30 +8082,30 @@ function ExplainableShell({
     }
     return shallowest ?? key;
   }, [isInSubflow, currentLevel]);
-  const breadcrumbs = (0, import_react32.useMemo)(() => {
+  const breadcrumbs = (0, import_react34.useMemo)(() => {
     const root = { label: title || "Flowchart", spec: null, description: void 0 };
     return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: void 0 }))];
   }, [title, drillDownStack]);
-  const showTreeSidebar = (0, import_react32.useMemo)(() => {
+  const showTreeSidebar = (0, import_react34.useMemo)(() => {
     if (traceGraph?.nodes?.length) {
       return traceGraph.nodes.some((n) => n.data?.isSubflow === true);
     }
     return false;
   }, [traceGraph]);
-  const rootOverlay = (0, import_react32.useMemo)(() => {
+  const rootOverlay = (0, import_react34.useMemo)(() => {
     if (isInSubflow || !snapshots.length) return { activeStage: void 0, doneStages: void 0 };
     const doneStages = new Set(snapshots.slice(0, safeIdx).map((s) => s.stageLabel));
     const activeStage = snapshots[safeIdx]?.stageLabel ?? null;
     return { activeStage, doneStages };
   }, [isInSubflow, snapshots, safeIdx]);
-  const handleTabChange = (0, import_react32.useCallback)((tab) => {
+  const handleTabChange = (0, import_react34.useCallback)((tab) => {
     setActiveTab(tab);
     setDrillDownStack([]);
   }, []);
-  const handleSnapshotChange = (0, import_react32.useCallback)((idx) => {
+  const handleSnapshotChange = (0, import_react34.useCallback)((idx) => {
     if (typeof idx === "number") setSnapshotIdx(idx);
   }, []);
-  const jumpToAnchor = (0, import_react32.useCallback)(
+  const jumpToAnchor = (0, import_react34.useCallback)(
     (walk) => {
       const anchor = walk.stops[0];
       if (!anchor) return;
@@ -7965,7 +8114,7 @@ function ExplainableShell({
     },
     [activeSnapshots]
   );
-  const handleStartTracing = (0, import_react32.useCallback)(
+  const handleStartTracing = (0, import_react34.useCallback)(
     (key) => {
       if (!runtimeSnapshot?.commitLog || isInSubflow) return;
       const log = runtimeSnapshot.commitLog;
@@ -7983,7 +8132,7 @@ function ExplainableShell({
     },
     [runtimeSnapshot, isInSubflow, activeSnapshots, safeIdx, jumpToAnchor]
   );
-  const handleFollowIngredient = (0, import_react32.useCallback)(
+  const handleFollowIngredient = (0, import_react34.useCallback)(
     (ing) => {
       if (!tracing || !runtimeSnapshot?.commitLog || ing.writerCommitIdx === null) return;
       const scope = { key: ing.key, beforeCommitIdx: ing.writerCommitIdx + 1 };
@@ -7997,7 +8146,7 @@ function ExplainableShell({
     },
     [tracing, runtimeSnapshot, jumpToAnchor]
   );
-  const handleShowAllIngredients = (0, import_react32.useCallback)(() => {
+  const handleShowAllIngredients = (0, import_react34.useCallback)(() => {
     if (!tracing || !runtimeSnapshot?.commitLog) return;
     setTracing({ ...tracing, via: [] });
     setForkChooserOpen(false);
@@ -8007,18 +8156,18 @@ function ExplainableShell({
       })
     );
   }, [tracing, runtimeSnapshot, jumpToAnchor]);
-  const handleExitTracing = (0, import_react32.useCallback)(() => {
+  const handleExitTracing = (0, import_react34.useCallback)(() => {
     setTracing(null);
     setForkChooserOpen(false);
   }, []);
-  const handleForkPrompt = (0, import_react32.useCallback)(() => setForkChooserOpen(true), []);
-  const handleContinueTimeOrder = (0, import_react32.useCallback)(() => {
+  const handleForkPrompt = (0, import_react34.useCallback)(() => setForkChooserOpen(true), []);
+  const handleContinueTimeOrder = (0, import_react34.useCallback)(() => {
     const earlier = traceStopIndices.filter((i) => i < safeIdx);
     if (earlier.length > 0) setSnapshotIdx(earlier[earlier.length - 1]);
     setForkChooserOpen(false);
   }, [traceStopIndices, safeIdx]);
   const chartDrillKey = drillDownStack.length > 0 ? drillDownStack[drillDownStack.length - 1].subflowId : null;
-  const buildDrillStack = (0, import_react32.useCallback)(
+  const buildDrillStack = (0, import_react34.useCallback)(
     (mountKey) => {
       const chain = traceGraph ? buildSubflowBreadcrumb(traceGraph, mountKey).slice(1).map((c) => c.subflowId).filter((id) => id !== null) : [mountKey];
       const keys = chain.length > 0 ? chain : [mountKey];
@@ -8039,7 +8188,7 @@ function ExplainableShell({
     },
     [traceGraph, snapshots, narrativeEntries, runtimeSnapshot, snapshotIdx]
   );
-  const handleDrillDown = (0, import_react32.useCallback)(
+  const handleDrillDown = (0, import_react34.useCallback)(
     (mountKey) => {
       const stack = buildDrillStack(mountKey);
       if (stack) {
@@ -8051,14 +8200,14 @@ function ExplainableShell({
     },
     [buildDrillStack]
   );
-  const handleBreadcrumbNavigate = (0, import_react32.useCallback)((level) => {
+  const handleBreadcrumbNavigate = (0, import_react34.useCallback)((level) => {
     setDrillDownStack((prev) => {
       const popped = level === 0 ? prev[0] : prev[level];
       if (popped) setSnapshotIdx(popped.parentSnapshotIdx);
       return level === 0 ? [] : prev.slice(0, level);
     });
   }, []);
-  const handleChartSubflowChange = (0, import_react32.useCallback)(
+  const handleChartSubflowChange = (0, import_react34.useCallback)(
     (mountKey) => {
       if (mountKey === null) {
         handleBreadcrumbNavigate(0);
@@ -8073,7 +8222,7 @@ function ExplainableShell({
     },
     [drillDownStack, handleBreadcrumbNavigate, handleDrillDown]
   );
-  const handleNodeClick = (0, import_react32.useCallback)(
+  const handleNodeClick = (0, import_react34.useCallback)(
     (indexOrId) => {
       if (typeof indexOrId === "number") {
         setSnapshotIdx(indexOrId);
@@ -8088,7 +8237,7 @@ function ExplainableShell({
     },
     [activeSnapshots, buildDrillStack, handleChartSubflowChange]
   );
-  const handleTreeNodeSelect = (0, import_react32.useCallback)(
+  const handleTreeNodeSelect = (0, import_react34.useCallback)(
     (name, isSubflow, nodeId) => {
       if (isSubflow) {
         handleDrillDown(nodeId ?? name);
@@ -8100,7 +8249,7 @@ function ExplainableShell({
     },
     [snapshots, handleDrillDown]
   );
-  const navigateToStage = (0, import_react32.useCallback)(
+  const navigateToStage = (0, import_react34.useCallback)(
     (id) => {
       const idx = activeSnapshots.findIndex((sn) => sn.runtimeStageId === id);
       if (idx >= 0) setSnapshotIdx(idx);
@@ -8108,14 +8257,14 @@ function ExplainableShell({
     [activeSnapshots]
   );
   const activeViaKey = tracing && tracing.via.length > 0 ? tracing.via[tracing.via.length - 1].key : null;
-  const stepNumberOf = (0, import_react32.useCallback)(
+  const stepNumberOf = (0, import_react34.useCallback)(
     (rsid) => {
       const i = activeSnapshots.findIndex((sn) => sn.runtimeStageId === rsid);
       return i >= 0 ? i + 1 : null;
     },
     [activeSnapshots]
   );
-  const tracingRail = (0, import_react32.useMemo)(() => {
+  const tracingRail = (0, import_react34.useMemo)(() => {
     if (!tracing || !traceWalk || traceWalk.missing || traceStopIndices.length === 0) return null;
     const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
     const walkIdx = traceWalk.stops.findIndex((st) => st.runtimeStageId === cursorRsid);
@@ -8134,7 +8283,7 @@ function ExplainableShell({
       onForkPrompt: handleForkPrompt
     };
   }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients, handleForkPrompt]);
-  const traceTabContent = (0, import_react32.useMemo)(() => {
+  const traceTabContent = (0, import_react34.useMemo)(() => {
     if (tracing && traceWalk) {
       return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
         TraceWalkCard,
@@ -8238,7 +8387,7 @@ function ExplainableShell({
     ] });
   }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
-  const renderTabBody = (0, import_react32.useCallback)(
+  const renderTabBody = (0, import_react34.useCallback)(
     (tabId, plain) => {
       if (tabId === "result") {
         return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
@@ -8312,7 +8461,7 @@ function ExplainableShell({
       autoRecorderViews
     ]
   );
-  const shellThemeVars = (0, import_react32.useMemo)(() => {
+  const shellThemeVars = (0, import_react34.useMemo)(() => {
     if (!traceTheme) return {};
     return {
       // ONE mapping from mode → palette, shared with the standalone
@@ -8562,7 +8711,7 @@ function ExplainableShell({
 
 // src/components/TraceViewer/TraceViewer.tsx
 var React = __toESM(require("react"), 1);
-var import_react33 = require("react");
+var import_react35 = require("react");
 
 // src/components/FlowchartView/_internal/keys.ts
 function asStageId(s) {
@@ -9045,17 +9194,17 @@ function TraceViewer({
   theme: themeMode
 }) {
   const input = recording ?? trace;
-  const prepared = (0, import_react33.useMemo)(() => prepare(input), [input]);
+  const prepared = (0, import_react35.useMemo)(() => prepare(input), [input]);
   React.useEffect(() => {
     if (!prepared.ok && onError) onError(prepared.error);
   }, [prepared, onError]);
-  const traceGraph = (0, import_react33.useMemo)(() => {
+  const traceGraph = (0, import_react35.useMemo)(() => {
     if (!prepared.ok) return void 0;
     const structure = prepared.recording.structure ?? prepared.recording.blueprint;
     const graph = graphFromStructure(structure);
     return graph.nodes.length > 0 ? graph : void 0;
   }, [prepared]);
-  const runtimeOverlay = (0, import_react33.useMemo)(
+  const runtimeOverlay = (0, import_react35.useMemo)(
     () => prepared.ok ? overlayFromSnapshot(prepared.recording.snapshot, {
       // Retry attempts live in the narrative, never in the commit log —
       // a discarded attempt commits nothing.
@@ -9086,9 +9235,9 @@ function TraceViewer({
 }
 
 // src/components/ExplainableView/ExplainableContext.tsx
-var import_react34 = require("react");
+var import_react36 = require("react");
 var import_jsx_runtime29 = require("react/jsx-runtime");
-var ExplainableRunContext = (0, import_react34.createContext)(null);
+var ExplainableRunContext = (0, import_react36.createContext)(null);
 function parseRecording2(input) {
   if (input == null || input === "") {
     return { recording: null, error: "No recording provided." };
@@ -9129,8 +9278,8 @@ function ExplainableProvider({
   className,
   style
 }) {
-  const parsed = (0, import_react34.useMemo)(() => parseRecording2(input), [input]);
-  const prepared = (0, import_react34.useMemo)(() => {
+  const parsed = (0, import_react36.useMemo)(() => parseRecording2(input), [input]);
+  const prepared = (0, import_react36.useMemo)(() => {
     if (!parsed.recording) {
       return {
         snapshots: [],
@@ -9164,13 +9313,13 @@ function ExplainableProvider({
       };
     }
   }, [parsed]);
-  const [uncontrolledIndex, setUncontrolledIndex] = (0, import_react34.useState)(defaultSelectedIndex);
+  const [uncontrolledIndex, setUncontrolledIndex] = (0, import_react36.useState)(defaultSelectedIndex);
   const requestedIndex = controlledIndex ?? uncontrolledIndex;
   const selectedIndex = Math.max(
     0,
     Math.min(requestedIndex, Math.max(0, prepared.snapshots.length - 1))
   );
-  const selectIndex = (0, import_react34.useCallback)(
+  const selectIndex = (0, import_react36.useCallback)(
     (nextIndex) => {
       const clamped = Math.max(
         0,
@@ -9181,7 +9330,7 @@ function ExplainableProvider({
     },
     [controlledIndex, onSelectedIndexChange, prepared.snapshots.length]
   );
-  const value = (0, import_react34.useMemo)(
+  const value = (0, import_react36.useMemo)(
     () => ({
       recording: parsed.recording,
       snapshots: prepared.snapshots,
@@ -9209,7 +9358,7 @@ function ExplainableProvider({
   ) });
 }
 function useExplainableRun() {
-  const value = (0, import_react34.useContext)(ExplainableRunContext);
+  const value = (0, import_react36.useContext)(ExplainableRunContext);
   if (!value) {
     throw new Error("Explainable components must be rendered inside <ExplainableProvider>.");
   }
@@ -9217,7 +9366,7 @@ function useExplainableRun() {
 }
 
 // src/components/ExplainableView/TimelinePanel.tsx
-var import_react35 = require("react");
+var import_react37 = require("react");
 var import_jsx_runtime30 = require("react/jsx-runtime");
 function formatOffset(milliseconds) {
   return milliseconds < 1e3 ? `+${Math.round(milliseconds)}ms` : `+${(milliseconds / 1e3).toFixed(1)}s`;
@@ -9230,8 +9379,8 @@ function TimelinePanel({
   style
 }) {
   const { snapshots, selectedIndex, selectIndex, error } = useExplainableRun();
-  const focusedRef = (0, import_react35.useRef)(null);
-  (0, import_react35.useEffect)(() => {
+  const focusedRef = (0, import_react37.useRef)(null);
+  (0, import_react37.useEffect)(() => {
     focusedRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [selectedIndex]);
   if (unstyled) {
@@ -9320,7 +9469,7 @@ function TimelinePanel({
 }
 
 // src/components/ExplainableView/FlowchartPanel.tsx
-var import_react36 = require("react");
+var import_react38 = require("react");
 var import_jsx_runtime31 = require("react/jsx-runtime");
 function baseStageId(runtimeStageId) {
   const hashIndex = runtimeStageId.indexOf("#");
@@ -9341,7 +9490,7 @@ function FlowchartPanel({
     selectIndex,
     flowchartColors
   } = useExplainableRun();
-  const scrubIndex = (0, import_react36.useMemo)(() => {
+  const scrubIndex = (0, import_react38.useMemo)(() => {
     const runtimeStageId = snapshots[selectedIndex]?.runtimeStageId;
     if (!runtimeStageId) return selectedIndex;
     const match = runtimeOverlay.executionOrder.findIndex(
@@ -9349,7 +9498,7 @@ function FlowchartPanel({
     );
     return match >= 0 ? match : selectedIndex;
   }, [runtimeOverlay.executionOrder, selectedIndex, snapshots]);
-  const handleNodeClick = (0, import_react36.useCallback)(
+  const handleNodeClick = (0, import_react38.useCallback)(
     (stageId) => {
       const candidates = snapshots.map((snapshot, index) => ({
         index,
@@ -9450,7 +9599,7 @@ function ValueInspector({
 }
 
 // src/components/ExplainableView/CommentaryPanel.tsx
-var import_react37 = require("react");
+var import_react39 = require("react");
 var import_jsx_runtime33 = require("react/jsx-runtime");
 function CommentaryPanel({
   title = "Commentary",
@@ -9462,12 +9611,12 @@ function CommentaryPanel({
   style
 }) {
   const { snapshots, selectedIndex, narrativeEntries } = useExplainableRun();
-  const currentRef = (0, import_react37.useRef)(null);
-  const rangeIndex = (0, import_react37.useMemo)(
+  const currentRef = (0, import_react39.useRef)(null);
+  const rangeIndex = (0, import_react39.useMemo)(
     () => narrativeEntries.length ? buildEntryRangeIndex(narrativeEntries) : void 0,
     [narrativeEntries]
   );
-  const revealedCount = (0, import_react37.useMemo)(
+  const revealedCount = (0, import_react39.useMemo)(
     () => narrativeEntries.length ? computeRevealedEntryCount(
       narrativeEntries,
       snapshots,
@@ -9476,7 +9625,7 @@ function CommentaryPanel({
     ) : 0,
     [narrativeEntries, snapshots, selectedIndex, rangeIndex]
   );
-  const dedupedEntries = (0, import_react37.useMemo)(() => {
+  const dedupedEntries = (0, import_react39.useMemo)(() => {
     const revealed = narrativeEntries.slice(0, revealedCount);
     return revealed.filter(
       (entry, index) => index === 0 || entry.text !== revealed[index - 1]?.text
@@ -9486,7 +9635,7 @@ function CommentaryPanel({
     Math.max(0, dedupedEntries.length - maxLines)
   );
   const hiddenCount = Math.max(0, dedupedEntries.length - visibleEntries.length);
-  (0, import_react37.useEffect)(() => {
+  (0, import_react39.useEffect)(() => {
     currentRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [visibleEntries.length]);
   if (unstyled) {
