@@ -460,6 +460,14 @@ executed path lights up, un-run stages fade, and each executed node carries its
 step number. Subflow mount nodes drill on click, and the chart re-fits itself
 whenever its container resizes.
 
+Both `TraceFlow` and `TracedFlow` wait for a visible, non-zero chart pane and
+finite measurements for every visible node before fitting. Hidden or not-yet-
+measured charts wait for a real measurement or resize notification, rather than
+guessing readiness after a fixed number of frames. Automatic fits are immediate;
+they do not start a zoom animation that could outlive the visible container.
+Ordinary replay, selection and overlay updates preserve the user's pan and zoom.
+Manual viewport controls remain available.
+
 #### A stage that had to be tried again says so on the chart
 
 When footprintjs (≥ 9.15.0) retries a stage under a declared `retry` policy,

@@ -5740,42 +5740,126 @@ function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
 
 // src/components/FlowchartView/_internal/useChartAutoRefit.ts
 import { useEffect as useEffect8 } from "react";
-function useChartAutoRefit(wrapperRef, rfInstance, options = {}) {
-  const duration = options.duration ?? 200;
-  const padding2 = options.padding ?? 0.1;
-  const refitKey = options.refitKey;
+import { useReactFlow, useStoreApi } from "@xyflow/react";
+
+// src/components/FlowchartView/_internal/chartFitGeometry.ts
+import { getViewportForBounds } from "@xyflow/react";
+var positiveFinite = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+function measuredChartBounds(nodes) {
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (const node of nodes.values()) {
+    if (node.hidden) continue;
+    const width2 = node.measured?.width;
+    const height2 = node.measured?.height;
+    const { x, y } = node.internals.positionAbsolute;
+    if (!positiveFinite(width2) || !positiveFinite(height2) || !Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+    left = Math.min(left, x);
+    top = Math.min(top, y);
+    right = Math.max(right, x + width2);
+    bottom = Math.max(bottom, y + height2);
+  }
+  const width = right - left;
+  const height = bottom - top;
+  if (!Number.isFinite(left) || !Number.isFinite(top) || !positiveFinite(width) || !positiveFinite(height)) return null;
+  return { x: left, y: top, width, height };
+}
+function chartFitViewport(state, padding2) {
+  if (!positiveFinite(state.width) || !positiveFinite(state.height) || !positiveFinite(state.minZoom) || !positiveFinite(state.maxZoom) || state.maxZoom < state.minZoom || !Number.isFinite(padding2) || padding2 < 0) return null;
+  const bounds = measuredChartBounds(state.nodeLookup);
+  if (!bounds) return null;
+  const viewport = getViewportForBounds(bounds, state.width, state.height, state.minZoom, state.maxZoom, padding2);
+  return Number.isFinite(viewport.x) && Number.isFinite(viewport.y) && positiveFinite(viewport.zoom) ? viewport : null;
+}
+function chartMeasurementKey(state) {
+  return JSON.stringify([
+    state.width,
+    state.height,
+    state.minZoom,
+    state.maxZoom,
+    measuredChartBounds(state.nodeLookup) !== null,
+    Array.from(state.nodeLookup, ([id, node]) => node.hidden ? [id, "hidden"] : [id, node.measured?.width, node.measured?.height])
+  ]);
+}
+function chartLayoutKey(nodes) {
+  return JSON.stringify(nodes.map((node) => [
+    node.id,
+    node.parentId,
+    node.hidden,
+    node.position.x,
+    node.position.y,
+    node.origin,
+    node.width,
+    node.height
+  ]));
+}
+
+// src/components/FlowchartView/_internal/useChartAutoRefit.ts
+function hasVisibleArea(element) {
+  if (!element) return false;
+  const { width, height } = element.getBoundingClientRect();
+  return positiveFinite(width) && positiveFinite(height);
+}
+function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey }) {
+  const store = useStoreApi();
+  const { setViewport } = useReactFlow();
   useEffect8(() => {
-    const el = wrapperRef.current;
-    if (!el || !rfInstance) return;
-    let raf = 0;
-    const refit = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        rfInstance.fitView({ duration, padding: padding2 });
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    let disposed = false;
+    let frame = null;
+    let pane = null;
+    let measurementKey = chartMeasurementKey(store.getState());
+    let panZoom = store.getState().panZoom;
+    const requestFit = () => {
+      if (disposed) return;
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        if (disposed) return;
+        const state = store.getState();
+        if (!state.panZoom || !hasVisibleArea(wrapper) || !hasVisibleArea(state.domNode)) return;
+        const viewport = chartFitViewport(state, padding2);
+        if (viewport) void setViewport(viewport, { duration: 0 });
       });
     };
-    const ro = new ResizeObserver(refit);
-    ro.observe(el);
-    window.addEventListener("resize", refit);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", refit);
-      cancelAnimationFrame(raf);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(requestFit);
+    observer?.observe(wrapper);
+    const observePane = () => {
+      const current = store.getState().domNode;
+      if (current === pane) return false;
+      if (pane && pane !== wrapper) observer?.unobserve(pane);
+      pane = current;
+      if (pane && pane !== wrapper) observer?.observe(pane);
+      return true;
     };
-  }, [rfInstance, wrapperRef, duration, padding2]);
-  useEffect8(() => {
-    if (!rfInstance) return;
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        rfInstance.fitView({ duration, padding: padding2 });
-      });
+    observePane();
+    const unsubscribe = store.subscribe((state) => {
+      const paneChanged = observePane();
+      const nextKey = chartMeasurementKey(state);
+      const changed = paneChanged || nextKey !== measurementKey || state.panZoom !== panZoom;
+      measurementKey = nextKey;
+      panZoom = state.panZoom;
+      if (changed) requestFit();
     });
+    window.addEventListener("resize", requestFit);
+    requestFit();
     return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
+      disposed = true;
+      unsubscribe();
+      observer?.disconnect();
+      window.removeEventListener("resize", requestFit);
+      if (frame !== null) cancelAnimationFrame(frame);
     };
-  }, [rfInstance, refitKey, duration, padding2]);
+  }, [store, setViewport, wrapperRef, padding2, refitKey]);
+}
+function ChartAutoRefit(props) {
+  useChartAutoRefit(props);
+  return null;
 }
 
 // src/components/FlowchartView/SubflowBreadcrumbBar.tsx
@@ -6574,12 +6658,7 @@ function TracedFlow({
     [drill, onNodeClick, groupedSet]
   );
   const wrapperRef = useRef7(null);
-  const [rfInstance, setRfInstance] = useState11(null);
-  useChartAutoRefit(wrapperRef, rfInstance, {
-    // Re-fit on drill AND after the measured-size re-layout settles.
-    refitKey: `${drill.currentSubflowId ?? ""}:${measuredSizes ? "measured" : "estimated"}`,
-    padding: 0.18
-  });
+  const refitKey = chartLayoutKey(positioned.nodes);
   return /* @__PURE__ */ jsxs20(
     "div",
     {
@@ -6612,12 +6691,10 @@ function TracedFlow({
             nodeTypes: mergedNodeTypes,
             edgeTypes: mergedEdgeTypes,
             onNodeClick: handleNodeClick,
-            onInit: setRfInstance,
-            fitView: true,
-            fitViewOptions: { padding: 0.18 },
             minZoom: 0.1,
             proOptions: { hideAttribution: true },
             children: [
+              /* @__PURE__ */ jsx23(ChartAutoRefit, { wrapperRef, refitKey, padding: 0.18 }),
               /* @__PURE__ */ jsx23(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
               /* @__PURE__ */ jsx23(Background, { variant: BackgroundVariant.Dots, gap: 20, size: 1 }),
               children

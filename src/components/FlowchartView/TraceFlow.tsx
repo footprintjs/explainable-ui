@@ -38,7 +38,7 @@
  */
 
 import type * as React from "react";
-import { useMemo, useCallback, useSyncExternalStore } from "react";
+import { useMemo, useCallback, useRef, useSyncExternalStore } from "react";
 import {
   ReactFlow,
   Background,
@@ -59,6 +59,8 @@ import { SmartStepEdge } from "../SmartStepEdge";
 import { rawDefaults } from "../../theme/tokens";
 import type { BaseComponentProps } from "../../types";
 import { dagreTraceLayout } from "./_internal/dagreTraceLayout";
+import { ChartAutoRefit } from "./_internal/useChartAutoRefit";
+import { chartLayoutKey } from "./_internal/chartFitGeometry";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Layout
@@ -461,8 +463,12 @@ export function TraceFlow(props: TraceFlowProps) {
     [userEdgeTypes],
   );
 
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const refitKey = chartLayoutKey(positioned.nodes);
+
   return (
     <div
+      ref={wrapperRef}
       className={props.className}
       style={{
         width: "100%",
@@ -477,9 +483,9 @@ export function TraceFlow(props: TraceFlowProps) {
         nodeTypes={mergedNodeTypes}
         edgeTypes={mergedEdgeTypes}
         onNodeClick={handleNodeClick}
-        fitView
         proOptions={{ hideAttribution: true }}
       >
+        <ChartAutoRefit wrapperRef={wrapperRef} refitKey={refitKey} />
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         {props.children}
       </ReactFlow>

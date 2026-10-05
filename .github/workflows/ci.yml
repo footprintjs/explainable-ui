@@ -26,7 +26,9 @@ jobs:
 
       # Fresh resolution — no committed lockfile (library policy). `cache: npm` is dropped
       # because it keys off the (now absent) lockfile.
-      - run: npm install
+      # npm 10's Arborist crashes resolving the current unlocked peer graph
+      # (edgesOut of null). Pin the installer, without weakening peer checks.
+      - run: npx --yes npm@11.21.0 install
       - run: npm run build
       - run: npm test
 

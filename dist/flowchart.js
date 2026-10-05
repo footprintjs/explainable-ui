@@ -1384,7 +1384,7 @@ function GanttTimeline({
 }
 
 // src/components/FlowchartView/TraceFlow.tsx
-import { useMemo as useMemo4, useCallback, useSyncExternalStore } from "react";
+import { useMemo as useMemo4, useCallback, useRef as useRef3, useSyncExternalStore } from "react";
 import {
   ReactFlow,
   Background,
@@ -1863,6 +1863,130 @@ function createDagreTraceLayout(options = {}) {
   return (graph) => dagreTraceLayout(graph, options);
 }
 
+// src/components/FlowchartView/_internal/useChartAutoRefit.ts
+import { useEffect as useEffect4 } from "react";
+import { useReactFlow, useStoreApi } from "@xyflow/react";
+
+// src/components/FlowchartView/_internal/chartFitGeometry.ts
+import { getViewportForBounds } from "@xyflow/react";
+var positiveFinite = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
+function measuredChartBounds(nodes) {
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  for (const node of nodes.values()) {
+    if (node.hidden) continue;
+    const width2 = node.measured?.width;
+    const height2 = node.measured?.height;
+    const { x, y } = node.internals.positionAbsolute;
+    if (!positiveFinite(width2) || !positiveFinite(height2) || !Number.isFinite(x) || !Number.isFinite(y)) {
+      return null;
+    }
+    left = Math.min(left, x);
+    top = Math.min(top, y);
+    right = Math.max(right, x + width2);
+    bottom = Math.max(bottom, y + height2);
+  }
+  const width = right - left;
+  const height = bottom - top;
+  if (!Number.isFinite(left) || !Number.isFinite(top) || !positiveFinite(width) || !positiveFinite(height)) return null;
+  return { x: left, y: top, width, height };
+}
+function chartFitViewport(state, padding2) {
+  if (!positiveFinite(state.width) || !positiveFinite(state.height) || !positiveFinite(state.minZoom) || !positiveFinite(state.maxZoom) || state.maxZoom < state.minZoom || !Number.isFinite(padding2) || padding2 < 0) return null;
+  const bounds = measuredChartBounds(state.nodeLookup);
+  if (!bounds) return null;
+  const viewport = getViewportForBounds(bounds, state.width, state.height, state.minZoom, state.maxZoom, padding2);
+  return Number.isFinite(viewport.x) && Number.isFinite(viewport.y) && positiveFinite(viewport.zoom) ? viewport : null;
+}
+function chartMeasurementKey(state) {
+  return JSON.stringify([
+    state.width,
+    state.height,
+    state.minZoom,
+    state.maxZoom,
+    measuredChartBounds(state.nodeLookup) !== null,
+    Array.from(state.nodeLookup, ([id, node]) => node.hidden ? [id, "hidden"] : [id, node.measured?.width, node.measured?.height])
+  ]);
+}
+function chartLayoutKey(nodes) {
+  return JSON.stringify(nodes.map((node) => [
+    node.id,
+    node.parentId,
+    node.hidden,
+    node.position.x,
+    node.position.y,
+    node.origin,
+    node.width,
+    node.height
+  ]));
+}
+
+// src/components/FlowchartView/_internal/useChartAutoRefit.ts
+function hasVisibleArea(element) {
+  if (!element) return false;
+  const { width, height } = element.getBoundingClientRect();
+  return positiveFinite(width) && positiveFinite(height);
+}
+function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey }) {
+  const store = useStoreApi();
+  const { setViewport } = useReactFlow();
+  useEffect4(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+    let disposed = false;
+    let frame = null;
+    let pane = null;
+    let measurementKey = chartMeasurementKey(store.getState());
+    let panZoom = store.getState().panZoom;
+    const requestFit = () => {
+      if (disposed) return;
+      if (frame !== null) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        if (disposed) return;
+        const state = store.getState();
+        if (!state.panZoom || !hasVisibleArea(wrapper) || !hasVisibleArea(state.domNode)) return;
+        const viewport = chartFitViewport(state, padding2);
+        if (viewport) void setViewport(viewport, { duration: 0 });
+      });
+    };
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(requestFit);
+    observer?.observe(wrapper);
+    const observePane = () => {
+      const current = store.getState().domNode;
+      if (current === pane) return false;
+      if (pane && pane !== wrapper) observer?.unobserve(pane);
+      pane = current;
+      if (pane && pane !== wrapper) observer?.observe(pane);
+      return true;
+    };
+    observePane();
+    const unsubscribe = store.subscribe((state) => {
+      const paneChanged = observePane();
+      const nextKey = chartMeasurementKey(state);
+      const changed = paneChanged || nextKey !== measurementKey || state.panZoom !== panZoom;
+      measurementKey = nextKey;
+      panZoom = state.panZoom;
+      if (changed) requestFit();
+    });
+    window.addEventListener("resize", requestFit);
+    requestFit();
+    return () => {
+      disposed = true;
+      unsubscribe();
+      observer?.disconnect();
+      window.removeEventListener("resize", requestFit);
+      if (frame !== null) cancelAnimationFrame(frame);
+    };
+  }, [store, setViewport, wrapperRef, padding2, refitKey]);
+}
+function ChartAutoRefit(props) {
+  useChartAutoRefit(props);
+  return null;
+}
+
 // src/components/FlowchartView/TraceFlow.tsx
 import { jsx as jsx8, jsxs as jsxs5 } from "react/jsx-runtime";
 var Y_STEP = 100;
@@ -2070,9 +2194,12 @@ function TraceFlow(props) {
     () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES, ...userEdgeTypes } : DEFAULT_EDGE_TYPES,
     [userEdgeTypes]
   );
+  const wrapperRef = useRef3(null);
+  const refitKey = chartLayoutKey(positioned.nodes);
   return /* @__PURE__ */ jsx8(
     "div",
     {
+      ref: wrapperRef,
       className: props.className,
       style: {
         width: "100%",
@@ -2088,9 +2215,9 @@ function TraceFlow(props) {
           nodeTypes: mergedNodeTypes,
           edgeTypes: mergedEdgeTypes,
           onNodeClick: handleNodeClick,
-          fitView: true,
           proOptions: { hideAttribution: true },
           children: [
+            /* @__PURE__ */ jsx8(ChartAutoRefit, { wrapperRef, refitKey }),
             /* @__PURE__ */ jsx8(Background, { variant: BackgroundVariant.Dots, gap: 20, size: 1 }),
             props.children
           ]
@@ -2101,7 +2228,7 @@ function TraceFlow(props) {
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-import { useCallback as useCallback3, useEffect as useEffect7, useMemo as useMemo5, useRef as useRef4, useState as useState4 } from "react";
+import { useCallback as useCallback3, useEffect as useEffect7, useMemo as useMemo5, useRef as useRef5, useState as useState4 } from "react";
 import {
   ReactFlow as ReactFlow2,
   Background as Background2,
@@ -2668,20 +2795,20 @@ function edgeCarriesCursor(via, standIns) {
 }
 
 // src/components/FlowchartView/_internal/useSubflowDrill.ts
-import { useCallback as useCallback2, useEffect as useEffect4, useRef as useRef3, useState as useState3 } from "react";
+import { useCallback as useCallback2, useEffect as useEffect5, useRef as useRef4, useState as useState3 } from "react";
 function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
   const isControlled = controlledSubflowId !== void 0;
   const [ownSubflowId, setOwnSubflowId] = useState3(null);
   const currentSubflowId = isControlled ? controlledSubflowId : ownSubflowId;
-  const lastGraphRef = useRef3(null);
+  const lastGraphRef = useRef4(null);
   if (!isControlled && lastGraphRef.current !== graph) {
     lastGraphRef.current = graph;
     if (ownSubflowId !== null && findMountNode(graph, ownSubflowId) === void 0) {
       queueMicrotask(() => setOwnSubflowId(null));
     }
   }
-  const lastNotifiedRef = useRef3(void 0);
-  useEffect4(() => {
+  const lastNotifiedRef = useRef4(void 0);
+  useEffect5(() => {
     if (isControlled) return;
     if (lastNotifiedRef.current === currentSubflowId) return;
     lastNotifiedRef.current = currentSubflowId;
@@ -2700,46 +2827,6 @@ function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
   );
   const drillUp = useCallback2(() => setCurrentSubflowId(null), [setCurrentSubflowId]);
   return { currentSubflowId, drillInto, drillUp, setCurrentSubflowId };
-}
-
-// src/components/FlowchartView/_internal/useChartAutoRefit.ts
-import { useEffect as useEffect5 } from "react";
-function useChartAutoRefit(wrapperRef, rfInstance, options = {}) {
-  const duration = options.duration ?? 200;
-  const padding2 = options.padding ?? 0.1;
-  const refitKey = options.refitKey;
-  useEffect5(() => {
-    const el = wrapperRef.current;
-    if (!el || !rfInstance) return;
-    let raf = 0;
-    const refit = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        rfInstance.fitView({ duration, padding: padding2 });
-      });
-    };
-    const ro = new ResizeObserver(refit);
-    ro.observe(el);
-    window.addEventListener("resize", refit);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", refit);
-      cancelAnimationFrame(raf);
-    };
-  }, [rfInstance, wrapperRef, duration, padding2]);
-  useEffect5(() => {
-    if (!rfInstance) return;
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        rfInstance.fitView({ duration, padding: padding2 });
-      });
-    });
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-    };
-  }, [rfInstance, refitKey, duration, padding2]);
 }
 
 // src/components/FlowchartView/SubflowBreadcrumbBar.tsx
@@ -3186,13 +3273,8 @@ function TracedFlow({
     },
     [drill, onNodeClick, groupedSet]
   );
-  const wrapperRef = useRef4(null);
-  const [rfInstance, setRfInstance] = useState4(null);
-  useChartAutoRefit(wrapperRef, rfInstance, {
-    // Re-fit on drill AND after the measured-size re-layout settles.
-    refitKey: `${drill.currentSubflowId ?? ""}:${measuredSizes ? "measured" : "estimated"}`,
-    padding: 0.18
-  });
+  const wrapperRef = useRef5(null);
+  const refitKey = chartLayoutKey(positioned.nodes);
   return /* @__PURE__ */ jsxs8(
     "div",
     {
@@ -3225,12 +3307,10 @@ function TracedFlow({
             nodeTypes: mergedNodeTypes,
             edgeTypes: mergedEdgeTypes,
             onNodeClick: handleNodeClick,
-            onInit: setRfInstance,
-            fitView: true,
-            fitViewOptions: { padding: 0.18 },
             minZoom: 0.1,
             proOptions: { hideAttribution: true },
             children: [
+              /* @__PURE__ */ jsx11(ChartAutoRefit, { wrapperRef, refitKey, padding: 0.18 }),
               /* @__PURE__ */ jsx11(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
               /* @__PURE__ */ jsx11(Background2, { variant: BackgroundVariant2.Dots, gap: 20, size: 1 }),
               children
