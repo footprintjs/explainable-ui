@@ -1182,7 +1182,7 @@ interface ThemeModeProps {
  * an extracted helper / hook (see `_internal/`):
  *
  *   - drill state .................. useSubflowDrill
- *   - container resize → fitView ... useChartAutoRefit
+ *   - measured viewport fitting .... ChartAutoRefit
  *   - graph filtering by drill ..... filterGraphForDrill
  *   - breadcrumb path .............. buildSubflowBreadcrumb
  *   - slice id normalization ....... normalizeSliceLeafIds
