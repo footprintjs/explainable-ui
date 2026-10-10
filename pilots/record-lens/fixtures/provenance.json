@@ -1,0 +1,188 @@
+{
+  "versions": {
+    "flow": {
+      "footprintjs": "10.0.0",
+      "foottrace": "1.0.0"
+    },
+    "hci": {
+      "hcifootprint": "3.0.0",
+      "footprintjs": "9.48.3",
+      "foottrace": "1.0.0"
+    }
+  },
+  "fixtureSha256": {
+    "flow.json": "6220e9422696028c8ad6f4243bc1c3caa33152a62ca6dcbdf54a17c5bd0259b1",
+    "hci.json": "fc287b4e0c4e955e2d0ec6b1145971e020e829238e0e77bdd0e39d0f614ceee8"
+  },
+  "flow": {
+    "rootRows": 5,
+    "rootStops": [
+      {
+        "step": 0,
+        "runtimeStageId": "",
+        "commitIdx": -1,
+        "lastCommitIdx": -1,
+        "stageId": "",
+        "label": "Run start",
+        "kind": "start"
+      },
+      {
+        "step": 1,
+        "runtimeStageId": "seed#0",
+        "commitIdx": 0,
+        "lastCommitIdx": 0,
+        "stageId": "seed",
+        "label": "Seed",
+        "kind": "commit"
+      },
+      {
+        "step": 2,
+        "runtimeStageId": "total#1",
+        "commitIdx": 1,
+        "lastCommitIdx": 1,
+        "stageId": "total",
+        "label": "Total",
+        "kind": "commit"
+      },
+      {
+        "step": 3,
+        "runtimeStageId": "review#2",
+        "commitIdx": 2,
+        "lastCommitIdx": 3,
+        "stageId": "review",
+        "label": "Review",
+        "kind": "mount"
+      },
+      {
+        "step": 4,
+        "runtimeStageId": "revise#4",
+        "commitIdx": 4,
+        "lastCommitIdx": 4,
+        "stageId": "revise",
+        "label": "Revise",
+        "kind": "commit"
+      },
+      {
+        "step": 5,
+        "runtimeStageId": "",
+        "commitIdx": 4,
+        "lastCommitIdx": 4,
+        "stageId": "",
+        "label": "Run end",
+        "kind": "end"
+      }
+    ],
+    "childRows": 2,
+    "childStops": [
+      {
+        "step": 0,
+        "runtimeStageId": "",
+        "commitIdx": -1,
+        "lastCommitIdx": 0,
+        "stageId": "",
+        "label": "Run start",
+        "kind": "start"
+      },
+      {
+        "step": 1,
+        "runtimeStageId": "review/check#3",
+        "commitIdx": 1,
+        "lastCommitIdx": 1,
+        "stageId": "review/check",
+        "subflowPath": "review",
+        "label": "review/Check",
+        "kind": "commit"
+      },
+      {
+        "step": 2,
+        "runtimeStageId": "",
+        "commitIdx": 1,
+        "lastCommitIdx": 1,
+        "stageId": "",
+        "label": "Run end",
+        "kind": "end"
+      }
+    ]
+  },
+  "hci": {
+    "rows": 4,
+    "stops": [
+      {
+        "step": 0,
+        "runtimeStageId": "",
+        "commitIdx": -1,
+        "lastCommitIdx": -1,
+        "stageId": "",
+        "label": "Run start",
+        "kind": "start"
+      },
+      {
+        "step": 1,
+        "runtimeStageId": "unlock#0",
+        "commitIdx": 0,
+        "lastCommitIdx": 0,
+        "stageId": "unlock",
+        "label": "unlock",
+        "kind": "commit"
+      },
+      {
+        "step": 2,
+        "runtimeStageId": "add#1",
+        "commitIdx": 1,
+        "lastCommitIdx": 1,
+        "stageId": "add",
+        "label": "add",
+        "kind": "commit"
+      },
+      {
+        "step": 3,
+        "runtimeStageId": "add#2",
+        "commitIdx": 2,
+        "lastCommitIdx": 2,
+        "stageId": "add",
+        "label": "add",
+        "kind": "commit"
+      },
+      {
+        "step": 4,
+        "runtimeStageId": "checkout#3",
+        "commitIdx": 3,
+        "lastCommitIdx": 3,
+        "stageId": "checkout",
+        "label": "checkout",
+        "kind": "commit"
+      },
+      {
+        "step": 5,
+        "runtimeStageId": "",
+        "commitIdx": 3,
+        "lastCommitIdx": 3,
+        "stageId": "",
+        "label": "Run end",
+        "kind": "end"
+      }
+    ],
+    "transitions": [
+      {
+        "id": "unlock#0",
+        "outcome": "committed"
+      },
+      {
+        "id": "add#1",
+        "outcome": "committed"
+      },
+      {
+        "id": "add#2",
+        "outcome": "committed"
+      },
+      {
+        "id": "checkout#3",
+        "outcome": "committed"
+      },
+      {
+        "id": "add#4",
+        "outcome": "pending"
+      }
+    ]
+  }
+}
