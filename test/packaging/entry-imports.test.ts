@@ -12,7 +12,7 @@
  * publint check types and paths, not runtime peer isolation, so they stayed
  * green too.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -30,7 +30,11 @@ function packageOf(specifier: string): string {
   return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
 }
 
-const ENTRIES = ["dist/index.js", "dist/index.cjs", "dist/flowchart.js", "dist/flowchart.cjs"];
+// Split chunks are shipped code too. Checking entry stubs alone would miss a
+// dependency leaked into a shared or deferred chunk.
+const ENTRIES = readdirSync(join(root, "dist"))
+  .filter((name) => /\.(?:js|cjs)$/.test(name))
+  .map((name) => `dist/${name}`);
 
 // ESM `from "x"` / `import("x")` and CJS `require("x")` in the built output.
 // The specifier itself must LOOK like a package path — minified bundles are
@@ -60,8 +64,18 @@ describe("built entry points only import what the manifest declares", () => {
   }
 
   it("the mistake this gate was written for stays fixed: @xyflow/react has a declared range", () => {
-    expect(pkg.peerDependencies["@xyflow/react"], "root bundle statically imports it").toMatch(/\^/);
-    // "optional" was the old lie — the root entry hard-requires it.
-    expect(pkg.peerDependenciesMeta?.["@xyflow/react"]?.optional).not.toBe(true);
+    expect(pkg.peerDependencies["@xyflow/react"], "the graph entry requires it").toMatch(/\^/);
+    // Optional metadata does not replace a declared range. The major adds an
+    // isolated /record entry; graph consumers still install their graph peers.
+    for (const name of ["@xyflow/react", "dagre", "react-dom"]) {
+      expect(pkg.peerDependencies[name]).toBeTypeOf("string");
+      expect(pkg.peerDependenciesMeta[name]).toEqual({ optional: true });
+    }
+    expect(pkg.peerDependenciesMeta.react).toBeUndefined();
+    expect(pkg.optionalDependencies).toBeUndefined();
+    expect(ENTRIES).toEqual(expect.arrayContaining([
+      "dist/index.js", "dist/index.cjs", "dist/flowchart.js", "dist/flowchart.cjs",
+      "dist/record.js", "dist/record.cjs",
+    ]));
   });
 });

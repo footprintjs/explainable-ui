@@ -7,7 +7,7 @@ import type {
   VariableSlice,
 } from "foottrace";
 
-/** A caller-selected source. This pilot never discovers, joins or drills sources. */
+/** A caller-selected source. This facade never discovers, joins or drills sources. */
 export interface RecordLensInput {
   readonly sourceId: string;
   readonly source: TimeTravelSource;

@@ -5,6 +5,11 @@ The merged, unreleased M4 Data Trace implementation is recorded in
 M5 variable trace/session/preview draft and intended corrections are in
 [M5-TRACE-WALK.md](./M5-TRACE-WALK.md). Both use public Foottrace 1.0.3.
 
+The unpublished M6 package candidate and import guide are documented in
+[M6-PACKAGE-CONTRACT.md](./M6-PACKAGE-CONTRACT.md) and
+[IMPORT-GUIDE-1.md](./IMPORT-GUIDE-1.md). They add only `/record` and preserve
+the immutable historical export ledger below.
+
 For the approved, unpublished-major canonical state replacement, see
 [M3-STATE-MIGRATION.md](./M3-STATE-MIGRATION.md). This document retains the M1
 historical context; the current branch's production/test runtime is Node 22+.
@@ -90,9 +95,9 @@ rejected/rolled-back interaction ledger. The record viewer must not claim that
 those missing actions are committed state. Additional producer scenarios belong
 with a separately reviewed HCI adapter/ledger contract.
 
-The current composite root does not implement the proposed lazy graph-loading
-boundary. There is no honest current graph-load-failure baseline to freeze; the
-future loading implementation needs its own success/failure/remount tests.
+At M1, the composite root did not implement the proposed lazy graph-loading
+boundary. There was no graph-load-failure baseline to freeze; M6 adds that
+boundary with its own success/failure/remount and installed-browser tests.
 Stage-level reads are not per-write proof, and the old presence of any reads
 must not become a claim of complete capture. R3 and the existing pilot's visible
 unknown-read qualification preserve that distinction for the later adapter.

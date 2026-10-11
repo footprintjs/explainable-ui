@@ -11,7 +11,7 @@ import type { TraceGraph } from "../FlowchartView/traceStructureRecorder";
 import type { RuntimeOverlay } from "../FlowchartView/createTraceRuntimeOverlay";
 
 /**
- * @deprecated Since 0.38.0 — removed in the next major. Use
+ * @deprecated Since 0.38.0 — retained in 1.x. Use
  * `<SnapshotPanel>` for the same scrubber + memory + narrative + Gantt
  * without a chart, `<ExplainableShell>` for the full shell over a
  * footprintjs run, or the `footprint-viewer` package for the zero-config
@@ -46,7 +46,7 @@ export interface TimeTravelDebuggerProps extends BaseComponentProps {
  * optionally `runtimeOverlay` for per-step coloring tied to the
  * scrubber.
  *
- * @deprecated Since 0.38.0 — removed in the next major.
+ * @deprecated Since 0.38.0 — retained in 1.x.
  *
  * It owns its cursor (the scrubber index is local state with no
  * `selectedIndex` / `onIndexChange`), so nothing outside it can move the

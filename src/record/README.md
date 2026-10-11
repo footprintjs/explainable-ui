@@ -1,45 +1,27 @@
-# Record Lens — source pilot
+# Record facade
 
-This is an experimental source module, **not a published entry point**. Existing
-`footprint-explainable-ui` imports, required peers, runtime dependencies and Node
-support are unchanged. There is no installable `footprint-explainable-ui/record`
-export yet. The pilot runs on Node 22+ with Foottrace 1.0.1 as a development-only
-dependency; choosing a supported public package contract requires a separate review.
+`footprint-explainable-ui/record` is the isolated record-view entry in the
+unpublished 1.0.0 candidate. It exports only the Lens-owned viewer, model builder
+and their input/output types. It is not re-exported from the root or `/flowchart`.
+Foottrace's reader, writer, path and record types keep their existing Foottrace
+entry points; this directory does not create aliases or another record engine.
 
-## Boundary
+The host selects one `TimeTravelSource`, gives it a source-local label and owns
+the numeric cursor step. An optional `KeysReadSource` must describe that same
+source. The facade never discovers, combines or drills into sources. It uses
+Foottrace for stops, state, equality and provenance, preserving missing bases,
+unreadable rows and redaction evidence. Its small value preview is bounded and
+does not execute getters or `toJSON`.
 
-The host supplies one explicitly selected Foottrace `TimeTravelSource`, a stable
-source label, its numeric stop, and optionally `KeysReadSource` and a `StateKey`.
-`buildRecordLensModel` calls Foottrace's public cursor, fold, equality, slice and
-formatter functions. It does not replay patches, infer branch structure, inspect
-an agent, walk an execution tree, or implement another causal algorithm.
+Runtime dependencies of this entry are React and Foottrace only. No graph
+renderer, engine, agent, HCI or private Viz code is imported. Do not import the
+root barrel from here: it is a different, composite surface. Changes to the
+entry must pass the actual packed-package installation and declaration checks
+in `pilots/record-lens/verify-package.mjs`, including the unchanged 50 KB
+vendor-excluded budget and dependency-leak negative controls.
 
-`RecordLens` is a read-only React facade over that model. Step/key callbacks are
-navigation intentions, not application actions. The host owns the selection,
-including switching to a nested source and supplying the matching read evidence.
-There is no implicit source discovery, background model request, or rerun.
-
-## Honest display
-
-- An invalid cursor refuses; it never selects a neighbouring state silently.
-- An empty source displays its available base without inventing a recorded step.
-- Missing starting state, redaction and skipped rows remain visible.
-- Causal queries validate the selected prefix, preserving original row addresses.
-  A gap refuses the explanation; a future gap cannot affect an earlier question.
-- Missing read evidence remains unknown. Even supplied evidence does not establish
-  that every dependency was captured. Foottrace's explanation and notes are retained.
-- Top-level changes use Foottrace equality; value previews are abbreviated display
-  text, not serialized evidence. Special values and cycles do not become empty data.
-
-The viewer uses the existing theme tokens. Existing snapshot-based panels remain
-unchanged: they have their own input contracts and JSON-only presentation, so this
-pilot does not pass arbitrary record values through those adapters.
-
-## Verification
-
-See `../../pilots/record-lens/README.md` for independent fixture, browser-bundle,
-declaration and normal-package checks. Pilot outputs are built in scratch space,
-not added to the package's two existing build entries or its shipped `dist`.
-
-Not included: nested-source discovery, HCI action dispatch, agent features, Viz
-branch merging, export/video generation, public versioning or consumer migration.
+The original source pilot and its 86 behavior tests remain. M6 changes the
+installation/export boundary, not its record-reading semantics. Provenance
+prose still delegates to Foottrace's formatter; it is not the Flow Lens's
+stage-attributed narrative. See `test/migration/M6-PACKAGE-CONTRACT.md` for the
+unpublished-major contract and remaining release gates.

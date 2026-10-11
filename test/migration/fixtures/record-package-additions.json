@@ -1,0 +1,52 @@
+{
+  "status": "unpublished 1.0.0 candidate; not release authorization",
+  "historicalLedger": "public-exports.json",
+  "policy": "retain all historical homes and add only the isolated record facade",
+  "packageContract": {
+    "name": "footprint-explainable-ui",
+    "version": "1.0.0",
+    "engines": { "node": ">=22" },
+    "exports": {
+      ".": {
+        "import": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+        "require": { "types": "./dist/index.d.cts", "default": "./dist/index.cjs" }
+      },
+      "./flowchart": {
+        "import": { "types": "./dist/flowchart.d.ts", "default": "./dist/flowchart.js" },
+        "require": { "types": "./dist/flowchart.d.cts", "default": "./dist/flowchart.cjs" }
+      },
+      "./record": {
+        "import": { "types": "./dist/record.d.ts", "default": "./dist/record.js" },
+        "require": { "types": "./dist/record.d.cts", "default": "./dist/record.cjs" }
+      }
+    },
+    "typesVersions": {
+      "*": { "flowchart": ["./dist/flowchart.d.ts"], "record": ["./dist/record.d.ts"] }
+    },
+    "files": ["dist"],
+    "dependencies": { "foottrace": "^1.0.3" },
+    "peerDependencies": {
+      "@xyflow/react": "^12.0.0",
+      "dagre": "^0.8.5",
+      "react": ">=18.0.0",
+      "react-dom": ">=18.0.0"
+    },
+    "peerDependenciesMeta": {
+      "@xyflow/react": { "optional": true },
+      "dagre": { "optional": true },
+      "react-dom": { "optional": true }
+    }
+  },
+  "entries": {
+    "./record": [
+      { "name": "buildRecordLensModel", "kind": "value" },
+      { "name": "RecordChange", "kind": "type" },
+      { "name": "RecordLens", "kind": "value" },
+      { "name": "RecordLensInput", "kind": "type" },
+      { "name": "RecordLensModel", "kind": "type" },
+      { "name": "RecordLensProps", "kind": "type" },
+      { "name": "RecordProvenance", "kind": "type" },
+      { "name": "RecordRefusal", "kind": "type" }
+    ]
+  }
+}
