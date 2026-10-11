@@ -18,7 +18,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
       readFileSync(new URL("../../package.json", import.meta.url), "utf8")
     );
     for (const [key, value] of Object.entries(ledger.packageContract)) {
-      const approved = key === "engines" ? { node: ">=22" } : key === "dependencies" ? { ...ledger.packageContract.dependencies, foottrace: "^1.0.1" } : value;
+      const approved = key === "engines" ? { node: ">=22" } : key === "dependencies" ? { ...ledger.packageContract.dependencies, foottrace: "^1.0.3" } : value;
       expect(manifest[key], key).toEqual(approved);
     }
     expect(manifest.exports).not.toHaveProperty("./record");

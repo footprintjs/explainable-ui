@@ -2771,67 +2771,204 @@ function TimeTravelControls({
 
 // src/components/ExplainableShell/ExplainableShell.tsx
 var import_react34 = require("react");
+var import_foottrace5 = require("foottrace");
 
 // src/components/ExplainableShell/_internal/dataTrace.ts
-function readsByStep(tree) {
-  const byStep = /* @__PURE__ */ new Map();
-  if (!tree) return byStep;
-  const visited = /* @__PURE__ */ new Set();
-  const stack = [tree];
-  while (stack.length > 0) {
-    const node = stack.pop();
-    if (visited.has(node)) continue;
-    visited.add(node);
-    if (node.runtimeStageId && node.stageReads) {
-      const keys = Object.keys(node.stageReads);
-      if (keys.length > 0) byStep.set(node.runtimeStageId, keys);
-    }
-    if (node.next) stack.push(node.next);
-    if (node.children) for (const c of node.children) stack.push(c);
+var import_foottrace3 = require("foottrace");
+
+// src/adapters/recordInput/traceSource.ts
+var import_foottrace2 = require("foottrace");
+
+// src/adapters/recordInput/index.ts
+function isRecord(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function adaptFlowRecord(input) {
+  if (typeof input.sourceId !== "string" || !input.sourceId.trim()) {
+    return {
+      status: "refused",
+      code: "invalid-source-id",
+      message: "Select and label one recorded source."
+    };
   }
-  return byStep;
+  if (input.format !== "snapshot" && input.format !== "subtree" && input.format !== "tree-context") {
+    return {
+      status: "refused",
+      code: "unsupported-format",
+      message: "Select a snapshot, subtree, or tree-context envelope explicitly."
+    };
+  }
+  if (!isRecord(input.record)) {
+    return {
+      status: "refused",
+      code: "invalid-record",
+      message: "The selected recording must be a plain source object."
+    };
+  }
+  const field = input.format === "snapshot" ? "commitLog" : "history";
+  const log = input.record[field];
+  if (log === void 0) {
+    return {
+      status: "refused",
+      code: "missing-log",
+      message: `The selected source has no ${field}; stageWrites alone cannot reconstruct its record.`
+    };
+  }
+  if (!Array.isArray(log)) {
+    return {
+      status: "refused",
+      code: "invalid-log",
+      message: `The selected source's ${field} must be an array.`
+    };
+  }
+  const base = input.record.initialState;
+  if (base !== void 0 && !isRecord(base)) {
+    return {
+      status: "refused",
+      code: "invalid-base",
+      message: "The recorded initialState must be a plain state object or absent."
+    };
+  }
+  if (!input.reads || input.reads.status !== "unknown" && input.reads.status !== "supplied" || input.reads.status === "supplied" && (!input.reads.source || typeof input.reads.source.kind !== "string" || typeof input.reads.source.lookup !== "function")) {
+    return {
+      status: "refused",
+      code: "invalid-read-evidence",
+      message: "Declare reads unknown or supply this source's KeysReadSource explicitly."
+    };
+  }
+  const tree = input.format === "tree-context" ? input.record.stageContexts : input.record.executionTree;
+  const source = {
+    ...field === "commitLog" ? { commitLog: log } : { history: log },
+    ...base !== void 0 && { initialState: base },
+    ...tree !== void 0 && { executionTree: tree },
+    ...input.record.subflowResults !== void 0 && {
+      subflowResults: input.record.subflowResults
+    }
+  };
+  return {
+    status: "accepted",
+    sourceId: input.sourceId,
+    source,
+    evidence: {
+      base: base === void 0 ? "missing" : "recorded",
+      reads: input.reads
+    }
+  };
+}
+
+// src/adapters/recordInput/traceSource.ts
+function isReadablePrefix(rows) {
+  for (let index = 0; index < rows.length; index++) {
+    if (!(0, import_foottrace2.isCommitBundle)(rows[index])) return false;
+  }
+  return true;
+}
+function prepareTraceSource(selection, targetRuntimeStageId, beforeCommitIdx) {
+  const refused = (reason, message) => ({ status: "unavailable", sourceId: selection.sourceId, reason, message });
+  const input = adaptFlowRecord(selection);
+  if (input.status === "refused") return refused("source", input.message);
+  const raw = input.source.commitLog ?? input.source.history;
+  if (!raw) return refused("source", "The selected source has no recorded log.");
+  let before = beforeCommitIdx;
+  if (before === void 0) {
+    try {
+      const stop = (0, import_foottrace2.timeTravel)(input.source).stops.find((row) => row.kind !== "start" && row.kind !== "end" && row.runtimeStageId === targetRuntimeStageId);
+      if (!stop) return refused("boundary", "No exact recorded position is available for the selected stage.");
+      before = stop.lastCommitIdx + 1;
+    } catch {
+      return refused("boundary", "The selected stage has no readable canonical boundary.");
+    }
+  }
+  if (!Number.isSafeInteger(before) || before < 0 || before > raw.length) {
+    return refused("boundary", "The selected boundary is not an exact position in this source.");
+  }
+  const log = raw.slice(0, before);
+  if (!isReadablePrefix(log)) {
+    return refused("log-gap", "Causal tracing is unavailable: the selected prefix contains an unreadable record row. Row positions have not been changed.");
+  }
+  let reads;
+  try {
+    reads = input.evidence.reads.status === "supplied" ? input.evidence.reads.source : input.source.executionTree === void 0 ? { kind: "unknown", lookup: () => [] } : (0, import_foottrace2.keysReadFromExecutionTree)(input.source.executionTree);
+  } catch (error) {
+    return refused("reads", error instanceof Error ? error.message : "The selected source's read evidence is unreadable.");
+  }
+  try {
+    const fold = (0, import_foottrace2.stateAt)({ commitLog: log, ...input.source.initialState !== void 0 && { initialState: input.source.initialState } }, before - 1);
+    return { status: "available", sourceId: input.sourceId, beforeCommitIdx: before, log, reads, fold };
+  } catch {
+    return refused("reader", "Foottrace could not read this source at the selected boundary.");
+  }
+}
+
+// src/components/ExplainableShell/_internal/dataTrace.ts
+function unavailableDataTrace(note) {
+  return { status: "unavailable", frames: [], readsAvailable: false, note };
+}
+function buildSelectedDataTrace(selection, targetRuntimeStageId, options = {}) {
+  const maxDepth = options.maxDepth ?? 10;
+  const maxFrames = options.maxFrames ?? 50;
+  if (!Number.isSafeInteger(maxDepth) || maxDepth < 0 || !Number.isSafeInteger(maxFrames) || maxFrames < 1) {
+    return unavailableDataTrace("Causal tracing needs a nonnegative depth and a positive frame limit.");
+  }
+  const source = prepareTraceSource(selection, targetRuntimeStageId, options.beforeCommitIdx);
+  if (source.status === "unavailable") return unavailableDataTrace(source.message);
+  try {
+    let observedReads = false;
+    const root = (0, import_foottrace3.causalChain)(source.log, targetRuntimeStageId, (id) => {
+      const keys = source.reads.lookup(id);
+      observedReads || (observedReads = keys.length > 0);
+      return keys;
+    }, { maxDepth, maxNodes: maxFrames, edgeAttribution: "stage" });
+    const nodes = root ? (0, import_foottrace3.flattenCausalDAG)(root) : [];
+    const readsAvailable = observedReads || (source.reads.coverage?.stepsWithReads ?? 0) > 0 || nodes.some((node) => node.parentEdges.some((edge) => edge.kind === "data") || (node.preRunReads?.keys.length ?? 0) > 0);
+    const notes = ["Recorded stage-level dependencies; read capture may be incomplete."];
+    if (!source.reads.coverage) notes.push("Read coverage is unknown; the supplied lookup does not establish complete capture.");
+    if (!readsAvailable) notes.push("Read coverage is unknown or no read keys were recorded; missing edges do not prove independence.");
+    if (!root) notes.push("The selected stage is not present in this source prefix.");
+    if (root?.truncated?.byDepth) notes.push("The depth limit cut the explanation short.");
+    if (root?.truncated?.byNodes) notes.push("The frame limit cut the explanation short.");
+    if (nodes.some((node) => node.incompleteSources?.length)) notes.push("Some consumed sources were not tracked.");
+    if (nodes.some((node) => node.preRunReads?.keys.length)) notes.push("Some reads have no earlier recorded writer; their origin is not proven by this log.");
+    const nestedEdges = nodes.flatMap((node) => node.parentEdges.filter((edge) => edge.basis === "nested-rows").map((edge) => ({ from: node.runtimeStageId, to: edge.parent.runtimeStageId, ...edge.key !== void 0 && { key: edge.key } })));
+    if (nestedEdges.length) notes.push("Some writers changed only nested parts of a value.");
+    if (source.fold.redacted) notes.push("Recorded values were redacted; the explanation may omit hidden evidence.");
+    return {
+      status: root ? "available" : "not-recorded",
+      frames: nodes.map(({ runtimeStageId, stageId, stageName, keysWritten, linkedBy, depth }) => ({
+        runtimeStageId,
+        stageId: typeof stageId === "string" ? stageId : runtimeStageId,
+        stageName: typeof stageName === "string" ? stageName : runtimeStageId,
+        keysWritten,
+        linkedBy,
+        depth
+      })),
+      readsAvailable,
+      note: notes.join(" "),
+      evidence: {
+        sourceId: source.sourceId,
+        beforeCommitIdx: source.beforeCommitIdx,
+        readsKind: source.reads.kind,
+        ...root && { root },
+        ...source.reads.coverage !== void 0 && { readsCoverage: source.reads.coverage },
+        ...root?.truncated !== void 0 && { truncated: root.truncated },
+        nodes: nodes.map(({ runtimeStageId, incompleteSources, preRunReads }) => ({ runtimeStageId, ...incompleteSources && { incompleteSources }, ...preRunReads && { preRunReads } })),
+        nestedEdges,
+        redactedPaths: source.fold.redactedPaths
+      }
+    };
+  } catch {
+    return unavailableDataTrace("Foottrace could not explain the selected source prefix.");
+  }
 }
 function buildDataTrace(commitLog, executionTree, targetRuntimeStageId, maxDepth = 10, maxFrames = 50) {
-  const log = commitLog ?? [];
-  const reads = readsByStep(executionTree);
-  const readsAvailable = reads.size > 0;
-  if (!log.length) return { frames: [], readsAvailable };
-  const idxOf = /* @__PURE__ */ new Map();
-  for (let i = 0; i < log.length; i++) idxOf.set(log[i].runtimeStageId, i);
-  const startIdx = idxOf.get(targetRuntimeStageId);
-  if (startIdx === void 0) return { frames: [], readsAvailable };
-  const tracedPaths = (entry) => entry.trace ?? [];
-  const findLastWriter = (key, beforeIdx) => {
-    for (let i = beforeIdx - 1; i >= 0; i--) {
-      if (tracedPaths(log[i]).some((t) => t.path === key)) return i;
-    }
-    return -1;
-  };
-  const frames = [];
-  const visited = /* @__PURE__ */ new Set();
-  const queue = [[startIdx, 0, ""]];
-  while (queue.length > 0 && frames.length < maxFrames) {
-    const [idx, depth, linkedBy] = queue.shift();
-    const commit = log[idx];
-    if (visited.has(commit.runtimeStageId)) continue;
-    visited.add(commit.runtimeStageId);
-    frames.push({
-      runtimeStageId: commit.runtimeStageId,
-      stageId: commit.stageId,
-      stageName: commit.stage,
-      keysWritten: tracedPaths(commit).map((t) => t.path),
-      linkedBy,
-      depth
-    });
-    if (depth >= maxDepth) continue;
-    for (const key of reads.get(commit.runtimeStageId) ?? []) {
-      const writerIdx = findLastWriter(key, idx);
-      if (writerIdx >= 0 && !visited.has(log[writerIdx].runtimeStageId)) {
-        queue.push([writerIdx, depth + 1, key]);
-      }
-    }
-  }
-  return { frames, readsAvailable };
+  return buildSelectedDataTrace(
+    { sourceId: "flow:record", format: "snapshot", record: { commitLog, executionTree }, reads: { status: "unknown" } },
+    targetRuntimeStageId,
+    { beforeCommitIdx: commitLog.length, maxDepth, maxFrames }
+  );
 }
 
 // src/components/ExplainableShell/_internal/traceWalk.ts
@@ -3399,7 +3536,7 @@ var DataTracePanel = (0, import_react12.memo)(function DataTracePanel2({
               children: "Backward causal chain"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: sx({ color: theme.textSecondary, marginBottom: 10 }), children: "Trace any value back to the stage that created it \u2014 and everything upstream that influenced it." }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: sx({ color: theme.textSecondary, marginBottom: 10 }), children: "Inspect recorded dependencies and the evidence available for a selected stage." }),
           noteLine,
           /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: sx({ color: theme.textMuted, fontSize: fs.body }), children: "Select a stage above to see its dependency chain." })
         ]
@@ -3440,7 +3577,7 @@ var DataTracePanel = (0, import_react12.memo)(function DataTracePanel2({
                 fontStyle: "italic",
                 marginTop: 3
               }),
-              children: "Every value here was derived from the stages below."
+              children: "Recorded dependencies for this stage. Missing evidence may limit the explanation."
             }
           )
         ] }),
@@ -3511,7 +3648,7 @@ var DataTraceFrame = (0, import_react12.memo)(function DataTraceFrame2({
                 color: theme.textMuted,
                 fontStyle: "italic"
               }),
-              children: "(origin)"
+              children: "(last displayed frame)"
             }
           )
         ] }),
@@ -3627,89 +3764,7 @@ function extractSubflowNarrative(entries, subflowId, subflowName) {
 }
 
 // src/adapters/recordState.ts
-var import_foottrace2 = require("foottrace");
-
-// src/adapters/recordInput/index.ts
-function isRecord(value) {
-  if (typeof value !== "object" || value === null || Array.isArray(value))
-    return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-function adaptFlowRecord(input) {
-  if (typeof input.sourceId !== "string" || !input.sourceId.trim()) {
-    return {
-      status: "refused",
-      code: "invalid-source-id",
-      message: "Select and label one recorded source."
-    };
-  }
-  if (input.format !== "snapshot" && input.format !== "subtree" && input.format !== "tree-context") {
-    return {
-      status: "refused",
-      code: "unsupported-format",
-      message: "Select a snapshot, subtree, or tree-context envelope explicitly."
-    };
-  }
-  if (!isRecord(input.record)) {
-    return {
-      status: "refused",
-      code: "invalid-record",
-      message: "The selected recording must be a plain source object."
-    };
-  }
-  const field = input.format === "snapshot" ? "commitLog" : "history";
-  const log = input.record[field];
-  if (log === void 0) {
-    return {
-      status: "refused",
-      code: "missing-log",
-      message: `The selected source has no ${field}; stageWrites alone cannot reconstruct its record.`
-    };
-  }
-  if (!Array.isArray(log)) {
-    return {
-      status: "refused",
-      code: "invalid-log",
-      message: `The selected source's ${field} must be an array.`
-    };
-  }
-  const base = input.record.initialState;
-  if (base !== void 0 && !isRecord(base)) {
-    return {
-      status: "refused",
-      code: "invalid-base",
-      message: "The recorded initialState must be a plain state object or absent."
-    };
-  }
-  if (!input.reads || input.reads.status !== "unknown" && input.reads.status !== "supplied" || input.reads.status === "supplied" && (!input.reads.source || typeof input.reads.source.kind !== "string" || typeof input.reads.source.lookup !== "function")) {
-    return {
-      status: "refused",
-      code: "invalid-read-evidence",
-      message: "Declare reads unknown or supply this source's KeysReadSource explicitly."
-    };
-  }
-  const tree = input.format === "tree-context" ? input.record.stageContexts : input.record.executionTree;
-  const source = {
-    ...field === "commitLog" ? { commitLog: log } : { history: log },
-    ...base !== void 0 && { initialState: base },
-    ...tree !== void 0 && { executionTree: tree },
-    ...input.record.subflowResults !== void 0 && {
-      subflowResults: input.record.subflowResults
-    }
-  };
-  return {
-    status: "accepted",
-    sourceId: input.sourceId,
-    source,
-    evidence: {
-      base: base === void 0 ? "missing" : "recorded",
-      reads: input.reads
-    }
-  };
-}
-
-// src/adapters/recordState.ts
+var import_foottrace4 = require("foottrace");
 function createRecordStateReader(selection) {
   const input = adaptFlowRecord(selection);
   if (input.status === "refused") {
@@ -3722,7 +3777,7 @@ function createRecordStateReader(selection) {
   }
   let cursor;
   try {
-    cursor = (0, import_foottrace2.timeTravel)(input.source);
+    cursor = (0, import_foottrace4.timeTravel)(input.source);
   } catch {
     return () => ({
       status: "unavailable",
@@ -3754,7 +3809,7 @@ function createRecordStateReader(selection) {
         status: "available",
         sourceId: selection.sourceId,
         stop: position.stop,
-        previous: position.previous ? cursor.stateAt(position.previous) : (0, import_foottrace2.stateAt)(input.source, -1),
+        previous: position.previous ? cursor.stateAt(position.previous) : (0, import_foottrace4.stateAt)(input.source, -1),
         current: cursor.stateAt(position.stop)
       };
     } catch {
@@ -8075,7 +8130,7 @@ var RightPanel = (0, import_react34.memo)(function RightPanel2({
         snapshots,
         selectedIndex,
         dataTraceFrames: dataTrace.frames,
-        dataTraceNote: dataTrace.readsAvailable ? void 0 : "\u26A0 reads were not recorded (readTracking off) \u2014 dependencies are unknowable, not absent.",
+        dataTraceNote: dataTrace.note,
         onTabChange: onInspectorTabChange,
         tab: inspectorTab,
         traceContent,
@@ -8299,16 +8354,29 @@ function ExplainableShell({
   }, [drillDownStack, snapshots]);
   const activeSnapshots = currentLevel.snapshots;
   const safeIdx = activeSnapshots.length > 0 ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1)) : 0;
-  const shellDataTrace = (0, import_react34.useMemo)(
-    () => runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "") : { frames: [], readsAvailable: true },
-    [runtimeSnapshot, activeSnapshots, safeIdx]
-  );
+  const shellDataTrace = (0, import_react34.useMemo)(() => {
+    if (isInSubflow) return unavailableDataTrace("Data Trace is not yet supported for this child source; the root recording is not used in its place.");
+    if (!runtimeSnapshot) return unavailableDataTrace("No recording was supplied for Data Trace.");
+    const selected = activeSnapshots[safeIdx];
+    if (!selected?.runtimeStageId) return unavailableDataTrace("Select a stage with an exact recorded position.");
+    const evidence = selected.recordState;
+    if (evidence?.status === "unavailable") return unavailableDataTrace(evidence.message);
+    if (evidence && (evidence.sourceId !== "flow:root" || evidence.stop.runtimeStageId !== selected.runtimeStageId)) {
+      return unavailableDataTrace("The selected position belongs to a different recorded source.");
+    }
+    return buildSelectedDataTrace(
+      { sourceId: "flow:root", format: "snapshot", record: runtimeSnapshot, reads: { status: "unknown" } },
+      selected.runtimeStageId,
+      evidence ? { beforeCommitIdx: evidence.stop.lastCommitIdx + 1 } : {}
+    );
+  }, [runtimeSnapshot, activeSnapshots, safeIdx, isInSubflow]);
   const allTracedKeys = (0, import_react34.useMemo)(() => {
     const log = runtimeSnapshot?.commitLog;
     if (!log?.length) return [];
     const seen = /* @__PURE__ */ new Set();
     const keys = [];
     for (const c of log) {
+      if (!(0, import_foottrace5.isCommitBundle)(c)) continue;
       for (const t of c.trace ?? []) {
         if (!seen.has(t.path)) {
           seen.add(t.path);
@@ -8661,7 +8729,7 @@ function ExplainableShell({
         DataTracePanel,
         {
           frames: shellDataTrace.frames,
-          note: shellDataTrace.readsAvailable ? void 0 : "\u26A0 reads were not recorded (readTracking off) \u2014 dependencies are unknowable, not absent.",
+          note: shellDataTrace.note,
           selectedStageId: activeSnapshots[safeIdx]?.runtimeStageId,
           onFrameClick: navigateToStage,
           fromStageName: activeSnapshots[safeIdx]?.stageName

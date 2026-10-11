@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { buildDataTrace } from "../../src/components/ExplainableShell/_internal/dataTrace";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
@@ -39,7 +40,7 @@ describe("M1 — immutable source evidence", () => {
   it("keeps planned corrections separate from preservation guarantees", () => {
     expect(corrections.map((row) => row.id)).toEqual(["R1", "R2", "R3", "R4"]);
     for (const row of corrections.filter((row) => row.id === "R2" || row.id === "R3")) {
-      expect(row.status).toBe("approved-pending-M4-M5");
+      expect(row.status).toBe("M4-implemented-unreleased-review-pending-M5-pending");
       expect(row.approval).toContain("Owner approved");
     }
     for (const row of corrections) {
@@ -178,9 +179,12 @@ describe("M1 — diagnostic observations, NOT approved future answers", () => {
         trace: [{ path: "x" }],
       },
     ];
-    expect(
-      buildTraceWalk(pathOnly, undefined, "x").stops[0].runtimeStageId
-    ).toBe("old#0");
+    // M1 observed an invented trace stop here. M4 now refuses the same
+    // untouched malformed input at the shared canonical boundary.
+    expect(buildDataTrace(pathOnly, undefined, "old#0")).toMatchObject({
+      status: "unavailable", frames: [],
+    });
+    expect(buildTraceWalk(pathOnly, undefined, "x").stops).toEqual([]);
     expect(pathOnly[0]).not.toHaveProperty("overwrite");
     expect(pathOnly[0].trace[0]).not.toHaveProperty("verb");
   });

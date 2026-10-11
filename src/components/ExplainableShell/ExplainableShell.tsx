@@ -12,9 +12,10 @@
  */
 import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
+import { isCommitBundle } from "foottrace";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme, themeModeVars } from "../../theme";
-import { buildDataTrace } from "./_internal/dataTrace";
+import { buildSelectedDataTrace, unavailableDataTrace, type DataTraceResult } from "./_internal/dataTrace";
 import { buildTraceWalk, type TraceIngredient, type TraceWalk } from "./_internal/traceWalk";
 import { TraceWalkCard } from "../DataTracePanel/TraceWalkCard";
 import { DataTracePanel } from "../DataTracePanel/DataTracePanel";
@@ -951,7 +952,7 @@ const RightPanel = memo(function RightPanel({
   onNavigateToStage: (id: string) => void;
   /** Precomputed backward slice for the Data Trace tab (lifted to the shell
    *  root so the chart's dependency cone shares the SAME frames). */
-  dataTrace: { frames: import("./_internal/dataTrace").DataTraceFrame[]; readsAvailable: boolean };
+  dataTrace: DataTraceResult;
   onInspectorTabChange?: (tab: "state" | "trace") => void;
   /** Controlled Inspector tab — the shell forces Data Trace open on tracing entry. */
   inspectorTab?: "state" | "trace";
@@ -1024,7 +1025,7 @@ const RightPanel = memo(function RightPanel({
             snapshots={snapshots}
             selectedIndex={selectedIndex}
             dataTraceFrames={dataTrace.frames}
-            dataTraceNote={dataTrace.readsAvailable ? undefined : '⚠ reads were not recorded (readTracking off) — dependencies are unknowable, not absent.'}
+            dataTraceNote={dataTrace.note}
             onTabChange={onInspectorTabChange}
             tab={inspectorTab}
             traceContent={traceContent}
@@ -1381,26 +1382,33 @@ export function ExplainableShell({
   // ONE backward slice, THREE consumers: the Data Trace tab (frames), its
   // honesty note, and the chart's dependency cone. Computed once per
   // (snapshot, cursor) so the panel and the chart can never disagree.
-  const shellDataTrace = useMemo(
-    () =>
-      runtimeSnapshot?.commitLog
-        ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "")
-        : { frames: [] as import("./_internal/dataTrace").DataTraceFrame[], readsAvailable: true },
-    [runtimeSnapshot, activeSnapshots, safeIdx],
-  );
+  const shellDataTrace = useMemo(() => {
+    if (isInSubflow) return unavailableDataTrace("Data Trace is not yet supported for this child source; the root recording is not used in its place.");
+    if (!runtimeSnapshot) return unavailableDataTrace("No recording was supplied for Data Trace.");
+    const selected = activeSnapshots[safeIdx];
+    if (!selected?.runtimeStageId) return unavailableDataTrace("Select a stage with an exact recorded position.");
+    const evidence = selected.recordState;
+    if (evidence?.status === "unavailable") return unavailableDataTrace(evidence.message);
+    if (evidence && (evidence.sourceId !== "flow:root" || evidence.stop.runtimeStageId !== selected.runtimeStageId)) {
+      return unavailableDataTrace("The selected position belongs to a different recorded source.");
+    }
+    return buildSelectedDataTrace({ sourceId: "flow:root", format: "snapshot", record: runtimeSnapshot, reads: { status: "unknown" } }, selected.runtimeStageId,
+      evidence ? { beforeCommitIdx: evidence.stop.lastCommitIdx + 1 } : {});
+  }, [runtimeSnapshot, activeSnapshots, safeIdx, isInSubflow]);
 
   // F1: every key the RUN ever wrote, in first-write order — so the user can
   // ask "why is X this value?" from anywhere, not only at X's writer stage.
   // handleStartTracing already answers honestly for keys not yet written at
   // the cursor (the 'not-yet-written' card), so no special-casing here.
   const allTracedKeys = useMemo<string[]>(() => {
-    const log = runtimeSnapshot?.commitLog as
-      | Array<{ trace?: Array<{ path: string }> }>
-      | undefined;
+    const log = runtimeSnapshot?.commitLog;
     if (!log?.length) return [];
     const seen = new Set<string>();
     const keys: string[] = [];
     for (const c of log) {
+      // The picker is an inventory, not a causal query. An unreadable future
+      // row must not crash inspection of an earlier, independently bounded stop.
+      if (!isCommitBundle(c)) continue;
       for (const t of c.trace ?? []) {
         if (!seen.has(t.path)) {
           seen.add(t.path);
@@ -1868,7 +1876,7 @@ export function ExplainableShell({
         )}
         <DataTracePanel
           frames={shellDataTrace.frames}
-          note={shellDataTrace.readsAvailable ? undefined : "⚠ reads were not recorded (readTracking off) — dependencies are unknowable, not absent."}
+          note={shellDataTrace.note}
           selectedStageId={activeSnapshots[safeIdx]?.runtimeStageId}
           onFrameClick={navigateToStage}
           fromStageName={activeSnapshots[safeIdx]?.stageName}

@@ -49,7 +49,10 @@ function makeRuntimeSnapshot() {
     stage: st.name,
     stageId: st.name.toLowerCase(),
     runtimeStageId: st.rsid,
-    trace: st.writes.map((path) => ({ path })),
+    overwrite: Object.fromEntries(st.writes.map(path => [path, 1])),
+    updates: {},
+    redactedPaths: [],
+    trace: st.writes.map((path) => ({ path, verb: "set" })),
   }));
   let tree: Record<string, unknown> | undefined;
   for (let i = STAGES.length - 1; i >= 0; i--) {
@@ -100,7 +103,7 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
       ...snapshot,
       recordState: {
         status: "available",
-        sourceId: "ui-fixture",
+        sourceId: "flow:root",
         stop: { step: index + 1, runtimeStageId: snapshot.runtimeStageId!, stageId: snapshot.stageName, label: snapshot.stageLabel, kind: "commit", commitIdx: index, lastCommitIdx: index },
         current: { state: snapshot.memory, basis: qualification === "current" ? "log-only" : "initial+log", redacted: false, redactedPaths: [], throughCommitIdx: index },
         previous: { state: {}, basis: qualification === "previous" ? "log-only" : "initial+log", redacted: false, redactedPaths: [], throughCommitIdx: index - 1 },
