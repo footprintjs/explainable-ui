@@ -38,13 +38,23 @@ describe("M1 — immutable source evidence", () => {
 
   it("keeps planned corrections separate from preservation guarantees", () => {
     expect(corrections.map((row) => row.id)).toEqual(["R1", "R2", "R3", "R4"]);
-    for (const row of corrections) {
+    for (const row of corrections.filter((row) => row.id !== "R4")) {
       expect(row.status).toBe("requires-owning-layer-review");
+    }
+    for (const row of corrections) {
       expect(row.approval).toBeNull();
       expect(row.observedIsCorrectnessOracle).toBe(false);
       expect(row.recordGroundedRequirement.length).toBeGreaterThan(0);
       expect(row.owner.length).toBeGreaterThan(0);
     }
+    expect(corrections.find((row) => row.id === "R4")).toMatchObject({
+      status: "foottrace-1.0.1-adoption-prepared",
+      readerVersion: "1.0.1",
+      owner:
+        "Foottrace causalChain read-anchor rule; old Footprint 9 embedded reader maintenance separately",
+      testedExpectation: expect.stringContaining("neither may report A-to-B"),
+      publicVerification: expect.stringContaining("required before merge"),
+    });
   });
 });
 

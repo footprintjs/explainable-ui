@@ -3,7 +3,7 @@
 This is an experimental source module, **not a published entry point**. Existing
 `footprint-explainable-ui` imports, required peers, runtime dependencies and Node
 support are unchanged. There is no installable `footprint-explainable-ui/record`
-export yet. The pilot runs on Node 22+ with Foottrace 1.0.0 as a development-only
+export yet. The pilot runs on Node 22+ with Foottrace 1.0.1 as a development-only
 dependency; choosing a supported public package contract requires a separate review.
 
 ## Boundary
