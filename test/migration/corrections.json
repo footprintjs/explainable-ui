@@ -1,0 +1,84 @@
+[
+  {
+    "id": "R1",
+    "status": "requires-owning-layer-review",
+    "approval": null,
+    "observedIsCorrectnessOracle": false,
+    "affectedPublicFunctions": [
+      "toVisualizationSnapshots",
+      "createSnapshots",
+      "subflowResultToSnapshots",
+      "mergeWritePatch"
+    ],
+    "fixtures": [
+      "legacy-inputs.ts",
+      "golden/*.json",
+      "pilot flow.json",
+      "pilot hci.json"
+    ],
+    "observed": "Current Flow replay begins at an empty object, deletes set(undefined), replaces arrays on merge and applies unknown verbs as set. Legacy stageWrites-only projections are also accepted. The actual FP10 fork fixture displays Join with runs.b.x=1 and no runs.a.y, although the actual final record is runs.b.x=9 and runs.a.y=2: branch traversal discards the merged final state.",
+    "recordGroundedRequirement": "Supported canonical records retain their actual base, exact ordered verb semantics and qualified gaps. A legacy record must not be guessed into a newer schema; settle its supported-input policy before replacement.",
+    "owner": "Foottrace folding and safe paths; Flow format adapter and honest presentation",
+    "consumerImpact": "Preserve every public name, including mergeWritePatch. Canonical record replacement is not permission to silently change that public object's-merge contract.",
+    "releaseNoteDraft": "Pending review: document supported input formats and each approved state reconstruction correction. No correction is implemented by M1."
+  },
+  {
+    "id": "R2",
+    "status": "requires-owning-layer-review",
+    "approval": null,
+    "observedIsCorrectnessOracle": false,
+    "affectedPublicFunctions": ["buildTraceWalk", "ExplainableShell"],
+    "fixtures": [
+      "causal-phases/runtime-snapshot-10.0.0.json",
+      "pilot flow.json"
+    ],
+    "observed": "On the real fork recording, buildTraceWalk with exclusive cutoff2 assigns A commitIdx3 (its empty repeat), although the own write is row1. The shell's first-match boundary and the walk's full-log last-match index are not interchangeable with the selected stop.",
+    "recordGroundedRequirement": "Keep source-local row and selected cutoff exact. A later continuation must not relocate an earlier write or admit a future cause. A whole-record first-write hint must be labelled separately.",
+    "owner": "Flow cutoff/source adapter; Foottrace source-local addresses and causal readers",
+    "consumerImpact": "Keep existing callback and public helper names; explicitly review any changed historical explanation.",
+    "releaseNoteDraft": "Pending review: historical questions use their actual selected source boundary, not a later row with the same stage ID."
+  },
+  {
+    "id": "R3",
+    "status": "requires-owning-layer-review",
+    "approval": null,
+    "observedIsCorrectnessOracle": false,
+    "affectedPublicFunctions": [
+      "buildTraceWalk",
+      "formatTraceWalk",
+      "DataTracePanel",
+      "TraceWalkCard"
+    ],
+    "fixtures": [
+      "legacy-inputs.ts",
+      "existing traceWalk.test.ts path-only fixtures",
+      "pilot flow.json",
+      "pilot hci.json"
+    ],
+    "observed": "The old reader matches path text exactly, infers global read availability and describes a missing writer as a run input.",
+    "recordGroundedRequirement": "A missing writer is not proof of an input. Missing reads remain unknown; canonical path relationships, redaction and truncation qualifications survive display projection.",
+    "owner": "Foottrace slices and formatSlice; Flow labels and navigation projections",
+    "consumerImpact": "Keep ingredient chips, controlled navigation and copy/display agreement without preserving an unproved causal sentence.",
+    "releaseNoteDraft": "Pending review: missing evidence is stated as unknown rather than presented as a known input or independence."
+  },
+  {
+    "id": "R4",
+    "status": "requires-owning-layer-review",
+    "approval": null,
+    "observedIsCorrectnessOracle": false,
+    "affectedPublicFunctions": [
+      "Foottrace causalChain",
+      "Foottrace sliceForKey",
+      "RecordLens canonical provenance"
+    ],
+    "fixtures": [
+      "causal-phases/interleaved-fork-10.0.0.json",
+      "causal-phases/runtime-snapshot-10.0.0.json"
+    ],
+    "observed": "Foottrace 1.0.0 anchors an earlier write at its later empty repeat row, so full-record provenance may name B even though A read Seed's value before B ran.",
+    "recordGroundedRequirement": "A read of 1 before B writes 9 cannot depend on B. Keep the real producer rows unchanged and fix occurrence-specific read anchoring upstream before M4/M5.",
+    "owner": "Foottrace causalChain read-anchor rule; old Footprint 9 embedded reader maintenance separately",
+    "consumerImpact": "M4/M5 remain blocked on reviewed upstream correctness. A diagnostic that reproduces the bug is not a passing correctness test.",
+    "releaseNoteDraft": "Pending upstream review: causal parents are anchored at the read's actual recorded occurrence, not a later continuation of the same stage."
+  }
+]
