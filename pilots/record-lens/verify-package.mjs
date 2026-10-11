@@ -247,7 +247,7 @@ function verifyNormalPackage() {
   );
   assert.deepEqual(manifest.files, ["dist"]);
   assert.deepEqual(manifest.engines, { node: ">=22" });
-  assert.deepEqual(manifest.dependencies, { dagre: "^0.8.5", foottrace: "^1.0.1" });
+  assert.deepEqual(manifest.dependencies, { dagre: "^0.8.5", foottrace: "^1.0.3" });
   assert.deepEqual(manifest.peerDependencies, {
     "@xyflow/react": "^12.0.0",
     react: ">=18.0.0",
@@ -346,7 +346,7 @@ try {
   );
   assert.match(versions.foottrace, /^1\.\d+\.\d+$/);
   const [, readerMinor, readerPatch] = versions.foottrace.split(".").map(Number);
-  assert(readerMinor > 0 || readerPatch >= 1, "Foottrace must satisfy the supported ^1.0.1 runtime range");
+  assert(readerMinor > 0 || readerPatch >= 3, "Foottrace must satisfy the supported ^1.0.3 runtime range");
   const fixtureDirectory = join(repo, "pilots/record-lens/fixtures");
   const fixtureHashes = json(
     join(fixtureDirectory, "provenance.json")

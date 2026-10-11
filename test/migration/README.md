@@ -1,5 +1,9 @@
 # M1: behavior and public-contract evidence
 
+The unreleased M4 Data Trace implementation, using the corrected public
+Foottrace 1.0.3 reader and awaiting its own final review, is recorded
+in [M4-CANONICAL-DATA-TRACE.md](./M4-CANONICAL-DATA-TRACE.md).
+
 For the approved, unpublished-major canonical state replacement, see
 [M3-STATE-MIGRATION.md](./M3-STATE-MIGRATION.md). This document retains the M1
 historical context; the current branch's production/test runtime is Node 22+.
@@ -30,10 +34,10 @@ The old tree-based view instead shows Join with Seed's `x = 1`. R1 asserts both
 facts and their disagreement. R2 similarly distinguishes A's own row 1 from the
 old historical label pointing at empty repeat row 3. R4 retains the historical
 Foottrace 1.0.0 defect observation in the ledger, while its regression now
-requires the corrected answer from the 1.0.1 development reader. The producer
-fixtures and their version metadata remain unchanged. No Lens workaround or
-production migration is introduced; public-package validation is required
-before merging the prepared development dependency update.
+requires the corrected answer first adopted from the public 1.0.1 reader.
+The current M4 branch uses public 1.0.3, including its saved-tree and saved-path
+validation fixes. The producer fixtures and their version metadata remain
+unchanged; no Lens workaround duplicates those owning-library rules.
 
 ## Evidence inventory
 
@@ -94,7 +98,7 @@ unknown-read qualification preserve that distinction for the later adapter.
 
 ## Run
 
-Current Node 22/24 suite (M3 delegates state interpretation to Foottrace):
+Current Node 22/24 suite (M3 delegates state and M4 stage causality to Foottrace):
 
 ```sh
 npm run build

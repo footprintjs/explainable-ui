@@ -6,9 +6,7 @@
  *
  * Like Chrome DevTools' Call Stack — click a frame to navigate there.
  *
- * The frames come from a LOCAL mirror of footprintjs' causalChain walk
- * (ExplainableShell/_internal/dataTrace.ts — real read→write BFS over the
- * snapshot's commitLog + executionTree reads; eui never imports footprintjs).
+ * The frames project Foottrace's canonical stage-level causal query.
  * `note` renders an honesty line (e.g. "reads were not recorded") so an
  * edge-less trace is never mistaken for independence.
  */
@@ -90,8 +88,7 @@ export const DataTracePanel = memo(function DataTracePanel({
           Backward causal chain
         </div>
         <div style={sx({ color: theme.textSecondary, marginBottom: 10 })}>
-          Trace any value back to the stage that created it — and everything upstream that
-          influenced it.
+          Inspect recorded dependencies and the evidence available for a selected stage.
         </div>
         {noteLine}
         <div style={sx({ color: theme.textMuted, fontSize: fs.body })}>
@@ -129,7 +126,7 @@ export const DataTracePanel = memo(function DataTracePanel({
               marginTop: 3,
             })}
           >
-            Every value here was derived from the stages below.
+            Recorded dependencies for this stage. Missing evidence may limit the explanation.
           </div>
         </div>
       )}
@@ -216,7 +213,7 @@ const DataTraceFrame = memo(function DataTraceFrame({
               fontStyle: "italic",
             })}
           >
-            (origin)
+            (last displayed frame)
           </span>
         )}
       </div>

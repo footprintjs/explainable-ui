@@ -26,7 +26,10 @@ const commit = (stage: string, rsid: string, writes: string[]) => ({
   stage,
   stageId: stage.toLowerCase(),
   runtimeStageId: rsid,
-  trace: writes.map((path) => ({ path })),
+  overwrite: Object.fromEntries(writes.map(path => [path, 1])),
+  updates: {},
+  redactedPaths: [],
+  trace: writes.map((path) => ({ path, verb: "set" })),
 });
 const LOG = [
   commit("Seed", "seed#0", ["rate", "items"]),

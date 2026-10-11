@@ -105,6 +105,6 @@
   ],
   "dependencies": {
     "dagre": "^0.8.5",
-    "foottrace": "^1.0.1"
+    "foottrace": "^1.0.3"
   }
 }

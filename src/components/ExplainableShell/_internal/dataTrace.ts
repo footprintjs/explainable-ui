@@ -1,145 +1,100 @@
-/**
- * dataTrace — the REAL backward data slice behind the shell's "Data Trace"
- * tab, mirroring footprintjs' `causalChain` (thin backward slicing: BFS over
- * read→write dependencies) WITHOUT importing footprintjs — eui deliberately
- * consumes snapshot SHAPES, never the engine (its only dependency is dagre).
- *
- * WHY a mirror and not the import: eui renders snapshots from ANY footprintjs
- * version (and stored/offline traces); a runtime dependency would couple the
- * two release lines. The algorithm is small and the shapes are stable — the
- * commit log's `trace[].path` (writes) and the execution tree's `stageReads`
- * keys (reads) are all it needs. Parity note: this mirror expands each stage
- * through ALL its reads (fp's 'stage' attribution — the safe ceiling); fp's
- * per-write refinement ('per-write') stays engine-side.
- *
- * HISTORY (why this file exists): the previous inline implementation walked
- * the commit log LINEARLY backwards (`idx--`) and labeled each hop with the
- * commit's own first written path — chronology dressed as causality. On any
- * fan-in/diamond it named the wrong parent. This is the true walk.
- *
- * HONESTY: when the snapshot carries no read tracking (`readTracking: 'off'`),
- * read→write edges are UNKNOWABLE — the trace returns just the target frame
- * plus `readsAvailable: false` so the panel can say "reads not recorded"
- * instead of implying independence.
- */
+/** Data Trace projects Foottrace's stage-level query; it owns no causal algorithm. */
+import { causalChain, flattenCausalDAG } from "foottrace";
+import type { CausalNode, ReadsCoverage } from "foottrace";
+import { prepareTraceSource } from "../../../adapters/recordInput/traceSource";
+import type { FlowRecordSelection } from "../../../adapters/recordInput";
 
-/** The frame shape DataTracePanel renders (unchanged public contract). */
+/** The established panel/callback shape, unchanged. */
 export interface DataTraceFrame {
   runtimeStageId: string;
   stageId: string;
   stageName: string;
   keysWritten: string[];
-  /** The read key whose write linked this frame to its child ('' = target). */
   linkedBy: string;
   depth: number;
 }
-
 export interface DataTraceResult {
   frames: DataTraceFrame[];
-  /** False when NO step in the tree recorded reads — edges unknowable. */
+  /** Some read keys were observed; NEVER a guarantee of complete capture. */
   readsAvailable: boolean;
-}
-
-/** Duck-typed commit bundle (the stable snapshot shape). */
-interface CommitEntry {
-  stage: string;
-  stageId: string;
-  runtimeStageId: string;
-  /** Optional: present on every bundle the current engine writes, absent on
-   *  older or hand-assembled recordings. See `tracedPaths`. */
-  trace?: Array<{ path: string }>;
-}
-
-/** Duck-typed execution-tree node (stageReads keys are the read record). */
-interface TreeNode {
-  runtimeStageId?: string;
-  stageReads?: Record<string, unknown>;
-  next?: TreeNode;
-  children?: TreeNode[];
-}
-
-/** Collect per-step read keys from the execution tree (visited-set safe). */
-function readsByStep(tree: TreeNode | undefined): Map<string, string[]> {
-  const byStep = new Map<string, string[]>();
-  if (!tree) return byStep;
-  const visited = new Set<TreeNode>();
-  const stack: TreeNode[] = [tree];
-  while (stack.length > 0) {
-    const node = stack.pop()!;
-    if (visited.has(node)) continue;
-    visited.add(node);
-    if (node.runtimeStageId && node.stageReads) {
-      const keys = Object.keys(node.stageReads);
-      if (keys.length > 0) byStep.set(node.runtimeStageId, keys);
-    }
-    if (node.next) stack.push(node.next);
-    if (node.children) for (const c of node.children) stack.push(c);
-  }
-  return byStep;
-}
-
-/**
- * Backward slice from `targetRuntimeStageId`: BFS where each step links to
- * the LAST prior writer of each key it read (the causalChain walk). Frames
- * come back in BFS order, deduped, budget-bounded.
- */
-export function buildDataTrace(
-  commitLog: unknown[],
-  executionTree: unknown,
-  targetRuntimeStageId: string,
-  maxDepth = 10,
-  maxFrames = 50,
-): DataTraceResult {
-  const log = (commitLog ?? []) as CommitEntry[];
-  const reads = readsByStep(executionTree as TreeNode | undefined);
-  const readsAvailable = reads.size > 0;
-  if (!log.length) return { frames: [], readsAvailable };
-
-  const idxOf = new Map<string, number>();
-  for (let i = 0; i < log.length; i++) idxOf.set(log[i].runtimeStageId, i);
-  const startIdx = idxOf.get(targetRuntimeStageId);
-  if (startIdx === undefined) return { frames: [], readsAvailable };
-
-  // `trace` is what the engine records per commit; a bundle that arrives
-  // without it (an older engine, a hand-assembled recording) means "wrote
-  // nothing traceable", not "crash the whole shell".
-  const tracedPaths = (entry: CommitEntry): { path: string }[] => entry.trace ?? [];
-
-  const findLastWriter = (key: string, beforeIdx: number): number => {
-    for (let i = beforeIdx - 1; i >= 0; i--) {
-      if (tracedPaths(log[i]).some((t) => t.path === key)) return i;
-    }
-    return -1;
+  status: "available" | "unavailable" | "not-recorded";
+  note: string;
+  evidence?: {
+    sourceId: string;
+    beforeCommitIdx: number;
+    readsKind: string;
+    readsCoverage?: ReadsCoverage;
+    /** Original canonical DAG, including every edge qualifier; not JSON-safe. */
+    root?: CausalNode;
+    truncated?: CausalNode["truncated"];
+    nodes: Pick<CausalNode, "runtimeStageId" | "incompleteSources" | "preRunReads">[];
+    nestedEdges: { from: string; to: string; key?: string }[];
+    redactedPaths: readonly string[];
   };
+}
+export function unavailableDataTrace(note: string): DataTraceResult {
+  return { status: "unavailable", frames: [], readsAvailable: false, note };
+}
 
-  const frames: DataTraceFrame[] = [];
-  const visited = new Set<string>();
-  // BFS queue: [commit array idx, depth, the read key that linked it]
-  const queue: Array<[number, number, string]> = [[startIdx, 0, ""]];
-
-  while (queue.length > 0 && frames.length < maxFrames) {
-    const [idx, depth, linkedBy] = queue.shift()!;
-    const commit = log[idx];
-    if (visited.has(commit.runtimeStageId)) continue;
-    visited.add(commit.runtimeStageId);
-
-    frames.push({
-      runtimeStageId: commit.runtimeStageId,
-      stageId: commit.stageId,
-      stageName: commit.stage,
-      keysWritten: tracedPaths(commit).map((t) => t.path),
-      linkedBy,
-      depth,
-    });
-
-    if (depth >= maxDepth) continue;
-    for (const key of reads.get(commit.runtimeStageId) ?? []) {
-      const writerIdx = findLastWriter(key, idx);
-      if (writerIdx >= 0 && !visited.has(log[writerIdx].runtimeStageId)) {
-        queue.push([writerIdx, depth + 1, key]);
-      }
-    }
+/** The host selects one source and one canonical, exclusive boundary. */
+export function buildSelectedDataTrace(
+  selection: FlowRecordSelection,
+  targetRuntimeStageId: string,
+  options: { beforeCommitIdx?: number; maxDepth?: number; maxFrames?: number } = {},
+): DataTraceResult {
+  const maxDepth = options.maxDepth ?? 10;
+  const maxFrames = options.maxFrames ?? 50;
+  if (!Number.isSafeInteger(maxDepth) || maxDepth < 0 || !Number.isSafeInteger(maxFrames) || maxFrames < 1) {
+    return unavailableDataTrace("Causal tracing needs a nonnegative depth and a positive frame limit.");
   }
+  const source = prepareTraceSource(selection, targetRuntimeStageId, options.beforeCommitIdx);
+  if (source.status === "unavailable") return unavailableDataTrace(source.message);
+  try {
+    let observedReads = false;
+    const root = causalChain(source.log, targetRuntimeStageId, id => {
+      const keys = source.reads.lookup(id);
+      observedReads ||= keys.length > 0;
+      return keys;
+    }, { maxDepth, maxNodes: maxFrames, edgeAttribution: "stage" });
+    const nodes = root ? flattenCausalDAG(root) : [];
+    const readsAvailable = observedReads || (source.reads.coverage?.stepsWithReads ?? 0) > 0 ||
+      nodes.some(node => node.parentEdges.some(edge => edge.kind === "data") || (node.preRunReads?.keys.length ?? 0) > 0);
+    const notes = ["Recorded stage-level dependencies; read capture may be incomplete."];
+    if (!source.reads.coverage) notes.push("Read coverage is unknown; the supplied lookup does not establish complete capture.");
+    if (!readsAvailable) notes.push("Read coverage is unknown or no read keys were recorded; missing edges do not prove independence.");
+    if (!root) notes.push("The selected stage is not present in this source prefix.");
+    if (root?.truncated?.byDepth) notes.push("The depth limit cut the explanation short.");
+    if (root?.truncated?.byNodes) notes.push("The frame limit cut the explanation short.");
+    if (nodes.some(node => node.incompleteSources?.length)) notes.push("Some consumed sources were not tracked.");
+    if (nodes.some(node => node.preRunReads?.keys.length)) notes.push("Some reads have no earlier recorded writer; their origin is not proven by this log.");
+    const nestedEdges = nodes.flatMap(node => node.parentEdges.filter(edge => edge.basis === "nested-rows").map(edge => ({ from: node.runtimeStageId, to: edge.parent.runtimeStageId, ...(edge.key !== undefined && { key: edge.key }) })));
+    if (nestedEdges.length) notes.push("Some writers changed only nested parts of a value.");
+    if (source.fold.redacted) notes.push("Recorded values were redacted; the explanation may omit hidden evidence.");
+    return {
+      status: root ? "available" : "not-recorded",
+      frames: nodes.map(({ runtimeStageId, stageId, stageName, keysWritten, linkedBy, depth }) => ({
+        runtimeStageId,
+        stageId: typeof stageId === "string" ? stageId : runtimeStageId,
+        stageName: typeof stageName === "string" ? stageName : runtimeStageId,
+        keysWritten, linkedBy, depth,
+      })),
+      readsAvailable, note: notes.join(" "),
+      evidence: {
+        sourceId: source.sourceId, beforeCommitIdx: source.beforeCommitIdx, readsKind: source.reads.kind,
+        ...(root && { root }),
+        ...(source.reads.coverage !== undefined && { readsCoverage: source.reads.coverage }),
+        ...(root?.truncated !== undefined && { truncated: root.truncated }),
+        nodes: nodes.map(({ runtimeStageId, incompleteSources, preRunReads }) => ({ runtimeStageId, ...(incompleteSources && { incompleteSources }), ...(preRunReads && { preRunReads }) })),
+        nestedEdges, redactedPaths: source.fold.redactedPaths,
+      },
+    };
+  } catch {
+    return unavailableDataTrace("Foottrace could not explain the selected source prefix.");
+  }
+}
 
-  return { frames, readsAvailable };
+/** Retained positional seam for existing internal callers, including traceWalk. */
+export function buildDataTrace(commitLog: unknown[], executionTree: unknown, targetRuntimeStageId: string, maxDepth = 10, maxFrames = 50): DataTraceResult {
+  return buildSelectedDataTrace({ sourceId: "flow:record", format: "snapshot", record: { commitLog, executionTree }, reads: { status: "unknown" } }, targetRuntimeStageId,
+    { beforeCommitIdx: commitLog.length, maxDepth, maxFrames });
 }
