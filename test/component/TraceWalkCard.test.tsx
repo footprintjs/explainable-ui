@@ -73,7 +73,7 @@ describe("TraceWalkCard", () => {
       />,
     );
     expect(screen.getByText(/stop 2 of 4/i)).toBeTruthy();
-    expect(screen.getByText(/Made from 2 ingredients/)).toBeTruthy();
+    expect(screen.getByText(/2 recorded ingredients/)).toBeTruthy();
     const chips = screen.getAllByTitle(/Follow /);
     expect(chips).toHaveLength(2);
     fireEvent.click(chips.find((c) => c.textContent?.includes("subtotal"))!);
@@ -82,11 +82,11 @@ describe("TraceWalkCard", () => {
     );
   });
 
-  it("flags run-input termini and refuses to follow them", () => {
+  it("flags unknown-origin reads and refuses to invent a followable writer", () => {
     render(
       <TraceWalkCard walk={WALK} cursorRuntimeStageId="seed#0" stepNumberOf={stepOf} onFollowIngredient={vi.fn()} />,
     );
-    const terminus = screen.getByTitle(/never written — it came in with the run's inputs/);
+    const terminus = screen.getByTitle(/no earlier recorded writer; origin unknown/);
     expect(terminus.textContent).toContain("config");
     expect((terminus as HTMLButtonElement).disabled).toBe(true);
   });
@@ -126,8 +126,9 @@ describe("TraceWalkCard", () => {
     );
     const card = container.querySelector('[data-fp="trace-walk-card"]')!;
     expect(card.getAttribute("data-missing")).toBe("never-written");
-    expect(card.textContent).toContain("never written in this run");
-    expect(card.textContent).toContain("arrived with the run's inputs");
+    expect(card.textContent).toContain("No recorded writer");
+    expect(card.textContent).toContain("its origin is unknown");
+    expect(card.textContent).not.toContain("arrived with the run's inputs");
   });
 
   it("renders the not-yet-written sentence with the first write's location", () => {
@@ -137,7 +138,7 @@ describe("TraceWalkCard", () => {
     );
     const card = container.querySelector('[data-fp="trace-walk-card"]')!;
     expect(card.getAttribute("data-missing")).toBe("not-yet-written");
-    expect(card.textContent).toContain("not been written yet at this moment");
+    expect(card.textContent).toContain("before this moment — its first recorded write is later");
     expect(card.textContent).toContain("ComputeTotal");
     expect(card.textContent).toContain("step 5");
   });
@@ -197,7 +198,7 @@ describe("TraceWalkCard — fork chooser (F2)", () => {
     const chooser = container.querySelector('[data-fp="twc-fork-chooser"]') as HTMLElement;
     expect(chooser).toBeTruthy();
     expect(chooser.textContent).toContain(
-      "This value was made from 2 ingredients — which one should the walk follow?",
+      "This stage has 2 recorded ingredients — which one should the walk follow?",
     );
     // The SAME ingredient chips (both followable) live inside the chooser.
     const chips = within(chooser).getAllByTitle(/Follow /);

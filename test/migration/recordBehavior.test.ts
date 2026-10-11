@@ -40,7 +40,7 @@ describe("M1 — immutable source evidence", () => {
   it("keeps planned corrections separate from preservation guarantees", () => {
     expect(corrections.map((row) => row.id)).toEqual(["R1", "R2", "R3", "R4"]);
     for (const row of corrections.filter((row) => row.id === "R2" || row.id === "R3")) {
-      expect(row.status).toBe("M4-implemented-unreleased-review-pending-M5-pending");
+      expect(row.status).toBe("M4-merged-M5-implemented-unreleased-review-pending");
       expect(row.approval).toContain("Owner approved");
     }
     for (const row of corrections) {
@@ -157,11 +157,10 @@ describe("M1 — diagnostic observations, NOT approved future answers", () => {
     expect(mergeWritePatch([1, 2], [2, 3])).toEqual([2, 3]);
   });
 
-  it("R3 exposes the old unproven run-input claim for a key that has no recorded evidence", () => {
+  it("R3 replaces the documented old run-input claim with unknown origin", () => {
     const walk = buildTraceWalk(orderedLegacyLog, undefined, "absent");
-    expect(formatTraceWalk(walk, () => null)).toBe(
-      "`absent` was never written in this run — it arrived with the run's inputs."
-    );
+    expect(formatTraceWalk(walk, () => null)).toContain("No recorded writer for `absent` in this source range; its origin is unknown.");
+    expect(formatTraceWalk(walk, () => null)).not.toContain("arrived with the run's inputs");
     expect(orderedLegacyLog.some((row) => owns(row.overwrite, "absent"))).toBe(
       false
     );
@@ -224,9 +223,9 @@ describe("M1 — diagnostic observations, NOT approved future answers", () => {
     expect(fork.commitLog[3].trace).toEqual([]);
     expect(walk.stops[0]).toMatchObject({
       runtimeStageId: "a#1",
-      commitIdx: 3,
+      commitIdx: 1,
     });
-    expect(walk.stops[0].commitIdx).not.toBe(ownIndex);
+    expect(walk.stops[0].commitIdx).toBe(ownIndex);
     expect(walk.stops[0].ingredients).toContainEqual({
       key: "runs",
       writerRuntimeStageId: "seed#0",

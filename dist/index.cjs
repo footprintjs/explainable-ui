@@ -461,20 +461,20 @@ function recordStateDisplay(snapshot, previous) {
     };
   }
   const notices = [];
-  for (const [label, state] of [
+  for (const [label2, state] of [
     ["Selected state", evidence.current],
     ["Previous recorded state", evidence.previous]
   ]) {
     if (state.basis === "log-only")
       notices.push(
-        `${label}: recorded writes only; the initial state was not recorded.`
+        `${label2}: recorded writes only; the initial state was not recorded.`
       );
     if (state.redacted || state.redactedPaths.length)
       notices.push(
-        `${label}: redacted values are withheld${state.redactedPaths.length ? ` (${state.redactedPaths.join(", ")})` : ""}.`
+        `${label2}: redacted values are withheld${state.redactedPaths.length ? ` (${state.redactedPaths.join(", ")})` : ""}.`
       );
     for (const gap of state.skipped ?? [])
-      notices.push(`${label}: skipped record row ${gap.index}: ${gap.reason}`);
+      notices.push(`${label2}: skipped record row ${gap.index}: ${gap.reason}`);
   }
   const complete = (state) => state.basis === "initial+log" && !state.redacted && !state.redactedPaths.length && !state.skipped?.length;
   const canCompare = complete(evidence.current) && complete(evidence.previous);
@@ -1620,7 +1620,7 @@ function SnapshotPanel({
 }
 function ScrubButton({
   glyph,
-  label,
+  label: label2,
   disabled,
   onClick
 }) {
@@ -1630,8 +1630,8 @@ function ScrubButton({
       type: "button",
       onClick,
       disabled,
-      "aria-label": label,
-      title: label,
+      "aria-label": label2,
+      title: label2,
       "data-fp": "scrub-button",
       style: {
         background: theme.bgTertiary,
@@ -2771,7 +2771,7 @@ function TimeTravelControls({
 
 // src/components/ExplainableShell/ExplainableShell.tsx
 var import_react34 = require("react");
-var import_foottrace5 = require("foottrace");
+var import_foottrace6 = require("foottrace");
 
 // src/components/ExplainableShell/_internal/dataTrace.ts
 var import_foottrace3 = require("foottrace");
@@ -2866,6 +2866,12 @@ function isReadablePrefix(rows) {
   }
   return true;
 }
+function prepareTracePrefix(selection, beforeCommitIdx) {
+  const input = adaptFlowRecord(selection);
+  if (input.status === "refused") return { status: "unavailable", sourceId: selection.sourceId, reason: "source", message: input.message };
+  const raw = input.source.commitLog ?? input.source.history;
+  return preparePrefix(input, beforeCommitIdx ?? raw?.length ?? 0);
+}
 function prepareTraceSource(selection, targetRuntimeStageId, beforeCommitIdx) {
   const refused = (reason, message) => ({ status: "unavailable", sourceId: selection.sourceId, reason, message });
   const input = adaptFlowRecord(selection);
@@ -2882,6 +2888,12 @@ function prepareTraceSource(selection, targetRuntimeStageId, beforeCommitIdx) {
       return refused("boundary", "The selected stage has no readable canonical boundary.");
     }
   }
+  return preparePrefix(input, before);
+}
+function preparePrefix(input, before) {
+  const refused = (reason, message) => ({ status: "unavailable", sourceId: input.sourceId, reason, message });
+  const raw = input.source.commitLog ?? input.source.history;
+  if (!raw) return refused("source", "The selected source has no recorded log.");
   if (!Number.isSafeInteger(before) || before < 0 || before > raw.length) {
     return refused("boundary", "The selected boundary is not an exact position in this source.");
   }
@@ -2897,7 +2909,15 @@ function prepareTraceSource(selection, targetRuntimeStageId, beforeCommitIdx) {
   }
   try {
     const fold = (0, import_foottrace2.stateAt)({ commitLog: log, ...input.source.initialState !== void 0 && { initialState: input.source.initialState } }, before - 1);
-    return { status: "available", sourceId: input.sourceId, beforeCommitIdx: before, log, reads, fold };
+    return {
+      status: "available",
+      sourceId: input.sourceId,
+      beforeCommitIdx: before,
+      log,
+      reads,
+      fold,
+      ...input.source.initialState !== void 0 && { initialState: input.source.initialState }
+    };
   } catch {
     return refused("reader", "Foottrace could not read this source at the selected boundary.");
   }
@@ -2922,201 +2942,262 @@ function buildSelectedDataTrace(selection, targetRuntimeStageId, options = {}) {
       observedReads || (observedReads = keys.length > 0);
       return keys;
     }, { maxDepth, maxNodes: maxFrames, edgeAttribution: "stage" });
-    const nodes = root ? (0, import_foottrace3.flattenCausalDAG)(root) : [];
-    const readsAvailable = observedReads || (source.reads.coverage?.stepsWithReads ?? 0) > 0 || nodes.some((node) => node.parentEdges.some((edge) => edge.kind === "data") || (node.preRunReads?.keys.length ?? 0) > 0);
-    const notes = ["Recorded stage-level dependencies; read capture may be incomplete."];
-    if (!source.reads.coverage) notes.push("Read coverage is unknown; the supplied lookup does not establish complete capture.");
-    if (!readsAvailable) notes.push("Read coverage is unknown or no read keys were recorded; missing edges do not prove independence.");
-    if (!root) notes.push("The selected stage is not present in this source prefix.");
-    if (root?.truncated?.byDepth) notes.push("The depth limit cut the explanation short.");
-    if (root?.truncated?.byNodes) notes.push("The frame limit cut the explanation short.");
-    if (nodes.some((node) => node.incompleteSources?.length)) notes.push("Some consumed sources were not tracked.");
-    if (nodes.some((node) => node.preRunReads?.keys.length)) notes.push("Some reads have no earlier recorded writer; their origin is not proven by this log.");
-    const nestedEdges = nodes.flatMap((node) => node.parentEdges.filter((edge) => edge.basis === "nested-rows").map((edge) => ({ from: node.runtimeStageId, to: edge.parent.runtimeStageId, ...edge.key !== void 0 && { key: edge.key } })));
-    if (nestedEdges.length) notes.push("Some writers changed only nested parts of a value.");
-    if (source.fold.redacted) notes.push("Recorded values were redacted; the explanation may omit hidden evidence.");
-    return {
-      status: root ? "available" : "not-recorded",
-      frames: nodes.map(({ runtimeStageId, stageId, stageName, keysWritten, linkedBy, depth }) => ({
-        runtimeStageId,
-        stageId: typeof stageId === "string" ? stageId : runtimeStageId,
-        stageName: typeof stageName === "string" ? stageName : runtimeStageId,
-        keysWritten,
-        linkedBy,
-        depth
-      })),
-      readsAvailable,
-      note: notes.join(" "),
-      evidence: {
-        sourceId: source.sourceId,
-        beforeCommitIdx: source.beforeCommitIdx,
-        readsKind: source.reads.kind,
-        ...root && { root },
-        ...source.reads.coverage !== void 0 && { readsCoverage: source.reads.coverage },
-        ...root?.truncated !== void 0 && { truncated: root.truncated },
-        nodes: nodes.map(({ runtimeStageId, incompleteSources, preRunReads }) => ({ runtimeStageId, ...incompleteSources && { incompleteSources }, ...preRunReads && { preRunReads } })),
-        nestedEdges,
-        redactedPaths: source.fold.redactedPaths
-      }
-    };
+    return projectDataTrace(source, root, observedReads);
   } catch {
     return unavailableDataTrace("Foottrace could not explain the selected source prefix.");
   }
 }
-function buildDataTrace(commitLog, executionTree, targetRuntimeStageId, maxDepth = 10, maxFrames = 50) {
-  return buildSelectedDataTrace(
-    { sourceId: "flow:record", format: "snapshot", record: { commitLog, executionTree }, reads: { status: "unknown" } },
-    targetRuntimeStageId,
-    { beforeCommitIdx: commitLog.length, maxDepth, maxFrames }
-  );
+function projectDataTrace(source, root, observedReads) {
+  const nodes = root ? (0, import_foottrace3.flattenCausalDAG)(root) : [];
+  const readsAvailable = observedReads || (source.reads.coverage?.stepsWithReads ?? 0) > 0 || nodes.some((node) => node.parentEdges.some((edge) => edge.kind === "data") || (node.preRunReads?.keys.length ?? 0) > 0);
+  const notes = ["Recorded stage-level dependencies; read capture may be incomplete."];
+  if (!source.reads.coverage) notes.push("Read coverage is unknown; the supplied lookup does not establish complete capture.");
+  if (!readsAvailable) notes.push("Read coverage is unknown or no read keys were recorded; missing edges do not prove independence.");
+  if (!root) notes.push("No recorded causal anchor was found in this source prefix.");
+  if (root?.truncated?.byDepth) notes.push("The depth limit cut the explanation short.");
+  if (root?.truncated?.byNodes) notes.push("The frame limit cut the explanation short.");
+  if (nodes.some((node) => node.incompleteSources?.length)) notes.push("Some consumed sources were not tracked.");
+  if (nodes.some((node) => node.preRunReads?.keys.length)) notes.push("Some reads have no earlier recorded writer; their origin is not proven by this log.");
+  const nestedEdges = nodes.flatMap((node) => node.parentEdges.filter((edge) => edge.basis === "nested-rows").map((edge) => ({ from: node.runtimeStageId, to: edge.parent.runtimeStageId, ...edge.key !== void 0 && { key: edge.key } })));
+  if (nestedEdges.length) notes.push("Some writers changed only nested parts of a value.");
+  if (source.fold.redacted) notes.push("Recorded values were redacted; the explanation may omit hidden evidence.");
+  return {
+    status: root ? "available" : "not-recorded",
+    frames: nodes.map(({ runtimeStageId, stageId, stageName, keysWritten, linkedBy, depth }) => ({
+      runtimeStageId,
+      stageId: typeof stageId === "string" ? stageId : runtimeStageId,
+      stageName: typeof stageName === "string" ? stageName : runtimeStageId,
+      keysWritten,
+      linkedBy,
+      depth
+    })),
+    readsAvailable,
+    note: notes.join(" "),
+    evidence: {
+      sourceId: source.sourceId,
+      beforeCommitIdx: source.beforeCommitIdx,
+      readsKind: source.reads.kind,
+      ...root && { root },
+      ...source.reads.coverage !== void 0 && { readsCoverage: source.reads.coverage },
+      ...root?.truncated !== void 0 && { truncated: root.truncated },
+      nodes: nodes.map(({ runtimeStageId, incompleteSources, preRunReads }) => ({ runtimeStageId, ...incompleteSources && { incompleteSources }, ...preRunReads && { preRunReads } })),
+      nestedEdges,
+      redactedPaths: source.fold.redactedPaths
+    }
+  };
 }
 
 // src/components/ExplainableShell/_internal/traceWalk.ts
-var DEFAULT_MAX_DEPTH = 10;
-var DEFAULT_MAX_FRAMES = 50;
+var import_foottrace4 = require("foottrace");
+
+// src/components/ExplainableShell/_internal/traceWalkText.ts
+var unknownIngredientText = "no earlier recorded writer; origin unknown";
+var noIngredientsText = "No earlier dependencies are established by the captured reads.";
+function missingTraceText(walk, stepOf) {
+  const missing = walk.missing;
+  if (missing?.reason !== "not-yet-written") return `No recorded writer for \`${walk.key}\` in this source range; its origin is unknown.`;
+  const step = missing.firstWriterRuntimeStageId ? stepOf(missing.firstWriterRuntimeStageId) : null;
+  return `No recorded writer for \`${walk.key}\` before this moment \u2014 its first recorded write is later` + (missing.firstWriterStageName ? `, at ${missing.firstWriterStageName}${step ? ` (step ${step})` : ""}.` : ".") + " This is a separately checked whole-record hint.";
+}
+function contributionPositionText(stop) {
+  const writes = stop.contributedWrites;
+  if (!writes?.length || writes.every((write) => write.commitIdx === stop.commitIdx && write.commitIdx === stop.readCommitIdx)) return void 0;
+  return `Execution visit at record row ${stop.readCommitIdx ?? stop.commitIdx}; actual contributions: ${writes.map((write) => `${write.key} at row ${write.commitIdx}`).join(", ")}. Record rows are zero-based; the grouped rail visit may show a different moment.`;
+}
+function contributionBasisText(stop) {
+  const notes = [];
+  const qualified = stop.contributedWrites?.filter((write) => write.valueBasis?.length);
+  if (qualified?.length) notes.push(`Value preview qualified: ${qualified.map((write) => `${write.key} (${write.valueBasis.join(", ")})`).join("; ")}. No exact value is asserted for these contributions.`);
+  if (qualified?.some((write) => write.valueBasis?.includes("deleted"))) notes.push("The deleted code denotes a deleted/undefined value (record convention), not a claim about physical property presence.");
+  const repeated = stop.contributedKeys.filter((key) => (stop.contributedWrites?.filter((write) => write.key === key).length ?? 0) > 1);
+  if (repeated.length) notes.push(`Multiple recorded writer rows contribute ${repeated.join(", ")}; a single value preview would be ambiguous.`);
+  return notes.length ? notes.join(" ") : void 0;
+}
+
+// src/components/ExplainableShell/_internal/traceWalk.ts
+var label = (value, fallback) => typeof value === "string" ? value : fallback;
+function unavailableTraceWalk(key, note) {
+  return { key, stops: [], missing: null, inputTermini: [], readsAvailable: false, truncated: false, status: "unavailable", note };
+}
 function buildTraceWalk(commitLog, executionTree, key, opts) {
-  const log = commitLog ?? [];
-  const cutoff = opts?.beforeCommitIdx ?? log.length;
-  const maxDepth = opts?.maxDepth ?? DEFAULT_MAX_DEPTH;
-  const maxFrames = opts?.maxFrames ?? DEFAULT_MAX_FRAMES;
-  const writerOf = (k, beforeIdx) => {
-    for (let i = Math.min(beforeIdx, log.length) - 1; i >= 0; i--) {
-      if (log[i].trace.some((t) => t.path === k)) return i;
-    }
-    return -1;
-  };
-  const anchorIdx = writerOf(key, cutoff);
-  if (anchorIdx < 0) {
-    const firstEver = log.findIndex((c) => c.trace.some((t) => t.path === key));
-    const missing = firstEver < 0 ? { reason: "never-written" } : {
-      reason: "not-yet-written",
-      firstWriteCommitIdx: firstEver,
-      firstWriterRuntimeStageId: log[firstEver].runtimeStageId,
-      firstWriterStageName: log[firstEver].stage
+  return buildSelectedTraceWalk({ sourceId: "flow:record", format: "snapshot", record: { commitLog, executionTree }, reads: { status: "unknown" } }, key, opts);
+}
+function buildSelectedTraceWalk(selection, key, opts = {}) {
+  const maxDepth = opts.maxDepth ?? 10, maxFrames = opts.maxFrames ?? 50;
+  if (!Number.isSafeInteger(maxDepth) || maxDepth < 0 || !Number.isSafeInteger(maxFrames) || maxFrames < 1)
+    return unavailableTraceWalk(key, "Causal tracing needs a nonnegative depth and a positive frame limit.");
+  const source = prepareTracePrefix(selection, opts.beforeCommitIdx);
+  if (source.status === "unavailable") return unavailableTraceWalk(key, source.message);
+  try {
+    let observedReads = false;
+    const reads = { ...source.reads, lookup: (id) => {
+      const keys = source.reads.lookup(id);
+      observedReads || (observedReads = keys.length > 0);
+      return keys;
+    } };
+    const slice = (0, import_foottrace4.sliceForKey)(source.log, key, reads, { before: source.beforeCommitIdx, maxDepth, maxNodes: maxFrames, edgeAttribution: "stage" });
+    const projected = projectDataTrace(source, slice.root, observedReads);
+    const notes = [projected.note, ...(slice.notes ?? []).map((note) => note.detail)];
+    const evidence = {
+      sourceId: source.sourceId,
+      beforeCommitIdx: source.beforeCommitIdx,
+      readsKind: source.reads.kind,
+      ...source.reads.coverage && { readsCoverage: source.reads.coverage },
+      ...slice.root?.truncated && { truncated: slice.root.truncated }
     };
-    return { key, stops: [], missing, inputTermini: [], readsAvailable: true, truncated: false };
-  }
-  const slice = buildDataTrace(
-    log.slice(0, anchorIdx + 1),
-    executionTree,
-    log[anchorIdx].runtimeStageId,
-    maxDepth,
-    maxFrames + 1
-  );
-  const truncated = slice.frames.length > maxFrames;
-  const frames = truncated ? slice.frames.slice(0, maxFrames) : slice.frames;
-  const idxOf = /* @__PURE__ */ new Map();
-  for (let i = 0; i < log.length; i++) idxOf.set(log[i].runtimeStageId, i);
-  const readsOf = readKeysByStep(executionTree);
-  const inputTermini = [];
-  const terminiSeen = /* @__PURE__ */ new Set();
-  const stops = frames.map((f) => {
-    const commitIdx = idxOf.get(f.runtimeStageId) ?? -1;
-    const ingredients = (readsOf.get(f.runtimeStageId) ?? []).map((k) => {
-      const w = writerOf(k, commitIdx);
-      if (w < 0 && !terminiSeen.has(k)) {
-        terminiSeen.add(k);
-        inputTermini.push(k);
+    if (!slice.root || !slice.writer) {
+      const missing = { reason: "never-written" };
+      const whole = prepareTracePrefix(selection);
+      if (whole.status === "available") {
+        try {
+          const first = (0, import_foottrace4.keyTimeline)(whole.log, key, whole.reads).moments?.find((moment) => moment.kind === "write");
+          if (first && first.commitIdx >= source.beforeCommitIdx) {
+            Object.assign(missing, {
+              reason: "not-yet-written",
+              firstWriteCommitIdx: first.commitIdx,
+              firstWriterRuntimeStageId: first.runtimeStageId,
+              firstWriterStageName: label(first.stageName, first.runtimeStageId)
+            });
+          }
+        } catch {
+          notes.push("The separate whole-record first-write hint is unavailable.");
+        }
+      } else notes.push("Later record rows were not used to establish a whole-record first-write hint.");
+      return {
+        key,
+        stops: [],
+        missing,
+        inputTermini: [],
+        readsAvailable: projected.readsAvailable,
+        truncated: false,
+        status: "not-recorded",
+        note: notes.join(" "),
+        evidence
+      };
+    }
+    const nodes = (0, import_foottrace4.flattenCausalDAG)(slice.root);
+    const readIndex = (0, import_foottrace4.buildCommitIndex)(source.log);
+    const anchorIndex = source.log.indexOf(slice.writer);
+    const contributions = /* @__PURE__ */ new Map();
+    contributions.set(slice.writer.runtimeStageId, [{ key, commitIdx: anchorIndex }]);
+    const termini = /* @__PURE__ */ new Set();
+    const stops = nodes.map((node) => {
+      const readCommitIdx = readIndex.get(node.runtimeStageId);
+      if (readCommitIdx === void 0) throw new Error("Canonical node has no source-local read anchor");
+      const ingredients = node.parentEdges.flatMap((edge) => {
+        if (edge.kind !== "data" || edge.key === void 0) return [];
+        const edgeKey = edge.key;
+        const writer = (0, import_foottrace4.findLastWriter)(source.log, edgeKey, readCommitIdx);
+        if (!writer || writer.runtimeStageId !== edge.parent.runtimeStageId) throw new Error("Canonical edge writer cannot be resolved in this source");
+        const writerCommitIdx = source.log.indexOf(writer);
+        const writes = contributions.get(writer.runtimeStageId) ?? [];
+        if (!writes.some((write) => write.key === edgeKey && write.commitIdx === writerCommitIdx)) writes.push({ key: edgeKey, commitIdx: writerCommitIdx });
+        contributions.set(writer.runtimeStageId, writes);
+        return [{
+          key: edgeKey,
+          writerRuntimeStageId: writer.runtimeStageId,
+          writerStageName: label(writer.stage, writer.runtimeStageId),
+          writerCommitIdx,
+          ...edge.basis && { basis: edge.basis }
+        }];
+      });
+      for (const read of node.preRunReads?.keys ?? []) {
+        termini.add(read);
+        ingredients.push({ key: read, writerRuntimeStageId: null, writerStageName: null, writerCommitIdx: null });
       }
       return {
-        key: k,
-        writerRuntimeStageId: w >= 0 ? log[w].runtimeStageId : null,
-        writerStageName: w >= 0 ? log[w].stage : null,
-        writerCommitIdx: w >= 0 ? w : null
+        runtimeStageId: node.runtimeStageId,
+        stageId: label(node.stageId, node.runtimeStageId),
+        stageName: label(node.stageName, node.runtimeStageId),
+        commitIdx: node === slice.root ? anchorIndex : readCommitIdx,
+        readCommitIdx,
+        contributedKeys: [],
+        contributedWrites: [],
+        keysWritten: node.keysWritten,
+        ingredients,
+        depth: node.depth,
+        loopPass: 0
       };
     });
+    for (const stop of stops) {
+      stop.contributedWrites = contributions.get(stop.runtimeStageId) ?? [];
+      for (const write of stop.contributedWrites) {
+        const value = (0, import_foottrace4.commitValueAtWithBasis)(
+          source.log,
+          write.commitIdx,
+          write.key,
+          source.initialState === void 0 ? void 0 : { initialState: source.initialState }
+        );
+        if (value.basis.length) write.valueBasis = value.basis;
+      }
+      stop.contributedKeys = [...new Set(stop.contributedWrites.map((write) => write.key))];
+    }
+    stops.sort((a, b) => b.commitIdx - a.commitIdx);
+    const visits = /* @__PURE__ */ new Map();
+    for (const stop of stops) {
+      const stagePart = stop.runtimeStageId.split("#")[0];
+      const group = visits.get(stagePart) ?? [];
+      group.push(stop);
+      visits.set(stagePart, group);
+    }
+    for (const group of visits.values()) if (group.length > 1) group.forEach((stop, index) => {
+      stop.loopPass = group.length - index;
+    });
     return {
-      runtimeStageId: f.runtimeStageId,
-      stageId: f.stageId,
-      stageName: f.stageName,
-      commitIdx,
-      contributedKeys: [],
-      keysWritten: f.keysWritten,
-      ingredients,
-      depth: f.depth,
-      loopPass: 0
+      key,
+      stops,
+      missing: null,
+      inputTermini: [...termini],
+      readsAvailable: projected.readsAvailable,
+      truncated: !!(slice.root.truncated?.byDepth || slice.root.truncated?.byNodes),
+      status: "available",
+      note: notes.join(" "),
+      evidence
     };
-  });
-  const stopById = new Map(stops.map((s) => [s.runtimeStageId, s]));
-  const contributed = /* @__PURE__ */ new Map();
-  contributed.set(log[anchorIdx].runtimeStageId, /* @__PURE__ */ new Set([key]));
-  for (const s of stops) {
-    for (const ing of s.ingredients) {
-      if (!ing.writerRuntimeStageId || !stopById.has(ing.writerRuntimeStageId)) continue;
-      const set = contributed.get(ing.writerRuntimeStageId) ?? /* @__PURE__ */ new Set();
-      set.add(ing.key);
-      contributed.set(ing.writerRuntimeStageId, set);
-    }
+  } catch {
+    return unavailableTraceWalk(key, "Foottrace could not explain the selected source prefix.");
   }
-  for (const s of stops) s.contributedKeys = [...contributed.get(s.runtimeStageId) ?? []];
-  stops.sort((a, b) => b.commitIdx - a.commitIdx);
-  const byStagePart = /* @__PURE__ */ new Map();
-  for (const s of stops) {
-    const part = s.runtimeStageId.split("#")[0];
-    const arr = byStagePart.get(part) ?? [];
-    arr.push(s);
-    byStagePart.set(part, arr);
-  }
-  for (const arr of byStagePart.values()) {
-    if (arr.length < 2) continue;
-    for (let i = 0; i < arr.length; i++) arr[i].loopPass = arr.length - i;
-  }
-  return { key, stops, missing: null, inputTermini, readsAvailable: slice.readsAvailable, truncated };
 }
-function readKeysByStep(tree) {
-  const byStep = /* @__PURE__ */ new Map();
-  const root = tree;
-  if (!root) return byStep;
-  const visited = /* @__PURE__ */ new Set();
-  const stack = [root];
-  while (stack.length > 0) {
-    const node = stack.pop();
-    if (visited.has(node)) continue;
-    visited.add(node);
-    if (node.runtimeStageId && node.stageReads) {
-      const keys = Object.keys(node.stageReads);
-      if (keys.length > 0) byStep.set(node.runtimeStageId, keys);
-    }
-    if (node.next) stack.push(node.next);
-    if (node.children) for (const c of node.children) stack.push(c);
+function traceContributionPreview(selection, walk, stop, key) {
+  if (!walk.evidence || walk.status !== "available") return void 0;
+  const writes = stop.contributedWrites?.filter((row) => row.key === key);
+  const write = writes?.length === 1 ? writes[0] : void 0;
+  if (!write || write.commitIdx >= walk.evidence.beforeCommitIdx) return void 0;
+  const source = prepareTracePrefix(selection, walk.evidence.beforeCommitIdx);
+  if (source.status !== "available" || source.sourceId !== walk.evidence.sourceId) return void 0;
+  try {
+    const value = (0, import_foottrace4.commitValueAtWithBasis)(
+      source.log,
+      write.commitIdx,
+      key,
+      source.initialState === void 0 ? void 0 : { initialState: source.initialState }
+    );
+    return value.basis.length === 0 ? value.value : void 0;
+  } catch {
+    return void 0;
   }
-  return byStep;
 }
 function formatTraceWalk(walk, stepNumberOf) {
   const lines = [];
-  if (walk.missing) {
-    if (walk.missing.reason === "never-written") {
-      lines.push(
-        `\`${walk.key}\` was never written in this run \u2014 it arrived with the run's inputs.`
-      );
-    } else {
-      const at = walk.missing.firstWriterRuntimeStageId ? stepNumberOf(walk.missing.firstWriterRuntimeStageId) : null;
-      lines.push(
-        `\`${walk.key}\` has not been written yet at this moment \u2014 its first write happens later` + (walk.missing.firstWriterStageName ? `, at ${walk.missing.firstWriterStageName}${at ? ` (step ${at})` : ""}.` : ".")
-      );
-    }
-    return lines.join("\n");
+  if (walk.status === "unavailable") return walk.note ?? "Recorded explanation unavailable.";
+  if (walk.missing) lines.push(missingTraceText(walk, stepNumberOf));
+  else {
+    lines.push(`Tracing \`${walk.key}\` \u2014 ${walk.stops.length} stops, newest first.`);
+    walk.stops.forEach((stop, i) => {
+      const step = stepNumberOf(stop.runtimeStageId);
+      const pass = stop.loopPass > 0 ? ` (pass ${stop.loopPass})` : "";
+      const made = stop.ingredients.length ? ` \xB7 recorded ingredients: ${stop.ingredients.map((ing) => ing.writerRuntimeStageId ? `${ing.key} (\u2190 ${ing.writerStageName}${stepNumberOf(ing.writerRuntimeStageId) ? `, step ${stepNumberOf(ing.writerRuntimeStageId)}` : ""}${ing.basis ? "; nested contribution" : ""})` : `${ing.key} (${unknownIngredientText})`).join(", ")}` : ` \xB7 ${noIngredientsText}`;
+      lines.push(`stop ${i + 1}/${walk.stops.length} \xB7 ${step ? `step ${step} \xB7 ` : ""}${stop.stageName}${pass} recorded changes to \`${stop.contributedKeys.join("`, `")}\`${made}`);
+      const positions = contributionPositionText(stop);
+      if (positions) lines.push(positions);
+      const basis = contributionBasisText(stop);
+      if (basis) lines.push(basis);
+    });
+    if (walk.inputTermini.length) lines.push(`Reads without an earlier recorded writer (origin unknown): ${walk.inputTermini.join(", ")}`);
   }
-  lines.push(`Tracing \`${walk.key}\` \u2014 ${walk.stops.length} stops, newest first.`);
-  walk.stops.forEach((stop, i) => {
-    const step = stepNumberOf(stop.runtimeStageId);
-    const pass = stop.loopPass > 0 ? ` (pass ${stop.loopPass})` : "";
-    const made = stop.ingredients.length > 0 ? ` \xB7 made from: ${stop.ingredients.map(
-      (ing) => ing.writerRuntimeStageId ? `${ing.key} (\u2190 ${ing.writerStageName}${stepNumberOf(ing.writerRuntimeStageId) ? `, step ${stepNumberOf(ing.writerRuntimeStageId)}` : ""})` : `${ing.key} (run input \u2014 never written)`
-    ).join(", ")}` : walk.readsAvailable ? " \xB7 reads nothing \u2014 origin" : "";
-    lines.push(
-      `stop ${i + 1}/${walk.stops.length} \xB7 ${step ? `step ${step} \xB7 ` : ""}${stop.stageName}${pass} wrote \`${stop.contributedKeys.join("`, `")}\`${made}`
-    );
-  });
-  if (walk.inputTermini.length > 0) {
-    lines.push(`run inputs (never written): ${walk.inputTermini.join(", ")}`);
-  }
-  if (!walk.readsAvailable) {
-    lines.push("\u26A0 reads were not recorded \u2014 dependencies are unknowable, not absent.");
-  }
-  if (walk.truncated) {
-    lines.push("\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin.");
-  }
+  if (walk.note) lines.push(walk.note);
+  else if (!walk.readsAvailable) lines.push("Read evidence is unknown; dependencies are unknowable, not absent.");
+  if (walk.truncated && !walk.evidence?.truncated) lines.push("The recorded explanation is truncated; its earliest displayed stop need not be an origin.");
   return lines.join("\n");
 }
 
@@ -3151,7 +3232,21 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
 }) {
   const fs = fontSize[size];
   const sx = unstyled ? BARE : PAINT;
-  const [copied, setCopied] = (0, import_react11.useState)(false);
+  const [copied, setCopied] = (0, import_react11.useState)(null);
+  const [copyError, setCopyError] = (0, import_react11.useState)(null);
+  const copyGeneration = (0, import_react11.useRef)(0);
+  const copyWalk = (0, import_react11.useRef)(walk);
+  if (copyWalk.current !== walk) {
+    copyWalk.current = walk;
+    copyGeneration.current++;
+  }
+  (0, import_react11.useEffect)(() => {
+    setCopied(null);
+    setCopyError(null);
+    return () => {
+      copyGeneration.current++;
+    };
+  }, [walk]);
   const accent = "var(--fp-accent, #6366f1)";
   const tracingColor = "var(--fp-tracing, #0d9488)";
   const currentIdx = (0, import_react11.useMemo)(() => {
@@ -3162,13 +3257,28 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
   const current = walk.stops[currentIdx];
   const followableCount = current ? current.ingredients.filter((ing) => ing.writerRuntimeStageId !== null).length : 0;
   const chooserVisible = !!forkChooserOpen && followableCount >= 2;
-  const copyStory = () => {
-    const text = formatTraceWalk(walk, stepNumberOf);
-    void navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    });
+  const copyStory = async () => {
+    const generation = ++copyGeneration.current;
+    setCopyError(null);
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(formatTraceWalk(walk, stepNumberOf));
+      if (copyGeneration.current !== generation) return;
+      setCopied(walk);
+      setTimeout(() => {
+        if (copyGeneration.current === generation) setCopied(null);
+      }, 1600);
+    } catch {
+      if (copyGeneration.current === generation) {
+        setCopied(null);
+        setCopyError(walk);
+      }
+    }
   };
+  if (walk.status === "unavailable") return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { "data-fp": "trace-walk-card", "data-unavailable": "true", className, style: { ...sx({ padding: "14px" }), ...style }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(CardHeader, { label: `Why this value \u2014 \`${walk.key}\``, onExit, sx, fs }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { children: walk.note ?? "Recorded explanation unavailable." })
+  ] });
   if (walk.missing) {
     return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
       "div",
@@ -3179,34 +3289,18 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
         style: { ...sx({ padding: "14px", fontSize: fs.body + 1, lineHeight: 1.55 }), ...style },
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(CardHeader, { label: `Why this value \u2014 \`${walk.key}\``, onExit, sx, fs }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ color: theme.textPrimary, marginTop: 8 }), children: walk.missing.reason === "never-written" ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
-            " was ",
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", { children: "never written in this run" }),
-            " \u2014 it arrived with the run's inputs."
-          ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
-            " has ",
-            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", { children: "not been written yet at this moment" }),
-            " \u2014 its first write happens later",
-            walk.missing.firstWriterStageName && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-              ", at ",
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", { children: walk.missing.firstWriterStageName }),
-              walk.missing.firstWriterRuntimeStageId && stepNumberOf(walk.missing.firstWriterRuntimeStageId) && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
-                " (step ",
-                stepNumberOf(walk.missing.firstWriterRuntimeStageId),
-                ")"
-              ] })
-            ] }),
-            "."
-          ] }) })
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ color: theme.textPrimary, marginTop: 8 }), children: missingTraceText(walk, stepNumberOf) }),
+          walk.note && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { "data-fp": "twc-evidence", children: walk.note })
         ]
       }
     );
   }
   if (!current) return null;
   const step = stepNumberOf(current.runtimeStageId);
-  const preview = previewValueOf ? previewValue2(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
+  const previewKey = current.contributedKeys[0] ?? walk.key;
+  const contributions = current.contributedWrites?.filter((write) => write.key === previewKey);
+  const previewAllowed = !contributions || contributions.length === 1 && !contributions[0].valueBasis?.length;
+  const preview = previewAllowed && previewValueOf ? previewValue2(() => previewValueOf(previewKey)) : null;
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
     "div",
     {
@@ -3253,17 +3347,20 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
           ] })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ marginTop: 2, color: theme.textSecondary }), children: [
-          "wrote",
+          "recorded changes to",
           " ",
           current.contributedKeys.map((k, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("code", { style: sx({ color: accent }), children: [
             i > 0 && ", ",
             k
           ] }, k)),
           preview !== null && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
+            current.contributedKeys.length > 1 ? ` \xB7 preview ${previewKey}` : "",
             " = ",
             preview
           ] })
         ] }),
+        contributionPositionText(current) && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { "data-fp": "twc-positions", children: contributionPositionText(current) }),
+        contributionBasisText(current) && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("p", { "data-fp": "twc-value-basis", children: contributionBasisText(current) }),
         chooserVisible && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
           "div",
           {
@@ -3277,9 +3374,9 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
             }),
             children: [
               /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ fontWeight: 600, fontSize: fs.body, color: theme.textPrimary }), children: [
-                "This value was made from ",
+                "This stage has ",
                 current.ingredients.length,
-                " ingredients \u2014 which one should the walk follow?"
+                " recorded ingredients \u2014 which one should the walk follow?"
               ] }),
               /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                 IngredientChip,
@@ -3321,10 +3418,10 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
         ),
         /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ marginTop: 10 }), children: chooserVisible ? null : current.ingredients.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
           /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: [
-            "Made from ",
             current.ingredients.length,
-            " ingredient",
-            current.ingredients.length > 1 ? "s" : ""
+            " recorded ingredient",
+            current.ingredients.length > 1 ? "s" : "",
+            " (stage-level)"
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
             IngredientChip,
@@ -3338,7 +3435,11 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
             },
             ing.key
           )) })
-        ] }) : walk.readsAvailable ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "twc-origin", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "reads nothing \u2014 this is an origin." }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "twc-unknowable", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "\u26A0 reads were not recorded \u2014 ingredients are unknowable, not absent." }) }),
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { "data-fp": "twc-unknowable", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: [
+          noIngredientsText,
+          " ",
+          !walk.readsAvailable && "Read evidence is unknown; ingredients are unknowable, not absent."
+        ] }) }),
         /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ marginTop: 14 }), children: [
           /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, marginBottom: 4 }), children: "The story, newest first" }),
           walk.stops.map((s, i) => {
@@ -3391,13 +3492,14 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 }), children: [
           walk.inputTermini.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { "data-fp": "twc-run-inputs", style: sx({ fontSize: fs.label, color: theme.textMuted }), children: [
-            "\u2691 run inputs (never written): ",
+            "Reads without an earlier recorded writer (origin unknown): ",
             walk.inputTermini.map((k, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("code", { children: [
               i > 0 && ", ",
               k
             ] }, k))
           ] }),
-          walk.truncated && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "twc-truncated", style: sx({ fontSize: fs.label, color: theme.warning }), children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
+          walk.note && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "twc-evidence", children: walk.note }),
+          walk.truncated && !walk.evidence?.truncated && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "twc-truncated", style: sx({ fontSize: fs.label, color: theme.warning }), children: "The recorded explanation is truncated; its earliest displayed stop need not be an origin." }),
           /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
             "button",
             {
@@ -3415,22 +3517,23 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
                 fontWeight: 600,
                 cursor: "pointer"
               }),
-              children: copied ? "Copied \u2713" : "Copy story"
+              children: copied === walk ? "Copied \u2713" : "Copy story"
             }
-          )
+          ),
+          copyError === walk && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { role: "status", children: "Copy failed. Please try again." })
         ] })
       ]
     }
   );
 });
 function CardHeader({
-  label,
+  label: label2,
   onExit,
   sx,
   fs
 }) {
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ display: "flex", alignItems: "center", justifyContent: "space-between" }), children: [
-    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: label }),
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: label2 }),
     onExit && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
       "button",
       {
@@ -3459,7 +3562,7 @@ function IngredientChip({
       "data-terminus": terminus || void 0,
       disabled: terminus || !onFollow,
       onClick: () => onFollow?.(ing),
-      title: terminus ? `${ing.key} was never written \u2014 it came in with the run's inputs` : `Follow ${ing.key} \u2014 re-anchor the walk on its writer`,
+      title: terminus ? `${ing.key}: ${unknownIngredientText}` : `Follow ${ing.key} \u2014 re-anchor the walk on its writer`,
       style: sx({
         display: "inline-flex",
         alignItems: "center",
@@ -3475,20 +3578,21 @@ function IngredientChip({
       }),
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("code", { children: ing.key }),
-        terminus ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { style: sx({ fontWeight: 400 }), children: "\u2014 run input \u2691" }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: sx({ fontWeight: 400 }), children: [
+        terminus ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { style: sx({ fontWeight: 400 }), children: "\u2014 origin unknown" }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: sx({ fontWeight: 400 }), children: [
           "\u2190 ",
           ing.writerStageName,
-          step && ` \xB7 step ${step}`
+          step && ` \xB7 step ${step}`,
+          ing.basis && " \xB7 nested contribution"
         ] })
       ]
     }
   );
 }
-function previewValue2(v2) {
-  if (v2 === void 0) return null;
+function previewValue2(read) {
   try {
-    const s = typeof v2 === "string" ? JSON.stringify(v2) : JSON.stringify(v2);
-    if (s === void 0) return null;
+    const v2 = read();
+    if (v2 === void 0) return null;
+    const s = previewValue(v2);
     return s.length > 60 ? `${s.slice(0, 57)}\u2026` : s;
   } catch {
     return null;
@@ -3764,7 +3868,7 @@ function extractSubflowNarrative(entries, subflowId, subflowName) {
 }
 
 // src/adapters/recordState.ts
-var import_foottrace4 = require("foottrace");
+var import_foottrace5 = require("foottrace");
 function createRecordStateReader(selection) {
   const input = adaptFlowRecord(selection);
   if (input.status === "refused") {
@@ -3777,7 +3881,7 @@ function createRecordStateReader(selection) {
   }
   let cursor;
   try {
-    cursor = (0, import_foottrace4.timeTravel)(input.source);
+    cursor = (0, import_foottrace5.timeTravel)(input.source);
   } catch {
     return () => ({
       status: "unavailable",
@@ -3809,7 +3913,7 @@ function createRecordStateReader(selection) {
         status: "available",
         sourceId: selection.sourceId,
         stop: position.stop,
-        previous: position.previous ? cursor.stateAt(position.previous) : (0, import_foottrace4.stateAt)(input.source, -1),
+        previous: position.previous ? cursor.stateAt(position.previous) : (0, import_foottrace5.stateAt)(input.source, -1),
         current: cursor.stateAt(position.stop)
       };
     } catch {
@@ -5057,12 +5161,12 @@ function dagreTraceLayout(graph, options = {}) {
   for (const e of layoutEdges) {
     if (e.data?.kind === "loop") continue;
     if (g.hasNode(e.source) && g.hasNode(e.target)) {
-      const label = {};
+      const label2 = {};
       const weight = options.edgeWeight?.(e);
       const minlen = options.edgeMinLen?.(e);
-      if (typeof weight === "number") label.weight = weight;
-      if (typeof minlen === "number") label.minlen = minlen;
-      g.setEdge(e.source, e.target, label);
+      if (typeof weight === "number") label2.weight = weight;
+      if (typeof minlen === "number") label2.minlen = minlen;
+      g.setEdge(e.source, e.target, label2);
     }
   }
   import_dagre.default.layout(g);
@@ -5280,7 +5384,7 @@ function withForkCentering(base, options = {}) {
 }
 
 // src/components/FlowchartView/_internal/notifyChange.ts
-function createNotifier(label = "notifier") {
+function createNotifier(label2 = "notifier") {
   const listeners = /* @__PURE__ */ new Set();
   let v2 = 0;
   let pending = false;
@@ -5293,7 +5397,7 @@ function createNotifier(label = "notifier") {
         l();
       } catch (err) {
         devWarn(
-          () => `[${label}] subscribe() listener threw \u2014 isolated; other subscribers continue.`,
+          () => `[${label2}] subscribe() listener threw \u2014 isolated; other subscribers continue.`,
           err
         );
       }
@@ -5562,7 +5666,7 @@ function StageIcon({ type, color }) {
 var StageNode = (0, import_react17.memo)(function StageNode2({
   data
 }) {
-  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts } = data;
+  const { label: label2, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts } = data;
   const effectiveIcon = icon || (isLazy ? "lazy" : void 0);
   const isLazyUnresolved = isLazy && !done && !active;
   const injectedRef = (0, import_react17.useRef)(false);
@@ -5783,7 +5887,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                           color: textColor,
                           whiteSpace: "nowrap"
                         },
-                        children: label
+                        children: label2
                       }
                     )
                   ] }),
@@ -5870,7 +5974,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                           color: textColor,
                           whiteSpace: "nowrap"
                         },
-                        children: label
+                        children: label2
                       }
                     ),
                     isSubflow && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
@@ -7305,7 +7409,7 @@ var InspectorPanel = (0, import_react31.memo)(function InspectorPanel2({
 function TabButton({
   active,
   onClick,
-  label,
+  label: label2,
   badge,
   size = "default",
   unstyled = false
@@ -7332,7 +7436,7 @@ function TabButton({
         gap: 4
       }),
       children: [
-        label,
+        label2,
         badge && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
           "span",
           {
@@ -7569,7 +7673,7 @@ var CompactTimeline = (0, import_react33.memo)(function CompactTimeline2({
   snapshots,
   selectedIndex,
   defaultExpanded = false,
-  label = "Timeline"
+  label: label2 = "Timeline"
 }) {
   const [expanded, setExpanded] = (0, import_react33.useState)(defaultExpanded);
   if (snapshots.length === 0) return null;
@@ -7595,7 +7699,7 @@ var CompactTimeline = (0, import_react33.memo)(function CompactTimeline2({
         },
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
-          label,
+          label2,
           /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
             snapshots.length,
             " stages"
@@ -7661,7 +7765,7 @@ function isExplainableTab(tabId) {
   return tabId === EXPLAINABLE_TAB_ID || tabId === "ai-compatible";
 }
 var HLinePill = (0, import_react34.memo)(function HLinePill2({
-  label,
+  label: label2,
   detail,
   expanded,
   onClick
@@ -7698,7 +7802,7 @@ var HLinePill = (0, import_react34.memo)(function HLinePill2({
         },
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
-          label,
+          label2,
           detail && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
         ]
       }
@@ -7707,7 +7811,7 @@ var HLinePill = (0, import_react34.memo)(function HLinePill2({
   ] });
 });
 var VLinePill = (0, import_react34.memo)(function VLinePill2({
-  label,
+  label: label2,
   expanded,
   side = "right",
   onClick
@@ -7747,7 +7851,7 @@ var VLinePill = (0, import_react34.memo)(function VLinePill2({
         },
         children: [
           /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
-          label
+          label2
         ]
       }
     ),
@@ -7962,11 +8066,11 @@ function KeyedRecorderView({
       ),
       visibleEntries.map((key) => {
         const entry = steps[key];
-        const label = entry.stageName ?? key;
+        const label2 = entry.stageName ?? key;
         const numVal = numFieldKey ? entry[numFieldKey] : void 0;
         return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
           /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
-          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { fontWeight: 600, flex: 1 }, children: label2 }),
           numVal !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
         ] }, key);
       }),
@@ -8051,15 +8155,15 @@ function resolveSubflowFromRuntime(parentSnapshots, drillKey, narrativeEntries, 
     })
   );
   if (!parentSnap?.subflowResult) return null;
-  const label = parentSnap.stageLabel ?? parentSnap.stageName ?? localId;
-  const sfNarrative = narrativeEntries ? extractSubflowNarrative(narrativeEntries, drillKey, label) : void 0;
+  const label2 = parentSnap.stageLabel ?? parentSnap.stageName ?? localId;
+  const sfNarrative = narrativeEntries ? extractSubflowNarrative(narrativeEntries, drillKey, label2) : void 0;
   const sfSnapshots = subflowResultToSnapshots(
     parentSnap.subflowResult,
     sfNarrative,
     subflowResults
   );
   if (sfSnapshots.length === 0) return null;
-  return { subflowId: drillKey, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
+  return { subflowId: drillKey, label: label2, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
 }
 var RIGHT_PANEL_MODE_LABELS = {
   insights: "Insights",
@@ -8307,7 +8411,17 @@ function ExplainableShell({
   const [rightExpanded, setRightExpanded] = (0, import_react34.useState)(defaultExpanded?.details ?? true);
   const [rightPanelMode, setRightPanelMode] = (0, import_react34.useState)("insights");
   const [inspectorTab, setInspectorTab] = (0, import_react34.useState)("state");
-  const [tracing, setTracing] = (0, import_react34.useState)(null);
+  const [traceSession, setTracing] = (0, import_react34.useState)(null);
+  const traceContext = (0, import_react34.useRef)({ record: runtimeSnapshot, child: drillDownStack.length > 0, session: traceSession, cursor: snapshotIdx });
+  traceContext.current = { record: runtimeSnapshot, child: drillDownStack.length > 0, session: traceSession, cursor: snapshotIdx };
+  const ownsTraceSession = (0, import_react34.useCallback)((session) => {
+    const current = traceContext.current;
+    return !!session && current.session === session && current.record === session.record && !current.child;
+  }, []);
+  const tracing = traceSession?.record === runtimeSnapshot && drillDownStack.length === 0 ? traceSession : null;
+  (0, import_react34.useEffect)(() => {
+    if (traceSession && !tracing) setTracing(null);
+  }, [traceSession, tracing]);
   const [forkChooserOpen, setForkChooserOpen] = (0, import_react34.useState)(false);
   const [traceSearch, setTraceSearch] = (0, import_react34.useState)("");
   (0, import_react34.useEffect)(() => {
@@ -8358,7 +8472,7 @@ function ExplainableShell({
     if (isInSubflow) return unavailableDataTrace("Data Trace is not yet supported for this child source; the root recording is not used in its place.");
     if (!runtimeSnapshot) return unavailableDataTrace("No recording was supplied for Data Trace.");
     const selected = activeSnapshots[safeIdx];
-    if (!selected?.runtimeStageId) return unavailableDataTrace("Select a stage with an exact recorded position.");
+    if (!selected || typeof selected.runtimeStageId !== "string") return unavailableDataTrace("Select a stage with an exact recorded position.");
     const evidence = selected.recordState;
     if (evidence?.status === "unavailable") return unavailableDataTrace(evidence.message);
     if (evidence && (evidence.sourceId !== "flow:root" || evidence.stop.runtimeStageId !== selected.runtimeStageId)) {
@@ -8376,7 +8490,7 @@ function ExplainableShell({
     const seen = /* @__PURE__ */ new Set();
     const keys = [];
     for (const c of log) {
-      if (!(0, import_foottrace5.isCommitBundle)(c)) continue;
+      if (!(0, import_foottrace6.isCommitBundle)(c)) continue;
       for (const t of c.trace ?? []) {
         if (!seen.has(t.path)) {
           seen.add(t.path);
@@ -8387,12 +8501,13 @@ function ExplainableShell({
     return keys;
   }, [runtimeSnapshot]);
   const traceWalk = (0, import_react34.useMemo)(() => {
-    if (!tracing || !runtimeSnapshot?.commitLog) return null;
+    if (!tracing) return null;
     const scope = tracing.via.length > 0 ? tracing.via[tracing.via.length - 1] : tracing;
-    return buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
+    if (tracing.refusal) return unavailableTraceWalk(scope.key, tracing.refusal);
+    return buildSelectedTraceWalk({ sourceId: "flow:root", format: "snapshot", record: tracing.record, reads: { status: "unknown" } }, scope.key, {
       beforeCommitIdx: scope.beforeCommitIdx
     });
-  }, [tracing, runtimeSnapshot]);
+  }, [tracing]);
   const traceStopIndices = (0, import_react34.useMemo)(() => {
     if (!traceWalk || traceWalk.missing || isInSubflow) return [];
     const idxByRsid = new Map(activeSnapshots.map((sn, i) => [sn.runtimeStageId, i]));
@@ -8467,55 +8582,57 @@ function ExplainableShell({
   const handleStartTracing = (0, import_react34.useCallback)(
     (key) => {
       if (!runtimeSnapshot?.commitLog || isInSubflow) return;
-      const log = runtimeSnapshot.commitLog;
-      const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
-      const cursorCommitIdx = log.findIndex((c) => c.runtimeStageId === cursorRsid);
-      const beforeCommitIdx = cursorCommitIdx >= 0 ? cursorCommitIdx + 1 : void 0;
-      setTracing({ key, beforeCommitIdx, via: [] });
+      if (traceContext.current.record !== runtimeSnapshot || traceContext.current.child || traceContext.current.cursor !== snapshotIdx || traceContext.current.session !== traceSession) return;
+      const beforeCommitIdx = shellDataTrace.evidence?.beforeCommitIdx;
+      const refusal = beforeCommitIdx === void 0 || shellDataTrace.status === "unavailable" ? `Cannot anchor this question to the selected position. ${shellDataTrace.note}` : void 0;
+      setTracing({ record: runtimeSnapshot, key, beforeCommitIdx, refusal, via: [] });
       setForkChooserOpen(false);
       setTraceSearch("");
       setRightPanelMode("what");
       setInspectorTab("trace");
-      jumpToAnchor(
-        buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, key, { beforeCommitIdx })
-      );
+      if (!refusal) jumpToAnchor(buildSelectedTraceWalk({ sourceId: "flow:root", format: "snapshot", record: runtimeSnapshot, reads: { status: "unknown" } }, key, { beforeCommitIdx }));
     },
-    [runtimeSnapshot, isInSubflow, activeSnapshots, safeIdx, jumpToAnchor]
+    [runtimeSnapshot, isInSubflow, shellDataTrace, jumpToAnchor, snapshotIdx, traceSession]
   );
   const handleFollowIngredient = (0, import_react34.useCallback)(
     (ing) => {
-      if (!tracing || !runtimeSnapshot?.commitLog || ing.writerCommitIdx === null) return;
+      if (!tracing || !ownsTraceSession(tracing) || ing.writerCommitIdx === null) return;
+      if (!traceWalk?.stops.some((stop) => stop.ingredients.includes(ing))) return;
       const scope = { key: ing.key, beforeCommitIdx: ing.writerCommitIdx + 1 };
       setTracing({ ...tracing, via: [...tracing.via, scope] });
       setForkChooserOpen(false);
       jumpToAnchor(
-        buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
+        buildSelectedTraceWalk({ sourceId: "flow:root", format: "snapshot", record: tracing.record, reads: { status: "unknown" } }, scope.key, {
           beforeCommitIdx: scope.beforeCommitIdx
         })
       );
     },
-    [tracing, runtimeSnapshot, jumpToAnchor]
+    [tracing, traceWalk, jumpToAnchor, ownsTraceSession]
   );
   const handleShowAllIngredients = (0, import_react34.useCallback)(() => {
-    if (!tracing || !runtimeSnapshot?.commitLog) return;
+    if (!tracing || !ownsTraceSession(tracing)) return;
     setTracing({ ...tracing, via: [] });
     setForkChooserOpen(false);
     jumpToAnchor(
-      buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, tracing.key, {
+      buildSelectedTraceWalk({ sourceId: "flow:root", format: "snapshot", record: tracing.record, reads: { status: "unknown" } }, tracing.key, {
         beforeCommitIdx: tracing.beforeCommitIdx
       })
     );
-  }, [tracing, runtimeSnapshot, jumpToAnchor]);
+  }, [tracing, jumpToAnchor, ownsTraceSession]);
   const handleExitTracing = (0, import_react34.useCallback)(() => {
+    if (!ownsTraceSession(tracing)) return;
     setTracing(null);
     setForkChooserOpen(false);
-  }, []);
-  const handleForkPrompt = (0, import_react34.useCallback)(() => setForkChooserOpen(true), []);
+  }, [tracing, ownsTraceSession]);
+  const handleForkPrompt = (0, import_react34.useCallback)(() => {
+    if (ownsTraceSession(tracing)) setForkChooserOpen(true);
+  }, [tracing, ownsTraceSession]);
   const handleContinueTimeOrder = (0, import_react34.useCallback)(() => {
+    if (!ownsTraceSession(tracing)) return;
     const earlier = traceStopIndices.filter((i) => i < safeIdx);
     if (earlier.length > 0) setSnapshotIdx(earlier[earlier.length - 1]);
     setForkChooserOpen(false);
-  }, [traceStopIndices, safeIdx]);
+  }, [tracing, traceStopIndices, safeIdx, ownsTraceSession]);
   const chartDrillKey = drillDownStack.length > 0 ? drillDownStack[drillDownStack.length - 1].subflowId : null;
   const buildDrillStack = (0, import_react34.useCallback)(
     (mountKey) => {
@@ -8635,7 +8752,7 @@ function ExplainableShell({
   }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients, handleForkPrompt]);
   const traceTabContent = (0, import_react34.useMemo)(() => {
     if (tracing && traceWalk) {
-      const memoryView = recordStateDisplay(activeSnapshots[safeIdx], activeSnapshots[safeIdx - 1]);
+      const currentStop = traceWalk.stops.find((stop) => stop.runtimeStageId === activeSnapshots[safeIdx]?.runtimeStageId) ?? traceWalk.stops[0];
       return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
         TraceWalkCard,
         {
@@ -8643,9 +8760,11 @@ function ExplainableShell({
           cursorRuntimeStageId: activeSnapshots[safeIdx]?.runtimeStageId ?? null,
           viaKey: activeViaKey,
           stepNumberOf,
-          previewValueOf: (k) => memoryView.canCompare ? memoryView.memory?.[k] : void 0,
+          previewValueOf: (k) => currentStop ? traceContributionPreview({ sourceId: "flow:root", format: "snapshot", record: tracing.record, reads: { status: "unknown" } }, traceWalk, currentStop, k) : void 0,
           onFollowIngredient: handleFollowIngredient,
-          onJumpToStop: navigateToStage,
+          onJumpToStop: (id) => {
+            if (ownsTraceSession(tracing)) navigateToStage(id);
+          },
           onShowAll: activeViaKey ? handleShowAllIngredients : void 0,
           onExit: handleExitTracing,
           forkChooserOpen,
@@ -8736,7 +8855,7 @@ function ExplainableShell({
         }
       )
     ] });
-  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
+  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys, ownsTraceSession]);
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
   const renderTabBody = (0, import_react34.useCallback)(
     (tabId, plain) => {
@@ -10136,7 +10255,7 @@ function CompactTimelinePanel({
 // src/components/ExplainableView/SurfaceCollapseHandle.tsx
 var import_jsx_runtime37 = require("react/jsx-runtime");
 function SurfaceCollapseHandle({
-  label = "Details",
+  label: label2 = "Details",
   expanded,
   orientation = "vertical",
   onToggle,
@@ -10150,7 +10269,7 @@ function SurfaceCollapseHandle({
       "button",
       {
         "aria-expanded": expanded,
-        "aria-label": `${action} ${label.toLowerCase()}`,
+        "aria-label": `${action} ${label2.toLowerCase()}`,
         className,
         "data-fp": "surface-collapse-handle",
         onClick: onToggle,
@@ -10159,7 +10278,7 @@ function SurfaceCollapseHandle({
         children: [
           action,
           " ",
-          label
+          label2
         ]
       }
     );
@@ -10190,7 +10309,7 @@ function SurfaceCollapseHandle({
           "button",
           {
             "aria-expanded": expanded,
-            "aria-label": `${action} ${label.toLowerCase()}`,
+            "aria-label": `${action} ${label2.toLowerCase()}`,
             onClick: onToggle,
             type: "button",
             style: {
@@ -10214,7 +10333,7 @@ function SurfaceCollapseHandle({
             },
             children: [
               /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: vertical ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25BC" : "\u25B6" }),
-              label
+              label2
             ]
           }
         ),

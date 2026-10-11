@@ -12,10 +12,12 @@
  * an empty list. [Copy story] emits formatTraceWalk's exact string: the
  * human's board and an LLM's backtrack answer are the same text.
  */
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { fontSize, theme, v } from "../../theme";
 import type { BaseComponentProps, Size } from "../../types";
+import { previewValue as boundedPreview } from "../../record/preview";
+import { contributionBasisText, contributionPositionText, missingTraceText, noIngredientsText, unknownIngredientText } from "../ExplainableShell/_internal/traceWalkText";
 import {
   formatTraceWalk,
   type TraceIngredient,
@@ -58,8 +60,8 @@ export interface TraceWalkCardProps extends BaseComponentProps {
   viaKey?: string | null;
   /** Map a stop to its 1-based rail step number (null = not on this rail). */
   stepNumberOf: (runtimeStageId: string) => number | null;
-  /** Value preview for a contributed key at the current stop (the shell
-   *  reads snapshot.memory — state as of that moment). */
+  /** Value preview for the displayed contribution, not the current rail memory.
+   * The Shell reads its frozen source at that key's exact writer row. */
   previewValueOf?: (key: string) => unknown;
   /** Follow an ingredient: re-anchor the walk on ing.key before this stop. */
   onFollowIngredient?: (ing: TraceIngredient) => void;
@@ -100,7 +102,15 @@ export const TraceWalkCard = memo(function TraceWalkCard({
 }: TraceWalkCardProps) {
   const fs = fontSize[size];
   const sx = unstyled ? BARE : PAINT;
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<TraceWalk | null>(null);
+  const [copyError, setCopyError] = useState<TraceWalk | null>(null);
+  const copyGeneration = useRef(0);
+  const copyWalk = useRef(walk);
+  if (copyWalk.current !== walk) { copyWalk.current = walk; copyGeneration.current++; }
+  useEffect(() => {
+    setCopied(null); setCopyError(null);
+    return () => { copyGeneration.current++; };
+  }, [walk]);
   const accent = "var(--fp-accent, #6366f1)";
   // Same token the tracing rail uses (F3) — the chooser is tracing chrome.
   const tracingColor = "var(--fp-tracing, #0d9488)";
@@ -119,13 +129,26 @@ export const TraceWalkCard = memo(function TraceWalkCard({
     : 0;
   const chooserVisible = !!forkChooserOpen && followableCount >= 2;
 
-  const copyStory = () => {
-    const text = formatTraceWalk(walk, stepNumberOf);
-    void navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    });
+  const copyStory = async () => {
+    const generation = ++copyGeneration.current;
+    setCopyError(null);
+    try {
+      if (!navigator.clipboard) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(formatTraceWalk(walk, stepNumberOf));
+      if (copyGeneration.current !== generation) return;
+      setCopied(walk);
+      setTimeout(() => { if (copyGeneration.current === generation) setCopied(null); }, 1600);
+    } catch {
+      if (copyGeneration.current === generation) { setCopied(null); setCopyError(walk); }
+    }
   };
+
+  if (walk.status === "unavailable") return (
+    <div data-fp="trace-walk-card" data-unavailable="true" className={className} style={{ ...sx({ padding: "14px" }), ...style }}>
+      <CardHeader label={`Why this value — \`${walk.key}\``} onExit={onExit} sx={sx} fs={fs} />
+      <p>{walk.note ?? "Recorded explanation unavailable."}</p>
+    </div>
+  );
 
   // ── Honest absence: a full answer, not an empty chain ──
   if (walk.missing) {
@@ -138,28 +161,9 @@ export const TraceWalkCard = memo(function TraceWalkCard({
       >
         <CardHeader label={`Why this value — \`${walk.key}\``} onExit={onExit} sx={sx} fs={fs} />
         <div style={sx({ color: theme.textPrimary, marginTop: 8 })}>
-          {walk.missing.reason === "never-written" ? (
-            <>
-              <code style={sx({ color: accent })}>{walk.key}</code> was <b>never written in this run</b> —
-              it arrived with the run&apos;s inputs.
-            </>
-          ) : (
-            <>
-              <code style={sx({ color: accent })}>{walk.key}</code> has <b>not been written yet at this
-              moment</b> — its first write happens later
-              {walk.missing.firstWriterStageName && (
-                <>
-                  , at <b>{walk.missing.firstWriterStageName}</b>
-                  {walk.missing.firstWriterRuntimeStageId &&
-                    stepNumberOf(walk.missing.firstWriterRuntimeStageId) && (
-                      <> (step {stepNumberOf(walk.missing.firstWriterRuntimeStageId)})</>
-                    )}
-                </>
-              )}
-              .
-            </>
-          )}
+          {missingTraceText(walk, stepNumberOf)}
         </div>
+        {walk.note && <p data-fp="twc-evidence">{walk.note}</p>}
       </div>
     );
   }
@@ -167,7 +171,10 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   if (!current) return null;
 
   const step = stepNumberOf(current.runtimeStageId);
-  const preview = previewValueOf ? previewValue(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
+  const previewKey = current.contributedKeys[0] ?? walk.key;
+  const contributions = current.contributedWrites?.filter(write => write.key === previewKey);
+  const previewAllowed = !contributions || (contributions.length === 1 && !contributions[0].valueBasis?.length);
+  const preview = previewAllowed && previewValueOf ? previewValue(() => previewValueOf(previewKey)) : null;
 
   return (
     <div
@@ -208,7 +215,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         )}
       </div>
       <div style={sx({ marginTop: 2, color: theme.textSecondary })}>
-        wrote{" "}
+        recorded changes to{" "}
         {current.contributedKeys.map((k, i) => (
           <code key={k} style={sx({ color: accent })}>
             {i > 0 && ", "}
@@ -216,9 +223,11 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           </code>
         ))}
         {preview !== null && (
-          <span style={sx({ color: theme.textMuted })}> = {preview}</span>
+          <span style={sx({ color: theme.textMuted })}>{current.contributedKeys.length > 1 ? ` · preview ${previewKey}` : ""} = {preview}</span>
         )}
       </div>
+      {contributionPositionText(current) && <p data-fp="twc-positions">{contributionPositionText(current)}</p>}
+      {contributionBasisText(current) && <p data-fp="twc-value-basis">{contributionBasisText(current)}</p>}
 
       {/* ── Fork chooser (F2) — opened by the rail's walk-back control at a
           2+-ingredient stop: the user picks WHICH cause to follow, or keeps
@@ -236,7 +245,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           })}
         >
           <div style={sx({ fontWeight: 600, fontSize: fs.body, color: theme.textPrimary })}>
-            This value was made from {current.ingredients.length} ingredients — which one should
+            This stage has {current.ingredients.length} recorded ingredients — which one should
             the walk follow?
           </div>
           <div style={sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 })}>
@@ -284,7 +293,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         {chooserVisible ? null : current.ingredients.length > 0 ? (
           <>
             <div style={sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 })}>
-              Made from {current.ingredients.length} ingredient{current.ingredients.length > 1 ? "s" : ""}
+              {current.ingredients.length} recorded ingredient{current.ingredients.length > 1 ? "s" : ""} (stage-level)
             </div>
             <div style={sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 })}>
               {current.ingredients.map((ing, i) => (
@@ -300,13 +309,9 @@ export const TraceWalkCard = memo(function TraceWalkCard({
               ))}
             </div>
           </>
-        ) : walk.readsAvailable ? (
-          <div data-fp="twc-origin" style={sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" })}>
-            reads nothing — this is an origin.
-          </div>
         ) : (
           <div data-fp="twc-unknowable" style={sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" })}>
-            ⚠ reads were not recorded — ingredients are unknowable, not absent.
+            {noIngredientsText} {!walk.readsAvailable && "Read evidence is unknown; ingredients are unknowable, not absent."}
           </div>
         )}
       </div>
@@ -357,7 +362,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
       <div style={sx({ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 })}>
         {walk.inputTermini.length > 0 && (
           <div data-fp="twc-run-inputs" style={sx({ fontSize: fs.label, color: theme.textMuted })}>
-            ⚑ run inputs (never written): {walk.inputTermini.map((k, i) => (
+            Reads without an earlier recorded writer (origin unknown): {walk.inputTermini.map((k, i) => (
               <code key={k}>
                 {i > 0 && ", "}
                 {k}
@@ -365,9 +370,10 @@ export const TraceWalkCard = memo(function TraceWalkCard({
             ))}
           </div>
         )}
-        {walk.truncated && (
+        {walk.note && <div data-fp="twc-evidence">{walk.note}</div>}
+        {walk.truncated && !walk.evidence?.truncated && (
           <div data-fp="twc-truncated" style={sx({ fontSize: fs.label, color: theme.warning })}>
-            ⚠ walk truncated at its frame budget — the earliest stop may not be the true origin.
+            The recorded explanation is truncated; its earliest displayed stop need not be an origin.
           </div>
         )}
         <button
@@ -386,8 +392,9 @@ export const TraceWalkCard = memo(function TraceWalkCard({
             cursor: "pointer",
           })}
         >
-          {copied ? "Copied ✓" : "Copy story"}
+          {copied === walk ? "Copied ✓" : "Copy story"}
         </button>
+        {copyError === walk && <div role="status">Copy failed. Please try again.</div>}
       </div>
     </div>
   );
@@ -447,7 +454,7 @@ function IngredientChip({
       onClick={() => onFollow?.(ing)}
       title={
         terminus
-          ? `${ing.key} was never written — it came in with the run's inputs`
+          ? `${ing.key}: ${unknownIngredientText}`
           : `Follow ${ing.key} — re-anchor the walk on its writer`
       }
       style={sx({
@@ -466,11 +473,12 @@ function IngredientChip({
     >
       <code>{ing.key}</code>
       {terminus ? (
-        <span style={sx({ fontWeight: 400 })}>— run input ⚑</span>
+        <span style={sx({ fontWeight: 400 })}>— origin unknown</span>
       ) : (
         <span style={sx({ fontWeight: 400 })}>
           ← {ing.writerStageName}
           {step && ` · step ${step}`}
+          {ing.basis && " · nested contribution"}
         </span>
       )}
     </button>
@@ -478,11 +486,11 @@ function IngredientChip({
 }
 
 /** Bounded, JSON-ish preview — a hint, never the full payload. */
-function previewValue(v: unknown): string | null {
-  if (v === undefined) return null;
+function previewValue(read: () => unknown): string | null {
   try {
-    const s = typeof v === "string" ? JSON.stringify(v) : JSON.stringify(v);
-    if (s === undefined) return null;
+    const v = read();
+    if (v === undefined) return null;
+    const s = boundedPreview(v);
     return s.length > 60 ? `${s.slice(0, 57)}…` : s;
   } catch {
     return null;

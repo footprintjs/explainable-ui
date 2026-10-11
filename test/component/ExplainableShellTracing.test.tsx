@@ -96,9 +96,9 @@ function forkChooser(): HTMLElement | null {
 }
 
 describe("ExplainableShell — Same-Rail Rewind", () => {
-  it.each(["caller-owned", "complete", "current", "previous"] as const)("M3: %s evidence gates only the optional preview, never trace navigation", (qualification) => {
-    // Presentation-only evidence fixture: the existing legacy trace graph is
-    // deliberately unchanged. This tests no new causal interpretation.
+  it.each(["caller-owned", "complete", "current", "previous"] as const)("M5: %s rail evidence cannot replace the exact record contribution preview or trace navigation", (qualification) => {
+    // M3 gated a rail-memory preview. M5 reads the exact contribution instead:
+    // every supplied rail projection says 109.45, but the recording says 1.
     const snapshots: StageSnapshot[] = qualification === "caller-owned" ? SNAPSHOTS : SNAPSHOTS.map((snapshot, index) => ({
       ...snapshot,
       recordState: {
@@ -113,8 +113,8 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
     enterTracing();
     const card = () => document.querySelector('[data-fp="trace-walk-card"]') as HTMLElement;
     expect(within(toolbar()).getByText(/stop 1 of 4/)).toBeTruthy();
-    if (qualification === "caller-owned" || qualification === "complete") expect(card().textContent).toContain("= 109.45");
-    else expect(card().textContent).not.toContain("109.45");
+    expect(card().textContent).toContain("= 1");
+    expect(card().textContent).not.toContain("109.45");
     fireEvent.click(screen.getByLabelText("Earlier cause"));
     expect(within(toolbar()).getByText(/stop 2 of 4/)).toBeTruthy();
     expect(screen.getByText(/Step 4 ·/)).toBeTruthy();
@@ -134,10 +134,22 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
     expect(within(toolbar()).getByText(/stop 1 of 4/)).toBeTruthy();
     // The stop card is open with the anchor's story
     expect(screen.getByText(/Why this value — stop 1 of 4/i)).toBeTruthy();
-    expect(screen.getByText(/Made from 2 ingredients/)).toBeTruthy();
+    expect(screen.getByText(/2 recorded ingredients/)).toBeTruthy();
     // Non-dependency tick (Audit) is unlandable
     const audit = screen.getByTitle(/Audit \(not part of this trace\)/);
     expect((audit as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("ends the old tracing session when a same-length recording with the same IDs replaces it", () => {
+    const runtimeSnapshot = makeRuntimeSnapshot();
+    const { rerender } = render(<ExplainableShell snapshots={SNAPSHOTS} runtimeSnapshot={runtimeSnapshot} />);
+    enterTracing();
+    expect(toolbar().getAttribute("data-tracing")).toBe("true");
+    const replacement = makeRuntimeSnapshot();
+    rerender(<ExplainableShell snapshots={SNAPSHOTS} runtimeSnapshot={replacement} />);
+    expect(toolbar().getAttribute("data-tracing")).toBeNull();
+    expect(document.querySelector('[data-fp="trace-walk-card"]')).toBeNull();
+    expect(screen.getByLabelText("Play")).toBeTruthy();
   });
 
   // THE LAW: the walk visits every frame in reverse-commit order, so a fork
@@ -248,7 +260,7 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
     // not-yet-written card, and the rail stays in normal mode (no stops).
     const card = document.querySelector('[data-fp="trace-walk-card"]')!;
     expect(card.getAttribute("data-missing")).toBe("not-yet-written");
-    expect(card.textContent).toContain("not been written yet at this moment");
+    expect(card.textContent).toContain("before this moment — its first recorded write is later");
     expect(toolbar().getAttribute("data-tracing")).toBeNull();
   });
 

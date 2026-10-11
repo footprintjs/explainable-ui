@@ -210,7 +210,7 @@ describe("formatTraceWalk — the parity artifact", () => {
     const walk = buildTraceWalk(DIAMOND_LOG, DIAMOND_TREE, "total");
     const text = formatTraceWalk(walk, stepOf);
     expect(text).toContain("Tracing `total` — 4 stops, newest first.");
-    expect(text).toContain("stop 1/4 · step 5 · ComputeTotal wrote `total`");
+    expect(text).toContain("stop 1/4 · step 5 · ComputeTotal recorded changes to `total`");
     expect(text).toContain("subtotal (← Sum, step 2)");
     expect(text).toContain("tax (← ApplyTax, step 4)");
     // Walk order in the text matches the stops array (line order).
@@ -221,17 +221,17 @@ describe("formatTraceWalk — the parity artifact", () => {
 
   it("absence renders the exact truthful sentence, not an empty chain", () => {
     const never = buildTraceWalk(DIAMOND_LOG, DIAMOND_TREE, "phantom");
-    expect(formatTraceWalk(never, stepOf)).toBe(
-      "`phantom` was never written in this run — it arrived with the run's inputs.",
+    expect(formatTraceWalk(never, stepOf)).toContain(
+      "No recorded writer for `phantom` in this source range; its origin is unknown.",
     );
     const notYet = buildTraceWalk(DIAMOND_LOG, DIAMOND_TREE, "total", { beforeCommitIdx: 4 });
     expect(formatTraceWalk(notYet, stepOf)).toContain(
-      "has not been written yet at this moment — its first write happens later, at ComputeTotal (step 5).",
+      "No recorded writer for `total` before this moment — its first recorded write is later, at ComputeTotal (step 5).",
     );
   });
 
   it("carries the honesty flags into the text", () => {
     const noReads = buildTraceWalk(DIAMOND_LOG, tree([{ id: "x#0" }]), "total");
-    expect(formatTraceWalk(noReads, stepOf)).toContain("unknowable, not absent");
+    expect(formatTraceWalk(noReads, stepOf)).toContain("missing edges do not prove independence");
   });
 });
