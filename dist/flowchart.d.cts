@@ -1,6 +1,7 @@
 import * as react from 'react';
 import * as _xyflow_react from '@xyflow/react';
 import { Node, Edge, NodeTypes, EdgeTypes, NodeProps, EdgeProps } from '@xyflow/react';
+import { Stop, FoldedState } from 'foottrace';
 
 interface StageNodeData {
     label: string;
@@ -94,8 +95,24 @@ interface StageSnapshot {
     stageLabel: string;
     /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex. Key for recorder Map lookup. */
     runtimeStageId?: string;
-    /** Accumulated memory state after this stage ran */
+    /** Accumulated state. When recordState is unavailable, this is an empty
+     * compatibility placeholder, not proof that the recorded state was empty. */
     memory: Record<string, unknown>;
+    /** Canonical record evidence. Absent for caller-supplied createSnapshots data.
+     * Keep every basis/redaction/gap qualifier when displaying or copying state. */
+    recordState?: {
+        readonly status: "available";
+        /** Selection-local label, not a globally unique run/iteration ID. */
+        readonly sourceId: string;
+        readonly stop: Stop;
+        readonly current: FoldedState;
+        readonly previous: FoldedState;
+    } | {
+        readonly status: "unavailable";
+        readonly sourceId: string;
+        readonly reason: "unsupported-source" | "stage-not-recorded" | "reader-refused";
+        readonly message: string;
+    };
     /** Narrative text describing what happened */
     narrative: string;
     /** When this stage started (ms from pipeline start) */

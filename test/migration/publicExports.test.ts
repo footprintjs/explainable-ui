@@ -13,14 +13,17 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
     );
   });
 
-  it("keeps the source pilot unpublished and the current consumer contract unchanged", () => {
+  it("retains all doors while preparing only the approved Node22/Foottrace runtime prerequisites", () => {
     const manifest = JSON.parse(
       readFileSync(new URL("../../package.json", import.meta.url), "utf8")
     );
     for (const [key, value] of Object.entries(ledger.packageContract)) {
-      expect(manifest[key], key).toEqual(value);
+      const approved = key === "engines" ? { node: ">=22" } : key === "dependencies" ? { ...ledger.packageContract.dependencies, foottrace: "^1.0.1" } : value;
+      expect(manifest[key], key).toEqual(approved);
     }
     expect(manifest.exports).not.toHaveProperty("./record");
+    expect(manifest.version).toBe("0.38.0"); // unpublished preparation, not a release
+    expect(manifest.devDependencies.foottrace).toBeUndefined();
   });
 
   it("distinguishes a real class export from its type-only alias", () => {

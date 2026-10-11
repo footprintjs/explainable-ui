@@ -77,7 +77,6 @@
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
     "footprintjs": "9.15.1",
-    "foottrace": "1.0.1",
     "jsdom": "^29.0.1",
     "publint": "^0.3.0",
     "react": "^19.2.5",
@@ -89,7 +88,7 @@
   },
   "license": "MIT",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "repository": {
     "type": "git",
@@ -105,6 +104,7 @@
     "explainable-ai"
   ],
   "dependencies": {
-    "dagre": "^0.8.5"
+    "dagre": "^0.8.5",
+    "foottrace": "^1.0.1"
   }
 }

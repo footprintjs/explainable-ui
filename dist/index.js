@@ -349,7 +349,173 @@ function themeModeVars(mode) {
 
 // src/components/MemoryInspector/MemoryInspector.tsx
 import { useMemo } from "react";
-import { jsx as jsx2, jsxs } from "react/jsx-runtime";
+
+// src/components/_internal/recordStateDisplay.tsx
+import { jsx as jsx2 } from "react/jsx-runtime";
+function recordStateDisplay(snapshot, previous) {
+  const evidence = snapshot?.recordState;
+  if (!evidence) {
+    return {
+      memory: snapshot?.memory ?? {},
+      previous: previous?.memory ?? null,
+      canCompare: true,
+      notices: []
+    };
+  }
+  if (evidence.status === "unavailable") {
+    return {
+      memory: null,
+      previous: null,
+      canCompare: false,
+      notices: [`Recorded state unavailable: ${evidence.message}`]
+    };
+  }
+  const notices = [];
+  for (const [label, state] of [
+    ["Selected state", evidence.current],
+    ["Previous recorded state", evidence.previous]
+  ]) {
+    if (state.basis === "log-only")
+      notices.push(
+        `${label}: recorded writes only; the initial state was not recorded.`
+      );
+    if (state.redacted || state.redactedPaths.length)
+      notices.push(
+        `${label}: redacted values are withheld${state.redactedPaths.length ? ` (${state.redactedPaths.join(", ")})` : ""}.`
+      );
+    for (const gap of state.skipped ?? [])
+      notices.push(`${label}: skipped record row ${gap.index}: ${gap.reason}`);
+  }
+  const complete = (state) => state.basis === "initial+log" && !state.redacted && !state.redactedPaths.length && !state.skipped?.length;
+  const canCompare = complete(evidence.current) && complete(evidence.previous);
+  if (!canCompare)
+    notices.push(
+      "Changes are not classified because one or both recorded states are incomplete."
+    );
+  return {
+    memory: evidence.current.state,
+    previous: evidence.previous.state,
+    canCompare,
+    notices
+  };
+}
+function RecordStateNotice({
+  view
+}) {
+  if (!view.notices.length) return null;
+  return /* @__PURE__ */ jsx2("div", { "data-fp": "record-state-evidence", role: "note", children: view.notices.map((notice) => /* @__PURE__ */ jsx2("p", { children: notice }, notice)) });
+}
+
+// src/components/_internal/displayValue.ts
+import { deepEqual } from "foottrace";
+
+// src/record/preview.ts
+function previewValue(value) {
+  const seen = /* @__PURE__ */ new WeakSet();
+  let remaining = 100;
+  const quote = (text) => JSON.stringify(text.length > 300 ? `${text.slice(0, 300)}\u2026` : text);
+  const own = (object, key, depth) => {
+    const property = Object.getOwnPropertyDescriptor(object, key);
+    if (!property) return "[absent]";
+    return "value" in property ? show(property.value, depth) : "[accessor not read]";
+  };
+  const show = (item, depth) => {
+    if (--remaining < 0 || depth > 4) return "[preview limit]";
+    if (item === null) return "null";
+    if (item === void 0) return "[undefined]";
+    if (typeof item === "string") return quote(item);
+    if (typeof item === "bigint") return `${item}n`;
+    if (typeof item === "number" || typeof item === "boolean")
+      return String(item);
+    if (typeof item !== "object") return `[${typeof item}]`;
+    if (seen.has(item)) return "[repeated reference]";
+    seen.add(item);
+    if (item instanceof Date) {
+      return Number.isNaN(Date.prototype.getTime.call(item)) ? "[Invalid Date]" : `Date(${Date.prototype.toISOString.call(item)})`;
+    }
+    if (item instanceof Map || item instanceof Set) {
+      const prototype2 = item instanceof Map ? Map.prototype : Set.prototype;
+      const size = Object.getOwnPropertyDescriptor(
+        prototype2,
+        "size"
+      )?.get?.call(item);
+      return `[${item instanceof Map ? "Map" : "Set"}: ${size} entries]`;
+    }
+    if (item instanceof RegExp) return "[RegExp]";
+    if (ArrayBuffer.isView(item)) return "[TypedArray or DataView]";
+    if (item instanceof ArrayBuffer) return "[ArrayBuffer]";
+    if (Array.isArray(item)) {
+      const length = Object.getOwnPropertyDescriptor(item, "length")?.value ?? 0;
+      const parts2 = Array.from(
+        { length: Math.min(length, 10) },
+        (_, index) => own(item, String(index), depth + 1)
+      );
+      if (length > 10) parts2.push("\u2026");
+      return `[${parts2.join(", ")}]`;
+    }
+    const prototype = Object.getPrototypeOf(item);
+    if (prototype !== null && prototype !== Object.prototype)
+      return "[Object preview unavailable]";
+    const parts = [];
+    for (const key in item) {
+      if (!Object.prototype.hasOwnProperty.call(item, key)) continue;
+      if (parts.length === 10 || remaining <= 0) {
+        parts.push("\u2026");
+        break;
+      }
+      parts.push(`${quote(key)}: ${own(item, key, depth + 1)}`);
+    }
+    return `{${parts.join(", ")}}`;
+  };
+  try {
+    const text = show(value, 0);
+    return text.length > 800 ? `${text.slice(0, 800)}\u2026` : text;
+  } catch {
+    return "[preview unavailable]";
+  }
+}
+
+// src/components/_internal/displayValue.ts
+function isJsonData(value, ancestors = /* @__PURE__ */ new Set()) {
+  if (value === null || typeof value === "string" || typeof value === "boolean")
+    return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "object") return false;
+  const proto = Object.getPrototypeOf(value);
+  if (!Array.isArray(value) && proto !== Object.prototype && proto !== null || "toJSON" in value || ancestors.has(value))
+    return false;
+  ancestors.add(value);
+  try {
+    for (const key of Object.keys(value)) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !("value" in descriptor) || !isJsonData(descriptor.value, ancestors))
+        return false;
+    }
+    return true;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+function jsonText(value, indent) {
+  try {
+    return isJsonData(value) ? JSON.stringify(value, null, indent) : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function displayValue(value, indent) {
+  if (typeof value === "string") return `"${value}"`;
+  if (value === null || typeof value !== "object")
+    return typeof value === "bigint" ? previewValue(value) : String(value);
+  return jsonText(value, indent) ?? previewValue(value);
+}
+function displayValuesEqual(a, b) {
+  const aJson = jsonText(a), bJson = jsonText(b);
+  return aJson !== void 0 && bJson !== void 0 ? aJson === bJson : deepEqual(a, b);
+}
+
+// src/components/MemoryInspector/MemoryInspector.tsx
+import { jsx as jsx3, jsxs } from "react/jsx-runtime";
 function MemoryInspector({
   data,
   snapshots,
@@ -361,32 +527,47 @@ function MemoryInspector({
   className,
   style
 }) {
-  const { memory, newKeys } = useMemo(() => {
+  const { view, newKeys } = useMemo(() => {
     if (data) {
-      return { memory: data, newKeys: /* @__PURE__ */ new Set() };
+      return {
+        view: { memory: data, previous: null, canCompare: true, notices: [] },
+        newKeys: /* @__PURE__ */ new Set()
+      };
     }
     if (!snapshots || snapshots.length === 0) {
-      return { memory: {}, newKeys: /* @__PURE__ */ new Set() };
+      return { view: recordStateDisplay(), newKeys: /* @__PURE__ */ new Set() };
     }
-    const safeIdx = Math.min(selectedIndex, snapshots.length - 1);
-    const merged = snapshots[safeIdx]?.memory ?? {};
+    const safeIdx = Math.max(0, Math.min(selectedIndex, snapshots.length - 1));
+    const view2 = recordStateDisplay(snapshots[safeIdx], snapshots[safeIdx - 1]);
     const nk = /* @__PURE__ */ new Set();
-    if (highlightNew) {
-      const prev = safeIdx > 0 ? snapshots[safeIdx - 1]?.memory ?? {} : {};
-      for (const k of Object.keys(merged)) {
+    if (highlightNew && view2.canCompare && view2.memory) {
+      const prev = view2.previous ?? {};
+      for (const k of Object.keys(view2.memory)) {
         if (!(k in prev)) nk.add(k);
       }
     }
-    return { memory: merged, newKeys: nk };
+    return { view: view2, newKeys: nk };
   }, [data, snapshots, selectedIndex, highlightNew]);
-  const entries = Object.entries(memory);
+  const memory = view.memory;
+  const entries = Object.entries(memory ?? {});
   const fs = fontSize[size];
   const pad = padding[size];
   if (unstyled) {
-    return /* @__PURE__ */ jsxs("div", { className, style, "data-fp": "memory-inspector", role: "region", "aria-label": "Memory state", children: [
-      /* @__PURE__ */ jsx2("div", { "data-fp": "memory-label", children: "Memory State" }),
-      /* @__PURE__ */ jsx2("pre", { "data-fp": "memory-json", children: /* @__PURE__ */ jsx2("code", { children: JSON.stringify(memory, null, 2) }) })
-    ] });
+    return /* @__PURE__ */ jsxs(
+      "div",
+      {
+        className,
+        style,
+        "data-fp": "memory-inspector",
+        role: "region",
+        "aria-label": "Memory state",
+        children: [
+          /* @__PURE__ */ jsx3("div", { "data-fp": "memory-label", children: "Memory State" }),
+          /* @__PURE__ */ jsx3(RecordStateNotice, { view }),
+          memory !== null && /* @__PURE__ */ jsx3("pre", { "data-fp": "memory-json", children: /* @__PURE__ */ jsx3("code", { children: displayValue(memory, 2) }) })
+        ]
+      }
+    );
   }
   return /* @__PURE__ */ jsxs(
     "div",
@@ -401,7 +582,7 @@ function MemoryInspector({
       role: "region",
       "aria-label": "Memory state",
       children: [
-        /* @__PURE__ */ jsx2(
+        /* @__PURE__ */ jsx3(
           "span",
           {
             style: {
@@ -414,7 +595,8 @@ function MemoryInspector({
             children: "Memory State"
           }
         ),
-        /* @__PURE__ */ jsxs(
+        /* @__PURE__ */ jsx3(RecordStateNotice, { view }),
+        memory !== null && /* @__PURE__ */ jsxs(
           "div",
           {
             style: {
@@ -428,8 +610,8 @@ function MemoryInspector({
               lineHeight: 1.8
             },
             children: [
-              /* @__PURE__ */ jsx2("span", { style: { color: theme.textMuted }, children: "{" }),
-              entries.length === 0 && /* @__PURE__ */ jsx2(
+              /* @__PURE__ */ jsx3("span", { style: { color: theme.textMuted }, children: "{" }),
+              entries.length === 0 && /* @__PURE__ */ jsx3(
                 "div",
                 {
                   style: {
@@ -437,7 +619,7 @@ function MemoryInspector({
                     color: theme.textMuted,
                     fontStyle: "italic"
                   },
-                  children: "// empty"
+                  children: view.canCompare ? "// empty" : "// no values in the available recorded state"
                 }
               ),
               entries.map(([key, value], i) => {
@@ -460,8 +642,8 @@ function MemoryInspector({
                         key,
                         '"'
                       ] }),
-                      /* @__PURE__ */ jsx2("span", { style: { color: theme.textMuted }, children: ": " }),
-                      /* @__PURE__ */ jsx2("span", { style: { color: theme.success }, children: formatValue(value) }),
+                      /* @__PURE__ */ jsx3("span", { style: { color: theme.textMuted }, children: ": " }),
+                      /* @__PURE__ */ jsx3("span", { style: { color: theme.success }, children: displayValue(value) }),
                       showTypes && /* @__PURE__ */ jsxs(
                         "span",
                         {
@@ -478,13 +660,13 @@ function MemoryInspector({
                           ]
                         }
                       ),
-                      !isLast && /* @__PURE__ */ jsx2("span", { style: { color: theme.textMuted }, children: "," })
+                      !isLast && /* @__PURE__ */ jsx3("span", { style: { color: theme.textMuted }, children: "," })
                     ]
                   },
                   key
                 );
               }),
-              /* @__PURE__ */ jsx2("span", { style: { color: theme.textMuted }, children: "}" })
+              /* @__PURE__ */ jsx3("span", { style: { color: theme.textMuted }, children: "}" })
             ]
           }
         )
@@ -492,15 +674,10 @@ function MemoryInspector({
     }
   );
 }
-function formatValue(value) {
-  if (typeof value === "string") return `"${value}"`;
-  if (typeof value === "object" && value !== null) return JSON.stringify(value);
-  return String(value);
-}
 
 // src/components/NarrativeLog/NarrativeLog.tsx
 import { useMemo as useMemo2 } from "react";
-import { jsx as jsx3, jsxs as jsxs2 } from "react/jsx-runtime";
+import { jsx as jsx4, jsxs as jsxs2 } from "react/jsx-runtime";
 function NarrativeLog({
   snapshots,
   selectedIndex,
@@ -524,9 +701,9 @@ function NarrativeLog({
   const fs = fontSize[size];
   const pad = padding[size];
   if (unstyled) {
-    return /* @__PURE__ */ jsx3("div", { className, style, "data-fp": "narrative-log", children: entries.map((entry, i) => /* @__PURE__ */ jsxs2("div", { "data-fp": "narrative-entry", "data-current": entry.isCurrent, children: [
-      /* @__PURE__ */ jsx3("strong", { children: entry.label }),
-      /* @__PURE__ */ jsx3("p", { children: entry.text })
+    return /* @__PURE__ */ jsx4("div", { className, style, "data-fp": "narrative-log", children: entries.map((entry, i) => /* @__PURE__ */ jsxs2("div", { "data-fp": "narrative-entry", "data-current": entry.isCurrent, children: [
+      /* @__PURE__ */ jsx4("strong", { children: entry.label }),
+      /* @__PURE__ */ jsx4("p", { children: entry.text })
     ] }, i)) });
   }
   return /* @__PURE__ */ jsxs2(
@@ -536,7 +713,7 @@ function NarrativeLog({
       style: { padding: pad, fontFamily: theme.fontSans, ...style },
       "data-fp": "narrative-log",
       children: [
-        /* @__PURE__ */ jsx3(
+        /* @__PURE__ */ jsx4(
           "span",
           {
             style: {
@@ -549,7 +726,7 @@ function NarrativeLog({
             children: "Execution Log"
           }
         ),
-        /* @__PURE__ */ jsx3("div", { style: { marginTop: 8, display: "flex", flexDirection: "column" }, children: entries.map((entry, i) => /* @__PURE__ */ jsxs2(
+        /* @__PURE__ */ jsx4("div", { style: { marginTop: 8, display: "flex", flexDirection: "column" }, children: entries.map((entry, i) => /* @__PURE__ */ jsxs2(
           "div",
           {
             style: {
@@ -571,7 +748,7 @@ function NarrativeLog({
                     paddingTop: 5
                   },
                   children: [
-                    /* @__PURE__ */ jsx3(
+                    /* @__PURE__ */ jsx4(
                       "div",
                       {
                         style: {
@@ -583,7 +760,7 @@ function NarrativeLog({
                         }
                       }
                     ),
-                    i < entries.length - 1 && /* @__PURE__ */ jsx3(
+                    i < entries.length - 1 && /* @__PURE__ */ jsx4(
                       "div",
                       {
                         style: {
@@ -598,7 +775,7 @@ function NarrativeLog({
                 }
               ),
               /* @__PURE__ */ jsxs2("div", { style: { flex: 1, minWidth: 0 }, children: [
-                /* @__PURE__ */ jsx3(
+                /* @__PURE__ */ jsx4(
                   "span",
                   {
                     style: {
@@ -609,7 +786,7 @@ function NarrativeLog({
                     children: entry.label
                   }
                 ),
-                /* @__PURE__ */ jsx3(
+                /* @__PURE__ */ jsx4(
                   "div",
                   {
                     style: {
@@ -633,7 +810,7 @@ function NarrativeLog({
 
 // src/components/NarrativeTrace/NarrativeTrace.tsx
 import { useState as useState2, useCallback, useMemo as useMemo3, useEffect as useEffect2, useRef } from "react";
-import { jsx as jsx4, jsxs as jsxs3 } from "react/jsx-runtime";
+import { jsx as jsx5, jsxs as jsxs3 } from "react/jsx-runtime";
 function parseGroups(lines) {
   const groups = [];
   let current = null;
@@ -686,7 +863,7 @@ function NarrativeTrace({
   if (unstyled) {
     return /* @__PURE__ */ jsxs3("div", { className, style, "data-fp": "narrative-trace", children: [
       revealedGroups.map((group, gi) => /* @__PURE__ */ jsxs3("div", { "data-fp": "narrative-group", "data-latest": gi === lastIdx, children: [
-        /* @__PURE__ */ jsx4(
+        /* @__PURE__ */ jsx5(
           "div",
           {
             "data-fp": "narrative-header",
@@ -710,7 +887,7 @@ function NarrativeTrace({
             children: group.header
           }
         ),
-        !collapsedSet.has(group.headerIdx) && group.steps.map((step) => /* @__PURE__ */ jsx4("div", { "data-fp": "narrative-step", children: step.text }, step.idx))
+        !collapsedSet.has(group.headerIdx) && group.steps.map((step) => /* @__PURE__ */ jsx5("div", { "data-fp": "narrative-step", children: step.text }, step.idx))
       ] }, group.headerIdx)),
       futureGroups.length > 0 && /* @__PURE__ */ jsxs3("div", { "data-fp": "narrative-future-hint", children: [
         futureGroups.length,
@@ -779,7 +956,7 @@ function NarrativeTrace({
                       transition: "all 0.15s ease"
                     },
                     children: [
-                      hasSteps && /* @__PURE__ */ jsx4(
+                      hasSteps && /* @__PURE__ */ jsx5(
                         "span",
                         {
                           style: {
@@ -794,12 +971,12 @@ function NarrativeTrace({
                           children: "\u25BC"
                         }
                       ),
-                      !hasSteps && /* @__PURE__ */ jsx4("span", { style: { width: 10, flexShrink: 0 } }),
-                      /* @__PURE__ */ jsx4("span", { children: group.header })
+                      !hasSteps && /* @__PURE__ */ jsx5("span", { style: { width: 10, flexShrink: 0 } }),
+                      /* @__PURE__ */ jsx5("span", { children: group.header })
                     ]
                   }
                 ),
-                !isCollapsed && group.steps.map((step) => /* @__PURE__ */ jsx4(
+                !isCollapsed && group.steps.map((step) => /* @__PURE__ */ jsx5(
                   "div",
                   {
                     style: {
@@ -839,7 +1016,7 @@ function NarrativeTrace({
 
 // src/components/GanttTimeline/GanttTimeline.tsx
 import { useState as useState3, useMemo as useMemo4, useRef as useRef2, useEffect as useEffect3 } from "react";
-import { jsx as jsx5, jsxs as jsxs4 } from "react/jsx-runtime";
+import { jsx as jsx6, jsxs as jsxs4 } from "react/jsx-runtime";
 var NO_TIMING_NOTE = "No timing recorded \u2014 bars show the order stages ran, not how long they took.";
 var NO_TIMING_HINT = "Durations come from footprintjs's metrics recorder; this run was recorded without one.";
 var NO_DURATION = "\u2014";
@@ -908,13 +1085,13 @@ function GanttTimeline({
               "aria-label": rowLabel(snap, idx),
               onClick: () => onSelect?.(idx),
               children: [
-                /* @__PURE__ */ jsx5("span", { "data-fp": "gantt-label", children: snap.stageLabel }),
-                /* @__PURE__ */ jsx5("span", { "data-fp": "gantt-duration", children: rowDuration(snap) })
+                /* @__PURE__ */ jsx6("span", { "data-fp": "gantt-label", children: snap.stageLabel }),
+                /* @__PURE__ */ jsx6("span", { "data-fp": "gantt-duration", children: rowDuration(snap) })
               ]
             },
             `${snap.stageName}-${idx}`
           )),
-          untimed && /* @__PURE__ */ jsx5("div", { "data-fp": "gantt-no-timing", title: NO_TIMING_HINT, children: NO_TIMING_NOTE })
+          untimed && /* @__PURE__ */ jsx6("div", { "data-fp": "gantt-no-timing", title: NO_TIMING_HINT, children: NO_TIMING_NOTE })
         ]
       }
     );
@@ -936,7 +1113,7 @@ function GanttTimeline({
               justifyContent: "space-between"
             },
             children: [
-              /* @__PURE__ */ jsx5(
+              /* @__PURE__ */ jsx6(
                 "span",
                 {
                   style: {
@@ -949,7 +1126,7 @@ function GanttTimeline({
                   children: size === "compact" ? "Timeline" : "Execution Timeline"
                 }
               ),
-              collapsible && /* @__PURE__ */ jsx5(
+              collapsible && /* @__PURE__ */ jsx6(
                 "button",
                 {
                   onClick: () => setExpanded((e) => !e),
@@ -969,7 +1146,7 @@ function GanttTimeline({
             ]
           }
         ),
-        /* @__PURE__ */ jsx5(
+        /* @__PURE__ */ jsx6(
           "div",
           {
             ref: scrollContainerRef,
@@ -1009,7 +1186,7 @@ function GanttTimeline({
                     flexShrink: 0
                   },
                   children: [
-                    /* @__PURE__ */ jsx5(
+                    /* @__PURE__ */ jsx6(
                       "span",
                       {
                         title: snap.stageLabel,
@@ -1027,7 +1204,7 @@ function GanttTimeline({
                         children: snap.stageLabel
                       }
                     ),
-                    /* @__PURE__ */ jsx5(
+                    /* @__PURE__ */ jsx6(
                       "div",
                       {
                         style: {
@@ -1037,7 +1214,7 @@ function GanttTimeline({
                           background: theme.bgTertiary,
                           borderRadius: 3
                         },
-                        children: isVisible && /* @__PURE__ */ jsx5(
+                        children: isVisible && /* @__PURE__ */ jsx6(
                           "div",
                           {
                             style: {
@@ -1054,7 +1231,7 @@ function GanttTimeline({
                         )
                       }
                     ),
-                    /* @__PURE__ */ jsx5(
+                    /* @__PURE__ */ jsx6(
                       "span",
                       {
                         style: {
@@ -1074,7 +1251,7 @@ function GanttTimeline({
             })
           }
         ),
-        untimed ? /* @__PURE__ */ jsx5(
+        untimed ? /* @__PURE__ */ jsx6(
           "div",
           {
             "data-fp": "gantt-no-timing",
@@ -1102,7 +1279,7 @@ function GanttTimeline({
               fontFamily: theme.fontMono
             },
             children: [
-              /* @__PURE__ */ jsx5("span", { children: "0ms" }),
+              /* @__PURE__ */ jsx6("span", { children: "0ms" }),
               size !== "compact" && /* @__PURE__ */ jsxs4("span", { children: [
                 (totalWallTime / 2).toFixed(1),
                 "ms"
@@ -1121,7 +1298,7 @@ function GanttTimeline({
 
 // src/components/SnapshotPanel/SnapshotPanel.tsx
 import { useState as useState4 } from "react";
-import { jsx as jsx6, jsxs as jsxs5 } from "react/jsx-runtime";
+import { jsx as jsx7, jsxs as jsxs5 } from "react/jsx-runtime";
 function SnapshotPanel({
   snapshots,
   showGantt = true,
@@ -1137,7 +1314,7 @@ function SnapshotPanel({
   const fs = fontSize[size];
   const pad = padding[size];
   if (snapshots.length === 0) {
-    return /* @__PURE__ */ jsx6(
+    return /* @__PURE__ */ jsx7(
       "div",
       {
         className,
@@ -1156,8 +1333,8 @@ function SnapshotPanel({
   }
   if (unstyled) {
     return /* @__PURE__ */ jsxs5("div", { className, style, "data-fp": "snapshot-panel", children: [
-      /* @__PURE__ */ jsx6("h3", { children: title }),
-      showScrubber && /* @__PURE__ */ jsx6(
+      /* @__PURE__ */ jsx7("h3", { children: title }),
+      showScrubber && /* @__PURE__ */ jsx7(
         "input",
         {
           type: "range",
@@ -1167,7 +1344,7 @@ function SnapshotPanel({
           onChange: (e) => setSelectedIndex(parseInt(e.target.value))
         }
       ),
-      /* @__PURE__ */ jsx6(
+      /* @__PURE__ */ jsx7(
         MemoryInspector,
         {
           snapshots,
@@ -1175,7 +1352,7 @@ function SnapshotPanel({
           unstyled: true
         }
       ),
-      /* @__PURE__ */ jsx6(
+      /* @__PURE__ */ jsx7(
         NarrativeLog,
         {
           snapshots,
@@ -1183,7 +1360,7 @@ function SnapshotPanel({
           unstyled: true
         }
       ),
-      showGantt && /* @__PURE__ */ jsx6(
+      showGantt && /* @__PURE__ */ jsx7(
         GanttTimeline,
         {
           snapshots,
@@ -1232,7 +1409,7 @@ function SnapshotPanel({
                     marginBottom: showScrubber ? 8 : 0
                   },
                   children: [
-                    /* @__PURE__ */ jsx6(
+                    /* @__PURE__ */ jsx7(
                       "span",
                       {
                         style: {
@@ -1262,7 +1439,7 @@ function SnapshotPanel({
                 }
               ),
               showScrubber && /* @__PURE__ */ jsxs5("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
-                /* @__PURE__ */ jsx6(
+                /* @__PURE__ */ jsx7(
                   ScrubButton,
                   {
                     glyph: "\u25C0",
@@ -1271,7 +1448,7 @@ function SnapshotPanel({
                     onClick: () => setSelectedIndex((i) => Math.max(0, i - 1))
                   }
                 ),
-                /* @__PURE__ */ jsx6(
+                /* @__PURE__ */ jsx7(
                   "input",
                   {
                     type: "range",
@@ -1287,7 +1464,7 @@ function SnapshotPanel({
                     }
                   }
                 ),
-                /* @__PURE__ */ jsx6(
+                /* @__PURE__ */ jsx7(
                   ScrubButton,
                   {
                     glyph: "\u25B6",
@@ -1301,7 +1478,7 @@ function SnapshotPanel({
           }
         ),
         /* @__PURE__ */ jsxs5("div", { style: { flex: 1, overflow: "auto" }, children: [
-          /* @__PURE__ */ jsx6(
+          /* @__PURE__ */ jsx7(
             MemoryInspector,
             {
               snapshots,
@@ -1309,7 +1486,7 @@ function SnapshotPanel({
               size
             }
           ),
-          /* @__PURE__ */ jsx6(
+          /* @__PURE__ */ jsx7(
             "div",
             {
               style: {
@@ -1319,7 +1496,7 @@ function SnapshotPanel({
               }
             }
           ),
-          /* @__PURE__ */ jsx6(
+          /* @__PURE__ */ jsx7(
             NarrativeLog,
             {
               snapshots,
@@ -1328,7 +1505,7 @@ function SnapshotPanel({
             }
           )
         ] }),
-        showGantt && /* @__PURE__ */ jsx6(
+        showGantt && /* @__PURE__ */ jsx7(
           "div",
           {
             style: {
@@ -1336,7 +1513,7 @@ function SnapshotPanel({
               background: theme.bgSecondary,
               flexShrink: 0
             },
-            children: /* @__PURE__ */ jsx6(
+            children: /* @__PURE__ */ jsx7(
               GanttTimeline,
               {
                 snapshots,
@@ -1357,7 +1534,7 @@ function ScrubButton({
   disabled,
   onClick
 }) {
-  return /* @__PURE__ */ jsx6(
+  return /* @__PURE__ */ jsx7(
     "button",
     {
       type: "button",
@@ -1383,14 +1560,14 @@ function ScrubButton({
         lineHeight: 1,
         flexShrink: 0
       },
-      children: /* @__PURE__ */ jsx6("span", { "aria-hidden": "true", children: glyph })
+      children: /* @__PURE__ */ jsx7("span", { "aria-hidden": "true", children: glyph })
     }
   );
 }
 
 // src/components/ScopeDiff/ScopeDiff.tsx
 import { useMemo as useMemo5 } from "react";
-import { Fragment, jsx as jsx7, jsxs as jsxs6 } from "react/jsx-runtime";
+import { Fragment, jsx as jsx8, jsxs as jsxs6 } from "react/jsx-runtime";
 function computeDiff(prev, curr) {
   const entries = [];
   const allKeys = /* @__PURE__ */ new Set([...Object.keys(prev ?? {}), ...Object.keys(curr)]);
@@ -1403,7 +1580,7 @@ function computeDiff(prev, curr) {
       entries.push({ key, type: "added", newValue: newVal });
     } else if (inPrev && !inCurr) {
       entries.push({ key, type: "removed", oldValue: oldVal });
-    } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+    } else if (!displayValuesEqual(oldVal, newVal)) {
       entries.push({ key, type: "changed", oldValue: oldVal, newValue: newVal });
     } else {
       entries.push({ key, type: "unchanged", newValue: newVal });
@@ -1414,9 +1591,7 @@ function computeDiff(prev, curr) {
   return entries;
 }
 function fmt(v2) {
-  if (typeof v2 === "string") return `"${v2}"`;
-  if (typeof v2 === "object" && v2 !== null) return JSON.stringify(v2, null, 2);
-  return String(v2);
+  return displayValue(v2, 2);
 }
 var diffColors = {
   added: { bg: `color-mix(in srgb, ${theme.success} 10%, transparent)`, fg: theme.success, icon: "+" },
@@ -1438,14 +1613,14 @@ function ScopeDiff({
   const fs = fontSize[size];
   const pad = padding[size];
   if (unstyled) {
-    return /* @__PURE__ */ jsx7("div", { className, style, "data-fp": "scope-diff", children: visible.map((e) => /* @__PURE__ */ jsxs6("div", { "data-fp": "diff-entry", "data-type": e.type, children: [
-      /* @__PURE__ */ jsx7("span", { "data-fp": "diff-key", children: e.key }),
+    return /* @__PURE__ */ jsx8("div", { className, style, "data-fp": "scope-diff", children: visible.map((e) => /* @__PURE__ */ jsxs6("div", { "data-fp": "diff-entry", "data-type": e.type, children: [
+      /* @__PURE__ */ jsx8("span", { "data-fp": "diff-key", children: e.key }),
       e.type === "changed" && /* @__PURE__ */ jsxs6(Fragment, { children: [
-        /* @__PURE__ */ jsx7("span", { "data-fp": "diff-old", children: fmt(e.oldValue) }),
-        /* @__PURE__ */ jsx7("span", { "data-fp": "diff-new", children: fmt(e.newValue) })
+        /* @__PURE__ */ jsx8("span", { "data-fp": "diff-old", children: fmt(e.oldValue) }),
+        /* @__PURE__ */ jsx8("span", { "data-fp": "diff-new", children: fmt(e.newValue) })
       ] }),
-      (e.type === "added" || e.type === "unchanged") && /* @__PURE__ */ jsx7("span", { "data-fp": "diff-value", children: fmt(e.newValue) }),
-      e.type === "removed" && /* @__PURE__ */ jsx7("span", { "data-fp": "diff-value", children: fmt(e.oldValue) })
+      (e.type === "added" || e.type === "unchanged") && /* @__PURE__ */ jsx8("span", { "data-fp": "diff-value", children: fmt(e.newValue) }),
+      e.type === "removed" && /* @__PURE__ */ jsx8("span", { "data-fp": "diff-value", children: fmt(e.oldValue) })
     ] }, e.key)) });
   }
   return /* @__PURE__ */ jsxs6(
@@ -1455,7 +1630,7 @@ function ScopeDiff({
       style: { padding: pad, fontFamily: theme.fontMono, ...style },
       "data-fp": "scope-diff",
       children: [
-        visible.length === 0 && /* @__PURE__ */ jsx7("div", { style: { fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }, children: "No changes" }),
+        visible.length === 0 && /* @__PURE__ */ jsx8("div", { style: { fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }, children: "No changes" }),
         visible.map((entry) => {
           const dc = diffColors[entry.type];
           return /* @__PURE__ */ jsxs6(
@@ -1474,7 +1649,7 @@ function ScopeDiff({
               },
               "data-fp": "diff-entry",
               children: [
-                /* @__PURE__ */ jsx7(
+                /* @__PURE__ */ jsx8(
                   "span",
                   {
                     style: {
@@ -1487,10 +1662,10 @@ function ScopeDiff({
                     children: dc.icon
                   }
                 ),
-                /* @__PURE__ */ jsx7("span", { style: { color: theme.primary, fontWeight: 600, flexShrink: 0 }, children: entry.key }),
-                /* @__PURE__ */ jsx7("span", { style: { color: theme.textMuted }, children: "=" }),
+                /* @__PURE__ */ jsx8("span", { style: { color: theme.primary, fontWeight: 600, flexShrink: 0 }, children: entry.key }),
+                /* @__PURE__ */ jsx8("span", { style: { color: theme.textMuted }, children: "=" }),
                 entry.type === "changed" ? /* @__PURE__ */ jsxs6("span", { children: [
-                  /* @__PURE__ */ jsx7(
+                  /* @__PURE__ */ jsx8(
                     "span",
                     {
                       style: {
@@ -1501,9 +1676,9 @@ function ScopeDiff({
                       children: fmt(entry.oldValue)
                     }
                   ),
-                  /* @__PURE__ */ jsx7("span", { style: { color: theme.textMuted, margin: "0 4px" }, children: "\u2192" }),
-                  /* @__PURE__ */ jsx7("span", { style: { color: theme.success }, children: fmt(entry.newValue) })
-                ] }) : /* @__PURE__ */ jsx7(
+                  /* @__PURE__ */ jsx8("span", { style: { color: theme.textMuted, margin: "0 4px" }, children: "\u2192" }),
+                  /* @__PURE__ */ jsx8("span", { style: { color: theme.success }, children: fmt(entry.newValue) })
+                ] }) : /* @__PURE__ */ jsx8(
                   "span",
                   {
                     style: {
@@ -1523,7 +1698,7 @@ function ScopeDiff({
 }
 
 // src/components/ResultPanel/ResultPanel.tsx
-import { jsx as jsx8, jsxs as jsxs7 } from "react/jsx-runtime";
+import { jsx as jsx9, jsxs as jsxs7 } from "react/jsx-runtime";
 function ResultPanel({
   data,
   logs = [],
@@ -1537,8 +1712,8 @@ function ResultPanel({
   const pad = padding[size];
   if (unstyled) {
     return /* @__PURE__ */ jsxs7("div", { className, style, "data-fp": "result-panel", children: [
-      /* @__PURE__ */ jsx8("div", { "data-fp": "result-data", children: /* @__PURE__ */ jsx8("pre", { children: data ? JSON.stringify(data, null, 2) : "No data" }) }),
-      !hideConsole && /* @__PURE__ */ jsx8("div", { "data-fp": "result-console", children: logs.map((line, i) => /* @__PURE__ */ jsx8("div", { "data-fp": "console-line", "data-error": line.startsWith("ERROR"), children: line }, i)) })
+      /* @__PURE__ */ jsx9("div", { "data-fp": "result-data", children: /* @__PURE__ */ jsx9("pre", { children: data ? JSON.stringify(data, null, 2) : "No data" }) }),
+      !hideConsole && /* @__PURE__ */ jsx9("div", { "data-fp": "result-console", children: logs.map((line, i) => /* @__PURE__ */ jsx9("div", { "data-fp": "console-line", "data-error": line.startsWith("ERROR"), children: line }, i)) })
     ] });
   }
   return /* @__PURE__ */ jsxs7(
@@ -1555,7 +1730,7 @@ function ResultPanel({
       "data-fp": "result-panel",
       children: [
         data && /* @__PURE__ */ jsxs7("div", { style: { flex: 1, overflow: "auto", padding: pad }, children: [
-          /* @__PURE__ */ jsx8(
+          /* @__PURE__ */ jsx9(
             "div",
             {
               style: {
@@ -1569,7 +1744,7 @@ function ResultPanel({
               children: size === "compact" ? "Result" : "Business Result (Scope)"
             }
           ),
-          /* @__PURE__ */ jsx8(
+          /* @__PURE__ */ jsx9(
             "pre",
             {
               style: {
@@ -1597,7 +1772,7 @@ function ResultPanel({
               flexShrink: 0
             },
             children: [
-              /* @__PURE__ */ jsx8(
+              /* @__PURE__ */ jsx9(
                 "div",
                 {
                   style: {
@@ -1611,8 +1786,8 @@ function ResultPanel({
                   children: "Console"
                 }
               ),
-              logs.length === 0 && /* @__PURE__ */ jsx8("div", { style: { fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }, children: "No console output" }),
-              logs.map((line, i) => /* @__PURE__ */ jsx8(
+              logs.length === 0 && /* @__PURE__ */ jsx9("div", { style: { fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }, children: "No console output" }),
+              logs.map((line, i) => /* @__PURE__ */ jsx9(
                 "div",
                 {
                   style: {
@@ -1638,7 +1813,7 @@ function ResultPanel({
 
 // src/components/StageDetailPanel/StageDetailPanel.tsx
 import { useState as useState5, useMemo as useMemo6, useCallback as useCallback2 } from "react";
-import { Fragment as Fragment2, jsx as jsx9, jsxs as jsxs8 } from "react/jsx-runtime";
+import { Fragment as Fragment2, jsx as jsx10, jsxs as jsxs8 } from "react/jsx-runtime";
 var DEFAULT_EXCLUDED_KEYS = /* @__PURE__ */ new Set([]);
 function withoutExcluded(memory, exclude) {
   if (exclude.size === 0) return memory;
@@ -1660,7 +1835,7 @@ function computeChanges(prev, curr) {
       changes.push({ key, type: "added", newValue: newVal });
     } else if (inPrev && !inCurr) {
       changes.push({ key, type: "removed", oldValue: oldVal });
-    } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+    } else if (!displayValuesEqual(oldVal, newVal)) {
       changes.push({ key, type: "updated", oldValue: oldVal, newValue: newVal });
     }
   }
@@ -1669,9 +1844,7 @@ function computeChanges(prev, curr) {
   return changes;
 }
 function fmt2(v2) {
-  if (typeof v2 === "string") return `"${v2}"`;
-  if (typeof v2 === "object" && v2 !== null) return JSON.stringify(v2, null, 2);
-  return String(v2);
+  return displayValue(v2, 2);
 }
 var wash = (color) => `color-mix(in srgb, ${color} 12%, transparent)`;
 var changeBadge = {
@@ -1686,7 +1859,7 @@ function SimpleView({
 }) {
   return /* @__PURE__ */ jsxs8("div", { style: { display: "flex", flexDirection: "column", gap: 16 }, children: [
     /* @__PURE__ */ jsxs8("div", { children: [
-      /* @__PURE__ */ jsx9(
+      /* @__PURE__ */ jsx10(
         "div",
         {
           style: {
@@ -1697,7 +1870,7 @@ function SimpleView({
           children: snapshot.stageLabel
         }
       ),
-      snapshot.description && /* @__PURE__ */ jsx9(
+      snapshot.description && /* @__PURE__ */ jsx10(
         "div",
         {
           style: {
@@ -1711,7 +1884,7 @@ function SimpleView({
       )
     ] }),
     snapshot.status && /* @__PURE__ */ jsxs8("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-      /* @__PURE__ */ jsx9(
+      /* @__PURE__ */ jsx10(
         "div",
         {
           style: {
@@ -1722,7 +1895,7 @@ function SimpleView({
           }
         }
       ),
-      /* @__PURE__ */ jsx9(
+      /* @__PURE__ */ jsx10(
         "span",
         {
           style: {
@@ -1736,7 +1909,7 @@ function SimpleView({
       )
     ] }),
     snapshot.narrative && /* @__PURE__ */ jsxs8("div", { children: [
-      /* @__PURE__ */ jsx9(
+      /* @__PURE__ */ jsx10(
         "div",
         {
           style: {
@@ -1750,7 +1923,7 @@ function SimpleView({
           children: "What happened"
         }
       ),
-      /* @__PURE__ */ jsx9(
+      /* @__PURE__ */ jsx10(
         "div",
         {
           style: {
@@ -1798,6 +1971,7 @@ function DevView({
   snapshot,
   changes,
   currMemory,
+  canCompare,
   fs,
   pad
 }) {
@@ -1805,7 +1979,7 @@ function DevView({
   const totalKeys = Object.keys(currMemory).length;
   return /* @__PURE__ */ jsxs8("div", { style: { display: "flex", flexDirection: "column", gap: 12 }, children: [
     /* @__PURE__ */ jsxs8("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
-      /* @__PURE__ */ jsx9(
+      /* @__PURE__ */ jsx10(
         "span",
         {
           style: {
@@ -1855,7 +2029,7 @@ function DevView({
         ]
       }
     ),
-    rows.length === 0 ? /* @__PURE__ */ jsx9(
+    rows.length === 0 ? /* @__PURE__ */ jsx10(
       "div",
       {
         style: {
@@ -1867,9 +2041,9 @@ function DevView({
           background: theme.bgSecondary,
           borderRadius: theme.radius
         },
-        children: "Empty memory"
+        children: canCompare ? "Empty memory" : "No values in the available recorded state"
       }
-    ) : /* @__PURE__ */ jsx9(
+    ) : /* @__PURE__ */ jsx10(
       "div",
       {
         style: {
@@ -1898,7 +2072,7 @@ function DevView({
                 "data-fp": "memory-change",
                 "data-type": change.type,
                 children: [
-                  /* @__PURE__ */ jsx9(
+                  /* @__PURE__ */ jsx10(
                     "span",
                     {
                       style: {
@@ -1913,7 +2087,7 @@ function DevView({
                       children: badge.label
                     }
                   ),
-                  /* @__PURE__ */ jsx9(
+                  /* @__PURE__ */ jsx10(
                     "span",
                     {
                       style: {
@@ -1925,8 +2099,8 @@ function DevView({
                       children: change.key
                     }
                   ),
-                  /* @__PURE__ */ jsx9("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8 }, children: change.type === "updated" ? /* @__PURE__ */ jsxs8(Fragment2, { children: [
-                    /* @__PURE__ */ jsx9(
+                  /* @__PURE__ */ jsx10("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8 }, children: change.type === "updated" ? /* @__PURE__ */ jsxs8(Fragment2, { children: [
+                    /* @__PURE__ */ jsx10(
                       "span",
                       {
                         style: {
@@ -1937,9 +2111,9 @@ function DevView({
                         children: fmt2(change.oldValue)
                       }
                     ),
-                    /* @__PURE__ */ jsx9("span", { style: { color: theme.textMuted, margin: "0 4px" }, children: "\u2192" }),
-                    /* @__PURE__ */ jsx9("span", { style: { color: theme.success }, children: fmt2(change.newValue) })
-                  ] }) : change.type === "added" ? /* @__PURE__ */ jsx9("span", { style: { color: theme.success }, children: fmt2(change.newValue) }) : /* @__PURE__ */ jsx9("span", { style: { color: theme.error, textDecoration: "line-through" }, children: fmt2(change.oldValue) }) })
+                    /* @__PURE__ */ jsx10("span", { style: { color: theme.textMuted, margin: "0 4px" }, children: "\u2192" }),
+                    /* @__PURE__ */ jsx10("span", { style: { color: theme.success }, children: fmt2(change.newValue) })
+                  ] }) : change.type === "added" ? /* @__PURE__ */ jsx10("span", { style: { color: theme.success }, children: fmt2(change.newValue) }) : /* @__PURE__ */ jsx10("span", { style: { color: theme.error, textDecoration: "line-through" }, children: fmt2(change.oldValue) }) })
                 ]
               },
               change.key
@@ -1954,11 +2128,11 @@ function DevView({
                 gap: 8,
                 padding: `6px ${pad}px`,
                 borderBottom: `1px solid ${theme.border}`,
-                opacity: 0.5
+                opacity: canCompare ? 0.5 : 1
               },
-              "data-fp": "memory-unchanged",
+              "data-fp": canCompare ? "memory-unchanged" : "memory-recorded",
               children: [
-                /* @__PURE__ */ jsx9(
+                /* @__PURE__ */ jsx10(
                   "span",
                   {
                     style: {
@@ -1968,7 +2142,7 @@ function DevView({
                     }
                   }
                 ),
-                /* @__PURE__ */ jsx9(
+                /* @__PURE__ */ jsx10(
                   "span",
                   {
                     style: {
@@ -1980,7 +2154,7 @@ function DevView({
                     children: row.key
                   }
                 ),
-                /* @__PURE__ */ jsx9("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8, color: theme.textMuted }, children: fmt2(row.value) })
+                /* @__PURE__ */ jsx10("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8, color: theme.textMuted }, children: fmt2(row.value) })
               ]
             },
             row.key
@@ -1992,36 +2166,37 @@ function DevView({
 }
 function UnstyledSimpleView({ snapshot }) {
   return /* @__PURE__ */ jsxs8("div", { "data-fp": "stage-detail-simple", children: [
-    /* @__PURE__ */ jsx9("div", { "data-fp": "stage-label", children: snapshot.stageLabel }),
-    snapshot.description && /* @__PURE__ */ jsx9("div", { "data-fp": "stage-description", children: snapshot.description }),
-    snapshot.status && /* @__PURE__ */ jsx9("div", { "data-fp": "stage-status", children: snapshot.status }),
-    snapshot.narrative && /* @__PURE__ */ jsx9("div", { "data-fp": "stage-narrative", children: snapshot.narrative })
+    /* @__PURE__ */ jsx10("div", { "data-fp": "stage-label", children: snapshot.stageLabel }),
+    snapshot.description && /* @__PURE__ */ jsx10("div", { "data-fp": "stage-description", children: snapshot.description }),
+    snapshot.status && /* @__PURE__ */ jsx10("div", { "data-fp": "stage-status", children: snapshot.status }),
+    snapshot.narrative && /* @__PURE__ */ jsx10("div", { "data-fp": "stage-narrative", children: snapshot.narrative })
   ] });
 }
 function UnstyledDevView({
   snapshot,
   changes,
-  currMemory
+  currMemory,
+  canCompare
 }) {
   const rows = useMemo6(() => buildMemoryRows(currMemory, changes), [currMemory, changes]);
   return /* @__PURE__ */ jsxs8("div", { "data-fp": "stage-detail-dev", children: [
-    /* @__PURE__ */ jsx9("div", { "data-fp": "stage-label", children: snapshot.stageLabel }),
+    /* @__PURE__ */ jsx10("div", { "data-fp": "stage-label", children: snapshot.stageLabel }),
     rows.map((row) => {
       if (row.kind === "change") {
         const c = row.change;
         return /* @__PURE__ */ jsxs8("div", { "data-fp": "memory-change", "data-type": c.type, children: [
-          /* @__PURE__ */ jsx9("span", { "data-fp": "change-key", children: c.key }),
+          /* @__PURE__ */ jsx10("span", { "data-fp": "change-key", children: c.key }),
           c.type === "updated" && /* @__PURE__ */ jsxs8(Fragment2, { children: [
-            /* @__PURE__ */ jsx9("span", { "data-fp": "change-old", children: fmt2(c.oldValue) }),
-            /* @__PURE__ */ jsx9("span", { "data-fp": "change-new", children: fmt2(c.newValue) })
+            /* @__PURE__ */ jsx10("span", { "data-fp": "change-old", children: fmt2(c.oldValue) }),
+            /* @__PURE__ */ jsx10("span", { "data-fp": "change-new", children: fmt2(c.newValue) })
           ] }),
-          c.type === "added" && /* @__PURE__ */ jsx9("span", { "data-fp": "change-value", children: fmt2(c.newValue) }),
-          c.type === "removed" && /* @__PURE__ */ jsx9("span", { "data-fp": "change-value", children: fmt2(c.oldValue) })
+          c.type === "added" && /* @__PURE__ */ jsx10("span", { "data-fp": "change-value", children: fmt2(c.newValue) }),
+          c.type === "removed" && /* @__PURE__ */ jsx10("span", { "data-fp": "change-value", children: fmt2(c.oldValue) })
         ] }, c.key);
       }
-      return /* @__PURE__ */ jsxs8("div", { "data-fp": "memory-unchanged", children: [
-        /* @__PURE__ */ jsx9("span", { "data-fp": "unchanged-key", children: row.key }),
-        /* @__PURE__ */ jsx9("span", { "data-fp": "unchanged-value", children: fmt2(row.value) })
+      return /* @__PURE__ */ jsxs8("div", { "data-fp": canCompare ? "memory-unchanged" : "memory-recorded", children: [
+        /* @__PURE__ */ jsx10("span", { "data-fp": "unchanged-key", children: row.key }),
+        /* @__PURE__ */ jsx10("span", { "data-fp": "unchanged-value", children: fmt2(row.value) })
       ] }, row.key);
     })
   ] });
@@ -2033,9 +2208,9 @@ function ModeToggle({
   unstyled
 }) {
   if (unstyled) {
-    return /* @__PURE__ */ jsx9("button", { "data-fp": "mode-toggle", "data-mode": activeMode, onClick: onToggle, children: activeMode === "simple" ? "Dev" : "Simple" });
+    return /* @__PURE__ */ jsx10("button", { "data-fp": "mode-toggle", "data-mode": activeMode, onClick: onToggle, children: activeMode === "simple" ? "Dev" : "Simple" });
   }
-  return /* @__PURE__ */ jsx9(
+  return /* @__PURE__ */ jsx10(
     "div",
     {
       style: {
@@ -2046,7 +2221,7 @@ function ModeToggle({
         flexShrink: 0
       },
       "data-fp": "mode-toggle",
-      children: ["simple", "dev"].map((m) => /* @__PURE__ */ jsx9(
+      children: ["simple", "dev"].map((m) => /* @__PURE__ */ jsx10(
         "button",
         {
           onClick: m !== activeMode ? onToggle : void 0,
@@ -2088,28 +2263,30 @@ function StageDetailPanel({
     onModeChange?.(next);
   }, [activeMode, onModeChange]);
   const snapshot = snapshots[selectedIndex];
-  const rawPrevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
-  const rawCurrMemory = snapshot?.memory ?? {};
+  const view = recordStateDisplay(snapshot, snapshots[selectedIndex - 1]);
+  const rawPrevMemory = view.previous;
+  const rawCurrMemory = view.memory ?? {};
   const currMemory = useMemo6(
     () => withoutExcluded(rawCurrMemory, excludeKeys),
     [rawCurrMemory, excludeKeys]
   );
   const changes = useMemo6(
-    () => computeChanges(
+    () => view.canCompare ? computeChanges(
       rawPrevMemory === null ? null : withoutExcluded(rawPrevMemory, excludeKeys),
       currMemory
-    ),
-    [rawPrevMemory, currMemory, excludeKeys]
+    ) : [],
+    [rawPrevMemory, currMemory, excludeKeys, view.canCompare]
   );
   const fs = fontSize[size];
   const pad = padding[size];
   if (!snapshot) {
-    return /* @__PURE__ */ jsx9("div", { className, style, "data-fp": "stage-detail-panel", children: /* @__PURE__ */ jsx9("div", { style: unstyled ? {} : { color: theme.textMuted, fontSize: fs.body, fontStyle: "italic", padding: pad }, children: "No stage selected" }) });
+    return /* @__PURE__ */ jsx10("div", { className, style, "data-fp": "stage-detail-panel", children: /* @__PURE__ */ jsx10("div", { style: unstyled ? {} : { color: theme.textMuted, fontSize: fs.body, fontStyle: "italic", padding: pad }, children: "No stage selected" }) });
   }
   if (unstyled) {
     return /* @__PURE__ */ jsxs8("div", { className, style, "data-fp": "stage-detail-panel", "data-mode": activeMode, children: [
-      showToggle && /* @__PURE__ */ jsx9(ModeToggle, { activeMode, onToggle: handleToggle, fs, unstyled: true }),
-      activeMode === "simple" ? /* @__PURE__ */ jsx9(UnstyledSimpleView, { snapshot }) : /* @__PURE__ */ jsx9(UnstyledDevView, { snapshot, changes, currMemory })
+      /* @__PURE__ */ jsx10(RecordStateNotice, { view }),
+      showToggle && /* @__PURE__ */ jsx10(ModeToggle, { activeMode, onToggle: handleToggle, fs, unstyled: true }),
+      activeMode === "simple" ? /* @__PURE__ */ jsx10(UnstyledSimpleView, { snapshot }) : view.memory !== null ? /* @__PURE__ */ jsx10(UnstyledDevView, { snapshot, changes, currMemory, canCompare: view.canCompare }) : /* @__PURE__ */ jsx10("div", { "data-fp": "stage-label", children: snapshot.stageLabel })
     ] });
   }
   return /* @__PURE__ */ jsxs8(
@@ -2125,8 +2302,9 @@ function StageDetailPanel({
       "data-fp": "stage-detail-panel",
       "data-mode": activeMode,
       children: [
-        showToggle && /* @__PURE__ */ jsx9("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 }, children: /* @__PURE__ */ jsx9(ModeToggle, { activeMode, onToggle: handleToggle, fs, unstyled: false }) }),
-        activeMode === "simple" ? /* @__PURE__ */ jsx9(SimpleView, { snapshot, fs, pad }) : /* @__PURE__ */ jsx9(DevView, { snapshot, changes, currMemory, fs, pad })
+        /* @__PURE__ */ jsx10(RecordStateNotice, { view }),
+        showToggle && /* @__PURE__ */ jsx10("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 }, children: /* @__PURE__ */ jsx10(ModeToggle, { activeMode, onToggle: handleToggle, fs, unstyled: false }) }),
+        activeMode === "simple" ? /* @__PURE__ */ jsx10(SimpleView, { snapshot, fs, pad }) : view.memory !== null ? /* @__PURE__ */ jsx10(DevView, { snapshot, changes, currMemory, canCompare: view.canCompare, fs, pad }) : /* @__PURE__ */ jsx10("div", { "data-fp": "stage-label", children: snapshot.stageLabel })
       ]
     }
   );
@@ -2134,7 +2312,7 @@ function StageDetailPanel({
 
 // src/components/TimeTravelControls/TimeTravelControls.tsx
 import { useState as useState6, useEffect as useEffect4, useRef as useRef3, useCallback as useCallback3, useMemo as useMemo7 } from "react";
-import { Fragment as Fragment3, jsx as jsx10, jsxs as jsxs9 } from "react/jsx-runtime";
+import { Fragment as Fragment3, jsx as jsx11, jsxs as jsxs9 } from "react/jsx-runtime";
 function TimeTravelControls({
   snapshots,
   selectedIndex,
@@ -2249,16 +2427,16 @@ function TimeTravelControls({
               "\u25B8 via ",
               tracing.viaKey,
               " ",
-              /* @__PURE__ */ jsx10("button", { "data-fp": "tt-show-all", onClick: tracing.onShowAll, children: "show all" })
+              /* @__PURE__ */ jsx11("button", { "data-fp": "tt-show-all", onClick: tracing.onShowAll, children: "show all" })
             ] }),
             " \xB7 ",
             "stop ",
             tracing.stopOrdinal,
             " of ",
             tracing.totalStops,
-            /* @__PURE__ */ jsx10("button", { "data-fp": "tt-exit-tracing", onClick: tracing.onExit, "aria-label": "Exit tracing", children: "Done" })
+            /* @__PURE__ */ jsx11("button", { "data-fp": "tt-exit-tracing", onClick: tracing.onExit, "aria-label": "Exit tracing", children: "Done" })
           ] }),
-          /* @__PURE__ */ jsx10(
+          /* @__PURE__ */ jsx11(
             "button",
             {
               "data-fp": "tt-prev",
@@ -2268,8 +2446,8 @@ function TimeTravelControls({
               children: isTracing ? forkPrompt ? "Choose cause\u2026" : "Earlier cause" : "Prev"
             }
           ),
-          autoPlayable && !isTracing && /* @__PURE__ */ jsx10("button", { "data-fp": "tt-play", onClick: togglePlay, "aria-label": playing ? "Pause" : "Play", children: playing ? "Pause" : "Play" }),
-          /* @__PURE__ */ jsx10(
+          autoPlayable && !isTracing && /* @__PURE__ */ jsx11("button", { "data-fp": "tt-play", onClick: togglePlay, "aria-label": playing ? "Pause" : "Play", children: playing ? "Pause" : "Play" }),
+          /* @__PURE__ */ jsx11(
             "button",
             {
               "data-fp": "tt-next",
@@ -2279,9 +2457,9 @@ function TimeTravelControls({
               children: isTracing ? "Toward result" : "Next"
             }
           ),
-          /* @__PURE__ */ jsx10("div", { "data-fp": "tt-ticks", children: snapshots.map((snap, i) => {
+          /* @__PURE__ */ jsx11("div", { "data-fp": "tt-ticks", children: snapshots.map((snap, i) => {
             const isStop = !stopSet || stopSet.has(i);
-            return /* @__PURE__ */ jsx10(
+            return /* @__PURE__ */ jsx11(
               "button",
               {
                 "data-fp": "tt-tick",
@@ -2347,7 +2525,7 @@ function TimeTravelControls({
               fontSize: fs.body
             },
             children: [
-              /* @__PURE__ */ jsx10(
+              /* @__PURE__ */ jsx11(
                 "span",
                 {
                   style: {
@@ -2363,13 +2541,13 @@ function TimeTravelControls({
                   children: "Tracing"
                 }
               ),
-              /* @__PURE__ */ jsx10("span", { style: { fontFamily: "monospace", fontWeight: 600, color: tracingColor }, children: tracing.tracedKey }),
+              /* @__PURE__ */ jsx11("span", { style: { fontFamily: "monospace", fontWeight: 600, color: tracingColor }, children: tracing.tracedKey }),
               tracing.viaKey && /* @__PURE__ */ jsxs9("span", { style: { color: theme.textMuted }, children: [
                 "\u25B8 via",
                 " ",
-                /* @__PURE__ */ jsx10("span", { style: { fontFamily: "monospace", color: theme.textSecondary }, children: tracing.viaKey }),
+                /* @__PURE__ */ jsx11("span", { style: { fontFamily: "monospace", color: theme.textSecondary }, children: tracing.viaKey }),
                 " ",
-                /* @__PURE__ */ jsx10(
+                /* @__PURE__ */ jsx11(
                   "button",
                   {
                     "data-fp": "tt-show-all",
@@ -2396,7 +2574,7 @@ function TimeTravelControls({
             ]
           }
         ),
-        /* @__PURE__ */ jsx10(
+        /* @__PURE__ */ jsx11(
           "button",
           {
             style: btnStyle(!canPrev || playing),
@@ -2408,7 +2586,7 @@ function TimeTravelControls({
             children: isTracing ? forkPrompt ? "\u2442 choose cause\u2026" : "\u25C0 earlier cause" : "\u25C0"
           }
         ),
-        autoPlayable && !isTracing && /* @__PURE__ */ jsx10(
+        autoPlayable && !isTracing && /* @__PURE__ */ jsx11(
           "button",
           {
             onClick: togglePlay,
@@ -2431,7 +2609,7 @@ function TimeTravelControls({
             children: playing ? "\u23F8" : "\u25B6"
           }
         ),
-        /* @__PURE__ */ jsx10(
+        /* @__PURE__ */ jsx11(
           "button",
           {
             style: btnStyle(!canNext || playing),
@@ -2443,7 +2621,7 @@ function TimeTravelControls({
             children: isTracing ? "toward result \u25B6" : "\u25B6"
           }
         ),
-        /* @__PURE__ */ jsx10(
+        /* @__PURE__ */ jsx11(
           "div",
           {
             style: {
@@ -2458,7 +2636,7 @@ function TimeTravelControls({
               const isDone = i < selectedIndex;
               const isStop = !stopSet || stopSet.has(i);
               const unlandable = isTracing && !isStop;
-              return /* @__PURE__ */ jsx10(
+              return /* @__PURE__ */ jsx11(
                 "button",
                 {
                   onClick: () => {
@@ -2486,7 +2664,7 @@ function TimeTravelControls({
             })
           }
         ),
-        isTracing && /* @__PURE__ */ jsx10(
+        isTracing && /* @__PURE__ */ jsx11(
           "button",
           {
             "data-fp": "tt-exit-tracing",
@@ -2717,7 +2895,7 @@ function formatTraceWalk(walk, stepNumberOf) {
 
 // src/components/DataTracePanel/TraceWalkCard.tsx
 import { memo, useMemo as useMemo8, useState as useState7 } from "react";
-import { Fragment as Fragment4, jsx as jsx11, jsxs as jsxs10 } from "react/jsx-runtime";
+import { Fragment as Fragment4, jsx as jsx12, jsxs as jsxs10 } from "react/jsx-runtime";
 var CHIP_COLORS = [
   v("--fp-chip-1", "#0d9488"),
   v("--fp-chip-2", "#d97706"),
@@ -2773,20 +2951,20 @@ var TraceWalkCard = memo(function TraceWalkCard2({
         "data-missing": walk.missing.reason,
         style: { ...sx({ padding: "14px", fontSize: fs.body + 1, lineHeight: 1.55 }), ...style },
         children: [
-          /* @__PURE__ */ jsx11(CardHeader, { label: `Why this value \u2014 \`${walk.key}\``, onExit, sx, fs }),
-          /* @__PURE__ */ jsx11("div", { style: sx({ color: theme.textPrimary, marginTop: 8 }), children: walk.missing.reason === "never-written" ? /* @__PURE__ */ jsxs10(Fragment4, { children: [
-            /* @__PURE__ */ jsx11("code", { style: sx({ color: accent }), children: walk.key }),
+          /* @__PURE__ */ jsx12(CardHeader, { label: `Why this value \u2014 \`${walk.key}\``, onExit, sx, fs }),
+          /* @__PURE__ */ jsx12("div", { style: sx({ color: theme.textPrimary, marginTop: 8 }), children: walk.missing.reason === "never-written" ? /* @__PURE__ */ jsxs10(Fragment4, { children: [
+            /* @__PURE__ */ jsx12("code", { style: sx({ color: accent }), children: walk.key }),
             " was ",
-            /* @__PURE__ */ jsx11("b", { children: "never written in this run" }),
+            /* @__PURE__ */ jsx12("b", { children: "never written in this run" }),
             " \u2014 it arrived with the run's inputs."
           ] }) : /* @__PURE__ */ jsxs10(Fragment4, { children: [
-            /* @__PURE__ */ jsx11("code", { style: sx({ color: accent }), children: walk.key }),
+            /* @__PURE__ */ jsx12("code", { style: sx({ color: accent }), children: walk.key }),
             " has ",
-            /* @__PURE__ */ jsx11("b", { children: "not been written yet at this moment" }),
+            /* @__PURE__ */ jsx12("b", { children: "not been written yet at this moment" }),
             " \u2014 its first write happens later",
             walk.missing.firstWriterStageName && /* @__PURE__ */ jsxs10(Fragment4, { children: [
               ", at ",
-              /* @__PURE__ */ jsx11("b", { children: walk.missing.firstWriterStageName }),
+              /* @__PURE__ */ jsx12("b", { children: walk.missing.firstWriterStageName }),
               walk.missing.firstWriterRuntimeStageId && stepNumberOf(walk.missing.firstWriterRuntimeStageId) && /* @__PURE__ */ jsxs10(Fragment4, { children: [
                 " (step ",
                 stepNumberOf(walk.missing.firstWriterRuntimeStageId),
@@ -2801,7 +2979,7 @@ var TraceWalkCard = memo(function TraceWalkCard2({
   }
   if (!current) return null;
   const step = stepNumberOf(current.runtimeStageId);
-  const preview = previewValueOf ? previewValue(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
+  const preview = previewValueOf ? previewValue2(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
   return /* @__PURE__ */ jsxs10(
     "div",
     {
@@ -2809,7 +2987,7 @@ var TraceWalkCard = memo(function TraceWalkCard2({
       "data-fp": "trace-walk-card",
       style: { ...sx({ padding: "10px 14px 14px", fontSize: fs.body + 1, lineHeight: 1.5 }), ...style },
       children: [
-        /* @__PURE__ */ jsx11(
+        /* @__PURE__ */ jsx12(
           CardHeader,
           {
             label: `Why this value \u2014 stop ${currentIdx + 1} of ${walk.stops.length}`,
@@ -2819,12 +2997,12 @@ var TraceWalkCard = memo(function TraceWalkCard2({
           }
         ),
         viaKey && /* @__PURE__ */ jsxs10("div", { "data-fp": "twc-breadcrumb", style: sx({ fontSize: fs.label, color: theme.textMuted, marginTop: 4 }), children: [
-          /* @__PURE__ */ jsx11("code", { style: sx({ color: accent }), children: walk.key }),
+          /* @__PURE__ */ jsx12("code", { style: sx({ color: accent }), children: walk.key }),
           " \u25B8 via ",
-          /* @__PURE__ */ jsx11("code", { children: viaKey }),
+          /* @__PURE__ */ jsx12("code", { children: viaKey }),
           onShowAll && /* @__PURE__ */ jsxs10(Fragment4, { children: [
             " \xB7 ",
-            /* @__PURE__ */ jsx11(
+            /* @__PURE__ */ jsx12(
               "button",
               {
                 onClick: onShowAll,
@@ -2876,7 +3054,7 @@ var TraceWalkCard = memo(function TraceWalkCard2({
                 current.ingredients.length,
                 " ingredients \u2014 which one should the walk follow?"
               ] }),
-              /* @__PURE__ */ jsx11("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ jsx11(
+              /* @__PURE__ */ jsx12("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ jsx12(
                 IngredientChip,
                 {
                   ing,
@@ -2888,7 +3066,7 @@ var TraceWalkCard = memo(function TraceWalkCard2({
                 },
                 ing.key
               )) }),
-              /* @__PURE__ */ jsx11(
+              /* @__PURE__ */ jsx12(
                 "button",
                 {
                   "data-fp": "twc-continue-time",
@@ -2914,14 +3092,14 @@ var TraceWalkCard = memo(function TraceWalkCard2({
             ]
           }
         ),
-        /* @__PURE__ */ jsx11("div", { style: sx({ marginTop: 10 }), children: chooserVisible ? null : current.ingredients.length > 0 ? /* @__PURE__ */ jsxs10(Fragment4, { children: [
+        /* @__PURE__ */ jsx12("div", { style: sx({ marginTop: 10 }), children: chooserVisible ? null : current.ingredients.length > 0 ? /* @__PURE__ */ jsxs10(Fragment4, { children: [
           /* @__PURE__ */ jsxs10("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: [
             "Made from ",
             current.ingredients.length,
             " ingredient",
             current.ingredients.length > 1 ? "s" : ""
           ] }),
-          /* @__PURE__ */ jsx11("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ jsx11(
+          /* @__PURE__ */ jsx12("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ jsx12(
             IngredientChip,
             {
               ing,
@@ -2933,9 +3111,9 @@ var TraceWalkCard = memo(function TraceWalkCard2({
             },
             ing.key
           )) })
-        ] }) : walk.readsAvailable ? /* @__PURE__ */ jsx11("div", { "data-fp": "twc-origin", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "reads nothing \u2014 this is an origin." }) : /* @__PURE__ */ jsx11("div", { "data-fp": "twc-unknowable", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "\u26A0 reads were not recorded \u2014 ingredients are unknowable, not absent." }) }),
+        ] }) : walk.readsAvailable ? /* @__PURE__ */ jsx12("div", { "data-fp": "twc-origin", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "reads nothing \u2014 this is an origin." }) : /* @__PURE__ */ jsx12("div", { "data-fp": "twc-unknowable", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "\u26A0 reads were not recorded \u2014 ingredients are unknowable, not absent." }) }),
         /* @__PURE__ */ jsxs10("div", { style: sx({ marginTop: 14 }), children: [
-          /* @__PURE__ */ jsx11("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, marginBottom: 4 }), children: "The story, newest first" }),
+          /* @__PURE__ */ jsx12("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, marginBottom: 4 }), children: "The story, newest first" }),
           walk.stops.map((s, i) => {
             const isCurrent = i === currentIdx;
             return /* @__PURE__ */ jsxs10(
@@ -2962,8 +3140,8 @@ var TraceWalkCard = memo(function TraceWalkCard2({
                     "."
                   ] }),
                   " ",
-                  /* @__PURE__ */ jsx11("code", { style: sx({ color: accent }), children: s.contributedKeys.join(", ") }),
-                  /* @__PURE__ */ jsx11("span", { style: sx({ color: theme.textMuted }), children: " \u2190 " }),
+                  /* @__PURE__ */ jsx12("code", { style: sx({ color: accent }), children: s.contributedKeys.join(", ") }),
+                  /* @__PURE__ */ jsx12("span", { style: sx({ color: theme.textMuted }), children: " \u2190 " }),
                   s.stageName,
                   s.loopPass > 0 && /* @__PURE__ */ jsxs10("span", { style: sx({ color: theme.textMuted }), children: [
                     " (pass ",
@@ -2992,8 +3170,8 @@ var TraceWalkCard = memo(function TraceWalkCard2({
               k
             ] }, k))
           ] }),
-          walk.truncated && /* @__PURE__ */ jsx11("div", { "data-fp": "twc-truncated", style: sx({ fontSize: fs.label, color: theme.warning }), children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
-          /* @__PURE__ */ jsx11(
+          walk.truncated && /* @__PURE__ */ jsx12("div", { "data-fp": "twc-truncated", style: sx({ fontSize: fs.label, color: theme.warning }), children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
+          /* @__PURE__ */ jsx12(
             "button",
             {
               "data-fp": "twc-copy-story",
@@ -3025,8 +3203,8 @@ function CardHeader({
   fs
 }) {
   return /* @__PURE__ */ jsxs10("div", { style: sx({ display: "flex", alignItems: "center", justifyContent: "space-between" }), children: [
-    /* @__PURE__ */ jsx11("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: label }),
-    onExit && /* @__PURE__ */ jsx11(
+    /* @__PURE__ */ jsx12("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: label }),
+    onExit && /* @__PURE__ */ jsx12(
       "button",
       {
         "data-fp": "twc-exit",
@@ -3069,8 +3247,8 @@ function IngredientChip({
         cursor: terminus || !onFollow ? "default" : "pointer"
       }),
       children: [
-        /* @__PURE__ */ jsx11("code", { children: ing.key }),
-        terminus ? /* @__PURE__ */ jsx11("span", { style: sx({ fontWeight: 400 }), children: "\u2014 run input \u2691" }) : /* @__PURE__ */ jsxs10("span", { style: sx({ fontWeight: 400 }), children: [
+        /* @__PURE__ */ jsx12("code", { children: ing.key }),
+        terminus ? /* @__PURE__ */ jsx12("span", { style: sx({ fontWeight: 400 }), children: "\u2014 run input \u2691" }) : /* @__PURE__ */ jsxs10("span", { style: sx({ fontWeight: 400 }), children: [
           "\u2190 ",
           ing.writerStageName,
           step && ` \xB7 step ${step}`
@@ -3079,7 +3257,7 @@ function IngredientChip({
     }
   );
 }
-function previewValue(v2) {
+function previewValue2(v2) {
   if (v2 === void 0) return null;
   try {
     const s = typeof v2 === "string" ? JSON.stringify(v2) : JSON.stringify(v2);
@@ -3092,7 +3270,7 @@ function previewValue(v2) {
 
 // src/components/DataTracePanel/DataTracePanel.tsx
 import { memo as memo2 } from "react";
-import { jsx as jsx12, jsxs as jsxs11 } from "react/jsx-runtime";
+import { jsx as jsx13, jsxs as jsxs11 } from "react/jsx-runtime";
 var DataTracePanel = memo2(function DataTracePanel2({
   frames,
   selectedStageId,
@@ -3108,7 +3286,7 @@ var DataTracePanel = memo2(function DataTracePanel2({
   const pad = padding[size];
   const base = fs.body + 1;
   const sx = (s) => unstyled ? void 0 : s;
-  const noteLine = note ? /* @__PURE__ */ jsx12("div", { style: sx({ color: theme.textMuted, fontSize: fs.label, fontStyle: "italic", marginBottom: 8 }), children: note }) : null;
+  const noteLine = note ? /* @__PURE__ */ jsx13("div", { style: sx({ color: theme.textMuted, fontSize: fs.label, fontStyle: "italic", marginBottom: 8 }), children: note }) : null;
   if (frames.length === 0) {
     return /* @__PURE__ */ jsxs11(
       "div",
@@ -3117,7 +3295,7 @@ var DataTracePanel = memo2(function DataTracePanel2({
         "data-fp": "data-trace-panel",
         style: { ...sx({ padding: `${pad + 2}px ${pad + 2}px ${pad}px`, fontSize: base, lineHeight: 1.55 }), ...style },
         children: [
-          /* @__PURE__ */ jsx12(
+          /* @__PURE__ */ jsx13(
             "div",
             {
               style: sx({
@@ -3131,9 +3309,9 @@ var DataTracePanel = memo2(function DataTracePanel2({
               children: "Backward causal chain"
             }
           ),
-          /* @__PURE__ */ jsx12("div", { style: sx({ color: theme.textSecondary, marginBottom: 10 }), children: "Trace any value back to the stage that created it \u2014 and everything upstream that influenced it." }),
+          /* @__PURE__ */ jsx13("div", { style: sx({ color: theme.textSecondary, marginBottom: 10 }), children: "Trace any value back to the stage that created it \u2014 and everything upstream that influenced it." }),
           noteLine,
-          /* @__PURE__ */ jsx12("div", { style: sx({ color: theme.textMuted, fontSize: fs.body }), children: "Select a stage above to see its dependency chain." })
+          /* @__PURE__ */ jsx13("div", { style: sx({ color: theme.textMuted, fontSize: fs.body }), children: "Select a stage above to see its dependency chain." })
         ]
       }
     );
@@ -3145,7 +3323,7 @@ var DataTracePanel = memo2(function DataTracePanel2({
       "data-fp": "data-trace-panel",
       style: { ...sx({ padding: "8px 0", fontSize: base }), ...style },
       children: [
-        note && /* @__PURE__ */ jsx12("div", { style: sx({ padding: "4px 12px 0", fontSize: fs.label, color: theme.textMuted, fontStyle: "italic" }), children: note }),
+        note && /* @__PURE__ */ jsx13("div", { style: sx({ padding: "4px 12px 0", fontSize: fs.label, color: theme.textMuted, fontStyle: "italic" }), children: note }),
         fromStageName && /* @__PURE__ */ jsxs11("div", { style: sx({ padding: "4px 12px 8px" }), children: [
           /* @__PURE__ */ jsxs11(
             "div",
@@ -3163,7 +3341,7 @@ var DataTracePanel = memo2(function DataTracePanel2({
               ]
             }
           ),
-          /* @__PURE__ */ jsx12(
+          /* @__PURE__ */ jsx13(
             "div",
             {
               style: sx({
@@ -3176,7 +3354,7 @@ var DataTracePanel = memo2(function DataTracePanel2({
             }
           )
         ] }),
-        frames.map((frame, i) => /* @__PURE__ */ jsx12(
+        frames.map((frame, i) => /* @__PURE__ */ jsx13(
           DataTraceFrame,
           {
             frame,
@@ -3224,8 +3402,8 @@ var DataTraceFrame = memo2(function DataTraceFrame2({
       }),
       children: [
         /* @__PURE__ */ jsxs11("div", { style: sx({ display: "flex", alignItems: "center", gap: 6 }), children: [
-          !isFirst && /* @__PURE__ */ jsx12("span", { style: sx({ color: theme.textMuted, fontSize: fs.label }), children: "\u2191" }),
-          /* @__PURE__ */ jsx12(
+          !isFirst && /* @__PURE__ */ jsx13("span", { style: sx({ color: theme.textMuted, fontSize: fs.label }), children: "\u2191" }),
+          /* @__PURE__ */ jsx13(
             "span",
             {
               style: sx({
@@ -3235,7 +3413,7 @@ var DataTraceFrame = memo2(function DataTraceFrame2({
               children: frame.stageName
             }
           ),
-          isLast && !isFirst && /* @__PURE__ */ jsx12(
+          isLast && !isFirst && /* @__PURE__ */ jsx13(
             "span",
             {
               style: sx({
@@ -3259,7 +3437,7 @@ var DataTraceFrame = memo2(function DataTraceFrame2({
             children: [
               "wrote:",
               " ",
-              /* @__PURE__ */ jsx12("span", { style: sx({ color: theme.textSecondary }), children: frame.keysWritten.join(", ") })
+              /* @__PURE__ */ jsx13("span", { style: sx({ color: theme.textSecondary }), children: frame.keysWritten.join(", ") })
             ]
           }
         ),
@@ -3358,6 +3536,148 @@ function extractSubflowNarrative(entries, subflowId, subflowName) {
   return result;
 }
 
+// src/adapters/recordState.ts
+import { stateAt, timeTravel } from "foottrace";
+
+// src/adapters/recordInput/index.ts
+function isRecord(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function adaptFlowRecord(input) {
+  if (typeof input.sourceId !== "string" || !input.sourceId.trim()) {
+    return {
+      status: "refused",
+      code: "invalid-source-id",
+      message: "Select and label one recorded source."
+    };
+  }
+  if (input.format !== "snapshot" && input.format !== "subtree" && input.format !== "tree-context") {
+    return {
+      status: "refused",
+      code: "unsupported-format",
+      message: "Select a snapshot, subtree, or tree-context envelope explicitly."
+    };
+  }
+  if (!isRecord(input.record)) {
+    return {
+      status: "refused",
+      code: "invalid-record",
+      message: "The selected recording must be a plain source object."
+    };
+  }
+  const field = input.format === "snapshot" ? "commitLog" : "history";
+  const log = input.record[field];
+  if (log === void 0) {
+    return {
+      status: "refused",
+      code: "missing-log",
+      message: `The selected source has no ${field}; stageWrites alone cannot reconstruct its record.`
+    };
+  }
+  if (!Array.isArray(log)) {
+    return {
+      status: "refused",
+      code: "invalid-log",
+      message: `The selected source's ${field} must be an array.`
+    };
+  }
+  const base = input.record.initialState;
+  if (base !== void 0 && !isRecord(base)) {
+    return {
+      status: "refused",
+      code: "invalid-base",
+      message: "The recorded initialState must be a plain state object or absent."
+    };
+  }
+  if (!input.reads || input.reads.status !== "unknown" && input.reads.status !== "supplied" || input.reads.status === "supplied" && (!input.reads.source || typeof input.reads.source.kind !== "string" || typeof input.reads.source.lookup !== "function")) {
+    return {
+      status: "refused",
+      code: "invalid-read-evidence",
+      message: "Declare reads unknown or supply this source's KeysReadSource explicitly."
+    };
+  }
+  const tree = input.format === "tree-context" ? input.record.stageContexts : input.record.executionTree;
+  const source = {
+    ...field === "commitLog" ? { commitLog: log } : { history: log },
+    ...base !== void 0 && { initialState: base },
+    ...tree !== void 0 && { executionTree: tree },
+    ...input.record.subflowResults !== void 0 && {
+      subflowResults: input.record.subflowResults
+    }
+  };
+  return {
+    status: "accepted",
+    sourceId: input.sourceId,
+    source,
+    evidence: {
+      base: base === void 0 ? "missing" : "recorded",
+      reads: input.reads
+    }
+  };
+}
+
+// src/adapters/recordState.ts
+function createRecordStateReader(selection) {
+  const input = adaptFlowRecord(selection);
+  if (input.status === "refused") {
+    return () => ({
+      status: "unavailable",
+      sourceId: selection.sourceId,
+      reason: "unsupported-source",
+      message: input.message
+    });
+  }
+  let cursor;
+  try {
+    cursor = timeTravel(input.source);
+  } catch {
+    return () => ({
+      status: "unavailable",
+      sourceId: selection.sourceId,
+      reason: "reader-refused",
+      message: "Foottrace could not read this source's recorded positions."
+    });
+  }
+  const positions = /* @__PURE__ */ new Map();
+  for (const stop of cursor.stops) {
+    if (stop.kind === "start" || stop.kind === "end") continue;
+    positions.set(stop.runtimeStageId, {
+      stop,
+      previous: cursor.stops[stop.step - 1]
+    });
+  }
+  return (runtimeStageId) => {
+    const position = runtimeStageId ? positions.get(runtimeStageId) : void 0;
+    if (!position) {
+      return {
+        status: "unavailable",
+        sourceId: selection.sourceId,
+        reason: "stage-not-recorded",
+        message: "No exact recorded position is available for this stage execution."
+      };
+    }
+    try {
+      return {
+        status: "available",
+        sourceId: selection.sourceId,
+        stop: position.stop,
+        previous: position.previous ? cursor.stateAt(position.previous) : stateAt(input.source, -1),
+        current: cursor.stateAt(position.stop)
+      };
+    } catch {
+      return {
+        status: "unavailable",
+        sourceId: selection.sourceId,
+        reason: "reader-refused",
+        message: "Foottrace could not reconstruct state at this recorded position."
+      };
+    }
+  };
+}
+
 // src/adapters/fromRuntimeSnapshot.ts
 function looksLikeNarrativeEntry(value) {
   if (value === null || typeof value !== "object") return false;
@@ -3387,7 +3707,6 @@ function narrativeRecorderFromSnapshot(runtime) {
 function narrativeFromSnapshot(runtime) {
   return narrativeRecorderFromSnapshot(runtime)?.entries;
 }
-var COMMIT_PATH_DELIM = "";
 var UNSAFE_KEYS = /* @__PURE__ */ new Set(["__proto__", "constructor", "prototype"]);
 function isSummaryMarker(value) {
   return value !== null && typeof value === "object" && (value.__writeSummary === true || value.__readSummary === true);
@@ -3409,83 +3728,19 @@ function mergeWritePatch(base, patch) {
   }
   return out;
 }
-function getPath(root, segs) {
-  let cur = root;
-  for (const seg of segs) {
-    if (!isPlainRecord(cur) && !Array.isArray(cur)) return void 0;
-    cur = cur[seg];
-  }
-  return cur;
-}
-function setPath(memory, segs, value) {
-  if (segs.some((s) => UNSAFE_KEYS.has(s))) return;
-  let obj = memory;
-  for (let i = 0; i < segs.length - 1; i++) {
-    const cur = obj[segs[i]];
-    const next = Array.isArray(cur) ? cur.slice() : isPlainRecord(cur) && !isSummaryMarker(cur) ? { ...cur } : {};
-    obj[segs[i]] = next;
-    obj = next;
-  }
-  const last = segs[segs.length - 1];
-  if (value === void 0) {
-    delete obj[last];
-  } else {
-    obj[last] = value;
-  }
-}
-function applyCommitBundle(memory, bundle) {
-  const trace = Array.isArray(bundle.trace) ? bundle.trace : void 0;
-  if (trace) {
-    for (const op of trace) {
-      if (!op || typeof op.path !== "string") continue;
-      const segs = op.path.split(COMMIT_PATH_DELIM);
-      if (op.verb === "merge") {
-        setPath(memory, segs, mergeWritePatch(getPath(memory, segs), getPath(bundle.updates, segs)));
-      } else if (op.verb === "append") {
-        const tail = getPath(bundle.overwrite, segs);
-        const current = getPath(memory, segs);
-        setPath(memory, segs, Array.isArray(current) && Array.isArray(tail) ? [...current, ...tail] : tail);
-      } else if (op.verb === "delete") {
-        setPath(memory, segs, void 0);
-      } else {
-        setPath(memory, segs, getPath(bundle.overwrite, segs));
-      }
-    }
-    return;
-  }
-  if (isPlainRecord(bundle.overwrite)) {
-    for (const [key, value] of Object.entries(bundle.overwrite)) setPath(memory, [key], value);
-  }
-  if (isPlainRecord(bundle.updates)) {
-    for (const [key, value] of Object.entries(bundle.updates)) {
-      setPath(memory, [key], mergeWritePatch(memory[key], value));
-    }
-  }
-}
-function indexCommitLog(commitLog) {
-  const index = /* @__PURE__ */ new Map();
-  if (!Array.isArray(commitLog)) return index;
-  for (const entry of commitLog) {
-    if (!isPlainRecord(entry)) continue;
-    const bundle = entry;
-    if (typeof bundle.runtimeStageId !== "string" || bundle.runtimeStageId.length === 0) continue;
-    if (!isPlainRecord(bundle.overwrite) && !isPlainRecord(bundle.updates) && !Array.isArray(bundle.trace)) {
-      continue;
-    }
-    const list = index.get(bundle.runtimeStageId);
-    if (list) list.push(bundle);
-    else index.set(bundle.runtimeStageId, [bundle]);
-  }
-  return index;
-}
 function toVisualizationSnapshots(runtime, narrativeEntries) {
   const entries = narrativeEntries?.length ? narrativeEntries : narrativeFromSnapshot(runtime);
   const stageNarrativeMap = entries?.length ? buildStageNarrativeMap(entries) : /* @__PURE__ */ new Map();
   if (runtime?.executionTree === null || typeof runtime?.executionTree !== "object") return [];
   const stageTimings = extractStageTimings(runtime.recorders);
-  const commitIndex = indexCommitLog(runtime.commitLog);
+  const readState = createRecordStateReader({
+    sourceId: "flow:root",
+    format: "snapshot",
+    record: runtime,
+    reads: { status: "unknown" }
+  });
   const snapshots = [];
-  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap, stageTimings, commitIndex);
+  flattenTree(runtime.executionTree, snapshots, 0, runtime.subflowResults, stageNarrativeMap, stageTimings, readState);
   return snapshots;
 }
 function readStepDurations(data) {
@@ -3545,7 +3800,12 @@ function buildStageNarrativeMap(entries) {
   }
   return map;
 }
-function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, cumulativeMemory = {}, stageNarrativeMap = /* @__PURE__ */ new Map(), stageTimings = { byRuntimeStageId: /* @__PURE__ */ new Map(), byStageName: /* @__PURE__ */ new Map() }, commitIndex = /* @__PURE__ */ new Map()) {
+function flattenTree(node, out, accumulatedMs = 0, subflowResults, stageNarrativeMap = /* @__PURE__ */ new Map(), stageTimings = { byRuntimeStageId: /* @__PURE__ */ new Map(), byStageName: /* @__PURE__ */ new Map() }, readState = () => ({
+  status: "unavailable",
+  sourceId: "flow:unselected",
+  reason: "unsupported-source",
+  message: "No recorded source was supplied."
+})) {
   const stageName = node.name ?? node.id;
   const durationMs = (node.runtimeStageId ? stageTimings.byRuntimeStageId.get(node.runtimeStageId) : void 0) ?? (stageName ? stageTimings.byStageName.get(stageName) : void 0) ?? (typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 0);
   const startMs = accumulatedMs;
@@ -3564,26 +3824,15 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
     }
     narrative = parts.join("\n");
   }
-  const memory = { ...cumulativeMemory };
-  const bundles = node.runtimeStageId ? commitIndex.get(node.runtimeStageId) : void 0;
-  if (bundles && bundles.length > 0) {
-    for (const bundle of bundles) applyCommitBundle(memory, bundle);
-  } else if (node.stageWrites) {
-    for (const [key, value] of Object.entries(node.stageWrites)) {
-      if (UNSAFE_KEYS.has(key)) continue;
-      if (value === void 0) {
-        delete memory[key];
-      } else {
-        memory[key] = mergeWritePatch(memory[key], value);
-      }
-    }
-  }
+  const recordState = readState(node.runtimeStageId);
+  const memory = recordState.status === "available" ? recordState.current.state : {};
   const sfResult = (node.runtimeStageId ? subflowResults?.[node.runtimeStageId] : void 0) ?? subflowResults?.[node.subflowId ?? stageId];
   out.push({
     stageName: displayName,
     stageLabel: stageId,
     runtimeStageId: node.runtimeStageId ?? void 0,
     memory,
+    recordState,
     narrative,
     startMs,
     durationMs,
@@ -3596,13 +3845,13 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
   if (node.children && node.children.length > 0) {
     let maxChildEnd = nextMs;
     for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
+      const childEnd = flattenTree(child, out, nextMs, subflowResults, stageNarrativeMap, stageTimings, readState);
       maxChildEnd = Math.max(maxChildEnd, childEnd);
     }
     nextMs = maxChildEnd;
   }
   if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
+    nextMs = flattenTree(node.next, out, nextMs, subflowResults, stageNarrativeMap, stageTimings, readState);
   }
   return nextMs;
 }
@@ -3610,13 +3859,22 @@ function subflowResultToSnapshots(subflowResult, narrativeEntries, subflowResult
   if (!subflowResult || typeof subflowResult !== "object") return [];
   const sf = subflowResult;
   if (!sf.treeContext?.stageContexts) return [];
-  const runtime = {
-    sharedState: sf.treeContext.globalContext ?? {},
-    executionTree: sf.treeContext.stageContexts,
-    commitLog: sf.treeContext.history ?? [],
-    ...subflowResults ? { subflowResults } : void 0
-  };
-  const snapshots = toVisualizationSnapshots(runtime, narrativeEntries);
+  const readState = createRecordStateReader({
+    sourceId: `flow:subtree:${sf.subflowId ?? "selected"}`,
+    format: "tree-context",
+    record: sf.treeContext,
+    reads: { status: "unknown" }
+  });
+  const snapshots = [];
+  flattenTree(
+    sf.treeContext.stageContexts,
+    snapshots,
+    0,
+    subflowResults,
+    narrativeEntries?.length ? buildStageNarrativeMap(narrativeEntries) : /* @__PURE__ */ new Map(),
+    { byRuntimeStageId: /* @__PURE__ */ new Map(), byStageName: /* @__PURE__ */ new Map() },
+    readState
+  );
   const prefix = sf.subflowId ? `${sf.subflowId}/` : "";
   if (prefix) {
     for (const snap of snapshots) {
@@ -3710,7 +3968,7 @@ function devWarn(messageFn, ...extras) {
 }
 
 // src/components/MemoryPanel/MemoryPanel.tsx
-import { jsx as jsx13, jsxs as jsxs12 } from "react/jsx-runtime";
+import { jsx as jsx14, jsxs as jsxs12 } from "react/jsx-runtime";
 function MemoryPanel({
   snapshots,
   selectedIndex,
@@ -3719,12 +3977,21 @@ function MemoryPanel({
   className,
   style
 }) {
-  const prevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
-  const currMemory = snapshots[selectedIndex]?.memory ?? {};
+  const view = recordStateDisplay(
+    snapshots[selectedIndex],
+    snapshots[selectedIndex - 1]
+  );
   if (unstyled) {
     return /* @__PURE__ */ jsxs12("div", { className, style, "data-fp": "memory-panel", children: [
-      /* @__PURE__ */ jsx13(MemoryInspector, { snapshots, selectedIndex, unstyled: true }),
-      /* @__PURE__ */ jsx13(ScopeDiff, { previous: prevMemory, current: currMemory, unstyled: true })
+      /* @__PURE__ */ jsx14(
+        MemoryInspector,
+        {
+          snapshots,
+          selectedIndex,
+          unstyled: true
+        }
+      ),
+      view.canCompare && view.memory !== null && /* @__PURE__ */ jsx14(ScopeDiff, { previous: view.previous, current: view.memory, unstyled: true })
     ] });
   }
   return /* @__PURE__ */ jsxs12(
@@ -3739,8 +4006,23 @@ function MemoryPanel({
       },
       "data-fp": "memory-panel",
       children: [
-        /* @__PURE__ */ jsx13(MemoryInspector, { snapshots, selectedIndex, size }),
-        /* @__PURE__ */ jsx13("div", { style: { borderTop: `1px solid ${theme.border}` }, children: /* @__PURE__ */ jsx13(ScopeDiff, { previous: prevMemory, current: currMemory, hideUnchanged: true, size }) })
+        /* @__PURE__ */ jsx14(
+          MemoryInspector,
+          {
+            snapshots,
+            selectedIndex,
+            size
+          }
+        ),
+        view.canCompare && view.memory !== null && /* @__PURE__ */ jsx14("div", { style: { borderTop: `1px solid ${theme.border}` }, children: /* @__PURE__ */ jsx14(
+          ScopeDiff,
+          {
+            previous: view.previous,
+            current: view.memory,
+            hideUnchanged: true,
+            size
+          }
+        ) })
       ]
     }
   );
@@ -3751,7 +4033,7 @@ import { useMemo as useMemo11, useState as useState8, useCallback as useCallback
 
 // src/components/StoryNarrative/StoryNarrative.tsx
 import { useMemo as useMemo10, useRef as useRef4, useEffect as useEffect5 } from "react";
-import { Fragment as Fragment5, jsx as jsx14, jsxs as jsxs13 } from "react/jsx-runtime";
+import { Fragment as Fragment5, jsx as jsx15, jsxs as jsxs13 } from "react/jsx-runtime";
 var ENTRY_ICONS = {
   stage: { icon: "\u25B8", color: theme.primary, label: "Stage" },
   step: { icon: "\xB7", color: theme.textMuted, label: "Data operation" },
@@ -3865,10 +4147,10 @@ function StoryNarrative({
     });
   }, [revealed]);
   if (unstyled) {
-    return /* @__PURE__ */ jsx14("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => {
+    return /* @__PURE__ */ jsx15("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => {
       if (entry.isSubflowExit) return null;
       const ht = entry.headingType;
-      return /* @__PURE__ */ jsx14("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? entry.text.startsWith("[") ? `${entry.heading}. ${entry.text}` : `${entry.heading}. [${ht}: ${entry.stageName ?? ""}] ${entry.text}` : entry.text }, i);
+      return /* @__PURE__ */ jsx15("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? entry.text.startsWith("[") ? `${entry.heading}. ${entry.text}` : `${entry.heading}. [${ht}: ${entry.stageName ?? ""}] ${entry.text}` : entry.text }, i);
     }) });
   }
   return /* @__PURE__ */ jsxs13(
@@ -3910,7 +4192,7 @@ function StoryNarrative({
                 marginTop: isHeading && i > 0 ? 8 : 0
               },
               children: [
-                /* @__PURE__ */ jsx14(
+                /* @__PURE__ */ jsx15(
                   "span",
                   {
                     style: {
@@ -3926,7 +4208,7 @@ function StoryNarrative({
                     children: meta.icon
                   }
                 ),
-                /* @__PURE__ */ jsx14(
+                /* @__PURE__ */ jsx15(
                   "span",
                   {
                     style: {
@@ -3979,7 +4261,7 @@ function StoryNarrative({
 }
 
 // src/components/NarrativePanel/NarrativePanel.tsx
-import { jsx as jsx15, jsxs as jsxs14 } from "react/jsx-runtime";
+import { jsx as jsx16, jsxs as jsxs14 } from "react/jsx-runtime";
 function safeJsonStringify(value) {
   const seen = /* @__PURE__ */ new WeakSet();
   const MAX_CHARS = 5e5;
@@ -4172,7 +4454,7 @@ function NarrativePanel({
     setTimeout(() => setCopied(false), 2e3);
   }, [buildLLMNarrative]);
   if (unstyled) {
-    return /* @__PURE__ */ jsx15("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ jsx15(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, scopeSubflowId, unstyled: true }) : /* @__PURE__ */ jsx15(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
+    return /* @__PURE__ */ jsx16("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ jsx16(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, scopeSubflowId, unstyled: true }) : /* @__PURE__ */ jsx16(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
   }
   return /* @__PURE__ */ jsxs14(
     "div",
@@ -4200,8 +4482,8 @@ function NarrativePanel({
               alignItems: "center"
             },
             children: [
-              /* @__PURE__ */ jsx15("span", { style: { fontStyle: "italic" }, children: "What happened at each stage, what data flowed, what decisions were made, and why." }),
-              /* @__PURE__ */ jsx15(
+              /* @__PURE__ */ jsx16("span", { style: { fontStyle: "italic" }, children: "What happened at each stage, what data flowed, what decisions were made, and why." }),
+              /* @__PURE__ */ jsx16(
                 "button",
                 {
                   onClick: handleCopy,
@@ -4224,7 +4506,7 @@ function NarrativePanel({
             ]
           }
         ),
-        hasStructured ? /* @__PURE__ */ jsx15(
+        hasStructured ? /* @__PURE__ */ jsx16(
           StoryNarrative,
           {
             entries: narrativeEntries,
@@ -4233,7 +4515,7 @@ function NarrativePanel({
             size,
             style: { flex: 1 }
           }
-        ) : /* @__PURE__ */ jsx15(
+        ) : /* @__PURE__ */ jsx16(
           NarrativeTrace,
           {
             narrative,
@@ -4249,7 +4531,7 @@ function NarrativePanel({
 
 // src/components/FlowchartView/SubflowTree.tsx
 import { memo as memo3, useState as useState9, useCallback as useCallback5, useMemo as useMemo12 } from "react";
-import { Fragment as Fragment6, jsx as jsx16, jsxs as jsxs15 } from "react/jsx-runtime";
+import { Fragment as Fragment6, jsx as jsx17, jsxs as jsxs15 } from "react/jsx-runtime";
 function graphToSubflowEntries(graph) {
   if (!graph?.nodes?.length) return [];
   const entries = [];
@@ -4315,7 +4597,7 @@ var TreeNode = memo3(function TreeNode2({
           }
         },
         children: [
-          hasChildren ? /* @__PURE__ */ jsx16(
+          hasChildren ? /* @__PURE__ */ jsx17(
             "span",
             {
               style: {
@@ -4330,8 +4612,8 @@ var TreeNode = memo3(function TreeNode2({
               },
               children: "\u25B6"
             }
-          ) : /* @__PURE__ */ jsx16("span", { style: { width: 12, flexShrink: 0 } }),
-          /* @__PURE__ */ jsx16(
+          ) : /* @__PURE__ */ jsx17("span", { style: { width: 12, flexShrink: 0 } }),
+          /* @__PURE__ */ jsx17(
             "span",
             {
               style: {
@@ -4356,11 +4638,11 @@ var TreeNode = memo3(function TreeNode2({
                 },
                 children: [
                   entry.name,
-                  entry.isSubflow && /* @__PURE__ */ jsx16("span", { style: { opacity: 0.5, marginLeft: 4, fontSize: 10 }, children: "\u229E" })
+                  entry.isSubflow && /* @__PURE__ */ jsx17("span", { style: { opacity: 0.5, marginLeft: 4, fontSize: 10 }, children: "\u229E" })
                 ]
               }
             ),
-            entry.description && /* @__PURE__ */ jsx16(
+            entry.description && /* @__PURE__ */ jsx17(
               "span",
               {
                 style: {
@@ -4377,7 +4659,7 @@ var TreeNode = memo3(function TreeNode2({
         ]
       }
     ),
-    hasChildren && expanded && /* @__PURE__ */ jsx16("div", { children: entry.children.map((child, i) => /* @__PURE__ */ jsx16(
+    hasChildren && expanded && /* @__PURE__ */ jsx17("div", { children: entry.children.map((child, i) => /* @__PURE__ */ jsx17(
       TreeNode2,
       {
         entry: child,
@@ -4391,7 +4673,7 @@ var TreeNode = memo3(function TreeNode2({
   ] });
 });
 var SectionLabel = memo3(function SectionLabel2({ children }) {
-  return /* @__PURE__ */ jsx16(
+  return /* @__PURE__ */ jsx17(
     "div",
     {
       style: {
@@ -4435,8 +4717,8 @@ var SubflowTree = memo3(function SubflowTree2({
         ...style
       },
       children: [
-        !unstyled && /* @__PURE__ */ jsx16(SectionLabel, { children: "Subflows" }),
-        subflowStages.map((entry, i) => /* @__PURE__ */ jsx16(
+        !unstyled && /* @__PURE__ */ jsx17(SectionLabel, { children: "Subflows" }),
+        subflowStages.map((entry, i) => /* @__PURE__ */ jsx17(
           TreeNode,
           {
             entry,
@@ -4466,7 +4748,7 @@ function warnDeprecated(what, useInstead) {
 }
 
 // src/components/FlowchartView/SubflowBreadcrumb.tsx
-import { jsx as jsx17, jsxs as jsxs16 } from "react/jsx-runtime";
+import { jsx as jsx18, jsxs as jsxs16 } from "react/jsx-runtime";
 var SubflowBreadcrumb = memo4(function SubflowBreadcrumb2({
   breadcrumbs,
   onNavigate
@@ -4476,7 +4758,7 @@ var SubflowBreadcrumb = memo4(function SubflowBreadcrumb2({
     "It renders the legacy useSubflowNavigation stack. Use <TracedFlow> (which draws its own trail), or buildSubflowBreadcrumb(graph, mountNodeId)."
   );
   if (breadcrumbs.length <= 1) return null;
-  return /* @__PURE__ */ jsx17(
+  return /* @__PURE__ */ jsx18(
     "div",
     {
       style: {
@@ -4494,9 +4776,9 @@ var SubflowBreadcrumb = memo4(function SubflowBreadcrumb2({
       children: breadcrumbs.map((crumb, i) => {
         const isLast = i === breadcrumbs.length - 1;
         return /* @__PURE__ */ jsxs16("span", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
-          i > 0 && /* @__PURE__ */ jsx17("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" }),
+          i > 0 && /* @__PURE__ */ jsx18("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" }),
           isLast ? /* @__PURE__ */ jsxs16("span", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-            /* @__PURE__ */ jsx17(
+            /* @__PURE__ */ jsx18(
               "span",
               {
                 style: {
@@ -4520,7 +4802,7 @@ var SubflowBreadcrumb = memo4(function SubflowBreadcrumb2({
                 ]
               }
             )
-          ] }) : /* @__PURE__ */ jsx17(
+          ] }) : /* @__PURE__ */ jsx18(
             "button",
             {
               onClick: () => onNavigate(i),
@@ -4969,7 +5251,7 @@ function projectRetryAttempts(overlay, upToIndex) {
 // src/components/StageNode/StageNode.tsx
 import { memo as memo5, useEffect as useEffect6, useRef as useRef5 } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { Fragment as Fragment7, jsx as jsx18, jsxs as jsxs17 } from "react/jsx-runtime";
+import { Fragment as Fragment7, jsx as jsx19, jsxs as jsxs17 } from "react/jsx-runtime";
 var KEYFRAMES_ID = "fp-stage-node-keyframes";
 var KEYFRAMES_CSS = `
 @media (prefers-reduced-motion: no-preference) {
@@ -4996,25 +5278,25 @@ function StageIcon({ type, color }) {
     case "llm":
     case "ai":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("circle", { cx: "8", cy: "8", r: "6", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ jsx18("path", { d: "M5.5 8C5.5 6.5 6.5 5 8 5S10.5 6.5 10.5 8", stroke: color, strokeWidth: "1.2", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx18("circle", { cx: "8", cy: "9.5", r: "1", fill: color }),
-        /* @__PURE__ */ jsx18("line", { x1: "8", y1: "2", x2: "8", y2: "3.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx18("line", { x1: "12.5", y1: "4", x2: "11.2", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx18("line", { x1: "3.5", y1: "4", x2: "4.8", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+        /* @__PURE__ */ jsx19("circle", { cx: "8", cy: "8", r: "6", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ jsx19("path", { d: "M5.5 8C5.5 6.5 6.5 5 8 5S10.5 6.5 10.5 8", stroke: color, strokeWidth: "1.2", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx19("circle", { cx: "8", cy: "9.5", r: "1", fill: color }),
+        /* @__PURE__ */ jsx19("line", { x1: "8", y1: "2", x2: "8", y2: "3.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx19("line", { x1: "12.5", y1: "4", x2: "11.2", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx19("line", { x1: "3.5", y1: "4", x2: "4.8", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Tool / function call — gear
     case "tool":
     case "function":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("circle", { cx: "8", cy: "8", r: "3", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ jsx19("circle", { cx: "8", cy: "8", r: "3", stroke: color, strokeWidth: "1.5" }),
         [0, 45, 90, 135, 180, 225, 270, 315].map((angle) => {
           const rad = angle * Math.PI / 180;
           const x1 = 8 + Math.cos(rad) * 4.5;
           const y1 = 8 + Math.sin(rad) * 4.5;
           const x2 = 8 + Math.cos(rad) * 6;
           const y2 = 8 + Math.sin(rad) * 6;
-          return /* @__PURE__ */ jsx18("line", { x1, y1, x2, y2, stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }, angle);
+          return /* @__PURE__ */ jsx19("line", { x1, y1, x2, y2, stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }, angle);
         })
       ] });
     // RAG / retrieval — magnifying glass + doc
@@ -5022,67 +5304,67 @@ function StageIcon({ type, color }) {
     case "search":
     case "retrieval":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("circle", { cx: "7", cy: "7", r: "4", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ jsx18("line", { x1: "10", y1: "10", x2: "13.5", y2: "13.5", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx18("line", { x1: "5.5", y1: "6", x2: "8.5", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx18("line", { x1: "5.5", y1: "8", x2: "7.5", y2: "8", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+        /* @__PURE__ */ jsx19("circle", { cx: "7", cy: "7", r: "4", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ jsx19("line", { x1: "10", y1: "10", x2: "13.5", y2: "13.5", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx19("line", { x1: "5.5", y1: "6", x2: "8.5", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx19("line", { x1: "5.5", y1: "8", x2: "7.5", y2: "8", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Parse / process — diamond with arrows
     case "parse":
     case "process":
     case "transform":
-      return /* @__PURE__ */ jsx18("svg", { ...props, children: /* @__PURE__ */ jsx18("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", stroke: color, strokeWidth: "1.5", transform: "rotate(45 8 8)" }) });
+      return /* @__PURE__ */ jsx19("svg", { ...props, children: /* @__PURE__ */ jsx19("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", stroke: color, strokeWidth: "1.5", transform: "rotate(45 8 8)" }) });
     // Start / seed — play triangle
     case "start":
     case "seed":
     case "init":
-      return /* @__PURE__ */ jsx18("svg", { ...props, children: /* @__PURE__ */ jsx18("path", { d: "M5 3.5L12.5 8L5 12.5V3.5Z", fill: color, opacity: "0.8" }) });
+      return /* @__PURE__ */ jsx19("svg", { ...props, children: /* @__PURE__ */ jsx19("path", { d: "M5 3.5L12.5 8L5 12.5V3.5Z", fill: color, opacity: "0.8" }) });
     // End / finalize — stop square
     case "end":
     case "finalize":
     case "output":
-      return /* @__PURE__ */ jsx18("svg", { ...props, children: /* @__PURE__ */ jsx18("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", fill: color, opacity: "0.8" }) });
+      return /* @__PURE__ */ jsx19("svg", { ...props, children: /* @__PURE__ */ jsx19("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", fill: color, opacity: "0.8" }) });
     // Agent — person silhouette
     case "agent":
     case "orchestrator":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("circle", { cx: "8", cy: "5", r: "2.5", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ jsx18("path", { d: "M3.5 14C3.5 11 5.5 9 8 9S12.5 11 12.5 14", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" })
+        /* @__PURE__ */ jsx19("circle", { cx: "8", cy: "5", r: "2.5", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ jsx19("path", { d: "M3.5 14C3.5 11 5.5 9 8 9S12.5 11 12.5 14", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" })
       ] });
     // Swarm — multi-agent
     case "swarm":
     case "multi-agent":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("circle", { cx: "5", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ jsx18("circle", { cx: "11", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ jsx18("circle", { cx: "8", cy: "11", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ jsx18("line", { x1: "5", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" }),
-        /* @__PURE__ */ jsx18("line", { x1: "11", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" })
+        /* @__PURE__ */ jsx19("circle", { cx: "5", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ jsx19("circle", { cx: "11", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ jsx19("circle", { cx: "8", cy: "11", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ jsx19("line", { x1: "5", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" }),
+        /* @__PURE__ */ jsx19("line", { x1: "11", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" })
       ] });
     // Guard / guardrail — shield
     case "guard":
     case "guardrail":
     case "validate":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("path", { d: "M8 2L3 5V9C3 11.5 5 13.5 8 14.5C11 13.5 13 11.5 13 9V5L8 2Z", stroke: color, strokeWidth: "1.5", strokeLinejoin: "round" }),
-        /* @__PURE__ */ jsx18("path", { d: "M6 8L7.5 9.5L10 6.5", stroke: color, strokeWidth: "1.2", strokeLinecap: "round", strokeLinejoin: "round" })
+        /* @__PURE__ */ jsx19("path", { d: "M8 2L3 5V9C3 11.5 5 13.5 8 14.5C11 13.5 13 11.5 13 9V5L8 2Z", stroke: color, strokeWidth: "1.5", strokeLinejoin: "round" }),
+        /* @__PURE__ */ jsx19("path", { d: "M6 8L7.5 9.5L10 6.5", stroke: color, strokeWidth: "1.2", strokeLinecap: "round", strokeLinejoin: "round" })
       ] });
     // Stream — wave
     case "stream":
     case "streaming":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("path", { d: "M2 8C4 5 6 11 8 8S12 5 14 8", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
-        /* @__PURE__ */ jsx18("path", { d: "M2 11C4 8 6 14 8 11S12 8 14 11", stroke: color, strokeWidth: "1", strokeLinecap: "round", fill: "none", opacity: "0.5" })
+        /* @__PURE__ */ jsx19("path", { d: "M2 8C4 5 6 11 8 8S12 5 14 8", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
+        /* @__PURE__ */ jsx19("path", { d: "M2 11C4 8 6 14 8 11S12 8 14 11", stroke: color, strokeWidth: "1", strokeLinecap: "round", fill: "none", opacity: "0.5" })
       ] });
     // Memory / state — database cylinder
     case "memory":
     case "state":
     case "db":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("ellipse", { cx: "8", cy: "4.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ jsx18("line", { x1: "3", y1: "4.5", x2: "3", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ jsx18("line", { x1: "13", y1: "4.5", x2: "13", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ jsx18("ellipse", { cx: "8", cy: "11.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" })
+        /* @__PURE__ */ jsx19("ellipse", { cx: "8", cy: "4.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ jsx19("line", { x1: "3", y1: "4.5", x2: "3", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ jsx19("line", { x1: "13", y1: "4.5", x2: "13", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ jsx19("ellipse", { cx: "8", cy: "11.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" })
       ] });
     // System prompt — document with lines
     case "system-prompt":
@@ -5090,33 +5372,33 @@ function StageIcon({ type, color }) {
     case "instructions":
     case "document":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("rect", { x: "3.5", y: "2", width: "9", height: "12", rx: "1.5", stroke: color, strokeWidth: "1.3", fill: "none" }),
-        /* @__PURE__ */ jsx18("line", { x1: "5.5", y1: "5", x2: "10.5", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx18("line", { x1: "5.5", y1: "7.5", x2: "10.5", y2: "7.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx18("line", { x1: "5.5", y1: "10", x2: "8.5", y2: "10", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+        /* @__PURE__ */ jsx19("rect", { x: "3.5", y: "2", width: "9", height: "12", rx: "1.5", stroke: color, strokeWidth: "1.3", fill: "none" }),
+        /* @__PURE__ */ jsx19("line", { x1: "5.5", y1: "5", x2: "10.5", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx19("line", { x1: "5.5", y1: "7.5", x2: "10.5", y2: "7.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx19("line", { x1: "5.5", y1: "10", x2: "8.5", y2: "10", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Messages / conversation — chat bubble
     case "messages":
     case "chat":
     case "conversation":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("rect", { x: "2.5", y: "3", width: "11", height: "8", rx: "2", stroke: color, strokeWidth: "1.3", fill: "none" }),
-        /* @__PURE__ */ jsx18("path", { d: "M5.5 11L5.5 13.5L8.5 11", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" }),
-        /* @__PURE__ */ jsx18("line", { x1: "5", y1: "6", x2: "11", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx18("line", { x1: "5", y1: "8.5", x2: "9", y2: "8.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+        /* @__PURE__ */ jsx19("rect", { x: "2.5", y: "3", width: "11", height: "8", rx: "2", stroke: color, strokeWidth: "1.3", fill: "none" }),
+        /* @__PURE__ */ jsx19("path", { d: "M5.5 11L5.5 13.5L8.5 11", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" }),
+        /* @__PURE__ */ jsx19("line", { x1: "5", y1: "6", x2: "11", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ jsx19("line", { x1: "5", y1: "8.5", x2: "9", y2: "8.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Loop — circular arrow
     case "loop":
     case "retry":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("path", { d: "M12 8A4 4 0 1 1 8 4", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
-        /* @__PURE__ */ jsx18("path", { d: "M8 1.5L10.5 4L8 6.5", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" })
+        /* @__PURE__ */ jsx19("path", { d: "M12 8A4 4 0 1 1 8 4", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
+        /* @__PURE__ */ jsx19("path", { d: "M8 1.5L10.5 4L8 6.5", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" })
       ] });
     // Lazy / service — cloud (deferred resolution, loaded on demand)
     case "lazy":
     case "service":
     case "cloud":
-      return /* @__PURE__ */ jsx18("svg", { ...props, children: /* @__PURE__ */ jsx18(
+      return /* @__PURE__ */ jsx19("svg", { ...props, children: /* @__PURE__ */ jsx19(
         "path",
         {
           d: "M4.5 12C2.8 12 1.5 10.7 1.5 9C1.5 7.5 2.5 6.3 3.8 6C4 4 5.8 2.5 8 2.5C9.8 2.5 11.3 3.5 11.9 5C13.9 5.2 15.5 6.8 15.5 8.8C15.5 10.8 13.9 12.5 11.8 12.5H4.5",
@@ -5130,8 +5412,8 @@ function StageIcon({ type, color }) {
     case "decision":
     case "router":
       return /* @__PURE__ */ jsxs17("svg", { ...props, children: [
-        /* @__PURE__ */ jsx18("path", { d: "M8 2L14 8L8 14L2 8Z", stroke: color, strokeWidth: "1.5", fill: "none" }),
-        /* @__PURE__ */ jsx18("circle", { cx: "8", cy: "8", r: "1.5", fill: color })
+        /* @__PURE__ */ jsx19("path", { d: "M8 2L14 8L8 14L2 8Z", stroke: color, strokeWidth: "1.5", fill: "none" }),
+        /* @__PURE__ */ jsx19("circle", { cx: "8", cy: "8", r: "1.5", fill: color })
       ] });
     default:
       return null;
@@ -5168,8 +5450,8 @@ var StageNode = memo5(function StageNode2({
   const shadow = active ? `0 0 22px color-mix(in srgb, ${theme.nodeCursor} 55%, transparent)` : isHero && done ? `0 0 12px color-mix(in srgb, ${theme.nodeMain} 30%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.nodeVisited} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : restingShadow;
   const textColor = active ? "#1a1a1a" : done || error ? "#fff" : theme.textPrimary;
   return /* @__PURE__ */ jsxs17(Fragment7, { children: [
-    /* @__PURE__ */ jsx18(Handle, { type: "target", position: Position.Top, style: { opacity: 0 } }),
-    /* @__PURE__ */ jsx18("div", { style: { width: "100%", display: "flex", justifyContent: "center" }, children: /* @__PURE__ */ jsxs17(
+    /* @__PURE__ */ jsx19(Handle, { type: "target", position: Position.Top, style: { opacity: 0 } }),
+    /* @__PURE__ */ jsx19("div", { style: { width: "100%", display: "flex", justifyContent: "center" }, children: /* @__PURE__ */ jsxs17(
       "div",
       {
         style: {
@@ -5182,7 +5464,7 @@ var StageNode = memo5(function StageNode2({
           opacity: isMuted ? 0.5 : void 0
         },
         children: [
-          stepNumbers && stepNumbers.length > 0 && isOnPath && /* @__PURE__ */ jsx18(
+          stepNumbers && stepNumbers.length > 0 && isOnPath && /* @__PURE__ */ jsx19(
             "div",
             {
               style: {
@@ -5197,7 +5479,7 @@ var StageNode = memo5(function StageNode2({
                 const isLatest = i === stepNumbers.length - 1;
                 const badgeBg = isLatest && active ? theme.nodeCursor : theme.nodeVisited;
                 const glow = isLatest && active ? `color-mix(in srgb, ${theme.nodeCursor} 50%, transparent)` : `color-mix(in srgb, ${theme.nodeVisited} 40%, transparent)`;
-                return /* @__PURE__ */ jsx18(
+                return /* @__PURE__ */ jsx19(
                   "div",
                   {
                     style: {
@@ -5220,7 +5502,7 @@ var StageNode = memo5(function StageNode2({
               })
             }
           ),
-          linked && /* @__PURE__ */ jsx18(
+          linked && /* @__PURE__ */ jsx19(
             "div",
             {
               style: {
@@ -5234,7 +5516,7 @@ var StageNode = memo5(function StageNode2({
               }
             }
           ),
-          active && /* @__PURE__ */ jsx18(
+          active && /* @__PURE__ */ jsx19(
             "div",
             {
               style: {
@@ -5248,7 +5530,7 @@ var StageNode = memo5(function StageNode2({
               }
             }
           ),
-          active && /* @__PURE__ */ jsx18(
+          active && /* @__PURE__ */ jsx19(
             "div",
             {
               style: {
@@ -5295,7 +5577,7 @@ var StageNode = memo5(function StageNode2({
                 whiteSpace: "nowrap"
               },
               children: [
-                /* @__PURE__ */ jsx18("span", { "aria-hidden": "true", children: "\u21BA" }),
+                /* @__PURE__ */ jsx19("span", { "aria-hidden": "true", children: "\u21BA" }),
                 /* @__PURE__ */ jsxs17("span", { "aria-hidden": "true", children: [
                   "\xD7",
                   retryAttempts
@@ -5304,7 +5586,7 @@ var StageNode = memo5(function StageNode2({
             }
           ),
           isDecider ? /* @__PURE__ */ jsxs17("div", { style: { position: "relative", width: 120, height: 72 }, children: [
-            /* @__PURE__ */ jsx18(
+            /* @__PURE__ */ jsx19(
               "div",
               {
                 style: {
@@ -5318,7 +5600,7 @@ var StageNode = memo5(function StageNode2({
                 }
               }
             ),
-            /* @__PURE__ */ jsx18(
+            /* @__PURE__ */ jsx19(
               "div",
               {
                 style: {
@@ -5350,9 +5632,9 @@ var StageNode = memo5(function StageNode2({
                 },
                 children: [
                   /* @__PURE__ */ jsxs17("div", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
-                    effectiveIcon && /* @__PURE__ */ jsx18(StageIcon, { type: effectiveIcon, color: textColor }),
-                    !effectiveIcon && /* @__PURE__ */ jsx18("span", { style: { fontSize: 9, color: textColor }, children: "\u25C7" }),
-                    /* @__PURE__ */ jsx18(
+                    effectiveIcon && /* @__PURE__ */ jsx19(StageIcon, { type: effectiveIcon, color: textColor }),
+                    !effectiveIcon && /* @__PURE__ */ jsx19("span", { style: { fontSize: 9, color: textColor }, children: "\u25C7" }),
+                    /* @__PURE__ */ jsx19(
                       "span",
                       {
                         style: {
@@ -5365,7 +5647,7 @@ var StageNode = memo5(function StageNode2({
                       }
                     )
                   ] }),
-                  description && /* @__PURE__ */ jsx18(
+                  description && /* @__PURE__ */ jsx19(
                     "span",
                     {
                       style: {
@@ -5381,7 +5663,7 @@ var StageNode = memo5(function StageNode2({
                       children: description
                     }
                   ),
-                  showStageId && stageId && /* @__PURE__ */ jsx18(
+                  showStageId && stageId && /* @__PURE__ */ jsx19(
                     "span",
                     {
                       style: {
@@ -5423,9 +5705,9 @@ var StageNode = memo5(function StageNode2({
                 },
                 children: [
                   /* @__PURE__ */ jsxs17("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-                    effectiveIcon && /* @__PURE__ */ jsx18(StageIcon, { type: effectiveIcon, color: textColor }),
-                    done && !effectiveIcon && /* @__PURE__ */ jsx18("span", { style: { fontSize: 10, color: textColor }, children: "\u2713" }),
-                    active && !effectiveIcon && /* @__PURE__ */ jsx18(
+                    effectiveIcon && /* @__PURE__ */ jsx19(StageIcon, { type: effectiveIcon, color: textColor }),
+                    done && !effectiveIcon && /* @__PURE__ */ jsx19("span", { style: { fontSize: 10, color: textColor }, children: "\u2713" }),
+                    active && !effectiveIcon && /* @__PURE__ */ jsx19(
                       "span",
                       {
                         style: {
@@ -5438,8 +5720,8 @@ var StageNode = memo5(function StageNode2({
                         }
                       }
                     ),
-                    error && !effectiveIcon && /* @__PURE__ */ jsx18("span", { style: { fontSize: 10, color: textColor }, children: "\u2717" }),
-                    /* @__PURE__ */ jsx18(
+                    error && !effectiveIcon && /* @__PURE__ */ jsx19("span", { style: { fontSize: 10, color: textColor }, children: "\u2717" }),
+                    /* @__PURE__ */ jsx19(
                       "span",
                       {
                         style: {
@@ -5451,7 +5733,7 @@ var StageNode = memo5(function StageNode2({
                         children: label
                       }
                     ),
-                    isSubflow && /* @__PURE__ */ jsx18(
+                    isSubflow && /* @__PURE__ */ jsx19(
                       "span",
                       {
                         style: {
@@ -5466,7 +5748,7 @@ var StageNode = memo5(function StageNode2({
                           opacity: 0.7,
                           flexShrink: 0
                         },
-                        children: /* @__PURE__ */ jsx18(
+                        children: /* @__PURE__ */ jsx19(
                           "span",
                           {
                             style: {
@@ -5480,7 +5762,7 @@ var StageNode = memo5(function StageNode2({
                       }
                     )
                   ] }),
-                  description && /* @__PURE__ */ jsx18(
+                  description && /* @__PURE__ */ jsx19(
                     "span",
                     {
                       style: {
@@ -5496,7 +5778,7 @@ var StageNode = memo5(function StageNode2({
                       children: description
                     }
                   ),
-                  showStageId && stageId && /* @__PURE__ */ jsx18(
+                  showStageId && stageId && /* @__PURE__ */ jsx19(
                     "span",
                     {
                       style: {
@@ -5520,7 +5802,7 @@ var StageNode = memo5(function StageNode2({
         ]
       }
     ) }),
-    /* @__PURE__ */ jsx18(Handle, { type: "source", position: Position.Bottom, style: { opacity: 0 } })
+    /* @__PURE__ */ jsx19(Handle, { type: "source", position: Position.Bottom, style: { opacity: 0 } })
   ] });
 });
 
@@ -5928,9 +6210,9 @@ function ChartAutoRefit(props) {
 }
 
 // src/components/FlowchartView/SubflowBreadcrumbBar.tsx
-import { jsx as jsx19, jsxs as jsxs18 } from "react/jsx-runtime";
+import { jsx as jsx20, jsxs as jsxs18 } from "react/jsx-runtime";
 function SubflowBreadcrumbBar({ entries, onNavigate }) {
-  return /* @__PURE__ */ jsx19(
+  return /* @__PURE__ */ jsx20(
     "div",
     {
       style: {
@@ -5951,7 +6233,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
           {
             style: { display: "inline-flex", alignItems: "center", gap: 6 },
             children: [
-              /* @__PURE__ */ jsx19(
+              /* @__PURE__ */ jsx20(
                 "button",
                 {
                   type: "button",
@@ -5971,7 +6253,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
                   children: entry.label
                 }
               ),
-              !isLast && /* @__PURE__ */ jsx19("span", { style: { color: theme.textMuted }, children: "\u203A" })
+              !isLast && /* @__PURE__ */ jsx20("span", { style: { color: theme.textMuted }, children: "\u203A" })
             ]
           },
           entry.subflowId ?? "__top__"
@@ -5983,7 +6265,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
 
 // src/components/GroupContainerNode/GroupContainerNode.tsx
 import { Handle as Handle2, Position as Position2 } from "@xyflow/react";
-import { jsx as jsx20, jsxs as jsxs19 } from "react/jsx-runtime";
+import { jsx as jsx21, jsxs as jsxs19 } from "react/jsx-runtime";
 function GroupContainerNode({ data }) {
   const d = data;
   const borderColor = d.error ? theme.error : d.active ? theme.primary : d.done ? theme.nodeVisited : theme.border;
@@ -6017,13 +6299,13 @@ function GroupContainerNode({ data }) {
               letterSpacing: 0.2
             },
             children: [
-              d.icon ? /* @__PURE__ */ jsx20("span", { "aria-hidden": true, children: d.icon }) : null,
-              /* @__PURE__ */ jsx20("span", { children: d.label })
+              d.icon ? /* @__PURE__ */ jsx21("span", { "aria-hidden": true, children: d.icon }) : null,
+              /* @__PURE__ */ jsx21("span", { children: d.label })
             ]
           }
         ),
-        /* @__PURE__ */ jsx20(Handle2, { type: "target", position: Position2.Top, style: { opacity: 0 } }),
-        /* @__PURE__ */ jsx20(Handle2, { type: "source", position: Position2.Bottom, style: { opacity: 0 } })
+        /* @__PURE__ */ jsx21(Handle2, { type: "target", position: Position2.Top, style: { opacity: 0 } }),
+        /* @__PURE__ */ jsx21(Handle2, { type: "source", position: Position2.Bottom, style: { opacity: 0 } })
       ]
     }
   );
@@ -6249,7 +6531,7 @@ function wrapInMainChartBox(graph, opts) {
 }
 
 // src/components/LoopBackEdge/LoopBackEdge.tsx
-import { jsx as jsx21 } from "react/jsx-runtime";
+import { jsx as jsx22 } from "react/jsx-runtime";
 var LOOP_DASH = "5 5";
 var LOOP_STROKE_OPACITY_CAP = 0.55;
 var LOOP_STROKE_WIDTH = 1.5;
@@ -6288,7 +6570,7 @@ function LoopBackEdge({ id, source, target, markerEnd, style }) {
     );
   });
   if (!path) return null;
-  return /* @__PURE__ */ jsx21(
+  return /* @__PURE__ */ jsx22(
     BaseEdge,
     {
       id,
@@ -6326,7 +6608,7 @@ function resolveStepBendY(forkBend, staggeredBend) {
 }
 
 // src/components/SmartStepEdge/SmartStepEdge.tsx
-import { jsx as jsx22 } from "react/jsx-runtime";
+import { jsx as jsx23 } from "react/jsx-runtime";
 function SmartStepEdge({
   id,
   source,
@@ -6377,7 +6659,7 @@ function SmartStepEdge({
     // use its default centerY (== the built-in `smoothstep` path, byte-for-byte).
     ...bendY !== null ? { centerY: bendY } : {}
   });
-  return /* @__PURE__ */ jsx22(BaseEdge2, { id, path, markerEnd, style });
+  return /* @__PURE__ */ jsx23(BaseEdge2, { id, path, markerEnd, style });
 }
 
 // src/components/FlowchartView/_internal/MeasuredNodeSizes.tsx
@@ -6424,7 +6706,7 @@ function MeasuredNodeSizes({
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-import { jsx as jsx23, jsxs as jsxs20 } from "react/jsx-runtime";
+import { jsx as jsx24, jsxs as jsxs20 } from "react/jsx-runtime";
 var DEFAULT_COLORS = {
   default: rawDefaults.colors.textMuted,
   done: rawDefaults.colors.success,
@@ -6748,14 +7030,14 @@ function TracedFlow({
         ...style
       },
       children: [
-        breadcrumb.length > 1 && /* @__PURE__ */ jsx23(
+        breadcrumb.length > 1 && /* @__PURE__ */ jsx24(
           SubflowBreadcrumbBar,
           {
             entries: breadcrumb,
             onNavigate: drill.setCurrentSubflowId
           }
         ),
-        /* @__PURE__ */ jsx23("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ jsxs20(
+        /* @__PURE__ */ jsx24("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ jsxs20(
           ReactFlow,
           {
             nodes: conedNodes,
@@ -6766,9 +7048,9 @@ function TracedFlow({
             minZoom: 0.1,
             proOptions: { hideAttribution: true },
             children: [
-              /* @__PURE__ */ jsx23(ChartAutoRefit, { wrapperRef, refitKey, layoutKey, padding: 0.18 }),
-              /* @__PURE__ */ jsx23(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
-              /* @__PURE__ */ jsx23(Background, { variant: BackgroundVariant.Dots, gap: 20, size: 1 }),
+              /* @__PURE__ */ jsx24(ChartAutoRefit, { wrapperRef, refitKey, layoutKey, padding: 0.18 }),
+              /* @__PURE__ */ jsx24(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
+              /* @__PURE__ */ jsx24(Background, { variant: BackgroundVariant.Dots, gap: 20, size: 1 }),
               children
             ]
           }
@@ -6780,7 +7062,7 @@ function TracedFlow({
 
 // src/components/InspectorPanel/InspectorPanel.tsx
 import { memo as memo6, useState as useState12 } from "react";
-import { jsx as jsx24, jsxs as jsxs21 } from "react/jsx-runtime";
+import { jsx as jsx25, jsxs as jsxs21 } from "react/jsx-runtime";
 var InspectorPanel = memo6(function InspectorPanel2({
   snapshots,
   selectedIndex,
@@ -6829,7 +7111,7 @@ var InspectorPanel = memo6(function InspectorPanel2({
               flexShrink: 0
             }),
             children: [
-              /* @__PURE__ */ jsx24(
+              /* @__PURE__ */ jsx25(
                 TabButton,
                 {
                   active: tab === "state",
@@ -6839,7 +7121,7 @@ var InspectorPanel = memo6(function InspectorPanel2({
                   unstyled
                 }
               ),
-              /* @__PURE__ */ jsx24(
+              /* @__PURE__ */ jsx25(
                 TabButton,
                 {
                   active: tab === "trace",
@@ -6854,7 +7136,7 @@ var InspectorPanel = memo6(function InspectorPanel2({
           }
         ),
         /* @__PURE__ */ jsxs21("div", { "data-fp": "inspector-body", style: sx({ flex: 1, overflow: "auto" }), children: [
-          tab === "state" && /* @__PURE__ */ jsx24(
+          tab === "state" && /* @__PURE__ */ jsx25(
             MemoryPanel,
             {
               snapshots,
@@ -6863,7 +7145,7 @@ var InspectorPanel = memo6(function InspectorPanel2({
               unstyled
             }
           ),
-          tab === "trace" && (traceContent ?? /* @__PURE__ */ jsx24(
+          tab === "trace" && (traceContent ?? /* @__PURE__ */ jsx25(
             DataTracePanel,
             {
               frames: dataTraceFrames,
@@ -6911,7 +7193,7 @@ function TabButton({
       }),
       children: [
         label,
-        badge && /* @__PURE__ */ jsx24(
+        badge && /* @__PURE__ */ jsx25(
           "span",
           {
             style: sx({
@@ -6932,7 +7214,7 @@ function TabButton({
 
 // src/components/InsightPanel/InsightPanel.tsx
 import { memo as memo7, useState as useState13 } from "react";
-import { jsx as jsx25, jsxs as jsxs22 } from "react/jsx-runtime";
+import { jsx as jsx26, jsxs as jsxs22 } from "react/jsx-runtime";
 var InsightPanel = memo7(function InsightPanel2({
   insights,
   expandedId,
@@ -6944,12 +7226,12 @@ var InsightPanel = memo7(function InsightPanel2({
 }) {
   const chrome = { size, unstyled, className, style };
   if (insights.length === 0) {
-    return /* @__PURE__ */ jsx25(NoInsights, { ...chrome });
+    return /* @__PURE__ */ jsx26(NoInsights, { ...chrome });
   }
   if (mode === "grid") {
-    return /* @__PURE__ */ jsx25(InsightGrid, { insights, ...chrome });
+    return /* @__PURE__ */ jsx26(InsightGrid, { insights, ...chrome });
   }
-  return /* @__PURE__ */ jsx25(InsightTabs, { insights, defaultId: expandedId, ...chrome });
+  return /* @__PURE__ */ jsx26(InsightTabs, { insights, defaultId: expandedId, ...chrome });
 });
 var styler = (unstyled) => (s) => unstyled ? void 0 : s;
 var INGREDIENTS = [
@@ -6976,9 +7258,9 @@ var NoInsights = memo7(function NoInsights2({
         ...style
       },
       children: [
-        /* @__PURE__ */ jsx25("div", { style: sx({ marginBottom: 8 }), children: "Nothing to show \u2014 this run was recorded without any of these. Each one lights one panel:" }),
-        /* @__PURE__ */ jsx25("table", { style: sx({ borderCollapse: "collapse" }), children: /* @__PURE__ */ jsx25("tbody", { children: INGREDIENTS.map(({ panel, call, from }) => /* @__PURE__ */ jsxs22("tr", { "data-fp": "insights-empty-row", children: [
-          /* @__PURE__ */ jsx25("td", { style: sx({ paddingRight: 10, color: theme.textSecondary, whiteSpace: "nowrap" }), children: panel }),
+        /* @__PURE__ */ jsx26("div", { style: sx({ marginBottom: 8 }), children: "Nothing to show \u2014 this run was recorded without any of these. Each one lights one panel:" }),
+        /* @__PURE__ */ jsx26("table", { style: sx({ borderCollapse: "collapse" }), children: /* @__PURE__ */ jsx26("tbody", { children: INGREDIENTS.map(({ panel, call, from }) => /* @__PURE__ */ jsxs22("tr", { "data-fp": "insights-empty-row", children: [
+          /* @__PURE__ */ jsx26("td", { style: sx({ paddingRight: 10, color: theme.textSecondary, whiteSpace: "nowrap" }), children: panel }),
           /* @__PURE__ */ jsxs22("td", { style: sx({ fontFamily: theme.fontMono, fontSize: fs.label, whiteSpace: "nowrap" }), children: [
             call,
             /* @__PURE__ */ jsxs22("span", { style: sx({ opacity: 0.7 }), children: [
@@ -6989,7 +7271,7 @@ var NoInsights = memo7(function NoInsights2({
         ] }, panel)) }) }),
         /* @__PURE__ */ jsxs22("div", { style: sx({ marginTop: 8 }), children: [
           "Attach with ",
-          /* @__PURE__ */ jsx25("code", { children: "executor.attachScopeRecorder(...)" }),
+          /* @__PURE__ */ jsx26("code", { children: "executor.attachScopeRecorder(...)" }),
           " before the run, then pass the snapshot here \u2014 each recorder's data rides along inside it."
         ] })
       ]
@@ -7024,7 +7306,7 @@ var InsightTabs = memo7(function InsightTabs2({
         ...style
       },
       children: [
-        /* @__PURE__ */ jsx25(
+        /* @__PURE__ */ jsx26(
           "div",
           {
             "data-fp": "insight-tabs",
@@ -7034,7 +7316,7 @@ var InsightTabs = memo7(function InsightTabs2({
               flexShrink: 0,
               overflowX: "auto"
             }),
-            children: insights.map((insight) => /* @__PURE__ */ jsx25(
+            children: insights.map((insight) => /* @__PURE__ */ jsx26(
               "button",
               {
                 onClick: () => setActiveId(insight.id),
@@ -7057,7 +7339,7 @@ var InsightTabs = memo7(function InsightTabs2({
             ))
           }
         ),
-        /* @__PURE__ */ jsx25("div", { "data-fp": "insight-body", style: sx({ flex: 1, overflow: "auto" }), children: active?.render() })
+        /* @__PURE__ */ jsx26("div", { "data-fp": "insight-body", style: sx({ flex: 1, overflow: "auto" }), children: active?.render() })
       ]
     }
   );
@@ -7072,7 +7354,7 @@ var InsightGrid = memo7(function InsightGrid2({
   const cols = insights.length <= 2 ? 1 : 2;
   const fs = fontSize[size];
   const sx = styler(unstyled);
-  return /* @__PURE__ */ jsx25(
+  return /* @__PURE__ */ jsx26(
     "div",
     {
       className,
@@ -7115,7 +7397,7 @@ var InsightGrid = memo7(function InsightGrid2({
                 }),
                 children: [
                   insight.name,
-                  insight.summary && /* @__PURE__ */ jsx25(
+                  insight.summary && /* @__PURE__ */ jsx26(
                     "span",
                     {
                       style: sx({
@@ -7130,7 +7412,7 @@ var InsightGrid = memo7(function InsightGrid2({
                 ]
               }
             ),
-            /* @__PURE__ */ jsx25("div", { "data-fp": "insight-cell-body", style: sx({ flex: 1, overflow: "auto" }), children: insight.render() })
+            /* @__PURE__ */ jsx26("div", { "data-fp": "insight-cell-body", style: sx({ flex: 1, overflow: "auto" }), children: insight.render() })
           ]
         },
         insight.id
@@ -7141,7 +7423,7 @@ var InsightGrid = memo7(function InsightGrid2({
 
 // src/components/CompactTimeline/CompactTimeline.tsx
 import { memo as memo8, useState as useState14 } from "react";
-import { jsx as jsx26, jsxs as jsxs23 } from "react/jsx-runtime";
+import { jsx as jsx27, jsxs as jsxs23 } from "react/jsx-runtime";
 var tint = (color, percent) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 var CompactTimeline = memo8(function CompactTimeline2({
   snapshots,
@@ -7172,7 +7454,7 @@ var CompactTimeline = memo8(function CompactTimeline2({
           letterSpacing: "0.5px"
         },
         children: [
-          /* @__PURE__ */ jsx26("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
+          /* @__PURE__ */ jsx27("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
           label,
           /* @__PURE__ */ jsxs23("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
             snapshots.length,
@@ -7189,7 +7471,7 @@ var CompactTimeline = memo8(function CompactTimeline2({
                 marginLeft: 8
               },
               children: [
-                snapshots.map((snap, i) => /* @__PURE__ */ jsx26(
+                snapshots.map((snap, i) => /* @__PURE__ */ jsx27(
                   "div",
                   {
                     style: {
@@ -7204,7 +7486,7 @@ var CompactTimeline = memo8(function CompactTimeline2({
                   },
                   i
                 )),
-                /* @__PURE__ */ jsx26(
+                /* @__PURE__ */ jsx27(
                   "div",
                   {
                     style: {
@@ -7222,7 +7504,7 @@ var CompactTimeline = memo8(function CompactTimeline2({
         ]
       }
     ),
-    expanded && /* @__PURE__ */ jsx26("div", { style: { padding: "0 12px 8px" }, children: /* @__PURE__ */ jsx26(
+    expanded && /* @__PURE__ */ jsx27("div", { style: { padding: "0 12px 8px" }, children: /* @__PURE__ */ jsx27(
       GanttTimeline,
       {
         snapshots,
@@ -7233,7 +7515,7 @@ var CompactTimeline = memo8(function CompactTimeline2({
 });
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-import { Fragment as Fragment8, jsx as jsx27, jsxs as jsxs24 } from "react/jsx-runtime";
+import { Fragment as Fragment8, jsx as jsx28, jsxs as jsxs24 } from "react/jsx-runtime";
 var EXPLAINABLE_TAB_ID = "explainable";
 function isExplainableTab(tabId) {
   return tabId === EXPLAINABLE_TAB_ID || tabId === "ai-compatible";
@@ -7250,7 +7532,7 @@ var HLinePill = memo9(function HLinePill2({
     gap: 0,
     padding: "0"
   }, children: [
-    /* @__PURE__ */ jsx27("div", { style: { flex: 1, height: 1, background: theme.border } }),
+    /* @__PURE__ */ jsx28("div", { style: { flex: 1, height: 1, background: theme.border } }),
     /* @__PURE__ */ jsxs24(
       "button",
       {
@@ -7275,13 +7557,13 @@ var HLinePill = memo9(function HLinePill2({
           transition: "color 0.15s ease"
         },
         children: [
-          /* @__PURE__ */ jsx27("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
+          /* @__PURE__ */ jsx28("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
           label,
-          detail && /* @__PURE__ */ jsx27("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
+          detail && /* @__PURE__ */ jsx28("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
         ]
       }
     ),
-    /* @__PURE__ */ jsx27("div", { style: { flex: 1, height: 1, background: theme.border } })
+    /* @__PURE__ */ jsx28("div", { style: { flex: 1, height: 1, background: theme.border } })
   ] });
 });
 var VLinePill = memo9(function VLinePill2({
@@ -7298,7 +7580,7 @@ var VLinePill = memo9(function VLinePill2({
     gap: 0,
     padding: "0"
   }, children: [
-    /* @__PURE__ */ jsx27("div", { style: { flex: 1, width: 1, background: theme.border } }),
+    /* @__PURE__ */ jsx28("div", { style: { flex: 1, width: 1, background: theme.border } }),
     /* @__PURE__ */ jsxs24(
       "button",
       {
@@ -7324,19 +7606,19 @@ var VLinePill = memo9(function VLinePill2({
           transition: "color 0.15s ease"
         },
         children: [
-          /* @__PURE__ */ jsx27("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
+          /* @__PURE__ */ jsx28("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
           label
         ]
       }
     ),
-    /* @__PURE__ */ jsx27("div", { style: { flex: 1, width: 1, background: theme.border } })
+    /* @__PURE__ */ jsx28("div", { style: { flex: 1, width: 1, background: theme.border } })
   ] });
 });
 var MissingChartNote = memo9(function MissingChartNote2({ unstyled }) {
   const body = /* @__PURE__ */ jsxs24(Fragment8, { children: [
-    /* @__PURE__ */ jsx27("strong", { children: "No chart \u2014 `traceGraph` was not provided." }),
-    /* @__PURE__ */ jsx27("div", { children: "A snapshot holds the memory, the story and the timeline. Only the chart's own structure can draw the chart. Two ways to get one:" }),
-    /* @__PURE__ */ jsx27("pre", { style: unstyled ? void 0 : { margin: 0, whiteSpace: "pre-wrap", fontFamily: theme.fontMono, fontSize: 11 }, children: `// live build
+    /* @__PURE__ */ jsx28("strong", { children: "No chart \u2014 `traceGraph` was not provided." }),
+    /* @__PURE__ */ jsx28("div", { children: "A snapshot holds the memory, the story and the timeline. Only the chart's own structure can draw the chart. Two ways to get one:" }),
+    /* @__PURE__ */ jsx28("pre", { style: unstyled ? void 0 : { margin: 0, whiteSpace: "pre-wrap", fontFamily: theme.fontMono, fontSize: 11 }, children: `// live build
 const trace = createTraceStructureRecorder();
 flowChart(..., { structureRecorders: [trace.recorder] });
 <ExplainableShell traceGraph={trace.getGraph()} />
@@ -7344,8 +7626,8 @@ flowChart(..., { structureRecorders: [trace.recorder] });
 // saved run \u2014 save chart.buildTimeStructure with your snapshot
 <ExplainableShell traceGraph={graphFromStructure(saved.structure)} />` })
   ] });
-  if (unstyled) return /* @__PURE__ */ jsx27("div", { "data-fp": "shell-missing-chart", children: body });
-  return /* @__PURE__ */ jsx27(
+  if (unstyled) return /* @__PURE__ */ jsx28("div", { "data-fp": "shell-missing-chart", children: body });
+  return /* @__PURE__ */ jsx28(
     "div",
     {
       "data-fp": "shell-missing-chart",
@@ -7375,13 +7657,13 @@ var EmptyShell = memo9(function EmptyShell2({
   style
 }) {
   const body = /* @__PURE__ */ jsxs24(Fragment8, { children: [
-    /* @__PURE__ */ jsx27("div", { style: unstyled ? void 0 : { fontWeight: 700, color: theme.textPrimary, fontSize: 13 }, children: reason }),
-    /* @__PURE__ */ jsx27("div", { "data-fp": "shell-empty-detail", children: detail })
+    /* @__PURE__ */ jsx28("div", { style: unstyled ? void 0 : { fontWeight: 700, color: theme.textPrimary, fontSize: 13 }, children: reason }),
+    /* @__PURE__ */ jsx28("div", { "data-fp": "shell-empty-detail", children: detail })
   ] });
   if (unstyled) {
-    return /* @__PURE__ */ jsx27("div", { className, style, "data-fp": "shell-empty", children: body });
+    return /* @__PURE__ */ jsx28("div", { className, style, "data-fp": "shell-empty", children: body });
   }
-  return /* @__PURE__ */ jsx27(
+  return /* @__PURE__ */ jsx28(
     "div",
     {
       className,
@@ -7457,7 +7739,7 @@ function KeyedRecorderView({
   }, [snapshots, selectedIndex, detected?.keyType]);
   const isAtEnd = selectedIndex >= snapshots.length - 1;
   if (!detected) {
-    return /* @__PURE__ */ jsx27("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
+    return /* @__PURE__ */ jsx28("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
   }
   const steps = detected.steps;
   const hints = extractRenderHints(data);
@@ -7472,12 +7754,12 @@ function KeyedRecorderView({
   }
   const grandTotal = hints?.grandTotal ?? 0;
   return /* @__PURE__ */ jsxs24("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
-    description && /* @__PURE__ */ jsx27("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
+    description && /* @__PURE__ */ jsx28("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
     /* @__PURE__ */ jsxs24("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
       preferredOperation === "aggregate" ? (
         /* AGGREGATE: collect silently during scrub, button at end to reveal total */
         /* @__PURE__ */ jsxs24(Fragment8, { children: [
-          isAtEnd ? /* @__PURE__ */ jsx27("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ jsx27(
+          isAtEnd ? /* @__PURE__ */ jsx28("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ jsx28(
             "button",
             {
               onClick: () => setShowAggregate(true),
@@ -7496,7 +7778,7 @@ function KeyedRecorderView({
               children: "Aggregate \u2014 Show Grand Total"
             }
           ) : /* @__PURE__ */ jsxs24("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
-            /* @__PURE__ */ jsx27("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
+            /* @__PURE__ */ jsx28("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
             numFieldKey && /* @__PURE__ */ jsxs24("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
               grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1),
               /* @__PURE__ */ jsxs24("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
@@ -7507,7 +7789,7 @@ function KeyedRecorderView({
               ] })
             ] })
           ] }) }) : /* @__PURE__ */ jsxs24("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
-            /* @__PURE__ */ jsx27("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
+            /* @__PURE__ */ jsx28("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
             /* @__PURE__ */ jsxs24("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
               visibleEntries.length,
               " of ",
@@ -7515,14 +7797,14 @@ function KeyedRecorderView({
               " steps collected. Scrub to end to aggregate."
             ] })
           ] }),
-          /* @__PURE__ */ jsx27("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+          /* @__PURE__ */ jsx28("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
         ] })
       ) : preferredOperation === "accumulate" ? (
         /* ACCUMULATE: running total grows with slider — IS the total at end, no button */
         /* @__PURE__ */ jsxs24(Fragment8, { children: [
           numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ jsxs24("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
-            /* @__PURE__ */ jsx27("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
-            /* @__PURE__ */ jsx27("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
+            /* @__PURE__ */ jsx28("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
+            /* @__PURE__ */ jsx28("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
             /* @__PURE__ */ jsxs24("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
               numFieldKey,
               " \xB7 ",
@@ -7532,23 +7814,23 @@ function KeyedRecorderView({
               " steps"
             ] })
           ] }),
-          /* @__PURE__ */ jsx27("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+          /* @__PURE__ */ jsx28("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
         ] })
       ) : (
         /* TRANSLATE: per-step entries prominent, no totals */
-        /* @__PURE__ */ jsx27("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
+        /* @__PURE__ */ jsx28("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
       ),
       visibleEntries.map((key) => {
         const entry = steps[key];
         const label = entry.stageName ?? key;
         const numVal = numFieldKey ? entry[numFieldKey] : void 0;
         return /* @__PURE__ */ jsxs24("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
-          /* @__PURE__ */ jsx27("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
-          /* @__PURE__ */ jsx27("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
-          numVal !== void 0 && /* @__PURE__ */ jsx27("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
+          /* @__PURE__ */ jsx28("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
+          /* @__PURE__ */ jsx28("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
+          numVal !== void 0 && /* @__PURE__ */ jsx28("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
         ] }, key);
       }),
-      visibleEntries.length === 0 && /* @__PURE__ */ jsx27("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." })
+      visibleEntries.length === 0 && /* @__PURE__ */ jsx28("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." })
     ] })
   ] });
 }
@@ -7564,12 +7846,12 @@ var DetailsContent = memo9(function DetailsContent2({
     {
       id: "memory",
       name: "Memory",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx27(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: fillHeight ? { height: "100%" } : void 0 })
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx28(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: fillHeight ? { height: "100%" } : void 0 })
     },
     {
       id: "narrative",
       name: "Narrative",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx27(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries, size, style: fillHeight ? { height: "100%" } : void 0 })
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ jsx28(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries, size, style: fillHeight ? { height: "100%" } : void 0 })
     }
   ];
   const allViews = [...builtInViews, ...extraViews ?? []];
@@ -7582,9 +7864,9 @@ var DetailsContent = memo9(function DetailsContent2({
   }, [viewIds]);
   const activeView = allViews.find((v2) => v2.id === activeViewId) ?? allViews[0];
   return /* @__PURE__ */ jsxs24("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
-    /* @__PURE__ */ jsx27("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
+    /* @__PURE__ */ jsx28("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
       const active = view.id === activeViewId;
-      return /* @__PURE__ */ jsx27(
+      return /* @__PURE__ */ jsx28(
         "button",
         {
           onClick: () => setActiveViewId(view.id),
@@ -7608,7 +7890,7 @@ var DetailsContent = memo9(function DetailsContent2({
         view.id
       );
     }) }),
-    /* @__PURE__ */ jsx27("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
+    /* @__PURE__ */ jsx28("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
   ] });
 });
 function resolveSubflowFromRuntime(parentSnapshots, drillKey, narrativeEntries, subflowResults) {
@@ -7664,12 +7946,12 @@ var RightPanel = memo9(function RightPanel2({
     [allTabs]
   );
   return /* @__PURE__ */ jsxs24(Fragment8, { children: [
-    /* @__PURE__ */ jsx27("div", { style: {
+    /* @__PURE__ */ jsx28("div", { style: {
       display: "flex",
       borderBottom: `1px solid ${theme.border}`,
       flexShrink: 0,
       background: theme.bgSecondary
-    }, children: modes.map((m) => /* @__PURE__ */ jsx27(
+    }, children: modes.map((m) => /* @__PURE__ */ jsx28(
       "button",
       {
         onClick: () => onModeChange(m),
@@ -7691,7 +7973,7 @@ var RightPanel = memo9(function RightPanel2({
       },
       m
     )) }),
-    /* @__PURE__ */ jsx27("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "result" ? /* @__PURE__ */ jsx27("div", { style: { height: "100%", overflow: "auto" }, children: renderTabBody("result", false) }) : mode === "insights" ? /* @__PURE__ */ jsx27(
+    /* @__PURE__ */ jsx28("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "result" ? /* @__PURE__ */ jsx28("div", { style: { height: "100%", overflow: "auto" }, children: renderTabBody("result", false) }) : mode === "insights" ? /* @__PURE__ */ jsx28(
       InsightPanel,
       {
         mode: "tabs",
@@ -7702,7 +7984,7 @@ var RightPanel = memo9(function RightPanel2({
           render: () => renderTabBody(tab.id, false)
         }))
       }
-    ) : /* @__PURE__ */ jsx27(
+    ) : /* @__PURE__ */ jsx28(
       InspectorPanel,
       {
         snapshots,
@@ -7807,7 +8089,7 @@ function ExplainableShell({
         ...traceTheme.current !== void 0 && { active: traceTheme.current },
         ...traceTheme.mode !== void 0 && { default: traceTheme.mode === "dark" ? "#94a3b8" : "#64748b" }
       };
-      return /* @__PURE__ */ jsx27(
+      return /* @__PURE__ */ jsx28(
         TracedFlow,
         {
           graph: traceGraph,
@@ -8200,14 +8482,15 @@ function ExplainableShell({
   }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients, handleForkPrompt]);
   const traceTabContent = useMemo14(() => {
     if (tracing && traceWalk) {
-      return /* @__PURE__ */ jsx27(
+      const memoryView = recordStateDisplay(activeSnapshots[safeIdx], activeSnapshots[safeIdx - 1]);
+      return /* @__PURE__ */ jsx28(
         TraceWalkCard,
         {
           walk: traceWalk,
           cursorRuntimeStageId: activeSnapshots[safeIdx]?.runtimeStageId ?? null,
           viaKey: activeViaKey,
           stepNumberOf,
-          previewValueOf: (k) => activeSnapshots[safeIdx]?.memory?.[k],
+          previewValueOf: (k) => memoryView.canCompare ? memoryView.memory?.[k] : void 0,
           onFollowIngredient: handleFollowIngredient,
           onJumpToStop: navigateToStage,
           onShowAll: activeViaKey ? handleShowAllIngredients : void 0,
@@ -8235,8 +8518,8 @@ function ExplainableShell({
     const shownKeys = matchedKeys.slice(0, 12);
     return /* @__PURE__ */ jsxs24(Fragment8, { children: [
       !isInSubflow && (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && /* @__PURE__ */ jsxs24("div", { "data-fp": "trace-entry", style: { padding: "10px 14px 0", fontSize: 12 }, children: [
-        /* @__PURE__ */ jsx27("span", { style: { color: theme.textMuted, marginRight: 6 }, children: "This step wrote:" }),
-        shellDataTrace.frames[0].keysWritten.map((k) => /* @__PURE__ */ jsx27(
+        /* @__PURE__ */ jsx28("span", { style: { color: theme.textMuted, marginRight: 6 }, children: "This step wrote:" }),
+        shellDataTrace.frames[0].keysWritten.map((k) => /* @__PURE__ */ jsx28(
           "button",
           {
             "data-fp": "trace-entry-chip",
@@ -8249,8 +8532,8 @@ function ExplainableShell({
         ))
       ] }),
       !isInSubflow && allTracedKeys.length > 0 && /* @__PURE__ */ jsxs24("div", { "data-fp": "trace-any", style: { padding: "6px 14px 0", fontSize: 12 }, children: [
-        /* @__PURE__ */ jsx27("div", { style: { color: theme.textMuted, marginBottom: 4 }, children: "Trace any variable:" }),
-        /* @__PURE__ */ jsx27(
+        /* @__PURE__ */ jsx28("div", { style: { color: theme.textMuted, marginBottom: 4 }, children: "Trace any variable:" }),
+        /* @__PURE__ */ jsx28(
           "input",
           {
             "data-fp": "trace-search",
@@ -8272,7 +8555,7 @@ function ExplainableShell({
             }
           }
         ),
-        shownKeys.map((k) => /* @__PURE__ */ jsx27(
+        shownKeys.map((k) => /* @__PURE__ */ jsx28(
           "button",
           {
             "data-fp": "trace-any-chip",
@@ -8289,7 +8572,7 @@ function ExplainableShell({
           " more \u2014 type to search"
         ] })
       ] }),
-      /* @__PURE__ */ jsx27(
+      /* @__PURE__ */ jsx28(
         DataTracePanel,
         {
           frames: shellDataTrace.frames,
@@ -8305,7 +8588,7 @@ function ExplainableShell({
   const renderTabBody = useCallback8(
     (tabId, plain) => {
       if (tabId === "result") {
-        return /* @__PURE__ */ jsx27(
+        return /* @__PURE__ */ jsx28(
           ResultPanel,
           {
             data: resultData ?? null,
@@ -8317,7 +8600,7 @@ function ExplainableShell({
         );
       }
       if (tabId === "memory") {
-        return /* @__PURE__ */ jsx27(
+        return /* @__PURE__ */ jsx28(
           MemoryPanel,
           {
             snapshots: activeSnapshots,
@@ -8329,7 +8612,7 @@ function ExplainableShell({
         );
       }
       if (tabId === "narrative") {
-        return /* @__PURE__ */ jsx27(
+        return /* @__PURE__ */ jsx28(
           NarrativePanel,
           {
             snapshots: activeSnapshots,
@@ -8349,7 +8632,7 @@ function ExplainableShell({
       }
       const autoView = autoRecorderViews.find((v2) => v2.id === tabId);
       if (autoView) {
-        return /* @__PURE__ */ jsx27(
+        return /* @__PURE__ */ jsx28(
           KeyedRecorderView,
           {
             data: autoView.data,
@@ -8389,7 +8672,7 @@ function ExplainableShell({
   const renderEmptyState = (themeVars) => {
     const shellStyle = { ...themeVars, ...style };
     if (derivedFromRuntime?.error) {
-      return /* @__PURE__ */ jsx27(
+      return /* @__PURE__ */ jsx28(
         EmptyShell,
         {
           unstyled,
@@ -8399,19 +8682,19 @@ function ExplainableShell({
           detail: /* @__PURE__ */ jsxs24(Fragment8, { children: [
             /* @__PURE__ */ jsxs24("div", { children: [
               "Expected a footprintjs ",
-              /* @__PURE__ */ jsx27("code", { children: "executor.getSnapshot()" }),
+              /* @__PURE__ */ jsx28("code", { children: "executor.getSnapshot()" }),
               " \u2014",
               " ",
-              /* @__PURE__ */ jsx27("code", { children: "{ sharedState, executionTree, commitLog }" }),
+              /* @__PURE__ */ jsx28("code", { children: "{ sharedState, executionTree, commitLog }" }),
               "."
             ] }),
-            /* @__PURE__ */ jsx27("div", { style: unstyled ? void 0 : { fontFamily: theme.fontMono, fontSize: 11, marginTop: 6 }, children: derivedFromRuntime.error })
+            /* @__PURE__ */ jsx28("div", { style: unstyled ? void 0 : { fontFamily: theme.fontMono, fontSize: 11, marginTop: 6 }, children: derivedFromRuntime.error })
           ] })
         }
       );
     }
     const gotRunData = !!runtimeSnapshot || !!snapshotsProp;
-    return /* @__PURE__ */ jsx27(
+    return /* @__PURE__ */ jsx28(
       EmptyShell,
       {
         unstyled,
@@ -8420,9 +8703,9 @@ function ExplainableShell({
         reason: gotRunData ? "That run has no stages to show." : "No run to show yet.",
         detail: gotRunData ? /* @__PURE__ */ jsxs24("div", { children: [
           "The snapshot was read fine but its ",
-          /* @__PURE__ */ jsx27("code", { children: "executionTree" }),
+          /* @__PURE__ */ jsx28("code", { children: "executionTree" }),
           " is empty \u2014 a run that was never executed, or a snapshot taken before ",
-          /* @__PURE__ */ jsx27("code", { children: "run()" }),
+          /* @__PURE__ */ jsx28("code", { children: "run()" }),
           " finished."
         ] }) : /* @__PURE__ */ jsxs24(Fragment8, { children: [
           /* @__PURE__ */ jsxs24("div", { children: [
@@ -8441,7 +8724,7 @@ function ExplainableShell({
           ] }),
           /* @__PURE__ */ jsxs24("div", { children: [
             "Add ",
-            /* @__PURE__ */ jsx27("code", { children: "traceGraph" }),
+            /* @__PURE__ */ jsx28("code", { children: "traceGraph" }),
             " for the chart \u2014 it comes from the chart's structure, not the snapshot."
           ] })
         ] })
@@ -8451,22 +8734,22 @@ function ExplainableShell({
   if (unstyled) {
     if (snapshots.length === 0) return renderEmptyState({});
     return /* @__PURE__ */ jsxs24("div", { className, style, "data-fp": "explainable-shell", children: [
-      /* @__PURE__ */ jsx27("div", { "data-fp": "shell-tabs", children: unstyledTabs.map((tab) => /* @__PURE__ */ jsx27("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
-      /* @__PURE__ */ jsx27("div", { "data-fp": "shell-content", "data-tab": activeTab, children: isExplainableTab(activeTab) ? /* @__PURE__ */ jsxs24(Fragment8, { children: [
-        /* @__PURE__ */ jsx27(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail }),
-        isInSubflow && /* @__PURE__ */ jsx27(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+      /* @__PURE__ */ jsx28("div", { "data-fp": "shell-tabs", children: unstyledTabs.map((tab) => /* @__PURE__ */ jsx28("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
+      /* @__PURE__ */ jsx28("div", { "data-fp": "shell-content", "data-tab": activeTab, children: isExplainableTab(activeTab) ? /* @__PURE__ */ jsxs24(Fragment8, { children: [
+        /* @__PURE__ */ jsx28(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail }),
+        isInSubflow && /* @__PURE__ */ jsx28(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
         traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...sliceCone && { sliceCone } }),
-        missingChart && /* @__PURE__ */ jsx27(MissingChartNote, { unstyled: true }),
-        /* @__PURE__ */ jsx27(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
-        /* @__PURE__ */ jsx27(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, unstyled: true }),
-        /* @__PURE__ */ jsx27(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
+        missingChart && /* @__PURE__ */ jsx28(MissingChartNote, { unstyled: true }),
+        /* @__PURE__ */ jsx28(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
+        /* @__PURE__ */ jsx28(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, unstyled: true }),
+        /* @__PURE__ */ jsx28(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
       ] }) : renderTabBody(activeTab, true) })
     ] });
   }
   const showTopology = !!effectiveRenderFlowchart && !!traceGraph;
   const detailsContent = renderTabBody(activeTab, false);
   const detailsPanel = /* @__PURE__ */ jsxs24("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
-    /* @__PURE__ */ jsx27("div", { style: {
+    /* @__PURE__ */ jsx28("div", { style: {
       display: "flex",
       borderBottom: `1px solid ${theme.border}`,
       background: theme.bgSecondary,
@@ -8474,7 +8757,7 @@ function ExplainableShell({
       overflowX: "auto"
     }, children: allTabs.map((tab) => {
       const active = tab.id === activeTab;
-      return /* @__PURE__ */ jsx27(
+      return /* @__PURE__ */ jsx28(
         "button",
         {
           onClick: () => handleTabChange(tab.id),
@@ -8498,7 +8781,7 @@ function ExplainableShell({
         tab.id
       );
     }) }),
-    /* @__PURE__ */ jsx27("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
+    /* @__PURE__ */ jsx28("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
   ] });
   if (snapshots.length === 0) return renderEmptyState(shellThemeVars);
   return /* @__PURE__ */ jsxs24(
@@ -8520,7 +8803,7 @@ function ExplainableShell({
       },
       "data-fp": "explainable-shell",
       children: [
-        /* @__PURE__ */ jsx27(
+        /* @__PURE__ */ jsx28(
           TimeTravelControls,
           {
             snapshots: activeSnapshots,
@@ -8530,11 +8813,11 @@ function ExplainableShell({
             tracing: tracingRail
           }
         ),
-        isInSubflow && /* @__PURE__ */ jsx27(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-        /* @__PURE__ */ jsx27("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
+        isInSubflow && /* @__PURE__ */ jsx28(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+        /* @__PURE__ */ jsx28("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
           /* ── Mobile: stacked vertical ── */
           /* @__PURE__ */ jsxs24(Fragment8, { children: [
-            showTopology && /* @__PURE__ */ jsx27("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
+            showTopology && /* @__PURE__ */ jsx28("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
               spec: null,
               snapshots: activeSnapshots,
               selectedIndex: safeIdx,
@@ -8544,10 +8827,10 @@ function ExplainableShell({
               onSubflowChange: handleChartSubflowChange,
               ...sliceCone && { sliceCone }
             }) }),
-            missingChart && /* @__PURE__ */ jsx27(MissingChartNote, {}),
+            missingChart && /* @__PURE__ */ jsx28(MissingChartNote, {}),
             showTreeSidebar && /* @__PURE__ */ jsxs24(Fragment8, { children: [
-              /* @__PURE__ */ jsx27(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
-              leftExpanded && /* @__PURE__ */ jsx27("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx27(
+              /* @__PURE__ */ jsx28(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
+              leftExpanded && /* @__PURE__ */ jsx28("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ jsx28(
                 SubflowTree,
                 {
                   graph: traceGraph ?? { nodes: [], edges: [] },
@@ -8557,17 +8840,17 @@ function ExplainableShell({
                 }
               ) })
             ] }),
-            /* @__PURE__ */ jsx27(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-            rightExpanded && /* @__PURE__ */ jsx27("div", { style: { maxHeight: 350, flexShrink: 0, overflow: "hidden" }, children: detailsPanel }),
-            /* @__PURE__ */ jsx27(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
-            timelineExpanded && /* @__PURE__ */ jsx27("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx27(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
+            /* @__PURE__ */ jsx28(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+            rightExpanded && /* @__PURE__ */ jsx28("div", { style: { maxHeight: 350, flexShrink: 0, overflow: "hidden" }, children: detailsPanel }),
+            /* @__PURE__ */ jsx28(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
+            timelineExpanded && /* @__PURE__ */ jsx28("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ jsx28(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
           ] })
         ) : (
           /* ── Desktop: two-column — Flowchart | Right Panel ── */
           /* @__PURE__ */ jsxs24(Fragment8, { children: [
             /* @__PURE__ */ jsxs24("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
               showTreeSidebar && (leftExpanded ? /* @__PURE__ */ jsxs24("div", { style: { width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
-                /* @__PURE__ */ jsx27("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ jsx27(
+                /* @__PURE__ */ jsx28("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ jsx28(
                   SubflowTree,
                   {
                     graph: traceGraph ?? { nodes: [], edges: [] },
@@ -8576,9 +8859,9 @@ function ExplainableShell({
                     onNodeSelect: handleTreeNodeSelect
                   }
                 ) }),
-                /* @__PURE__ */ jsx27(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
-              ] }) : /* @__PURE__ */ jsx27(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
-              showTopology ? /* @__PURE__ */ jsx27("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
+                /* @__PURE__ */ jsx28(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
+              ] }) : /* @__PURE__ */ jsx28(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
+              showTopology ? /* @__PURE__ */ jsx28("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
                 spec: null,
                 snapshots: activeSnapshots,
                 selectedIndex: safeIdx,
@@ -8587,9 +8870,9 @@ function ExplainableShell({
                 currentSubflowId: chartDrillKey,
                 onSubflowChange: handleChartSubflowChange,
                 ...sliceCone && { sliceCone }
-              }) }) : /* @__PURE__ */ jsx27("div", { style: { flex: 1, minWidth: 0, overflow: "auto" }, children: missingChart && /* @__PURE__ */ jsx27(MissingChartNote, {}) }),
-              /* @__PURE__ */ jsx27(VLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-              rightExpanded && /* @__PURE__ */ jsx27("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ jsx27(
+              }) }) : /* @__PURE__ */ jsx28("div", { style: { flex: 1, minWidth: 0, overflow: "auto" }, children: missingChart && /* @__PURE__ */ jsx28(MissingChartNote, {}) }),
+              /* @__PURE__ */ jsx28(VLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+              rightExpanded && /* @__PURE__ */ jsx28("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ jsx28(
                 RightPanel,
                 {
                   mode: rightPanelMode,
@@ -8608,7 +8891,7 @@ function ExplainableShell({
                 }
               ) })
             ] }),
-            /* @__PURE__ */ jsx27(
+            /* @__PURE__ */ jsx28(
               CompactTimeline,
               {
                 snapshots: activeSnapshots,
@@ -9020,7 +9303,7 @@ function graphFromStructure(structure) {
 }
 
 // src/components/TraceViewer/TraceViewer.tsx
-import { jsx as jsx28 } from "react/jsx-runtime";
+import { jsx as jsx29 } from "react/jsx-runtime";
 function parseRecording(input) {
   if (input == null) {
     return { ok: false, error: { kind: "invalid-json", message: "No recording provided." } };
@@ -9130,7 +9413,7 @@ function TraceViewer({
   if (!prepared.ok) {
     return fallback ?? null;
   }
-  return /* @__PURE__ */ jsx28(
+  return /* @__PURE__ */ jsx29(
     ExplainableShell,
     {
       runtimeSnapshot: prepared.recording.snapshot,
@@ -9151,7 +9434,7 @@ function TraceViewer({
 
 // src/components/ExplainableView/ExplainableContext.tsx
 import { createContext as createContext2, useCallback as useCallback9, useContext as useContext2, useMemo as useMemo16, useState as useState16 } from "react";
-import { jsx as jsx29 } from "react/jsx-runtime";
+import { jsx as jsx30 } from "react/jsx-runtime";
 var ExplainableRunContext = createContext2(null);
 function parseRecording2(input) {
   if (input == null || input === "") {
@@ -9262,13 +9545,13 @@ function ExplainableProvider({
     }),
     [parsed.recording, prepared, selectedIndex, selectIndex, theme2?.flowchart]
   );
-  return /* @__PURE__ */ jsx29(ExplainableRunContext.Provider, { value, children: /* @__PURE__ */ jsx29(
+  return /* @__PURE__ */ jsx30(ExplainableRunContext.Provider, { value, children: /* @__PURE__ */ jsx30(
     "div",
     {
       className,
       "data-fp": "explainable-provider",
       style: { ...themeModeVars(theme2?.mode), display: "contents", ...style },
-      children: /* @__PURE__ */ jsx29(FootprintTheme, { tokens: theme2?.tokens, children })
+      children: /* @__PURE__ */ jsx30(FootprintTheme, { tokens: theme2?.tokens, children })
     }
   ) });
 }
@@ -9282,7 +9565,7 @@ function useExplainableRun() {
 
 // src/components/ExplainableView/TimelinePanel.tsx
 import { useEffect as useEffect13, useRef as useRef10 } from "react";
-import { jsx as jsx30, jsxs as jsxs25 } from "react/jsx-runtime";
+import { jsx as jsx31, jsxs as jsxs25 } from "react/jsx-runtime";
 function formatOffset(milliseconds) {
   return milliseconds < 1e3 ? `+${Math.round(milliseconds)}ms` : `+${(milliseconds / 1e3).toFixed(1)}s`;
 }
@@ -9299,7 +9582,7 @@ function TimelinePanel({
     focusedRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [selectedIndex]);
   if (unstyled) {
-    return /* @__PURE__ */ jsx30("div", { className, style, "data-fp": "timeline-panel", children: snapshots.map((snapshot, index) => /* @__PURE__ */ jsx30("button", { onClick: () => selectIndex(index), children: snapshot.stageLabel }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index}`)) });
+    return /* @__PURE__ */ jsx31("div", { className, style, "data-fp": "timeline-panel", children: snapshots.map((snapshot, index) => /* @__PURE__ */ jsx31("button", { onClick: () => selectIndex(index), children: snapshot.stageLabel }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index}`)) });
   }
   return /* @__PURE__ */ jsxs25(
     "section",
@@ -9319,10 +9602,10 @@ function TimelinePanel({
       },
       children: [
         /* @__PURE__ */ jsxs25("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ jsx30("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
-          /* @__PURE__ */ jsx30("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: snapshots.length ? `${selectedIndex + 1} / ${snapshots.length}` : "0 stages" })
+          /* @__PURE__ */ jsx31("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ jsx31("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: snapshots.length ? `${selectedIndex + 1} / ${snapshots.length}` : "0 stages" })
         ] }),
-        /* @__PURE__ */ jsx30("div", { role: "listbox", "aria-label": title, style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 0 12px" }, children: snapshots.length === 0 ? /* @__PURE__ */ jsx30("p", { style: { margin: 0, padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "This recording has no stages to walk." }) : snapshots.map((snapshot, index) => {
+        /* @__PURE__ */ jsx31("div", { role: "listbox", "aria-label": title, style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 0 12px" }, children: snapshots.length === 0 ? /* @__PURE__ */ jsx31("p", { style: { margin: 0, padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "This recording has no stages to walk." }) : snapshots.map((snapshot, index) => {
           const selected = index === selectedIndex;
           const visited = index < selectedIndex;
           return /* @__PURE__ */ jsxs25("div", { ref: selected ? focusedRef : void 0, children: [
@@ -9350,8 +9633,8 @@ function TimelinePanel({
                   textAlign: "left"
                 },
                 children: [
-                  /* @__PURE__ */ jsx30("span", { style: { color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10, textAlign: "right" }, children: formatOffset(snapshot.startMs) }),
-                  /* @__PURE__ */ jsx30(
+                  /* @__PURE__ */ jsx31("span", { style: { color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10, textAlign: "right" }, children: formatOffset(snapshot.startMs) }),
+                  /* @__PURE__ */ jsx31(
                     "span",
                     {
                       "aria-hidden": "true",
@@ -9366,14 +9649,14 @@ function TimelinePanel({
                     }
                   ),
                   /* @__PURE__ */ jsxs25("span", { children: [
-                    /* @__PURE__ */ jsx30("strong", { style: { display: "block", fontSize: 12 }, children: snapshot.stageLabel }),
-                    /* @__PURE__ */ jsx30("small", { style: { color: theme.textMuted, fontFamily: theme.fontMono }, children: snapshot.runtimeStageId ?? snapshot.stageName })
+                    /* @__PURE__ */ jsx31("strong", { style: { display: "block", fontSize: 12 }, children: snapshot.stageLabel }),
+                    /* @__PURE__ */ jsx31("small", { style: { color: theme.textMuted, fontFamily: theme.fontMono }, children: snapshot.runtimeStageId ?? snapshot.stageName })
                   ] })
                 ]
               }
             ),
             selected && (snapshot.description || renderDetail) ? /* @__PURE__ */ jsxs25("div", { style: { margin: "0 12px 10px 80px", color: theme.textSecondary, fontSize: 12, lineHeight: 1.5 }, children: [
-              snapshot.description ? /* @__PURE__ */ jsx30("p", { style: { margin: "0 0 8px" }, children: snapshot.description }) : null,
+              snapshot.description ? /* @__PURE__ */ jsx31("p", { style: { margin: "0 0 8px" }, children: snapshot.description }) : null,
               renderDetail?.(snapshot, index)
             ] }) : null
           ] }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index}`);
@@ -9385,7 +9668,7 @@ function TimelinePanel({
 
 // src/components/ExplainableView/FlowchartPanel.tsx
 import { useCallback as useCallback10, useMemo as useMemo17 } from "react";
-import { jsx as jsx31, jsxs as jsxs26 } from "react/jsx-runtime";
+import { jsx as jsx32, jsxs as jsxs26 } from "react/jsx-runtime";
 function baseStageId(runtimeStageId) {
   const hashIndex = runtimeStageId.indexOf("#");
   return hashIndex >= 0 ? runtimeStageId.slice(0, hashIndex) : runtimeStageId;
@@ -9425,7 +9708,7 @@ function FlowchartPanel({
     [selectedIndex, selectIndex, snapshots]
   );
   if (unstyled) {
-    return /* @__PURE__ */ jsx31("div", { className, style, "data-fp": "flowchart-panel", children: traceGraph.nodes.map((node) => /* @__PURE__ */ jsx31("button", { onClick: () => handleNodeClick(node.id), children: String(node.data.label) }, node.id)) });
+    return /* @__PURE__ */ jsx32("div", { className, style, "data-fp": "flowchart-panel", children: traceGraph.nodes.map((node) => /* @__PURE__ */ jsx32("button", { onClick: () => handleNodeClick(node.id), children: String(node.data.label) }, node.id)) });
   }
   return /* @__PURE__ */ jsxs26(
     "section",
@@ -9445,13 +9728,13 @@ function FlowchartPanel({
       },
       children: [
         /* @__PURE__ */ jsxs26("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ jsx31("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ jsx32("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
           /* @__PURE__ */ jsxs26("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
             traceGraph.nodes.length,
             " nodes \xB7 click to move the cursor"
           ] })
         ] }),
-        /* @__PURE__ */ jsx31("div", { style: { flex: 1, minHeight: 0, overflow: "hidden" }, children: traceGraph.nodes.length ? /* @__PURE__ */ jsx31(
+        /* @__PURE__ */ jsx32("div", { style: { flex: 1, minHeight: 0, overflow: "hidden" }, children: traceGraph.nodes.length ? /* @__PURE__ */ jsx32(
           TracedFlow,
           {
             graph: traceGraph,
@@ -9460,14 +9743,14 @@ function FlowchartPanel({
             colors: { ...flowchartColors, ...colors },
             onNodeClick: handleNodeClick
           }
-        ) : /* @__PURE__ */ jsx31("p", { style: { padding: 18, color: theme.textMuted, fontSize: 12 }, children: "This recording carried no structure, so there is no chart to draw." }) })
+        ) : /* @__PURE__ */ jsx32("p", { style: { padding: 18, color: theme.textMuted, fontSize: 12 }, children: "This recording carried no structure, so there is no chart to draw." }) })
       ]
     }
   );
 }
 
 // src/components/ExplainableView/ValueInspector.tsx
-import { jsx as jsx32, jsxs as jsxs27 } from "react/jsx-runtime";
+import { jsx as jsx33, jsxs as jsxs27 } from "react/jsx-runtime";
 function ValueInspector({
   title = "Inspect values",
   size = "compact",
@@ -9478,8 +9761,8 @@ function ValueInspector({
   const { snapshots, selectedIndex, selectedSnapshot, error } = useExplainableRun();
   if (unstyled) {
     return /* @__PURE__ */ jsxs27("div", { className, style, "data-fp": "value-inspector", children: [
-      /* @__PURE__ */ jsx32("strong", { children: selectedSnapshot?.stageLabel ?? title }),
-      /* @__PURE__ */ jsx32(MemoryPanel, { snapshots, selectedIndex, unstyled: true })
+      /* @__PURE__ */ jsx33("strong", { children: selectedSnapshot?.stageLabel ?? title }),
+      /* @__PURE__ */ jsx33(MemoryPanel, { snapshots, selectedIndex, unstyled: true })
     ] });
   }
   return /* @__PURE__ */ jsxs27(
@@ -9500,14 +9783,14 @@ function ValueInspector({
       },
       children: [
         /* @__PURE__ */ jsxs27("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ jsx32("strong", { style: { display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ jsx33("strong", { style: { display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
           selectedSnapshot ? /* @__PURE__ */ jsxs27("span", { style: { display: "block", marginTop: 4, color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: [
             selectedSnapshot.stageLabel,
             " \xB7 ",
             selectedSnapshot.runtimeStageId ?? selectedSnapshot.stageName
           ] }) : null
         ] }),
-        /* @__PURE__ */ jsx32("div", { style: { flex: 1, minHeight: 0, overflow: "auto" }, children: snapshots.length ? /* @__PURE__ */ jsx32(MemoryPanel, { snapshots, selectedIndex, size, style: { height: "100%" } }) : /* @__PURE__ */ jsx32("p", { style: { padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "No values to inspect." }) })
+        /* @__PURE__ */ jsx33("div", { style: { flex: 1, minHeight: 0, overflow: "auto" }, children: snapshots.length ? /* @__PURE__ */ jsx33(MemoryPanel, { snapshots, selectedIndex, size, style: { height: "100%" } }) : /* @__PURE__ */ jsx33("p", { style: { padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "No values to inspect." }) })
       ]
     }
   );
@@ -9515,7 +9798,7 @@ function ValueInspector({
 
 // src/components/ExplainableView/CommentaryPanel.tsx
 import { useMemo as useMemo18, useRef as useRef11, useEffect as useEffect14 } from "react";
-import { Fragment as Fragment9, jsx as jsx33, jsxs as jsxs28 } from "react/jsx-runtime";
+import { Fragment as Fragment9, jsx as jsx34, jsxs as jsxs28 } from "react/jsx-runtime";
 function CommentaryPanel({
   title = "Commentary",
   maxLines = 200,
@@ -9554,7 +9837,7 @@ function CommentaryPanel({
     currentRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [visibleEntries.length]);
   if (unstyled) {
-    return /* @__PURE__ */ jsx33("div", { className, style, "data-fp": "commentary-panel", role: "log", children: visibleEntries.map((entry, index) => /* @__PURE__ */ jsx33("div", { children: renderEntry?.(entry, { index, current: index === visibleEntries.length - 1 }) ?? entry.text }, `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index}`)) });
+    return /* @__PURE__ */ jsx34("div", { className, style, "data-fp": "commentary-panel", role: "log", children: visibleEntries.map((entry, index) => /* @__PURE__ */ jsx34("div", { children: renderEntry?.(entry, { index, current: index === visibleEntries.length - 1 }) ?? entry.text }, `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index}`)) });
   }
   return /* @__PURE__ */ jsxs28(
     "section",
@@ -9574,7 +9857,7 @@ function CommentaryPanel({
       },
       children: [
         /* @__PURE__ */ jsxs28("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ jsx33("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ jsx34("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
           /* @__PURE__ */ jsxs28("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
             revealedCount,
             " of ",
@@ -9582,7 +9865,7 @@ function CommentaryPanel({
             " lines"
           ] })
         ] }),
-        /* @__PURE__ */ jsx33("div", { role: "log", "aria-live": "polite", style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 12px" }, children: visibleEntries.length === 0 ? /* @__PURE__ */ jsx33("p", { style: { color: theme.textMuted, fontSize: 12, fontStyle: "italic" }, children: emptyMessage }) : /* @__PURE__ */ jsxs28(Fragment9, { children: [
+        /* @__PURE__ */ jsx34("div", { role: "log", "aria-live": "polite", style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 12px" }, children: visibleEntries.length === 0 ? /* @__PURE__ */ jsx34("p", { style: { color: theme.textMuted, fontSize: 12, fontStyle: "italic" }, children: emptyMessage }) : /* @__PURE__ */ jsxs28(Fragment9, { children: [
           hiddenCount > 0 ? /* @__PURE__ */ jsxs28("p", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic" }, children: [
             "\u2026 ",
             hiddenCount,
@@ -9607,8 +9890,8 @@ function CommentaryPanel({
                   lineHeight: 1.55
                 },
                 children: [
-                  /* @__PURE__ */ jsx33("span", { style: { color: current ? theme.warning : theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: entry.type }),
-                  /* @__PURE__ */ jsx33("div", { style: { fontSize: 12 }, children: renderEntry?.(entry, { index, current }) ?? entry.text })
+                  /* @__PURE__ */ jsx34("span", { style: { color: current ? theme.warning : theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: entry.type }),
+                  /* @__PURE__ */ jsx34("div", { style: { fontSize: 12 }, children: renderEntry?.(entry, { index, current }) ?? entry.text })
                 ]
               },
               `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index}`
@@ -9621,7 +9904,7 @@ function CommentaryPanel({
 }
 
 // src/components/ExplainableView/TimeTravelBar.tsx
-import { jsx as jsx34 } from "react/jsx-runtime";
+import { jsx as jsx35 } from "react/jsx-runtime";
 function TimeTravelBar({
   autoPlayable = true,
   size,
@@ -9630,7 +9913,7 @@ function TimeTravelBar({
   style
 }) {
   const { snapshots, selectedIndex, selectIndex } = useExplainableRun();
-  return /* @__PURE__ */ jsx34(
+  return /* @__PURE__ */ jsx35(
     TimeTravelControls,
     {
       snapshots,
@@ -9652,7 +9935,7 @@ function TimeTravelBar({
 }
 
 // src/components/ExplainableView/CompactTimelinePanel.tsx
-import { jsx as jsx35 } from "react/jsx-runtime";
+import { jsx as jsx36 } from "react/jsx-runtime";
 function CompactTimelinePanel({
   defaultExpanded = false,
   unstyled = false,
@@ -9661,7 +9944,7 @@ function CompactTimelinePanel({
 }) {
   const { snapshots, selectedIndex, selectIndex } = useExplainableRun();
   if (unstyled) {
-    return /* @__PURE__ */ jsx35("div", { className, "data-fp": "compact-timeline-panel", style, children: snapshots.map((snapshot, index) => /* @__PURE__ */ jsx35(
+    return /* @__PURE__ */ jsx36("div", { className, "data-fp": "compact-timeline-panel", style, children: snapshots.map((snapshot, index) => /* @__PURE__ */ jsx36(
       "button",
       {
         "aria-current": index === selectedIndex ? "step" : void 0,
@@ -9672,7 +9955,7 @@ function CompactTimelinePanel({
       snapshot.runtimeStageId
     )) });
   }
-  return /* @__PURE__ */ jsx35(
+  return /* @__PURE__ */ jsx36(
     "section",
     {
       className,
@@ -9685,7 +9968,7 @@ function CompactTimelinePanel({
         color: theme.textPrimary,
         ...style
       },
-      children: /* @__PURE__ */ jsx35(
+      children: /* @__PURE__ */ jsx36(
         CompactTimeline,
         {
           snapshots,
@@ -9698,7 +9981,7 @@ function CompactTimelinePanel({
 }
 
 // src/components/ExplainableView/SurfaceCollapseHandle.tsx
-import { jsx as jsx36, jsxs as jsxs29 } from "react/jsx-runtime";
+import { jsx as jsx37, jsxs as jsxs29 } from "react/jsx-runtime";
 function SurfaceCollapseHandle({
   label = "Details",
   expanded,
@@ -9744,7 +10027,7 @@ function SurfaceCollapseHandle({
         ...style
       },
       children: [
-        /* @__PURE__ */ jsx36(
+        /* @__PURE__ */ jsx37(
           "div",
           {
             style: vertical ? { flex: 1, width: 1, background: theme.border } : { flex: 1, height: 1, background: theme.border }
@@ -9777,12 +10060,12 @@ function SurfaceCollapseHandle({
               writingMode: vertical ? "vertical-lr" : "horizontal-tb"
             },
             children: [
-              /* @__PURE__ */ jsx36("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: vertical ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25BC" : "\u25B6" }),
+              /* @__PURE__ */ jsx37("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: vertical ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25BC" : "\u25B6" }),
               label
             ]
           }
         ),
-        /* @__PURE__ */ jsx36(
+        /* @__PURE__ */ jsx37(
           "div",
           {
             style: vertical ? { flex: 1, width: 1, background: theme.border } : { flex: 1, height: 1, background: theme.border }
@@ -9795,7 +10078,7 @@ function SurfaceCollapseHandle({
 
 // src/components/ExplainableView/ExplainableView.tsx
 import * as React2 from "react";
-import { jsx as jsx37, jsxs as jsxs30 } from "react/jsx-runtime";
+import { jsx as jsx38, jsxs as jsxs30 } from "react/jsx-runtime";
 var layoutPresets = {
   developer: {
     columns: "minmax(0, 1.7fr) minmax(300px, 0.8fr)",
@@ -9909,17 +10192,17 @@ function ViewContents({
   const responsiveTemplateAreas = responsiveDefinition.areas.map((row) => `"${row.join(" ")}"`).join(" ");
   const renderSurface = (surface) => {
     const fallback = {
-      timeTravel: /* @__PURE__ */ jsx37(TimeTravelBar, { unstyled }),
-      timeline: /* @__PURE__ */ jsx37(CompactTimelinePanel, { unstyled }),
-      stageRail: /* @__PURE__ */ jsx37(TimelinePanel, { unstyled }),
-      flowchart: /* @__PURE__ */ jsx37(FlowchartPanel, { unstyled }),
-      inspector: /* @__PURE__ */ jsx37(ValueInspector, { unstyled }),
-      commentary: /* @__PURE__ */ jsx37(CommentaryPanel, { unstyled })
+      timeTravel: /* @__PURE__ */ jsx38(TimeTravelBar, { unstyled }),
+      timeline: /* @__PURE__ */ jsx38(CompactTimelinePanel, { unstyled }),
+      stageRail: /* @__PURE__ */ jsx38(TimelinePanel, { unstyled }),
+      flowchart: /* @__PURE__ */ jsx38(FlowchartPanel, { unstyled }),
+      inspector: /* @__PURE__ */ jsx38(ValueInspector, { unstyled }),
+      commentary: /* @__PURE__ */ jsx38(CommentaryPanel, { unstyled })
     }[surface];
     return renderSlot(slots?.[surface], fallback, context);
   };
   if (unstyled) {
-    return /* @__PURE__ */ jsx37("div", { className, style, "data-fp": "explainable-view", "data-layout": resolved.name, children: resolved.surfaces.map((surface) => /* @__PURE__ */ jsx37("div", { "data-fp-surface": surface, children: renderSurface(surface) }, surface)) });
+    return /* @__PURE__ */ jsx38("div", { className, style, "data-fp": "explainable-view", "data-layout": resolved.name, children: resolved.surfaces.map((surface) => /* @__PURE__ */ jsx38("div", { "data-fp-surface": surface, children: renderSurface(surface) }, surface)) });
   }
   if (resolved.name === "developer" || resolved.name === "product") {
     const product = resolved.name === "product";
@@ -9953,7 +10236,7 @@ function ViewContents({
           ...style
         },
         children: [
-          /* @__PURE__ */ jsx37("div", { "data-fp-surface": "timeTravel", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeTravel") }),
+          /* @__PURE__ */ jsx38("div", { "data-fp-surface": "timeTravel", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeTravel") }),
           /* @__PURE__ */ jsxs30(
             "div",
             {
@@ -9967,7 +10250,7 @@ function ViewContents({
                 overflow: "hidden"
               },
               children: [
-                /* @__PURE__ */ jsx37(
+                /* @__PURE__ */ jsx38(
                   "div",
                   {
                     "data-fp-surface": "flowchart",
@@ -9978,7 +10261,7 @@ function ViewContents({
                     children: renderSurface("flowchart")
                   }
                 ),
-                /* @__PURE__ */ jsx37(
+                /* @__PURE__ */ jsx38(
                   SurfaceCollapseHandle,
                   {
                     expanded: detailsExpanded,
@@ -9987,7 +10270,7 @@ function ViewContents({
                     orientation: isNarrow ? "horizontal" : "vertical"
                   }
                 ),
-                detailsExpanded ? /* @__PURE__ */ jsx37(
+                detailsExpanded ? /* @__PURE__ */ jsx38(
                   "div",
                   {
                     "data-fp-surface": "inspector",
@@ -10004,7 +10287,7 @@ function ViewContents({
               ]
             }
           ),
-          product ? /* @__PURE__ */ jsx37(
+          product ? /* @__PURE__ */ jsx38(
             "div",
             {
               "data-fp-surface": "commentary",
@@ -10016,12 +10299,12 @@ function ViewContents({
               },
               children: renderSurface("commentary")
             }
-          ) : /* @__PURE__ */ jsx37("div", { "data-fp-surface": "timeline", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeline") })
+          ) : /* @__PURE__ */ jsx38("div", { "data-fp-surface": "timeline", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeline") })
         ]
       }
     );
   }
-  return /* @__PURE__ */ jsx37(
+  return /* @__PURE__ */ jsx38(
     "div",
     {
       ref: rootRef,
@@ -10046,7 +10329,7 @@ function ViewContents({
         background: theme.border,
         ...style
       },
-      children: resolved.surfaces.map((surface) => /* @__PURE__ */ jsx37(
+      children: resolved.surfaces.map((surface) => /* @__PURE__ */ jsx38(
         "div",
         {
           "data-fp-surface": surface,
@@ -10082,7 +10365,7 @@ function ExplainableView({
   className,
   style
 }) {
-  return /* @__PURE__ */ jsx37(
+  return /* @__PURE__ */ jsx38(
     ExplainableProvider,
     {
       recording,
@@ -10090,7 +10373,7 @@ function ExplainableView({
       defaultSelectedIndex,
       onSelectedIndexChange,
       theme: viewTheme,
-      children: /* @__PURE__ */ jsx37(
+      children: /* @__PURE__ */ jsx38(
         ViewContents,
         {
           layout,

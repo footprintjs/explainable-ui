@@ -1,4 +1,4 @@
-/** Non-shipping proof: normal shipped entries stay unchanged; synthetic /record is isolated. */
+/** Unpublished-major proof: both existing entries remain; synthetic /record is isolated. */
 import "./require-node.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -246,8 +246,8 @@ function verifyNormalPackage() {
     ["./dist/index.cjs", "./dist/index.js", "./dist/index.d.ts"]
   );
   assert.deepEqual(manifest.files, ["dist"]);
-  assert.deepEqual(manifest.engines, { node: ">=18" });
-  assert.deepEqual(manifest.dependencies, { dagre: "^0.8.5" });
+  assert.deepEqual(manifest.engines, { node: ">=22" });
+  assert.deepEqual(manifest.dependencies, { dagre: "^0.8.5", foottrace: "^1.0.1" });
   assert.deepEqual(manifest.peerDependencies, {
     "@xyflow/react": "^12.0.0",
     react: ">=18.0.0",
@@ -257,7 +257,7 @@ function verifyNormalPackage() {
   assert.deepEqual(manifest.typesVersions, {
     "*": { flowchart: ["./dist/flowchart.d.ts"] },
   });
-  assert.equal(manifest.devDependencies.foottrace, "1.0.1");
+  assert.equal(manifest.devDependencies.foottrace, undefined);
   const packed = JSON.parse(
     execFileSync(
       "npm",
@@ -288,8 +288,8 @@ function verifyNormalPackage() {
     );
     if (rel.startsWith("dist/")) {
       assert(
-        !/foottrace|src\/record|record-lens/i.test(readFileSync(path, "utf8")),
-        `Normal shipped output contains pilot dependency/source: ${rel}`
+        !/RecordLens|buildRecordLensModel|src\/record\/(?:index|model|RecordLens)/.test(readFileSync(path, "utf8")),
+        `Normal shipped output contains the unexported pilot viewer/model: ${rel}`
       );
       inspectedDistFiles.push(rel);
       if (rel.endsWith(".map")) {
@@ -344,7 +344,9 @@ try {
       copyPrerequisite(name),
     ])
   );
-  assert.equal(versions.foottrace, "1.0.1");
+  assert.match(versions.foottrace, /^1\.\d+\.\d+$/);
+  const [, readerMinor, readerPatch] = versions.foottrace.split(".").map(Number);
+  assert(readerMinor > 0 || readerPatch >= 1, "Foottrace must satisfy the supported ^1.0.1 runtime range");
   const fixtureDirectory = join(repo, "pilots/record-lens/fixtures");
   const fixtureHashes = json(
     join(fixtureDirectory, "provenance.json")

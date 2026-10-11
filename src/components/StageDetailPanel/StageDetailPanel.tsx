@@ -1,6 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { theme, fontSize, padding } from "../../theme";
+import { recordStateDisplay, RecordStateNotice } from "../_internal/recordStateDisplay";
+import { displayValue, displayValuesEqual } from "../_internal/displayValue";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,7 +80,7 @@ function computeChanges(
       changes.push({ key, type: "added", newValue: newVal });
     } else if (inPrev && !inCurr) {
       changes.push({ key, type: "removed", oldValue: oldVal });
-    } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+    } else if (!displayValuesEqual(oldVal, newVal)) {
       changes.push({ key, type: "updated", oldValue: oldVal, newValue: newVal });
     }
   }
@@ -89,9 +91,7 @@ function computeChanges(
 }
 
 function fmt(v: unknown): string {
-  if (typeof v === "string") return `"${v}"`;
-  if (typeof v === "object" && v !== null) return JSON.stringify(v, null, 2);
-  return String(v);
+  return displayValue(v, 2);
 }
 
 /**
@@ -264,12 +264,14 @@ function DevView({
   snapshot,
   changes,
   currMemory,
+  canCompare,
   fs,
   pad,
 }: {
   snapshot: StageSnapshot;
   changes: MemoryChange[];
   currMemory: Record<string, unknown>;
+  canCompare: boolean;
   fs: { label: number; body: number; small: number };
   pad: number;
 }) {
@@ -333,7 +335,7 @@ function DevView({
             borderRadius: theme.radius,
           }}
         >
-          Empty memory
+          {canCompare ? "Empty memory" : "No values in the available recorded state"}
         </div>
       ) : (
         <div
@@ -424,9 +426,9 @@ function DevView({
                   gap: 8,
                   padding: `6px ${pad}px`,
                   borderBottom: `1px solid ${theme.border}`,
-                  opacity: 0.5,
+                  opacity: canCompare ? 0.5 : 1,
                 }}
-                data-fp="memory-unchanged"
+                data-fp={canCompare ? "memory-unchanged" : "memory-recorded"}
               >
                 <span
                   style={{
@@ -480,10 +482,12 @@ function UnstyledDevView({
   snapshot,
   changes,
   currMemory,
+  canCompare,
 }: {
   snapshot: StageSnapshot;
   changes: MemoryChange[];
   currMemory: Record<string, unknown>;
+  canCompare: boolean;
 }) {
   const rows = useMemo(() => buildMemoryRows(currMemory, changes), [currMemory, changes]);
   return (
@@ -511,7 +515,7 @@ function UnstyledDevView({
           );
         }
         return (
-          <div key={row.key} data-fp="memory-unchanged">
+          <div key={row.key} data-fp={canCompare ? "memory-unchanged" : "memory-recorded"}>
             <span data-fp="unchanged-key">{row.key}</span>
             <span data-fp="unchanged-value">{fmt(row.value)}</span>
           </div>
@@ -610,8 +614,9 @@ export function StageDetailPanel({
   }, [activeMode, onModeChange]);
 
   const snapshot = snapshots[selectedIndex];
-  const rawPrevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
-  const rawCurrMemory = snapshot?.memory ?? {};
+  const view = recordStateDisplay(snapshot, snapshots[selectedIndex - 1]);
+  const rawPrevMemory = view.previous;
+  const rawCurrMemory = view.memory ?? {};
 
   // Excluded keys are filtered out of BOTH sides before the diff runs, so an
   // excluded key can't sneak back in as an ADD/UPD/DEL row — hidden means
@@ -621,12 +626,12 @@ export function StageDetailPanel({
     [rawCurrMemory, excludeKeys],
   );
   const changes = useMemo(
-    () =>
+    () => view.canCompare ?
       computeChanges(
         rawPrevMemory === null ? null : withoutExcluded(rawPrevMemory, excludeKeys),
         currMemory,
-      ),
-    [rawPrevMemory, currMemory, excludeKeys],
+      ) : [],
+    [rawPrevMemory, currMemory, excludeKeys, view.canCompare],
   );
 
   const fs = fontSize[size];
@@ -645,14 +650,15 @@ export function StageDetailPanel({
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="stage-detail-panel" data-mode={activeMode}>
+        <RecordStateNotice view={view} />
         {showToggle && (
           <ModeToggle activeMode={activeMode} onToggle={handleToggle} fs={fs} unstyled />
         )}
         {activeMode === "simple" ? (
           <UnstyledSimpleView snapshot={snapshot} />
-        ) : (
-          <UnstyledDevView snapshot={snapshot} changes={changes} currMemory={currMemory} />
-        )}
+        ) : view.memory !== null ? (
+          <UnstyledDevView snapshot={snapshot} changes={changes} currMemory={currMemory} canCompare={view.canCompare} />
+        ) : <div data-fp="stage-label">{snapshot.stageLabel}</div>}
       </div>
     );
   }
@@ -669,6 +675,7 @@ export function StageDetailPanel({
       data-fp="stage-detail-panel"
       data-mode={activeMode}
     >
+      <RecordStateNotice view={view} />
       {showToggle && (
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
           <ModeToggle activeMode={activeMode} onToggle={handleToggle} fs={fs} unstyled={false} />
@@ -676,9 +683,9 @@ export function StageDetailPanel({
       )}
       {activeMode === "simple" ? (
         <SimpleView snapshot={snapshot} fs={fs} pad={pad} />
-      ) : (
-        <DevView snapshot={snapshot} changes={changes} currMemory={currMemory} fs={fs} pad={pad} />
-      )}
+      ) : view.memory !== null ? (
+        <DevView snapshot={snapshot} changes={changes} currMemory={currMemory} canCompare={view.canCompare} fs={fs} pad={pad} />
+      ) : <div data-fp="stage-label">{snapshot.stageLabel}</div>}
     </div>
   );
 }

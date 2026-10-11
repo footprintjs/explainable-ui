@@ -1,4 +1,5 @@
 import type { StageSnapshot, NarrativeEntry } from "../types";
+import { createRecordStateReader } from "./recordState";
 
 /**
  * Shape of FootPrint's RuntimeSnapshot (from FlowChartExecutor.getSnapshot()).
@@ -33,8 +34,9 @@ interface RecorderSnapshot {
 
 interface RuntimeSnapshot {
   sharedState: Record<string, unknown>;
+  initialState?: Record<string, unknown>;
   executionTree: RuntimeStageSnapshot;
-  commitLog: unknown[];
+  commitLog?: unknown[];
   /** Per-subflow execution results (keyed by subflowId). */
   subflowResults?: Record<string, unknown>;
   /** Snapshots from recorders that implement toSnapshot() (e.g. MetricRecorder). */
@@ -126,43 +128,15 @@ export function narrativeFromSnapshot(runtime: unknown): NarrativeEntry[] | unde
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Cumulative-memory accumulation — commit-bundle replay + deep patch merge
+// Standalone compatibility helper — not used for recorded-state replay.
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// Why whole-key overwrite of `stageWrites` is NOT enough: footprintjs's
-// change-only commit semantics record a deep write (`scope.applicant.address
-// .zip = ...`) as a net-change PATCH (`{applicant: {address: {zip}}}`), and
-// `StageSnapshot.stageWrites` keeps only the LAST write per key — so a
-// set-then-deep-write stage surfaces only the patch and the per-stage memory
-// view dropped sibling fields (`applicant.name`) that the engine's
-// `sharedState` correctly holds.
-//
-// The faithful source is `RuntimeSnapshot.commitLog`: each `CommitBundle`
-// carries the stage's `overwrite` (full values for `set` paths), `updates`
-// (accumulated deltas for `merge` paths), and the ordered `trace`
-// (`[{path, verb}]`) — the same triple footprintjs's own `applySmartMerge`
-// replays onto live state. We mirror that replay onto the cumulative memory
-// view, keyed by `runtimeStageId` (tree node ↔ commit bundle join). When no
-// bundle is available (older snapshots, subflow drill-down histories with
-// empty runtimeStageIds), we fall back to `stageWrites` accumulation,
-// upgraded from whole-key overwrite to `mergeWritePatch` so patches no
-// longer erase siblings.
-
-/** Path delimiter used by footprintjs's commit `trace` entries
- *  (`normalisePath` joins segments with U+001F UNIT SEPARATOR). */
-const COMMIT_PATH_DELIM = "\u001F";
+// Existing callers retain this patch utility's original semantics. Recorded
+// state is instead interpreted by Foottrace through createRecordStateReader.
 
 /** Keys that must never be assigned via bracket-write on a plain object —
  *  `obj['__proto__'] = x` mutates the prototype, not an own property. */
 const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
-
-/** Duck-typed slice of footprintjs's `CommitBundle` the replay consumes. */
-interface CommitBundleLike {
-  runtimeStageId?: string;
-  overwrite?: Record<string, unknown>;
-  updates?: Record<string, unknown>;
-  trace?: { path: string; verb: string }[];
-}
 
 /** `__writeSummary` / `__readSummary` marker objects (footprintjs's
  *  `writeTracking: 'summary'` dial) are ATOMIC placeholders, not data —
@@ -181,9 +155,8 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Deep-merges a net-change write PATCH into a base value for the
- * cumulative-memory VIEW — the visualization-side mirror of footprintjs's
- * `deepSmartMerge` (the `merge`-verb arm of `applySmartMerge`).
+ * Deep-merges a caller-owned PATCH into a base value. This retained public
+ * utility is not a record reader; its array policy differs from Foottrace.
  *
  * Semantics:
  *   - plain objects: object-spread per level — patch keys win, base
@@ -221,112 +194,6 @@ export function mergeWritePatch(base: unknown, patch: unknown): unknown {
   return out;
 }
 
-/** Reads a delimited commit path out of a patch object. Undefined-safe. */
-function getPath(root: unknown, segs: string[]): unknown {
-  let cur: unknown = root;
-  for (const seg of segs) {
-    if (!isPlainRecord(cur) && !Array.isArray(cur)) return undefined;
-    cur = (cur as Record<string, unknown>)[seg];
-  }
-  return cur;
-}
-
-/**
- * Writes `value` at a delimited commit path, copy-on-write along the way:
- * every container on the path is cloned before mutation so sibling stage
- * snapshots (which share nested refs via the per-stage shallow copy) are
- * never retroactively edited.
- */
-function setPath(memory: Record<string, unknown>, segs: string[], value: unknown): void {
-  if (segs.some((s) => UNSAFE_KEYS.has(s))) return;
-  let obj: Record<string, unknown> = memory;
-  for (let i = 0; i < segs.length - 1; i++) {
-    const cur = obj[segs[i]!];
-    const next: Record<string, unknown> = Array.isArray(cur)
-      ? (cur.slice() as unknown as Record<string, unknown>)
-      : isPlainRecord(cur) && !isSummaryMarker(cur)
-        ? { ...cur }
-        : {};
-    obj[segs[i]!] = next;
-    obj = next;
-  }
-  const last = segs[segs.length - 1]!;
-  if (value === undefined) {
-    delete obj[last];
-  } else {
-    obj[last] = value;
-  }
-}
-
-/**
- * Replays one commit bundle onto the cumulative memory view — mirrors
- * footprintjs's `applySmartMerge` verb arms:
- *   - `set`    → overwrite with the full final value from `overwrite[path]`
- *                (`undefined` = the historical delete-flattened-to-set —
- *                removes the key)
- *   - `merge`  → `mergeWritePatch` the accumulated `updates[path]` delta in
- *   - `append` → concat the recorded tail onto the current array; degrade
- *                to a direct set when either side isn't an array (matches
- *                upstream's redaction/corrupt-base behavior)
- *   - `delete` → remove the key
- * Bundles without a `trace` (older engines) degrade to: apply every
- * `overwrite` key as a set, then deep-merge every `updates` key.
- */
-function applyCommitBundle(memory: Record<string, unknown>, bundle: CommitBundleLike): void {
-  const trace = Array.isArray(bundle.trace) ? bundle.trace : undefined;
-  if (trace) {
-    for (const op of trace) {
-      if (!op || typeof op.path !== "string") continue;
-      const segs = op.path.split(COMMIT_PATH_DELIM);
-      if (op.verb === "merge") {
-        setPath(memory, segs, mergeWritePatch(getPath(memory, segs), getPath(bundle.updates, segs)));
-      } else if (op.verb === "append") {
-        const tail = getPath(bundle.overwrite, segs);
-        const current = getPath(memory, segs);
-        setPath(memory, segs, Array.isArray(current) && Array.isArray(tail) ? [...current, ...tail] : tail);
-      } else if (op.verb === "delete") {
-        setPath(memory, segs, undefined);
-      } else {
-        // 'set' (and unknown verbs — treat as the terminal overwrite)
-        setPath(memory, segs, getPath(bundle.overwrite, segs));
-      }
-    }
-    return;
-  }
-  if (isPlainRecord(bundle.overwrite)) {
-    for (const [key, value] of Object.entries(bundle.overwrite)) setPath(memory, [key], value);
-  }
-  if (isPlainRecord(bundle.updates)) {
-    for (const [key, value] of Object.entries(bundle.updates)) {
-      setPath(memory, [key], mergeWritePatch(memory[key], value));
-    }
-  }
-}
-
-/**
- * Indexes commit bundles by `runtimeStageId`. A stage execution can emit
- * MORE than one bundle (e.g. a subflow mount commits the outputMapper
- * result, then an empty boundary bundle) — all are kept, in log order.
- * Entries without a non-empty `runtimeStageId` (subflow drill-down
- * histories) are skipped; those trees fall back to `stageWrites`.
- */
-function indexCommitLog(commitLog: unknown[] | undefined): Map<string, CommitBundleLike[]> {
-  const index = new Map<string, CommitBundleLike[]>();
-  if (!Array.isArray(commitLog)) return index;
-  for (const entry of commitLog) {
-    if (!isPlainRecord(entry)) continue;
-    const bundle = entry as CommitBundleLike;
-    if (typeof bundle.runtimeStageId !== "string" || bundle.runtimeStageId.length === 0) continue;
-    if (!isPlainRecord(bundle.overwrite) && !isPlainRecord(bundle.updates) && !Array.isArray(bundle.trace)) {
-      continue;
-    }
-    const list = index.get(bundle.runtimeStageId);
-    if (list) list.push(bundle);
-    else index.set(bundle.runtimeStageId, [bundle]);
-  }
-  return index;
-}
-
 /**
  * Converts a FootPrint RuntimeSnapshot into a flat array of StageSnapshots
  * suitable for visualization components.
@@ -360,21 +227,22 @@ export function toVisualizationSnapshots(
     ? buildStageNarrativeMap(entries)
     : new Map<string, string[]>();
 
-  // No execution tree, no stages. A snapshot taken before `run()` finished
-  // (or one whose tree was dropped in transit) is an EMPTY run, not a crash —
-  // viewers show their empty state and name the missing piece.
+  // No presentation tree means no stage rows to display, not proof that the
+  // execution or its record was empty.
   if (runtime?.executionTree === null || typeof runtime?.executionTree !== 'object') return [];
 
   // Extract per-stage timings from MetricRecorder if present in snapshot.recorders.
   const stageTimings = extractStageTimings(runtime.recorders);
 
-  // Commit-bundle index for faithful cumulative-memory replay (see the
-  // accumulation rationale above). Empty map when the snapshot carries no
-  // usable commitLog — stages then fall back to stageWrites accumulation.
-  const commitIndex = indexCommitLog(runtime.commitLog);
+  const readState = createRecordStateReader({
+    sourceId: "flow:root",
+    format: "snapshot",
+    record: runtime,
+    reads: { status: "unknown" },
+  });
 
   const snapshots: StageSnapshot[] = [];
-  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap, stageTimings, commitIndex);
+  flattenTree(runtime.executionTree, snapshots, 0, runtime.subflowResults, stageNarrativeMap, stageTimings, readState);
   return snapshots;
 }
 
@@ -481,13 +349,13 @@ function buildStageNarrativeMap(entries: NarrativeEntry[]): Map<string, string[]
 function flattenTree(
   node: RuntimeStageSnapshot,
   out: StageSnapshot[],
-  sharedState: Record<string, unknown>,
   accumulatedMs: number = 0,
   subflowResults?: Record<string, unknown>,
-  cumulativeMemory: Record<string, unknown> = {},
   stageNarrativeMap: Map<string, string[]> = new Map(),
   stageTimings: StageTimings = { byRuntimeStageId: new Map(), byStageName: new Map() },
-  commitIndex: Map<string, CommitBundleLike[]> = new Map(),
+  readState: ReturnType<typeof createRecordStateReader> = () => ({
+    status: "unavailable", sourceId: "flow:unselected", reason: "unsupported-source", message: "No recorded source was supplied.",
+  }),
 ): number {
   // Prefer the timing recorded for THIS execution (a loop's 2nd pass is its
   // own row), then the legacy per-name aggregate, then scope.$metric, then 0.
@@ -522,25 +390,10 @@ function flattenTree(
     narrative = parts.join('\n');
   }
 
-  // Build cumulative memory. Preferred source: this execution's commit
-  // bundles (replayed with engine verb semantics — set/merge/append/delete —
-  // so deep-write patches keep sibling fields, exactly like the engine's
-  // sharedState). Fallback: stageWrites, deep-merged via mergeWritePatch
-  // (whole-key overwrite would erase siblings on net-change patches).
-  const memory = { ...cumulativeMemory };
-  const bundles = node.runtimeStageId ? commitIndex.get(node.runtimeStageId) : undefined;
-  if (bundles && bundles.length > 0) {
-    for (const bundle of bundles) applyCommitBundle(memory, bundle);
-  } else if (node.stageWrites) {
-    for (const [key, value] of Object.entries(node.stageWrites)) {
-      if (UNSAFE_KEYS.has(key)) continue;
-      if (value === undefined) {
-        delete memory[key];
-      } else {
-        memory[key] = mergeWritePatch(memory[key], value);
-      }
-    }
-  }
+  // Tree order controls presentation only. State comes from this execution's
+  // exact source-local canonical stop, not its parent or a prior tree row.
+  const recordState = readState(node.runtimeStageId);
+  const memory = recordState.status === "available" ? recordState.current.state : {};
 
   // Prefer the per-iteration result keyed by this node's UNIQUE runtimeStageId, falling back to
   // the subflow PATH key. A LOOPING subflow re-enters with the same `subflowId`, so the path key
@@ -556,6 +409,7 @@ function flattenTree(
     stageLabel: stageId,
     runtimeStageId: node.runtimeStageId ?? undefined,
     memory,
+    recordState,
     narrative,
     startMs,
     durationMs,
@@ -571,7 +425,7 @@ function flattenTree(
   if (node.children && node.children.length > 0) {
     let maxChildEnd = nextMs;
     for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
+      const childEnd = flattenTree(child, out, nextMs, subflowResults, stageNarrativeMap, stageTimings, readState);
       maxChildEnd = Math.max(maxChildEnd, childEnd);
     }
     nextMs = maxChildEnd;
@@ -579,7 +433,7 @@ function flattenTree(
 
   // Handle linear continuation
   if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
+    nextMs = flattenTree(node.next, out, nextMs, subflowResults, stageNarrativeMap, stageTimings, readState);
   }
 
   return nextMs;
@@ -612,20 +466,29 @@ export function subflowResultToSnapshots(
     subflowId?: string;
     treeContext?: {
       globalContext?: Record<string, unknown>;
+      initialState?: Record<string, unknown>;
       stageContexts?: unknown;
       history?: unknown[];
     };
   };
   if (!sf.treeContext?.stageContexts) return [];
 
-  const runtime: RuntimeSnapshot = {
-    sharedState: sf.treeContext.globalContext ?? {},
-    executionTree: sf.treeContext.stageContexts as RuntimeStageSnapshot,
-    commitLog: sf.treeContext.history ?? [],
-    ...(subflowResults ? { subflowResults } : undefined),
-  };
-
-  const snapshots = toVisualizationSnapshots(runtime, narrativeEntries);
+  const readState = createRecordStateReader({
+    sourceId: `flow:subtree:${sf.subflowId ?? "selected"}`,
+    format: "tree-context",
+    record: sf.treeContext,
+    reads: { status: "unknown" },
+  });
+  const snapshots: StageSnapshot[] = [];
+  flattenTree(
+    sf.treeContext.stageContexts as RuntimeStageSnapshot,
+    snapshots,
+    0,
+    subflowResults,
+    narrativeEntries?.length ? buildStageNarrativeMap(narrativeEntries) : new Map(),
+    { byRuntimeStageId: new Map(), byStageName: new Map() },
+    readState,
+  );
 
   // Strip subflow prefix from stage names so they match the spec node names.
   // Runtime names are prefixed (e.g., "analyze/SeedScope") but spec nodes

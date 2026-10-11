@@ -38,22 +38,23 @@ describe("M1 — immutable source evidence", () => {
 
   it("keeps planned corrections separate from preservation guarantees", () => {
     expect(corrections.map((row) => row.id)).toEqual(["R1", "R2", "R3", "R4"]);
-    for (const row of corrections.filter((row) => row.id !== "R4")) {
-      expect(row.status).toBe("requires-owning-layer-review");
+    for (const row of corrections.filter((row) => row.id === "R2" || row.id === "R3")) {
+      expect(row.status).toBe("approved-pending-M4-M5");
+      expect(row.approval).toContain("Owner approved");
     }
     for (const row of corrections) {
-      expect(row.approval).toBeNull();
       expect(row.observedIsCorrectnessOracle).toBe(false);
       expect(row.recordGroundedRequirement.length).toBeGreaterThan(0);
       expect(row.owner.length).toBeGreaterThan(0);
     }
+    expect(corrections.find((row) => row.id === "R1")).toMatchObject({ status: "implemented-unreleased-M3", approval: expect.stringContaining("Owner approved") });
     expect(corrections.find((row) => row.id === "R4")).toMatchObject({
-      status: "foottrace-1.0.1-adoption-prepared",
+      status: "foottrace-1.0.1-adopted",
       readerVersion: "1.0.1",
       owner:
-        "Foottrace causalChain read-anchor rule; old Footprint 9 embedded reader maintenance separately",
+        "Foottrace causalChain read-anchor rule; current work targets Footprint 10 and Foottrace only, with no further 9.x backports",
       testedExpectation: expect.stringContaining("neither may report A-to-B"),
-      publicVerification: expect.stringContaining("required before merge"),
+      publicVerification: expect.stringContaining("verified before explainable-ui PR4 merged"),
     });
   });
 });
@@ -106,13 +107,14 @@ describe("M1 — supported legacy projection behavior to preserve", () => {
       ...runtime,
       executionTree: { ...runtime.executionTree, stageWrites: { legacy: 7 } },
     };
-    expect(toVisualizationSnapshots(input)[0].memory).toEqual({ legacy: 7 });
+    expect(toVisualizationSnapshots(input)[0].memory).toEqual({});
+    expect(toVisualizationSnapshots(input)[0].recordState).toMatchObject({ status: "unavailable", reason: "stage-not-recorded" });
     expect(input.commitLog).toEqual([]);
   });
 });
 
 describe("M1 — diagnostic observations, NOT approved future answers", () => {
-  it("R1 identifies the old absent-base and set(undefined) interpretations", () => {
+  it("R1 corrects absent-base and set(undefined) interpretation through Foottrace", () => {
     const runtime = legacyRuntime(
       [
         entry(0, { visible: 1 }, {}, [{ path: "visible", verb: "set" }]),
@@ -122,25 +124,36 @@ describe("M1 — diagnostic observations, NOT approved future answers", () => {
       ],
       { seed: 9 }
     );
-    // The legacy adapter currently ignores a supplied base and removes an own
-    // undefined-valued property. R1 owns the future interpretation, not this test.
+    // Approved correction: the actual base survives, and undefined is data,
+    // not a fabricated delete. The historical observation stays in the ledger.
     expect(toVisualizationSnapshots(runtime).map((row) => row.memory)).toEqual([
-      { visible: 1 },
-      {},
+      { seed: 9, visible: 1 },
+      { seed: 9, visible: undefined },
     ]);
     expect(runtime.initialState).toEqual({ seed: 9 });
     expect(owns(runtime.commitLog[1].overwrite, "visible")).toBe(true);
   });
 
-  it("R1 exposes unknown-verb fallthrough and array-merge replacement as legacy policies", () => {
+  it("R1 refuses unknown-verb state and retains the standalone patch helper's old array policy", () => {
     const runtime = legacyRuntime([
       entry(0, { value: 7 }, {}, [{ path: "value", verb: "unrecognized" }]),
     ]);
-    expect(toVisualizationSnapshots(runtime)[0].memory).toEqual({ value: 7 });
+    const snapshot = toVisualizationSnapshots(runtime)[0];
+    expect(snapshot.memory).toEqual({});
+    expect(snapshot.recordState).toMatchObject({ status: "unavailable", reason: "stage-not-recorded" });
     expect(mergeWritePatch([1, 2], [3])).toEqual([3]);
     expect(
       corrections.find((row) => row.id === "R1")?.observedIsCorrectnessOracle
     ).toBe(false);
+  });
+
+  it("R1 delegates recorded array merge to Foottrace without changing the public patch helper", () => {
+    const runtime = legacyRuntime([
+      entry(0, { items: [1, 2] }, {}, [{ path: "items", verb: "set" }]),
+      entry(1, {}, { items: [2, 3] }, [{ path: "items", verb: "merge" }]),
+    ]);
+    expect(toVisualizationSnapshots(runtime)[1].memory.items).toEqual([1, 2, 3]);
+    expect(mergeWritePatch([1, 2], [2, 3])).toEqual([2, 3]);
   });
 
   it("R3 exposes the old unproven run-input claim for a key that has no recorded evidence", () => {
@@ -184,13 +197,12 @@ describe("M1 — diagnostic observations, NOT approved future answers", () => {
       "b#2",
       "join#3",
     ]);
-    // Diagnostic output only: each branch gets a separate memory and Join
-    // resumes with pre-fork memory. This is NOT the correct final record state.
+    // The immutable ledger retains the old incorrect answer. Production now
+    // delegates folding to Foottrace and agrees with the producer's final state.
     const observedJoin = snapshots.at(-1)?.memory;
-    expect(observedJoin).toEqual({ runs: { b: { x: 1 } } });
     const recordTruth = { runs: { b: { x: 9 }, a: { y: 2 } } };
     expect(fork.sharedState).toEqual(recordTruth);
-    expect(observedJoin).not.toEqual(recordTruth);
+    expect(observedJoin).toEqual(recordTruth);
     expect(JSON.stringify(fork)).toBe(before);
   });
 

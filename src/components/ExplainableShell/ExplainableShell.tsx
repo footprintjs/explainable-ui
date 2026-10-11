@@ -31,6 +31,7 @@ import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
 import { TimeTravelControls } from "../TimeTravelControls";
 import { MemoryPanel } from "../MemoryPanel";
+import { recordStateDisplay } from "../_internal/recordStateDisplay";
 import { NarrativePanel } from "../NarrativePanel";
 import { SubflowTree } from "../FlowchartView/SubflowTree";
 import { SubflowBreadcrumb } from "../FlowchartView/SubflowBreadcrumb";
@@ -1769,13 +1770,14 @@ export function ExplainableShell({
   // ("Trace any variable:", F1). Both roads lead to handleStartTracing.
   const traceTabContent: ReactNode = useMemo(() => {
     if (tracing && traceWalk) {
+      const memoryView = recordStateDisplay(activeSnapshots[safeIdx], activeSnapshots[safeIdx - 1]);
       return (
         <TraceWalkCard
           walk={traceWalk}
           cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null}
           viaKey={activeViaKey}
           stepNumberOf={stepNumberOf}
-          previewValueOf={(k) => activeSnapshots[safeIdx]?.memory?.[k]}
+          previewValueOf={(k) => memoryView.canCompare ? memoryView.memory?.[k] : undefined}
           onFollowIngredient={handleFollowIngredient}
           onJumpToStop={navigateToStage}
           onShowAll={activeViaKey ? handleShowAllIngredients : undefined}

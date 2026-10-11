@@ -34,6 +34,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { stateAt, timeTravel } from "foottrace";
 import {
   createTraceStructureRecorder,
   type TraceGraph,
@@ -212,7 +213,29 @@ for (const fx of fixtures) {
 
     it("snapshot + narrative → visualization StageSnapshots (adapter)", async () => {
       const snaps = toVisualizationSnapshots(fx.snapshot, fx.narrativeEntries);
-      await expect(stringify(snaps)).toMatchFileSnapshot(snapshotPath(fx.name, "stage-snapshots"));
+      const frozen = JSON.parse(readFileSync(new URL(snapshotPath(fx.name, "stage-snapshots"), import.meta.url), "utf8"));
+      const stops = timeTravel(fx.snapshot).stops;
+      const projection = snaps.map(({ recordState, ...row }) => {
+        const old = frozen.find((value: { runtimeStageId?: string }) => value.runtimeStageId === row.runtimeStageId);
+        expect(old, row.runtimeStageId).toBeDefined();
+        const expectedMemory = fx.name === "parallel-fork" && row.runtimeStageId === "obesity#3"
+          ? { ...old.memory, runs: { hypertension: { hypertensionRisk: "high" }, obesity: { obesityRisk: "moderate" } } }
+          : fx.name === "parallel-fork" && row.runtimeStageId === "summarize#4"
+            ? { ...old.memory, runs: { hypertension: { hypertensionRisk: "high" }, obesity: { obesityRisk: "moderate" } } }
+            : old.memory;
+        // Exactly two named corrections; every other memory and every existing
+        // presentation field still match the immutable historical projection.
+        expect(row.memory, `${fx.name}/${row.runtimeStageId}`).toEqual(expectedMemory);
+        const stop = stops.find(value => value.runtimeStageId === row.runtimeStageId);
+        expect(stop).toBeDefined();
+        expect(recordState).toMatchObject({ status: "available", stop, current: { basis: "log-only", redactedPaths: [] } });
+        if (recordState?.status !== "available" || !stop) throw new Error("Missing canonical stop");
+        expect(recordState.current).toEqual(stateAt(fx.snapshot, stop.lastCommitIdx));
+        expect(recordState.previous).toEqual(stateAt(fx.snapshot, stops[stop.step - 1].lastCommitIdx));
+        expect(recordState.current.skipped ?? []).toEqual([]);
+        return { ...row, memory: old.memory };
+      });
+      await expect(stringify(projection)).toMatchFileSnapshot(snapshotPath(fx.name, "stage-snapshots"));
     });
 
     it("narrative entries → range index + revealed counts (narrativeSync)", async () => {
