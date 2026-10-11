@@ -12,6 +12,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     strategy:
       matrix:
         node-version: [22, 24]
@@ -33,9 +34,31 @@ jobs:
       - run: npm test
 
       # The unpublished major preparation now uses Foottrace in production;
-      # both supported lanes exercise the still-unexported record pilot.
-      - name: Verify isolated record source pilot
+      # Both lanes install and exercise the exact packed /record contract.
+      - name: Verify isolated record package
         run: npm run test:record-pilot
+
+      - name: Install browser for lazy graph verification
+        if: matrix.node-version == 24
+        run: npx playwright install --with-deps chromium
+      - name: Verify packed lazy graph loading in a browser
+        if: matrix.node-version == 24
+        timeout-minutes: 10
+        env:
+          LENS_BROWSER_EVIDENCE_ROOT: ${{ runner.temp }}/lens-browser-evidence
+        run: npm run test:lazy-browser
+      - name: Preserve browser verification evidence
+        if: always() && matrix.node-version == 24
+        uses: actions/upload-artifact@v4
+        with:
+          name: lens-packed-browser-proof
+          path: |
+            ${{ runner.temp }}/lens-browser-evidence/*/verification.json
+            ${{ runner.temp }}/lens-browser-evidence/*/failure.json
+            ${{ runner.temp }}/lens-browser-evidence/*/metafile.json
+            ${{ runner.temp }}/lens-browser-evidence/*/installed-tree.json
+            ${{ runner.temp }}/lens-browser-evidence/*/*.png
+            ${{ runner.temp }}/lens-browser-evidence/*/footprint-explainable-ui-1.0.0.tgz
 
       # Packaging-correctness gate on the would-be-published tarball (now that the dual
       # CJS/ESM types + exports are correct). attw exits non-zero on a types masquerade /

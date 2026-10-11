@@ -1,6 +1,6 @@
 {
   "name": "footprint-explainable-ui",
-  "version": "0.38.0",
+  "version": "1.0.0",
   "description": "Themeable React components for visualizing FootPrint pipeline execution",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -15,6 +15,16 @@
       "require": {
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
+      }
+    },
+    "./record": {
+      "import": {
+        "types": "./dist/record.d.ts",
+        "default": "./dist/record.js"
+      },
+      "require": {
+        "types": "./dist/record.d.cts",
+        "default": "./dist/record.cjs"
       }
     },
     "./flowchart": {
@@ -32,6 +42,9 @@
     "*": {
       "flowchart": [
         "./dist/flowchart.d.ts"
+      ],
+      "record": [
+        "./dist/record.d.ts"
       ]
     }
   },
@@ -44,7 +57,8 @@
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "typecheck:record-pilot": "node pilots/record-lens/require-node.mjs && tsc -p pilots/record-lens/tsconfig.json --noEmit",
-    "test:record-pilot": "node pilots/record-lens/require-node.mjs && npm run typecheck:record-pilot && vitest run --config pilots/record-lens/vitest.config.ts && node pilots/record-lens/verify-package.mjs",
+    "test:record-pilot": "node pilots/record-lens/require-node.mjs && npm run typecheck:record-pilot && vitest run --config pilots/record-lens/vitest.config.ts && node --test pilots/record-lens/package-contract.test.mjs && node pilots/record-lens/verify-package.mjs",
+    "test:lazy-browser": "node scripts/verify-lazy-browser.mjs",
     "test": "npm run typecheck:test && vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist",
@@ -62,8 +76,14 @@
   },
   "peerDependencies": {
     "@xyflow/react": "^12.0.0",
+    "dagre": "^0.8.5",
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@xyflow/react": { "optional": true },
+    "dagre": { "optional": true },
+    "react-dom": { "optional": true }
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.1",
@@ -76,8 +96,10 @@
     "@vitejs/plugin-react": "^6.0.3",
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
+    "dagre": "^0.8.5",
     "footprintjs": "9.15.1",
     "jsdom": "^29.0.1",
+    "playwright": "^1.63.0",
     "publint": "^0.3.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
@@ -104,7 +126,6 @@
     "explainable-ai"
   ],
   "dependencies": {
-    "dagre": "^0.8.5",
     "foottrace": "^1.0.3"
   }
 }

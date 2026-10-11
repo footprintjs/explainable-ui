@@ -1,2232 +1,15 @@
-// src/components/StageNode/StageNode.tsx
-import { memo, useEffect as useEffect2, useRef } from "react";
-import { Handle, Position } from "@xyflow/react";
+import { warnDeprecated, MemoryInspector, NarrativeLog, GanttTimeline, createTraceStructureRecorder, asStageId, asRuntimeStageId } from './chunk-TT4DVP3R.js';
+export { SubflowBreadcrumb, SubflowTree, asRuntimeStageId, asStageId, createTraceStructureRecorder, graphFromStructure, overlayFromSnapshot } from './chunk-TT4DVP3R.js';
+import './chunk-QDHBS46D.js';
+import { dagreTraceLayout, StageNode, SmartStepEdge, LoopBackEdge, chartLayoutKey, ChartAutoRefit, DEFAULT_NODE_W, DEFAULT_NODE_H, createTraceRuntimeOverlay, TracedFlow, sizeOf } from './chunk-2SJLI2BH.js';
+export { GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, LoopBackEdge, MAIN_CHART_BOX_ID, SmartStepEdge, StageNode, TracedFlow, applyGroupLayout, collapseTraceGraph, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createSnappedDagreLayout, createTraceRuntimeOverlay, dagreTraceLayout, sliceOverlay, snapLinearSuccessors, wrapInMainChartBox } from './chunk-2SJLI2BH.js';
+import { rawDefaults, createNotifier, devWarn } from './chunk-S3YWIRGX.js';
+export { buildSubflowBreadcrumb, filterGraphForDrill } from './chunk-S3YWIRGX.js';
+import { theme, fontSize, padding } from './chunk-66AKOWND.js';
+import { useMemo, useSyncExternalStore, useCallback, useRef, useState } from 'react';
+import { ReactFlow, Background, BackgroundVariant, Handle, Position, MarkerType } from '@xyflow/react';
+import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
 
-// src/theme/ThemeProvider.tsx
-import { createContext, useContext } from "react";
-
-// src/theme/tokens.ts
-function tokensToCSSVars(tokens) {
-  const vars = {};
-  if (tokens.colors) {
-    const c = tokens.colors;
-    if (c.primary) vars["--fp-color-primary"] = c.primary;
-    if (c.success) vars["--fp-color-success"] = c.success;
-    if (c.error) vars["--fp-color-error"] = c.error;
-    if (c.warning) vars["--fp-color-warning"] = c.warning;
-    if (c.nodeCursor) vars["--fp-node-cursor"] = c.nodeCursor;
-    if (c.nodeVisited) vars["--fp-node-visited"] = c.nodeVisited;
-    if (c.nodeMain) vars["--fp-node-main"] = c.nodeMain;
-    const accent = c.accent ?? c.primary;
-    if (accent) vars["--fp-accent"] = accent;
-    if (c.accentBg) vars["--fp-accent-bg"] = c.accentBg;
-    if (c.success) vars["--fp-success"] = c.success;
-    if (c.tracing) vars["--fp-tracing"] = c.tracing;
-    if (c.chip1) vars["--fp-chip-1"] = c.chip1;
-    if (c.chip2) vars["--fp-chip-2"] = c.chip2;
-    if (c.chip3) vars["--fp-chip-3"] = c.chip3;
-    if (c.chip4) vars["--fp-chip-4"] = c.chip4;
-    if (c.bg) vars["--fp-bg"] = c.bg;
-    if (c.bgElevated) vars["--fp-bg-elevated"] = c.bgElevated;
-    if (c.bgPrimary) vars["--fp-bg-primary"] = c.bgPrimary;
-    if (c.bgSecondary) vars["--fp-bg-secondary"] = c.bgSecondary;
-    if (c.bgTertiary) vars["--fp-bg-tertiary"] = c.bgTertiary;
-    if (c.textPrimary) vars["--fp-text-primary"] = c.textPrimary;
-    if (c.textSecondary) vars["--fp-text-secondary"] = c.textSecondary;
-    if (c.textMuted) vars["--fp-text-muted"] = c.textMuted;
-    if (c.border) vars["--fp-border"] = c.border;
-  }
-  if (tokens.radius) vars["--fp-radius"] = tokens.radius;
-  if (tokens.fontFamily?.sans) vars["--fp-font-sans"] = tokens.fontFamily.sans;
-  if (tokens.fontFamily?.mono) vars["--fp-font-mono"] = tokens.fontFamily.mono;
-  return vars;
-}
-var rawDefaults = {
-  colors: {
-    primary: "#6366f1",
-    success: "#22c55e",
-    error: "#ef4444",
-    warning: "#f59e0b",
-    nodeCursor: "#f59e0b",
-    nodeVisited: "#22c55e",
-    nodeMain: "#6366f1",
-    accent: "#6366f1",
-    accentBg: "rgba(99,102,241,0.12)",
-    tracing: "#0d9488",
-    chip1: "#0d9488",
-    chip2: "#d97706",
-    chip3: "#7c3aed",
-    chip4: "#e11d48",
-    bg: "#1a1b26",
-    bgElevated: "#1e293b",
-    bgPrimary: "#0f172a",
-    bgSecondary: "#1e293b",
-    bgTertiary: "#334155",
-    textPrimary: "#f8fafc",
-    textSecondary: "#94a3b8",
-    textMuted: "#64748b",
-    border: "#334155"
-  },
-  radius: "8px",
-  fontFamily: {
-    sans: "Inter, system-ui, -apple-system, sans-serif",
-    mono: "'JetBrains Mono', 'Fira Code', monospace"
-  }
-};
-var defaultTokens = {
-  colors: {
-    primary: `var(--fp-color-primary, ${rawDefaults.colors.primary})`,
-    success: `var(--fp-color-success, ${rawDefaults.colors.success})`,
-    error: `var(--fp-color-error, ${rawDefaults.colors.error})`,
-    warning: `var(--fp-color-warning, ${rawDefaults.colors.warning})`,
-    nodeCursor: `var(--fp-node-cursor, ${rawDefaults.colors.nodeCursor})`,
-    nodeVisited: `var(--fp-node-visited, ${rawDefaults.colors.nodeVisited})`,
-    nodeMain: `var(--fp-node-main, ${rawDefaults.colors.nodeMain})`,
-    accent: `var(--fp-accent, ${rawDefaults.colors.accent})`,
-    accentBg: `var(--fp-accent-bg, ${rawDefaults.colors.accentBg})`,
-    tracing: `var(--fp-tracing, ${rawDefaults.colors.tracing})`,
-    chip1: `var(--fp-chip-1, ${rawDefaults.colors.chip1})`,
-    chip2: `var(--fp-chip-2, ${rawDefaults.colors.chip2})`,
-    chip3: `var(--fp-chip-3, ${rawDefaults.colors.chip3})`,
-    chip4: `var(--fp-chip-4, ${rawDefaults.colors.chip4})`,
-    bg: `var(--fp-bg, ${rawDefaults.colors.bg})`,
-    bgElevated: `var(--fp-bg-elevated, ${rawDefaults.colors.bgElevated})`,
-    bgPrimary: `var(--fp-bg-primary, ${rawDefaults.colors.bgPrimary})`,
-    bgSecondary: `var(--fp-bg-secondary, ${rawDefaults.colors.bgSecondary})`,
-    bgTertiary: `var(--fp-bg-tertiary, ${rawDefaults.colors.bgTertiary})`,
-    textPrimary: `var(--fp-text-primary, ${rawDefaults.colors.textPrimary})`,
-    textSecondary: `var(--fp-text-secondary, ${rawDefaults.colors.textSecondary})`,
-    textMuted: `var(--fp-text-muted, ${rawDefaults.colors.textMuted})`,
-    border: `var(--fp-border, ${rawDefaults.colors.border})`
-  },
-  radius: `var(--fp-radius, ${rawDefaults.radius})`,
-  fontFamily: {
-    sans: `var(--fp-font-sans, ${rawDefaults.fontFamily.sans})`,
-    mono: `var(--fp-font-mono, ${rawDefaults.fontFamily.mono})`
-  }
-};
-
-// src/theme/ThemeProvider.tsx
-import { jsx } from "react/jsx-runtime";
-var ThemeContext = createContext({});
-
-// src/theme/styles.ts
-function v(varName, fallback) {
-  return `var(${varName}, ${fallback})`;
-}
-var theme = {
-  primary: v("--fp-color-primary", "#6366f1"),
-  success: v("--fp-color-success", "#22c55e"),
-  error: v("--fp-color-error", "#ef4444"),
-  warning: v("--fp-color-warning", "#f59e0b"),
-  // Semantic NODE-STATE colors — first-class, themeable roles a runtime overlay
-  // maps onto (scrub cursor / executed / a group's lead node). Distinct from the
-  // generic `primary` accent so the three read as three different things.
-  nodeCursor: v("--fp-node-cursor", "#f59e0b"),
-  // the current / scrubbed-to step
-  nodeVisited: v("--fp-node-visited", "#22c55e"),
-  // executed up to the cursor
-  nodeMain: v("--fp-node-main", "#6366f1"),
-  // the lead / "hero" node of a group
-  // Short-alias roles. Panels written against these read the SAME token the
-  // presets emit (see tokensToCSSVars) — they exist so a component can say
-  // "accent" without deciding whether it means the brand primary.
-  accent: v("--fp-accent", "#6366f1"),
-  // active tab / selected rule
-  accentBg: v("--fp-accent-bg", "rgba(99,102,241,0.12)"),
-  // wash behind an accented row
-  tracing: v("--fp-tracing", "#0d9488"),
-  // the tracing-rail chrome
-  bg: v("--fp-bg", "#1a1b26"),
-  // panel body surface
-  bgElevated: v("--fp-bg-elevated", "#1e293b"),
-  // raised card on the body surface
-  bgPrimary: v("--fp-bg-primary", "#0f172a"),
-  bgSecondary: v("--fp-bg-secondary", "#1e293b"),
-  bgTertiary: v("--fp-bg-tertiary", "#334155"),
-  textPrimary: v("--fp-text-primary", "#f8fafc"),
-  textSecondary: v("--fp-text-secondary", "#94a3b8"),
-  textMuted: v("--fp-text-muted", "#64748b"),
-  border: v("--fp-border", "#334155"),
-  radius: v("--fp-radius", "8px"),
-  fontSans: v("--fp-font-sans", "Inter, system-ui, -apple-system, sans-serif"),
-  fontMono: v("--fp-font-mono", "'JetBrains Mono', 'Fira Code', monospace")
-};
-var fontSize = {
-  compact: { label: 10, body: 11, small: 9 },
-  default: { label: 11, body: 12, small: 10 },
-  detailed: { label: 12, body: 13, small: 11 }
-};
-var padding = {
-  compact: 8,
-  default: 12,
-  detailed: 16
-};
-
-// src/theme/presets.ts
-var coolDark = {
-  colors: {
-    primary: "#6366f1",
-    success: "#22c55e",
-    error: "#ef4444",
-    warning: "#f59e0b",
-    nodeCursor: "#f59e0b",
-    nodeVisited: "#22c55e",
-    nodeMain: "#6366f1",
-    accent: "#6366f1",
-    accentBg: "rgba(99,102,241,0.12)",
-    tracing: "#14b8a6",
-    chip1: "#0d9488",
-    chip2: "#d97706",
-    chip3: "#7c3aed",
-    chip4: "#e11d48",
-    bg: "#0f172a",
-    bgElevated: "#1e293b",
-    bgPrimary: "#0f172a",
-    bgSecondary: "#1e293b",
-    bgTertiary: "#334155",
-    textPrimary: "#f8fafc",
-    textSecondary: "#94a3b8",
-    textMuted: "#64748b",
-    border: "#334155"
-  },
-  radius: "8px",
-  fontFamily: {
-    sans: "Inter, system-ui, -apple-system, sans-serif",
-    mono: "'JetBrains Mono', 'Fira Code', monospace"
-  }
-};
-var coolLight = {
-  colors: {
-    primary: "#6366f1",
-    success: "#22c55e",
-    error: "#ef4444",
-    warning: "#f59e0b",
-    nodeCursor: "#f59e0b",
-    nodeVisited: "#22c55e",
-    nodeMain: "#6366f1",
-    accent: "#6366f1",
-    accentBg: "rgba(99,102,241,0.10)",
-    tracing: "#0d9488",
-    chip1: "#0d9488",
-    chip2: "#d97706",
-    chip3: "#7c3aed",
-    chip4: "#e11d48",
-    bg: "#ffffff",
-    bgElevated: "#f9fafb",
-    bgPrimary: "#ffffff",
-    bgSecondary: "#f9fafb",
-    bgTertiary: "#e5e7eb",
-    textPrimary: "#18181b",
-    textSecondary: "#52525b",
-    textMuted: "#a1a1aa",
-    border: "#e5e7eb"
-  },
-  radius: "8px",
-  fontFamily: {
-    sans: "Inter, system-ui, -apple-system, sans-serif",
-    mono: "'JetBrains Mono', 'Fira Code', monospace"
-  }
-};
-
-// src/theme/useDarkModeTokens.ts
-import { useState, useEffect } from "react";
-
-// src/theme/mode.ts
-function themeModeVars(mode) {
-  if (!mode) return {};
-  return tokensToCSSVars(mode === "light" ? coolLight : coolDark);
-}
-
-// src/components/StageNode/StageNode.tsx
-import { Fragment, jsx as jsx2, jsxs } from "react/jsx-runtime";
-var KEYFRAMES_ID = "fp-stage-node-keyframes";
-var KEYFRAMES_CSS = `
-@media (prefers-reduced-motion: no-preference) {
-  @keyframes fp-pulse {
-    0%, 100% { opacity: 0.4; transform: scale(1); }
-    50% { opacity: 0.15; transform: scale(1.06); }
-  }
-  @keyframes fp-blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  @keyframes fp-pulse { 0%, 100% { opacity: 0.3; } }
-  @keyframes fp-blink { 0%, 100% { opacity: 1; } }
-}
-`;
-var ICON_SIZE = 16;
-function StageIcon({ type, color }) {
-  const s = ICON_SIZE;
-  const props = { width: s, height: s, viewBox: `0 0 ${s} ${s}`, fill: "none", style: { flexShrink: 0 } };
-  switch (type) {
-    // LLM / AI call — brain/sparkle
-    case "llm":
-    case "ai":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("circle", { cx: "8", cy: "8", r: "6", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ jsx2("path", { d: "M5.5 8C5.5 6.5 6.5 5 8 5S10.5 6.5 10.5 8", stroke: color, strokeWidth: "1.2", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx2("circle", { cx: "8", cy: "9.5", r: "1", fill: color }),
-        /* @__PURE__ */ jsx2("line", { x1: "8", y1: "2", x2: "8", y2: "3.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx2("line", { x1: "12.5", y1: "4", x2: "11.2", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx2("line", { x1: "3.5", y1: "4", x2: "4.8", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
-      ] });
-    // Tool / function call — gear
-    case "tool":
-    case "function":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("circle", { cx: "8", cy: "8", r: "3", stroke: color, strokeWidth: "1.5" }),
-        [0, 45, 90, 135, 180, 225, 270, 315].map((angle) => {
-          const rad = angle * Math.PI / 180;
-          const x1 = 8 + Math.cos(rad) * 4.5;
-          const y1 = 8 + Math.sin(rad) * 4.5;
-          const x2 = 8 + Math.cos(rad) * 6;
-          const y2 = 8 + Math.sin(rad) * 6;
-          return /* @__PURE__ */ jsx2("line", { x1, y1, x2, y2, stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }, angle);
-        })
-      ] });
-    // RAG / retrieval — magnifying glass + doc
-    case "rag":
-    case "search":
-    case "retrieval":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("circle", { cx: "7", cy: "7", r: "4", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ jsx2("line", { x1: "10", y1: "10", x2: "13.5", y2: "13.5", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx2("line", { x1: "5.5", y1: "6", x2: "8.5", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx2("line", { x1: "5.5", y1: "8", x2: "7.5", y2: "8", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
-      ] });
-    // Parse / process — diamond with arrows
-    case "parse":
-    case "process":
-    case "transform":
-      return /* @__PURE__ */ jsx2("svg", { ...props, children: /* @__PURE__ */ jsx2("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", stroke: color, strokeWidth: "1.5", transform: "rotate(45 8 8)" }) });
-    // Start / seed — play triangle
-    case "start":
-    case "seed":
-    case "init":
-      return /* @__PURE__ */ jsx2("svg", { ...props, children: /* @__PURE__ */ jsx2("path", { d: "M5 3.5L12.5 8L5 12.5V3.5Z", fill: color, opacity: "0.8" }) });
-    // End / finalize — stop square
-    case "end":
-    case "finalize":
-    case "output":
-      return /* @__PURE__ */ jsx2("svg", { ...props, children: /* @__PURE__ */ jsx2("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", fill: color, opacity: "0.8" }) });
-    // Agent — person silhouette
-    case "agent":
-    case "orchestrator":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("circle", { cx: "8", cy: "5", r: "2.5", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ jsx2("path", { d: "M3.5 14C3.5 11 5.5 9 8 9S12.5 11 12.5 14", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" })
-      ] });
-    // Swarm — multi-agent
-    case "swarm":
-    case "multi-agent":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("circle", { cx: "5", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ jsx2("circle", { cx: "11", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ jsx2("circle", { cx: "8", cy: "11", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ jsx2("line", { x1: "5", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" }),
-        /* @__PURE__ */ jsx2("line", { x1: "11", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" })
-      ] });
-    // Guard / guardrail — shield
-    case "guard":
-    case "guardrail":
-    case "validate":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("path", { d: "M8 2L3 5V9C3 11.5 5 13.5 8 14.5C11 13.5 13 11.5 13 9V5L8 2Z", stroke: color, strokeWidth: "1.5", strokeLinejoin: "round" }),
-        /* @__PURE__ */ jsx2("path", { d: "M6 8L7.5 9.5L10 6.5", stroke: color, strokeWidth: "1.2", strokeLinecap: "round", strokeLinejoin: "round" })
-      ] });
-    // Stream — wave
-    case "stream":
-    case "streaming":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("path", { d: "M2 8C4 5 6 11 8 8S12 5 14 8", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
-        /* @__PURE__ */ jsx2("path", { d: "M2 11C4 8 6 14 8 11S12 8 14 11", stroke: color, strokeWidth: "1", strokeLinecap: "round", fill: "none", opacity: "0.5" })
-      ] });
-    // Memory / state — database cylinder
-    case "memory":
-    case "state":
-    case "db":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("ellipse", { cx: "8", cy: "4.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ jsx2("line", { x1: "3", y1: "4.5", x2: "3", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ jsx2("line", { x1: "13", y1: "4.5", x2: "13", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ jsx2("ellipse", { cx: "8", cy: "11.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" })
-      ] });
-    // System prompt — document with lines
-    case "system-prompt":
-    case "prompt":
-    case "instructions":
-    case "document":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("rect", { x: "3.5", y: "2", width: "9", height: "12", rx: "1.5", stroke: color, strokeWidth: "1.3", fill: "none" }),
-        /* @__PURE__ */ jsx2("line", { x1: "5.5", y1: "5", x2: "10.5", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx2("line", { x1: "5.5", y1: "7.5", x2: "10.5", y2: "7.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx2("line", { x1: "5.5", y1: "10", x2: "8.5", y2: "10", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
-      ] });
-    // Messages / conversation — chat bubble
-    case "messages":
-    case "chat":
-    case "conversation":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("rect", { x: "2.5", y: "3", width: "11", height: "8", rx: "2", stroke: color, strokeWidth: "1.3", fill: "none" }),
-        /* @__PURE__ */ jsx2("path", { d: "M5.5 11L5.5 13.5L8.5 11", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" }),
-        /* @__PURE__ */ jsx2("line", { x1: "5", y1: "6", x2: "11", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ jsx2("line", { x1: "5", y1: "8.5", x2: "9", y2: "8.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
-      ] });
-    // Loop — circular arrow
-    case "loop":
-    case "retry":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("path", { d: "M12 8A4 4 0 1 1 8 4", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
-        /* @__PURE__ */ jsx2("path", { d: "M8 1.5L10.5 4L8 6.5", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" })
-      ] });
-    // Lazy / service — cloud (deferred resolution, loaded on demand)
-    case "lazy":
-    case "service":
-    case "cloud":
-      return /* @__PURE__ */ jsx2("svg", { ...props, children: /* @__PURE__ */ jsx2(
-        "path",
-        {
-          d: "M4.5 12C2.8 12 1.5 10.7 1.5 9C1.5 7.5 2.5 6.3 3.8 6C4 4 5.8 2.5 8 2.5C9.8 2.5 11.3 3.5 11.9 5C13.9 5.2 15.5 6.8 15.5 8.8C15.5 10.8 13.9 12.5 11.8 12.5H4.5",
-          stroke: color,
-          strokeWidth: "1.3",
-          strokeLinecap: "round",
-          fill: "none"
-        }
-      ) });
-    // Decision — diamond (already handled by isDecider shape)
-    case "decision":
-    case "router":
-      return /* @__PURE__ */ jsxs("svg", { ...props, children: [
-        /* @__PURE__ */ jsx2("path", { d: "M8 2L14 8L8 14L2 8Z", stroke: color, strokeWidth: "1.5", fill: "none" }),
-        /* @__PURE__ */ jsx2("circle", { cx: "8", cy: "8", r: "1.5", fill: color })
-      ] });
-    default:
-      return null;
-  }
-}
-var StageNode = memo(function StageNode2({
-  data
-}) {
-  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts } = data;
-  const effectiveIcon = icon || (isLazy ? "lazy" : void 0);
-  const isLazyUnresolved = isLazy && !done && !active;
-  const injectedRef = useRef(false);
-  useEffect2(() => {
-    if (injectedRef.current) return;
-    if (typeof document !== "undefined" && !document.getElementById(KEYFRAMES_ID)) {
-      const styleEl = document.createElement("style");
-      styleEl.id = KEYFRAMES_ID;
-      styleEl.textContent = KEYFRAMES_CSS;
-      document.head.appendChild(styleEl);
-    }
-    injectedRef.current = true;
-  }, []);
-  const isOnPath = active || done;
-  const showRetryBadge = typeof retryAttempts === "number" && retryAttempts > 1;
-  const retryLabel = showRetryBadge ? `retried, attempt ${retryAttempts} of ${retryAttempts} ${error ? "failed" : "succeeded"}` : void 0;
-  const isHero = data.emphasis === "hero";
-  const isMuted = data.emphasis === "muted";
-  const sizeScale = data.size === "lg" ? 1.3 : data.size === "sm" ? 0.85 : 1;
-  const restingBg = isHero ? `color-mix(in srgb, ${theme.nodeMain} 12%, ${theme.bgSecondary})` : theme.bgSecondary;
-  const restingBorder = isHero ? theme.nodeMain : theme.border;
-  const restingShadow = isHero ? `0 0 10px color-mix(in srgb, ${theme.nodeMain} 22%, transparent)` : `0 2px 8px rgba(0,0,0,0.15)`;
-  const bg = active ? theme.nodeCursor : isHero && done ? theme.nodeMain : done ? theme.nodeVisited : error ? theme.error : restingBg;
-  const borderColor = active ? theme.nodeCursor : isHero && done ? theme.nodeMain : done ? theme.nodeVisited : error ? theme.error : restingBorder;
-  const shadow = active ? `0 0 22px color-mix(in srgb, ${theme.nodeCursor} 55%, transparent)` : isHero && done ? `0 0 12px color-mix(in srgb, ${theme.nodeMain} 30%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.nodeVisited} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : restingShadow;
-  const textColor = active ? "#1a1a1a" : done || error ? "#fff" : theme.textPrimary;
-  return /* @__PURE__ */ jsxs(Fragment, { children: [
-    /* @__PURE__ */ jsx2(Handle, { type: "target", position: Position.Top, style: { opacity: 0 } }),
-    /* @__PURE__ */ jsx2("div", { style: { width: "100%", display: "flex", justifyContent: "center" }, children: /* @__PURE__ */ jsxs(
-      "div",
-      {
-        style: {
-          position: "relative",
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          // Plumbing recedes. Layers with the run-overlay `dimmed` (not-yet-run)
-          // — a muted AND not-run node is faintest, which is correct.
-          opacity: isMuted ? 0.5 : void 0
-        },
-        children: [
-          stepNumbers && stepNumbers.length > 0 && isOnPath && /* @__PURE__ */ jsx2(
-            "div",
-            {
-              style: {
-                position: "absolute",
-                top: -10,
-                left: -10,
-                display: "flex",
-                gap: 3,
-                zIndex: 10
-              },
-              children: stepNumbers.map((num, i) => {
-                const isLatest = i === stepNumbers.length - 1;
-                const badgeBg = isLatest && active ? theme.nodeCursor : theme.nodeVisited;
-                const glow = isLatest && active ? `color-mix(in srgb, ${theme.nodeCursor} 50%, transparent)` : `color-mix(in srgb, ${theme.nodeVisited} 40%, transparent)`;
-                return /* @__PURE__ */ jsx2(
-                  "div",
-                  {
-                    style: {
-                      width: 22,
-                      height: 22,
-                      borderRadius: "50%",
-                      background: badgeBg,
-                      color: "#fff",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      boxShadow: `0 0 8px ${glow}`
-                    },
-                    children: num
-                  },
-                  num
-                );
-              })
-            }
-          ),
-          linked && /* @__PURE__ */ jsx2(
-            "div",
-            {
-              style: {
-                position: "absolute",
-                inset: -6,
-                borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
-                clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : void 0,
-                border: `2px solid ${theme.primary}`,
-                opacity: 0.4,
-                animation: "fp-pulse 2s ease-in-out infinite"
-              }
-            }
-          ),
-          active && /* @__PURE__ */ jsx2(
-            "div",
-            {
-              style: {
-                position: "absolute",
-                inset: -6,
-                borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
-                clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : void 0,
-                border: `2px solid ${theme.nodeCursor}`,
-                opacity: 0.3,
-                animation: "fp-pulse 1.5s ease-out infinite"
-              }
-            }
-          ),
-          active && /* @__PURE__ */ jsx2(
-            "div",
-            {
-              style: {
-                position: "absolute",
-                top: -9,
-                right: -8,
-                zIndex: 11,
-                background: theme.warning,
-                color: "#1a1a1a",
-                fontSize: 9,
-                fontWeight: 800,
-                letterSpacing: 0.6,
-                padding: "2px 6px",
-                borderRadius: 10,
-                boxShadow: `0 0 10px color-mix(in srgb, ${theme.warning} 60%, transparent)`
-              },
-              children: "NOW"
-            }
-          ),
-          showRetryBadge && /* @__PURE__ */ jsxs(
-            "div",
-            {
-              role: "img",
-              "aria-label": retryLabel,
-              title: retryLabel,
-              style: {
-                position: "absolute",
-                bottom: -9,
-                right: -8,
-                zIndex: 11,
-                display: "flex",
-                alignItems: "center",
-                gap: 2,
-                background: theme.bgSecondary,
-                border: `1px solid ${theme.warning}`,
-                color: theme.warning,
-                fontFamily: theme.fontSans,
-                fontSize: 9,
-                fontWeight: 700,
-                lineHeight: 1,
-                letterSpacing: 0.2,
-                padding: "2px 5px",
-                borderRadius: 9,
-                whiteSpace: "nowrap"
-              },
-              children: [
-                /* @__PURE__ */ jsx2("span", { "aria-hidden": "true", children: "\u21BA" }),
-                /* @__PURE__ */ jsxs("span", { "aria-hidden": "true", children: [
-                  "\xD7",
-                  retryAttempts
-                ] })
-              ]
-            }
-          ),
-          isDecider ? /* @__PURE__ */ jsxs("div", { style: { position: "relative", width: 120, height: 72 }, children: [
-            /* @__PURE__ */ jsx2(
-              "div",
-              {
-                style: {
-                  position: "absolute",
-                  inset: 0,
-                  background: bg,
-                  clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
-                  border: "none",
-                  boxShadow: shadow,
-                  transition: "all 0.3s ease"
-                }
-              }
-            ),
-            /* @__PURE__ */ jsx2(
-              "div",
-              {
-                style: {
-                  position: "absolute",
-                  inset: -2,
-                  clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
-                  background: borderColor,
-                  zIndex: -1,
-                  ...isLazyUnresolved ? {
-                    background: "transparent"
-                    // Dashed border via SVG for clip-path (CSS border doesn't work with clip-path)
-                  } : {}
-                }
-              }
-            ),
-            /* @__PURE__ */ jsxs(
-              "div",
-              {
-                style: {
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 1,
-                  fontFamily: theme.fontSans,
-                  zIndex: 1
-                },
-                children: [
-                  /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
-                    effectiveIcon && /* @__PURE__ */ jsx2(StageIcon, { type: effectiveIcon, color: textColor }),
-                    !effectiveIcon && /* @__PURE__ */ jsx2("span", { style: { fontSize: 9, color: textColor }, children: "\u25C7" }),
-                    /* @__PURE__ */ jsx2(
-                      "span",
-                      {
-                        style: {
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: textColor,
-                          whiteSpace: "nowrap"
-                        },
-                        children: label
-                      }
-                    )
-                  ] }),
-                  description && /* @__PURE__ */ jsx2(
-                    "span",
-                    {
-                      style: {
-                        fontSize: 8,
-                        fontWeight: 400,
-                        color: textColor,
-                        opacity: 0.7,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        maxWidth: 100
-                      },
-                      children: description
-                    }
-                  ),
-                  showStageId && stageId && /* @__PURE__ */ jsx2(
-                    "span",
-                    {
-                      style: {
-                        fontSize: 8,
-                        fontFamily: "ui-monospace, monospace",
-                        color: textColor,
-                        opacity: 0.55,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        maxWidth: 100
-                      },
-                      title: `stageId: ${stageId}`,
-                      children: stageId
-                    }
-                  )
-                ]
-              }
-            )
-          ] }) : (
-            /* Standard rectangular node */
-            /* @__PURE__ */ jsxs(
-              "div",
-              {
-                style: {
-                  background: bg,
-                  border: `${isHero ? "2.5px" : isMuted ? "1px" : "2px"} ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
-                  borderRadius: theme.radius,
-                  padding: description ? `${Math.round(6 * sizeScale)}px ${Math.round(12 * sizeScale)}px` : `${Math.round(7 * sizeScale)}px ${Math.round(14 * sizeScale)}px`,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: description ? 2 : 0,
-                  boxShadow: shadow,
-                  transition: "all 0.3s ease",
-                  fontFamily: theme.fontSans,
-                  minWidth: 100,
-                  justifyContent: "center"
-                },
-                children: [
-                  /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-                    effectiveIcon && /* @__PURE__ */ jsx2(StageIcon, { type: effectiveIcon, color: textColor }),
-                    done && !effectiveIcon && /* @__PURE__ */ jsx2("span", { style: { fontSize: 10, color: textColor }, children: "\u2713" }),
-                    active && !effectiveIcon && /* @__PURE__ */ jsx2(
-                      "span",
-                      {
-                        style: {
-                          width: 8,
-                          height: 8,
-                          borderRadius: "50%",
-                          background: "#fff",
-                          animation: "fp-blink 1s ease-in-out infinite",
-                          flexShrink: 0
-                        }
-                      }
-                    ),
-                    error && !effectiveIcon && /* @__PURE__ */ jsx2("span", { style: { fontSize: 10, color: textColor }, children: "\u2717" }),
-                    /* @__PURE__ */ jsx2(
-                      "span",
-                      {
-                        style: {
-                          fontSize: Math.round(13 * sizeScale),
-                          fontWeight: isHero ? 700 : 500,
-                          color: textColor,
-                          whiteSpace: "nowrap"
-                        },
-                        children: label
-                      }
-                    ),
-                    isSubflow && /* @__PURE__ */ jsx2(
-                      "span",
-                      {
-                        style: {
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          width: 16,
-                          height: 16,
-                          borderRadius: 3,
-                          border: `1.5px solid ${textColor}`,
-                          position: "relative",
-                          opacity: 0.7,
-                          flexShrink: 0
-                        },
-                        children: /* @__PURE__ */ jsx2(
-                          "span",
-                          {
-                            style: {
-                              width: 8,
-                              height: 8,
-                              borderRadius: 2,
-                              border: `1px solid ${textColor}`
-                            }
-                          }
-                        )
-                      }
-                    )
-                  ] }),
-                  description && /* @__PURE__ */ jsx2(
-                    "span",
-                    {
-                      style: {
-                        fontSize: 10,
-                        fontWeight: 400,
-                        color: textColor,
-                        opacity: 0.7,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        maxWidth: 160
-                      },
-                      children: description
-                    }
-                  ),
-                  showStageId && stageId && /* @__PURE__ */ jsx2(
-                    "span",
-                    {
-                      style: {
-                        fontSize: 9,
-                        fontFamily: "ui-monospace, monospace",
-                        color: textColor,
-                        opacity: 0.55,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        maxWidth: 160
-                      },
-                      title: `stageId: ${stageId}`,
-                      children: stageId
-                    }
-                  )
-                ]
-              }
-            )
-          )
-        ]
-      }
-    ) }),
-    /* @__PURE__ */ jsx2(Handle, { type: "source", position: Position.Bottom, style: { opacity: 0 } })
-  ] });
-});
-
-// src/components/TimeTravelDebugger/TimeTravelDebugger.tsx
-import { useState as useState5 } from "react";
-
-// src/components/FlowchartView/_internal/devWarn.ts
-function isDevModeEnv() {
-  const proc = globalThis.process;
-  return proc?.env?.NODE_ENV !== "production";
-}
-function devWarn(messageFn, ...extras) {
-  if (!isDevModeEnv()) return;
-  console.warn(messageFn(), ...extras);
-}
-
-// src/_internal/deprecate.ts
-var announced = /* @__PURE__ */ new Set();
-function warnDeprecated(what, useInstead) {
-  if (announced.has(what)) return;
-  announced.add(what);
-  devWarn(
-    () => `[footprint-explainable-ui] ${what} is deprecated and will be removed in the next major. ${useInstead}`
-  );
-}
-
-// src/components/MemoryInspector/MemoryInspector.tsx
-import { useMemo } from "react";
-
-// src/components/_internal/recordStateDisplay.tsx
-import { jsx as jsx3 } from "react/jsx-runtime";
-function recordStateDisplay(snapshot, previous) {
-  const evidence = snapshot?.recordState;
-  if (!evidence) {
-    return {
-      memory: snapshot?.memory ?? {},
-      previous: previous?.memory ?? null,
-      canCompare: true,
-      notices: []
-    };
-  }
-  if (evidence.status === "unavailable") {
-    return {
-      memory: null,
-      previous: null,
-      canCompare: false,
-      notices: [`Recorded state unavailable: ${evidence.message}`]
-    };
-  }
-  const notices = [];
-  for (const [label, state] of [
-    ["Selected state", evidence.current],
-    ["Previous recorded state", evidence.previous]
-  ]) {
-    if (state.basis === "log-only")
-      notices.push(
-        `${label}: recorded writes only; the initial state was not recorded.`
-      );
-    if (state.redacted || state.redactedPaths.length)
-      notices.push(
-        `${label}: redacted values are withheld${state.redactedPaths.length ? ` (${state.redactedPaths.join(", ")})` : ""}.`
-      );
-    for (const gap of state.skipped ?? [])
-      notices.push(`${label}: skipped record row ${gap.index}: ${gap.reason}`);
-  }
-  const complete = (state) => state.basis === "initial+log" && !state.redacted && !state.redactedPaths.length && !state.skipped?.length;
-  const canCompare = complete(evidence.current) && complete(evidence.previous);
-  if (!canCompare)
-    notices.push(
-      "Changes are not classified because one or both recorded states are incomplete."
-    );
-  return {
-    memory: evidence.current.state,
-    previous: evidence.previous.state,
-    canCompare,
-    notices
-  };
-}
-function RecordStateNotice({
-  view
-}) {
-  if (!view.notices.length) return null;
-  return /* @__PURE__ */ jsx3("div", { "data-fp": "record-state-evidence", role: "note", children: view.notices.map((notice) => /* @__PURE__ */ jsx3("p", { children: notice }, notice)) });
-}
-
-// src/components/_internal/displayValue.ts
-import { deepEqual } from "foottrace";
-
-// src/record/preview.ts
-function previewValue(value) {
-  const seen = /* @__PURE__ */ new WeakSet();
-  let remaining = 100;
-  const quote = (text) => JSON.stringify(text.length > 300 ? `${text.slice(0, 300)}\u2026` : text);
-  const own = (object, key, depth) => {
-    const property = Object.getOwnPropertyDescriptor(object, key);
-    if (!property) return "[absent]";
-    return "value" in property ? show(property.value, depth) : "[accessor not read]";
-  };
-  const show = (item, depth) => {
-    if (--remaining < 0 || depth > 4) return "[preview limit]";
-    if (item === null) return "null";
-    if (item === void 0) return "[undefined]";
-    if (typeof item === "string") return quote(item);
-    if (typeof item === "bigint") return `${item}n`;
-    if (typeof item === "number" || typeof item === "boolean")
-      return String(item);
-    if (typeof item !== "object") return `[${typeof item}]`;
-    if (seen.has(item)) return "[repeated reference]";
-    seen.add(item);
-    if (item instanceof Date) {
-      return Number.isNaN(Date.prototype.getTime.call(item)) ? "[Invalid Date]" : `Date(${Date.prototype.toISOString.call(item)})`;
-    }
-    if (item instanceof Map || item instanceof Set) {
-      const prototype2 = item instanceof Map ? Map.prototype : Set.prototype;
-      const size = Object.getOwnPropertyDescriptor(
-        prototype2,
-        "size"
-      )?.get?.call(item);
-      return `[${item instanceof Map ? "Map" : "Set"}: ${size} entries]`;
-    }
-    if (item instanceof RegExp) return "[RegExp]";
-    if (ArrayBuffer.isView(item)) return "[TypedArray or DataView]";
-    if (item instanceof ArrayBuffer) return "[ArrayBuffer]";
-    if (Array.isArray(item)) {
-      const length = Object.getOwnPropertyDescriptor(item, "length")?.value ?? 0;
-      const parts2 = Array.from(
-        { length: Math.min(length, 10) },
-        (_, index) => own(item, String(index), depth + 1)
-      );
-      if (length > 10) parts2.push("\u2026");
-      return `[${parts2.join(", ")}]`;
-    }
-    const prototype = Object.getPrototypeOf(item);
-    if (prototype !== null && prototype !== Object.prototype)
-      return "[Object preview unavailable]";
-    const parts = [];
-    for (const key in item) {
-      if (!Object.prototype.hasOwnProperty.call(item, key)) continue;
-      if (parts.length === 10 || remaining <= 0) {
-        parts.push("\u2026");
-        break;
-      }
-      parts.push(`${quote(key)}: ${own(item, key, depth + 1)}`);
-    }
-    return `{${parts.join(", ")}}`;
-  };
-  try {
-    const text = show(value, 0);
-    return text.length > 800 ? `${text.slice(0, 800)}\u2026` : text;
-  } catch {
-    return "[preview unavailable]";
-  }
-}
-
-// src/components/_internal/displayValue.ts
-function isJsonData(value, ancestors = /* @__PURE__ */ new Set()) {
-  if (value === null || typeof value === "string" || typeof value === "boolean")
-    return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (typeof value !== "object") return false;
-  const proto = Object.getPrototypeOf(value);
-  if (!Array.isArray(value) && proto !== Object.prototype && proto !== null || "toJSON" in value || ancestors.has(value))
-    return false;
-  ancestors.add(value);
-  try {
-    for (const key of Object.keys(value)) {
-      const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      if (!descriptor || !("value" in descriptor) || !isJsonData(descriptor.value, ancestors))
-        return false;
-    }
-    return true;
-  } finally {
-    ancestors.delete(value);
-  }
-}
-function jsonText(value, indent) {
-  try {
-    return isJsonData(value) ? JSON.stringify(value, null, indent) : void 0;
-  } catch {
-    return void 0;
-  }
-}
-function displayValue(value, indent) {
-  if (typeof value === "string") return `"${value}"`;
-  if (value === null || typeof value !== "object")
-    return typeof value === "bigint" ? previewValue(value) : String(value);
-  return jsonText(value, indent) ?? previewValue(value);
-}
-
-// src/components/MemoryInspector/MemoryInspector.tsx
-import { jsx as jsx4, jsxs as jsxs2 } from "react/jsx-runtime";
-function MemoryInspector({
-  data,
-  snapshots,
-  selectedIndex = 0,
-  showTypes = false,
-  highlightNew = true,
-  size = "default",
-  unstyled = false,
-  className,
-  style
-}) {
-  const { view, newKeys } = useMemo(() => {
-    if (data) {
-      return {
-        view: { memory: data, previous: null, canCompare: true, notices: [] },
-        newKeys: /* @__PURE__ */ new Set()
-      };
-    }
-    if (!snapshots || snapshots.length === 0) {
-      return { view: recordStateDisplay(), newKeys: /* @__PURE__ */ new Set() };
-    }
-    const safeIdx = Math.max(0, Math.min(selectedIndex, snapshots.length - 1));
-    const view2 = recordStateDisplay(snapshots[safeIdx], snapshots[safeIdx - 1]);
-    const nk = /* @__PURE__ */ new Set();
-    if (highlightNew && view2.canCompare && view2.memory) {
-      const prev = view2.previous ?? {};
-      for (const k of Object.keys(view2.memory)) {
-        if (!(k in prev)) nk.add(k);
-      }
-    }
-    return { view: view2, newKeys: nk };
-  }, [data, snapshots, selectedIndex, highlightNew]);
-  const memory = view.memory;
-  const entries = Object.entries(memory ?? {});
-  const fs = fontSize[size];
-  const pad = padding[size];
-  if (unstyled) {
-    return /* @__PURE__ */ jsxs2(
-      "div",
-      {
-        className,
-        style,
-        "data-fp": "memory-inspector",
-        role: "region",
-        "aria-label": "Memory state",
-        children: [
-          /* @__PURE__ */ jsx4("div", { "data-fp": "memory-label", children: "Memory State" }),
-          /* @__PURE__ */ jsx4(RecordStateNotice, { view }),
-          memory !== null && /* @__PURE__ */ jsx4("pre", { "data-fp": "memory-json", children: /* @__PURE__ */ jsx4("code", { children: displayValue(memory, 2) }) })
-        ]
-      }
-    );
-  }
-  return /* @__PURE__ */ jsxs2(
-    "div",
-    {
-      className,
-      style: {
-        padding: pad,
-        fontFamily: theme.fontSans,
-        ...style
-      },
-      "data-fp": "memory-inspector",
-      role: "region",
-      "aria-label": "Memory state",
-      children: [
-        /* @__PURE__ */ jsx4(
-          "span",
-          {
-            style: {
-              fontSize: fs.label,
-              fontWeight: 600,
-              color: theme.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em"
-            },
-            children: "Memory State"
-          }
-        ),
-        /* @__PURE__ */ jsx4(RecordStateNotice, { view }),
-        memory !== null && /* @__PURE__ */ jsxs2(
-          "div",
-          {
-            style: {
-              marginTop: 8,
-              background: theme.bgSecondary,
-              border: `1px solid ${theme.border}`,
-              borderRadius: theme.radius,
-              padding: `${pad}px ${pad + 4}px`,
-              fontFamily: theme.fontMono,
-              fontSize: fs.body,
-              lineHeight: 1.8
-            },
-            children: [
-              /* @__PURE__ */ jsx4("span", { style: { color: theme.textMuted }, children: "{" }),
-              entries.length === 0 && /* @__PURE__ */ jsx4(
-                "div",
-                {
-                  style: {
-                    paddingLeft: 16,
-                    color: theme.textMuted,
-                    fontStyle: "italic"
-                  },
-                  children: view.canCompare ? "// empty" : "// no values in the available recorded state"
-                }
-              ),
-              entries.map(([key, value], i) => {
-                const isNew = newKeys.has(key);
-                const isLast = i === entries.length - 1;
-                return /* @__PURE__ */ jsxs2(
-                  "div",
-                  {
-                    style: {
-                      paddingLeft: 16,
-                      background: isNew ? `color-mix(in srgb, ${theme.success} 10%, transparent)` : "transparent",
-                      borderRadius: 4,
-                      marginLeft: -4,
-                      marginRight: -4,
-                      paddingRight: 4
-                    },
-                    children: [
-                      /* @__PURE__ */ jsxs2("span", { style: { color: theme.primary }, children: [
-                        '"',
-                        key,
-                        '"'
-                      ] }),
-                      /* @__PURE__ */ jsx4("span", { style: { color: theme.textMuted }, children: ": " }),
-                      /* @__PURE__ */ jsx4("span", { style: { color: theme.success }, children: displayValue(value) }),
-                      showTypes && /* @__PURE__ */ jsxs2(
-                        "span",
-                        {
-                          style: {
-                            color: theme.textMuted,
-                            fontSize: fs.small,
-                            marginLeft: 8,
-                            opacity: 0.6
-                          },
-                          children: [
-                            "(",
-                            typeof value,
-                            ")"
-                          ]
-                        }
-                      ),
-                      !isLast && /* @__PURE__ */ jsx4("span", { style: { color: theme.textMuted }, children: "," })
-                    ]
-                  },
-                  key
-                );
-              }),
-              /* @__PURE__ */ jsx4("span", { style: { color: theme.textMuted }, children: "}" })
-            ]
-          }
-        )
-      ]
-    }
-  );
-}
-
-// src/components/NarrativeLog/NarrativeLog.tsx
-import { useMemo as useMemo2 } from "react";
-import { jsx as jsx5, jsxs as jsxs3 } from "react/jsx-runtime";
-function NarrativeLog({
-  snapshots,
-  selectedIndex,
-  narrative,
-  size = "default",
-  unstyled = false,
-  className,
-  style
-}) {
-  const entries = useMemo2(() => {
-    if (narrative) {
-      return [{ label: "Output", text: narrative, isCurrent: true }];
-    }
-    const idx = selectedIndex ?? snapshots.length - 1;
-    return snapshots.slice(0, idx + 1).map((s, i) => ({
-      label: s.stageLabel,
-      text: s.narrative,
-      isCurrent: i === idx
-    }));
-  }, [snapshots, selectedIndex, narrative]);
-  const fs = fontSize[size];
-  const pad = padding[size];
-  if (unstyled) {
-    return /* @__PURE__ */ jsx5("div", { className, style, "data-fp": "narrative-log", children: entries.map((entry, i) => /* @__PURE__ */ jsxs3("div", { "data-fp": "narrative-entry", "data-current": entry.isCurrent, children: [
-      /* @__PURE__ */ jsx5("strong", { children: entry.label }),
-      /* @__PURE__ */ jsx5("p", { children: entry.text })
-    ] }, i)) });
-  }
-  return /* @__PURE__ */ jsxs3(
-    "div",
-    {
-      className,
-      style: { padding: pad, fontFamily: theme.fontSans, ...style },
-      "data-fp": "narrative-log",
-      children: [
-        /* @__PURE__ */ jsx5(
-          "span",
-          {
-            style: {
-              fontSize: fs.label,
-              fontWeight: 600,
-              color: theme.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em"
-            },
-            children: "Execution Log"
-          }
-        ),
-        /* @__PURE__ */ jsx5("div", { style: { marginTop: 8, display: "flex", flexDirection: "column" }, children: entries.map((entry, i) => /* @__PURE__ */ jsxs3(
-          "div",
-          {
-            style: {
-              display: "flex",
-              gap: 10,
-              padding: `${pad}px 0`,
-              borderBottom: i < entries.length - 1 ? `1px solid ${theme.border}` : "none"
-            },
-            children: [
-              /* @__PURE__ */ jsxs3(
-                "div",
-                {
-                  style: {
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    width: 12,
-                    flexShrink: 0,
-                    paddingTop: 5
-                  },
-                  children: [
-                    /* @__PURE__ */ jsx5(
-                      "div",
-                      {
-                        style: {
-                          width: 8,
-                          height: 8,
-                          borderRadius: "50%",
-                          background: entry.isCurrent ? theme.primary : theme.success,
-                          flexShrink: 0
-                        }
-                      }
-                    ),
-                    i < entries.length - 1 && /* @__PURE__ */ jsx5(
-                      "div",
-                      {
-                        style: {
-                          width: 1,
-                          flex: 1,
-                          background: theme.border,
-                          marginTop: 4
-                        }
-                      }
-                    )
-                  ]
-                }
-              ),
-              /* @__PURE__ */ jsxs3("div", { style: { flex: 1, minWidth: 0 }, children: [
-                /* @__PURE__ */ jsx5(
-                  "span",
-                  {
-                    style: {
-                      fontSize: fs.label,
-                      fontWeight: 600,
-                      color: entry.isCurrent ? theme.primary : theme.textMuted
-                    },
-                    children: entry.label
-                  }
-                ),
-                /* @__PURE__ */ jsx5(
-                  "div",
-                  {
-                    style: {
-                      fontSize: fs.body,
-                      lineHeight: 1.5,
-                      color: entry.isCurrent ? theme.textPrimary : theme.textSecondary,
-                      marginTop: 2
-                    },
-                    children: entry.text
-                  }
-                )
-              ] })
-            ]
-          },
-          i
-        )) })
-      ]
-    }
-  );
-}
-
-// src/components/GanttTimeline/GanttTimeline.tsx
-import { useState as useState2, useMemo as useMemo3, useRef as useRef2, useEffect as useEffect3 } from "react";
-import { jsx as jsx6, jsxs as jsxs4 } from "react/jsx-runtime";
-var NO_TIMING_NOTE = "No timing recorded \u2014 bars show the order stages ran, not how long they took.";
-var NO_TIMING_HINT = "Durations come from footprintjs's metrics recorder; this run was recorded without one.";
-var NO_DURATION = "\u2014";
-function GanttTimeline({
-  snapshots,
-  selectedIndex = 0,
-  onSelect,
-  size = "default",
-  unstyled = false,
-  className,
-  style,
-  theme: themeMode,
-  maxVisibleRows = 5
-}) {
-  const [expanded, setExpanded] = useState2(false);
-  const activeRowRef = useRef2(null);
-  const scrollContainerRef = useRef2(null);
-  const totalWallTime = useMemo3(
-    () => Math.max(...snapshots.map((s) => s.startMs + s.durationMs), 1),
-    [snapshots]
-  );
-  const untimed = useMemo3(
-    () => snapshots.length > 0 && snapshots.every((s) => s.durationMs === 0),
-    [snapshots]
-  );
-  const rowDuration = (snap) => untimed ? NO_DURATION : `${snap.durationMs}ms`;
-  const rowLabel = (snap, idx) => untimed ? `${snap.stageLabel}, step ${idx + 1} of ${snapshots.length}, no timing recorded` : `${snap.stageLabel}, ${snap.durationMs}ms`;
-  const barGeometry = (snap, idx) => untimed ? { leftPct: idx / snapshots.length * 100, widthPct: 100 / snapshots.length } : {
-    leftPct: snap.startMs / totalWallTime * 100,
-    widthPct: Math.max(snap.durationMs / totalWallTime * 100, 1)
-  };
-  const fs = fontSize[size];
-  const pad = padding[size];
-  const labelWidth = size === "compact" ? 50 : size === "detailed" ? 100 : 80;
-  const msWidth = size === "compact" ? 28 : 36;
-  const rowHeight = size === "compact" ? 18 : 22;
-  const collapsible = maxVisibleRows > 0 && snapshots.length > maxVisibleRows;
-  const showAll = expanded || !collapsible;
-  useEffect3(() => {
-    if (!showAll && activeRowRef.current && scrollContainerRef.current) {
-      activeRowRef.current.scrollIntoView({
-        block: "nearest",
-        behavior: "smooth"
-      });
-    }
-  }, [selectedIndex, showAll]);
-  if (unstyled) {
-    return /* @__PURE__ */ jsxs4(
-      "div",
-      {
-        className,
-        style,
-        "data-fp": "gantt-timeline",
-        "data-timing": untimed ? "none" : void 0,
-        role: "listbox",
-        "aria-label": "Execution timeline",
-        children: [
-          snapshots.map((snap, idx) => /* @__PURE__ */ jsxs4(
-            "div",
-            {
-              "data-fp": "gantt-bar",
-              "data-selected": idx === selectedIndex,
-              "data-visible": idx <= selectedIndex,
-              role: "option",
-              "aria-selected": idx === selectedIndex,
-              "aria-label": rowLabel(snap, idx),
-              onClick: () => onSelect?.(idx),
-              children: [
-                /* @__PURE__ */ jsx6("span", { "data-fp": "gantt-label", children: snap.stageLabel }),
-                /* @__PURE__ */ jsx6("span", { "data-fp": "gantt-duration", children: rowDuration(snap) })
-              ]
-            },
-            `${snap.stageName}-${idx}`
-          )),
-          untimed && /* @__PURE__ */ jsx6("div", { "data-fp": "gantt-no-timing", title: NO_TIMING_HINT, children: NO_TIMING_NOTE })
-        ]
-      }
-    );
-  }
-  return /* @__PURE__ */ jsxs4(
-    "div",
-    {
-      className,
-      style: { ...themeModeVars(themeMode), padding: pad, fontFamily: theme.fontSans, ...style },
-      "data-fp": "gantt-timeline",
-      "data-timing": untimed ? "none" : void 0,
-      children: [
-        /* @__PURE__ */ jsxs4(
-          "div",
-          {
-            style: {
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between"
-            },
-            children: [
-              /* @__PURE__ */ jsx6(
-                "span",
-                {
-                  style: {
-                    fontSize: fs.label,
-                    fontWeight: 600,
-                    color: theme.textMuted,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em"
-                  },
-                  children: size === "compact" ? "Timeline" : "Execution Timeline"
-                }
-              ),
-              collapsible && /* @__PURE__ */ jsx6(
-                "button",
-                {
-                  onClick: () => setExpanded((e) => !e),
-                  style: {
-                    background: "none",
-                    border: `1px solid ${theme.border}`,
-                    borderRadius: 4,
-                    color: theme.textSecondary,
-                    fontSize: fs.small,
-                    padding: "2px 8px",
-                    cursor: "pointer",
-                    fontFamily: theme.fontSans
-                  },
-                  children: expanded ? "Collapse" : `${snapshots.length - maxVisibleRows} more...`
-                }
-              )
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsx6(
-          "div",
-          {
-            ref: scrollContainerRef,
-            role: "listbox",
-            "aria-label": "Execution timeline",
-            style: {
-              marginTop: 8,
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              ...showAll ? {} : {
-                maxHeight: maxVisibleRows * (rowHeight + 4),
-                overflowY: "auto",
-                scrollbarWidth: "thin"
-              }
-            },
-            children: snapshots.map((snap, idx) => {
-              const { leftPct, widthPct } = barGeometry(snap, idx);
-              const isSelected = idx === selectedIndex;
-              const isVisible = idx <= selectedIndex;
-              return /* @__PURE__ */ jsxs4(
-                "div",
-                {
-                  ref: isSelected ? activeRowRef : void 0,
-                  role: "option",
-                  "aria-selected": isSelected,
-                  "aria-label": rowLabel(snap, idx),
-                  onClick: () => onSelect?.(idx),
-                  style: {
-                    display: "flex",
-                    alignItems: "center",
-                    gap: size === "compact" ? 4 : 8,
-                    cursor: onSelect ? "pointer" : "default",
-                    opacity: isVisible ? 1 : 0.3,
-                    transition: "opacity 0.3s ease",
-                    height: rowHeight,
-                    flexShrink: 0
-                  },
-                  children: [
-                    /* @__PURE__ */ jsx6(
-                      "span",
-                      {
-                        title: snap.stageLabel,
-                        style: {
-                          width: labelWidth,
-                          fontSize: fs.small,
-                          color: isSelected ? theme.primary : theme.textMuted,
-                          fontWeight: isSelected ? 600 : 400,
-                          textAlign: "right",
-                          flexShrink: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap"
-                        },
-                        children: snap.stageLabel
-                      }
-                    ),
-                    /* @__PURE__ */ jsx6(
-                      "div",
-                      {
-                        style: {
-                          flex: 1,
-                          height: size === "compact" ? 6 : 8,
-                          position: "relative",
-                          background: theme.bgTertiary,
-                          borderRadius: 3
-                        },
-                        children: isVisible && /* @__PURE__ */ jsx6(
-                          "div",
-                          {
-                            style: {
-                              position: "absolute",
-                              left: `${leftPct}%`,
-                              top: 0,
-                              width: `${widthPct}%`,
-                              height: "100%",
-                              borderRadius: 3,
-                              background: isSelected ? theme.primary : theme.success,
-                              transition: "width 0.3s ease"
-                            }
-                          }
-                        )
-                      }
-                    ),
-                    /* @__PURE__ */ jsx6(
-                      "span",
-                      {
-                        style: {
-                          fontSize: fs.small,
-                          color: theme.textMuted,
-                          fontFamily: theme.fontMono,
-                          width: msWidth,
-                          flexShrink: 0
-                        },
-                        children: rowDuration(snap)
-                      }
-                    )
-                  ]
-                },
-                `${snap.stageName}-${idx}`
-              );
-            })
-          }
-        ),
-        untimed ? /* @__PURE__ */ jsx6(
-          "div",
-          {
-            "data-fp": "gantt-no-timing",
-            title: NO_TIMING_HINT,
-            style: {
-              marginTop: 6,
-              fontSize: fs.small,
-              color: theme.textMuted,
-              fontStyle: "italic",
-              lineHeight: 1.4
-            },
-            children: NO_TIMING_NOTE
-          }
-        ) : /* @__PURE__ */ jsxs4(
-          "div",
-          {
-            style: {
-              marginTop: 4,
-              marginLeft: labelWidth + (size === "compact" ? 4 : 8),
-              marginRight: msWidth + (size === "compact" ? 4 : 8),
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: fs.small - 1,
-              color: theme.textMuted,
-              fontFamily: theme.fontMono
-            },
-            children: [
-              /* @__PURE__ */ jsx6("span", { children: "0ms" }),
-              size !== "compact" && /* @__PURE__ */ jsxs4("span", { children: [
-                (totalWallTime / 2).toFixed(1),
-                "ms"
-              ] }),
-              /* @__PURE__ */ jsxs4("span", { children: [
-                totalWallTime.toFixed(1),
-                "ms"
-              ] })
-            ]
-          }
-        )
-      ]
-    }
-  );
-}
-
-// src/components/FlowchartView/TraceFlow.tsx
-import { useMemo as useMemo4, useCallback, useRef as useRef4, useSyncExternalStore } from "react";
-import {
-  ReactFlow,
-  Background,
-  BackgroundVariant,
-  MarkerType
-} from "@xyflow/react";
-
-// src/components/LoopBackEdge/LoopBackEdge.tsx
-import { BaseEdge, useStore } from "@xyflow/react";
-
-// src/components/FlowchartView/_internal/loopRouting.ts
-var LOOP_LANE_GAP = 56;
-function loopLaneX(contentRights, gap = LOOP_LANE_GAP) {
-  let max = -Infinity;
-  for (const r of contentRights) if (r > max) max = r;
-  if (!Number.isFinite(max)) max = 0;
-  return max + gap;
-}
-function loopBackPath(source, target, laneX, radius = 22) {
-  const { right: sx, centerY: sy } = source;
-  const { right: tx, centerY: ty } = target;
-  const r = Math.max(
-    0,
-    Math.min(radius, Math.abs(sy - ty) / 2, laneX - sx, laneX - tx)
-  );
-  const up = ty <= sy;
-  const vy1 = up ? sy - r : sy + r;
-  const vy2 = up ? ty + r : ty - r;
-  return [
-    `M ${sx},${sy}`,
-    `L ${laneX - r},${sy}`,
-    `Q ${laneX},${sy} ${laneX},${vy1}`,
-    `L ${laneX},${vy2}`,
-    `Q ${laneX},${ty} ${laneX - r},${ty}`,
-    `L ${tx},${ty}`
-  ].join(" ");
-}
-
-// src/components/FlowchartView/_internal/groupLayout.ts
-var GROUP_CONTAINER_NODE_TYPE = "groupContainer";
-var DEFAULT_PADDING = 16;
-var DEFAULT_HEADER = 44;
-var DEFAULT_NODE_W = 200;
-var DEFAULT_NODE_H = 80;
-function footprintOf(node, fallbackW, fallbackH) {
-  const style = node.style ?? {};
-  const w = typeof style.width === "number" ? style.width : fallbackW;
-  const h = typeof style.height === "number" ? style.height : fallbackH;
-  return { width: w, height: h };
-}
-function applyGroupLayout(graph, opts) {
-  const padding2 = opts.padding ?? DEFAULT_PADDING;
-  const headerHeight = opts.headerHeight ?? DEFAULT_HEADER;
-  const nodeW = opts.nodeWidth ?? DEFAULT_NODE_W;
-  const nodeH = opts.nodeHeight ?? DEFAULT_NODE_H;
-  const baseLayout = opts.baseLayout;
-  const requested = new Set(opts.groupedSubflowIds);
-  const membersBySubflow = /* @__PURE__ */ new Map();
-  for (const n of graph.nodes) {
-    const of = n.data?.subflowOf;
-    if (of !== void 0 && requested.has(of)) {
-      const arr = membersBySubflow.get(of) ?? [];
-      arr.push(n);
-      membersBySubflow.set(of, arr);
-    }
-  }
-  const mountBySubflow = /* @__PURE__ */ new Map();
-  for (const n of graph.nodes) {
-    const sfId = n.data?.subflowId;
-    if (n.data?.isSubflow && sfId !== void 0 && requested.has(sfId) && membersBySubflow.has(sfId)) {
-      mountBySubflow.set(sfId, n);
-    }
-  }
-  const activeGroups = /* @__PURE__ */ new Set();
-  for (const sfId of mountBySubflow.keys()) activeGroups.add(sfId);
-  if (activeGroups.size === 0) {
-    return graph;
-  }
-  const memberIds = /* @__PURE__ */ new Set();
-  for (const sfId of activeGroups) {
-    for (const m of membersBySubflow.get(sfId) ?? []) memberIds.add(m.id);
-  }
-  const containerNodes = [];
-  const nestedMembers = [];
-  const groupBox = /* @__PURE__ */ new Map();
-  for (const sfId of activeGroups) {
-    const members = membersBySubflow.get(sfId);
-    const innerOnlyEdges = graph.edges.filter((e) => {
-      const s = members.some((m) => m.id === e.source);
-      const t = members.some((m) => m.id === e.target);
-      return s && t;
-    });
-    const innerPositioned = baseLayout({ nodes: members, edges: innerOnlyEdges });
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const m of innerPositioned.nodes) {
-      const p = m.position;
-      const { width, height } = footprintOf(m, nodeW, nodeH);
-      if (p.x < minX) minX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.x + width > maxX) maxX = p.x + width;
-      if (p.y + height > maxY) maxY = p.y + height;
-    }
-    if (!Number.isFinite(minX)) {
-      minX = 0;
-      minY = 0;
-      maxX = 0;
-      maxY = 0;
-    }
-    const boxWidth = maxX - minX + padding2 * 2;
-    const boxHeight = maxY - minY + headerHeight + padding2 * 2;
-    groupBox.set(sfId, { width: boxWidth, height: boxHeight, minX, minY, members: innerPositioned.nodes });
-  }
-  const outerNodes = graph.nodes.filter((n) => !memberIds.has(n.id)).map((n) => {
-    const box = n.data?.subflowId ? groupBox.get(n.data.subflowId) : void 0;
-    return box ? {
-      ...n,
-      style: { ...n.style ?? {}, width: box.width, height: box.height },
-      data: { ...n.data, isGroupContainer: true }
-    } : n;
-  });
-  const outerEdges = graph.edges.filter(
-    (e) => !memberIds.has(e.source) && !memberIds.has(e.target)
-  );
-  const outerPositioned = baseLayout({ nodes: outerNodes, edges: outerEdges });
-  const outerPosById = new Map(outerPositioned.nodes.map((n) => [n.id, n.position]));
-  for (const sfId of activeGroups) {
-    const mount = mountBySubflow.get(sfId);
-    const box = groupBox.get(sfId);
-    const { width: boxWidth, height: boxHeight, minX, minY } = box;
-    const mountPos = outerPosById.get(mount.id) ?? mount.position ?? { x: 0, y: 0 };
-    containerNodes.push({
-      ...mount,
-      type: GROUP_CONTAINER_NODE_TYPE,
-      position: mountPos,
-      style: { ...mount.style ?? {}, width: boxWidth, height: boxHeight },
-      data: { ...mount.data, isGroupContainer: true }
-    });
-    for (const m of box.members) {
-      const relX = m.position.x - minX + padding2;
-      const relY = m.position.y - minY + headerHeight + padding2;
-      nestedMembers.push({
-        ...m,
-        parentId: mount.id,
-        extent: "parent",
-        position: { x: relX, y: relY }
-      });
-    }
-  }
-  const containerById = new Map(containerNodes.map((c) => [c.id, c]));
-  const outerOut = outerPositioned.nodes.map(
-    (n) => containerById.get(n.id) ?? n
-  );
-  return {
-    nodes: [...outerOut, ...nestedMembers],
-    edges: graph.edges
-  };
-}
-function createGroupedLayout(opts) {
-  return (graph) => applyGroupLayout(graph, opts);
-}
-var MAIN_CHART_BOX_ID = "__main_chart__";
-function wrapInMainChartBox(graph, opts) {
-  if (graph.nodes.length === 0) return graph;
-  const padding2 = opts.padding ?? DEFAULT_PADDING;
-  const headerHeight = opts.headerHeight ?? DEFAULT_HEADER;
-  const nodeW = opts.nodeWidth ?? DEFAULT_NODE_W;
-  const nodeH = opts.nodeHeight ?? DEFAULT_NODE_H;
-  const mainId = opts.id ?? MAIN_CHART_BOX_ID;
-  const positioned = opts.baseLayout(graph);
-  const topLevel = positioned.nodes.filter((n) => n.parentId === void 0);
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-  for (const n of topLevel) {
-    const p = n.position;
-    const { width, height } = footprintOf(n, nodeW, nodeH);
-    if (p.x < minX) minX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.x + width > maxX) maxX = p.x + width;
-    if (p.y + height > maxY) maxY = p.y + height;
-  }
-  if (!Number.isFinite(minX)) {
-    minX = 0;
-    minY = 0;
-    maxX = 0;
-    maxY = 0;
-  }
-  const hasLoopEdge = graph.edges.some((e) => e.data?.kind === "loop");
-  const loopReserve = hasLoopEdge ? LOOP_LANE_GAP : 0;
-  const boxWidth = maxX - minX + padding2 * 2 + loopReserve;
-  const boxHeight = maxY - minY + headerHeight + padding2 * 2;
-  const container = {
-    id: mainId,
-    type: GROUP_CONTAINER_NODE_TYPE,
-    position: { x: 0, y: 0 },
-    style: { width: boxWidth, height: boxHeight },
-    data: {
-      label: opts.label ?? "Chart",
-      isDecider: false,
-      isFork: false,
-      isStreaming: false,
-      isSubflow: false,
-      isGroupContainer: true,
-      isMainChart: true,
-      ...opts.kind !== void 0 && { kind: opts.kind },
-      prevIds: [],
-      nextIds: []
-    }
-  };
-  const topLevelIds = new Set(topLevel.map((n) => n.id));
-  const reparented = positioned.nodes.map((n) => {
-    if (!topLevelIds.has(n.id)) return n;
-    return {
-      ...n,
-      parentId: mainId,
-      extent: "parent",
-      position: {
-        x: n.position.x - minX + padding2,
-        y: n.position.y - minY + headerHeight + padding2
-      }
-    };
-  });
-  return { nodes: [container, ...reparented], edges: graph.edges };
-}
-function createMainChartBoxLayout(opts) {
-  return (graph) => wrapInMainChartBox(graph, opts);
-}
-
-// src/components/LoopBackEdge/LoopBackEdge.tsx
-import { jsx as jsx7 } from "react/jsx-runtime";
-var LOOP_DASH = "5 5";
-var LOOP_STROKE_OPACITY_CAP = 0.55;
-var LOOP_STROKE_WIDTH = 1.5;
-function softenLoopStyle(style) {
-  const passedStrokeOpacity = typeof style?.strokeOpacity === "number" ? style.strokeOpacity : 1;
-  return {
-    ...style,
-    strokeDasharray: style?.strokeDasharray ?? LOOP_DASH,
-    strokeOpacity: Math.min(passedStrokeOpacity, LOOP_STROKE_OPACITY_CAP),
-    strokeWidth: LOOP_STROKE_WIDTH
-  };
-}
-var LOOP_CORNER_RADIUS = 28;
-function rightEdge(node) {
-  return node.internals.positionAbsolute.x + (node.measured.width ?? 0);
-}
-function centerY(node) {
-  return node.internals.positionAbsolute.y + (node.measured.height ?? 0) / 2;
-}
-function LoopBackEdge({ id, source, target, markerEnd, style }) {
-  const path = useStore((s) => {
-    const src = s.nodeLookup.get(source);
-    const tgt = s.nodeLookup.get(target);
-    if (!src || !tgt) return "";
-    const contentRights = [];
-    for (const n of s.nodeLookup.values()) {
-      if (n.type === GROUP_CONTAINER_NODE_TYPE) continue;
-      contentRights.push(rightEdge(n));
-    }
-    const laneX = loopLaneX([...contentRights, rightEdge(src), rightEdge(tgt)], LOOP_LANE_GAP);
-    return loopBackPath(
-      { right: rightEdge(src), centerY: centerY(src) },
-      { right: rightEdge(tgt), centerY: centerY(tgt) },
-      laneX,
-      LOOP_CORNER_RADIUS
-    );
-  });
-  if (!path) return null;
-  return /* @__PURE__ */ jsx7(
-    BaseEdge,
-    {
-      id,
-      path,
-      markerEnd,
-      style: softenLoopStyle(style),
-      "aria-label": "Loop back"
-    }
-  );
-}
-
-// src/components/SmartStepEdge/SmartStepEdge.tsx
-import { BaseEdge as BaseEdge2, getSmoothStepPath, useStore as useStore2 } from "@xyflow/react";
-import { Position as Position2 } from "@xyflow/react";
-
-// src/components/FlowchartView/_internal/stepRouting.ts
-function staggeredBendY(sourceBottom, targetTop, others, minGapFromTarget = 8) {
-  let lowestSkippedBottom = -Infinity;
-  for (const n of others) {
-    const cy = (n.top + n.bottom) / 2;
-    if (cy > sourceBottom && cy < targetTop && n.bottom > lowestSkippedBottom) {
-      lowestSkippedBottom = n.bottom;
-    }
-  }
-  if (lowestSkippedBottom === -Infinity) return null;
-  return Math.min((lowestSkippedBottom + targetTop) / 2, targetTop - minGapFromTarget);
-}
-function forkFanBendY(sourceBottom, childTops, minGapFromTarget = 8) {
-  if (childTops.length < 2) return null;
-  const nearestTop = Math.min(...childTops);
-  return Math.min((sourceBottom + nearestTop) / 2, nearestTop - minGapFromTarget);
-}
-function resolveStepBendY(forkBend, staggeredBend) {
-  return staggeredBend ?? forkBend;
-}
-
-// src/components/SmartStepEdge/SmartStepEdge.tsx
-import { jsx as jsx8 } from "react/jsx-runtime";
-function SmartStepEdge({
-  id,
-  source,
-  target,
-  sourceX,
-  sourceY,
-  targetX,
-  targetY,
-  sourcePosition,
-  targetPosition,
-  markerEnd,
-  style
-}) {
-  const bendY = useStore2((s) => {
-    const src = s.nodeLookup.get(source);
-    const tgt = s.nodeLookup.get(target);
-    if (!src || !tgt) return null;
-    const sourceBottom = src.internals.positionAbsolute.y + (src.measured.height ?? 0);
-    const targetTop = tgt.internals.positionAbsolute.y;
-    const childTops = [];
-    for (const e of s.edges) {
-      if (e.source !== source) continue;
-      if (e.data?.kind === "loop") continue;
-      const c = s.nodeLookup.get(e.target);
-      if (c && c.type !== GROUP_CONTAINER_NODE_TYPE) {
-        childTops.push(c.internals.positionAbsolute.y);
-      }
-    }
-    const fan = forkFanBendY(sourceBottom, childTops);
-    const others = [];
-    for (const n of s.nodeLookup.values()) {
-      if (n.id === source || n.id === target) continue;
-      if (n.type === GROUP_CONTAINER_NODE_TYPE) continue;
-      const top = n.internals.positionAbsolute.y;
-      others.push({ top, bottom: top + (n.measured.height ?? 0) });
-    }
-    const staggered = staggeredBendY(sourceBottom, targetTop, others);
-    return resolveStepBendY(fan, staggered);
-  });
-  const [path] = getSmoothStepPath({
-    sourceX,
-    sourceY,
-    sourcePosition: sourcePosition ?? Position2.Bottom,
-    targetX,
-    targetY,
-    targetPosition: targetPosition ?? Position2.Top,
-    // Override the bend only for a staggered edge; otherwise let getSmoothStepPath
-    // use its default centerY (== the built-in `smoothstep` path, byte-for-byte).
-    ...bendY !== null ? { centerY: bendY } : {}
-  });
-  return /* @__PURE__ */ jsx8(BaseEdge2, { id, path, markerEnd, style });
-}
-
-// src/components/FlowchartView/_internal/dagreTraceLayout.ts
-import dagre from "dagre";
-var DEFAULT_NODE_W2 = 200;
-var DEFAULT_NODE_H2 = 80;
-function sizeOf(node, fallbackW, fallbackH, resolver) {
-  const style = node.style ?? {};
-  const styleW = typeof style.width === "number" ? style.width : void 0;
-  const styleH = typeof style.height === "number" ? style.height : void 0;
-  if (node.data?.isGroupContainer && styleW !== void 0 && styleH !== void 0) {
-    return { width: styleW, height: styleH };
-  }
-  const resolved = resolver?.(node);
-  if (resolved) return { width: resolved.width, height: resolved.height };
-  return {
-    width: styleW ?? fallbackW,
-    height: styleH ?? fallbackH
-  };
-}
-function reorderSiblingEdges(edges, siblingOrder) {
-  const bySource = /* @__PURE__ */ new Map();
-  for (const e of edges) {
-    if (e.data?.kind === "loop") continue;
-    const arr = bySource.get(e.source);
-    if (arr) arr.push(e);
-    else bySource.set(e.source, [e]);
-  }
-  const out = [];
-  for (const [src, group] of bySource) {
-    if (group.length < 2) {
-      out.push(...group);
-      continue;
-    }
-    const ordered = siblingOrder(src, group.map((e) => e.target));
-    const byTarget = new Map(group.map((e) => [e.target, e]));
-    const used = /* @__PURE__ */ new Set();
-    for (const t of ordered) {
-      const e = byTarget.get(t);
-      if (e && !used.has(t)) {
-        out.push(e);
-        used.add(t);
-      }
-    }
-    for (const e of group) if (!used.has(e.target)) out.push(e);
-  }
-  return out;
-}
-function dagreTraceLayout(graph, options = {}) {
-  if (graph.nodes.length === 0) return graph;
-  const direction = options.direction ?? "TB";
-  const rankSep = options.rankSep ?? 80;
-  const nodeSep = options.nodeSep ?? 60;
-  const edgeSep = options.edgeSep ?? 20;
-  const fallbackW = options.nodeWidth ?? DEFAULT_NODE_W2;
-  const fallbackH = options.nodeHeight ?? DEFAULT_NODE_H2;
-  const g = new dagre.graphlib.Graph({ compound: true });
-  g.setGraph({ rankdir: direction, ranksep: rankSep, nodesep: nodeSep, edgesep: edgeSep });
-  g.setDefaultEdgeLabel(() => ({}));
-  const sizes = /* @__PURE__ */ new Map();
-  const resolvedStyleSizes = /* @__PURE__ */ new Map();
-  for (const node of graph.nodes) {
-    const resolved = options.nodeSize?.(node);
-    const size = sizeOf(node, fallbackW, fallbackH, options.nodeSize);
-    sizes.set(node.id, size);
-    if (resolved && resolved.width === size.width && resolved.height === size.height) {
-      resolvedStyleSizes.set(node.id, resolved);
-    }
-    g.setNode(node.id, { width: size.width, height: size.height });
-    if (node.parentId) {
-      g.setParent(node.id, node.parentId);
-    }
-  }
-  const layoutEdges = options.siblingOrder ? reorderSiblingEdges(graph.edges, options.siblingOrder) : graph.edges;
-  for (const e of layoutEdges) {
-    if (e.data?.kind === "loop") continue;
-    if (g.hasNode(e.source) && g.hasNode(e.target)) {
-      const label = {};
-      const weight = options.edgeWeight?.(e);
-      const minlen = options.edgeMinLen?.(e);
-      if (typeof weight === "number") label.weight = weight;
-      if (typeof minlen === "number") label.minlen = minlen;
-      g.setEdge(e.source, e.target, label);
-    }
-  }
-  dagre.layout(g);
-  const positioned = graph.nodes.map((node) => {
-    const laidOut = g.node(node.id);
-    if (!laidOut) return node;
-    const size = sizes.get(node.id);
-    let x = laidOut.x - size.width / 2;
-    let y = laidOut.y - size.height / 2;
-    if (node.parentId) {
-      const parent = g.node(node.parentId);
-      const parentSize = sizes.get(node.parentId);
-      if (parent && parentSize) {
-        x -= parent.x - parentSize.width / 2;
-        y -= parent.y - parentSize.height / 2;
-      }
-    }
-    const styleSize = resolvedStyleSizes.get(node.id);
-    if (styleSize) {
-      return {
-        ...node,
-        position: { x, y },
-        style: { ...node.style ?? {}, width: styleSize.width, height: styleSize.height }
-      };
-    }
-    return { ...node, position: { x, y } };
-  });
-  return { nodes: positioned, edges: graph.edges };
-}
-function createDagreTraceLayout(options = {}) {
-  return (graph) => dagreTraceLayout(graph, options);
-}
-
-// src/components/FlowchartView/_internal/useChartAutoRefit.ts
-import { useEffect as useEffect4, useRef as useRef3 } from "react";
-import { useReactFlow, useStoreApi } from "@xyflow/react";
-
-// src/components/FlowchartView/_internal/chartFitGeometry.ts
-import { getViewportForBounds } from "@xyflow/react";
-var positiveFinite = (value) => typeof value === "number" && Number.isFinite(value) && value > 0;
-function measuredChartBounds(nodes) {
-  let left = Infinity;
-  let top = Infinity;
-  let right = -Infinity;
-  let bottom = -Infinity;
-  for (const node of nodes.values()) {
-    if (node.hidden) continue;
-    const width2 = node.measured?.width;
-    const height2 = node.measured?.height;
-    const { x, y } = node.internals.positionAbsolute;
-    if (!positiveFinite(width2) || !positiveFinite(height2) || !Number.isFinite(x) || !Number.isFinite(y)) {
-      return null;
-    }
-    left = Math.min(left, x);
-    top = Math.min(top, y);
-    right = Math.max(right, x + width2);
-    bottom = Math.max(bottom, y + height2);
-  }
-  const width = right - left;
-  const height = bottom - top;
-  if (!Number.isFinite(left) || !Number.isFinite(top) || !positiveFinite(width) || !positiveFinite(height)) return null;
-  return { x: left, y: top, width, height };
-}
-function chartFitViewport(state, padding2) {
-  if (!positiveFinite(state.width) || !positiveFinite(state.height) || !positiveFinite(state.minZoom) || !positiveFinite(state.maxZoom) || state.maxZoom < state.minZoom || !Number.isFinite(padding2) || padding2 < 0) return null;
-  const bounds = measuredChartBounds(state.nodeLookup);
-  if (!bounds) return null;
-  const viewport = getViewportForBounds(bounds, state.width, state.height, state.minZoom, state.maxZoom, padding2);
-  return Number.isFinite(viewport.x) && Number.isFinite(viewport.y) && positiveFinite(viewport.zoom) ? viewport : null;
-}
-function chartMeasurementKey(state) {
-  return JSON.stringify([
-    state.width,
-    state.height,
-    state.minZoom,
-    state.maxZoom,
-    measuredChartBounds(state.nodeLookup) !== null,
-    Array.from(state.nodeLookup, ([id, node]) => node.hidden ? [id, "hidden"] : [id, node.measured?.width, node.measured?.height])
-  ]);
-}
-function chartLayoutKey(nodes) {
-  return JSON.stringify(nodes.map((node) => [
-    node.id,
-    node.parentId,
-    node.hidden,
-    node.position.x,
-    node.position.y,
-    node.origin,
-    node.width,
-    node.height
-  ]));
-}
-function chartTopologyKey(nodes) {
-  return JSON.stringify(nodes.map((node) => [node.id, node.parentId, node.hidden]));
-}
-
-// src/components/FlowchartView/_internal/useChartAutoRefit.ts
-function hasVisibleArea(element) {
-  if (!element) return false;
-  const { width, height } = element.getBoundingClientRect();
-  return positiveFinite(width) && positiveFinite(height);
-}
-function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey, layoutKey }) {
-  const store = useStoreApi();
-  const { setViewport } = useReactFlow();
-  const requestLayoutFit = useRef3(null);
-  useEffect4(() => {
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
-    let disposed = false;
-    let frame = null;
-    let pane = null;
-    let measurementKey = chartMeasurementKey(store.getState());
-    let panZoom = store.getState().panZoom;
-    let lastTransform = [...store.getState().transform];
-    let autoOwned = true;
-    let pendingFit = true;
-    let applyingFit = false;
-    let lastSuccessfulViewport = null;
-    const readContainerKey = () => {
-      const state = store.getState();
-      const outer = wrapper.getBoundingClientRect();
-      const inner = state.domNode?.getBoundingClientRect();
-      return JSON.stringify([outer.width, outer.height, inner?.width, inner?.height, state.width, state.height]);
-    };
-    let containerKey = readContainerKey();
-    const cancelFrame = () => {
-      if (frame !== null) cancelAnimationFrame(frame);
-      frame = null;
-    };
-    const requestFit = () => {
-      if (disposed || !pendingFit) return;
-      cancelFrame();
-      frame = requestAnimationFrame(() => {
-        frame = null;
-        if (disposed || !pendingFit) return;
-        const state = store.getState();
-        if (!state.panZoom || !hasVisibleArea(wrapper) || !hasVisibleArea(state.domNode)) return;
-        const viewport = chartFitViewport(state, padding2);
-        if (!viewport) return;
-        pendingFit = false;
-        lastSuccessfulViewport = JSON.stringify(viewport);
-        applyingFit = true;
-        try {
-          void setViewport(viewport, { duration: 0 });
-        } finally {
-          applyingFit = false;
-        }
-      });
-    };
-    const requestIntent = () => {
-      autoOwned = true;
-      pendingFit = true;
-      requestFit();
-    };
-    const checkContainer = () => {
-      const nextKey = readContainerKey();
-      if (nextKey === containerKey) {
-        requestFit();
-        return;
-      }
-      containerKey = nextKey;
-      requestIntent();
-    };
-    requestLayoutFit.current = () => {
-      if (!autoOwned) return;
-      pendingFit = true;
-      requestFit();
-    };
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(checkContainer);
-    observer?.observe(wrapper);
-    const observePane = () => {
-      const current = store.getState().domNode;
-      if (current === pane) return false;
-      if (pane && pane !== wrapper) observer?.unobserve(pane);
-      pane = current;
-      if (pane && pane !== wrapper) observer?.observe(pane);
-      return true;
-    };
-    observePane();
-    const unsubscribe = store.subscribe((state) => {
-      const cameraChanged = state.transform.some((value, index) => value !== lastTransform[index]);
-      lastTransform = [...state.transform];
-      if (cameraChanged && !applyingFit) {
-        autoOwned = false;
-        pendingFit = false;
-        cancelFrame();
-      }
-      const paneChanged = observePane();
-      const nextKey = chartMeasurementKey(state);
-      const measurementsChanged = nextKey !== measurementKey;
-      const viewportChanged = state.panZoom !== panZoom;
-      measurementKey = nextKey;
-      panZoom = state.panZoom;
-      if (paneChanged || viewportChanged) requestIntent();
-      if (measurementsChanged) {
-        checkContainer();
-        const viewport = chartFitViewport(state, padding2);
-        if (autoOwned && viewport && JSON.stringify(viewport) !== lastSuccessfulViewport) pendingFit = true;
-        requestFit();
-      }
-    });
-    window.addEventListener("resize", checkContainer);
-    requestFit();
-    return () => {
-      disposed = true;
-      unsubscribe();
-      observer?.disconnect();
-      requestLayoutFit.current = null;
-      window.removeEventListener("resize", checkContainer);
-      cancelFrame();
-    };
-  }, [store, setViewport, wrapperRef, padding2, refitKey]);
-  useEffect4(() => {
-    requestLayoutFit.current?.();
-  }, [layoutKey]);
-}
-function ChartAutoRefit(props) {
-  useChartAutoRefit(props);
-  return null;
-}
-
-// src/components/FlowchartView/TraceFlow.tsx
-import { jsx as jsx9, jsxs as jsxs5 } from "react/jsx-runtime";
 var Y_STEP = 100;
 var X_SPREAD = 200;
 var defaultTraceFlowLayout = (graph) => {
@@ -2385,34 +168,34 @@ function TraceFlow(props) {
     );
   }
   const layout = props.layout ?? dagreTraceLayout;
-  const edgeColors = useMemo4(
+  const edgeColors = useMemo(
     () => ({ ...DEFAULT_EDGE_COLORS, ...props.edgeColors ?? {} }),
     [props.edgeColors]
   );
-  const subscribe = useMemo4(
+  const subscribe = useMemo(
     () => subscribeToRecorder(props.recorder),
     [props.recorder]
   );
-  const getVersion = useMemo4(
+  const getVersion = useMemo(
     () => getRecorderVersion(props.recorder),
     [props.recorder]
   );
   const version = useSyncExternalStore(subscribe, getVersion, getVersion);
   const { recorder, graph: graphProp } = props;
-  const graph = useMemo4(() => {
+  const graph = useMemo(() => {
     if (recorder) return recorder.getGraph();
     if (graphProp) return graphProp;
     return EMPTY_GRAPH;
   }, [recorder, graphProp, version]);
-  const positioned = useMemo4(() => {
+  const positioned = useMemo(() => {
     if (layout === "passthrough") return graph;
     return layout(graph);
   }, [graph, layout]);
-  const reactFlowNodes = useMemo4(
+  const reactFlowNodes = useMemo(
     () => positioned.nodes.map(toStageNode),
     [positioned.nodes]
   );
-  const reactFlowEdges = useMemo4(
+  const reactFlowEdges = useMemo(
     () => positioned.edges.map((e) => styleEdge(e, edgeColors)),
     [positioned.edges, edgeColors]
   );
@@ -2424,17 +207,17 @@ function TraceFlow(props) {
     [onNodeClickRef]
   );
   const { nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes } = props;
-  const mergedNodeTypes = useMemo4(
+  const mergedNodeTypes = useMemo(
     () => userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES,
     [userNodeTypes]
   );
-  const mergedEdgeTypes = useMemo4(
+  const mergedEdgeTypes = useMemo(
     () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES, ...userEdgeTypes } : DEFAULT_EDGE_TYPES,
     [userEdgeTypes]
   );
-  const wrapperRef = useRef4(null);
+  const wrapperRef = useRef(null);
   const refitKey = chartLayoutKey(positioned.nodes);
-  return /* @__PURE__ */ jsx9(
+  return /* @__PURE__ */ jsx(
     "div",
     {
       ref: wrapperRef,
@@ -2445,7 +228,7 @@ function TraceFlow(props) {
         minHeight: 300,
         ...props.style
       },
-      children: /* @__PURE__ */ jsxs5(
+      children: /* @__PURE__ */ jsxs(
         ReactFlow,
         {
           nodes: reactFlowNodes,
@@ -2455,8 +238,8 @@ function TraceFlow(props) {
           onNodeClick: handleNodeClick,
           proOptions: { hideAttribution: true },
           children: [
-            /* @__PURE__ */ jsx9(ChartAutoRefit, { wrapperRef, refitKey }),
-            /* @__PURE__ */ jsx9(Background, { variant: BackgroundVariant.Dots, gap: 20, size: 1 }),
+            /* @__PURE__ */ jsx(ChartAutoRefit, { wrapperRef, refitKey }),
+            /* @__PURE__ */ jsx(Background, { variant: BackgroundVariant.Dots, gap: 20, size: 1 }),
             props.children
           ]
         }
@@ -2464,1111 +247,6 @@ function TraceFlow(props) {
     }
   );
 }
-
-// src/components/FlowchartView/TracedFlow.tsx
-import { useCallback as useCallback3, useEffect as useEffect7, useMemo as useMemo5, useRef as useRef6, useState as useState4 } from "react";
-import {
-  ReactFlow as ReactFlow2,
-  Background as Background2,
-  BackgroundVariant as BackgroundVariant2,
-  MarkerType as MarkerType2
-} from "@xyflow/react";
-
-// src/components/FlowchartView/_internal/snapLinearSuccessors.ts
-function snapLinearSuccessors(graph, options = {}) {
-  if (graph.nodes.length === 0) return graph;
-  const fallbackW = options.nodeWidth ?? DEFAULT_NODE_W2;
-  const fallbackH = options.nodeHeight ?? DEFAULT_NODE_H2;
-  const byId = /* @__PURE__ */ new Map();
-  const width = /* @__PURE__ */ new Map();
-  for (const n of graph.nodes) {
-    byId.set(n.id, n);
-    width.set(n.id, sizeOf(n, fallbackW, fallbackH, options.nodeSize).width);
-  }
-  const preds = /* @__PURE__ */ new Map();
-  const outDegree = /* @__PURE__ */ new Map();
-  const seenEdge = /* @__PURE__ */ new Set();
-  for (const e of graph.edges) {
-    if (e.data?.kind === "loop") continue;
-    if (!byId.has(e.source) || !byId.has(e.target)) continue;
-    const key = `${e.source}\0${e.target}`;
-    if (seenEdge.has(key)) continue;
-    seenEdge.add(key);
-    const list = preds.get(e.target);
-    if (list) list.push(e.source);
-    else preds.set(e.target, [e.source]);
-    outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
-  }
-  const workingX = /* @__PURE__ */ new Map();
-  for (const n of graph.nodes) workingX.set(n.id, n.position.x);
-  const centerX = (id) => workingX.get(id) + width.get(id) / 2;
-  const order = [...graph.nodes].sort(
-    (a, b) => a.position.y - b.position.y || a.position.x - b.position.x || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-  );
-  for (const n of order) {
-    const p = preds.get(n.id);
-    if (!p || p.length !== 1) continue;
-    const pid = p[0];
-    if ((outDegree.get(pid) ?? 0) !== 1) continue;
-    const P = byId.get(pid);
-    if ((n.parentId ?? void 0) !== (P.parentId ?? void 0)) continue;
-    workingX.set(n.id, centerX(pid) - width.get(n.id) / 2);
-  }
-  const nodes = graph.nodes.map((n) => {
-    const nx = workingX.get(n.id);
-    return nx === n.position.x ? n : { ...n, position: { x: nx, y: n.position.y } };
-  });
-  return { nodes, edges: graph.edges };
-}
-function createSnappedDagreLayout(base, options = {}) {
-  return (graph) => snapLinearSuccessors(base(graph), options);
-}
-
-// src/components/FlowchartView/_internal/centerForkParents.ts
-function centerForkParents(graph, options = {}) {
-  if (graph.nodes.length === 0) return graph;
-  const fallbackW = options.nodeWidth ?? DEFAULT_NODE_W2;
-  const fallbackH = options.nodeHeight ?? DEFAULT_NODE_H2;
-  const byId = /* @__PURE__ */ new Map();
-  const width = /* @__PURE__ */ new Map();
-  for (const n of graph.nodes) {
-    byId.set(n.id, n);
-    width.set(n.id, sizeOf(n, fallbackW, fallbackH, options.nodeSize).width);
-  }
-  const childrenOf = /* @__PURE__ */ new Map();
-  const predsOf = /* @__PURE__ */ new Map();
-  const outDegree = /* @__PURE__ */ new Map();
-  const inDegree = /* @__PURE__ */ new Map();
-  const seen = /* @__PURE__ */ new Set();
-  for (const e of graph.edges) {
-    if (e.data?.kind === "loop") continue;
-    if (!byId.has(e.source) || !byId.has(e.target)) continue;
-    const key = `${e.source} ${e.target}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const cl = childrenOf.get(e.source);
-    if (cl) cl.push(e.target);
-    else childrenOf.set(e.source, [e.target]);
-    const pl = predsOf.get(e.target);
-    if (pl) pl.push(e.source);
-    else predsOf.set(e.target, [e.source]);
-    outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
-    inDegree.set(e.target, (inDegree.get(e.target) ?? 0) + 1);
-  }
-  const workingX = /* @__PURE__ */ new Map();
-  for (const n of graph.nodes) workingX.set(n.id, n.position.x);
-  const centerX = (id) => workingX.get(id) + width.get(id) / 2;
-  const nodeSep = options.nodeSep ?? 60;
-  const clampX = (id, desiredX) => {
-    const w = width.get(id);
-    const x0 = workingX.get(id);
-    const self = byId.get(id);
-    let minX = -Infinity;
-    let maxX = Infinity;
-    for (const m of graph.nodes) {
-      if (m.id === id || m.parentId !== self.parentId) continue;
-      if (Math.abs(m.position.y - self.position.y) > 1) continue;
-      const mLeft = workingX.get(m.id);
-      const mRight = mLeft + width.get(m.id);
-      if (mRight <= x0) minX = Math.max(minX, mRight + nodeSep);
-      else if (mLeft >= x0 + w) maxX = Math.min(maxX, mLeft - nodeSep - w);
-    }
-    return minX <= maxX ? Math.max(minX, Math.min(maxX, desiredX)) : x0;
-  };
-  const evenFanKids = (forkCenter, kids) => {
-    if (kids.length < 2) return;
-    const sorted = [...kids].sort((a, b) => centerX(a) - centerX(b));
-    let gap = 0;
-    for (let i = 0; i < sorted.length - 1; i++) {
-      gap = Math.max(gap, width.get(sorted[i]) / 2 + nodeSep + width.get(sorted[i + 1]) / 2);
-    }
-    const mid = (sorted.length - 1) / 2;
-    for (let i = 0; i < sorted.length; i++) {
-      workingX.set(sorted[i], forkCenter + (i - mid) * gap - width.get(sorted[i]) / 2);
-    }
-  };
-  const order = [...graph.nodes].sort(
-    (a, b) => b.position.y - a.position.y || a.position.x - b.position.x || a.id.localeCompare(b.id)
-  );
-  for (const n of order) {
-    const outD = outDegree.get(n.id) ?? 0;
-    const inD = inDegree.get(n.id) ?? 0;
-    const isFork = outD >= 2 && inD <= 1;
-    const isMerge = inD >= 2 && outD <= 1;
-    if (!isFork && !isMerge) continue;
-    const kin = ((isFork ? childrenOf.get(n.id) : predsOf.get(n.id)) ?? []).filter(
-      (k) => byId.get(k)?.parentId === n.parentId
-      // same compound only
-    );
-    if (kin.length < 2) continue;
-    const centers = kin.map(centerX);
-    const wN = width.get(n.id);
-    const span = (Math.min(...centers) + Math.max(...centers)) / 2;
-    workingX.set(n.id, clampX(n.id, span - wN / 2));
-    if (isFork) {
-      const succSets = kin.map((k) => childrenOf.get(k) ?? []);
-      const isDiamond = kin.length >= 2 && succSets[0].some((s) => succSets.every((ss) => ss.includes(s)));
-      if (isDiamond) evenFanKids(centerX(n.id), kin);
-    }
-    const stepOf = isFork ? predsOf : childrenOf;
-    let curId = n.id;
-    const walked = /* @__PURE__ */ new Set([curId]);
-    for (; ; ) {
-      const nexts = stepOf.get(curId);
-      if (!nexts || nexts.length !== 1) break;
-      const m = nexts[0];
-      if (walked.has(m)) break;
-      if ((outDegree.get(m) ?? 0) > 1) break;
-      if ((inDegree.get(m) ?? 0) > 1) break;
-      if (byId.get(m)?.parentId !== byId.get(curId)?.parentId) break;
-      workingX.set(m, clampX(m, centerX(curId) - width.get(m) / 2));
-      walked.add(m);
-      curId = m;
-    }
-  }
-  for (const n of order) {
-    const outD = outDegree.get(n.id) ?? 0;
-    const inD = inDegree.get(n.id) ?? 0;
-    if (!(outD >= 2 && inD <= 1)) continue;
-    const kids = (childrenOf.get(n.id) ?? []).filter(
-      (k) => byId.get(k)?.parentId === n.parentId
-    );
-    if (kids.length < 2) continue;
-    const succSets = kids.map((k) => childrenOf.get(k) ?? []);
-    const isDiamond = succSets[0].some((s) => succSets.every((ss) => ss.includes(s)));
-    if (isDiamond) continue;
-    const ps = predsOf.get(n.id);
-    if (!ps || ps.length !== 1) continue;
-    const pred = ps[0];
-    if ((outDegree.get(pred) ?? 0) !== 1) continue;
-    if (byId.get(pred)?.parentId !== byId.get(n.id)?.parentId) continue;
-    const before = centerX(n.id);
-    workingX.set(n.id, clampX(n.id, centerX(pred) - width.get(n.id) / 2));
-    const delta = centerX(n.id) - before;
-    if (delta === 0) continue;
-    for (const k of kids) workingX.set(k, clampX(k, workingX.get(k) + delta));
-  }
-  const nodes = graph.nodes.map(
-    (n) => workingX.get(n.id) === n.position.x ? n : { ...n, position: { x: workingX.get(n.id), y: n.position.y } }
-  );
-  return { nodes, edges: graph.edges };
-}
-function withForkCentering(base, options = {}) {
-  return (graph) => centerForkParents(base(graph), options);
-}
-
-// src/components/FlowchartView/_internal/notifyChange.ts
-function createNotifier(label = "notifier") {
-  const listeners = /* @__PURE__ */ new Set();
-  let v2 = 0;
-  let pending = false;
-  function flush() {
-    if (!pending) return;
-    pending = false;
-    const snapshot = Array.from(listeners);
-    for (const l of snapshot) {
-      try {
-        l();
-      } catch (err) {
-        devWarn(
-          () => `[${label}] subscribe() listener threw \u2014 isolated; other subscribers continue.`,
-          err
-        );
-      }
-    }
-  }
-  return {
-    subscribe(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-    version() {
-      return v2;
-    },
-    notify() {
-      v2 += 1;
-      if (pending) return;
-      pending = true;
-      queueMicrotask(flush);
-    },
-    flushPending() {
-      flush();
-    }
-  };
-}
-
-// src/components/FlowchartView/createTraceRuntimeOverlay.ts
-function parseStageIdFromRuntimeStageId(runtimeStageId) {
-  const hashIdx = runtimeStageId.indexOf("#");
-  return hashIdx >= 0 ? runtimeStageId.slice(0, hashIdx) : runtimeStageId;
-}
-function createTraceRuntimeOverlay(options = {}) {
-  const id = options.id ?? "trace-runtime-overlay";
-  const startTime = performance.now();
-  let executionOrder = [];
-  const recordedRuntimeStageIds = /* @__PURE__ */ new Set();
-  const errors = /* @__PURE__ */ new Map();
-  const retryAttempts = /* @__PURE__ */ new Map();
-  let running = false;
-  const notifier = createNotifier("traceRuntimeOverlay");
-  const notifyChange = notifier.notify;
-  function pushStep(runtimeStageId, stageId, stageName) {
-    if (recordedRuntimeStageIds.has(runtimeStageId)) return;
-    recordedRuntimeStageIds.add(runtimeStageId);
-    executionOrder.push({
-      runtimeStageId,
-      stageId,
-      stageName,
-      timestampMs: performance.now() - startTime
-    });
-    notifyChange();
-  }
-  const recorder = {
-    id,
-    onRunStart() {
-      running = true;
-      notifyChange();
-    },
-    onRunEnd() {
-      running = false;
-      notifyChange();
-    },
-    onStageExecuted(event) {
-      const runtimeStageId = event.traversalContext.runtimeStageId;
-      const baseStageId = parseStageIdFromRuntimeStageId(runtimeStageId);
-      pushStep(runtimeStageId, baseStageId, event.stageName);
-    },
-    onStageRetry(event) {
-      const runtimeStageId = event.traversalContext?.runtimeStageId;
-      if (!runtimeStageId) return;
-      const attempt = event.attempt;
-      const attemptsMade = typeof attempt === "number" && Number.isFinite(attempt) && attempt >= 1 ? Math.floor(attempt) + 1 : (retryAttempts.get(runtimeStageId) ?? 1) + 1;
-      const known = retryAttempts.get(runtimeStageId) ?? 1;
-      if (attemptsMade > known) {
-        retryAttempts.set(runtimeStageId, attemptsMade);
-        notifyChange();
-      }
-    },
-    onError(event) {
-      const fallbackId = event.stageId ?? (event.traversalContext ? parseStageIdFromRuntimeStageId(event.traversalContext.runtimeStageId) : event.stageName);
-      errors.set(fallbackId, event.message ?? "error");
-      notifyChange();
-    }
-  };
-  return {
-    recorder,
-    getOverlay() {
-      return {
-        executionOrder: executionOrder.map((s) => ({ ...s })),
-        errors: new Map(errors),
-        running,
-        retryAttempts: new Map(retryAttempts)
-      };
-    },
-    subscribe: notifier.subscribe,
-    version: notifier.version,
-    reset() {
-      executionOrder = [];
-      recordedRuntimeStageIds.clear();
-      errors.clear();
-      retryAttempts.clear();
-      running = false;
-    },
-    seed(overlay) {
-      executionOrder = overlay.executionOrder.map((s) => ({ ...s }));
-      recordedRuntimeStageIds.clear();
-      for (const step of executionOrder) recordedRuntimeStageIds.add(step.runtimeStageId);
-      errors.clear();
-      for (const [stageId, message] of overlay.errors) errors.set(stageId, message);
-      retryAttempts.clear();
-      if (overlay.retryAttempts) {
-        for (const [rsid, attempts] of overlay.retryAttempts) retryAttempts.set(rsid, attempts);
-      }
-      running = overlay.running;
-      notifyChange();
-    }
-  };
-}
-function sliceOverlay(overlay, index) {
-  const order = overlay.executionOrder;
-  if (order.length === 0) {
-    return {
-      doneStageIds: /* @__PURE__ */ new Set(),
-      activeStageId: null,
-      executedStageIds: /* @__PURE__ */ new Set(),
-      executedOrderIds: [],
-      errors: overlay.errors,
-      retryAttempts: projectRetryAttempts(overlay, -1)
-    };
-  }
-  if (index >= order.length) {
-    const allDone = new Set(order.map((s) => s.stageId));
-    return {
-      doneStageIds: allDone,
-      activeStageId: null,
-      executedStageIds: new Set(allDone),
-      executedOrderIds: order.map((s) => s.stageId),
-      errors: overlay.errors,
-      retryAttempts: projectRetryAttempts(overlay, order.length - 1)
-    };
-  }
-  const clampedIndex = Math.max(0, Math.min(index, order.length - 1));
-  const doneStageIds = /* @__PURE__ */ new Set();
-  for (let i = 0; i < clampedIndex; i++) {
-    doneStageIds.add(order[i].stageId);
-  }
-  const activeStep = order[clampedIndex];
-  const activeStageId = activeStep ? activeStep.stageId : null;
-  const executedStageIds = new Set(doneStageIds);
-  if (activeStageId) executedStageIds.add(activeStageId);
-  const executedOrderIds = order.slice(0, clampedIndex + 1).map((s) => s.stageId);
-  return {
-    doneStageIds,
-    activeStageId,
-    executedStageIds,
-    executedOrderIds,
-    errors: overlay.errors,
-    retryAttempts: projectRetryAttempts(overlay, clampedIndex)
-  };
-}
-var NO_RETRIES = /* @__PURE__ */ new Map();
-function projectRetryAttempts(overlay, upToIndex) {
-  const source = overlay.retryAttempts;
-  if (!source || source.size === 0) return NO_RETRIES;
-  const order = overlay.executionOrder;
-  const out = /* @__PURE__ */ new Map();
-  for (let i = 0; i <= upToIndex && i < order.length; i++) {
-    const step = order[i];
-    const attempts = source.get(step.runtimeStageId);
-    if (attempts !== void 0 && attempts > 1) out.set(step.stageId, attempts);
-  }
-  const stepped = new Set(order.map((s) => s.runtimeStageId));
-  for (const [runtimeStageId, attempts] of source) {
-    if (attempts > 1 && !stepped.has(runtimeStageId)) {
-      out.set(parseStageIdFromRuntimeStageId(runtimeStageId), attempts);
-    }
-  }
-  return out;
-}
-
-// src/components/FlowchartView/_internal/subflowDrill.ts
-function findMountNode(graph, drillKey) {
-  return graph.nodes.find((n) => n.id === drillKey && n.data?.isSubflow === true) ?? graph.nodes.find((n) => n.data?.isSubflow === true && n.data?.subflowId === drillKey);
-}
-function resolveDrillScope(graph, drillKey) {
-  for (const n of graph.nodes) {
-    if (n.data?.subflowOf === drillKey) return drillKey;
-  }
-  const local = graph.nodes.find((n) => n.id === drillKey)?.data?.subflowId;
-  if (typeof local === "string" && local !== drillKey) {
-    for (const n of graph.nodes) {
-      if (n.data?.subflowOf === local) return local;
-    }
-  }
-  const mount = graph.nodes.find(
-    (n) => n.data?.isSubflow === true && n.data?.subflowId === drillKey
-  );
-  if (mount !== void 0 && mount.id !== drillKey) {
-    for (const n of graph.nodes) {
-      if (n.data?.subflowOf === mount.id) return mount.id;
-    }
-  }
-  return drillKey;
-}
-function filterGraphForDrill(graph, currentSubflowId) {
-  if (graph.nodes.length === 0) return graph;
-  const scope = currentSubflowId === null ? null : resolveDrillScope(graph, currentSubflowId);
-  const matchesScope = (subflowOf) => scope === null ? subflowOf === void 0 : subflowOf === scope;
-  const visibleIds = /* @__PURE__ */ new Set();
-  for (const n of graph.nodes) {
-    if (matchesScope(n.data?.subflowOf)) visibleIds.add(n.id);
-  }
-  if (visibleIds.size === graph.nodes.length) return graph;
-  return {
-    nodes: graph.nodes.filter((n) => visibleIds.has(n.id)),
-    edges: graph.edges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
-  };
-}
-function buildSubflowBreadcrumb(graph, currentSubflowId) {
-  const trail = [];
-  const seen = /* @__PURE__ */ new Set();
-  let key = currentSubflowId ?? void 0;
-  while (key !== void 0 && !seen.has(key)) {
-    seen.add(key);
-    const mount = findMountNode(graph, key);
-    if (mount === void 0) {
-      trail.unshift({ subflowId: key, label: key });
-      break;
-    }
-    trail.unshift({ subflowId: mount.id, label: mount.data?.label ?? mount.id });
-    key = mount.data?.subflowOf;
-  }
-  return [{ subflowId: null, label: "Chart" }, ...trail];
-}
-
-// src/components/FlowchartView/_internal/collapseGraph.ts
-function scopesOf(node) {
-  const local = node.data?.subflowId;
-  return typeof local === "string" && local !== node.id ? [node.id, local] : [node.id];
-}
-function collapseTraceGraph(graph, hide) {
-  const hiddenNodeIds = [];
-  const removed = /* @__PURE__ */ new Set();
-  const removedScopes = /* @__PURE__ */ new Set();
-  for (const node of graph.nodes) {
-    if (!hide(node)) continue;
-    hiddenNodeIds.push(node.id);
-    removed.add(node.id);
-    for (const scope of scopesOf(node)) removedScopes.add(scope);
-  }
-  if (hiddenNodeIds.length === 0) return { graph, hiddenNodeIds };
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const node of graph.nodes) {
-      if (removed.has(node.id)) continue;
-      const parent = node.data?.subflowOf;
-      if (parent !== void 0 && removedScopes.has(parent)) {
-        removed.add(node.id);
-        for (const scope of scopesOf(node)) removedScopes.add(scope);
-        grew = true;
-      }
-    }
-  }
-  const viaOf = (e) => Array.isArray(e.data?.via) ? e.data.via : [];
-  let edges = [...graph.edges];
-  for (const hiddenId of removed) {
-    const incoming = edges.filter((e) => e.target === hiddenId && e.source !== hiddenId);
-    const outgoing = edges.filter((e) => e.source === hiddenId && e.target !== hiddenId);
-    edges = edges.filter((e) => e.source !== hiddenId && e.target !== hiddenId);
-    for (const inEdge of incoming) {
-      for (const outEdge of outgoing) {
-        if (inEdge.source === outEdge.target) continue;
-        const kind = inEdge.data?.kind === "loop" || outEdge.data?.kind === "loop" ? "loop" : outEdge.data?.kind ?? inEdge.data?.kind ?? "next";
-        const via = [.../* @__PURE__ */ new Set([...viaOf(inEdge), hiddenId, ...viaOf(outEdge)])];
-        edges.push({
-          id: `${inEdge.source}->${outEdge.target}~collapsed`,
-          source: inEdge.source,
-          target: outEdge.target,
-          data: { kind, via }
-        });
-      }
-    }
-  }
-  const byEndpoints = /* @__PURE__ */ new Map();
-  for (const e of edges) {
-    const key = `${e.source}\0${e.target}`;
-    const kept = byEndpoints.get(key);
-    if (kept === void 0) {
-      byEndpoints.set(key, e);
-      continue;
-    }
-    const mergedVia = [.../* @__PURE__ */ new Set([...viaOf(kept), ...viaOf(e)])];
-    if (mergedVia.length > viaOf(kept).length) {
-      byEndpoints.set(key, {
-        ...kept,
-        data: { ...kept.data ?? { kind: "next" }, via: mergedVia }
-      });
-    }
-  }
-  const dedupedEdges = [...byEndpoints.values()];
-  return {
-    graph: {
-      nodes: graph.nodes.filter((n) => !removed.has(n.id)),
-      edges: dedupedEdges
-    },
-    hiddenNodeIds
-  };
-}
-
-// src/components/FlowchartView/_internal/overlayProjection.ts
-function aggregateMountStatus(slice, graph, currentSubflowId) {
-  if (graph.nodes.length === 0) return slice;
-  const nodeIds = new Set(graph.nodes.map((n) => n.id));
-  const mounts = graph.nodes.filter((n) => n.data?.isSubflow && n.data?.subflowId);
-  const doneIds = new Set(slice.doneStageIds);
-  let activeId = slice.activeStageId;
-  for (const mount of mounts) {
-    const scope = resolveDrillScope(graph, mount.id);
-    const members = graph.nodes.filter((n) => n.data?.subflowOf === scope);
-    if (members.length === 0) continue;
-    const anyActive = members.some((m) => m.id === slice.activeStageId);
-    const allDone = members.every((m) => slice.doneStageIds.has(m.id));
-    if (allDone) doneIds.add(mount.id);
-    else if (anyActive && currentSubflowId === null) {
-      activeId = mount.id;
-    }
-  }
-  if (activeId !== null && !nodeIds.has(activeId)) {
-    for (const ancestor of pathAncestorsOf(activeId)) {
-      if (nodeIds.has(ancestor)) {
-        activeId = ancestor;
-        break;
-      }
-    }
-  }
-  return { ...slice, doneStageIds: doneIds, activeStageId: activeId };
-}
-function pathAncestorsOf(stageId) {
-  const ancestors = [];
-  let id = stageId;
-  for (; ; ) {
-    const cut = id.lastIndexOf("/");
-    if (cut < 0) break;
-    id = id.slice(0, cut);
-    ancestors.push(id);
-  }
-  return ancestors;
-}
-var NO_IDS = /* @__PURE__ */ new Set();
-function cursorStandInIds(activeStageId) {
-  if (activeStageId === null || activeStageId.length === 0) return NO_IDS;
-  return /* @__PURE__ */ new Set([activeStageId, ...pathAncestorsOf(activeStageId)]);
-}
-function edgeCarriesCursor(via, standIns) {
-  if (standIns.size === 0 || !Array.isArray(via)) return false;
-  return via.some((v2) => typeof v2 === "string" && standIns.has(v2));
-}
-
-// src/components/FlowchartView/_internal/useSubflowDrill.ts
-import { useCallback as useCallback2, useEffect as useEffect5, useRef as useRef5, useState as useState3 } from "react";
-function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
-  const isControlled = controlledSubflowId !== void 0;
-  const [ownSubflowId, setOwnSubflowId] = useState3(null);
-  const currentSubflowId = isControlled ? controlledSubflowId : ownSubflowId;
-  const lastGraphRef = useRef5(null);
-  if (!isControlled && lastGraphRef.current !== graph) {
-    lastGraphRef.current = graph;
-    if (ownSubflowId !== null && findMountNode(graph, ownSubflowId) === void 0) {
-      queueMicrotask(() => setOwnSubflowId(null));
-    }
-  }
-  const lastNotifiedRef = useRef5(void 0);
-  useEffect5(() => {
-    if (isControlled) return;
-    if (lastNotifiedRef.current === currentSubflowId) return;
-    lastNotifiedRef.current = currentSubflowId;
-    onSubflowChange?.(currentSubflowId);
-  }, [isControlled, currentSubflowId, onSubflowChange]);
-  const setCurrentSubflowId = useCallback2(
-    (id) => {
-      if (isControlled) onSubflowChange?.(id);
-      else setOwnSubflowId(id);
-    },
-    [isControlled, onSubflowChange]
-  );
-  const drillInto = useCallback2(
-    (mountNodeId) => setCurrentSubflowId(mountNodeId),
-    [setCurrentSubflowId]
-  );
-  const drillUp = useCallback2(() => setCurrentSubflowId(null), [setCurrentSubflowId]);
-  return { currentSubflowId, drillInto, drillUp, setCurrentSubflowId };
-}
-
-// src/components/FlowchartView/SubflowBreadcrumbBar.tsx
-import { jsx as jsx10, jsxs as jsxs6 } from "react/jsx-runtime";
-function SubflowBreadcrumbBar({ entries, onNavigate }) {
-  return /* @__PURE__ */ jsx10(
-    "div",
-    {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "6px 12px",
-        fontSize: 11,
-        background: theme.bgSecondary,
-        borderBottom: `1px solid ${theme.border}`,
-        flexShrink: 0
-      },
-      "aria-label": "Subflow breadcrumb",
-      children: entries.map((entry, i) => {
-        const isLast = i === entries.length - 1;
-        return /* @__PURE__ */ jsxs6(
-          "span",
-          {
-            style: { display: "inline-flex", alignItems: "center", gap: 6 },
-            children: [
-              /* @__PURE__ */ jsx10(
-                "button",
-                {
-                  type: "button",
-                  onClick: () => onNavigate(entry.subflowId),
-                  disabled: isLast,
-                  style: {
-                    background: "transparent",
-                    border: "none",
-                    padding: 0,
-                    fontSize: 11,
-                    fontWeight: isLast ? 600 : 500,
-                    color: isLast ? theme.textPrimary : theme.primary,
-                    cursor: isLast ? "default" : "pointer",
-                    textDecoration: isLast ? "none" : "underline",
-                    fontFamily: "inherit"
-                  },
-                  children: entry.label
-                }
-              ),
-              !isLast && /* @__PURE__ */ jsx10("span", { style: { color: theme.textMuted }, children: "\u203A" })
-            ]
-          },
-          entry.subflowId ?? "__top__"
-        );
-      })
-    }
-  );
-}
-
-// src/components/GroupContainerNode/GroupContainerNode.tsx
-import { Handle as Handle2, Position as Position3 } from "@xyflow/react";
-import { jsx as jsx11, jsxs as jsxs7 } from "react/jsx-runtime";
-function GroupContainerNode({ data }) {
-  const d = data;
-  const borderColor = d.error ? theme.error : d.active ? theme.primary : d.done ? theme.nodeVisited : theme.border;
-  return /* @__PURE__ */ jsxs7(
-    "div",
-    {
-      style: {
-        width: "100%",
-        height: "100%",
-        boxSizing: "border-box",
-        border: `1.5px ${d.active || d.done || d.error ? "solid" : "dashed"} ${borderColor}`,
-        borderRadius: 12,
-        // Translucent (theme-derived) so the dotted background + nested children
-        // read clearly, while still following dark/light.
-        background: `color-mix(in srgb, ${theme.textMuted} 7%, transparent)`,
-        opacity: d.dimmed ? 0.4 : 1,
-        position: "relative"
-      },
-      children: [
-        /* @__PURE__ */ jsxs7(
-          "div",
-          {
-            style: {
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "8px 12px",
-              fontSize: 12,
-              fontWeight: 600,
-              color: theme.textMuted,
-              letterSpacing: 0.2
-            },
-            children: [
-              d.icon ? /* @__PURE__ */ jsx11("span", { "aria-hidden": true, children: d.icon }) : null,
-              /* @__PURE__ */ jsx11("span", { children: d.label })
-            ]
-          }
-        ),
-        /* @__PURE__ */ jsx11(Handle2, { type: "target", position: Position3.Top, style: { opacity: 0 } }),
-        /* @__PURE__ */ jsx11(Handle2, { type: "source", position: Position3.Bottom, style: { opacity: 0 } })
-      ]
-    }
-  );
-}
-
-// src/components/FlowchartView/_internal/MeasuredNodeSizes.tsx
-import { useEffect as useEffect6 } from "react";
-import { useNodesInitialized, useStore as useStore3 } from "@xyflow/react";
-
-// src/components/FlowchartView/_internal/measuredFootprints.ts
-function extractMeasuredFootprints(entries) {
-  const sizes = /* @__PURE__ */ new Map();
-  for (const [id, node] of entries) {
-    const width = node.measured?.width;
-    const height = node.measured?.height;
-    if (typeof width === "number" && typeof height === "number" && width > 0 && height > 0) {
-      sizes.set(id, { width: Math.round(width), height: Math.round(height) });
-    }
-  }
-  return sizes;
-}
-function sameFootprints(a, b) {
-  if (a === b) return true;
-  if (a.size !== b.size) return false;
-  for (const [id, s] of a) {
-    const t = b.get(id);
-    if (!t || t.width !== s.width || t.height !== s.height) return false;
-  }
-  return true;
-}
-
-// src/components/FlowchartView/_internal/MeasuredNodeSizes.tsx
-function MeasuredNodeSizes({
-  onSizes,
-  includeHiddenNodes = false
-}) {
-  const initialized = useNodesInitialized({ includeHiddenNodes });
-  const sizes = useStore3(
-    (s) => extractMeasuredFootprints(s.nodeLookup),
-    sameFootprints
-  );
-  useEffect6(() => {
-    if (!initialized || sizes.size === 0) return;
-    onSizes(sizes);
-  }, [initialized, sizes, onSizes]);
-  return null;
-}
-
-// src/components/FlowchartView/TracedFlow.tsx
-import { jsx as jsx12, jsxs as jsxs8 } from "react/jsx-runtime";
-var DEFAULT_COLORS = {
-  default: rawDefaults.colors.textMuted,
-  done: rawDefaults.colors.success,
-  active: rawDefaults.colors.primary,
-  error: rawDefaults.colors.error,
-  loop: rawDefaults.colors.warning
-};
-var EMPTY_SET = /* @__PURE__ */ new Set();
-function deriveOverlayFields(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds, retryAttempts) {
-  const isDone = doneStageIds.has(node.id);
-  const isActive = activeStageId === node.id || coActiveStageIds.has(node.id);
-  const wasExecuted = isDone || isActive;
-  const hasError = !!errorMessage;
-  const dimmed = !wasExecuted && executedOrderIds.length > 0;
-  let stepNumbers;
-  if (executedOrderIds.length > 0) {
-    const nums = [];
-    for (let i = 0; i < executedOrderIds.length; i++) {
-      if (executedOrderIds[i] === node.id) nums.push(i + 1);
-    }
-    if (nums.length > 0) stepNumbers = nums;
-  }
-  return {
-    active: isActive,
-    done: isDone,
-    error: hasError,
-    dimmed,
-    ...errorMessage && { errorMessage },
-    ...stepNumbers && { stepNumbers },
-    // Attempts are only ever interesting above 1 — a stage that ran once is
-    // the silent default, and "×1" on every node would be noise, not truth.
-    ...retryAttempts !== void 0 && retryAttempts > 1 && { retryAttempts }
-  };
-}
-function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage, executedOrderIds, coActiveStageIds, retryAttempts) {
-  const overlayFields = deriveOverlayFields(
-    node,
-    doneStageIds,
-    activeStageId,
-    errorMessage,
-    executedOrderIds,
-    coActiveStageIds,
-    retryAttempts
-  );
-  const { dimmed } = overlayFields;
-  if (node.type !== void 0 && node.type !== "stage") {
-    const consumerData = node.data ?? {};
-    const consumerActive = consumerData.active === true;
-    const consumerDone = consumerData.done === true;
-    const consumerError = consumerData.error === true;
-    const finalActive = consumerActive || overlayFields.active;
-    const finalDone = consumerDone || overlayFields.done;
-    const finalError = consumerError || overlayFields.error;
-    const finalDimmed = !finalActive && !finalDone && dimmed;
-    return {
-      ...node,
-      data: {
-        ...node.data,
-        active: finalActive,
-        done: finalDone,
-        error: finalError,
-        ...overlayFields.errorMessage !== void 0 && consumerData.errorMessage === void 0 && {
-          errorMessage: overlayFields.errorMessage
-        },
-        ...finalDimmed && { dimmed: true },
-        ...overlayFields.stepNumbers && { stepNumbers: overlayFields.stepNumbers },
-        ...overlayFields.retryAttempts !== void 0 && consumerData.retryAttempts === void 0 && {
-          retryAttempts: overlayFields.retryAttempts
-        }
-      },
-      ...finalDimmed && { style: { ...node.style ?? {}, opacity: 0.35 } }
-    };
-  }
-  const stageData = {
-    // Same pass-through rule as the custom-node branch above (and as
-    // TraceFlow's `toStageNode`): the source data goes through WHOLE, so a
-    // consumer's custom fields and the recorder's own metadata
-    // (isStreaming, isPausable, branchIds, defaultBranch, prevIds, nextIds,
-    // subflowOf) survive into `data` for a swapped-in renderer to read.
-    ...node.data,
-    label: node.data.label,
-    isDecider: node.data.isDecider,
-    isFork: node.data.isFork,
-    isSubflow: node.data.isSubflow,
-    // Overlay LAST — run status is derived here and always wins.
-    ...overlayFields
-  };
-  return {
-    ...node,
-    type: "stageNode",
-    data: stageData,
-    ...dimmed && { style: { opacity: 0.35 } }
-  };
-}
-function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors, cursorStandIns) {
-  const kind = edge.data?.kind ?? "next";
-  const sourceExecuted = doneStageIds.has(edge.source) || activeStageId === edge.source;
-  const targetExecuted = doneStageIds.has(edge.target) || activeStageId === edge.target;
-  const traversed = sourceExecuted && targetExecuted;
-  const carriesCursor = edgeCarriesCursor(edge.data?.via, cursorStandIns);
-  const isLeadingEdge = carriesCursor || activeStageId === edge.source && !doneStageIds.has(edge.target);
-  let color = colors.default;
-  if (carriesCursor) color = colors.active;
-  else if (kind === "loop") color = colors.loop;
-  else if (isLeadingEdge) color = colors.active;
-  else if (traversed) color = colors.done;
-  const styled = {
-    ...edge,
-    // Loop back-edges use the custom `loopBack` edge — a curve routed along the
-    // right margin (clear of the spine). It reads node bounds from the store
-    // and anchors on right edges itself, so it needs NO dedicated loop handles
-    // on the node (the old approach broke for any node missing them).
-    // Every other edge uses `smartStep`: a smoothstep superset that routes a
-    // RANK-SKIPPING edge around the node it skips (else identical to smoothstep).
-    type: kind === "loop" ? "loopBack" : "smartStep",
-    animated: isLeadingEdge,
-    style: { stroke: color, strokeWidth: traversed || carriesCursor ? 2 : 1.5 },
-    markerEnd: { type: MarkerType2.ArrowClosed, color, width: 16, height: 16 }
-  };
-  if (kind === "loop") {
-    styled.style = { ...styled.style, strokeDasharray: "4 3" };
-  }
-  return styled;
-}
-var DEFAULT_NODE_TYPES2 = {
-  stageNode: StageNode,
-  groupContainer: GroupContainerNode
-};
-var DEFAULT_EDGE_TYPES2 = { loopBack: LoopBackEdge, smartStep: SmartStepEdge };
-function TracedFlow({
-  graph,
-  overlay,
-  scrubIndex,
-  layout: layoutProp,
-  colors: colorOverrides,
-  onNodeClick,
-  onSubflowChange,
-  currentSubflowId: controlledSubflowId,
-  collapseNode,
-  groupedSubflows,
-  mainChartBox,
-  nodeTypes: userNodeTypes,
-  edgeTypes: userEdgeTypes,
-  coActiveStageIds,
-  sliceCone,
-  theme: themeMode,
-  children,
-  className,
-  style
-}) {
-  const layout = layoutProp ?? dagreTraceLayout;
-  useEffect7(() => {
-    if (layoutProp === dagreTraceLayout) {
-      devWarn(
-        () => "[footprint-explainable-ui] <TracedFlow layout={dagreTraceLayout}> bypasses the built-in measure-then-layout pipeline (content-exact sizing, fork/merge centering, straight spines). OMIT the `layout` prop to use it \u2014 passing the raw dagreTraceLayout silently forfeits every layout improvement eui ships."
-      );
-    }
-  }, [layoutProp]);
-  const colors = useMemo5(
-    () => ({ ...DEFAULT_COLORS, ...colorOverrides ?? {} }),
-    [colorOverrides]
-  );
-  const mergedNodeTypes = useMemo5(
-    () => userNodeTypes ? { ...DEFAULT_NODE_TYPES2, ...userNodeTypes } : DEFAULT_NODE_TYPES2,
-    [userNodeTypes]
-  );
-  const mergedEdgeTypes = useMemo5(
-    () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES2, ...userEdgeTypes } : DEFAULT_EDGE_TYPES2,
-    [userEdgeTypes]
-  );
-  const effectiveGraph = useMemo5(
-    () => collapseNode ? collapseTraceGraph(graph, collapseNode).graph : graph,
-    [graph, collapseNode]
-  );
-  const drill = useSubflowDrill(effectiveGraph, onSubflowChange, controlledSubflowId);
-  const groupedSet = useMemo5(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
-  const filteredGraph = useMemo5(() => {
-    const base = filterGraphForDrill(effectiveGraph, drill.currentSubflowId);
-    if (groupedSet.size === 0) return base;
-    const baseIds = new Set(base.nodes.map((n) => n.id));
-    const extraNodes = effectiveGraph.nodes.filter(
-      (n) => n.data?.subflowOf !== void 0 && groupedSet.has(n.data.subflowOf) && !baseIds.has(n.id)
-    );
-    if (extraNodes.length === 0) return base;
-    const allIds = /* @__PURE__ */ new Set([...baseIds, ...extraNodes.map((n) => n.id)]);
-    const baseEdgeIds = new Set(base.edges.map((e) => e.id));
-    const extraEdges = effectiveGraph.edges.filter(
-      (e) => !baseEdgeIds.has(e.id) && allIds.has(e.source) && allIds.has(e.target)
-    );
-    return { nodes: [...base.nodes, ...extraNodes], edges: [...base.edges, ...extraEdges] };
-  }, [effectiveGraph, drill.currentSubflowId, groupedSet]);
-  const breadcrumb = useMemo5(
-    () => buildSubflowBreadcrumb(effectiveGraph, drill.currentSubflowId),
-    [effectiveGraph, drill.currentSubflowId]
-  );
-  const [measuredSizes, setMeasuredSizes] = useState4(null);
-  const positioned = useMemo5(() => {
-    const nodeSize = measuredSizes ? (n) => measuredSizes.get(n.id) : void 0;
-    const sizeOpts = nodeSize ? { nodeSize } : {};
-    const dagreBase = withForkCentering(
-      createSnappedDagreLayout(
-        createDagreTraceLayout({ ...sizeOpts, rankSep: 52, nodeSep: 36 }),
-        sizeOpts
-      ),
-      { ...sizeOpts, nodeSep: 36 }
-      // same nodeSep → clamp preserves dagre's reserved gap
-    );
-    const realBase = layout === "passthrough" ? (g) => g : layoutProp === void 0 ? dagreBase : layout;
-    if (groupedSet.size > 0) {
-      const grouped = applyGroupLayout(filteredGraph, {
-        groupedSubflowIds: [...groupedSet],
-        baseLayout: realBase
-      });
-      return mainChartBox ? wrapInMainChartBox(grouped, { baseLayout: (g) => g, ...mainChartBox }) : grouped;
-    }
-    if (mainChartBox) {
-      return wrapInMainChartBox(filteredGraph, { baseLayout: realBase, ...mainChartBox });
-    }
-    return realBase(filteredGraph);
-  }, [filteredGraph, layout, layoutProp, groupedSet, mainChartBox, measuredSizes]);
-  const slice = useMemo5(() => {
-    const empty = {
-      doneStageIds: /* @__PURE__ */ new Set(),
-      activeStageId: null,
-      executedStageIds: /* @__PURE__ */ new Set(),
-      executedOrderIds: [],
-      errors: /* @__PURE__ */ new Map(),
-      retryAttempts: /* @__PURE__ */ new Map()
-    };
-    if (!overlay) return empty;
-    const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
-    return aggregateMountStatus(sliceOverlay(overlay, idx), effectiveGraph, drill.currentSubflowId);
-  }, [overlay, scrubIndex, effectiveGraph, drill.currentSubflowId]);
-  const reactFlowNodes = useMemo5(
-    () => positioned.nodes.map(
-      (n) => toStageNodeWithOverlay(
-        n,
-        slice.doneStageIds,
-        slice.activeStageId,
-        slice.errors.get(n.id),
-        slice.executedOrderIds,
-        coActiveStageIds ?? EMPTY_SET,
-        slice.retryAttempts?.get(n.id)
-      )
-    ),
-    [positioned.nodes, slice, coActiveStageIds]
-  );
-  const cursorStandIns = useMemo5(() => cursorStandInIds(slice.activeStageId), [slice.activeStageId]);
-  const reactFlowEdges = useMemo5(
-    () => positioned.edges.map(
-      (e) => styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns)
-    ),
-    [positioned.edges, slice, colors, cursorStandIns]
-  );
-  const [coneRevealed, setConeRevealed] = useState4(false);
-  useEffect7(() => {
-    if (!sliceCone) return;
-    setConeRevealed(false);
-    const raf = requestAnimationFrame(() => setConeRevealed(true));
-    return () => cancelAnimationFrame(raf);
-  }, [sliceCone]);
-  const conedNodes = useMemo5(() => {
-    if (!sliceCone || sliceCone.size === 0) return reactFlowNodes;
-    return reactFlowNodes.map((n) => {
-      const depth = sliceCone.get(n.id);
-      if (depth === void 0) {
-        return { ...n, style: { ...n.style, opacity: 0.22, transition: "opacity 260ms ease" } };
-      }
-      return {
-        ...n,
-        style: {
-          ...n.style,
-          opacity: coneRevealed ? 1 : 0.22,
-          transition: "opacity 320ms ease",
-          transitionDelay: `${depth * 90}ms`
-        }
-      };
-    });
-  }, [reactFlowNodes, sliceCone, coneRevealed]);
-  const conedEdges = useMemo5(() => {
-    if (!sliceCone || sliceCone.size === 0) return reactFlowEdges;
-    return reactFlowEdges.map((e) => {
-      const inCone = sliceCone.has(e.source) && sliceCone.has(e.target);
-      return inCone ? e : { ...e, style: { ...e.style, opacity: 0.12, transition: "opacity 260ms ease" } };
-    });
-  }, [reactFlowEdges, sliceCone]);
-  const handleNodeClick = useCallback3(
-    (_, node) => {
-      const data = node.data ?? {};
-      const isGrouped = groupedSet.has(node.id) || !!data.subflowId && groupedSet.has(data.subflowId);
-      if (data.isSubflow && !isGrouped) {
-        drill.drillInto(node.id);
-      }
-      onNodeClick?.(node.id);
-    },
-    [drill, onNodeClick, groupedSet]
-  );
-  const wrapperRef = useRef6(null);
-  const layoutKey = chartLayoutKey(positioned.nodes);
-  const refitKey = JSON.stringify([
-    chartLayoutKey(filteredGraph.nodes),
-    chartTopologyKey(positioned.nodes),
-    // A custom layout is an authored layout. Default measured-layout settling
-    // must not take camera ownership back after a manual pan/zoom.
-    layoutProp !== void 0 ? layoutKey : null
-  ]);
-  return /* @__PURE__ */ jsxs8(
-    "div",
-    {
-      ref: wrapperRef,
-      className,
-      style: {
-        // The one-word switch, applied to this chart's own root so a chart
-        // mounted alone in a light app is light (see theme/mode.ts).
-        ...themeModeVars(themeMode),
-        width: "100%",
-        height: "100%",
-        minHeight: 300,
-        display: "flex",
-        flexDirection: "column",
-        ...style
-      },
-      children: [
-        breadcrumb.length > 1 && /* @__PURE__ */ jsx12(
-          SubflowBreadcrumbBar,
-          {
-            entries: breadcrumb,
-            onNavigate: drill.setCurrentSubflowId
-          }
-        ),
-        /* @__PURE__ */ jsx12("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ jsxs8(
-          ReactFlow2,
-          {
-            nodes: conedNodes,
-            edges: conedEdges,
-            nodeTypes: mergedNodeTypes,
-            edgeTypes: mergedEdgeTypes,
-            onNodeClick: handleNodeClick,
-            minZoom: 0.1,
-            proOptions: { hideAttribution: true },
-            children: [
-              /* @__PURE__ */ jsx12(ChartAutoRefit, { wrapperRef, refitKey, layoutKey, padding: 0.18 }),
-              /* @__PURE__ */ jsx12(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
-              /* @__PURE__ */ jsx12(Background2, { variant: BackgroundVariant2.Dots, gap: 20, size: 1 }),
-              children
-            ]
-          }
-        ) })
-      ]
-    }
-  );
-}
-
-// src/components/TimeTravelDebugger/TimeTravelDebugger.tsx
-import { jsx as jsx13, jsxs as jsxs9 } from "react/jsx-runtime";
 function TimeTravelDebugger({
   snapshots,
   graph,
@@ -3585,11 +263,11 @@ function TimeTravelDebugger({
     "TimeTravelDebugger",
     "Use <SnapshotPanel> (same panels, controlled cursor), <ExplainableShell> (those plus the chart and drill-down), or the footprint-viewer package."
   );
-  const [selectedIndex, setSelectedIndex] = useState5(0);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const fs = fontSize[size];
   const pad = padding[size];
   if (snapshots.length === 0) {
-    return /* @__PURE__ */ jsx13(
+    return /* @__PURE__ */ jsx(
       "div",
       {
         className,
@@ -3610,7 +288,7 @@ function TimeTravelDebugger({
     );
     if (idx >= 0) setSelectedIndex(idx);
   };
-  const chart = runtimeOverlay ? /* @__PURE__ */ jsx13(
+  const chart = runtimeOverlay ? /* @__PURE__ */ jsx(
     TracedFlow,
     {
       graph,
@@ -3618,11 +296,11 @@ function TimeTravelDebugger({
       scrubIndex: selectedIndex,
       onNodeClick: handleNodeClick
     }
-  ) : /* @__PURE__ */ jsx13(TraceFlow, { graph, onNodeClick: handleNodeClick });
+  ) : /* @__PURE__ */ jsx(TraceFlow, { graph, onNodeClick: handleNodeClick });
   if (unstyled) {
-    return /* @__PURE__ */ jsxs9("div", { className, style, "data-fp": "time-travel-debugger", children: [
-      /* @__PURE__ */ jsx13("h3", { children: title }),
-      /* @__PURE__ */ jsx13(
+    return /* @__PURE__ */ jsxs("div", { className, style, "data-fp": "time-travel-debugger", children: [
+      /* @__PURE__ */ jsx("h3", { children: title }),
+      /* @__PURE__ */ jsx(
         "input",
         {
           type: "range",
@@ -3633,7 +311,7 @@ function TimeTravelDebugger({
         }
       ),
       chart,
-      /* @__PURE__ */ jsx13(
+      /* @__PURE__ */ jsx(
         MemoryInspector,
         {
           snapshots,
@@ -3641,7 +319,7 @@ function TimeTravelDebugger({
           unstyled: true
         }
       ),
-      /* @__PURE__ */ jsx13(
+      /* @__PURE__ */ jsx(
         NarrativeLog,
         {
           snapshots,
@@ -3649,7 +327,7 @@ function TimeTravelDebugger({
           unstyled: true
         }
       ),
-      showGantt && /* @__PURE__ */ jsx13(
+      showGantt && /* @__PURE__ */ jsx(
         GanttTimeline,
         {
           snapshots,
@@ -3660,7 +338,7 @@ function TimeTravelDebugger({
       )
     ] });
   }
-  return /* @__PURE__ */ jsxs9(
+  return /* @__PURE__ */ jsxs(
     "div",
     {
       className,
@@ -3675,7 +353,7 @@ function TimeTravelDebugger({
       },
       "data-fp": "time-travel-debugger",
       children: [
-        /* @__PURE__ */ jsxs9(
+        /* @__PURE__ */ jsxs(
           "div",
           {
             style: {
@@ -3685,7 +363,7 @@ function TimeTravelDebugger({
               flexShrink: 0
             },
             children: [
-              /* @__PURE__ */ jsxs9(
+              /* @__PURE__ */ jsxs(
                 "div",
                 {
                   style: {
@@ -3695,7 +373,7 @@ function TimeTravelDebugger({
                     marginBottom: 8
                   },
                   children: [
-                    /* @__PURE__ */ jsx13(
+                    /* @__PURE__ */ jsx(
                       "span",
                       {
                         style: {
@@ -3706,7 +384,7 @@ function TimeTravelDebugger({
                         children: title
                       }
                     ),
-                    /* @__PURE__ */ jsx13(
+                    /* @__PURE__ */ jsx(
                       "span",
                       {
                         style: {
@@ -3719,8 +397,8 @@ function TimeTravelDebugger({
                   ]
                 }
               ),
-              /* @__PURE__ */ jsxs9("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
-                /* @__PURE__ */ jsx13(
+              /* @__PURE__ */ jsxs("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
+                /* @__PURE__ */ jsx(
                   ScrubButton,
                   {
                     label: "\u25C0",
@@ -3728,7 +406,7 @@ function TimeTravelDebugger({
                     onClick: () => setSelectedIndex((i) => Math.max(0, i - 1))
                   }
                 ),
-                /* @__PURE__ */ jsx13(
+                /* @__PURE__ */ jsx(
                   "input",
                   {
                     type: "range",
@@ -3744,7 +422,7 @@ function TimeTravelDebugger({
                     }
                   }
                 ),
-                /* @__PURE__ */ jsx13(
+                /* @__PURE__ */ jsx(
                   ScrubButton,
                   {
                     label: "\u25B6",
@@ -3752,7 +430,7 @@ function TimeTravelDebugger({
                     onClick: () => setSelectedIndex((i) => Math.min(snapshots.length - 1, i + 1))
                   }
                 ),
-                /* @__PURE__ */ jsxs9(
+                /* @__PURE__ */ jsxs(
                   "span",
                   {
                     style: {
@@ -3772,7 +450,7 @@ function TimeTravelDebugger({
             ]
           }
         ),
-        /* @__PURE__ */ jsxs9(
+        /* @__PURE__ */ jsxs(
           "div",
           {
             style: {
@@ -3782,7 +460,7 @@ function TimeTravelDebugger({
               overflow: "hidden"
             },
             children: [
-              /* @__PURE__ */ jsx13(
+              /* @__PURE__ */ jsx(
                 "div",
                 {
                   style: {
@@ -3794,8 +472,8 @@ function TimeTravelDebugger({
                   children: chart
                 }
               ),
-              /* @__PURE__ */ jsxs9("div", { style: { flex: 1, overflow: "auto" }, children: [
-                /* @__PURE__ */ jsx13(
+              /* @__PURE__ */ jsxs("div", { style: { flex: 1, overflow: "auto" }, children: [
+                /* @__PURE__ */ jsx(
                   MemoryInspector,
                   {
                     snapshots,
@@ -3803,7 +481,7 @@ function TimeTravelDebugger({
                     size
                   }
                 ),
-                /* @__PURE__ */ jsx13(
+                /* @__PURE__ */ jsx(
                   "div",
                   {
                     style: {
@@ -3813,7 +491,7 @@ function TimeTravelDebugger({
                     }
                   }
                 ),
-                /* @__PURE__ */ jsx13(
+                /* @__PURE__ */ jsx(
                   NarrativeLog,
                   {
                     snapshots,
@@ -3825,7 +503,7 @@ function TimeTravelDebugger({
             ]
           }
         ),
-        showGantt && /* @__PURE__ */ jsx13(
+        showGantt && /* @__PURE__ */ jsx(
           "div",
           {
             style: {
@@ -3833,7 +511,7 @@ function TimeTravelDebugger({
               background: theme.bgSecondary,
               flexShrink: 0
             },
-            children: /* @__PURE__ */ jsx13(
+            children: /* @__PURE__ */ jsx(
               GanttTimeline,
               {
                 snapshots,
@@ -3853,7 +531,7 @@ function ScrubButton({
   disabled,
   onClick
 }) {
-  return /* @__PURE__ */ jsx13(
+  return /* @__PURE__ */ jsx(
     "button",
     {
       onClick,
@@ -3877,105 +555,15 @@ function ScrubButton({
     }
   );
 }
-
-// src/components/FlowchartView/SubflowBreadcrumb.tsx
-import { memo as memo2 } from "react";
-import { jsx as jsx14, jsxs as jsxs10 } from "react/jsx-runtime";
-var SubflowBreadcrumb = memo2(function SubflowBreadcrumb2({
-  breadcrumbs,
-  onNavigate
-}) {
-  warnDeprecated(
-    "SubflowBreadcrumb",
-    "It renders the legacy useSubflowNavigation stack. Use <TracedFlow> (which draws its own trail), or buildSubflowBreadcrumb(graph, mountNodeId)."
-  );
-  if (breadcrumbs.length <= 1) return null;
-  return /* @__PURE__ */ jsx14(
-    "div",
-    {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
-        padding: "6px 12px",
-        background: theme.bgSecondary,
-        borderBottom: `1px solid ${theme.border}`,
-        fontSize: 12,
-        fontFamily: theme.fontSans,
-        flexShrink: 0,
-        overflowX: "auto"
-      },
-      children: breadcrumbs.map((crumb, i) => {
-        const isLast = i === breadcrumbs.length - 1;
-        return /* @__PURE__ */ jsxs10("span", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
-          i > 0 && /* @__PURE__ */ jsx14("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" }),
-          isLast ? /* @__PURE__ */ jsxs10("span", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-            /* @__PURE__ */ jsx14(
-              "span",
-              {
-                style: {
-                  color: theme.primary,
-                  fontWeight: 600
-                },
-                children: crumb.label
-              }
-            ),
-            crumb.description && /* @__PURE__ */ jsxs10(
-              "span",
-              {
-                style: {
-                  color: theme.textMuted,
-                  fontWeight: 400,
-                  fontSize: 11
-                },
-                children: [
-                  "\u2014 ",
-                  crumb.description
-                ]
-              }
-            )
-          ] }) : /* @__PURE__ */ jsx14(
-            "button",
-            {
-              onClick: () => onNavigate(i),
-              style: {
-                background: "none",
-                border: "none",
-                color: theme.textSecondary,
-                cursor: "pointer",
-                padding: "2px 4px",
-                borderRadius: 4,
-                fontSize: 12,
-                fontFamily: "inherit",
-                fontWeight: 500,
-                transition: "color 0.15s"
-              },
-              onMouseEnter: (e) => {
-                e.currentTarget.style.color = `${theme.primary}`;
-              },
-              onMouseLeave: (e) => {
-                e.currentTarget.style.color = `${theme.textSecondary}`;
-              },
-              children: crumb.label
-            }
-          )
-        ] }, `${crumb.label}-${i}`);
-      })
-    }
-  );
-});
-
-// src/components/FlowchartView/useSubflowNavigation.ts
-import { useState as useState6, useCallback as useCallback4, useMemo as useMemo6 } from "react";
 var EMPTY_GRAPH2 = { nodes: [], edges: [] };
 function useSubflowNavigation(rootGraph) {
   warnDeprecated(
     "useSubflowNavigation",
     "It keys the drill by the child chart's LOCAL subflowId, which is not unique across two mounts of the same chart. Use <TracedFlow>'s built-in drill (currentSubflowId + onSubflowChange), or filterGraphForDrill + buildSubflowBreadcrumb with the MOUNT NODE'S id."
   );
-  const [stack, setStack] = useState6([]);
+  const [stack, setStack] = useState([]);
   const safeRootGraph = rootGraph ?? EMPTY_GRAPH2;
-  const subflowMounts = useMemo6(() => {
+  const subflowMounts = useMemo(() => {
     const map = /* @__PURE__ */ new Map();
     for (const node of safeRootGraph.nodes) {
       if (!node.data?.isSubflow) continue;
@@ -3993,12 +581,12 @@ function useSubflowNavigation(rootGraph) {
     }
     return map;
   }, [safeRootGraph]);
-  const breadcrumbs = useMemo6(() => {
+  const breadcrumbs = useMemo(() => {
     const rootLabel = "Flowchart";
     const root = { label: rootLabel };
     return [root, ...stack];
   }, [stack]);
-  const handleNodeClick = useCallback4(
+  const handleNodeClick = useCallback(
     (nodeId) => {
       const mount = subflowMounts.get(nodeId);
       if (!mount) return false;
@@ -4014,7 +602,7 @@ function useSubflowNavigation(rootGraph) {
     },
     [subflowMounts]
   );
-  const navigateTo = useCallback4((level) => {
+  const navigateTo = useCallback((level) => {
     if (level === 0) {
       setStack([]);
     } else {
@@ -4034,518 +622,12 @@ function useSubflowNavigation(rootGraph) {
     isInSubflow: stack.length > 0
   };
 }
-
-// src/components/FlowchartView/SubflowTree.tsx
-import { memo as memo3, useState as useState7, useCallback as useCallback5, useMemo as useMemo7 } from "react";
-import { Fragment as Fragment2, jsx as jsx15, jsxs as jsxs11 } from "react/jsx-runtime";
-function graphToSubflowEntries(graph) {
-  if (!graph?.nodes?.length) return [];
-  const entries = [];
-  for (const node of graph.nodes) {
-    if (!node.data?.isSubflow) continue;
-    const entry = {
-      name: typeof node.data.label === "string" ? node.data.label : node.id,
-      isSubflow: true,
-      nodeId: node.id
-    };
-    if (typeof node.data.description === "string") entry.description = node.data.description;
-    if (typeof node.data.subflowId === "string") entry.subflowId = node.data.subflowId;
-    entries.push(entry);
-  }
-  return entries;
-}
-var TreeNode = memo3(function TreeNode2({
-  entry,
-  depth,
-  activeStage,
-  doneStages,
-  onNodeSelect
-}) {
-  const [expanded, setExpanded] = useState7(true);
-  const hasChildren = entry.children && entry.children.length > 0;
-  const isActive = activeStage === entry.name;
-  const isDone = doneStages?.has(entry.name);
-  const handleClick = useCallback5(() => {
-    if (hasChildren) {
-      setExpanded((prev) => !prev);
-    }
-    onNodeSelect?.(entry.name, !!entry.isSubflow, entry.nodeId);
-  }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow, entry.nodeId]);
-  return /* @__PURE__ */ jsxs11(Fragment2, { children: [
-    /* @__PURE__ */ jsxs11(
-      "button",
-      {
-        onClick: handleClick,
-        "data-fp": "subflow-tree-node",
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          width: "100%",
-          border: "none",
-          background: isActive ? `color-mix(in srgb, ${theme.primary} 15%, transparent)` : "transparent",
-          cursor: "pointer",
-          padding: `4px 8px 4px ${8 + depth * 16}px`,
-          fontFamily: theme.fontSans,
-          fontSize: 12,
-          textAlign: "left",
-          borderRadius: 4,
-          transition: "background 0.15s"
-        },
-        onMouseEnter: (e) => {
-          if (!isActive) {
-            e.currentTarget.style.background = `color-mix(in srgb, ${theme.textMuted} 10%, transparent)`;
-          }
-        },
-        onMouseLeave: (e) => {
-          if (!isActive) {
-            e.currentTarget.style.background = "transparent";
-          }
-        },
-        children: [
-          hasChildren ? /* @__PURE__ */ jsx15(
-            "span",
-            {
-              style: {
-                fontSize: 10,
-                color: theme.textMuted,
-                width: 12,
-                textAlign: "center",
-                flexShrink: 0,
-                transition: "transform 0.15s",
-                transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
-                display: "inline-block"
-              },
-              children: "\u25B6"
-            }
-          ) : /* @__PURE__ */ jsx15("span", { style: { width: 12, flexShrink: 0 } }),
-          /* @__PURE__ */ jsx15(
-            "span",
-            {
-              style: {
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                flexShrink: 0,
-                background: isActive ? theme.primary : isDone ? theme.success : theme.border
-              }
-            }
-          ),
-          /* @__PURE__ */ jsxs11("span", { style: { display: "flex", flexDirection: "column", minWidth: 0 }, children: [
-            /* @__PURE__ */ jsxs11(
-              "span",
-              {
-                style: {
-                  color: isActive ? theme.primary : isDone ? theme.textPrimary : theme.textSecondary,
-                  fontWeight: isActive ? 600 : entry.isSubflow ? 500 : 400,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis"
-                },
-                children: [
-                  entry.name,
-                  entry.isSubflow && /* @__PURE__ */ jsx15("span", { style: { opacity: 0.5, marginLeft: 4, fontSize: 10 }, children: "\u229E" })
-                ]
-              }
-            ),
-            entry.description && /* @__PURE__ */ jsx15(
-              "span",
-              {
-                style: {
-                  color: theme.textMuted,
-                  fontSize: 10,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis"
-                },
-                children: entry.description
-              }
-            )
-          ] })
-        ]
-      }
-    ),
-    hasChildren && expanded && /* @__PURE__ */ jsx15("div", { children: entry.children.map((child, i) => /* @__PURE__ */ jsx15(
-      TreeNode2,
-      {
-        entry: child,
-        depth: depth + 1,
-        activeStage,
-        doneStages,
-        onNodeSelect
-      },
-      child.nodeId ?? child.subflowId ?? `${child.name}-${i}`
-    )) })
-  ] });
-});
-var SectionLabel = memo3(function SectionLabel2({ children }) {
-  return /* @__PURE__ */ jsx15(
-    "div",
-    {
-      style: {
-        padding: "4px 12px 8px",
-        fontSize: 10,
-        fontWeight: 600,
-        textTransform: "uppercase",
-        letterSpacing: "0.05em",
-        color: theme.textMuted
-      },
-      children
-    }
-  );
-});
-var SubflowTree = memo3(function SubflowTree2({
-  graph,
-  activeStage,
-  doneStages,
-  onNodeSelect,
-  unstyled = false,
-  className,
-  style
-}) {
-  const subflowStages = useMemo7(() => graphToSubflowEntries(graph), [graph]);
-  if (subflowStages.length === 0) return null;
-  return /* @__PURE__ */ jsxs11(
-    "div",
-    {
-      className,
-      "data-fp": "subflow-tree",
-      style: {
-        ...unstyled ? {} : {
-          fontFamily: theme.fontSans,
-          fontSize: 12,
-          background: theme.bgPrimary,
-          borderRight: `1px solid ${theme.border}`,
-          overflowY: "auto",
-          overflowX: "hidden",
-          padding: "8px 0"
-        },
-        ...style
-      },
-      children: [
-        !unstyled && /* @__PURE__ */ jsx15(SectionLabel, { children: "Subflows" }),
-        subflowStages.map((entry, i) => /* @__PURE__ */ jsx15(
-          TreeNode,
-          {
-            entry,
-            depth: 0,
-            activeStage,
-            doneStages,
-            onNodeSelect
-          },
-          entry.nodeId ?? entry.subflowId ?? `${entry.name}-${i}`
-        ))
-      ]
-    }
-  );
-});
-
-// src/components/FlowchartView/_internal/keys.ts
-function asStageId(s) {
-  return s;
-}
-function asRuntimeStageId(s) {
-  return s;
-}
-
-// src/components/FlowchartView/_internal/walkSubflowSpecInto.ts
-function walkSubflowSpecInto(spec, subflowPath, sink) {
-  walkNode(spec, subflowPath, sink, /* @__PURE__ */ new Set());
-}
-function qid(subflowPath, localId) {
-  return `${subflowPath}/${localId}`;
-}
-function walkNode(node, subflowPath, sink, visited) {
-  const fullId = qid(subflowPath, node.id);
-  if (visited.has(fullId)) return;
-  visited.add(fullId);
-  if (node.isLoopReference) return;
-  if (node.isSubflowRoot && node.subflowId !== void 0 && node.subflowStructure) {
-    const nestedPath = `${subflowPath}/${node.subflowId}`;
-    walkNode(node.subflowStructure, nestedPath, sink, visited);
-  }
-  const type = node.type ?? "stage";
-  const isDecider = type === "decider" || type === "selector" || node.hasDecider === true || node.hasSelector === true;
-  const isFork = type === "fork";
-  const isStreaming = type === "streaming";
-  const isSubflow = !!node.isSubflowRoot;
-  const data = {
-    label: node.name,
-    isDecider,
-    isFork,
-    isStreaming,
-    isSubflow,
-    subflowOf: subflowPath,
-    prevIds: [],
-    nextIds: []
-  };
-  if (node.description !== void 0) data.description = node.description;
-  if (node.icon !== void 0) data.icon = node.icon;
-  if (node.subflowId !== void 0) data.subflowId = node.subflowId;
-  if (node.isLazy === true) data.isLazy = true;
-  if (node.isPausable === true) data.isPausable = true;
-  sink.upsertNode({
-    id: asStageId(fullId),
-    type: "stage",
-    position: { x: 0, y: 0 },
-    data
-  });
-  if (node.children && node.children.length > 0) {
-    const edgeKind = type === "fork" ? "fork-branch" : "decision-branch";
-    for (const child of node.children) {
-      const childFullId = qid(subflowPath, child.id);
-      const edgeId = `${fullId}->${childFullId}:${edgeKind}${edgeKind === "decision-branch" ? `:${child.id}` : ""}`;
-      const edgeData = { kind: edgeKind };
-      if (edgeKind === "decision-branch") edgeData.label = child.id;
-      const edge = {
-        id: edgeId,
-        source: fullId,
-        target: childFullId,
-        data: edgeData
-      };
-      if (edgeKind === "decision-branch") edge.label = child.id;
-      sink.pushEdge(edge);
-      walkNode(child, subflowPath, sink, visited);
-    }
-  }
-  if (node.next) {
-    if (node.next.isLoopReference && node.loopTarget) {
-      const loopFullId = qid(subflowPath, node.loopTarget);
-      sink.pushEdge({
-        id: `${fullId}->${loopFullId}:loop`,
-        source: fullId,
-        target: loopFullId,
-        data: { kind: "loop" }
-      });
-    } else {
-      const nextFullId = qid(subflowPath, node.next.id);
-      const edgeId = `${fullId}->${nextFullId}:next`;
-      sink.pushEdge({
-        id: edgeId,
-        source: fullId,
-        target: nextFullId,
-        data: { kind: "next" }
-      });
-      walkNode(node.next, subflowPath, sink, visited);
-    }
-  }
-}
-
-// src/components/FlowchartView/traceStructureRecorder.ts
-function createTraceStructureRecorder(options = {}) {
-  const id = options.id ?? "trace-structure";
-  const onChange = options.onChange;
-  let nodes = [];
-  let edges = [];
-  const nodeIndex = /* @__PURE__ */ new Map();
-  const seenEdgeIds = /* @__PURE__ */ new Set();
-  const prevIdsOf = /* @__PURE__ */ new Map();
-  const nextIdsOf = /* @__PURE__ */ new Map();
-  const pendingMountPatches = /* @__PURE__ */ new Map();
-  const notifier = createNotifier("traceStructureRecorder");
-  function notifyChange() {
-    if (onChange) {
-      try {
-        onChange({ nodes, edges });
-      } catch (err) {
-        devWarn(
-          () => "[traceStructureRecorder] onChange callback threw \u2014 isolated.",
-          err
-        );
-      }
-    }
-    notifier.notify();
-  }
-  function upsertNode(node) {
-    const existing = nodeIndex.get(node.id);
-    if (existing !== void 0) {
-      nodes[existing] = {
-        ...nodes[existing],
-        ...node,
-        data: { ...nodes[existing].data, ...node.data }
-      };
-    } else {
-      nodeIndex.set(node.id, nodes.length);
-      nodes.push(node);
-    }
-  }
-  function pushEdge(edge) {
-    if (seenEdgeIds.has(edge.id)) return;
-    seenEdgeIds.add(edge.id);
-    edges.push(edge);
-    const kind = edge.data?.kind;
-    if (kind === "loop") return;
-    const source = asStageId(edge.source);
-    const target = asStageId(edge.target);
-    const nextArr = nextIdsOf.get(source) ?? [];
-    nextArr.push(target);
-    nextIdsOf.set(source, nextArr);
-    const prevArr = prevIdsOf.get(target) ?? [];
-    prevArr.push(source);
-    prevIdsOf.set(target, prevArr);
-    syncNeighborsOnto(source);
-    syncNeighborsOnto(target);
-  }
-  function applyMountPatch(event) {
-    const existing = nodeIndex.get(event.rootStageId);
-    if (existing === void 0) return false;
-    const node = nodes[existing];
-    const data = {
-      ...node.data,
-      isSubflow: true,
-      subflowId: event.subflowId
-    };
-    if (event.isLazy === true) data.isLazy = true;
-    nodes[existing] = { ...node, data };
-    return true;
-  }
-  function syncNeighborsOnto(stageId) {
-    const idx = nodeIndex.get(stageId);
-    if (idx === void 0) return;
-    const node = nodes[idx];
-    const prevs = prevIdsOf.get(stageId);
-    const nexts = nextIdsOf.get(stageId);
-    node.data.prevIds = prevs ? prevs.slice() : [];
-    node.data.nextIds = nexts ? nexts.slice() : [];
-  }
-  const recorder = {
-    id,
-    onStageAdded(event) {
-      const spec = event.spec;
-      const type = event.type;
-      const isDecider = type === "decider" || type === "selector" || spec.hasDecider === true || spec.hasSelector === true;
-      const isFork = type === "fork";
-      const isStreaming = type === "streaming";
-      const isSubflow = !!spec.isSubflowRoot;
-      const stageId = asStageId(event.stageId);
-      const data = {
-        label: event.name,
-        isDecider,
-        isFork,
-        isStreaming,
-        isSubflow,
-        // L8.0 — seed prev/next from any edges that already fired
-        // pointing AT this node. Convergence case: a fork-branch edge
-        // from LoadOrder fires BEFORE the child's onStageAdded; this
-        // line ensures the child's prevIds picks up the back-pointer.
-        // Atomic copy (not shared ref) — see `syncNeighborsOnto` for
-        // the panel-flagged consumer-safety rationale.
-        prevIds: (prevIdsOf.get(stageId) ?? []).slice(),
-        nextIds: (nextIdsOf.get(stageId) ?? []).slice()
-      };
-      if (spec.description !== void 0) data.description = spec.description;
-      if (spec.icon !== void 0) data.icon = spec.icon;
-      if (spec.subflowId !== void 0) data.subflowId = spec.subflowId;
-      if (spec.isLazy === true) data.isLazy = true;
-      if (event.isPausable === true) data.isPausable = true;
-      upsertNode({
-        id: event.stageId,
-        type: "stage",
-        // No layout here — downstream consumer applies positions.
-        position: { x: 0, y: 0 },
-        data
-      });
-      const pending = pendingMountPatches.get(event.stageId);
-      if (pending) {
-        pendingMountPatches.delete(event.stageId);
-        for (const mount of pending) applyMountPatch(mount);
-      }
-      notifyChange();
-    },
-    onEdgeAdded(event) {
-      const edgeId = `${event.from}->${event.to}:${event.kind}${event.label ? `:${event.label}` : ""}`;
-      const data = { kind: event.kind };
-      if (event.label !== void 0) data.label = event.label;
-      const edge = {
-        id: edgeId,
-        source: event.from,
-        target: event.to,
-        data
-      };
-      if (event.label !== void 0) edge.label = event.label;
-      pushEdge(edge);
-      notifyChange();
-    },
-    onLoopEdgeAdded(event) {
-      const edgeId = `${event.from}->${event.to}:loop`;
-      pushEdge({
-        id: edgeId,
-        source: event.from,
-        target: event.to,
-        data: { kind: "loop" }
-      });
-      notifyChange();
-    },
-    onDeciderComplete(event) {
-      const existing = nodeIndex.get(event.decider);
-      if (existing === void 0) {
-        devWarn(
-          () => `[traceStructureRecorder] onDeciderComplete fired for unknown stageId "${event.decider}" \u2014 branch metadata dropped. Did the upstream fire onStageAdded for this id first?`
-        );
-        return;
-      }
-      const node = nodes[existing];
-      const data = {
-        ...node.data,
-        branchIds: event.branchIds,
-        // A sealed branch list IS decider-ness — engines that stamp neither
-        // `type: 'decider'` nor `spec.hasDecider` still get a decision node.
-        isDecider: true
-      };
-      if (event.defaultBranch !== void 0) data.defaultBranch = event.defaultBranch;
-      nodes[existing] = { ...node, data };
-      notifyChange();
-    },
-    onSubflowMounted(event) {
-      if (!applyMountPatch(event)) {
-        const queued = pendingMountPatches.get(event.rootStageId);
-        if (queued) queued.push(event);
-        else pendingMountPatches.set(event.rootStageId, [event]);
-      }
-      const subflowPath = event.subflowPath ?? event.subflowId;
-      if (event.subflowSpec) {
-        walkSubflowSpecInto(event.subflowSpec, subflowPath, {
-          upsertNode,
-          pushEdge
-        });
-      }
-      notifyChange();
-    }
-  };
-  return {
-    recorder,
-    getGraph() {
-      return {
-        nodes: nodes.map((n) => ({ ...n, data: { ...n.data } })),
-        edges: edges.map((e) => ({ ...e, data: e.data ? { ...e.data } : void 0 }))
-      };
-    },
-    getGraphRef() {
-      return { nodes, edges };
-    },
-    subscribe: notifier.subscribe,
-    version: notifier.version,
-    reset() {
-      nodes = [];
-      edges = [];
-      nodeIndex.clear();
-      seenEdgeIds.clear();
-      prevIdsOf.clear();
-      nextIdsOf.clear();
-      pendingMountPatches.clear();
-    }
-  };
-}
-
-// src/components/SlotPillNode/SlotPillNode.tsx
-import { Handle as Handle3, Position as Position4 } from "@xyflow/react";
-import { jsx as jsx16, jsxs as jsxs12 } from "react/jsx-runtime";
 function SlotPillNode({ data }) {
   const d = data;
   const lit = !!(d.active || d.selected);
   const accent = lit ? theme.primary : d.done ? theme.nodeVisited : theme.textMuted;
   const opacity = d.dimmed && !lit ? 0.45 : 1;
-  return /* @__PURE__ */ jsxs12(
+  return /* @__PURE__ */ jsxs(
     "div",
     {
       style: {
@@ -4574,7 +656,7 @@ function SlotPillNode({ data }) {
       },
       title: d.label,
       children: [
-        /* @__PURE__ */ jsx16(
+        /* @__PURE__ */ jsx(
           "span",
           {
             "aria-hidden": true,
@@ -4587,10 +669,10 @@ function SlotPillNode({ data }) {
             }
           }
         ),
-        d.icon ? /* @__PURE__ */ jsx16("span", { "aria-hidden": true, style: { flexShrink: 0 }, children: d.icon }) : null,
-        /* @__PURE__ */ jsx16("span", { style: { overflow: "hidden", textOverflow: "ellipsis" }, children: d.label }),
-        /* @__PURE__ */ jsx16(Handle3, { type: "target", position: Position4.Top, style: { opacity: 0 } }),
-        /* @__PURE__ */ jsx16(Handle3, { type: "source", position: Position4.Bottom, style: { opacity: 0 } })
+        d.icon ? /* @__PURE__ */ jsx("span", { "aria-hidden": true, style: { flexShrink: 0 }, children: d.icon }) : null,
+        /* @__PURE__ */ jsx("span", { style: { overflow: "hidden", textOverflow: "ellipsis" }, children: d.label }),
+        /* @__PURE__ */ jsx(Handle, { type: "target", position: Position.Top, style: { opacity: 0 } }),
+        /* @__PURE__ */ jsx(Handle, { type: "source", position: Position.Bottom, style: { opacity: 0 } })
       ]
     }
   );
@@ -4634,8 +716,8 @@ function assignRanks(preds, ids) {
   const rank = /* @__PURE__ */ new Map();
   const inProgress = /* @__PURE__ */ new Set();
   const visit = (id) => {
-    const memo4 = rank.get(id);
-    if (memo4 !== void 0) return memo4;
+    const memo = rank.get(id);
+    if (memo !== void 0) return memo;
     if (inProgress.has(id)) return 0;
     inProgress.add(id);
     const ps = preds.get(id) ?? [];
@@ -4722,8 +804,8 @@ function traceGroupLayout(graph, options = {}) {
   }
   const rankSep = options.rankSep ?? 80;
   const nodeSep = options.nodeSep ?? 60;
-  const fallbackW = options.nodeWidth ?? DEFAULT_NODE_W2;
-  const fallbackH = options.nodeHeight ?? DEFAULT_NODE_H2;
+  const fallbackW = options.nodeWidth ?? DEFAULT_NODE_W;
+  const fallbackH = options.nodeHeight ?? DEFAULT_NODE_H;
   const mergeCentering = options.enableMergeCentering ?? true;
   const mergeAlign = options.mergeAlign ?? "span";
   const ids = graph.nodes.map((n) => n.id);
@@ -4862,7 +944,7 @@ function createNodeViewRecorder(options) {
   let stageIdOfRuntimeStageId = /* @__PURE__ */ new Map();
   let attemptsOfRuntimeStageId = /* @__PURE__ */ new Map();
   const notifier = createNotifier("node-view");
-  const unsubStructure = structure.subscribe(() => notifier.notify());
+  structure.subscribe(() => notifier.notify());
   function recordExecution(event) {
     const rsid = event.traversalContext?.runtimeStageId;
     if (!rsid) {
@@ -5064,7 +1146,6 @@ function createNodeViewRecorder(options) {
       cachedIndex = null;
       cachedOwnVersion = -1;
       cachedStructureVersion = -1;
-      void unsubStructure;
     }
   };
 }
@@ -5085,7 +1166,7 @@ function createCommitFlowRecorder(options) {
   let rawCommits = [];
   let attemptsOfRuntimeStageId = /* @__PURE__ */ new Map();
   const notifier = createNotifier("commit-flow");
-  const unsubStructure = structure.subscribe(() => notifier.notify());
+  structure.subscribe(() => notifier.notify());
   function recordCommit(event) {
     const rsid = event.runtimeStageId;
     if (!rsid) {
@@ -5260,7 +1341,6 @@ function createCommitFlowRecorder(options) {
       cachedIndex = null;
       cachedOwnVersion = -1;
       cachedStructureVersion = -1;
-      void unsubStructure;
     }
   };
 }
@@ -5317,14 +1397,11 @@ function createTraceBundle(options = {}) {
     }
   };
 }
-
-// src/components/FlowchartView/_internal/useTranslator.ts
-import { useMemo as useMemo8, useSyncExternalStore as useSyncExternalStore2 } from "react";
 function useTranslator(handle, getSnapshot) {
-  const subscribe = useMemo8(() => handle.subscribe.bind(handle), [handle]);
-  const getVersion = useMemo8(() => handle.version.bind(handle), [handle]);
-  const version = useSyncExternalStore2(subscribe, getVersion, getVersion);
-  return useMemo8(() => getSnapshot(), [version, getSnapshot]);
+  const subscribe = useMemo(() => handle.subscribe.bind(handle), [handle]);
+  const getVersion = useMemo(() => handle.version.bind(handle), [handle]);
+  const version = useSyncExternalStore(subscribe, getVersion, getVersion);
+  return useMemo(() => getSnapshot(), [version, getSnapshot]);
 }
 
 // src/components/FlowchartView/walkHelpers.ts
@@ -5405,10 +1482,6 @@ function bfsWalk(index, startId, neighborsOf, options) {
   }
   return out;
 }
-
-// src/components/FlowchartView/NodeInspector.tsx
-import { useMemo as useMemo9 } from "react";
-import { Fragment as Fragment3, jsx as jsx17, jsxs as jsxs13 } from "react/jsx-runtime";
 function NodeInspector({
   index,
   selectedId,
@@ -5418,16 +1491,16 @@ function NodeInspector({
   style
 }) {
   const view = selectedId ? index.byStageId.get(selectedId) ?? null : null;
-  const prevChain = useMemo9(
+  const prevChain = useMemo(
     () => view ? backtraceStructural(index, view.stageId, { onlyVisited }) : [],
     [index, view, onlyVisited]
   );
-  const nextChain = useMemo9(
+  const nextChain = useMemo(
     () => view ? forwardtraceStructural(index, view.stageId, { onlyVisited }) : [],
     [index, view, onlyVisited]
   );
   if (!view) {
-    return /* @__PURE__ */ jsx17(
+    return /* @__PURE__ */ jsx(
       "div",
       {
         className,
@@ -5441,7 +1514,7 @@ function NodeInspector({
       }
     );
   }
-  return /* @__PURE__ */ jsxs13(
+  return /* @__PURE__ */ jsxs(
     "div",
     {
       className,
@@ -5453,9 +1526,9 @@ function NodeInspector({
         ...style
       },
       children: [
-        /* @__PURE__ */ jsxs13("div", { style: { marginBottom: 16 }, children: [
-          /* @__PURE__ */ jsx17("div", { style: { fontSize: 16, fontWeight: 700, color: theme.textPrimary }, children: view.label }),
-          /* @__PURE__ */ jsxs13("div", { style: { fontSize: 11, fontFamily: "monospace", color: theme.textMuted, marginTop: 2 }, children: [
+        /* @__PURE__ */ jsxs("div", { style: { marginBottom: 16 }, children: [
+          /* @__PURE__ */ jsx("div", { style: { fontSize: 16, fontWeight: 700, color: theme.textPrimary }, children: view.label }),
+          /* @__PURE__ */ jsxs("div", { style: { fontSize: 11, fontFamily: "monospace", color: theme.textMuted, marginTop: 2 }, children: [
             view.stageId,
             " \xB7 ",
             view.type,
@@ -5465,42 +1538,42 @@ function NodeInspector({
             view.isStreaming && " \xB7 streaming",
             view.isPausable && " \xB7 pausable"
           ] }),
-          view.description && /* @__PURE__ */ jsx17("div", { style: { fontSize: 12, color: theme.textSecondary, marginTop: 6 }, children: view.description })
+          view.description && /* @__PURE__ */ jsx("div", { style: { fontSize: 12, color: theme.textSecondary, marginTop: 6 }, children: view.description })
         ] }),
-        /* @__PURE__ */ jsxs13(Section, { title: "Runtime", children: [
-          /* @__PURE__ */ jsx17(Row, { label: "Visited", value: view.visitedInRun ? "yes" : "no" }),
-          view.visitedInRun && /* @__PURE__ */ jsxs13(Fragment3, { children: [
-            /* @__PURE__ */ jsx17(Row, { label: "Executions", value: String(view.executionCount) }),
-            view.firstExecutedAt !== null && /* @__PURE__ */ jsx17(Row, { label: "First at", value: `${view.firstExecutedAt.toFixed(1)}ms` }),
-            view.lastExecutedAt !== null && /* @__PURE__ */ jsx17(Row, { label: "Last at", value: `${view.lastExecutedAt.toFixed(1)}ms` }),
-            view.totalDurationMs > 0 && /* @__PURE__ */ jsx17(Row, { label: "Total", value: `${view.totalDurationMs.toFixed(1)}ms` }),
-            view.errorCount > 0 && /* @__PURE__ */ jsx17(Row, { label: "Errors", value: String(view.errorCount), valueColor: theme.error })
+        /* @__PURE__ */ jsxs(Section, { title: "Runtime", children: [
+          /* @__PURE__ */ jsx(Row, { label: "Visited", value: view.visitedInRun ? "yes" : "no" }),
+          view.visitedInRun && /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsx(Row, { label: "Executions", value: String(view.executionCount) }),
+            view.firstExecutedAt !== null && /* @__PURE__ */ jsx(Row, { label: "First at", value: `${view.firstExecutedAt.toFixed(1)}ms` }),
+            view.lastExecutedAt !== null && /* @__PURE__ */ jsx(Row, { label: "Last at", value: `${view.lastExecutedAt.toFixed(1)}ms` }),
+            view.totalDurationMs > 0 && /* @__PURE__ */ jsx(Row, { label: "Total", value: `${view.totalDurationMs.toFixed(1)}ms` }),
+            view.errorCount > 0 && /* @__PURE__ */ jsx(Row, { label: "Errors", value: String(view.errorCount), valueColor: theme.error })
           ] })
         ] }),
-        prevChain.length > 1 && /* @__PURE__ */ jsx17(Section, { title: `Prev chain (${prevChain.length - 1} hops)`, children: /* @__PURE__ */ jsx17(Crumbs, { nodes: prevChain.slice(0, -1), onClick: onNavigate }) }),
-        view.prevIds.length > 1 && /* @__PURE__ */ jsx17(Section, { title: "Multiple prev (convergence)", children: /* @__PURE__ */ jsx17(
+        prevChain.length > 1 && /* @__PURE__ */ jsx(Section, { title: `Prev chain (${prevChain.length - 1} hops)`, children: /* @__PURE__ */ jsx(Crumbs, { nodes: prevChain.slice(0, -1), onClick: onNavigate }) }),
+        view.prevIds.length > 1 && /* @__PURE__ */ jsx(Section, { title: "Multiple prev (convergence)", children: /* @__PURE__ */ jsx(
           Crumbs,
           {
             nodes: view.prevIds.map((id) => index.byStageId.get(id)).filter((n) => n !== void 0),
             onClick: onNavigate
           }
         ) }),
-        nextChain.length > 1 && /* @__PURE__ */ jsx17(Section, { title: `Next chain (${nextChain.length - 1} hops)`, children: /* @__PURE__ */ jsx17(Crumbs, { nodes: nextChain.slice(1), onClick: onNavigate }) }),
-        view.nextIds.length > 1 && /* @__PURE__ */ jsx17(Section, { title: "Multiple next (fork/decider)", children: /* @__PURE__ */ jsx17(
+        nextChain.length > 1 && /* @__PURE__ */ jsx(Section, { title: `Next chain (${nextChain.length - 1} hops)`, children: /* @__PURE__ */ jsx(Crumbs, { nodes: nextChain.slice(1), onClick: onNavigate }) }),
+        view.nextIds.length > 1 && /* @__PURE__ */ jsx(Section, { title: "Multiple next (fork/decider)", children: /* @__PURE__ */ jsx(
           Crumbs,
           {
             nodes: view.nextIds.map((id) => index.byStageId.get(id)).filter((n) => n !== void 0),
             onClick: onNavigate
           }
         ) }),
-        view.commitRuntimeStageIds.length > 0 && /* @__PURE__ */ jsx17(Section, { title: `Commits (${view.commitRuntimeStageIds.length})`, children: /* @__PURE__ */ jsx17("div", { style: { fontFamily: "monospace", fontSize: 11, color: theme.textSecondary }, children: view.commitRuntimeStageIds.map((rsid) => /* @__PURE__ */ jsx17("div", { children: rsid }, rsid)) }) })
+        view.commitRuntimeStageIds.length > 0 && /* @__PURE__ */ jsx(Section, { title: `Commits (${view.commitRuntimeStageIds.length})`, children: /* @__PURE__ */ jsx("div", { style: { fontFamily: "monospace", fontSize: 11, color: theme.textSecondary }, children: view.commitRuntimeStageIds.map((rsid) => /* @__PURE__ */ jsx("div", { children: rsid }, rsid)) }) })
       ]
     }
   );
 }
 function Section({ title, children }) {
-  return /* @__PURE__ */ jsxs13("div", { style: { marginBottom: 14 }, children: [
-    /* @__PURE__ */ jsx17(
+  return /* @__PURE__ */ jsxs("div", { style: { marginBottom: 14 }, children: [
+    /* @__PURE__ */ jsx(
       "div",
       {
         style: {
@@ -5518,15 +1591,15 @@ function Section({ title, children }) {
   ] });
 }
 function Row({ label, value, valueColor }) {
-  return /* @__PURE__ */ jsxs13("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0" }, children: [
-    /* @__PURE__ */ jsx17("span", { style: { color: theme.textMuted }, children: label }),
-    /* @__PURE__ */ jsx17("span", { style: { color: valueColor ?? theme.textSecondary, fontFamily: "monospace" }, children: value })
+  return /* @__PURE__ */ jsxs("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, padding: "2px 0" }, children: [
+    /* @__PURE__ */ jsx("span", { style: { color: theme.textMuted }, children: label }),
+    /* @__PURE__ */ jsx("span", { style: { color: valueColor ?? theme.textSecondary, fontFamily: "monospace" }, children: value })
   ] });
 }
 function Crumbs({ nodes, onClick }) {
   if (nodes.length === 0) return null;
-  return /* @__PURE__ */ jsx17("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: nodes.map((n, i) => /* @__PURE__ */ jsxs13("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
-    /* @__PURE__ */ jsx17(
+  return /* @__PURE__ */ jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: nodes.map((n, i) => /* @__PURE__ */ jsxs("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
+    /* @__PURE__ */ jsx(
       "button",
       {
         onClick: onClick ? () => onClick(n.stageId) : void 0,
@@ -5543,13 +1616,9 @@ function Crumbs({ nodes, onClick }) {
         children: n.label
       }
     ),
-    i < nodes.length - 1 && /* @__PURE__ */ jsx17("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" })
+    i < nodes.length - 1 && /* @__PURE__ */ jsx("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" })
   ] }, n.stageId)) });
 }
-
-// src/components/FlowchartView/CommitInspector.tsx
-import { useMemo as useMemo10 } from "react";
-import { jsx as jsx18, jsxs as jsxs14 } from "react/jsx-runtime";
 function CommitInspector({
   index,
   selectedRuntimeStageId,
@@ -5558,12 +1627,12 @@ function CommitInspector({
   style
 }) {
   const view = selectedRuntimeStageId ? index.byRuntimeStageId.get(selectedRuntimeStageId) ?? null : null;
-  const lineage = useMemo10(
+  const lineage = useMemo(
     () => view ? backtraceDataFlow(index, view.runtimeStageId) : [],
     [index, view]
   );
   if (!view) {
-    return /* @__PURE__ */ jsx18(
+    return /* @__PURE__ */ jsx(
       "div",
       {
         className,
@@ -5577,7 +1646,7 @@ function CommitInspector({
       }
     );
   }
-  return /* @__PURE__ */ jsxs14(
+  return /* @__PURE__ */ jsxs(
     "div",
     {
       className,
@@ -5589,9 +1658,9 @@ function CommitInspector({
         ...style
       },
       children: [
-        /* @__PURE__ */ jsxs14("div", { style: { marginBottom: 16 }, children: [
-          /* @__PURE__ */ jsx18("div", { style: { fontSize: 16, fontWeight: 700, color: theme.textPrimary }, children: view.stageId }),
-          /* @__PURE__ */ jsxs14(
+        /* @__PURE__ */ jsxs("div", { style: { marginBottom: 16 }, children: [
+          /* @__PURE__ */ jsx("div", { style: { fontSize: 16, fontWeight: 700, color: theme.textPrimary }, children: view.stageId }),
+          /* @__PURE__ */ jsxs(
             "div",
             {
               style: {
@@ -5608,15 +1677,15 @@ function CommitInspector({
             }
           )
         ] }),
-        view.structuralPrevIds.length > 0 && /* @__PURE__ */ jsx18(Section2, { title: "Structural prev (chart shape)", children: /* @__PURE__ */ jsx18(PlainTags, { labels: view.structuralPrevIds }) }),
-        view.structuralNextIds.length > 0 && /* @__PURE__ */ jsx18(Section2, { title: "Structural next (chart shape)", children: /* @__PURE__ */ jsx18(PlainTags, { labels: view.structuralNextIds }) }),
-        view.runtimePrevIds.length > 0 && /* @__PURE__ */ jsx18(Section2, { title: "Runtime prev (this execution)", children: /* @__PURE__ */ jsx18(RuntimeRefs, { refs: view.runtimePrevIds, onClick: onNavigate }) }),
-        view.runtimeNextIds.length > 0 && /* @__PURE__ */ jsx18(Section2, { title: "Runtime next (this execution)", children: /* @__PURE__ */ jsx18(RuntimeRefs, { refs: view.runtimeNextIds, onClick: onNavigate }) }),
-        Object.keys(view.updates).length > 0 && /* @__PURE__ */ jsx18(Section2, { title: `Updates (${Object.keys(view.updates).length})`, children: /* @__PURE__ */ jsx18(KeyValueGrid, { entries: Object.entries(view.updates) }) }),
-        view.reads.length > 0 && /* @__PURE__ */ jsx18(Section2, { title: `Reads (${view.reads.length})`, children: /* @__PURE__ */ jsx18(PlainTags, { labels: view.reads }) }),
-        view.dataDependencies.length > 0 && /* @__PURE__ */ jsx18(Section2, { title: `Data dependencies (${view.dataDependencies.length})`, children: /* @__PURE__ */ jsx18("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ jsx18("tbody", { children: view.dataDependencies.map((dep) => /* @__PURE__ */ jsxs14("tr", { children: [
-          /* @__PURE__ */ jsx18("td", { style: { color: theme.textSecondary, padding: "2px 8px 2px 0" }, children: dep.key }),
-          /* @__PURE__ */ jsx18("td", { style: { color: dep.sourceRuntimeStageId ? theme.textPrimary : theme.textMuted }, children: dep.sourceRuntimeStageId ? /* @__PURE__ */ jsxs14(
+        view.structuralPrevIds.length > 0 && /* @__PURE__ */ jsx(Section2, { title: "Structural prev (chart shape)", children: /* @__PURE__ */ jsx(PlainTags, { labels: view.structuralPrevIds }) }),
+        view.structuralNextIds.length > 0 && /* @__PURE__ */ jsx(Section2, { title: "Structural next (chart shape)", children: /* @__PURE__ */ jsx(PlainTags, { labels: view.structuralNextIds }) }),
+        view.runtimePrevIds.length > 0 && /* @__PURE__ */ jsx(Section2, { title: "Runtime prev (this execution)", children: /* @__PURE__ */ jsx(RuntimeRefs, { refs: view.runtimePrevIds, onClick: onNavigate }) }),
+        view.runtimeNextIds.length > 0 && /* @__PURE__ */ jsx(Section2, { title: "Runtime next (this execution)", children: /* @__PURE__ */ jsx(RuntimeRefs, { refs: view.runtimeNextIds, onClick: onNavigate }) }),
+        Object.keys(view.updates).length > 0 && /* @__PURE__ */ jsx(Section2, { title: `Updates (${Object.keys(view.updates).length})`, children: /* @__PURE__ */ jsx(KeyValueGrid, { entries: Object.entries(view.updates) }) }),
+        view.reads.length > 0 && /* @__PURE__ */ jsx(Section2, { title: `Reads (${view.reads.length})`, children: /* @__PURE__ */ jsx(PlainTags, { labels: view.reads }) }),
+        view.dataDependencies.length > 0 && /* @__PURE__ */ jsx(Section2, { title: `Data dependencies (${view.dataDependencies.length})`, children: /* @__PURE__ */ jsx("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ jsx("tbody", { children: view.dataDependencies.map((dep) => /* @__PURE__ */ jsxs("tr", { children: [
+          /* @__PURE__ */ jsx("td", { style: { color: theme.textSecondary, padding: "2px 8px 2px 0" }, children: dep.key }),
+          /* @__PURE__ */ jsx("td", { style: { color: dep.sourceRuntimeStageId ? theme.textPrimary : theme.textMuted }, children: dep.sourceRuntimeStageId ? /* @__PURE__ */ jsxs(
             "button",
             {
               onClick: onNavigate ? () => onNavigate(dep.sourceRuntimeStageId) : void 0,
@@ -5626,10 +1695,10 @@ function CommitInspector({
                 dep.sourceRuntimeStageId
               ]
             }
-          ) : /* @__PURE__ */ jsx18("em", { children: "(no prior writer \u2014 default or external)" }) })
+          ) : /* @__PURE__ */ jsx("em", { children: "(no prior writer \u2014 default or external)" }) })
         ] }, dep.key)) }) }) }),
-        lineage.length > 1 && /* @__PURE__ */ jsx18(Section2, { title: `Lineage chain (${lineage.length - 1} ancestor commits)`, children: /* @__PURE__ */ jsx18("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: lineage.slice(0, -1).map((c, i) => /* @__PURE__ */ jsxs14("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
-          /* @__PURE__ */ jsx18(
+        lineage.length > 1 && /* @__PURE__ */ jsx(Section2, { title: `Lineage chain (${lineage.length - 1} ancestor commits)`, children: /* @__PURE__ */ jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: lineage.slice(0, -1).map((c, i) => /* @__PURE__ */ jsxs("span", { style: { display: "inline-flex", alignItems: "center", gap: 4 }, children: [
+          /* @__PURE__ */ jsx(
             "button",
             {
               onClick: onNavigate ? () => onNavigate(c.runtimeStageId) : void 0,
@@ -5637,15 +1706,15 @@ function CommitInspector({
               children: c.runtimeStageId
             }
           ),
-          i < lineage.length - 2 && /* @__PURE__ */ jsx18("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u2192" })
+          i < lineage.length - 2 && /* @__PURE__ */ jsx("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u2192" })
         ] }, c.runtimeStageId)) }) })
       ]
     }
   );
 }
 function Section2({ title, children }) {
-  return /* @__PURE__ */ jsxs14("div", { style: { marginBottom: 14 }, children: [
-    /* @__PURE__ */ jsx18(
+  return /* @__PURE__ */ jsxs("div", { style: { marginBottom: 14 }, children: [
+    /* @__PURE__ */ jsx(
       "div",
       {
         style: {
@@ -5663,7 +1732,7 @@ function Section2({ title, children }) {
   ] });
 }
 function PlainTags({ labels }) {
-  return /* @__PURE__ */ jsx18("div", { style: { display: "flex", flexWrap: "wrap", gap: 4 }, children: labels.map((l) => /* @__PURE__ */ jsx18(
+  return /* @__PURE__ */ jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: 4 }, children: labels.map((l) => /* @__PURE__ */ jsx(
     "span",
     {
       style: {
@@ -5683,7 +1752,7 @@ function RuntimeRefs({
   refs,
   onClick
 }) {
-  return /* @__PURE__ */ jsx18("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: refs.map((r) => /* @__PURE__ */ jsx18(
+  return /* @__PURE__ */ jsx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 }, children: refs.map((r) => /* @__PURE__ */ jsx(
     "button",
     {
       onClick: onClick ? () => onClick(r) : void 0,
@@ -5694,9 +1763,9 @@ function RuntimeRefs({
   )) });
 }
 function KeyValueGrid({ entries }) {
-  return /* @__PURE__ */ jsx18("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ jsx18("tbody", { children: entries.map(([k, v2]) => /* @__PURE__ */ jsxs14("tr", { children: [
-    /* @__PURE__ */ jsx18("td", { style: { color: theme.textSecondary, padding: "2px 8px 2px 0", verticalAlign: "top" }, children: k }),
-    /* @__PURE__ */ jsx18("td", { style: { color: theme.textPrimary, wordBreak: "break-word" }, children: typeof v2 === "object" ? JSON.stringify(v2) : String(v2) })
+  return /* @__PURE__ */ jsx("table", { style: { fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }, children: /* @__PURE__ */ jsx("tbody", { children: entries.map(([k, v]) => /* @__PURE__ */ jsxs("tr", { children: [
+    /* @__PURE__ */ jsx("td", { style: { color: theme.textSecondary, padding: "2px 8px 2px 0", verticalAlign: "top" }, children: k }),
+    /* @__PURE__ */ jsx("td", { style: { color: theme.textPrimary, wordBreak: "break-word" }, children: typeof v === "object" ? JSON.stringify(v) : String(v) })
   ] }, k)) }) });
 }
 function crumbButtonStyle(clickable) {
@@ -5800,7 +1869,7 @@ function walkChain(startId, untilId, index, visited) {
         const branchVisited = new Set(visited);
         const sub = walkChain(b, convergence, index, branchVisited);
         if (sub !== null) branchChains.push(sub);
-        for (const v2 of branchVisited) visited.add(v2);
+        for (const v of branchVisited) visited.add(v);
       }
       if (branchChains.length > 0) {
         items.push({ kind: "parallel", branches: branchChains });
@@ -5861,9 +1930,6 @@ function decorate(node, commitsByStageId) {
     branches: node.branches.map((b) => decorate(b, commitsByStageId))
   };
 }
-
-// src/components/FlowchartView/CommitChainView.tsx
-import { Fragment as Fragment4, jsx as jsx19, jsxs as jsxs15 } from "react/jsx-runtime";
 function CommitChainView({
   chain,
   selectedRuntimeStageId = null,
@@ -5874,7 +1940,7 @@ function CommitChainView({
   style
 }) {
   if (!chain) {
-    return /* @__PURE__ */ jsx19(
+    return /* @__PURE__ */ jsx(
       "div",
       {
         className,
@@ -5888,7 +1954,7 @@ function CommitChainView({
       }
     );
   }
-  return /* @__PURE__ */ jsx19(
+  return /* @__PURE__ */ jsx(
     "div",
     {
       className,
@@ -5899,11 +1965,11 @@ function CommitChainView({
         overflow: "auto",
         ...style
       },
-      children: /* @__PURE__ */ jsx19(
+      children: /* @__PURE__ */ jsx(
         ChainShell,
         {
           node: chain,
-          renderLeaf: (leaf) => /* @__PURE__ */ jsx19(
+          renderLeaf: (leaf) => /* @__PURE__ */ jsx(
             Leaf,
             {
               leaf,
@@ -5920,10 +1986,10 @@ function CommitChainView({
 }
 function ChainShell({ node, renderLeaf }) {
   if (node.kind === "leaf") {
-    return /* @__PURE__ */ jsx19(Fragment4, { children: renderLeaf(node) });
+    return /* @__PURE__ */ jsx(Fragment, { children: renderLeaf(node) });
   }
   if (node.kind === "serial") {
-    return /* @__PURE__ */ jsx19(
+    return /* @__PURE__ */ jsx(
       "div",
       {
         style: {
@@ -5932,13 +1998,13 @@ function ChainShell({ node, renderLeaf }) {
           alignItems: "center",
           gap: 0
         },
-        children: node.items.map((child, i) => /* @__PURE__ */ jsxs15(
+        children: node.items.map((child, i) => /* @__PURE__ */ jsxs(
           "div",
           {
             style: { display: "flex", flexDirection: "column", alignItems: "center" },
             children: [
-              /* @__PURE__ */ jsx19(ChainShell, { node: child, renderLeaf }),
-              i < node.items.length - 1 && /* @__PURE__ */ jsx19(Connector, { orientation: "vertical" })
+              /* @__PURE__ */ jsx(ChainShell, { node: child, renderLeaf }),
+              i < node.items.length - 1 && /* @__PURE__ */ jsx(Connector, { orientation: "vertical" })
             ]
           },
           chainKey(child, i)
@@ -5946,7 +2012,7 @@ function ChainShell({ node, renderLeaf }) {
       }
     );
   }
-  return /* @__PURE__ */ jsxs15(
+  return /* @__PURE__ */ jsxs(
     "div",
     {
       style: {
@@ -5956,8 +2022,8 @@ function ChainShell({ node, renderLeaf }) {
         gap: 0
       },
       children: [
-        /* @__PURE__ */ jsx19(ForkMarker, {}),
-        /* @__PURE__ */ jsx19(
+        /* @__PURE__ */ jsx(ForkMarker, {}),
+        /* @__PURE__ */ jsx(
           "div",
           {
             style: {
@@ -5971,7 +2037,7 @@ function ChainShell({ node, renderLeaf }) {
               paddingLeft: 12,
               paddingRight: 12
             },
-            children: node.branches.map((branch, i) => /* @__PURE__ */ jsx19(
+            children: node.branches.map((branch, i) => /* @__PURE__ */ jsx(
               "div",
               {
                 style: {
@@ -5980,13 +2046,13 @@ function ChainShell({ node, renderLeaf }) {
                   alignItems: "center",
                   minWidth: 120
                 },
-                children: /* @__PURE__ */ jsx19(ChainShell, { node: branch, renderLeaf })
+                children: /* @__PURE__ */ jsx(ChainShell, { node: branch, renderLeaf })
               },
               chainKey(branch, i)
             ))
           }
         ),
-        /* @__PURE__ */ jsx19(ForkMarker, {})
+        /* @__PURE__ */ jsx(ForkMarker, {})
       ]
     }
   );
@@ -6020,7 +2086,7 @@ function Leaf({
   const label = resolveLabel ? resolveLabel(leaf.stageId) : leaf.stageId;
   const commits = "commits" in leaf ? leaf.commits : [];
   if (commits.length === 0) {
-    return /* @__PURE__ */ jsxs15(
+    return /* @__PURE__ */ jsxs(
       "div",
       {
         style: {
@@ -6031,17 +2097,17 @@ function Leaf({
         },
         title: `${leaf.stageId} \u2014 not executed in this run`,
         children: [
-          /* @__PURE__ */ jsx19("div", { style: { fontWeight: 600 }, children: label }),
-          /* @__PURE__ */ jsx19("div", { style: { fontSize: 10, fontStyle: "italic" }, children: "not executed" })
+          /* @__PURE__ */ jsx("div", { style: { fontWeight: 600 }, children: label }),
+          /* @__PURE__ */ jsx("div", { style: { fontSize: 10, fontStyle: "italic" }, children: "not executed" })
         ]
       }
     );
   }
-  return /* @__PURE__ */ jsx19("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }, children: commits.map((c, i) => {
+  return /* @__PURE__ */ jsx("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }, children: commits.map((c, i) => {
     const isSelected = c.runtimeStageId === selectedRuntimeStageId;
     const clickable = onSelectCommit !== void 0;
     const isRevealed = revealedThroughCommitIdx === null || c.commitIdx <= revealedThroughCommitIdx;
-    return /* @__PURE__ */ jsxs15(
+    return /* @__PURE__ */ jsxs(
       "button",
       {
         type: "button",
@@ -6064,16 +2130,16 @@ function Leaf({
         "aria-current": isSelected ? "true" : void 0,
         title: c.runtimeStageId,
         children: [
-          /* @__PURE__ */ jsxs15("div", { style: { fontWeight: 600 }, children: [
+          /* @__PURE__ */ jsxs("div", { style: { fontWeight: 600 }, children: [
             label,
-            commits.length > 1 && /* @__PURE__ */ jsxs15("span", { style: { color: theme.textMuted, fontWeight: 400, marginLeft: 6 }, children: [
+            commits.length > 1 && /* @__PURE__ */ jsxs("span", { style: { color: theme.textMuted, fontWeight: 400, marginLeft: 6 }, children: [
               "iter ",
               i + 1,
               "/",
               commits.length
             ] })
           ] }),
-          /* @__PURE__ */ jsxs15(
+          /* @__PURE__ */ jsxs(
             "div",
             {
               style: {
@@ -6097,7 +2163,7 @@ function Leaf({
   }) });
 }
 function Connector({ orientation }) {
-  return orientation === "vertical" ? /* @__PURE__ */ jsx19(
+  return orientation === "vertical" ? /* @__PURE__ */ jsx(
     "div",
     {
       "aria-hidden": true,
@@ -6107,7 +2173,7 @@ function Connector({ orientation }) {
         background: theme.border
       }
     }
-  ) : /* @__PURE__ */ jsx19(
+  ) : /* @__PURE__ */ jsx(
     "div",
     {
       "aria-hidden": true,
@@ -6120,7 +2186,7 @@ function Connector({ orientation }) {
   );
 }
 function ForkMarker() {
-  return /* @__PURE__ */ jsx19(
+  return /* @__PURE__ */ jsx(
     "div",
     {
       "aria-hidden": true,
@@ -6144,13 +2210,6 @@ var boxBaseStyle = {
   color: theme.textPrimary,
   background: "transparent"
 };
-
-// src/components/FlowchartView/TraceExplorerShell.tsx
-import { useMemo as useMemo12, useState as useState8, useCallback as useCallback7 } from "react";
-
-// src/components/FlowchartView/RunSlider.tsx
-import { useCallback as useCallback6, useMemo as useMemo11 } from "react";
-import { jsx as jsx20, jsxs as jsxs16 } from "react/jsx-runtime";
 function RunSlider({
   index,
   cursorRuntimeStageId,
@@ -6160,12 +2219,12 @@ function RunSlider({
   style
 }) {
   const total = index.commits.length;
-  const cursorCommitIdx = useMemo11(() => {
+  const cursorCommitIdx = useMemo(() => {
     if (!cursorRuntimeStageId) return 0;
     const view = index.byRuntimeStageId.get(cursorRuntimeStageId);
     return view ? view.commitIdx : 0;
   }, [index, cursorRuntimeStageId]);
-  const handleSliderChange = useCallback6(
+  const handleSliderChange = useCallback(
     (e) => {
       const value = Number(e.target.value);
       const view = index.commits[value];
@@ -6173,7 +2232,7 @@ function RunSlider({
     },
     [index, onCursorChange]
   );
-  const label = useMemo11(() => {
+  const label = useMemo(() => {
     const commit = index.commits[cursorCommitIdx] ?? null;
     const rsid = cursorRuntimeStageId ?? commit?.runtimeStageId ?? null;
     if (renderLabel)
@@ -6184,8 +2243,8 @@ function RunSlider({
         commit,
         index
       });
-    if (total === 0) return /* @__PURE__ */ jsx20("span", { style: { color: theme.textMuted }, children: "No commits yet" });
-    return /* @__PURE__ */ jsxs16("span", { style: { fontFamily: "monospace", fontSize: 11, color: theme.textSecondary }, children: [
+    if (total === 0) return /* @__PURE__ */ jsx("span", { style: { color: theme.textMuted }, children: "No commits yet" });
+    return /* @__PURE__ */ jsxs("span", { style: { fontFamily: "monospace", fontSize: 11, color: theme.textSecondary }, children: [
       "#",
       cursorCommitIdx + 1,
       " / ",
@@ -6195,7 +2254,7 @@ function RunSlider({
     ] });
   }, [renderLabel, cursorCommitIdx, total, index, cursorRuntimeStageId]);
   const disabled = total < 2;
-  return /* @__PURE__ */ jsxs16(
+  return /* @__PURE__ */ jsxs(
     "div",
     {
       className,
@@ -6210,7 +2269,7 @@ function RunSlider({
         ...style
       },
       children: [
-        /* @__PURE__ */ jsx20(
+        /* @__PURE__ */ jsx(
           "span",
           {
             style: {
@@ -6223,7 +2282,7 @@ function RunSlider({
             children: "Time"
           }
         ),
-        /* @__PURE__ */ jsx20(
+        /* @__PURE__ */ jsx(
           "input",
           {
             type: "range",
@@ -6241,14 +2300,11 @@ function RunSlider({
             style: { flex: 1, accentColor: theme.success }
           }
         ),
-        /* @__PURE__ */ jsx20("div", { style: { minWidth: 200, textAlign: "right" }, children: label })
+        /* @__PURE__ */ jsx("div", { style: { minWidth: 200, textAlign: "right" }, children: label })
       ]
     }
   );
 }
-
-// src/components/FlowchartView/TraceExplorerShell.tsx
-import { jsx as jsx21, jsxs as jsxs17 } from "react/jsx-runtime";
 function TraceExplorerShell({
   bundle,
   selectedRuntimeStageId: controlledSel,
@@ -6257,39 +2313,39 @@ function TraceExplorerShell({
   className,
   style
 }) {
-  const [internalSel, setInternalSel] = useState8(null);
+  const [internalSel, setInternalSel] = useState(null);
   const isControlled = controlledSel !== void 0;
   const selectedRuntimeStageId = isControlled ? controlledSel : internalSel;
-  const handleSelect = useCallback7(
+  const handleSelect = useCallback(
     (rsid) => {
       if (!isControlled) setInternalSel(rsid);
       onSelectionChange?.(rsid);
     },
     [isControlled, onSelectionChange]
   );
-  const handleSelectCommit = useCallback7(
+  const handleSelectCommit = useCallback(
     (rsid) => handleSelect(rsid),
     [handleSelect]
   );
-  const selectedStageId = useMemo12(() => {
+  const selectedStageId = useMemo(() => {
     if (!selectedRuntimeStageId) return null;
     const hashIdx = selectedRuntimeStageId.lastIndexOf("#");
     if (hashIdx <= 0) return null;
     return asStageId(selectedRuntimeStageId.slice(0, hashIdx));
   }, [selectedRuntimeStageId]);
-  const ChainPane = useMemo12(
+  const ChainPane = useMemo(
     () => slots?.chain ?? DefaultChainPane,
     [slots?.chain]
   );
-  const CommitPane = useMemo12(
+  const CommitPane = useMemo(
     () => slots?.commitInspector ?? DefaultCommitPane,
     [slots?.commitInspector]
   );
-  const NodePane = useMemo12(
+  const NodePane = useMemo(
     () => slots?.nodeInspector ?? DefaultNodePane,
     [slots?.nodeInspector]
   );
-  const SliderPane = useMemo12(() => {
+  const SliderPane = useMemo(() => {
     if (slots && "slider" in slots) {
       return slots.slider ?? null;
     }
@@ -6304,7 +2360,7 @@ function TraceExplorerShell({
     () => bundle.commitFlow.getIndex()
   );
   const nodeIndex = useTranslator(bundle.nodeView, () => bundle.nodeView.getIndex());
-  const handleStageNavigate = useCallback7(
+  const handleStageNavigate = useCallback(
     (stageId) => {
       const candidates = commitIndex.commits.filter((c) => c.stageId === stageId);
       const first = candidates[0];
@@ -6312,17 +2368,17 @@ function TraceExplorerShell({
     },
     [commitIndex, handleSelect]
   );
-  const revealedThroughCommitIdx = useMemo12(() => {
+  const revealedThroughCommitIdx = useMemo(() => {
     if (!selectedRuntimeStageId) return null;
     const view = commitIndex.byRuntimeStageId.get(selectedRuntimeStageId);
     return view ? view.commitIdx : -1;
   }, [selectedRuntimeStageId, commitIndex]);
-  const layoutStyle = useMemo12(
+  const layoutStyle = useMemo(
     () => SliderPane ? SHELL_STYLE_WITH_SLIDER : SHELL_STYLE_NO_SLIDER,
     [SliderPane]
   );
-  return /* @__PURE__ */ jsxs17("div", { className, style: { ...layoutStyle, ...style }, children: [
-    SliderPane && /* @__PURE__ */ jsx21(Pane, { area: "slider", children: /* @__PURE__ */ jsx21(
+  return /* @__PURE__ */ jsxs("div", { className, style: { ...layoutStyle, ...style }, children: [
+    SliderPane && /* @__PURE__ */ jsx(Pane, { area: "slider", children: /* @__PURE__ */ jsx(
       SliderPane,
       {
         index: commitIndex,
@@ -6330,7 +2386,7 @@ function TraceExplorerShell({
         onCursorChange: handleSelect
       }
     ) }),
-    /* @__PURE__ */ jsx21(Pane, { area: "chain", children: /* @__PURE__ */ jsx21(
+    /* @__PURE__ */ jsx(Pane, { area: "chain", children: /* @__PURE__ */ jsx(
       ChainPane,
       {
         chain,
@@ -6339,7 +2395,7 @@ function TraceExplorerShell({
         revealedThroughCommitIdx
       }
     ) }),
-    /* @__PURE__ */ jsx21(Pane, { area: "commit", children: /* @__PURE__ */ jsx21(
+    /* @__PURE__ */ jsx(Pane, { area: "commit", children: /* @__PURE__ */ jsx(
       CommitPane,
       {
         index: commitIndex,
@@ -6347,7 +2403,7 @@ function TraceExplorerShell({
         onNavigate: handleSelectCommit
       }
     ) }),
-    /* @__PURE__ */ jsx21(Pane, { area: "node", children: /* @__PURE__ */ jsx21(
+    /* @__PURE__ */ jsx(Pane, { area: "node", children: /* @__PURE__ */ jsx(
       NodePane,
       {
         index: nodeIndex,
@@ -6363,7 +2419,7 @@ function DefaultChainPane({
   onSelectCommit,
   revealedThroughCommitIdx
 }) {
-  return /* @__PURE__ */ jsx21(
+  return /* @__PURE__ */ jsx(
     CommitChainView,
     {
       chain,
@@ -6378,7 +2434,7 @@ function DefaultCommitPane({
   selectedRuntimeStageId,
   onNavigate
 }) {
-  return /* @__PURE__ */ jsx21(
+  return /* @__PURE__ */ jsx(
     CommitInspector,
     {
       index,
@@ -6388,14 +2444,14 @@ function DefaultCommitPane({
   );
 }
 function DefaultNodePane({ index, selectedStageId, onNavigate }) {
-  return /* @__PURE__ */ jsx21(NodeInspector, { index, selectedId: selectedStageId, onNavigate });
+  return /* @__PURE__ */ jsx(NodeInspector, { index, selectedId: selectedStageId, onNavigate });
 }
 function DefaultSliderPane({
   index,
   cursorRuntimeStageId,
   onCursorChange
 }) {
-  return /* @__PURE__ */ jsx21(
+  return /* @__PURE__ */ jsx(
     RunSlider,
     {
       index,
@@ -6433,204 +2489,9 @@ var PANE_BASE_STYLE = {
   // permit shrinking inside grid
 };
 function Pane({ area, children }) {
-  return /* @__PURE__ */ jsx21("div", { role: "region", "aria-label": area, style: { ...PANE_BASE_STYLE, gridArea: area }, children });
+  return /* @__PURE__ */ jsx("div", { role: "region", "aria-label": area, style: { ...PANE_BASE_STYLE, gridArea: area }, children });
 }
 
-// src/adapters/overlayFromSnapshot.ts
-function baseStageIdOf3(runtimeStageId) {
-  const hashIdx = runtimeStageId.indexOf("#");
-  return hashIdx >= 0 ? runtimeStageId.slice(0, hashIdx) : runtimeStageId;
-}
-function overlayFromSnapshot(snapshot, options = {}) {
-  const commitLog = snapshot?.commitLog;
-  const executionOrder = [];
-  if (Array.isArray(commitLog)) {
-    const seen = /* @__PURE__ */ new Set();
-    for (const entry of commitLog) {
-      if (entry === null || typeof entry !== "object") continue;
-      const bundle = entry;
-      const runtimeStageId = bundle.runtimeStageId;
-      if (typeof runtimeStageId !== "string" || runtimeStageId.length === 0) continue;
-      if (seen.has(runtimeStageId)) continue;
-      seen.add(runtimeStageId);
-      const stageId = baseStageIdOf3(runtimeStageId);
-      executionOrder.push({
-        runtimeStageId,
-        stageId,
-        // `bundle.stage` is the stage's display name; fall back to the id
-        // rather than inventing a label when an older engine omitted it.
-        stageName: typeof bundle.stage === "string" && bundle.stage.length > 0 ? bundle.stage : stageId,
-        timestampMs: 0
-        // see "honest absence" in the module JSDoc
-      });
-    }
-  }
-  return {
-    executionOrder,
-    errors: /* @__PURE__ */ new Map(),
-    running: false,
-    retryAttempts: retryAttemptsFrom(options.narrativeEntries)
-  };
-}
-function retryAttemptsFrom(entries) {
-  const attempts = /* @__PURE__ */ new Map();
-  if (!Array.isArray(entries)) return attempts;
-  for (const entry of entries) {
-    if (entry === null || typeof entry !== "object") continue;
-    if (entry.type !== "retry") continue;
-    const runtimeStageId = entry.runtimeStageId;
-    if (typeof runtimeStageId !== "string" || runtimeStageId.length === 0) continue;
-    attempts.set(runtimeStageId, (attempts.get(runtimeStageId) ?? 1) + 1);
-  }
-  return attempts;
-}
-
-// src/adapters/graphFromStructure.ts
-function looksLikeStructure(value) {
-  if (value === null || typeof value !== "object") return false;
-  const n = value;
-  return typeof n.id === "string" && typeof n.name === "string";
-}
-function convergenceEdges(node, targetId) {
-  const children = node.children;
-  const isBranching = (node.type === "fork" || node.type === "decider" || node.type === "selector") && Array.isArray(children) && children.length > 0;
-  if (!isBranching) return [{ from: node.id, to: targetId }];
-  const edges = [];
-  for (const child of children) {
-    if (child.isLoopReference) continue;
-    if (child.next?.isLoopReference) continue;
-    edges.push({ from: child.id, to: child.convergeAt ?? targetId });
-  }
-  return edges;
-}
-function graphFromStructure(structure) {
-  const trace = createTraceStructureRecorder({ id: "graph-from-structure" });
-  if (!looksLikeStructure(structure)) return trace.getGraph();
-  const rec = trace.recorder;
-  const announced2 = /* @__PURE__ */ new Set();
-  const walked = /* @__PURE__ */ new Set();
-  const announce = (node) => {
-    if (announced2.has(node.id)) return;
-    announced2.add(node.id);
-    rec.onStageAdded?.({
-      stageId: node.id,
-      name: node.name,
-      // The serialized spelling of a decision stage is `type: 'decider'`;
-      // the live builder's is `type: 'stage'` + `spec.hasDecider`. The
-      // recorder reads BOTH, so either front door yields the same node.
-      type: node.type ?? "stage",
-      ...node.isPausable === true ? { isPausable: true } : {},
-      spec: node
-    });
-  };
-  const mounted = /* @__PURE__ */ new Set();
-  const mount = (node) => {
-    if (!node.isSubflowRoot || node.subflowId === void 0 || mounted.has(node.id)) return;
-    mounted.add(node.id);
-    rec.onSubflowMounted?.({
-      subflowId: node.subflowId,
-      subflowName: node.subflowName ?? node.name,
-      rootStageId: node.id,
-      ...node.isLazy === true ? { isLazy: true } : {},
-      ...node.subflowStructure ? { subflowSpec: node.subflowStructure } : {},
-      subflowPath: node.subflowId
-    });
-  };
-  const walk = (node) => {
-    if (node.isLoopReference || walked.has(node.id)) return;
-    walked.add(node.id);
-    announce(node);
-    mount(node);
-    const children = node.children ?? [];
-    if (children.length > 0) {
-      const kind = node.type === "fork" ? "fork-branch" : "decision-branch";
-      for (const child of children) {
-        announce(child);
-        rec.onEdgeAdded?.({
-          from: node.id,
-          to: child.id,
-          kind,
-          ...kind === "decision-branch" ? { label: child.id } : {}
-        });
-        mount(child);
-      }
-      const isDecision = node.type === "decider" || node.type === "selector" || node.hasDecider === true || node.hasSelector === true;
-      if (isDecision) {
-        rec.onDeciderComplete?.({
-          decider: node.id,
-          type: node.hasSelector === true || node.type === "selector" ? "selector" : "decider",
-          branchIds: node.branchIds ?? children.map((c) => c.id)
-          // `defaultBranch` is deliberately absent — see the module JSDoc.
-        });
-      }
-      for (const child of children) walk(child);
-    }
-    const next = node.next;
-    if (!next) return;
-    if (next.isLoopReference) {
-      rec.onLoopEdgeAdded?.({ from: node.id, to: node.loopTarget ?? next.id });
-      return;
-    }
-    announce(next);
-    for (const edge of convergenceEdges(node, next.id)) {
-      rec.onEdgeAdded?.({ from: edge.from, to: edge.to, kind: "next" });
-    }
-    mount(next);
-    walk(next);
-  };
-  walk(structure);
-  return trace.getGraph();
-}
-export {
-  CommitChainView,
-  CommitInspector,
-  GROUP_CONTAINER_NODE_TYPE,
-  GroupContainerNode,
-  LoopBackEdge,
-  MAIN_CHART_BOX_ID,
-  NodeInspector,
-  RunSlider,
-  SlotPillNode,
-  SmartStepEdge,
-  StageNode,
-  SubflowBreadcrumb,
-  SubflowTree,
-  TimeTravelDebugger,
-  TraceExplorerShell,
-  TraceFlow,
-  TracedFlow,
-  applyGroupLayout,
-  asRuntimeStageId,
-  asStageId,
-  backtraceDataFlow,
-  backtraceStructural,
-  buildCommitChainTree,
-  buildSubflowBreadcrumb,
-  collapseTraceGraph,
-  createCommitFlowRecorder,
-  createDagreTraceLayout,
-  createGroupedLayout,
-  createMainChartBoxLayout,
-  createNodeViewRecorder,
-  createSnappedDagreLayout,
-  createTraceBundle,
-  createTraceGroupLayout,
-  createTraceRuntimeOverlay,
-  createTraceStructureRecorder,
-  dagreTraceLayout,
-  defaultTraceFlowLayout,
-  filterGraphForDrill,
-  forwardtraceStructural,
-  graphFromStructure,
-  overlayFromSnapshot,
-  sliceOverlay,
-  snapLinearSuccessors,
-  structureAsChainTree,
-  traceGroupLayout,
-  useSubflowNavigation,
-  useTranslator,
-  walkBackward,
-  walkForward,
-  wrapInMainChartBox
-};
+export { CommitChainView, CommitInspector, NodeInspector, RunSlider, SlotPillNode, TimeTravelDebugger, TraceExplorerShell, TraceFlow, backtraceDataFlow, backtraceStructural, buildCommitChainTree, createCommitFlowRecorder, createNodeViewRecorder, createTraceBundle, createTraceGroupLayout, defaultTraceFlowLayout, forwardtraceStructural, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward };
+//# sourceMappingURL=flowchart.js.map
 //# sourceMappingURL=flowchart.js.map

@@ -10,12 +10,12 @@
 export { StageNode } from "./components/StageNode";
 export type { StageNodeData } from "./components/StageNode";
 
-// DEPRECATED (0.38.0, removed next major) — uncontrolled cursor, and
+// DEPRECATED (0.38.0, retained in 1.x) — uncontrolled cursor, and
 // <SnapshotPanel> / <ExplainableShell> already render what it renders.
 export { TimeTravelDebugger } from "./components/TimeTravelDebugger";
 export type { TimeTravelDebuggerProps } from "./components/TimeTravelDebugger";
 
-// DEPRECATED (0.38.0, removed next major) — the LEGACY drill pair. It keys
+// DEPRECATED (0.38.0, retained in 1.x) — the LEGACY drill pair. It keys
 // the drill by the child chart's local `subflowId` (not unique across two
 // mounts of the same chart) and never swaps the graph. The modern drill is
 // <TracedFlow currentSubflowId> + filterGraphForDrill/buildSubflowBreadcrumb

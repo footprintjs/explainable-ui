@@ -46,7 +46,7 @@ const mono: CSSProperties = {
   overflowWrap: "anywhere",
 };
 
-/** Experimental source-only facade. Not exported by the installed package. */
+/** Read-only record viewer. The host supplies the selected source and cursor. */
 export function RecordLens(props: RecordLensProps) {
   const id = useId();
   // Read afresh on every host render: recorders can append to an existing source.

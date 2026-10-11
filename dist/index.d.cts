@@ -1,88 +1,9 @@
-import { Stop, FoldedState, ValueBasis, ReadsCoverage } from 'foottrace';
-import * as React$1 from 'react';
-import { CSSProperties, ReactNode } from 'react';
-import { Node, Edge } from '@xyflow/react';
-
-/** Snapshot of a single pipeline stage — the core data shape for all components. */
-interface StageSnapshot {
-    /** Internal stage identifier */
-    stageName: string;
-    /** Human-readable label */
-    stageLabel: string;
-    /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex. Key for recorder Map lookup. */
-    runtimeStageId?: string;
-    /** Accumulated state. When recordState is unavailable, this is an empty
-     * compatibility placeholder, not proof that the recorded state was empty. */
-    memory: Record<string, unknown>;
-    /** Canonical record evidence. Absent for caller-supplied createSnapshots data.
-     * Keep every basis/redaction/gap qualifier when displaying or copying state. */
-    recordState?: {
-        readonly status: "available";
-        /** Selection-local label, not a globally unique run/iteration ID. */
-        readonly sourceId: string;
-        readonly stop: Stop;
-        readonly current: FoldedState;
-        readonly previous: FoldedState;
-    } | {
-        readonly status: "unavailable";
-        readonly sourceId: string;
-        readonly reason: "unsupported-source" | "stage-not-recorded" | "reader-refused";
-        readonly message: string;
-    };
-    /** Narrative text describing what happened */
-    narrative: string;
-    /** When this stage started (ms from pipeline start) */
-    startMs: number;
-    /** How long this stage took (ms) */
-    durationMs: number;
-    /** Execution status */
-    status?: "pending" | "active" | "done" | "error";
-    /** Human-readable description of what this stage does */
-    description?: string;
-    /** Subflow identifier (when this stage is inside a subflow) */
-    subflowId?: string;
-    /** Subflow execution result — present on stages that ran a subflow. */
-    subflowResult?: unknown;
-}
-/** Structured narrative entry — preserves type info for semantic rendering. */
-interface NarrativeEntry {
-    type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume' | 'emit'
-    /** One failed attempt at a stage that declares a `retry` policy — the
-     *  stage is about to run again. Attempt telemetry, not an outcome: the
-     *  stage may still succeed, so this is warning-weight, not error-weight.
-     *  Emitted by footprintjs >= 9.15.0, nested inside its own stage. */
-     | 'retry';
-    text: string;
-    depth: number;
-    stageName?: string;
-    /** Stable stage identifier (matches spec node id). Primary key for UI sync. */
-    stageId?: string;
-    /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex.
-     *  Used for exact time-travel sync (preferred over stageId for progressive reveal). */
-    runtimeStageId?: string;
-    /** Subflow ID when this entry was generated inside a subflow. */
-    subflowId?: string;
-    /** Direction for subflow entries: 'entry' when entering, 'exit' when leaving. */
-    direction?: 'entry' | 'exit';
-    stepNumber?: number;
-    /** Scope key that was read or written. Only present on 'step' entries. */
-    key?: string;
-    /** Raw value from the scope event. Only present on 'step' entries. */
-    rawValue?: unknown;
-}
-/** Component size variants */
-type Size = "compact" | "default" | "detailed";
-/** Common props shared by all visualization components */
-interface BaseComponentProps {
-    /** Size variant */
-    size?: Size;
-    /** Strip all built-in styles — bring your own */
-    unstyled?: boolean;
-    /** Additional CSS class name */
-    className?: string;
-    /** Inline style overrides */
-    style?: React.CSSProperties;
-}
+import { B as BaseComponentProps, S as StageSnapshot, I as ThemeModeProps, T as TraceGraph, R as RuntimeOverlay, N as NarrativeEntry, J as ThemeMode, w as TracedFlowColors } from './graphFromStructure-yuEBX-H-.cjs';
+export { O as OverlayFromSnapshotOptions, j as RuntimeExecutionStep, l as SerializedStructureNode, K as Size, m as SnapshotWithCommitLog, n as SubflowTree, o as SubflowTreeEntry, p as SubflowTreeProps, F as graphFromStructure, G as overlayFromSnapshot, L as themeModeVars } from './graphFromStructure-yuEBX-H-.cjs';
+import * as react from 'react';
+import { ReactNode } from 'react';
+import { ValueBasis, ReadsCoverage } from 'foottrace';
+import '@xyflow/react';
 
 /** Default theme tokens — consumers override via CSS variables or ThemeProvider. */
 interface ThemeTokens {
@@ -211,7 +132,7 @@ interface FootprintThemeProps {
  * accessibility tree in some older browser versions. Our wrapper has
  * no semantic role, so this is fine.
  */
-declare function FootprintTheme({ tokens, children }: FootprintThemeProps): React$1.JSX.Element;
+declare function FootprintTheme({ tokens, children }: FootprintThemeProps): react.JSX.Element;
 
 /**
  * Built-in palettes.
@@ -292,48 +213,6 @@ interface DarkModeTokensOptions {
 }
 declare function useDarkModeTokens(options?: DarkModeTokensOptions): ThemeTokens;
 
-/**
- * The one-word theme switch.
- *
- * Every component in this library paints from `--fp-*` variables whose
- * built-in fallbacks are DARK. Mounted inside a light app with nothing set,
- * a panel renders dark — correct by the rules, wrong on the page. Setting a
- * dozen variables by hand to fix that is not a first-try experience.
- *
- * `<Component theme="light" />` is that fix in one word: it stamps a full
- * preset as inline `--fp-*` variables on the component's own root, so
- * everything under it — including nested children — follows. It is the same
- * mechanism `<ExplainableShell traceTheme={{ mode }}>` uses; this module is
- * the single place that maps a mode to its palette.
- *
- * Precedence, from weakest to strongest:
- *   1. the components' hard-coded fallbacks (dark)
- *   2. `--fp-*` an ancestor sets (`<FootprintTheme>`, your own CSS)
- *   3. `theme="light" | "dark"` on the component  ← wins, because it is local
- *
- * So `theme` is a per-component override, not a replacement for
- * `<FootprintTheme tokens={...}>` — reach for the provider when you want one
- * palette for a whole tree, and for a custom palette rather than a preset.
- */
-
-/** Light or dark. The whole switch. */
-type ThemeMode = "dark" | "light";
-/** Props mixin for components that accept the switch. */
-interface ThemeModeProps {
-    /**
-     * Light or dark, in one word — applies the built-in preset as `--fp-*`
-     * variables on this component's root. Omit to inherit whatever the page
-     * (or a `<FootprintTheme>` ancestor) already set.
-     */
-    theme?: ThemeMode;
-}
-/**
- * CSS variables for a mode, ready to spread into a root element's `style`.
- * Returns `{}` for `undefined` so an unthemed component is byte-identical to
- * how it rendered before the prop existed.
- */
-declare function themeModeVars(mode?: ThemeMode): CSSProperties;
-
 interface MemoryInspectorProps extends BaseComponentProps {
     /** A memory object to show as-is. Takes precedence over `snapshots`. */
     data?: Record<string, unknown>;
@@ -352,7 +231,7 @@ interface MemoryInspectorProps extends BaseComponentProps {
  * Displays pipeline memory state as formatted JSON.
  * Supports both static (data prop) and time-travel (snapshots + selectedIndex) modes.
  */
-declare function MemoryInspector({ data, snapshots, selectedIndex, showTypes, highlightNew, size, unstyled, className, style, }: MemoryInspectorProps): React$1.JSX.Element;
+declare function MemoryInspector({ data, snapshots, selectedIndex, showTypes, highlightNew, size, unstyled, className, style, }: MemoryInspectorProps): react.JSX.Element;
 
 interface NarrativeLogProps extends BaseComponentProps {
     /** Snapshots to display narratives from */
@@ -366,7 +245,7 @@ interface NarrativeLogProps extends BaseComponentProps {
  * Timeline-style execution log showing what happened at each stage.
  * Supports both full snapshots mode and single-narrative mode.
  */
-declare function NarrativeLog({ snapshots, selectedIndex, narrative, size, unstyled, className, style, }: NarrativeLogProps): React$1.JSX.Element;
+declare function NarrativeLog({ snapshots, selectedIndex, narrative, size, unstyled, className, style, }: NarrativeLogProps): react.JSX.Element;
 
 interface NarrativeTraceProps extends BaseComponentProps {
     /** All narrative lines (full trace) */
@@ -378,7 +257,7 @@ interface NarrativeTraceProps extends BaseComponentProps {
     /** Called when user clicks a stage header */
     onStageClick?: (headerIndex: number) => void;
 }
-declare function NarrativeTrace({ narrative, revealedCount, defaultCollapsed, onStageClick, size, unstyled, className, style, }: NarrativeTraceProps): React$1.JSX.Element;
+declare function NarrativeTrace({ narrative, revealedCount, defaultCollapsed, onStageClick, size, unstyled, className, style, }: NarrativeTraceProps): react.JSX.Element;
 
 interface GanttTimelineProps extends BaseComponentProps, ThemeModeProps {
     /** Stage snapshots with timing info */
@@ -401,7 +280,7 @@ interface GanttTimelineProps extends BaseComponentProps, ThemeModeProps {
  * bars — equal width, positioned by execution order — plus one note saying
  * so. Order is real; duration is not, and is never invented.
  */
-declare function GanttTimeline({ snapshots, selectedIndex, onSelect, size, unstyled, className, style, theme: themeMode, maxVisibleRows, }: GanttTimelineProps): React$1.JSX.Element;
+declare function GanttTimeline({ snapshots, selectedIndex, onSelect, size, unstyled, className, style, theme: themeMode, maxVisibleRows, }: GanttTimelineProps): react.JSX.Element;
 
 interface SnapshotPanelProps extends BaseComponentProps, ThemeModeProps {
     /** Stage snapshots from pipeline execution */
@@ -417,7 +296,7 @@ interface SnapshotPanelProps extends BaseComponentProps, ThemeModeProps {
  * All-in-one panel: time-travel scrubber + memory inspector + narrative log + gantt.
  * Drop this into any page to make a pipeline run inspectable.
  */
-declare function SnapshotPanel({ snapshots, showGantt, showScrubber, title, size, unstyled, className, style, theme: themeMode, }: SnapshotPanelProps): React$1.JSX.Element;
+declare function SnapshotPanel({ snapshots, showGantt, showScrubber, title, size, unstyled, className, style, theme: themeMode, }: SnapshotPanelProps): react.JSX.Element;
 
 interface DiffEntry {
     key: string;
@@ -433,7 +312,7 @@ interface ScopeDiffProps extends BaseComponentProps {
     /** Hide unchanged keys (default: false) */
     hideUnchanged?: boolean;
 }
-declare function ScopeDiff({ previous, current, hideUnchanged, size, unstyled, className, style, }: ScopeDiffProps): React$1.JSX.Element;
+declare function ScopeDiff({ previous, current, hideUnchanged, size, unstyled, className, style, }: ScopeDiffProps): react.JSX.Element;
 
 interface ResultPanelProps extends BaseComponentProps {
     /** Final pipeline output / shared state */
@@ -443,7 +322,7 @@ interface ResultPanelProps extends BaseComponentProps {
     /** Hide console section (default: false) */
     hideConsole?: boolean;
 }
-declare function ResultPanel({ data, logs, hideConsole, size, unstyled, className, style, }: ResultPanelProps): React$1.JSX.Element;
+declare function ResultPanel({ data, logs, hideConsole, size, unstyled, className, style, }: ResultPanelProps): react.JSX.Element;
 
 type StageDetailMode = "simple" | "dev";
 interface MemoryChange {
@@ -478,7 +357,7 @@ interface StageDetailPanelProps extends BaseComponentProps {
      *  nothing hidden). Pass an empty set to show everything. */
     excludeKeys?: Set<string>;
 }
-declare function StageDetailPanel({ snapshots, selectedIndex, mode: controlledMode, showToggle, onModeChange, excludeKeys, size, unstyled, className, style, }: StageDetailPanelProps): React$1.JSX.Element;
+declare function StageDetailPanel({ snapshots, selectedIndex, mode: controlledMode, showToggle, onModeChange, excludeKeys, size, unstyled, className, style, }: StageDetailPanelProps): react.JSX.Element;
 
 /**
  * Same-Rail Rewind (tracing mode) — the rail's AXIS never changes, only its
@@ -531,248 +410,7 @@ interface TimeTravelControlsProps extends BaseComponentProps {
     /** Same-Rail Rewind session — when set, the rail is in tracing mode. */
     tracing?: TracingRail | null;
 }
-declare function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, autoPlayable, tracing, size, unstyled, className, style, }: TimeTravelControlsProps): React$1.JSX.Element;
-
-/**
- * One entry in the execution timeline. `<TracedFlow>` keys time-travel
- * scrubbing on the index into this array — at index `i`, all entries
- * `0..i-1` are "done", entry `i` is "active".
- */
-interface RuntimeExecutionStep {
-    /** `[subflowPath/]stageId#executionIndex` — universal key. */
-    readonly runtimeStageId: string;
-    /** Base stage id (without `#N`) — matches the `TraceGraph` node id. */
-    readonly stageId: string;
-    /** Human-readable label (from event.stageName). */
-    readonly stageName: string;
-    /** When this step recorded, in ms since recorder start. */
-    readonly timestampMs: number;
-}
-interface RuntimeOverlay {
-    /** Ordered execution history — drives time-travel scrubbing. */
-    readonly executionOrder: readonly RuntimeExecutionStep[];
-    /** Per-base-stageId error message (most-recent wins). */
-    readonly errors: ReadonlyMap<string, string>;
-    /** True after `onRunStart` until `onRunEnd` — useful for "still running" indicators. */
-    readonly running: boolean;
-    /**
-     * How many times each stage EXECUTION was attempted, keyed by
-     * `runtimeStageId` — present only for executions that took more than one
-     * attempt (a declared `retry` policy that actually fired).
-     *
-     * NOT a new axis. footprintjs runs every attempt of a stage under ONE
-     * runtimeStageId and commits ONE bundle for it, so a retried stage is one
-     * stop on the rail, not three. This map is per-NODE state hanging off that
-     * single stop — read it to paint an attempt badge, never to add a step.
-     *
-     * Optional so an overlay hand-built by a consumer (or produced by an older
-     * version of this library) stays type-valid; absent means "nothing known
-     * about attempts", which is exactly how a run with no retry policy looks.
-     */
-    readonly retryAttempts?: ReadonlyMap<string, number>;
-}
-
-/**
- * Branded types for translator key discipline.
- *
- * The footprintjs/trace contract uses two distinct identity strings:
- *
- *   - **StageId**: the stable identifier the user picks at build time
- *     (e.g. `'load-order'`, `'check-inventory'`). Identity per chart spec.
- *
- *   - **RuntimeStageId**: `[subflowPath/]stageId#executionIndex` — the
- *     per-execution identity. A loop visiting the same stage 3 times
- *     produces 3 distinct RuntimeStageIds with the same StageId base.
- *
- * Translator outputs index per-stage data by StageId (`Map<StageId, ...>`)
- * AND per-execution data by RuntimeStageId (`Map<RuntimeStageId, ...>`).
- * Both are `string` at runtime — TypeScript can't distinguish them
- * without help. Branded types make `byStageId.get(runtimeStageId)` a
- * **compile-time error** instead of a silent `undefined` at runtime.
- *
- * Why branded types over wrapper classes
- * ──────────────────────────────────────
- *   - Zero runtime cost (the brand exists only at the type level)
- *   - JSON-serializable as-is (no `toJSON` glue needed)
- *   - Interop with consumer code that uses raw `string` is one cast
- *     (`stageId as StageId`) when the consumer is sure of the source.
- *
- * Usage pattern
- * ─────────────
- * ```ts
- * import type { StageId, RuntimeStageId } from './_internal/keys';
- *
- * // In a translator, when accepting input from a footprintjs event:
- * const sid = event.stageId as StageId;
- * const rsid = event.traversalContext.runtimeStageId as RuntimeStageId;
- *
- * // In a consumer reading from the index:
- * const node = index.byStageId.get(stageId);          // typechecks
- * const node = index.byStageId.get(runtimeStageId);   // TS ERROR ✓
- * ```
- *
- * Helper to derive a StageId from a RuntimeStageId — strips `#N` suffix
- * and optional subflow path. **Use only for DISPLAY**, NEVER for matching
- * commitLog stageIds (see invariant I3 in `traceStructureRecorder.ts`).
- */
-/** Stable per-spec identifier (e.g. `'load-order'`). */
-type StageId = string & {
-    readonly __brand: "StageId";
-};
-
-/**
- * traceStructureRecorder — event-driven xyflow Node[] + Edge[] collector.
- *
- * Implements footprintjs v6.0+ `StructureRecorder` interface. Accumulates
- * an unpositioned graph (xyflow node + edge shape) as the chart is being
- * built — no spec tree walk required.
- *
- * Why event-driven
- * ────────────────
- *   The recorder fires SYNCHRONOUSLY at every spec-mutation moment during
- *   construction. By the time `.build()` returns, the recorder's
- *   `getGraph()` returns the complete graph — zero extra walking
- *   (the "collect during traversal, never post-process" rule footprintjs
- *   documents in its core principle).
- *
- *   Bonus: the same recorder shape can drive incremental UI updates if
- *   the builder is constructed asynchronously (e.g., a UI builder where
- *   each "add stage" click re-renders the live graph).
- *
- * Layout is a separate concern
- * ────────────────────────────
- *   This module produces UNPOSITIONED nodes (no `position` field set;
- *   xyflow defaults to `{x: 0, y: 0}`). Apply a layout algorithm
- *   downstream — either:
- *
- *     - a graph algorithm (dagre / elk / d3-force)
- *     - manual positioning via your own walk over `recorder.getGraph()`
- *
- *   The `<TraceFlow>` component wires a default BFS layout.
- *
- * @example
- * ```ts
- * import { flowChart } from 'footprintjs';
- * import { createTraceStructureRecorder } from 'footprint-explainable-ui/flowchart';
- *
- * const trace = createTraceStructureRecorder();
- * const chart = flowChart('seed', fn, 'seed', {
- *   structureRecorders: [trace.recorder],
- * })
- *   .addFunction('a', fnA, 'a')
- *   .build();
- *
- * const { nodes, edges } = trace.getGraph();
- * // → nodes: [{ id: 'seed', data: { label: 'seed', ... } }, { id: 'a', ... }]
- * // → edges: [{ id: 'seed->a', source: 'seed', target: 'a', data: { kind: 'next' } }]
- *
- * <ReactFlow nodes={layout(nodes)} edges={edges} />
- * ```
- */
-
-type EdgeKind = "next" | "fork-branch" | "decision-branch";
-/**
- * Per-node data attached to the xyflow `Node`. The built-in `StageNode`
- * renderer reads the named fields below.
- *
- * Consumer extension: this type EXTENDS `Record<string, unknown>` so
- * you can attach custom fields without TypeScript fighting you. Pair
- * this with `<TraceFlow nodeTypes={{ stageNode: MyNode }} />` (or push
- * nodes with `type: 'myCustomKind'`) to render those custom fields
- * however you want. The built-in `StageNode` ignores fields it doesn't
- * recognize, so adding consumer fields is non-breaking even if you
- * keep the default renderer.
- */
-interface TraceNodeData extends Record<string, unknown> {
-    label: string;
-    isDecider: boolean;
-    isFork: boolean;
-    isSubflow: boolean;
-    /** True when the event carried `type: 'streaming'` (the spec was added
-     *  via `addStreamingFunction`). Renderers that style streaming stages
-     *  distinctly key on this flag. */
-    isStreaming: boolean;
-    description?: string;
-    icon?: string;
-    subflowId?: string;
-    isLazy?: boolean;
-    isPausable?: boolean;
-    /** Visual emphasis hint — `hero` (prominent) / `muted` (recedes). Set by
-     *  the consumer's graph builder from its own semantics; the renderer styles
-     *  off it without any domain knowledge. */
-    emphasis?: "hero" | "muted";
-    /** Size tier — scales the card; must match the layout's node-size resolver. */
-    size?: "sm" | "md" | "lg";
-    /** Set later by `onDeciderComplete` when the decider's branch list is
-     *  sealed. Useful for renderers that want to render decider with a
-     *  branch-count badge. */
-    branchIds?: readonly string[];
-    defaultBranch?: string;
-    /**
-     * The subflow this node belongs to, OR `undefined` for top-level
-     * parent-chart stages. Tracked via a stack-based heuristic during
-     * event ingestion:
-     *
-     *   - Push on `onSubflowMounted({subflowId, rootStageId})` →
-     *     top-of-stack = `{subflowId, mountStageId}`
-     *   - `onStageAdded` tags new nodes with the top-of-stack `subflowId`
-     *     (the mount node itself stays UNtagged — it's part of the parent
-     *     chain)
-     *   - Pop on `onEdgeAdded` where `from === mount.id` (a mount's
-     *     outgoing edge to a sibling means the parent chain has resumed);
-     *     the wrongly-tagged target node is re-tagged to the parent scope
-     *
-     * Mount nodes (where `isSubflow=true`) have `subflowOf` reflecting
-     * their OWN parent context, NOT the subflow they mount. So a parent's
-     * mount node has `subflowOf=undefined` (top-level parent), and the
-     * subflow's INTERNAL stages have `subflowOf=<mount.subflowId>`.
-     *
-     * Renderers use this to filter the chart by drill-down level: show
-     * only nodes where `subflowOf === currentDrillSubflowId` (undefined
-     * for top-level view, mount.subflowId after drilling in).
-     */
-    subflowOf?: string;
-    /**
-     * **L8.0 — STRUCTURAL prev/next**: stage ids that lead into / out of
-     * this node, derived live from incoming/outgoing edges. Excludes
-     * `loop` back-edges (visual only — per invariant I1).
-     *
-     * Convergence-correct: a fork-join node carries an ENTRY per branch
-     * child (e.g., `FinalizeOrder.prevIds = ['CheckInventory', 'RunFraudCheck']`).
-     *
-     * "Structural" qualifier: this is the chart-SHAPE prev/next, not
-     * runtime execution order. For runtime ancestry use `CommitView`
-     * fields on `CommitFlowIndex` (L8.2).
-     */
-    prevIds: StageId[];
-    nextIds: StageId[];
-}
-/**
- * Per-edge data attached to the xyflow `Edge`. The default edge
- * renderer reads `kind` (and `label`).
- *
- * Consumer extension: same pattern as `TraceNodeData` — extra fields
- * pass through unchanged. Pair with `<TraceFlow edgeTypes={...} />`
- * to render custom edges (e.g., a "retried" edge with a count badge).
- */
-interface TraceEdgeData extends Record<string, unknown> {
-    kind: EdgeKind | "loop";
-    label?: string;
-    /**
-     * Node ids this edge CONTRACTED THROUGH — stamped by `collapseTraceGraph`
-     * when hidden nodes are removed and their paths re-connected. Lets a
-     * renderer keep a time cursor visible when it stands on a hidden node:
-     * the edge that stands in for that node lights instead (see
-     * `edgeCarriesCursor`). Absent on ordinary edges.
-     */
-    via?: readonly string[];
-}
-type TraceNode = Node<TraceNodeData>;
-type TraceEdge = Edge<TraceEdgeData>;
-interface TraceGraph {
-    nodes: TraceNode[];
-    edges: TraceEdge[];
-}
+declare function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, autoPlayable, tracing, size, unstyled, className, style, }: TimeTravelControlsProps): react.JSX.Element;
 
 /**
  * Minimal subflow-walking spec shape. Used INTERNALLY by drill-down
@@ -1007,7 +645,7 @@ interface ExplainableShellProps extends BaseComponentProps {
      */
     showStageId?: boolean;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs: deprecatedTabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): React$1.JSX.Element;
+declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs: deprecatedTabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
 
 /**
  * TraceViewer — renders a saved recording. No live executor, no re-run.
@@ -1107,15 +745,15 @@ interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'default
      */
     readonly onError?: (error: TraceParseError) => void;
     /** Element rendered when no valid recording is available. */
-    readonly fallback?: React$1.ReactNode;
+    readonly fallback?: react.ReactNode;
 }
-declare function TraceViewer({ recording, trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, traceTheme, theme: themeMode, }: TraceViewerProps): React$1.ReactElement | null;
+declare function TraceViewer({ recording, trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, traceTheme, theme: themeMode, }: TraceViewerProps): react.ReactElement | null;
 
 interface MemoryPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
     selectedIndex: number;
 }
-declare function MemoryPanel({ snapshots, selectedIndex, size, unstyled, className, style, }: MemoryPanelProps): React$1.JSX.Element;
+declare function MemoryPanel({ snapshots, selectedIndex, size, unstyled, className, style, }: MemoryPanelProps): react.JSX.Element;
 
 interface NarrativePanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
@@ -1143,7 +781,7 @@ interface NarrativePanelProps extends BaseComponentProps {
      */
     spec?: any;
 }
-declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, scopeSubflowId, runtimeSnapshot, spec, size, unstyled, className, style, }: NarrativePanelProps): React$1.JSX.Element;
+declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, scopeSubflowId, runtimeSnapshot, spec, size, unstyled, className, style, }: NarrativePanelProps): react.JSX.Element;
 
 interface StoryNarrativeProps extends BaseComponentProps {
     /** Structured narrative entries from CombinedNarrativeRecorder */
@@ -1162,43 +800,7 @@ interface StoryNarrativeProps extends BaseComponentProps {
      */
     scopeSubflowId?: string;
 }
-declare function StoryNarrative({ entries, revealedEntryCount, scopeSubflowId, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): React$1.JSX.Element;
-
-interface SubflowTreeEntry {
-    /** Node name / identifier */
-    name: string;
-    /** Human-readable description */
-    description?: string;
-    /**
-     * The mount node's id in the graph — the DRILL KEY. Unique even when the
-     * same child chart is mounted twice, which `subflowId` and `name` are not
-     * (see `_internal/subflowDrill.ts`). Hosts should drill with this.
-     */
-    nodeId?: string;
-    /** Subflow ID (when this node represents a subflow) */
-    subflowId?: string;
-    /** Whether this node is a subflow root (has nested structure) */
-    isSubflow?: boolean;
-    /** Nested children (subflow stages) — always undefined in the
-     *  current recorder-driven implementation; see file-level TODO. */
-    children?: SubflowTreeEntry[];
-}
-interface SubflowTreeProps extends BaseComponentProps {
-    /** Recorder-captured graph from `createTraceStructureRecorder().getGraph()`. */
-    graph: TraceGraph;
-    /** Currently active stage name (highlights in tree) */
-    activeStage?: string | null;
-    /** Set of completed stage names */
-    doneStages?: Set<string>;
-    /**
-     * Called when a tree node is clicked. `nodeId` is the mount node's graph id
-     * — the unambiguous drill key. Prefer it over `name`: two mounts of the
-     * same child chart share a label, so drilling by name lands on whichever
-     * one happens to be found first.
-     */
-    onNodeSelect?: (name: string, isSubflow: boolean, nodeId?: string) => void;
-}
-declare const SubflowTree: React$1.NamedExoticComponent<SubflowTreeProps>;
+declare function StoryNarrative({ entries, revealedEntryCount, scopeSubflowId, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): react.JSX.Element;
 
 /**
  * Shape of FootPrint's RuntimeSnapshot (from FlowChartExecutor.getSnapshot()).
@@ -1334,184 +936,6 @@ declare function createSnapshots(stages: Array<{
 }>): StageSnapshot[];
 
 /**
- * overlayFromSnapshot — the runtime overlay, rebuilt from a FROZEN snapshot.
- *
- * `<TracedFlow>` colours its chart from ONE input: the `RuntimeOverlay`
- * (TracedFlow.tsx → `sliceOverlay`). Until now the only way to get one was
- * to attach `createTraceRuntimeOverlay()` to a LIVE executor — so a
- * consumer replaying a recording (a saved `executor.getSnapshot()`, a
- * shipped demo, a bug report pasted into a viewer) had a rail, a memory
- * panel and a narrative but a dead, uncoloured chart.
- *
- * Nothing about the overlay needs to be live: `snapshot.commitLog` already
- * holds the execution order. Bundles are appended in execution order
- * (`bundle.idx` == array position) and one stage execution can emit MORE
- * than one bundle (a subflow mount commits its outputMapper result, then a
- * boundary bundle), so we dedupe by `runtimeStageId` keeping the FIRST —
- * the same dedupe the live recorder does on `onStageExecuted`.
- *
- * ```ts
- * const snapshot = JSON.parse(await fs.readFile('run.json', 'utf8'));
- * <ExplainableShell
- *   runtimeSnapshot={snapshot}
- *   traceGraph={graph}
- *   runtimeOverlay={overlayFromSnapshot(snapshot)}   // ← chart lights up
- * />
- * ```
- *
- * What it CANNOT know (honest absence — never fabricated)
- * ──────────────────────────────────────────────────────
- *   - **`timestampMs` is 0 on every step.** Commit bundles carry no
- *     wall clock. The field is display-only — `sliceOverlay` and
- *     `<TracedFlow>` never read it — so 0 is the honest value, not a
- *     guess. For real timings attach footprintjs's metrics recorder;
- *     `toVisualizationSnapshots` reads those into `StageSnapshot.durationMs`.
- *   - **`errors` is empty.** The commit log has no error channel; a
- *     failing stage's writes land (footprintjs commits before rethrow)
- *     but the message does not. Error painting needs the live recorder.
- *   - **`running` is false.** A recording is a finished run by definition.
- *   - **Retry attempts need the narrative.** A retried attempt commits
- *     nothing (footprintjs discards a failed attempt's staged writes), so
- *     the commit log cannot know a stage was attempted more than once. Pass
- *     the run's `narrativeEntries` — it records one `type: 'retry'` entry per
- *     failed attempt, stamped with the stage's runtimeStageId — and the
- *     rebuilt overlay carries the same `retryAttempts` a live recorder would
- *     have accumulated. Omit them and attempts are absent, not guessed.
- *   - **Subflow-internal steps are absent when the engine isolated them.**
- *     footprintjs keeps deep-subflow commits out of the run-level
- *     commitLog by design, so a recording of a chart with subflows yields
- *     overlay steps for the MOUNT stages, not their internals — the same
- *     stages the snapshot's own rail (`toVisualizationSnapshots`) shows.
- *     A live `createTraceRuntimeOverlay` sees both.
- */
-
-/** Duck-typed input: any object carrying a footprintjs commit log —
- *  a whole `executor.getSnapshot()` or just `{ commitLog }`. */
-interface SnapshotWithCommitLog {
-    commitLog?: unknown;
-}
-/** The slice of a narrative entry this reader consumes — duck-typed so both
- *  footprintjs's `CombinedNarrativeEntry` and this library's `NarrativeEntry`
- *  fit without either side importing the other. */
-interface NarrativeEntryLike {
-    type?: unknown;
-    runtimeStageId?: unknown;
-}
-interface OverlayFromSnapshotOptions {
-    /**
-     * The run's narrative entries — `executor.getNarrativeEntries()`, or a
-     * recording's `narrativeEntries`. The ONLY post-hoc source of retry facts:
-     * `onStageRetry` fires during a stage and leaves no trace in the commit
-     * log, but the narrative keeps one `type: 'retry'` entry per failed
-     * attempt. Optional: without it the overlay simply carries no attempt
-     * facts (honest absence — never a guess).
-     */
-    readonly narrativeEntries?: readonly NarrativeEntryLike[] | null;
-}
-/**
- * Builds a `RuntimeOverlay` from a recorded run — the post-hoc twin of
- * `createTraceRuntimeOverlay()`. Pass the result straight to
- * `<TracedFlow overlay={...}>` or `<ExplainableShell runtimeOverlay={...}>`.
- *
- * Returns an empty overlay (no steps) for a missing or empty commit log —
- * an unrecorded run colours nothing, which is the truthful rendering.
- */
-declare function overlayFromSnapshot(snapshot: SnapshotWithCommitLog | null | undefined, options?: OverlayFromSnapshotOptions): RuntimeOverlay;
-
-/**
- * graphFromStructure — the chart, rebuilt from a SAVED structure.
- *
- * `createTraceStructureRecorder` collects the chart while footprintjs
- * BUILDS it. This is its post-hoc twin: hand it the `buildTimeStructure`
- * a chart carries (`chart.buildTimeStructure`, plain JSON) and it produces
- * the same `TraceGraph` — no builder, no live process, no agent framework.
- *
- * Why it exists
- * ─────────────
- * A recording is three things: `events`, `snapshot`, and `structure`.
- * The snapshot draws the memory panel, the story and the rail; only the
- * structure can draw the CHART. Until now the one spec→graph adapter in
- * the ecosystem was `structureGraphFromSpec` in `agentfootprint-lens`,
- * which reaches into `agentfootprint` for agent vocabulary — so a plain
- * footprintjs consumer had to install an agent framework to draw a saved
- * pipeline run. This is that adapter, with no agent semantics.
- *
- * ```ts
- * // Recording side (in the app that ran the pipeline):
- * const recording = {
- *   snapshot:  executor.getSnapshot(),
- *   structure: chart.buildTimeStructure,   // ← the chart. Nothing else can draw it.
- * };
- *
- * // Rendering side, anywhere later:
- * <ExplainableShell
- *   runtimeSnapshot={recording.snapshot}
- *   traceGraph={graphFromStructure(recording.structure)}
- * />
- * ```
- *
- * Same graph, same ids
- * ────────────────────
- * Node ids are the chart's own stage ids at the top level and
- * `subflowPath/stageId` inside a subflow — byte-identical to the live
- * recorder, which is what lets the runtime overlay (live OR
- * `overlayFromSnapshot`) light the right boxes. The events are replayed
- * into `createTraceStructureRecorder` itself rather than re-implemented,
- * so the two paths cannot drift: one graph builder, two front doors.
- *
- * What a saved structure cannot carry (honest absence — never invented)
- * ────────────────────────────────────────────────────────────────────
- *   - **A decider's `defaultBranch`.** footprintjs's live
- *     `onDeciderComplete` event names the fallback branch, but
- *     `SerializedPipelineStructure` has no field for it, so a rebuilt
- *     decider node carries `branchIds` without `defaultBranch`. Renderers
- *     that badge the default simply don't badge it.
- *   - **A lazy subflow's internals.** `isLazy` mounts resolve at run time;
- *     the saved structure holds the mount node alone, exactly as the live
- *     recorder saw it at build time.
- */
-
-/**
- * The slice of footprintjs's `SerializedPipelineStructure` this walker
- * reads. Duck-typed on purpose — explainable-ui declares no `footprintjs`
- * dependency (see traceStructureRecorder.ts for the boundary rationale).
- */
-interface SerializedStructureNode {
-    readonly id: string;
-    readonly name: string;
-    readonly type?: "stage" | "decider" | "selector" | "fork" | "streaming" | "subflow" | "loop";
-    readonly description?: string;
-    readonly icon?: string;
-    readonly hasDecider?: boolean;
-    readonly hasSelector?: boolean;
-    readonly branchIds?: readonly string[];
-    readonly children?: readonly SerializedStructureNode[];
-    readonly next?: SerializedStructureNode;
-    readonly loopTarget?: string;
-    readonly isLoopReference?: boolean;
-    readonly isSubflowRoot?: boolean;
-    readonly subflowId?: string;
-    readonly subflowName?: string;
-    readonly subflowStructure?: SerializedStructureNode;
-    readonly isLazy?: boolean;
-    readonly isPausable?: boolean;
-    /** Structure-only: this branch rejoins at its OWN named stage instead of
-     *  the shared convergence stage (an unequal-depth merge). */
-    readonly convergeAt?: string;
-    readonly [key: string]: unknown;
-}
-/**
- * Builds the chart's `TraceGraph` from a serialized `buildTimeStructure`.
- *
- * Pass the result to `<ExplainableShell traceGraph={...}>` or
- * `<TracedFlow graph={...}>`. Returns an EMPTY graph (`{nodes: [], edges: []}`)
- * when the input isn't a structure — a recording saved without its
- * structure draws no chart, which is the truthful rendering. Check
- * `graph.nodes.length` if you want to branch on that.
- */
-declare function graphFromStructure(structure: unknown): TraceGraph;
-
-/**
  * Narrative sync utilities — shared logic for mapping timeline position
  * to narrative entries. Used by NarrativePanel and available to consumers
  * building custom visualization shells.
@@ -1596,7 +1020,7 @@ interface DataTracePanelProps extends BaseComponentProps {
  * Each frame shows: stage name, what it wrote, linked by which key.
  * Click a frame to navigate the time-travel slider.
  */
-declare const DataTracePanel: React$1.NamedExoticComponent<DataTracePanelProps>;
+declare const DataTracePanel: react.NamedExoticComponent<DataTracePanelProps>;
 
 interface InspectorPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
@@ -1619,7 +1043,7 @@ interface InspectorPanelProps extends BaseComponentProps {
      *  Rewind stop card / entry chips); default = the classic frames list. */
     traceContent?: ReactNode;
 }
-declare const InspectorPanel: React$1.NamedExoticComponent<InspectorPanelProps>;
+declare const InspectorPanel: react.NamedExoticComponent<InspectorPanelProps>;
 
 /** One recorded dependency. null means no earlier recorded writer, not a proven input. */
 interface TraceIngredient {
@@ -1724,7 +1148,7 @@ interface TraceWalkCardProps extends BaseComponentProps {
      *  chooser's time-order button must not pretend to move (review fix). */
     canContinueTimeOrder?: boolean;
 }
-declare const TraceWalkCard: React$1.NamedExoticComponent<TraceWalkCardProps>;
+declare const TraceWalkCard: react.NamedExoticComponent<TraceWalkCardProps>;
 
 interface InsightConfig {
     /** Unique ID (matches recorder id). */
@@ -1743,7 +1167,7 @@ interface InsightPanelProps extends BaseComponentProps {
     /** Display mode: tabs (one at a time) or grid (all visible). */
     mode: "tabs" | "grid";
 }
-declare const InsightPanel: React$1.NamedExoticComponent<InsightPanelProps>;
+declare const InsightPanel: react.NamedExoticComponent<InsightPanelProps>;
 
 interface CompactTimelineProps {
     snapshots: StageSnapshot[];
@@ -1755,56 +1179,7 @@ interface CompactTimelineProps {
      *  same prop as the mobile pill. */
     label?: string;
 }
-declare const CompactTimeline: React$1.NamedExoticComponent<CompactTimelineProps>;
-
-/**
- * TracedFlow — runtime-overlay variant of `<TraceFlow>`.
- *
- * Pairs a build-time `TraceGraph` (from `createTraceStructureRecorder`)
- * with a runtime `RuntimeOverlay` (from `createTraceRuntimeOverlay`)
- * and a scrub index → renders an xyflow chart with per-node coloring
- * (done / active / error), per-edge highlighting (executed paths),
- * loop-edge side-routing, and subflow drill-down.
- *
- * The component is orchestration only. Each responsibility lives in
- * an extracted helper / hook (see `_internal/`):
- *
- *   - drill state .................. useSubflowDrill
- *   - measured viewport fitting .... ChartAutoRefit
- *   - graph filtering by drill ..... filterGraphForDrill
- *   - breadcrumb path .............. buildSubflowBreadcrumb
- *   - slice id normalization ....... normalizeSliceLeafIds
- *   - mount status aggregation ..... aggregateMountStatus
- *   - node / edge styling .......... toStageNodeWithOverlay + styleEdgeWithOverlay
- *   - breadcrumb UI ................ <SubflowBreadcrumbBar>
- *
- * @example
- * ```tsx
- * const trace = useMemo(() => createTraceStructureRecorder(), []);
- * const runtime = useMemo(() => createTraceRuntimeOverlay(), []);
- * // ... attach both to executor, run the chart ...
- * <TracedFlow
- *   graph={trace.getGraph()}
- *   overlay={runtime.getOverlay()}
- *   scrubIndex={sliderValue}
- *   onNodeClick={(stageId) => focusStage(stageId)}
- *   onSubflowChange={(mountId) => syncShellDrill(mountId)}
- * />
- * ```
- */
-
-interface TracedFlowColors {
-    /** Default (un-executed) node text + edge stroke. */
-    default: string;
-    /** Done — visually de-emphasised (lighter). */
-    done: string;
-    /** Active — current scrub position. */
-    active: string;
-    /** Error — node with recorded onError. */
-    error: string;
-    /** Loop back-edge color. */
-    loop: string;
-}
+declare const CompactTimeline: react.NamedExoticComponent<CompactTimelineProps>;
 
 interface ExplainableRecording {
     readonly snapshot: RuntimeSnapshotInput;
@@ -1845,29 +1220,29 @@ interface ExplainableProviderProps {
     readonly defaultSelectedIndex?: number;
     readonly onSelectedIndexChange?: (index: number) => void;
     readonly theme?: ExplainableViewTheme;
-    readonly children: React$1.ReactNode;
+    readonly children: react.ReactNode;
     readonly className?: string;
-    readonly style?: React$1.CSSProperties;
+    readonly style?: react.CSSProperties;
 }
-declare function ExplainableProvider({ recording: input, selectedIndex: controlledIndex, defaultSelectedIndex, onSelectedIndexChange, theme, children, className, style, }: ExplainableProviderProps): React$1.JSX.Element;
+declare function ExplainableProvider({ recording: input, selectedIndex: controlledIndex, defaultSelectedIndex, onSelectedIndexChange, theme, children, className, style, }: ExplainableProviderProps): react.JSX.Element;
 declare function useExplainableRun(): ExplainableRunContextValue;
 
 interface TimelinePanelProps extends BaseComponentProps {
     readonly title?: string;
-    readonly renderDetail?: (snapshot: StageSnapshot, index: number) => React$1.ReactNode;
+    readonly renderDetail?: (snapshot: StageSnapshot, index: number) => react.ReactNode;
 }
-declare function TimelinePanel({ title, renderDetail, unstyled, className, style, }: TimelinePanelProps): React$1.JSX.Element;
+declare function TimelinePanel({ title, renderDetail, unstyled, className, style, }: TimelinePanelProps): react.JSX.Element;
 
 interface FlowchartPanelProps extends BaseComponentProps {
     readonly title?: string;
     readonly colors?: Partial<TracedFlowColors>;
 }
-declare function FlowchartPanel({ title, colors, unstyled, className, style, }: FlowchartPanelProps): React$1.JSX.Element;
+declare function FlowchartPanel({ title, colors, unstyled, className, style, }: FlowchartPanelProps): react.JSX.Element;
 
 interface ValueInspectorProps extends BaseComponentProps {
     readonly title?: string;
 }
-declare function ValueInspector({ title, size, unstyled, className, style, }: ValueInspectorProps): React$1.JSX.Element;
+declare function ValueInspector({ title, size, unstyled, className, style, }: ValueInspectorProps): react.JSX.Element;
 
 interface CommentaryRenderContext {
     readonly index: number;
@@ -1876,20 +1251,20 @@ interface CommentaryRenderContext {
 interface CommentaryPanelProps extends BaseComponentProps {
     readonly title?: string;
     readonly maxLines?: number;
-    readonly renderEntry?: (entry: NarrativeEntry, context: CommentaryRenderContext) => React$1.ReactNode;
+    readonly renderEntry?: (entry: NarrativeEntry, context: CommentaryRenderContext) => react.ReactNode;
     readonly emptyMessage?: string;
 }
-declare function CommentaryPanel({ title, maxLines, renderEntry, emptyMessage, unstyled, className, style, }: CommentaryPanelProps): React$1.JSX.Element;
+declare function CommentaryPanel({ title, maxLines, renderEntry, emptyMessage, unstyled, className, style, }: CommentaryPanelProps): react.JSX.Element;
 
 interface TimeTravelBarProps extends BaseComponentProps {
     readonly autoPlayable?: boolean;
 }
-declare function TimeTravelBar({ autoPlayable, size, unstyled, className, style, }: TimeTravelBarProps): React$1.JSX.Element;
+declare function TimeTravelBar({ autoPlayable, size, unstyled, className, style, }: TimeTravelBarProps): react.JSX.Element;
 
 interface CompactTimelinePanelProps extends BaseComponentProps {
     readonly defaultExpanded?: boolean;
 }
-declare function CompactTimelinePanel({ defaultExpanded, unstyled, className, style, }: CompactTimelinePanelProps): React$1.JSX.Element;
+declare function CompactTimelinePanel({ defaultExpanded, unstyled, className, style, }: CompactTimelinePanelProps): react.JSX.Element;
 
 interface SurfaceCollapseHandleProps {
     readonly label?: string;
@@ -1897,10 +1272,10 @@ interface SurfaceCollapseHandleProps {
     readonly orientation?: "vertical" | "horizontal";
     readonly onToggle: () => void;
     readonly className?: string;
-    readonly style?: React$1.CSSProperties;
+    readonly style?: react.CSSProperties;
     readonly unstyled?: boolean;
 }
-declare function SurfaceCollapseHandle({ label, expanded, orientation, onToggle, className, style, unstyled, }: SurfaceCollapseHandleProps): React$1.JSX.Element;
+declare function SurfaceCollapseHandle({ label, expanded, orientation, onToggle, className, style, unstyled, }: SurfaceCollapseHandleProps): react.JSX.Element;
 
 type ExplainableSurface = "timeTravel" | "timeline" | "stageRail" | "flowchart" | "inspector" | "commentary";
 type ExplainableViewPreset = "developer" | "product" | "studio" | "linear";
@@ -1912,7 +1287,7 @@ interface ExplainableLayoutDefinition {
     readonly gap?: number | string;
 }
 type ExplainableViewLayout = ExplainableViewPreset | ExplainableLayoutDefinition;
-type ExplainableViewSlot = React$1.ReactNode | ((context: ExplainableRunContextValue) => React$1.ReactNode);
+type ExplainableViewSlot = react.ReactNode | ((context: ExplainableRunContextValue) => react.ReactNode);
 interface ExplainableViewSlots {
     readonly timeTravel?: ExplainableViewSlot;
     readonly timeline?: ExplainableViewSlot;
@@ -1930,6 +1305,6 @@ interface ExplainableViewProps extends Omit<ExplainableProviderProps, "children"
     readonly onDetailsExpandedChange?: (expanded: boolean) => void;
     readonly detailsLabel?: string;
 }
-declare function ExplainableView({ recording, selectedIndex, defaultSelectedIndex, onSelectedIndexChange, theme: viewTheme, layout, slots, minHeight, detailsExpanded, defaultDetailsExpanded, onDetailsExpandedChange, detailsLabel, unstyled, className, style, }: ExplainableViewProps): React$1.JSX.Element;
+declare function ExplainableView({ recording, selectedIndex, defaultSelectedIndex, onSelectedIndexChange, theme: viewTheme, layout, slots, minHeight, detailsExpanded, defaultDetailsExpanded, onDetailsExpandedChange, detailsLabel, unstyled, className, style, }: ExplainableViewProps): react.JSX.Element;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };
+export { NarrativeEntry as AdapterNarrativeEntry, BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type ShellTab, SnapshotPanel, type SnapshotPanelProps, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, StageSnapshot, StoryNarrative, type StoryNarrativeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, ThemeMode, ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, TraceGraph, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, mergeWritePatch, narrativeFromSnapshot, rawDefaults, subflowResultToSnapshots, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };

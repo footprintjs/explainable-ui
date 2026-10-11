@@ -35,7 +35,7 @@ import { MemoryPanel } from "../MemoryPanel";
 import { NarrativePanel } from "../NarrativePanel";
 import { SubflowTree } from "../FlowchartView/SubflowTree";
 import { SubflowBreadcrumb } from "../FlowchartView/SubflowBreadcrumb";
-import { TracedFlow } from "../FlowchartView/TracedFlow";
+import { LazyTracedFlow } from "../_internal/LazyTracedFlow";
 import { buildSubflowBreadcrumb } from "../FlowchartView/_internal/subflowDrill";
 
 /**
@@ -1202,7 +1202,7 @@ export function ExplainableShell({
         ...(traceTheme.mode !== undefined && { default: traceTheme.mode === "dark" ? "#94a3b8" : "#64748b" }),
       };
       return (
-        <TracedFlow
+        <LazyTracedFlow
           graph={traceGraph}
           overlay={runtimeOverlay ?? undefined}
           sliceCone={sliceCone ?? undefined}

@@ -1,4 +1,4 @@
-/** Experimental source pilot only; deliberately absent from the package exports. */
+/** The isolated record-view facade; record algorithms and types remain in Foottrace. */
 export { RecordLens } from "./RecordLens";
 export type { RecordLensProps } from "./RecordLens";
 export { buildRecordLensModel } from "./model";

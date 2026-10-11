@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { exportSurface } from "./exportSurface";
 import ledger from "./fixtures/public-exports.json";
+import additions from "./fixtures/record-package-additions.json";
 
 describe("M1 — preserve every existing public home and value/type kind", () => {
   it("keeps all root and flowchart names, including deprecations and duplicate homes", () => {
@@ -13,17 +14,33 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
     );
   });
 
-  it("retains all doors while preparing only the approved Node22/Foottrace runtime prerequisites", () => {
+  it("adds exactly the approved record facade without introducing aliases at existing doors", () => {
+    const current = exportSurface({
+      ".": "src/index.ts",
+      "./flowchart": "src/flowchart.ts",
+      "./record": "src/record/index.ts",
+    });
+    expect(current).toEqual({ ...ledger.entries, ...additions.entries });
+    const newNames = new Set(additions.entries["./record"].map((row) => row.name));
+    for (const oldNames of Object.values(ledger.entries)) {
+      expect(oldNames.filter((row) => newNames.has(row.name))).toEqual([]);
+    }
+  });
+
+  it("prepares only the approved unpublished major package contract", () => {
     const manifest = JSON.parse(
       readFileSync(new URL("../../package.json", import.meta.url), "utf8")
     );
-    for (const [key, value] of Object.entries(ledger.packageContract)) {
-      const approved = key === "engines" ? { node: ">=22" } : key === "dependencies" ? { ...ledger.packageContract.dependencies, foottrace: "^1.0.3" } : value;
-      expect(manifest[key], key).toEqual(approved);
+    for (const [key, value] of Object.entries(additions.packageContract)) {
+      expect(manifest[key], key).toEqual(value);
     }
-    expect(manifest.exports).not.toHaveProperty("./record");
-    expect(manifest.version).toBe("0.38.0"); // unpublished preparation, not a release
+    expect(manifest.optionalDependencies).toBeUndefined();
+    expect(manifest.devDependencies.dagre).toBe("^0.8.5");
     expect(manifest.devDependencies.foottrace).toBeUndefined();
+    // Keep the old manifest and every historical export as evidence, not an
+    // expectation silently overwritten to make the major candidate pass.
+    expect(ledger.packageContract.version).toBe("0.38.0");
+    expect(ledger.packageContract.exports).not.toHaveProperty("./record");
   });
 
   it("distinguishes a real class export from its type-only alias", () => {

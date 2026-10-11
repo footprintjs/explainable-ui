@@ -3,7 +3,8 @@ import { useCallback, useMemo } from "react";
 
 import { theme } from "../../theme";
 import type { BaseComponentProps } from "../../types";
-import { TracedFlow, type TracedFlowColors } from "../FlowchartView/TracedFlow";
+import type { TracedFlowColors } from "../FlowchartView/TracedFlow";
+import { LazyTracedFlow } from "../_internal/LazyTracedFlow";
 import { useExplainableRun } from "./ExplainableContext";
 
 export interface FlowchartPanelProps extends BaseComponentProps {
@@ -87,7 +88,7 @@ export function FlowchartPanel({
       </header>
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         {traceGraph.nodes.length ? (
-          <TracedFlow
+          <LazyTracedFlow
             graph={traceGraph}
             overlay={runtimeOverlay}
             scrubIndex={scrubIndex}

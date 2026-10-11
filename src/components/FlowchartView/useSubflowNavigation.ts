@@ -1,7 +1,7 @@
 /**
  * useSubflowNavigation — LEGACY drill-down breadcrumb tracker.
  *
- * DEPRECATED since 0.38.0 — removed in the next major. Two reasons, both
+ * DEPRECATED since 0.38.0 — retained in 1.x. Two reasons, both
  * structural rather than stylistic:
  *
  *   1. **The key it emits is the wrong one.** `currentSubflowId` here is
@@ -88,7 +88,7 @@ const EMPTY_GRAPH: TraceGraph = { nodes: [], edges: [] };
  * stack pushes a new entry; breadcrumb clicks pop back to that level.
  * See file-level docs for the deferred per-subflow graph swap.
  *
- * @deprecated Since 0.38.0 — removed in the next major. Use
+ * @deprecated Since 0.38.0 — retained in 1.x. Use
  * `<TracedFlow>`'s built-in drill (`currentSubflowId` / `onSubflowChange`,
  * keyed by the mount node's id), or drive it yourself with
  * `filterGraphForDrill` + `buildSubflowBreadcrumb`.
