@@ -1,3 +1,4 @@
+import { Stop, FoldedState } from 'foottrace';
 import * as React$1 from 'react';
 import { CSSProperties, ReactNode } from 'react';
 import { Node, Edge } from '@xyflow/react';
@@ -10,8 +11,24 @@ interface StageSnapshot {
     stageLabel: string;
     /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex. Key for recorder Map lookup. */
     runtimeStageId?: string;
-    /** Accumulated memory state after this stage ran */
+    /** Accumulated state. When recordState is unavailable, this is an empty
+     * compatibility placeholder, not proof that the recorded state was empty. */
     memory: Record<string, unknown>;
+    /** Canonical record evidence. Absent for caller-supplied createSnapshots data.
+     * Keep every basis/redaction/gap qualifier when displaying or copying state. */
+    recordState?: {
+        readonly status: "available";
+        /** Selection-local label, not a globally unique run/iteration ID. */
+        readonly sourceId: string;
+        readonly stop: Stop;
+        readonly current: FoldedState;
+        readonly previous: FoldedState;
+    } | {
+        readonly status: "unavailable";
+        readonly sourceId: string;
+        readonly reason: "unsupported-source" | "stage-not-recorded" | "reader-refused";
+        readonly message: string;
+    };
     /** Narrative text describing what happened */
     narrative: string;
     /** When this stage started (ms from pipeline start) */
@@ -1214,8 +1231,9 @@ interface RecorderSnapshot {
 }
 interface RuntimeSnapshot {
     sharedState: Record<string, unknown>;
+    initialState?: Record<string, unknown>;
     executionTree: RuntimeStageSnapshot;
-    commitLog: unknown[];
+    commitLog?: unknown[];
     /** Per-subflow execution results (keyed by subflowId). */
     subflowResults?: Record<string, unknown>;
     /** Snapshots from recorders that implement toSnapshot() (e.g. MetricRecorder). */
@@ -1237,9 +1255,8 @@ interface RuntimeSnapshot {
  */
 declare function narrativeFromSnapshot(runtime: unknown): NarrativeEntry[] | undefined;
 /**
- * Deep-merges a net-change write PATCH into a base value for the
- * cumulative-memory VIEW — the visualization-side mirror of footprintjs's
- * `deepSmartMerge` (the `merge`-verb arm of `applySmartMerge`).
+ * Deep-merges a caller-owned PATCH into a base value. This retained public
+ * utility is not a record reader; its array policy differs from Foottrace.
  *
  * Semantics:
  *   - plain objects: object-spread per level — patch keys win, base

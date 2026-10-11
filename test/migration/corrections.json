@@ -1,8 +1,8 @@
 [
   {
     "id": "R1",
-    "status": "requires-owning-layer-review",
-    "approval": null,
+    "status": "implemented-unreleased-M3",
+    "approval": "Owner approved canonical state corrections before M3; unreleased next/lens-1 only, no publication authorized.",
     "observedIsCorrectnessOracle": false,
     "affectedPublicFunctions": [
       "toVisualizationSnapshots",
@@ -20,12 +20,12 @@
     "recordGroundedRequirement": "Supported canonical records retain their actual base, exact ordered verb semantics and qualified gaps. A legacy record must not be guessed into a newer schema; settle its supported-input policy before replacement.",
     "owner": "Foottrace folding and safe paths; Flow format adapter and honest presentation",
     "consumerImpact": "Preserve every public name, including mergeWritePatch. Canonical record replacement is not permission to silently change that public object's-merge contract.",
-    "releaseNoteDraft": "Pending review: document supported input formats and each approved state reconstruction correction. No correction is implemented by M1."
+    "releaseNoteDraft": "Unreleased major preparation: Flow state delegates to Foottrace, retaining the recorded initial base, own undefined values, canonical array merges and actual fork join state. Unknown verbs are not sets; gaps keep original addresses. StageWrites-only or unaddressed inputs retain presentation but explicitly lack reconstructable state. Public mergeWritePatch/createSnapshots semantics and all export names remain unchanged; the 40 goldens remain untouched with exactly two named historical fork-state corrections."
   },
   {
     "id": "R2",
-    "status": "requires-owning-layer-review",
-    "approval": null,
+    "status": "approved-pending-M4-M5",
+    "approval": "Owner approved the correction direction; cause-tracing implementation and its independent review remain pending after M3.",
     "observedIsCorrectnessOracle": false,
     "affectedPublicFunctions": ["buildTraceWalk", "ExplainableShell"],
     "fixtures": [
@@ -40,8 +40,8 @@
   },
   {
     "id": "R3",
-    "status": "requires-owning-layer-review",
-    "approval": null,
+    "status": "approved-pending-M4-M5",
+    "approval": "Owner approved the correction direction; cause-tracing implementation and its independent review remain pending after M3.",
     "observedIsCorrectnessOracle": false,
     "affectedPublicFunctions": [
       "buildTraceWalk",
@@ -63,11 +63,11 @@
   },
   {
     "id": "R4",
-    "status": "foottrace-1.0.1-adoption-prepared",
-    "approval": null,
+    "status": "foottrace-1.0.1-adopted",
+    "approval": "Owner approved the owning-library correction; published Foottrace 1.0.1 was verified and adopted in explainable-ui PR4.",
     "readerVersion": "1.0.1",
     "testedExpectation": "Both the early prefix and full unchanged record retain A's own runs.a.y write and A-to-Seed cause; neither may report A-to-B.",
-    "publicVerification": "Clean published-package installation and all consumer gates are required before merge; local candidate validation alone is insufficient.",
+    "publicVerification": "Published Foottrace 1.0.1 and its consumer adoption were verified before explainable-ui PR4 merged. No local candidate alias is used.",
     "observedIsCorrectnessOracle": false,
     "affectedPublicFunctions": [
       "Foottrace causalChain",
@@ -80,8 +80,8 @@
     ],
     "observed": "Foottrace 1.0.0 anchors an earlier write at its later empty repeat row, so full-record provenance may name B even though A read Seed's value before B ran.",
     "recordGroundedRequirement": "A read of 1 before B writes 9 cannot depend on B. Keep the real producer rows unchanged and fix occurrence-specific read anchoring upstream before M4/M5.",
-    "owner": "Foottrace causalChain read-anchor rule; old Footprint 9 embedded reader maintenance separately",
-    "consumerImpact": "M4/M5 remain blocked on reviewed upstream correctness. A diagnostic that reproduces the bug is not a passing correctness test.",
-    "releaseNoteDraft": "Prepared development-reader update: the source-only record pilot retains causal parents at the read's actual recorded occurrence, not a later continuation. Existing Flow views and public exports are unchanged."
+    "owner": "Foottrace causalChain read-anchor rule; current work targets Footprint 10 and Foottrace only, with no further 9.x backports",
+    "consumerImpact": "The original causal anchor prerequisite is resolved. M4/M5 still require their own implementation and review; a reproduced diagnostic is not a passing correctness test.",
+    "releaseNoteDraft": "Adopted Foottrace 1.0.1: the source-only record pilot retains causal parents at the read's actual recorded occurrence, not a later continuation. The M3 production change replaces state folding only; Flow cause tracing remains pending."
   }
 ]

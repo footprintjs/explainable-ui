@@ -1,5 +1,9 @@
 # M1: behavior and public-contract evidence
 
+For the approved, unpublished-major canonical state replacement, see
+[M3-STATE-MIGRATION.md](./M3-STATE-MIGRATION.md). This document retains the M1
+historical context; the current branch's production/test runtime is Node 22+.
+
 This is test-only characterization of `footprint-explainable-ui` 0.38.0 at
 `cc8e47f34440f518b1a1d69b3aeb77e532a602d4`. It does not replace a reader,
 publish the record pilot, change dependencies, or approve a semantic correction.
@@ -90,7 +94,7 @@ unknown-read qualification preserve that distinction for the later adapter.
 
 ## Run
 
-Normal Node 20/22 suite (no Foottrace runtime imported by the new normal tests):
+Current Node 22/24 suite (M3 delegates state interpretation to Foottrace):
 
 ```sh
 npm run build

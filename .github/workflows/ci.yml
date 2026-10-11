@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        node-version: [20, 22]
+        node-version: [22, 24]
 
     steps:
       - uses: actions/checkout@v4
@@ -32,10 +32,9 @@ jobs:
       - run: npm run build
       - run: npm test
 
-      # Non-shipping source pilot. Foottrace's development tests require Node 22;
-      # the existing package entries and their Node 20 lane stay unchanged.
+      # The unpublished major preparation now uses Foottrace in production;
+      # both supported lanes exercise the still-unexported record pilot.
       - name: Verify isolated record source pilot
-        if: matrix.node-version == 22
         run: npm run test:record-pilot
 
       # Packaging-correctness gate on the would-be-published tarball (now that the dual

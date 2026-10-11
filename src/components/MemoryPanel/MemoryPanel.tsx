@@ -11,6 +11,7 @@ import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { theme } from "../../theme";
 import { MemoryInspector } from "../MemoryInspector";
 import { ScopeDiff } from "../ScopeDiff";
+import { recordStateDisplay } from "../_internal/recordStateDisplay";
 
 export interface MemoryPanelProps extends BaseComponentProps {
   snapshots: StageSnapshot[];
@@ -25,16 +26,22 @@ export function MemoryPanel({
   className,
   style,
 }: MemoryPanelProps) {
-  const prevMemory = selectedIndex > 0
-    ? snapshots[selectedIndex - 1]?.memory ?? null
-    : null;
-  const currMemory = snapshots[selectedIndex]?.memory ?? {};
+  const view = recordStateDisplay(
+    snapshots[selectedIndex],
+    snapshots[selectedIndex - 1]
+  );
 
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="memory-panel">
-        <MemoryInspector snapshots={snapshots} selectedIndex={selectedIndex} unstyled />
-        <ScopeDiff previous={prevMemory} current={currMemory} unstyled />
+        <MemoryInspector
+          snapshots={snapshots}
+          selectedIndex={selectedIndex}
+          unstyled
+        />
+        {view.canCompare && view.memory !== null && (
+          <ScopeDiff previous={view.previous} current={view.memory} unstyled />
+        )}
       </div>
     );
   }
@@ -50,10 +57,21 @@ export function MemoryPanel({
       }}
       data-fp="memory-panel"
     >
-      <MemoryInspector snapshots={snapshots} selectedIndex={selectedIndex} size={size} />
-      <div style={{ borderTop: `1px solid ${theme.border}` }}>
-        <ScopeDiff previous={prevMemory} current={currMemory} hideUnchanged size={size} />
-      </div>
+      <MemoryInspector
+        snapshots={snapshots}
+        selectedIndex={selectedIndex}
+        size={size}
+      />
+      {view.canCompare && view.memory !== null && (
+        <div style={{ borderTop: `1px solid ${theme.border}` }}>
+          <ScopeDiff
+            previous={view.previous}
+            current={view.memory}
+            hideUnchanged
+            size={size}
+          />
+        </div>
+      )}
     </div>
   );
 }

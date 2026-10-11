@@ -63,10 +63,10 @@ function makeRuntimeSnapshot() {
   return { sharedState: {}, commitLog, executionTree: tree, subflowResults: {} };
 }
 
-function renderShell() {
+function renderShell(snapshots: StageSnapshot[] = SNAPSHOTS) {
   const utils = render(
     React.createElement(ExplainableShell, {
-      snapshots: SNAPSHOTS,
+      snapshots,
       runtimeSnapshot: makeRuntimeSnapshot() as never,
       title: "Quote",
     }),
@@ -93,6 +93,36 @@ function forkChooser(): HTMLElement | null {
 }
 
 describe("ExplainableShell — Same-Rail Rewind", () => {
+  it.each(["caller-owned", "complete", "current", "previous"] as const)("M3: %s evidence gates only the optional preview, never trace navigation", (qualification) => {
+    // Presentation-only evidence fixture: the existing legacy trace graph is
+    // deliberately unchanged. This tests no new causal interpretation.
+    const snapshots: StageSnapshot[] = qualification === "caller-owned" ? SNAPSHOTS : SNAPSHOTS.map((snapshot, index) => ({
+      ...snapshot,
+      recordState: {
+        status: "available",
+        sourceId: "ui-fixture",
+        stop: { step: index + 1, runtimeStageId: snapshot.runtimeStageId!, stageId: snapshot.stageName, label: snapshot.stageLabel, kind: "commit", commitIdx: index, lastCommitIdx: index },
+        current: { state: snapshot.memory, basis: qualification === "current" ? "log-only" : "initial+log", redacted: false, redactedPaths: [], throughCommitIdx: index },
+        previous: { state: {}, basis: qualification === "previous" ? "log-only" : "initial+log", redacted: false, redactedPaths: [], throughCommitIdx: index - 1 },
+      },
+    }));
+    renderShell(snapshots);
+    enterTracing();
+    const card = () => document.querySelector('[data-fp="trace-walk-card"]') as HTMLElement;
+    expect(within(toolbar()).getByText(/stop 1 of 4/)).toBeTruthy();
+    if (qualification === "caller-owned" || qualification === "complete") expect(card().textContent).toContain("= 109.45");
+    else expect(card().textContent).not.toContain("109.45");
+    fireEvent.click(screen.getByLabelText("Earlier cause"));
+    expect(within(toolbar()).getByText(/stop 2 of 4/)).toBeTruthy();
+    expect(screen.getByText(/Step 4 ·/)).toBeTruthy();
+    const subtotal = within(card()).getAllByTitle(/Follow /).find(chip => chip.textContent?.includes("subtotal"))!;
+    fireEvent.click(subtotal);
+    expect(screen.getByText(/Step 2 ·/)).toBeTruthy();
+    expect(screen.getAllByText(/via/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByText("show all ingredients"));
+    expect(within(toolbar()).getByText(/stop 1 of 4/)).toBeTruthy();
+  });
+
   it("ENTRY: the chip starts tracing, jumps the cursor to the anchor, and flips the rail", () => {
     renderShell();
     enterTracing();

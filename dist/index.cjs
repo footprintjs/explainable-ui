@@ -439,7 +439,173 @@ function themeModeVars(mode) {
 
 // src/components/MemoryInspector/MemoryInspector.tsx
 var import_react3 = require("react");
+
+// src/components/_internal/recordStateDisplay.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
+function recordStateDisplay(snapshot, previous) {
+  const evidence = snapshot?.recordState;
+  if (!evidence) {
+    return {
+      memory: snapshot?.memory ?? {},
+      previous: previous?.memory ?? null,
+      canCompare: true,
+      notices: []
+    };
+  }
+  if (evidence.status === "unavailable") {
+    return {
+      memory: null,
+      previous: null,
+      canCompare: false,
+      notices: [`Recorded state unavailable: ${evidence.message}`]
+    };
+  }
+  const notices = [];
+  for (const [label, state] of [
+    ["Selected state", evidence.current],
+    ["Previous recorded state", evidence.previous]
+  ]) {
+    if (state.basis === "log-only")
+      notices.push(
+        `${label}: recorded writes only; the initial state was not recorded.`
+      );
+    if (state.redacted || state.redactedPaths.length)
+      notices.push(
+        `${label}: redacted values are withheld${state.redactedPaths.length ? ` (${state.redactedPaths.join(", ")})` : ""}.`
+      );
+    for (const gap of state.skipped ?? [])
+      notices.push(`${label}: skipped record row ${gap.index}: ${gap.reason}`);
+  }
+  const complete = (state) => state.basis === "initial+log" && !state.redacted && !state.redactedPaths.length && !state.skipped?.length;
+  const canCompare = complete(evidence.current) && complete(evidence.previous);
+  if (!canCompare)
+    notices.push(
+      "Changes are not classified because one or both recorded states are incomplete."
+    );
+  return {
+    memory: evidence.current.state,
+    previous: evidence.previous.state,
+    canCompare,
+    notices
+  };
+}
+function RecordStateNotice({
+  view
+}) {
+  if (!view.notices.length) return null;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { "data-fp": "record-state-evidence", role: "note", children: view.notices.map((notice) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("p", { children: notice }, notice)) });
+}
+
+// src/components/_internal/displayValue.ts
+var import_foottrace = require("foottrace");
+
+// src/record/preview.ts
+function previewValue(value) {
+  const seen = /* @__PURE__ */ new WeakSet();
+  let remaining = 100;
+  const quote = (text) => JSON.stringify(text.length > 300 ? `${text.slice(0, 300)}\u2026` : text);
+  const own = (object, key, depth) => {
+    const property = Object.getOwnPropertyDescriptor(object, key);
+    if (!property) return "[absent]";
+    return "value" in property ? show(property.value, depth) : "[accessor not read]";
+  };
+  const show = (item, depth) => {
+    if (--remaining < 0 || depth > 4) return "[preview limit]";
+    if (item === null) return "null";
+    if (item === void 0) return "[undefined]";
+    if (typeof item === "string") return quote(item);
+    if (typeof item === "bigint") return `${item}n`;
+    if (typeof item === "number" || typeof item === "boolean")
+      return String(item);
+    if (typeof item !== "object") return `[${typeof item}]`;
+    if (seen.has(item)) return "[repeated reference]";
+    seen.add(item);
+    if (item instanceof Date) {
+      return Number.isNaN(Date.prototype.getTime.call(item)) ? "[Invalid Date]" : `Date(${Date.prototype.toISOString.call(item)})`;
+    }
+    if (item instanceof Map || item instanceof Set) {
+      const prototype2 = item instanceof Map ? Map.prototype : Set.prototype;
+      const size = Object.getOwnPropertyDescriptor(
+        prototype2,
+        "size"
+      )?.get?.call(item);
+      return `[${item instanceof Map ? "Map" : "Set"}: ${size} entries]`;
+    }
+    if (item instanceof RegExp) return "[RegExp]";
+    if (ArrayBuffer.isView(item)) return "[TypedArray or DataView]";
+    if (item instanceof ArrayBuffer) return "[ArrayBuffer]";
+    if (Array.isArray(item)) {
+      const length = Object.getOwnPropertyDescriptor(item, "length")?.value ?? 0;
+      const parts2 = Array.from(
+        { length: Math.min(length, 10) },
+        (_, index) => own(item, String(index), depth + 1)
+      );
+      if (length > 10) parts2.push("\u2026");
+      return `[${parts2.join(", ")}]`;
+    }
+    const prototype = Object.getPrototypeOf(item);
+    if (prototype !== null && prototype !== Object.prototype)
+      return "[Object preview unavailable]";
+    const parts = [];
+    for (const key in item) {
+      if (!Object.prototype.hasOwnProperty.call(item, key)) continue;
+      if (parts.length === 10 || remaining <= 0) {
+        parts.push("\u2026");
+        break;
+      }
+      parts.push(`${quote(key)}: ${own(item, key, depth + 1)}`);
+    }
+    return `{${parts.join(", ")}}`;
+  };
+  try {
+    const text = show(value, 0);
+    return text.length > 800 ? `${text.slice(0, 800)}\u2026` : text;
+  } catch {
+    return "[preview unavailable]";
+  }
+}
+
+// src/components/_internal/displayValue.ts
+function isJsonData(value, ancestors = /* @__PURE__ */ new Set()) {
+  if (value === null || typeof value === "string" || typeof value === "boolean")
+    return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "object") return false;
+  const proto = Object.getPrototypeOf(value);
+  if (!Array.isArray(value) && proto !== Object.prototype && proto !== null || "toJSON" in value || ancestors.has(value))
+    return false;
+  ancestors.add(value);
+  try {
+    for (const key of Object.keys(value)) {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !("value" in descriptor) || !isJsonData(descriptor.value, ancestors))
+        return false;
+    }
+    return true;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+function jsonText(value, indent) {
+  try {
+    return isJsonData(value) ? JSON.stringify(value, null, indent) : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function displayValue(value, indent) {
+  if (typeof value === "string") return `"${value}"`;
+  if (value === null || typeof value !== "object")
+    return typeof value === "bigint" ? previewValue(value) : String(value);
+  return jsonText(value, indent) ?? previewValue(value);
+}
+function displayValuesEqual(a, b) {
+  const aJson = jsonText(a), bJson = jsonText(b);
+  return aJson !== void 0 && bJson !== void 0 ? aJson === bJson : (0, import_foottrace.deepEqual)(a, b);
+}
+
+// src/components/MemoryInspector/MemoryInspector.tsx
+var import_jsx_runtime3 = require("react/jsx-runtime");
 function MemoryInspector({
   data,
   snapshots,
@@ -451,34 +617,49 @@ function MemoryInspector({
   className,
   style
 }) {
-  const { memory, newKeys } = (0, import_react3.useMemo)(() => {
+  const { view, newKeys } = (0, import_react3.useMemo)(() => {
     if (data) {
-      return { memory: data, newKeys: /* @__PURE__ */ new Set() };
+      return {
+        view: { memory: data, previous: null, canCompare: true, notices: [] },
+        newKeys: /* @__PURE__ */ new Set()
+      };
     }
     if (!snapshots || snapshots.length === 0) {
-      return { memory: {}, newKeys: /* @__PURE__ */ new Set() };
+      return { view: recordStateDisplay(), newKeys: /* @__PURE__ */ new Set() };
     }
-    const safeIdx = Math.min(selectedIndex, snapshots.length - 1);
-    const merged = snapshots[safeIdx]?.memory ?? {};
+    const safeIdx = Math.max(0, Math.min(selectedIndex, snapshots.length - 1));
+    const view2 = recordStateDisplay(snapshots[safeIdx], snapshots[safeIdx - 1]);
     const nk = /* @__PURE__ */ new Set();
-    if (highlightNew) {
-      const prev = safeIdx > 0 ? snapshots[safeIdx - 1]?.memory ?? {} : {};
-      for (const k of Object.keys(merged)) {
+    if (highlightNew && view2.canCompare && view2.memory) {
+      const prev = view2.previous ?? {};
+      for (const k of Object.keys(view2.memory)) {
         if (!(k in prev)) nk.add(k);
       }
     }
-    return { memory: merged, newKeys: nk };
+    return { view: view2, newKeys: nk };
   }, [data, snapshots, selectedIndex, highlightNew]);
-  const entries = Object.entries(memory);
+  const memory = view.memory;
+  const entries = Object.entries(memory ?? {});
   const fs = fontSize[size];
   const pad = padding[size];
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { className, style, "data-fp": "memory-inspector", role: "region", "aria-label": "Memory state", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { "data-fp": "memory-label", children: "Memory State" }),
-      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("pre", { "data-fp": "memory-json", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("code", { children: JSON.stringify(memory, null, 2) }) })
-    ] });
+    return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+      "div",
+      {
+        className,
+        style,
+        "data-fp": "memory-inspector",
+        role: "region",
+        "aria-label": "Memory state",
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { "data-fp": "memory-label", children: "Memory State" }),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RecordStateNotice, { view }),
+          memory !== null && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("pre", { "data-fp": "memory-json", children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("code", { children: displayValue(memory, 2) }) })
+        ]
+      }
+    );
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
     "div",
     {
       className,
@@ -491,7 +672,7 @@ function MemoryInspector({
       role: "region",
       "aria-label": "Memory state",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
           "span",
           {
             style: {
@@ -504,7 +685,8 @@ function MemoryInspector({
             children: "Memory State"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RecordStateNotice, { view }),
+        memory !== null && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
           "div",
           {
             style: {
@@ -518,8 +700,8 @@ function MemoryInspector({
               lineHeight: 1.8
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { color: theme.textMuted }, children: "{" }),
-              entries.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: { color: theme.textMuted }, children: "{" }),
+              entries.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
                 "div",
                 {
                   style: {
@@ -527,13 +709,13 @@ function MemoryInspector({
                     color: theme.textMuted,
                     fontStyle: "italic"
                   },
-                  children: "// empty"
+                  children: view.canCompare ? "// empty" : "// no values in the available recorded state"
                 }
               ),
               entries.map(([key, value], i) => {
                 const isNew = newKeys.has(key);
                 const isLast = i === entries.length - 1;
-                return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+                return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
                   "div",
                   {
                     style: {
@@ -545,14 +727,14 @@ function MemoryInspector({
                       paddingRight: 4
                     },
                     children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("span", { style: { color: theme.primary }, children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("span", { style: { color: theme.primary }, children: [
                         '"',
                         key,
                         '"'
                       ] }),
-                      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { color: theme.textMuted }, children: ": " }),
-                      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { color: theme.success }, children: formatValue(value) }),
-                      showTypes && /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+                      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: { color: theme.textMuted }, children: ": " }),
+                      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: { color: theme.success }, children: displayValue(value) }),
+                      showTypes && /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
                         "span",
                         {
                           style: {
@@ -568,13 +750,13 @@ function MemoryInspector({
                           ]
                         }
                       ),
-                      !isLast && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { color: theme.textMuted }, children: "," })
+                      !isLast && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: { color: theme.textMuted }, children: "," })
                     ]
                   },
                   key
                 );
               }),
-              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("span", { style: { color: theme.textMuted }, children: "}" })
+              /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("span", { style: { color: theme.textMuted }, children: "}" })
             ]
           }
         )
@@ -582,15 +764,10 @@ function MemoryInspector({
     }
   );
 }
-function formatValue(value) {
-  if (typeof value === "string") return `"${value}"`;
-  if (typeof value === "object" && value !== null) return JSON.stringify(value);
-  return String(value);
-}
 
 // src/components/NarrativeLog/NarrativeLog.tsx
 var import_react4 = require("react");
-var import_jsx_runtime3 = require("react/jsx-runtime");
+var import_jsx_runtime4 = require("react/jsx-runtime");
 function NarrativeLog({
   snapshots,
   selectedIndex,
@@ -614,19 +791,19 @@ function NarrativeLog({
   const fs = fontSize[size];
   const pad = padding[size];
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { className, style, "data-fp": "narrative-log", children: entries.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { "data-fp": "narrative-entry", "data-current": entry.isCurrent, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("strong", { children: entry.label }),
-      /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { children: entry.text })
+    return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { className, style, "data-fp": "narrative-log", children: entries.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { "data-fp": "narrative-entry", "data-current": entry.isCurrent, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("strong", { children: entry.label }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("p", { children: entry.text })
     ] }, i)) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
     "div",
     {
       className,
       style: { padding: pad, fontFamily: theme.fontSans, ...style },
       "data-fp": "narrative-log",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
           "span",
           {
             style: {
@@ -639,7 +816,7 @@ function NarrativeLog({
             children: "Execution Log"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: { marginTop: 8, display: "flex", flexDirection: "column" }, children: entries.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { marginTop: 8, display: "flex", flexDirection: "column" }, children: entries.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
           "div",
           {
             style: {
@@ -649,7 +826,7 @@ function NarrativeLog({
               borderBottom: i < entries.length - 1 ? `1px solid ${theme.border}` : "none"
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
                 "div",
                 {
                   style: {
@@ -661,7 +838,7 @@ function NarrativeLog({
                     paddingTop: 5
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
                       "div",
                       {
                         style: {
@@ -673,7 +850,7 @@ function NarrativeLog({
                         }
                       }
                     ),
-                    i < entries.length - 1 && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                    i < entries.length - 1 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
                       "div",
                       {
                         style: {
@@ -687,8 +864,8 @@ function NarrativeLog({
                   ]
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: { flex: 1, minWidth: 0 }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { flex: 1, minWidth: 0 }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
                   "span",
                   {
                     style: {
@@ -699,7 +876,7 @@ function NarrativeLog({
                     children: entry.label
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
                   "div",
                   {
                     style: {
@@ -723,7 +900,7 @@ function NarrativeLog({
 
 // src/components/NarrativeTrace/NarrativeTrace.tsx
 var import_react5 = require("react");
-var import_jsx_runtime4 = require("react/jsx-runtime");
+var import_jsx_runtime5 = require("react/jsx-runtime");
 function parseGroups(lines) {
   const groups = [];
   let current = null;
@@ -774,9 +951,9 @@ function NarrativeTrace({
   const fs = fontSize[size];
   const pad = padding[size];
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { className, style, "data-fp": "narrative-trace", children: [
-      revealedGroups.map((group, gi) => /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { "data-fp": "narrative-group", "data-latest": gi === lastIdx, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { className, style, "data-fp": "narrative-trace", children: [
+      revealedGroups.map((group, gi) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { "data-fp": "narrative-group", "data-latest": gi === lastIdx, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
           "div",
           {
             "data-fp": "narrative-header",
@@ -800,9 +977,9 @@ function NarrativeTrace({
             children: group.header
           }
         ),
-        !collapsedSet.has(group.headerIdx) && group.steps.map((step) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { "data-fp": "narrative-step", children: step.text }, step.idx))
+        !collapsedSet.has(group.headerIdx) && group.steps.map((step) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { "data-fp": "narrative-step", children: step.text }, step.idx))
       ] }, group.headerIdx)),
-      futureGroups.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { "data-fp": "narrative-future-hint", children: [
+      futureGroups.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { "data-fp": "narrative-future-hint", children: [
         futureGroups.length,
         " more ",
         futureGroups.length === 1 ? "stage" : "stages",
@@ -810,7 +987,7 @@ function NarrativeTrace({
       ] })
     ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
     "div",
     {
       className,
@@ -827,14 +1004,14 @@ function NarrativeTrace({
           const isLatest = gi === lastIdx;
           const isCollapsed = collapsedSet.has(group.headerIdx);
           const hasSteps = group.steps.length > 0;
-          return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+          return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
             "div",
             {
               ref: isLatest ? latestRef : void 0,
               style: { marginBottom: 2 },
               "data-fp": "narrative-group",
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
                   "div",
                   {
                     role: hasSteps ? "button" : void 0,
@@ -869,7 +1046,7 @@ function NarrativeTrace({
                       transition: "all 0.15s ease"
                     },
                     children: [
-                      hasSteps && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                      hasSteps && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
                         "span",
                         {
                           style: {
@@ -884,12 +1061,12 @@ function NarrativeTrace({
                           children: "\u25BC"
                         }
                       ),
-                      !hasSteps && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { style: { width: 10, flexShrink: 0 } }),
-                      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { children: group.header })
+                      !hasSteps && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: { width: 10, flexShrink: 0 } }),
+                      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: group.header })
                     ]
                   }
                 ),
-                !isCollapsed && group.steps.map((step) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                !isCollapsed && group.steps.map((step) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
                   "div",
                   {
                     style: {
@@ -910,7 +1087,7 @@ function NarrativeTrace({
             group.headerIdx
           );
         }),
-        futureGroups.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: {
+        futureGroups.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: {
           opacity: 0.3,
           fontSize: fs.small,
           color: theme.textMuted,
@@ -929,7 +1106,7 @@ function NarrativeTrace({
 
 // src/components/GanttTimeline/GanttTimeline.tsx
 var import_react6 = require("react");
-var import_jsx_runtime5 = require("react/jsx-runtime");
+var import_jsx_runtime6 = require("react/jsx-runtime");
 var NO_TIMING_NOTE = "No timing recorded \u2014 bars show the order stages ran, not how long they took.";
 var NO_TIMING_HINT = "Durations come from footprintjs's metrics recorder; this run was recorded without one.";
 var NO_DURATION = "\u2014";
@@ -977,7 +1154,7 @@ function GanttTimeline({
     }
   }, [selectedIndex, showAll]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
       "div",
       {
         className,
@@ -987,7 +1164,7 @@ function GanttTimeline({
         role: "listbox",
         "aria-label": "Execution timeline",
         children: [
-          snapshots.map((snap, idx) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+          snapshots.map((snap, idx) => /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
             "div",
             {
               "data-fp": "gantt-bar",
@@ -998,18 +1175,18 @@ function GanttTimeline({
               "aria-label": rowLabel(snap, idx),
               onClick: () => onSelect?.(idx),
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { "data-fp": "gantt-label", children: snap.stageLabel }),
-                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { "data-fp": "gantt-duration", children: rowDuration(snap) })
+                /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { "data-fp": "gantt-label", children: snap.stageLabel }),
+                /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { "data-fp": "gantt-duration", children: rowDuration(snap) })
               ]
             },
             `${snap.stageName}-${idx}`
           )),
-          untimed && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { "data-fp": "gantt-no-timing", title: NO_TIMING_HINT, children: NO_TIMING_NOTE })
+          untimed && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { "data-fp": "gantt-no-timing", title: NO_TIMING_HINT, children: NO_TIMING_NOTE })
         ]
       }
     );
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
     "div",
     {
       className,
@@ -1017,7 +1194,7 @@ function GanttTimeline({
       "data-fp": "gantt-timeline",
       "data-timing": untimed ? "none" : void 0,
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
           "div",
           {
             style: {
@@ -1026,7 +1203,7 @@ function GanttTimeline({
               justifyContent: "space-between"
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
                 "span",
                 {
                   style: {
@@ -1039,7 +1216,7 @@ function GanttTimeline({
                   children: size === "compact" ? "Timeline" : "Execution Timeline"
                 }
               ),
-              collapsible && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+              collapsible && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
                 "button",
                 {
                   onClick: () => setExpanded((e) => !e),
@@ -1059,7 +1236,7 @@ function GanttTimeline({
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
           "div",
           {
             ref: scrollContainerRef,
@@ -1080,7 +1257,7 @@ function GanttTimeline({
               const { leftPct, widthPct } = barGeometry(snap, idx);
               const isSelected = idx === selectedIndex;
               const isVisible = idx <= selectedIndex;
-              return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+              return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
                 "div",
                 {
                   ref: isSelected ? activeRowRef : void 0,
@@ -1099,7 +1276,7 @@ function GanttTimeline({
                     flexShrink: 0
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
                       "span",
                       {
                         title: snap.stageLabel,
@@ -1117,7 +1294,7 @@ function GanttTimeline({
                         children: snap.stageLabel
                       }
                     ),
-                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
                       "div",
                       {
                         style: {
@@ -1127,7 +1304,7 @@ function GanttTimeline({
                           background: theme.bgTertiary,
                           borderRadius: 3
                         },
-                        children: isVisible && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                        children: isVisible && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
                           "div",
                           {
                             style: {
@@ -1144,7 +1321,7 @@ function GanttTimeline({
                         )
                       }
                     ),
-                    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
                       "span",
                       {
                         style: {
@@ -1164,7 +1341,7 @@ function GanttTimeline({
             })
           }
         ),
-        untimed ? /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+        untimed ? /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
           "div",
           {
             "data-fp": "gantt-no-timing",
@@ -1178,7 +1355,7 @@ function GanttTimeline({
             },
             children: NO_TIMING_NOTE
           }
-        ) : /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+        ) : /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
           "div",
           {
             style: {
@@ -1192,12 +1369,12 @@ function GanttTimeline({
               fontFamily: theme.fontMono
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { children: "0ms" }),
-              size !== "compact" && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { children: "0ms" }),
+              size !== "compact" && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
                 (totalWallTime / 2).toFixed(1),
                 "ms"
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("span", { children: [
                 totalWallTime.toFixed(1),
                 "ms"
               ] })
@@ -1211,7 +1388,7 @@ function GanttTimeline({
 
 // src/components/SnapshotPanel/SnapshotPanel.tsx
 var import_react7 = require("react");
-var import_jsx_runtime6 = require("react/jsx-runtime");
+var import_jsx_runtime7 = require("react/jsx-runtime");
 function SnapshotPanel({
   snapshots,
   showGantt = true,
@@ -1227,7 +1404,7 @@ function SnapshotPanel({
   const fs = fontSize[size];
   const pad = padding[size];
   if (snapshots.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
       "div",
       {
         className,
@@ -1245,9 +1422,9 @@ function SnapshotPanel({
     );
   }
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { className, style, "data-fp": "snapshot-panel", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("h3", { children: title }),
-      showScrubber && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { className, style, "data-fp": "snapshot-panel", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h3", { children: title }),
+      showScrubber && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
         "input",
         {
           type: "range",
@@ -1257,7 +1434,7 @@ function SnapshotPanel({
           onChange: (e) => setSelectedIndex(parseInt(e.target.value))
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
         MemoryInspector,
         {
           snapshots,
@@ -1265,7 +1442,7 @@ function SnapshotPanel({
           unstyled: true
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
         NarrativeLog,
         {
           snapshots,
@@ -1273,7 +1450,7 @@ function SnapshotPanel({
           unstyled: true
         }
       ),
-      showGantt && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      showGantt && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
         GanttTimeline,
         {
           snapshots,
@@ -1284,7 +1461,7 @@ function SnapshotPanel({
       )
     ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
     "div",
     {
       className,
@@ -1302,7 +1479,7 @@ function SnapshotPanel({
       },
       "data-fp": "snapshot-panel",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
           "div",
           {
             style: {
@@ -1312,7 +1489,7 @@ function SnapshotPanel({
               flexShrink: 0
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
                 "div",
                 {
                   style: {
@@ -1322,7 +1499,7 @@ function SnapshotPanel({
                     marginBottom: showScrubber ? 8 : 0
                   },
                   children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+                    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
                       "span",
                       {
                         style: {
@@ -1333,7 +1510,7 @@ function SnapshotPanel({
                         children: title
                       }
                     ),
-                    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+                    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
                       "span",
                       {
                         style: {
@@ -1351,8 +1528,8 @@ function SnapshotPanel({
                   ]
                 }
               ),
-              showScrubber && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+              showScrubber && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
                   ScrubButton,
                   {
                     glyph: "\u25C0",
@@ -1361,7 +1538,7 @@ function SnapshotPanel({
                     onClick: () => setSelectedIndex((i) => Math.max(0, i - 1))
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
                   "input",
                   {
                     type: "range",
@@ -1377,7 +1554,7 @@ function SnapshotPanel({
                     }
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
                   ScrubButton,
                   {
                     glyph: "\u25B6",
@@ -1390,8 +1567,8 @@ function SnapshotPanel({
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { style: { flex: 1, overflow: "auto" }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: { flex: 1, overflow: "auto" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
             MemoryInspector,
             {
               snapshots,
@@ -1399,7 +1576,7 @@ function SnapshotPanel({
               size
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
             "div",
             {
               style: {
@@ -1409,7 +1586,7 @@ function SnapshotPanel({
               }
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
             NarrativeLog,
             {
               snapshots,
@@ -1418,7 +1595,7 @@ function SnapshotPanel({
             }
           )
         ] }),
-        showGantt && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+        showGantt && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
           "div",
           {
             style: {
@@ -1426,7 +1603,7 @@ function SnapshotPanel({
               background: theme.bgSecondary,
               flexShrink: 0
             },
-            children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+            children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
               GanttTimeline,
               {
                 snapshots,
@@ -1447,7 +1624,7 @@ function ScrubButton({
   disabled,
   onClick
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
     "button",
     {
       type: "button",
@@ -1473,14 +1650,14 @@ function ScrubButton({
         lineHeight: 1,
         flexShrink: 0
       },
-      children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { "aria-hidden": "true", children: glyph })
+      children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { "aria-hidden": "true", children: glyph })
     }
   );
 }
 
 // src/components/ScopeDiff/ScopeDiff.tsx
 var import_react8 = require("react");
-var import_jsx_runtime7 = require("react/jsx-runtime");
+var import_jsx_runtime8 = require("react/jsx-runtime");
 function computeDiff(prev, curr) {
   const entries = [];
   const allKeys = /* @__PURE__ */ new Set([...Object.keys(prev ?? {}), ...Object.keys(curr)]);
@@ -1493,7 +1670,7 @@ function computeDiff(prev, curr) {
       entries.push({ key, type: "added", newValue: newVal });
     } else if (inPrev && !inCurr) {
       entries.push({ key, type: "removed", oldValue: oldVal });
-    } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+    } else if (!displayValuesEqual(oldVal, newVal)) {
       entries.push({ key, type: "changed", oldValue: oldVal, newValue: newVal });
     } else {
       entries.push({ key, type: "unchanged", newValue: newVal });
@@ -1504,9 +1681,7 @@ function computeDiff(prev, curr) {
   return entries;
 }
 function fmt(v2) {
-  if (typeof v2 === "string") return `"${v2}"`;
-  if (typeof v2 === "object" && v2 !== null) return JSON.stringify(v2, null, 2);
-  return String(v2);
+  return displayValue(v2, 2);
 }
 var diffColors = {
   added: { bg: `color-mix(in srgb, ${theme.success} 10%, transparent)`, fg: theme.success, icon: "+" },
@@ -1528,27 +1703,27 @@ function ScopeDiff({
   const fs = fontSize[size];
   const pad = padding[size];
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { className, style, "data-fp": "scope-diff", children: visible.map((e) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { "data-fp": "diff-entry", "data-type": e.type, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { "data-fp": "diff-key", children: e.key }),
-      e.type === "changed" && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { "data-fp": "diff-old", children: fmt(e.oldValue) }),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { "data-fp": "diff-new", children: fmt(e.newValue) })
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { className, style, "data-fp": "scope-diff", children: visible.map((e) => /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { "data-fp": "diff-entry", "data-type": e.type, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { "data-fp": "diff-key", children: e.key }),
+      e.type === "changed" && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(import_jsx_runtime8.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { "data-fp": "diff-old", children: fmt(e.oldValue) }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { "data-fp": "diff-new", children: fmt(e.newValue) })
       ] }),
-      (e.type === "added" || e.type === "unchanged") && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { "data-fp": "diff-value", children: fmt(e.newValue) }),
-      e.type === "removed" && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { "data-fp": "diff-value", children: fmt(e.oldValue) })
+      (e.type === "added" || e.type === "unchanged") && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { "data-fp": "diff-value", children: fmt(e.newValue) }),
+      e.type === "removed" && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { "data-fp": "diff-value", children: fmt(e.oldValue) })
     ] }, e.key)) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
     "div",
     {
       className,
       style: { padding: pad, fontFamily: theme.fontMono, ...style },
       "data-fp": "scope-diff",
       children: [
-        visible.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: { fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }, children: "No changes" }),
+        visible.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }, children: "No changes" }),
         visible.map((entry) => {
           const dc = diffColors[entry.type];
-          return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+          return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
             "div",
             {
               style: {
@@ -1564,7 +1739,7 @@ function ScopeDiff({
               },
               "data-fp": "diff-entry",
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
                   "span",
                   {
                     style: {
@@ -1577,10 +1752,10 @@ function ScopeDiff({
                     children: dc.icon
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: { color: theme.primary, fontWeight: 600, flexShrink: 0 }, children: entry.key }),
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: { color: theme.textMuted }, children: "=" }),
-                entry.type === "changed" ? /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: { color: theme.primary, fontWeight: 600, flexShrink: 0 }, children: entry.key }),
+                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: { color: theme.textMuted }, children: "=" }),
+                entry.type === "changed" ? /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("span", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
                     "span",
                     {
                       style: {
@@ -1591,9 +1766,9 @@ function ScopeDiff({
                       children: fmt(entry.oldValue)
                     }
                   ),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: { color: theme.textMuted, margin: "0 4px" }, children: "\u2192" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: { color: theme.success }, children: fmt(entry.newValue) })
-                ] }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: { color: theme.textMuted, margin: "0 4px" }, children: "\u2192" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: { color: theme.success }, children: fmt(entry.newValue) })
+                ] }) : /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
                   "span",
                   {
                     style: {
@@ -1613,7 +1788,7 @@ function ScopeDiff({
 }
 
 // src/components/ResultPanel/ResultPanel.tsx
-var import_jsx_runtime8 = require("react/jsx-runtime");
+var import_jsx_runtime9 = require("react/jsx-runtime");
 function ResultPanel({
   data,
   logs = [],
@@ -1626,12 +1801,12 @@ function ResultPanel({
   const fs = fontSize[size];
   const pad = padding[size];
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { className, style, "data-fp": "result-panel", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { "data-fp": "result-data", children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("pre", { children: data ? JSON.stringify(data, null, 2) : "No data" }) }),
-      !hideConsole && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { "data-fp": "result-console", children: logs.map((line, i) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { "data-fp": "console-line", "data-error": line.startsWith("ERROR"), children: line }, i)) })
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className, style, "data-fp": "result-panel", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { "data-fp": "result-data", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("pre", { children: data ? JSON.stringify(data, null, 2) : "No data" }) }),
+      !hideConsole && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { "data-fp": "result-console", children: logs.map((line, i) => /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { "data-fp": "console-line", "data-error": line.startsWith("ERROR"), children: line }, i)) })
     ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
     "div",
     {
       className,
@@ -1644,8 +1819,8 @@ function ResultPanel({
       },
       "data-fp": "result-panel",
       children: [
-        data && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: { flex: 1, overflow: "auto", padding: pad }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+        data && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: { flex: 1, overflow: "auto", padding: pad }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
             "div",
             {
               style: {
@@ -1659,7 +1834,7 @@ function ResultPanel({
               children: size === "compact" ? "Result" : "Business Result (Scope)"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
             "pre",
             {
               style: {
@@ -1676,7 +1851,7 @@ function ResultPanel({
             }
           )
         ] }),
-        !hideConsole && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
+        !hideConsole && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
           "div",
           {
             style: {
@@ -1687,7 +1862,7 @@ function ResultPanel({
               flexShrink: 0
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
                 "div",
                 {
                   style: {
@@ -1701,8 +1876,8 @@ function ResultPanel({
                   children: "Console"
                 }
               ),
-              logs.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }, children: "No console output" }),
-              logs.map((line, i) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+              logs.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }, children: "No console output" }),
+              logs.map((line, i) => /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
                 "div",
                 {
                   style: {
@@ -1728,7 +1903,7 @@ function ResultPanel({
 
 // src/components/StageDetailPanel/StageDetailPanel.tsx
 var import_react9 = require("react");
-var import_jsx_runtime9 = require("react/jsx-runtime");
+var import_jsx_runtime10 = require("react/jsx-runtime");
 var DEFAULT_EXCLUDED_KEYS = /* @__PURE__ */ new Set([]);
 function withoutExcluded(memory, exclude) {
   if (exclude.size === 0) return memory;
@@ -1750,7 +1925,7 @@ function computeChanges(prev, curr) {
       changes.push({ key, type: "added", newValue: newVal });
     } else if (inPrev && !inCurr) {
       changes.push({ key, type: "removed", oldValue: oldVal });
-    } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+    } else if (!displayValuesEqual(oldVal, newVal)) {
       changes.push({ key, type: "updated", oldValue: oldVal, newValue: newVal });
     }
   }
@@ -1759,9 +1934,7 @@ function computeChanges(prev, curr) {
   return changes;
 }
 function fmt2(v2) {
-  if (typeof v2 === "string") return `"${v2}"`;
-  if (typeof v2 === "object" && v2 !== null) return JSON.stringify(v2, null, 2);
-  return String(v2);
+  return displayValue(v2, 2);
 }
 var wash = (color) => `color-mix(in srgb, ${color} 12%, transparent)`;
 var changeBadge = {
@@ -1774,9 +1947,9 @@ function SimpleView({
   fs,
   pad
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: 16 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: 16 }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
         "div",
         {
           style: {
@@ -1787,7 +1960,7 @@ function SimpleView({
           children: snapshot.stageLabel
         }
       ),
-      snapshot.description && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      snapshot.description && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
         "div",
         {
           style: {
@@ -1800,8 +1973,8 @@ function SimpleView({
         }
       )
     ] }),
-    snapshot.status && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+    snapshot.status && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
         "div",
         {
           style: {
@@ -1812,7 +1985,7 @@ function SimpleView({
           }
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
         "span",
         {
           style: {
@@ -1825,8 +1998,8 @@ function SimpleView({
         }
       )
     ] }),
-    snapshot.narrative && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+    snapshot.narrative && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
         "div",
         {
           style: {
@@ -1840,7 +2013,7 @@ function SimpleView({
           children: "What happened"
         }
       ),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
         "div",
         {
           style: {
@@ -1856,7 +2029,7 @@ function SimpleView({
         }
       )
     ] }),
-    snapshot.durationMs > 0 && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+    snapshot.durationMs > 0 && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
       "div",
       {
         style: {
@@ -1888,14 +2061,15 @@ function DevView({
   snapshot,
   changes,
   currMemory,
+  canCompare,
   fs,
   pad
 }) {
   const rows = (0, import_react9.useMemo)(() => buildMemoryRows(currMemory, changes), [currMemory, changes]);
   const totalKeys = Object.keys(currMemory).length;
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: 12 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: 12 }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
         "span",
         {
           style: {
@@ -1907,7 +2081,7 @@ function DevView({
           children: snapshot.stageLabel
         }
       ),
-      snapshot.durationMs > 0 && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+      snapshot.durationMs > 0 && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
         "span",
         {
           style: {
@@ -1922,7 +2096,7 @@ function DevView({
         }
       )
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
       "div",
       {
         style: {
@@ -1934,7 +2108,7 @@ function DevView({
         },
         children: [
           "Memory",
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("span", { style: { fontWeight: 400, marginLeft: 6 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { style: { fontWeight: 400, marginLeft: 6 }, children: [
             "(",
             totalKeys,
             " key",
@@ -1945,7 +2119,7 @@ function DevView({
         ]
       }
     ),
-    rows.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+    rows.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
       "div",
       {
         style: {
@@ -1957,9 +2131,9 @@ function DevView({
           background: theme.bgSecondary,
           borderRadius: theme.radius
         },
-        children: "Empty memory"
+        children: canCompare ? "Empty memory" : "No values in the available recorded state"
       }
-    ) : /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+    ) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
       "div",
       {
         style: {
@@ -1974,7 +2148,7 @@ function DevView({
           if (row.kind === "change") {
             const { change } = row;
             const badge = changeBadge[change.type];
-            return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+            return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
               "div",
               {
                 style: {
@@ -1988,7 +2162,7 @@ function DevView({
                 "data-fp": "memory-change",
                 "data-type": change.type,
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
                     "span",
                     {
                       style: {
@@ -2003,7 +2177,7 @@ function DevView({
                       children: badge.label
                     }
                   ),
-                  /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
                     "span",
                     {
                       style: {
@@ -2015,8 +2189,8 @@ function DevView({
                       children: change.key
                     }
                   ),
-                  /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8 }, children: change.type === "updated" ? /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8 }, children: change.type === "updated" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
                       "span",
                       {
                         style: {
@@ -2027,15 +2201,15 @@ function DevView({
                         children: fmt2(change.oldValue)
                       }
                     ),
-                    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { color: theme.textMuted, margin: "0 4px" }, children: "\u2192" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { color: theme.success }, children: fmt2(change.newValue) })
-                  ] }) : change.type === "added" ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { color: theme.success }, children: fmt2(change.newValue) }) : /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { color: theme.error, textDecoration: "line-through" }, children: fmt2(change.oldValue) }) })
+                    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { style: { color: theme.textMuted, margin: "0 4px" }, children: "\u2192" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { style: { color: theme.success }, children: fmt2(change.newValue) })
+                  ] }) : change.type === "added" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { style: { color: theme.success }, children: fmt2(change.newValue) }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { style: { color: theme.error, textDecoration: "line-through" }, children: fmt2(change.oldValue) }) })
                 ]
               },
               change.key
             );
           }
-          return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+          return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
             "div",
             {
               style: {
@@ -2044,11 +2218,11 @@ function DevView({
                 gap: 8,
                 padding: `6px ${pad}px`,
                 borderBottom: `1px solid ${theme.border}`,
-                opacity: 0.5
+                opacity: canCompare ? 0.5 : 1
               },
-              "data-fp": "memory-unchanged",
+              "data-fp": canCompare ? "memory-unchanged" : "memory-recorded",
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
                   "span",
                   {
                     style: {
@@ -2058,7 +2232,7 @@ function DevView({
                     }
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
                   "span",
                   {
                     style: {
@@ -2070,7 +2244,7 @@ function DevView({
                     children: row.key
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8, color: theme.textMuted }, children: fmt2(row.value) })
+                /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8, color: theme.textMuted }, children: fmt2(row.value) })
               ]
             },
             row.key
@@ -2081,37 +2255,38 @@ function DevView({
   ] });
 }
 function UnstyledSimpleView({ snapshot }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { "data-fp": "stage-detail-simple", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { "data-fp": "stage-label", children: snapshot.stageLabel }),
-    snapshot.description && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { "data-fp": "stage-description", children: snapshot.description }),
-    snapshot.status && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { "data-fp": "stage-status", children: snapshot.status }),
-    snapshot.narrative && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { "data-fp": "stage-narrative", children: snapshot.narrative })
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { "data-fp": "stage-detail-simple", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { "data-fp": "stage-label", children: snapshot.stageLabel }),
+    snapshot.description && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { "data-fp": "stage-description", children: snapshot.description }),
+    snapshot.status && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { "data-fp": "stage-status", children: snapshot.status }),
+    snapshot.narrative && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { "data-fp": "stage-narrative", children: snapshot.narrative })
   ] });
 }
 function UnstyledDevView({
   snapshot,
   changes,
-  currMemory
+  currMemory,
+  canCompare
 }) {
   const rows = (0, import_react9.useMemo)(() => buildMemoryRows(currMemory, changes), [currMemory, changes]);
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { "data-fp": "stage-detail-dev", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { "data-fp": "stage-label", children: snapshot.stageLabel }),
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { "data-fp": "stage-detail-dev", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { "data-fp": "stage-label", children: snapshot.stageLabel }),
     rows.map((row) => {
       if (row.kind === "change") {
         const c = row.change;
-        return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { "data-fp": "memory-change", "data-type": c.type, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "change-key", children: c.key }),
-          c.type === "updated" && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "change-old", children: fmt2(c.oldValue) }),
-            /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "change-new", children: fmt2(c.newValue) })
+        return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { "data-fp": "memory-change", "data-type": c.type, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { "data-fp": "change-key", children: c.key }),
+          c.type === "updated" && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { "data-fp": "change-old", children: fmt2(c.oldValue) }),
+            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { "data-fp": "change-new", children: fmt2(c.newValue) })
           ] }),
-          c.type === "added" && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "change-value", children: fmt2(c.newValue) }),
-          c.type === "removed" && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "change-value", children: fmt2(c.oldValue) })
+          c.type === "added" && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { "data-fp": "change-value", children: fmt2(c.newValue) }),
+          c.type === "removed" && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { "data-fp": "change-value", children: fmt2(c.oldValue) })
         ] }, c.key);
       }
-      return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { "data-fp": "memory-unchanged", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "unchanged-key", children: row.key }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "unchanged-value", children: fmt2(row.value) })
+      return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { "data-fp": canCompare ? "memory-unchanged" : "memory-recorded", children: [
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { "data-fp": "unchanged-key", children: row.key }),
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { "data-fp": "unchanged-value", children: fmt2(row.value) })
       ] }, row.key);
     })
   ] });
@@ -2123,9 +2298,9 @@ function ModeToggle({
   unstyled
 }) {
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("button", { "data-fp": "mode-toggle", "data-mode": activeMode, onClick: onToggle, children: activeMode === "simple" ? "Dev" : "Simple" });
+    return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { "data-fp": "mode-toggle", "data-mode": activeMode, onClick: onToggle, children: activeMode === "simple" ? "Dev" : "Simple" });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
     "div",
     {
       style: {
@@ -2136,7 +2311,7 @@ function ModeToggle({
         flexShrink: 0
       },
       "data-fp": "mode-toggle",
-      children: ["simple", "dev"].map((m) => /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      children: ["simple", "dev"].map((m) => /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
         "button",
         {
           onClick: m !== activeMode ? onToggle : void 0,
@@ -2178,31 +2353,33 @@ function StageDetailPanel({
     onModeChange?.(next);
   }, [activeMode, onModeChange]);
   const snapshot = snapshots[selectedIndex];
-  const rawPrevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
-  const rawCurrMemory = snapshot?.memory ?? {};
+  const view = recordStateDisplay(snapshot, snapshots[selectedIndex - 1]);
+  const rawPrevMemory = view.previous;
+  const rawCurrMemory = view.memory ?? {};
   const currMemory = (0, import_react9.useMemo)(
     () => withoutExcluded(rawCurrMemory, excludeKeys),
     [rawCurrMemory, excludeKeys]
   );
   const changes = (0, import_react9.useMemo)(
-    () => computeChanges(
+    () => view.canCompare ? computeChanges(
       rawPrevMemory === null ? null : withoutExcluded(rawPrevMemory, excludeKeys),
       currMemory
-    ),
-    [rawPrevMemory, currMemory, excludeKeys]
+    ) : [],
+    [rawPrevMemory, currMemory, excludeKeys, view.canCompare]
   );
   const fs = fontSize[size];
   const pad = padding[size];
   if (!snapshot) {
-    return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { className, style, "data-fp": "stage-detail-panel", children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: unstyled ? {} : { color: theme.textMuted, fontSize: fs.body, fontStyle: "italic", padding: pad }, children: "No stage selected" }) });
+    return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { className, style, "data-fp": "stage-detail-panel", children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { style: unstyled ? {} : { color: theme.textMuted, fontSize: fs.body, fontStyle: "italic", padding: pad }, children: "No stage selected" }) });
   }
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { className, style, "data-fp": "stage-detail-panel", "data-mode": activeMode, children: [
-      showToggle && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ModeToggle, { activeMode, onToggle: handleToggle, fs, unstyled: true }),
-      activeMode === "simple" ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(UnstyledSimpleView, { snapshot }) : /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(UnstyledDevView, { snapshot, changes, currMemory })
+    return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("div", { className, style, "data-fp": "stage-detail-panel", "data-mode": activeMode, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(RecordStateNotice, { view }),
+      showToggle && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ModeToggle, { activeMode, onToggle: handleToggle, fs, unstyled: true }),
+      activeMode === "simple" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(UnstyledSimpleView, { snapshot }) : view.memory !== null ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(UnstyledDevView, { snapshot, changes, currMemory, canCompare: view.canCompare }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { "data-fp": "stage-label", children: snapshot.stageLabel })
     ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
     "div",
     {
       className,
@@ -2215,8 +2392,9 @@ function StageDetailPanel({
       "data-fp": "stage-detail-panel",
       "data-mode": activeMode,
       children: [
-        showToggle && /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 }, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ModeToggle, { activeMode, onToggle: handleToggle, fs, unstyled: false }) }),
-        activeMode === "simple" ? /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(SimpleView, { snapshot, fs, pad }) : /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(DevView, { snapshot, changes, currMemory, fs, pad })
+        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(RecordStateNotice, { view }),
+        showToggle && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { style: { display: "flex", justifyContent: "flex-end", marginBottom: 12 }, children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(ModeToggle, { activeMode, onToggle: handleToggle, fs, unstyled: false }) }),
+        activeMode === "simple" ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(SimpleView, { snapshot, fs, pad }) : view.memory !== null ? /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(DevView, { snapshot, changes, currMemory, canCompare: view.canCompare, fs, pad }) : /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { "data-fp": "stage-label", children: snapshot.stageLabel })
       ]
     }
   );
@@ -2224,7 +2402,7 @@ function StageDetailPanel({
 
 // src/components/TimeTravelControls/TimeTravelControls.tsx
 var import_react10 = require("react");
-var import_jsx_runtime10 = require("react/jsx-runtime");
+var import_jsx_runtime11 = require("react/jsx-runtime");
 function TimeTravelControls({
   snapshots,
   selectedIndex,
@@ -2319,7 +2497,7 @@ function TimeTravelControls({
   const fs = fontSize[size];
   const tracingColor = "var(--fp-tracing, #0d9488)";
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
       "div",
       {
         className,
@@ -2331,24 +2509,24 @@ function TimeTravelControls({
         tabIndex: 0,
         onKeyDown: handleKeyDown,
         children: [
-          isTracing && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { "data-fp": "tt-tracing-header", children: [
+          isTracing && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { "data-fp": "tt-tracing-header", children: [
             "Tracing ",
             tracing.tracedKey,
-            tracing.viaKey && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_jsx_runtime10.Fragment, { children: [
+            tracing.viaKey && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
               " ",
               "\u25B8 via ",
               tracing.viaKey,
               " ",
-              /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { "data-fp": "tt-show-all", onClick: tracing.onShowAll, children: "show all" })
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { "data-fp": "tt-show-all", onClick: tracing.onShowAll, children: "show all" })
             ] }),
             " \xB7 ",
             "stop ",
             tracing.stopOrdinal,
             " of ",
             tracing.totalStops,
-            /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { "data-fp": "tt-exit-tracing", onClick: tracing.onExit, "aria-label": "Exit tracing", children: "Done" })
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { "data-fp": "tt-exit-tracing", onClick: tracing.onExit, "aria-label": "Exit tracing", children: "Done" })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
             "button",
             {
               "data-fp": "tt-prev",
@@ -2358,8 +2536,8 @@ function TimeTravelControls({
               children: isTracing ? forkPrompt ? "Choose cause\u2026" : "Earlier cause" : "Prev"
             }
           ),
-          autoPlayable && !isTracing && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("button", { "data-fp": "tt-play", onClick: togglePlay, "aria-label": playing ? "Pause" : "Play", children: playing ? "Pause" : "Play" }),
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+          autoPlayable && !isTracing && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("button", { "data-fp": "tt-play", onClick: togglePlay, "aria-label": playing ? "Pause" : "Play", children: playing ? "Pause" : "Play" }),
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
             "button",
             {
               "data-fp": "tt-next",
@@ -2369,9 +2547,9 @@ function TimeTravelControls({
               children: isTracing ? "Toward result" : "Next"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("div", { "data-fp": "tt-ticks", children: snapshots.map((snap, i) => {
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { "data-fp": "tt-ticks", children: snapshots.map((snap, i) => {
             const isStop = !stopSet || stopSet.has(i);
-            return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+            return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
               "button",
               {
                 "data-fp": "tt-tick",
@@ -2404,7 +2582,7 @@ function TimeTravelControls({
     opacity: disabled ? 0.5 : 1,
     flexShrink: 0
   });
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
     "div",
     {
       className,
@@ -2425,7 +2603,7 @@ function TimeTravelControls({
       tabIndex: 0,
       onKeyDown: handleKeyDown,
       children: [
-        isTracing && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
+        isTracing && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
           "span",
           {
             "data-fp": "tt-tracing-header",
@@ -2437,7 +2615,7 @@ function TimeTravelControls({
               fontSize: fs.body
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
                 "span",
                 {
                   style: {
@@ -2453,13 +2631,13 @@ function TimeTravelControls({
                   children: "Tracing"
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { style: { fontFamily: "monospace", fontWeight: 600, color: tracingColor }, children: tracing.tracedKey }),
-              tracing.viaKey && /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { style: { color: theme.textMuted }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { style: { fontFamily: "monospace", fontWeight: 600, color: tracingColor }, children: tracing.tracedKey }),
+              tracing.viaKey && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { style: { color: theme.textMuted }, children: [
                 "\u25B8 via",
                 " ",
-                /* @__PURE__ */ (0, import_jsx_runtime10.jsx)("span", { style: { fontFamily: "monospace", color: theme.textSecondary }, children: tracing.viaKey }),
+                /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { style: { fontFamily: "monospace", color: theme.textSecondary }, children: tracing.viaKey }),
                 " ",
-                /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
                   "button",
                   {
                     "data-fp": "tt-show-all",
@@ -2477,7 +2655,7 @@ function TimeTravelControls({
                   }
                 )
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)("span", { style: { color: theme.textMuted }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { style: { color: theme.textMuted }, children: [
                 "\xB7 stop ",
                 tracing.stopOrdinal,
                 " of ",
@@ -2486,7 +2664,7 @@ function TimeTravelControls({
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
           "button",
           {
             style: btnStyle(!canPrev || playing),
@@ -2498,7 +2676,7 @@ function TimeTravelControls({
             children: isTracing ? forkPrompt ? "\u2442 choose cause\u2026" : "\u25C0 earlier cause" : "\u25C0"
           }
         ),
-        autoPlayable && !isTracing && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+        autoPlayable && !isTracing && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
           "button",
           {
             onClick: togglePlay,
@@ -2521,7 +2699,7 @@ function TimeTravelControls({
             children: playing ? "\u23F8" : "\u25B6"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
           "button",
           {
             style: btnStyle(!canNext || playing),
@@ -2533,7 +2711,7 @@ function TimeTravelControls({
             children: isTracing ? "toward result \u25B6" : "\u25B6"
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
           "div",
           {
             style: {
@@ -2548,7 +2726,7 @@ function TimeTravelControls({
               const isDone = i < selectedIndex;
               const isStop = !stopSet || stopSet.has(i);
               const unlandable = isTracing && !isStop;
-              return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+              return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
                 "button",
                 {
                   onClick: () => {
@@ -2576,7 +2754,7 @@ function TimeTravelControls({
             })
           }
         ),
-        isTracing && /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+        isTracing && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
           "button",
           {
             "data-fp": "tt-exit-tracing",
@@ -2807,7 +2985,7 @@ function formatTraceWalk(walk, stepNumberOf) {
 
 // src/components/DataTracePanel/TraceWalkCard.tsx
 var import_react11 = require("react");
-var import_jsx_runtime11 = require("react/jsx-runtime");
+var import_jsx_runtime12 = require("react/jsx-runtime");
 var CHIP_COLORS = [
   v("--fp-chip-1", "#0d9488"),
   v("--fp-chip-2", "#d97706"),
@@ -2855,7 +3033,7 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
     });
   };
   if (walk.missing) {
-    return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
       "div",
       {
         className,
@@ -2863,21 +3041,21 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
         "data-missing": walk.missing.reason,
         style: { ...sx({ padding: "14px", fontSize: fs.body + 1, lineHeight: 1.55 }), ...style },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(CardHeader, { label: `Why this value \u2014 \`${walk.key}\``, onExit, sx, fs }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: sx({ color: theme.textPrimary, marginTop: 8 }), children: walk.missing.reason === "never-written" ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(CardHeader, { label: `Why this value \u2014 \`${walk.key}\``, onExit, sx, fs }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ color: theme.textPrimary, marginTop: 8 }), children: walk.missing.reason === "never-written" ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
             " was ",
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { children: "never written in this run" }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", { children: "never written in this run" }),
             " \u2014 it arrived with the run's inputs."
-          ] }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
             " has ",
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { children: "not been written yet at this moment" }),
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", { children: "not been written yet at this moment" }),
             " \u2014 its first write happens later",
-            walk.missing.firstWriterStageName && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
+            walk.missing.firstWriterStageName && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
               ", at ",
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("b", { children: walk.missing.firstWriterStageName }),
-              walk.missing.firstWriterRuntimeStageId && stepNumberOf(walk.missing.firstWriterRuntimeStageId) && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("b", { children: walk.missing.firstWriterStageName }),
+              walk.missing.firstWriterRuntimeStageId && stepNumberOf(walk.missing.firstWriterRuntimeStageId) && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
                 " (step ",
                 stepNumberOf(walk.missing.firstWriterRuntimeStageId),
                 ")"
@@ -2891,15 +3069,15 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
   }
   if (!current) return null;
   const step = stepNumberOf(current.runtimeStageId);
-  const preview = previewValueOf ? previewValue(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+  const preview = previewValueOf ? previewValue2(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
     "div",
     {
       className,
       "data-fp": "trace-walk-card",
       style: { ...sx({ padding: "10px 14px 14px", fontSize: fs.body + 1, lineHeight: 1.5 }), ...style },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
           CardHeader,
           {
             label: `Why this value \u2014 stop ${currentIdx + 1} of ${walk.stops.length}`,
@@ -2908,13 +3086,13 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
             fs
           }
         ),
-        viaKey && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { "data-fp": "twc-breadcrumb", style: sx({ fontSize: fs.label, color: theme.textMuted, marginTop: 4 }), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
+        viaKey && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { "data-fp": "twc-breadcrumb", style: sx({ fontSize: fs.label, color: theme.textMuted, marginTop: 4 }), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
           " \u25B8 via ",
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("code", { children: viaKey }),
-          onShowAll && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("code", { children: viaKey }),
+          onShowAll && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
             " \xB7 ",
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
               "button",
               {
                 onClick: onShowAll,
@@ -2924,32 +3102,32 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
             )
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { "data-fp": "twc-stop-headline", style: sx({ marginTop: 10, fontWeight: 600, color: theme.textPrimary }), children: [
-          step && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { style: sx({ color: theme.textMuted, fontWeight: 500 }), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { "data-fp": "twc-stop-headline", style: sx({ marginTop: 10, fontWeight: 600, color: theme.textPrimary }), children: [
+          step && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: sx({ color: theme.textMuted, fontWeight: 500 }), children: [
             "Step ",
             step,
             " \xB7 "
           ] }),
           current.stageName,
-          current.loopPass > 0 && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { style: sx({ color: theme.textMuted, fontWeight: 500 }), children: [
+          current.loopPass > 0 && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: sx({ color: theme.textMuted, fontWeight: 500 }), children: [
             " (pass ",
             current.loopPass,
             ")"
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: sx({ marginTop: 2, color: theme.textSecondary }), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ marginTop: 2, color: theme.textSecondary }), children: [
           "wrote",
           " ",
-          current.contributedKeys.map((k, i) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("code", { style: sx({ color: accent }), children: [
+          current.contributedKeys.map((k, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("code", { style: sx({ color: accent }), children: [
             i > 0 && ", ",
             k
           ] }, k)),
-          preview !== null && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
+          preview !== null && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
             " = ",
             preview
           ] })
         ] }),
-        chooserVisible && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+        chooserVisible && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
           "div",
           {
             "data-fp": "twc-fork-chooser",
@@ -2961,12 +3139,12 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
               background: `color-mix(in srgb, ${tracingColor} 8%, transparent)`
             }),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: sx({ fontWeight: 600, fontSize: fs.body, color: theme.textPrimary }), children: [
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ fontWeight: 600, fontSize: fs.body, color: theme.textPrimary }), children: [
                 "This value was made from ",
                 current.ingredients.length,
                 " ingredients \u2014 which one should the walk follow?"
               ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                 IngredientChip,
                 {
                   ing,
@@ -2978,7 +3156,7 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
                 },
                 ing.key
               )) }),
-              /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
                 "button",
                 {
                   "data-fp": "twc-continue-time",
@@ -3004,14 +3182,14 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: sx({ marginTop: 10 }), children: chooserVisible ? null : current.ingredients.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ marginTop: 10 }), children: chooserVisible ? null : current.ingredients.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(import_jsx_runtime12.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: [
             "Made from ",
             current.ingredients.length,
             " ingredient",
             current.ingredients.length > 1 ? "s" : ""
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
             IngredientChip,
             {
               ing,
@@ -3023,12 +3201,12 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
             },
             ing.key
           )) })
-        ] }) : walk.readsAvailable ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { "data-fp": "twc-origin", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "reads nothing \u2014 this is an origin." }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { "data-fp": "twc-unknowable", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "\u26A0 reads were not recorded \u2014 ingredients are unknowable, not absent." }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: sx({ marginTop: 14 }), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, marginBottom: 4 }), children: "The story, newest first" }),
+        ] }) : walk.readsAvailable ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "twc-origin", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "reads nothing \u2014 this is an origin." }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "twc-unknowable", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "\u26A0 reads were not recorded \u2014 ingredients are unknowable, not absent." }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ marginTop: 14 }), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, marginBottom: 4 }), children: "The story, newest first" }),
           walk.stops.map((s, i) => {
             const isCurrent = i === currentIdx;
-            return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+            return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
               "button",
               {
                 "data-fp": "twc-itinerary-row",
@@ -3047,24 +3225,24 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
                   fontSize: fs.body
                 }),
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
                     i + 1,
                     "."
                   ] }),
                   " ",
-                  /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("code", { style: sx({ color: accent }), children: s.contributedKeys.join(", ") }),
-                  /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { style: sx({ color: theme.textMuted }), children: " \u2190 " }),
+                  /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("code", { style: sx({ color: accent }), children: s.contributedKeys.join(", ") }),
+                  /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { style: sx({ color: theme.textMuted }), children: " \u2190 " }),
                   s.stageName,
-                  s.loopPass > 0 && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
+                  s.loopPass > 0 && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
                     " (pass ",
                     s.loopPass,
                     ")"
                   ] }),
-                  stepNumberOf(s.runtimeStageId) && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
+                  stepNumberOf(s.runtimeStageId) && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
                     " \xB7 step ",
                     stepNumberOf(s.runtimeStageId)
                   ] }),
-                  s.ingredients.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { style: sx({ color: theme.warning, fontWeight: 600 }), children: [
+                  s.ingredients.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: sx({ color: theme.warning, fontWeight: 600 }), children: [
                     " \u2442 ",
                     s.ingredients.length
                   ] })
@@ -3074,16 +3252,16 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
             );
           })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: sx({ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 }), children: [
-          walk.inputTermini.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { "data-fp": "twc-run-inputs", style: sx({ fontSize: fs.label, color: theme.textMuted }), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 }), children: [
+          walk.inputTermini.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { "data-fp": "twc-run-inputs", style: sx({ fontSize: fs.label, color: theme.textMuted }), children: [
             "\u2691 run inputs (never written): ",
-            walk.inputTermini.map((k, i) => /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("code", { children: [
+            walk.inputTermini.map((k, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("code", { children: [
               i > 0 && ", ",
               k
             ] }, k))
           ] }),
-          walk.truncated && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { "data-fp": "twc-truncated", style: sx({ fontSize: fs.label, color: theme.warning }), children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+          walk.truncated && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { "data-fp": "twc-truncated", style: sx({ fontSize: fs.label, color: theme.warning }), children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
+          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
             "button",
             {
               "data-fp": "twc-copy-story",
@@ -3114,9 +3292,9 @@ function CardHeader({
   sx,
   fs
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: sx({ display: "flex", alignItems: "center", justifyContent: "space-between" }), children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: label }),
-    onExit && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ display: "flex", alignItems: "center", justifyContent: "space-between" }), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: label }),
+    onExit && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
       "button",
       {
         "data-fp": "twc-exit",
@@ -3137,7 +3315,7 @@ function IngredientChip({
   fs
 }) {
   const terminus = !ing.writerRuntimeStageId;
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
     "button",
     {
       "data-fp": "twc-ingredient",
@@ -3159,8 +3337,8 @@ function IngredientChip({
         cursor: terminus || !onFollow ? "default" : "pointer"
       }),
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("code", { children: ing.key }),
-        terminus ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { style: sx({ fontWeight: 400 }), children: "\u2014 run input \u2691" }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("span", { style: sx({ fontWeight: 400 }), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("code", { children: ing.key }),
+        terminus ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { style: sx({ fontWeight: 400 }), children: "\u2014 run input \u2691" }) : /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("span", { style: sx({ fontWeight: 400 }), children: [
           "\u2190 ",
           ing.writerStageName,
           step && ` \xB7 step ${step}`
@@ -3169,7 +3347,7 @@ function IngredientChip({
     }
   );
 }
-function previewValue(v2) {
+function previewValue2(v2) {
   if (v2 === void 0) return null;
   try {
     const s = typeof v2 === "string" ? JSON.stringify(v2) : JSON.stringify(v2);
@@ -3182,7 +3360,7 @@ function previewValue(v2) {
 
 // src/components/DataTracePanel/DataTracePanel.tsx
 var import_react12 = require("react");
-var import_jsx_runtime12 = require("react/jsx-runtime");
+var import_jsx_runtime13 = require("react/jsx-runtime");
 var DataTracePanel = (0, import_react12.memo)(function DataTracePanel2({
   frames,
   selectedStageId,
@@ -3198,16 +3376,16 @@ var DataTracePanel = (0, import_react12.memo)(function DataTracePanel2({
   const pad = padding[size];
   const base = fs.body + 1;
   const sx = (s) => unstyled ? void 0 : s;
-  const noteLine = note ? /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ color: theme.textMuted, fontSize: fs.label, fontStyle: "italic", marginBottom: 8 }), children: note }) : null;
+  const noteLine = note ? /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: sx({ color: theme.textMuted, fontSize: fs.label, fontStyle: "italic", marginBottom: 8 }), children: note }) : null;
   if (frames.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
       "div",
       {
         className,
         "data-fp": "data-trace-panel",
         style: { ...sx({ padding: `${pad + 2}px ${pad + 2}px ${pad}px`, fontSize: base, lineHeight: 1.55 }), ...style },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
             "div",
             {
               style: sx({
@@ -3221,23 +3399,23 @@ var DataTracePanel = (0, import_react12.memo)(function DataTracePanel2({
               children: "Backward causal chain"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ color: theme.textSecondary, marginBottom: 10 }), children: "Trace any value back to the stage that created it \u2014 and everything upstream that influenced it." }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: sx({ color: theme.textSecondary, marginBottom: 10 }), children: "Trace any value back to the stage that created it \u2014 and everything upstream that influenced it." }),
           noteLine,
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ color: theme.textMuted, fontSize: fs.body }), children: "Select a stage above to see its dependency chain." })
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: sx({ color: theme.textMuted, fontSize: fs.body }), children: "Select a stage above to see its dependency chain." })
         ]
       }
     );
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
     "div",
     {
       className,
       "data-fp": "data-trace-panel",
       style: { ...sx({ padding: "8px 0", fontSize: base }), ...style },
       children: [
-        note && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("div", { style: sx({ padding: "4px 12px 0", fontSize: fs.label, color: theme.textMuted, fontStyle: "italic" }), children: note }),
-        fromStageName && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ padding: "4px 12px 8px" }), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+        note && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: sx({ padding: "4px 12px 0", fontSize: fs.label, color: theme.textMuted, fontStyle: "italic" }), children: note }),
+        fromStageName && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { style: sx({ padding: "4px 12px 8px" }), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
             "div",
             {
               style: sx({
@@ -3253,7 +3431,7 @@ var DataTracePanel = (0, import_react12.memo)(function DataTracePanel2({
               ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
             "div",
             {
               style: sx({
@@ -3266,7 +3444,7 @@ var DataTracePanel = (0, import_react12.memo)(function DataTracePanel2({
             }
           )
         ] }),
-        frames.map((frame, i) => /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+        frames.map((frame, i) => /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
           DataTraceFrame,
           {
             frame,
@@ -3294,7 +3472,7 @@ var DataTraceFrame = (0, import_react12.memo)(function DataTraceFrame2({
 }) {
   const fs = fontSize[size];
   const sx = (s) => unstyled ? void 0 : s;
-  return /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
     "button",
     {
       onClick: () => onClick?.(frame.runtimeStageId),
@@ -3313,9 +3491,9 @@ var DataTraceFrame = (0, import_react12.memo)(function DataTraceFrame2({
         fontSize: fs.body + 1
       }),
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)("div", { style: sx({ display: "flex", alignItems: "center", gap: 6 }), children: [
-          !isFirst && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { style: sx({ color: theme.textMuted, fontSize: fs.label }), children: "\u2191" }),
-          /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { style: sx({ display: "flex", alignItems: "center", gap: 6 }), children: [
+          !isFirst && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { style: sx({ color: theme.textMuted, fontSize: fs.label }), children: "\u2191" }),
+          /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
             "span",
             {
               style: sx({
@@ -3325,7 +3503,7 @@ var DataTraceFrame = (0, import_react12.memo)(function DataTraceFrame2({
               children: frame.stageName
             }
           ),
-          isLast && !isFirst && /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+          isLast && !isFirst && /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(
             "span",
             {
               style: sx({
@@ -3337,7 +3515,7 @@ var DataTraceFrame = (0, import_react12.memo)(function DataTraceFrame2({
             }
           )
         ] }),
-        frame.keysWritten.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+        frame.keysWritten.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
           "div",
           {
             style: sx({
@@ -3349,11 +3527,11 @@ var DataTraceFrame = (0, import_react12.memo)(function DataTraceFrame2({
             children: [
               "wrote:",
               " ",
-              /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { style: sx({ color: theme.textSecondary }), children: frame.keysWritten.join(", ") })
+              /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("span", { style: sx({ color: theme.textSecondary }), children: frame.keysWritten.join(", ") })
             ]
           }
         ),
-        frame.linkedBy && /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
+        frame.linkedBy && /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
           "div",
           {
             style: sx({
@@ -3448,6 +3626,148 @@ function extractSubflowNarrative(entries, subflowId, subflowName) {
   return result;
 }
 
+// src/adapters/recordState.ts
+var import_foottrace2 = require("foottrace");
+
+// src/adapters/recordInput/index.ts
+function isRecord(value) {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function adaptFlowRecord(input) {
+  if (typeof input.sourceId !== "string" || !input.sourceId.trim()) {
+    return {
+      status: "refused",
+      code: "invalid-source-id",
+      message: "Select and label one recorded source."
+    };
+  }
+  if (input.format !== "snapshot" && input.format !== "subtree" && input.format !== "tree-context") {
+    return {
+      status: "refused",
+      code: "unsupported-format",
+      message: "Select a snapshot, subtree, or tree-context envelope explicitly."
+    };
+  }
+  if (!isRecord(input.record)) {
+    return {
+      status: "refused",
+      code: "invalid-record",
+      message: "The selected recording must be a plain source object."
+    };
+  }
+  const field = input.format === "snapshot" ? "commitLog" : "history";
+  const log = input.record[field];
+  if (log === void 0) {
+    return {
+      status: "refused",
+      code: "missing-log",
+      message: `The selected source has no ${field}; stageWrites alone cannot reconstruct its record.`
+    };
+  }
+  if (!Array.isArray(log)) {
+    return {
+      status: "refused",
+      code: "invalid-log",
+      message: `The selected source's ${field} must be an array.`
+    };
+  }
+  const base = input.record.initialState;
+  if (base !== void 0 && !isRecord(base)) {
+    return {
+      status: "refused",
+      code: "invalid-base",
+      message: "The recorded initialState must be a plain state object or absent."
+    };
+  }
+  if (!input.reads || input.reads.status !== "unknown" && input.reads.status !== "supplied" || input.reads.status === "supplied" && (!input.reads.source || typeof input.reads.source.kind !== "string" || typeof input.reads.source.lookup !== "function")) {
+    return {
+      status: "refused",
+      code: "invalid-read-evidence",
+      message: "Declare reads unknown or supply this source's KeysReadSource explicitly."
+    };
+  }
+  const tree = input.format === "tree-context" ? input.record.stageContexts : input.record.executionTree;
+  const source = {
+    ...field === "commitLog" ? { commitLog: log } : { history: log },
+    ...base !== void 0 && { initialState: base },
+    ...tree !== void 0 && { executionTree: tree },
+    ...input.record.subflowResults !== void 0 && {
+      subflowResults: input.record.subflowResults
+    }
+  };
+  return {
+    status: "accepted",
+    sourceId: input.sourceId,
+    source,
+    evidence: {
+      base: base === void 0 ? "missing" : "recorded",
+      reads: input.reads
+    }
+  };
+}
+
+// src/adapters/recordState.ts
+function createRecordStateReader(selection) {
+  const input = adaptFlowRecord(selection);
+  if (input.status === "refused") {
+    return () => ({
+      status: "unavailable",
+      sourceId: selection.sourceId,
+      reason: "unsupported-source",
+      message: input.message
+    });
+  }
+  let cursor;
+  try {
+    cursor = (0, import_foottrace2.timeTravel)(input.source);
+  } catch {
+    return () => ({
+      status: "unavailable",
+      sourceId: selection.sourceId,
+      reason: "reader-refused",
+      message: "Foottrace could not read this source's recorded positions."
+    });
+  }
+  const positions = /* @__PURE__ */ new Map();
+  for (const stop of cursor.stops) {
+    if (stop.kind === "start" || stop.kind === "end") continue;
+    positions.set(stop.runtimeStageId, {
+      stop,
+      previous: cursor.stops[stop.step - 1]
+    });
+  }
+  return (runtimeStageId) => {
+    const position = runtimeStageId ? positions.get(runtimeStageId) : void 0;
+    if (!position) {
+      return {
+        status: "unavailable",
+        sourceId: selection.sourceId,
+        reason: "stage-not-recorded",
+        message: "No exact recorded position is available for this stage execution."
+      };
+    }
+    try {
+      return {
+        status: "available",
+        sourceId: selection.sourceId,
+        stop: position.stop,
+        previous: position.previous ? cursor.stateAt(position.previous) : (0, import_foottrace2.stateAt)(input.source, -1),
+        current: cursor.stateAt(position.stop)
+      };
+    } catch {
+      return {
+        status: "unavailable",
+        sourceId: selection.sourceId,
+        reason: "reader-refused",
+        message: "Foottrace could not reconstruct state at this recorded position."
+      };
+    }
+  };
+}
+
 // src/adapters/fromRuntimeSnapshot.ts
 function looksLikeNarrativeEntry(value) {
   if (value === null || typeof value !== "object") return false;
@@ -3477,7 +3797,6 @@ function narrativeRecorderFromSnapshot(runtime) {
 function narrativeFromSnapshot(runtime) {
   return narrativeRecorderFromSnapshot(runtime)?.entries;
 }
-var COMMIT_PATH_DELIM = "";
 var UNSAFE_KEYS = /* @__PURE__ */ new Set(["__proto__", "constructor", "prototype"]);
 function isSummaryMarker(value) {
   return value !== null && typeof value === "object" && (value.__writeSummary === true || value.__readSummary === true);
@@ -3499,83 +3818,19 @@ function mergeWritePatch(base, patch) {
   }
   return out;
 }
-function getPath(root, segs) {
-  let cur = root;
-  for (const seg of segs) {
-    if (!isPlainRecord(cur) && !Array.isArray(cur)) return void 0;
-    cur = cur[seg];
-  }
-  return cur;
-}
-function setPath(memory, segs, value) {
-  if (segs.some((s) => UNSAFE_KEYS.has(s))) return;
-  let obj = memory;
-  for (let i = 0; i < segs.length - 1; i++) {
-    const cur = obj[segs[i]];
-    const next = Array.isArray(cur) ? cur.slice() : isPlainRecord(cur) && !isSummaryMarker(cur) ? { ...cur } : {};
-    obj[segs[i]] = next;
-    obj = next;
-  }
-  const last = segs[segs.length - 1];
-  if (value === void 0) {
-    delete obj[last];
-  } else {
-    obj[last] = value;
-  }
-}
-function applyCommitBundle(memory, bundle) {
-  const trace = Array.isArray(bundle.trace) ? bundle.trace : void 0;
-  if (trace) {
-    for (const op of trace) {
-      if (!op || typeof op.path !== "string") continue;
-      const segs = op.path.split(COMMIT_PATH_DELIM);
-      if (op.verb === "merge") {
-        setPath(memory, segs, mergeWritePatch(getPath(memory, segs), getPath(bundle.updates, segs)));
-      } else if (op.verb === "append") {
-        const tail = getPath(bundle.overwrite, segs);
-        const current = getPath(memory, segs);
-        setPath(memory, segs, Array.isArray(current) && Array.isArray(tail) ? [...current, ...tail] : tail);
-      } else if (op.verb === "delete") {
-        setPath(memory, segs, void 0);
-      } else {
-        setPath(memory, segs, getPath(bundle.overwrite, segs));
-      }
-    }
-    return;
-  }
-  if (isPlainRecord(bundle.overwrite)) {
-    for (const [key, value] of Object.entries(bundle.overwrite)) setPath(memory, [key], value);
-  }
-  if (isPlainRecord(bundle.updates)) {
-    for (const [key, value] of Object.entries(bundle.updates)) {
-      setPath(memory, [key], mergeWritePatch(memory[key], value));
-    }
-  }
-}
-function indexCommitLog(commitLog) {
-  const index = /* @__PURE__ */ new Map();
-  if (!Array.isArray(commitLog)) return index;
-  for (const entry of commitLog) {
-    if (!isPlainRecord(entry)) continue;
-    const bundle = entry;
-    if (typeof bundle.runtimeStageId !== "string" || bundle.runtimeStageId.length === 0) continue;
-    if (!isPlainRecord(bundle.overwrite) && !isPlainRecord(bundle.updates) && !Array.isArray(bundle.trace)) {
-      continue;
-    }
-    const list = index.get(bundle.runtimeStageId);
-    if (list) list.push(bundle);
-    else index.set(bundle.runtimeStageId, [bundle]);
-  }
-  return index;
-}
 function toVisualizationSnapshots(runtime, narrativeEntries) {
   const entries = narrativeEntries?.length ? narrativeEntries : narrativeFromSnapshot(runtime);
   const stageNarrativeMap = entries?.length ? buildStageNarrativeMap(entries) : /* @__PURE__ */ new Map();
   if (runtime?.executionTree === null || typeof runtime?.executionTree !== "object") return [];
   const stageTimings = extractStageTimings(runtime.recorders);
-  const commitIndex = indexCommitLog(runtime.commitLog);
+  const readState = createRecordStateReader({
+    sourceId: "flow:root",
+    format: "snapshot",
+    record: runtime,
+    reads: { status: "unknown" }
+  });
   const snapshots = [];
-  flattenTree(runtime.executionTree, snapshots, runtime.sharedState, 0, runtime.subflowResults, {}, stageNarrativeMap, stageTimings, commitIndex);
+  flattenTree(runtime.executionTree, snapshots, 0, runtime.subflowResults, stageNarrativeMap, stageTimings, readState);
   return snapshots;
 }
 function readStepDurations(data) {
@@ -3635,7 +3890,12 @@ function buildStageNarrativeMap(entries) {
   }
   return map;
 }
-function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, cumulativeMemory = {}, stageNarrativeMap = /* @__PURE__ */ new Map(), stageTimings = { byRuntimeStageId: /* @__PURE__ */ new Map(), byStageName: /* @__PURE__ */ new Map() }, commitIndex = /* @__PURE__ */ new Map()) {
+function flattenTree(node, out, accumulatedMs = 0, subflowResults, stageNarrativeMap = /* @__PURE__ */ new Map(), stageTimings = { byRuntimeStageId: /* @__PURE__ */ new Map(), byStageName: /* @__PURE__ */ new Map() }, readState = () => ({
+  status: "unavailable",
+  sourceId: "flow:unselected",
+  reason: "unsupported-source",
+  message: "No recorded source was supplied."
+})) {
   const stageName = node.name ?? node.id;
   const durationMs = (node.runtimeStageId ? stageTimings.byRuntimeStageId.get(node.runtimeStageId) : void 0) ?? (stageName ? stageTimings.byStageName.get(stageName) : void 0) ?? (typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 0);
   const startMs = accumulatedMs;
@@ -3654,26 +3914,15 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
     }
     narrative = parts.join("\n");
   }
-  const memory = { ...cumulativeMemory };
-  const bundles = node.runtimeStageId ? commitIndex.get(node.runtimeStageId) : void 0;
-  if (bundles && bundles.length > 0) {
-    for (const bundle of bundles) applyCommitBundle(memory, bundle);
-  } else if (node.stageWrites) {
-    for (const [key, value] of Object.entries(node.stageWrites)) {
-      if (UNSAFE_KEYS.has(key)) continue;
-      if (value === void 0) {
-        delete memory[key];
-      } else {
-        memory[key] = mergeWritePatch(memory[key], value);
-      }
-    }
-  }
+  const recordState = readState(node.runtimeStageId);
+  const memory = recordState.status === "available" ? recordState.current.state : {};
   const sfResult = (node.runtimeStageId ? subflowResults?.[node.runtimeStageId] : void 0) ?? subflowResults?.[node.subflowId ?? stageId];
   out.push({
     stageName: displayName,
     stageLabel: stageId,
     runtimeStageId: node.runtimeStageId ?? void 0,
     memory,
+    recordState,
     narrative,
     startMs,
     durationMs,
@@ -3686,13 +3935,13 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
   if (node.children && node.children.length > 0) {
     let maxChildEnd = nextMs;
     for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
+      const childEnd = flattenTree(child, out, nextMs, subflowResults, stageNarrativeMap, stageTimings, readState);
       maxChildEnd = Math.max(maxChildEnd, childEnd);
     }
     nextMs = maxChildEnd;
   }
   if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
+    nextMs = flattenTree(node.next, out, nextMs, subflowResults, stageNarrativeMap, stageTimings, readState);
   }
   return nextMs;
 }
@@ -3700,13 +3949,22 @@ function subflowResultToSnapshots(subflowResult, narrativeEntries, subflowResult
   if (!subflowResult || typeof subflowResult !== "object") return [];
   const sf = subflowResult;
   if (!sf.treeContext?.stageContexts) return [];
-  const runtime = {
-    sharedState: sf.treeContext.globalContext ?? {},
-    executionTree: sf.treeContext.stageContexts,
-    commitLog: sf.treeContext.history ?? [],
-    ...subflowResults ? { subflowResults } : void 0
-  };
-  const snapshots = toVisualizationSnapshots(runtime, narrativeEntries);
+  const readState = createRecordStateReader({
+    sourceId: `flow:subtree:${sf.subflowId ?? "selected"}`,
+    format: "tree-context",
+    record: sf.treeContext,
+    reads: { status: "unknown" }
+  });
+  const snapshots = [];
+  flattenTree(
+    sf.treeContext.stageContexts,
+    snapshots,
+    0,
+    subflowResults,
+    narrativeEntries?.length ? buildStageNarrativeMap(narrativeEntries) : /* @__PURE__ */ new Map(),
+    { byRuntimeStageId: /* @__PURE__ */ new Map(), byStageName: /* @__PURE__ */ new Map() },
+    readState
+  );
   const prefix = sf.subflowId ? `${sf.subflowId}/` : "";
   if (prefix) {
     for (const snap of snapshots) {
@@ -3800,7 +4058,7 @@ function devWarn(messageFn, ...extras) {
 }
 
 // src/components/MemoryPanel/MemoryPanel.tsx
-var import_jsx_runtime13 = require("react/jsx-runtime");
+var import_jsx_runtime14 = require("react/jsx-runtime");
 function MemoryPanel({
   snapshots,
   selectedIndex,
@@ -3809,15 +4067,24 @@ function MemoryPanel({
   className,
   style
 }) {
-  const prevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
-  const currMemory = snapshots[selectedIndex]?.memory ?? {};
+  const view = recordStateDisplay(
+    snapshots[selectedIndex],
+    snapshots[selectedIndex - 1]
+  );
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)("div", { className, style, "data-fp": "memory-panel", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(MemoryInspector, { snapshots, selectedIndex, unstyled: true }),
-      /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ScopeDiff, { previous: prevMemory, current: currMemory, unstyled: true })
+    return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { className, style, "data-fp": "memory-panel", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+        MemoryInspector,
+        {
+          snapshots,
+          selectedIndex,
+          unstyled: true
+        }
+      ),
+      view.canCompare && view.memory !== null && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(ScopeDiff, { previous: view.previous, current: view.memory, unstyled: true })
     ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime13.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
     "div",
     {
       className,
@@ -3829,8 +4096,23 @@ function MemoryPanel({
       },
       "data-fp": "memory-panel",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(MemoryInspector, { snapshots, selectedIndex, size }),
-        /* @__PURE__ */ (0, import_jsx_runtime13.jsx)("div", { style: { borderTop: `1px solid ${theme.border}` }, children: /* @__PURE__ */ (0, import_jsx_runtime13.jsx)(ScopeDiff, { previous: prevMemory, current: currMemory, hideUnchanged: true, size }) })
+        /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+          MemoryInspector,
+          {
+            snapshots,
+            selectedIndex,
+            size
+          }
+        ),
+        view.canCompare && view.memory !== null && /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { style: { borderTop: `1px solid ${theme.border}` }, children: /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+          ScopeDiff,
+          {
+            previous: view.previous,
+            current: view.memory,
+            hideUnchanged: true,
+            size
+          }
+        ) })
       ]
     }
   );
@@ -3841,7 +4123,7 @@ var import_react14 = require("react");
 
 // src/components/StoryNarrative/StoryNarrative.tsx
 var import_react13 = require("react");
-var import_jsx_runtime14 = require("react/jsx-runtime");
+var import_jsx_runtime15 = require("react/jsx-runtime");
 var ENTRY_ICONS = {
   stage: { icon: "\u25B8", color: theme.primary, label: "Stage" },
   step: { icon: "\xB7", color: theme.textMuted, label: "Data operation" },
@@ -3955,13 +4237,13 @@ function StoryNarrative({
     });
   }, [revealed]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => {
       if (entry.isSubflowExit) return null;
       const ht = entry.headingType;
-      return /* @__PURE__ */ (0, import_jsx_runtime14.jsx)("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? entry.text.startsWith("[") ? `${entry.heading}. ${entry.text}` : `${entry.heading}. [${ht}: ${entry.stageName ?? ""}] ${entry.text}` : entry.text }, i);
+      return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? entry.text.startsWith("[") ? `${entry.heading}. ${entry.text}` : `${entry.heading}. [${ht}: ${entry.stageName ?? ""}] ${entry.text}` : entry.text }, i);
     }) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
     "div",
     {
       className,
@@ -3987,7 +4269,7 @@ function StoryNarrative({
           const isSubflow = entry.isSubflow;
           const isLast = i === numberedEntries.length - 1;
           const headingType = entry.headingType;
-          return /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(
+          return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
             "div",
             {
               ref: isLast ? latestRef : void 0,
@@ -4000,7 +4282,7 @@ function StoryNarrative({
                 marginTop: isHeading && i > 0 ? 8 : 0
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
                   "span",
                   {
                     style: {
@@ -4016,7 +4298,7 @@ function StoryNarrative({
                     children: meta.icon
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime14.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
                   "span",
                   {
                     style: {
@@ -4026,15 +4308,15 @@ function StoryNarrative({
                       lineHeight: 1.6,
                       fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
                     },
-                    children: entry.heading && headingType ? entry.text.startsWith("[") ? /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("strong", { children: [
+                    children: entry.heading && headingType ? entry.text.startsWith("[") ? /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("strong", { children: [
                         entry.heading,
                         "."
                       ] }),
                       " ",
                       entry.text
-                    ] }) : /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)(import_jsx_runtime14.Fragment, { children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("strong", { children: [
+                    ] }) : /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(import_jsx_runtime15.Fragment, { children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("strong", { children: [
                         entry.heading,
                         ". [",
                         headingType,
@@ -4051,7 +4333,7 @@ function StoryNarrative({
             i
           );
         }),
-        futureCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime14.jsxs)("div", { style: {
+        futureCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { style: {
           opacity: 0.3,
           fontSize: fs.small,
           color: theme.textMuted,
@@ -4069,7 +4351,7 @@ function StoryNarrative({
 }
 
 // src/components/NarrativePanel/NarrativePanel.tsx
-var import_jsx_runtime15 = require("react/jsx-runtime");
+var import_jsx_runtime16 = require("react/jsx-runtime");
 function safeJsonStringify(value) {
   const seen = /* @__PURE__ */ new WeakSet();
   const MAX_CHARS = 5e5;
@@ -4262,9 +4544,9 @@ function NarrativePanel({
     setTimeout(() => setCopied(false), 2e3);
   }, [buildLLMNarrative]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, scopeSubflowId, unstyled: true }) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
+    return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, scopeSubflowId, unstyled: true }) : /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
     "div",
     {
       className,
@@ -4276,7 +4558,7 @@ function NarrativePanel({
       },
       "data-fp": "narrative-panel",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
           "div",
           {
             style: {
@@ -4290,8 +4572,8 @@ function NarrativePanel({
               alignItems: "center"
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("span", { style: { fontStyle: "italic" }, children: "What happened at each stage, what data flowed, what decisions were made, and why." }),
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { style: { fontStyle: "italic" }, children: "What happened at each stage, what data flowed, what decisions were made, and why." }),
+              /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
                 "button",
                 {
                   onClick: handleCopy,
@@ -4314,7 +4596,7 @@ function NarrativePanel({
             ]
           }
         ),
-        hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
           StoryNarrative,
           {
             entries: narrativeEntries,
@@ -4323,7 +4605,7 @@ function NarrativePanel({
             size,
             style: { flex: 1 }
           }
-        ) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
+        ) : /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
           NarrativeTrace,
           {
             narrative,
@@ -4339,7 +4621,7 @@ function NarrativePanel({
 
 // src/components/FlowchartView/SubflowTree.tsx
 var import_react15 = require("react");
-var import_jsx_runtime16 = require("react/jsx-runtime");
+var import_jsx_runtime17 = require("react/jsx-runtime");
 function graphToSubflowEntries(graph) {
   if (!graph?.nodes?.length) return [];
   const entries = [];
@@ -4373,8 +4655,8 @@ var TreeNode = (0, import_react15.memo)(function TreeNode2({
     }
     onNodeSelect?.(entry.name, !!entry.isSubflow, entry.nodeId);
   }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow, entry.nodeId]);
-  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(import_jsx_runtime16.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(import_jsx_runtime17.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
       "button",
       {
         onClick: handleClick,
@@ -4405,7 +4687,7 @@ var TreeNode = (0, import_react15.memo)(function TreeNode2({
           }
         },
         children: [
-          hasChildren ? /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+          hasChildren ? /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
             "span",
             {
               style: {
@@ -4420,8 +4702,8 @@ var TreeNode = (0, import_react15.memo)(function TreeNode2({
               },
               children: "\u25B6"
             }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { style: { width: 12, flexShrink: 0 } }),
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+          ) : /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { style: { width: 12, flexShrink: 0 } }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
             "span",
             {
               style: {
@@ -4433,8 +4715,8 @@ var TreeNode = (0, import_react15.memo)(function TreeNode2({
               }
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("span", { style: { display: "flex", flexDirection: "column", minWidth: 0 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { style: { display: "flex", flexDirection: "column", minWidth: 0 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
               "span",
               {
                 style: {
@@ -4446,11 +4728,11 @@ var TreeNode = (0, import_react15.memo)(function TreeNode2({
                 },
                 children: [
                   entry.name,
-                  entry.isSubflow && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { style: { opacity: 0.5, marginLeft: 4, fontSize: 10 }, children: "\u229E" })
+                  entry.isSubflow && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { style: { opacity: 0.5, marginLeft: 4, fontSize: 10 }, children: "\u229E" })
                 ]
               }
             ),
-            entry.description && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+            entry.description && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
               "span",
               {
                 style: {
@@ -4467,7 +4749,7 @@ var TreeNode = (0, import_react15.memo)(function TreeNode2({
         ]
       }
     ),
-    hasChildren && expanded && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { children: entry.children.map((child, i) => /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+    hasChildren && expanded && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { children: entry.children.map((child, i) => /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
       TreeNode2,
       {
         entry: child,
@@ -4481,7 +4763,7 @@ var TreeNode = (0, import_react15.memo)(function TreeNode2({
   ] });
 });
 var SectionLabel = (0, import_react15.memo)(function SectionLabel2({ children }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
     "div",
     {
       style: {
@@ -4507,7 +4789,7 @@ var SubflowTree = (0, import_react15.memo)(function SubflowTree2({
 }) {
   const subflowStages = (0, import_react15.useMemo)(() => graphToSubflowEntries(graph), [graph]);
   if (subflowStages.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
     "div",
     {
       className,
@@ -4525,8 +4807,8 @@ var SubflowTree = (0, import_react15.memo)(function SubflowTree2({
         ...style
       },
       children: [
-        !unstyled && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(SectionLabel, { children: "Subflows" }),
-        subflowStages.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+        !unstyled && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(SectionLabel, { children: "Subflows" }),
+        subflowStages.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
           TreeNode,
           {
             entry,
@@ -4556,7 +4838,7 @@ function warnDeprecated(what, useInstead) {
 }
 
 // src/components/FlowchartView/SubflowBreadcrumb.tsx
-var import_jsx_runtime17 = require("react/jsx-runtime");
+var import_jsx_runtime18 = require("react/jsx-runtime");
 var SubflowBreadcrumb = (0, import_react16.memo)(function SubflowBreadcrumb2({
   breadcrumbs,
   onNavigate
@@ -4566,7 +4848,7 @@ var SubflowBreadcrumb = (0, import_react16.memo)(function SubflowBreadcrumb2({
     "It renders the legacy useSubflowNavigation stack. Use <TracedFlow> (which draws its own trail), or buildSubflowBreadcrumb(graph, mountNodeId)."
   );
   if (breadcrumbs.length <= 1) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
     "div",
     {
       style: {
@@ -4583,10 +4865,10 @@ var SubflowBreadcrumb = (0, import_react16.memo)(function SubflowBreadcrumb2({
       },
       children: breadcrumbs.map((crumb, i) => {
         const isLast = i === breadcrumbs.length - 1;
-        return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
-          i > 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" }),
-          isLast ? /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
+          i > 0 && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" }),
+          isLast ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
               "span",
               {
                 style: {
@@ -4596,7 +4878,7 @@ var SubflowBreadcrumb = (0, import_react16.memo)(function SubflowBreadcrumb2({
                 children: crumb.label
               }
             ),
-            crumb.description && /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(
+            crumb.description && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
               "span",
               {
                 style: {
@@ -4610,7 +4892,7 @@ var SubflowBreadcrumb = (0, import_react16.memo)(function SubflowBreadcrumb2({
                 ]
               }
             )
-          ] }) : /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
             "button",
             {
               onClick: () => onNavigate(i),
@@ -5054,7 +5336,7 @@ function projectRetryAttempts(overlay, upToIndex) {
 // src/components/StageNode/StageNode.tsx
 var import_react17 = require("react");
 var import_react18 = require("@xyflow/react");
-var import_jsx_runtime18 = require("react/jsx-runtime");
+var import_jsx_runtime19 = require("react/jsx-runtime");
 var KEYFRAMES_ID = "fp-stage-node-keyframes";
 var KEYFRAMES_CSS = `
 @media (prefers-reduced-motion: no-preference) {
@@ -5080,128 +5362,128 @@ function StageIcon({ type, color }) {
     // LLM / AI call — brain/sparkle
     case "llm":
     case "ai":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("circle", { cx: "8", cy: "8", r: "6", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M5.5 8C5.5 6.5 6.5 5 8 5S10.5 6.5 10.5 8", stroke: color, strokeWidth: "1.2", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("circle", { cx: "8", cy: "9.5", r: "1", fill: color }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "8", y1: "2", x2: "8", y2: "3.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "12.5", y1: "4", x2: "11.2", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "3.5", y1: "4", x2: "4.8", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("circle", { cx: "8", cy: "8", r: "6", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("path", { d: "M5.5 8C5.5 6.5 6.5 5 8 5S10.5 6.5 10.5 8", stroke: color, strokeWidth: "1.2", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("circle", { cx: "8", cy: "9.5", r: "1", fill: color }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "8", y1: "2", x2: "8", y2: "3.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "12.5", y1: "4", x2: "11.2", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "3.5", y1: "4", x2: "4.8", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Tool / function call — gear
     case "tool":
     case "function":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("circle", { cx: "8", cy: "8", r: "3", stroke: color, strokeWidth: "1.5" }),
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("circle", { cx: "8", cy: "8", r: "3", stroke: color, strokeWidth: "1.5" }),
         [0, 45, 90, 135, 180, 225, 270, 315].map((angle) => {
           const rad = angle * Math.PI / 180;
           const x1 = 8 + Math.cos(rad) * 4.5;
           const y1 = 8 + Math.sin(rad) * 4.5;
           const x2 = 8 + Math.cos(rad) * 6;
           const y2 = 8 + Math.sin(rad) * 6;
-          return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1, y1, x2, y2, stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }, angle);
+          return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1, y1, x2, y2, stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }, angle);
         })
       ] });
     // RAG / retrieval — magnifying glass + doc
     case "rag":
     case "search":
     case "retrieval":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("circle", { cx: "7", cy: "7", r: "4", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "10", y1: "10", x2: "13.5", y2: "13.5", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "5.5", y1: "6", x2: "8.5", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "5.5", y1: "8", x2: "7.5", y2: "8", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("circle", { cx: "7", cy: "7", r: "4", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "10", y1: "10", x2: "13.5", y2: "13.5", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "5.5", y1: "6", x2: "8.5", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "5.5", y1: "8", x2: "7.5", y2: "8", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Parse / process — diamond with arrows
     case "parse":
     case "process":
     case "transform":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", stroke: color, strokeWidth: "1.5", transform: "rotate(45 8 8)" }) });
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", stroke: color, strokeWidth: "1.5", transform: "rotate(45 8 8)" }) });
     // Start / seed — play triangle
     case "start":
     case "seed":
     case "init":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M5 3.5L12.5 8L5 12.5V3.5Z", fill: color, opacity: "0.8" }) });
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("path", { d: "M5 3.5L12.5 8L5 12.5V3.5Z", fill: color, opacity: "0.8" }) });
     // End / finalize — stop square
     case "end":
     case "finalize":
     case "output":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", fill: color, opacity: "0.8" }) });
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", fill: color, opacity: "0.8" }) });
     // Agent — person silhouette
     case "agent":
     case "orchestrator":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("circle", { cx: "8", cy: "5", r: "2.5", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M3.5 14C3.5 11 5.5 9 8 9S12.5 11 12.5 14", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("circle", { cx: "8", cy: "5", r: "2.5", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("path", { d: "M3.5 14C3.5 11 5.5 9 8 9S12.5 11 12.5 14", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" })
       ] });
     // Swarm — multi-agent
     case "swarm":
     case "multi-agent":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("circle", { cx: "5", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("circle", { cx: "11", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("circle", { cx: "8", cy: "11", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "5", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "11", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" })
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("circle", { cx: "5", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("circle", { cx: "11", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("circle", { cx: "8", cy: "11", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "5", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "11", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" })
       ] });
     // Guard / guardrail — shield
     case "guard":
     case "guardrail":
     case "validate":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M8 2L3 5V9C3 11.5 5 13.5 8 14.5C11 13.5 13 11.5 13 9V5L8 2Z", stroke: color, strokeWidth: "1.5", strokeLinejoin: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M6 8L7.5 9.5L10 6.5", stroke: color, strokeWidth: "1.2", strokeLinecap: "round", strokeLinejoin: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("path", { d: "M8 2L3 5V9C3 11.5 5 13.5 8 14.5C11 13.5 13 11.5 13 9V5L8 2Z", stroke: color, strokeWidth: "1.5", strokeLinejoin: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("path", { d: "M6 8L7.5 9.5L10 6.5", stroke: color, strokeWidth: "1.2", strokeLinecap: "round", strokeLinejoin: "round" })
       ] });
     // Stream — wave
     case "stream":
     case "streaming":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M2 8C4 5 6 11 8 8S12 5 14 8", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M2 11C4 8 6 14 8 11S12 8 14 11", stroke: color, strokeWidth: "1", strokeLinecap: "round", fill: "none", opacity: "0.5" })
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("path", { d: "M2 8C4 5 6 11 8 8S12 5 14 8", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("path", { d: "M2 11C4 8 6 14 8 11S12 8 14 11", stroke: color, strokeWidth: "1", strokeLinecap: "round", fill: "none", opacity: "0.5" })
       ] });
     // Memory / state — database cylinder
     case "memory":
     case "state":
     case "db":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("ellipse", { cx: "8", cy: "4.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "3", y1: "4.5", x2: "3", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "13", y1: "4.5", x2: "13", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("ellipse", { cx: "8", cy: "11.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" })
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("ellipse", { cx: "8", cy: "4.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "3", y1: "4.5", x2: "3", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "13", y1: "4.5", x2: "13", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("ellipse", { cx: "8", cy: "11.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" })
       ] });
     // System prompt — document with lines
     case "system-prompt":
     case "prompt":
     case "instructions":
     case "document":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("rect", { x: "3.5", y: "2", width: "9", height: "12", rx: "1.5", stroke: color, strokeWidth: "1.3", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "5.5", y1: "5", x2: "10.5", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "5.5", y1: "7.5", x2: "10.5", y2: "7.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "5.5", y1: "10", x2: "8.5", y2: "10", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("rect", { x: "3.5", y: "2", width: "9", height: "12", rx: "1.5", stroke: color, strokeWidth: "1.3", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "5.5", y1: "5", x2: "10.5", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "5.5", y1: "7.5", x2: "10.5", y2: "7.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "5.5", y1: "10", x2: "8.5", y2: "10", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Messages / conversation — chat bubble
     case "messages":
     case "chat":
     case "conversation":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("rect", { x: "2.5", y: "3", width: "11", height: "8", rx: "2", stroke: color, strokeWidth: "1.3", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M5.5 11L5.5 13.5L8.5 11", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "5", y1: "6", x2: "11", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("line", { x1: "5", y1: "8.5", x2: "9", y2: "8.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("rect", { x: "2.5", y: "3", width: "11", height: "8", rx: "2", stroke: color, strokeWidth: "1.3", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("path", { d: "M5.5 11L5.5 13.5L8.5 11", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "5", y1: "6", x2: "11", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("line", { x1: "5", y1: "8.5", x2: "9", y2: "8.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Loop — circular arrow
     case "loop":
     case "retry":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M12 8A4 4 0 1 1 8 4", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M8 1.5L10.5 4L8 6.5", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" })
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("path", { d: "M12 8A4 4 0 1 1 8 4", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("path", { d: "M8 1.5L10.5 4L8 6.5", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" })
       ] });
     // Lazy / service — cloud (deferred resolution, loaded on demand)
     case "lazy":
     case "service":
     case "cloud":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
         "path",
         {
           d: "M4.5 12C2.8 12 1.5 10.7 1.5 9C1.5 7.5 2.5 6.3 3.8 6C4 4 5.8 2.5 8 2.5C9.8 2.5 11.3 3.5 11.9 5C13.9 5.2 15.5 6.8 15.5 8.8C15.5 10.8 13.9 12.5 11.8 12.5H4.5",
@@ -5214,9 +5496,9 @@ function StageIcon({ type, color }) {
     // Decision — diamond (already handled by isDecider shape)
     case "decision":
     case "router":
-      return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("path", { d: "M8 2L14 8L8 14L2 8Z", stroke: color, strokeWidth: "1.5", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("circle", { cx: "8", cy: "8", r: "1.5", fill: color })
+      return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("path", { d: "M8 2L14 8L8 14L2 8Z", stroke: color, strokeWidth: "1.5", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("circle", { cx: "8", cy: "8", r: "1.5", fill: color })
       ] });
     default:
       return null;
@@ -5252,9 +5534,9 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
   const borderColor = active ? theme.nodeCursor : isHero && done ? theme.nodeMain : done ? theme.nodeVisited : error ? theme.error : restingBorder;
   const shadow = active ? `0 0 22px color-mix(in srgb, ${theme.nodeCursor} 55%, transparent)` : isHero && done ? `0 0 12px color-mix(in srgb, ${theme.nodeMain} 30%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.nodeVisited} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : restingShadow;
   const textColor = active ? "#1a1a1a" : done || error ? "#fff" : theme.textPrimary;
-  return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(import_react18.Handle, { type: "target", position: import_react18.Position.Top, style: { opacity: 0 } }),
-    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { width: "100%", display: "flex", justifyContent: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(import_jsx_runtime19.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(import_react18.Handle, { type: "target", position: import_react18.Position.Top, style: { opacity: 0 } }),
+    /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("div", { style: { width: "100%", display: "flex", justifyContent: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
       "div",
       {
         style: {
@@ -5267,7 +5549,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
           opacity: isMuted ? 0.5 : void 0
         },
         children: [
-          stepNumbers && stepNumbers.length > 0 && isOnPath && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+          stepNumbers && stepNumbers.length > 0 && isOnPath && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
             "div",
             {
               style: {
@@ -5282,7 +5564,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                 const isLatest = i === stepNumbers.length - 1;
                 const badgeBg = isLatest && active ? theme.nodeCursor : theme.nodeVisited;
                 const glow = isLatest && active ? `color-mix(in srgb, ${theme.nodeCursor} 50%, transparent)` : `color-mix(in srgb, ${theme.nodeVisited} 40%, transparent)`;
-                return /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
                   "div",
                   {
                     style: {
@@ -5305,7 +5587,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
               })
             }
           ),
-          linked && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+          linked && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
             "div",
             {
               style: {
@@ -5319,7 +5601,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
               }
             }
           ),
-          active && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+          active && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
             "div",
             {
               style: {
@@ -5333,7 +5615,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
               }
             }
           ),
-          active && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+          active && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
             "div",
             {
               style: {
@@ -5353,7 +5635,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
               children: "NOW"
             }
           ),
-          showRetryBadge && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+          showRetryBadge && /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
             "div",
             {
               role: "img",
@@ -5380,16 +5662,16 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                 whiteSpace: "nowrap"
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { "aria-hidden": "true", children: "\u21BA" }),
-                /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { "aria-hidden": "true", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { "aria-hidden": "true", children: "\u21BA" }),
+                /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("span", { "aria-hidden": "true", children: [
                   "\xD7",
                   retryAttempts
                 ] })
               ]
             }
           ),
-          isDecider ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { position: "relative", width: 120, height: 72 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+          isDecider ? /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { style: { position: "relative", width: 120, height: 72 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
               "div",
               {
                 style: {
@@ -5403,7 +5685,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                 }
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
               "div",
               {
                 style: {
@@ -5419,7 +5701,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                 }
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
               "div",
               {
                 style: {
@@ -5434,10 +5716,10 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                   zIndex: 1
                 },
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
-                    effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(StageIcon, { type: effectiveIcon, color: textColor }),
-                    !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { style: { fontSize: 9, color: textColor }, children: "\u25C7" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
+                    effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(StageIcon, { type: effectiveIcon, color: textColor }),
+                    !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { style: { fontSize: 9, color: textColor }, children: "\u25C7" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
                       "span",
                       {
                         style: {
@@ -5450,7 +5732,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                       }
                     )
                   ] }),
-                  description && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                  description && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
                     "span",
                     {
                       style: {
@@ -5466,7 +5748,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                       children: description
                     }
                   ),
-                  showStageId && stageId && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                  showStageId && stageId && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
                     "span",
                     {
                       style: {
@@ -5488,7 +5770,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
             )
           ] }) : (
             /* Standard rectangular node */
-            /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
               "div",
               {
                 style: {
@@ -5507,10 +5789,10 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                   justifyContent: "center"
                 },
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-                    effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(StageIcon, { type: effectiveIcon, color: textColor }),
-                    done && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { style: { fontSize: 10, color: textColor }, children: "\u2713" }),
-                    active && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+                    effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(StageIcon, { type: effectiveIcon, color: textColor }),
+                    done && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { style: { fontSize: 10, color: textColor }, children: "\u2713" }),
+                    active && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
                       "span",
                       {
                         style: {
@@ -5523,8 +5805,8 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                         }
                       }
                     ),
-                    error && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { style: { fontSize: 10, color: textColor }, children: "\u2717" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                    error && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { style: { fontSize: 10, color: textColor }, children: "\u2717" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
                       "span",
                       {
                         style: {
@@ -5536,7 +5818,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                         children: label
                       }
                     ),
-                    isSubflow && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                    isSubflow && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
                       "span",
                       {
                         style: {
@@ -5551,7 +5833,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                           opacity: 0.7,
                           flexShrink: 0
                         },
-                        children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                        children: /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
                           "span",
                           {
                             style: {
@@ -5565,7 +5847,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                       }
                     )
                   ] }),
-                  description && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                  description && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
                     "span",
                     {
                       style: {
@@ -5581,7 +5863,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
                       children: description
                     }
                   ),
-                  showStageId && stageId && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
+                  showStageId && stageId && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
                     "span",
                     {
                       style: {
@@ -5605,7 +5887,7 @@ var StageNode = (0, import_react17.memo)(function StageNode2({
         ]
       }
     ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(import_react18.Handle, { type: "source", position: import_react18.Position.Bottom, style: { opacity: 0 } })
+    /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(import_react18.Handle, { type: "source", position: import_react18.Position.Bottom, style: { opacity: 0 } })
   ] });
 });
 
@@ -6013,9 +6295,9 @@ function ChartAutoRefit(props) {
 }
 
 // src/components/FlowchartView/SubflowBreadcrumbBar.tsx
-var import_jsx_runtime19 = require("react/jsx-runtime");
+var import_jsx_runtime20 = require("react/jsx-runtime");
 function SubflowBreadcrumbBar({ entries, onNavigate }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
     "div",
     {
       style: {
@@ -6031,12 +6313,12 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
       "aria-label": "Subflow breadcrumb",
       children: entries.map((entry, i) => {
         const isLast = i === entries.length - 1;
-        return /* @__PURE__ */ (0, import_jsx_runtime19.jsxs)(
+        return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
           "span",
           {
             style: { display: "inline-flex", alignItems: "center", gap: 6 },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime19.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
                 "button",
                 {
                   type: "button",
@@ -6056,7 +6338,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
                   children: entry.label
                 }
               ),
-              !isLast && /* @__PURE__ */ (0, import_jsx_runtime19.jsx)("span", { style: { color: theme.textMuted }, children: "\u203A" })
+              !isLast && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { style: { color: theme.textMuted }, children: "\u203A" })
             ]
           },
           entry.subflowId ?? "__top__"
@@ -6068,11 +6350,11 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
 
 // src/components/GroupContainerNode/GroupContainerNode.tsx
 var import_react23 = require("@xyflow/react");
-var import_jsx_runtime20 = require("react/jsx-runtime");
+var import_jsx_runtime21 = require("react/jsx-runtime");
 function GroupContainerNode({ data }) {
   const d = data;
   const borderColor = d.error ? theme.error : d.active ? theme.primary : d.done ? theme.nodeVisited : theme.border;
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
     "div",
     {
       style: {
@@ -6088,7 +6370,7 @@ function GroupContainerNode({ data }) {
         position: "relative"
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
           "div",
           {
             style: {
@@ -6102,13 +6384,13 @@ function GroupContainerNode({ data }) {
               letterSpacing: 0.2
             },
             children: [
-              d.icon ? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { "aria-hidden": true, children: d.icon }) : null,
-              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("span", { children: d.label })
+              d.icon ? /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { "aria-hidden": true, children: d.icon }) : null,
+              /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("span", { children: d.label })
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(import_react23.Handle, { type: "target", position: import_react23.Position.Top, style: { opacity: 0 } }),
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(import_react23.Handle, { type: "source", position: import_react23.Position.Bottom, style: { opacity: 0 } })
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(import_react23.Handle, { type: "target", position: import_react23.Position.Top, style: { opacity: 0 } }),
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(import_react23.Handle, { type: "source", position: import_react23.Position.Bottom, style: { opacity: 0 } })
       ]
     }
   );
@@ -6334,7 +6616,7 @@ function wrapInMainChartBox(graph, opts) {
 }
 
 // src/components/LoopBackEdge/LoopBackEdge.tsx
-var import_jsx_runtime21 = require("react/jsx-runtime");
+var import_jsx_runtime22 = require("react/jsx-runtime");
 var LOOP_DASH = "5 5";
 var LOOP_STROKE_OPACITY_CAP = 0.55;
 var LOOP_STROKE_WIDTH = 1.5;
@@ -6373,7 +6655,7 @@ function LoopBackEdge({ id, source, target, markerEnd, style }) {
     );
   });
   if (!path) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
     import_react24.BaseEdge,
     {
       id,
@@ -6411,7 +6693,7 @@ function resolveStepBendY(forkBend, staggeredBend) {
 }
 
 // src/components/SmartStepEdge/SmartStepEdge.tsx
-var import_jsx_runtime22 = require("react/jsx-runtime");
+var import_jsx_runtime23 = require("react/jsx-runtime");
 function SmartStepEdge({
   id,
   source,
@@ -6462,7 +6744,7 @@ function SmartStepEdge({
     // use its default centerY (== the built-in `smoothstep` path, byte-for-byte).
     ...bendY !== null ? { centerY: bendY } : {}
   });
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(import_react25.BaseEdge, { id, path, markerEnd, style });
+  return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(import_react25.BaseEdge, { id, path, markerEnd, style });
 }
 
 // src/components/FlowchartView/_internal/MeasuredNodeSizes.tsx
@@ -6509,7 +6791,7 @@ function MeasuredNodeSizes({
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-var import_jsx_runtime23 = require("react/jsx-runtime");
+var import_jsx_runtime24 = require("react/jsx-runtime");
 var DEFAULT_COLORS = {
   default: rawDefaults.colors.textMuted,
   done: rawDefaults.colors.success,
@@ -6816,7 +7098,7 @@ function TracedFlow({
     // must not take camera ownership back after a manual pan/zoom.
     layoutProp !== void 0 ? layoutKey : null
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
     "div",
     {
       ref: wrapperRef,
@@ -6833,14 +7115,14 @@ function TracedFlow({
         ...style
       },
       children: [
-        breadcrumb.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+        breadcrumb.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
           SubflowBreadcrumbBar,
           {
             entries: breadcrumb,
             onNavigate: drill.setCurrentSubflowId
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
           import_react30.ReactFlow,
           {
             nodes: conedNodes,
@@ -6851,9 +7133,9 @@ function TracedFlow({
             minZoom: 0.1,
             proOptions: { hideAttribution: true },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(ChartAutoRefit, { wrapperRef, refitKey, layoutKey, padding: 0.18 }),
-              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
-              /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(import_react30.Background, { variant: import_react30.BackgroundVariant.Dots, gap: 20, size: 1 }),
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(ChartAutoRefit, { wrapperRef, refitKey, layoutKey, padding: 0.18 }),
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(import_react30.Background, { variant: import_react30.BackgroundVariant.Dots, gap: 20, size: 1 }),
               children
             ]
           }
@@ -6865,7 +7147,7 @@ function TracedFlow({
 
 // src/components/InspectorPanel/InspectorPanel.tsx
 var import_react31 = require("react");
-var import_jsx_runtime24 = require("react/jsx-runtime");
+var import_jsx_runtime25 = require("react/jsx-runtime");
 var InspectorPanel = (0, import_react31.memo)(function InspectorPanel2({
   snapshots,
   selectedIndex,
@@ -6889,7 +7171,7 @@ var InspectorPanel = (0, import_react31.memo)(function InspectorPanel2({
   };
   const currentSnapshot = snapshots[selectedIndex];
   const sx = (s) => unstyled ? void 0 : s;
-  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
     "div",
     {
       className,
@@ -6904,7 +7186,7 @@ var InspectorPanel = (0, import_react31.memo)(function InspectorPanel2({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
           "div",
           {
             "data-fp": "inspector-tabs",
@@ -6914,7 +7196,7 @@ var InspectorPanel = (0, import_react31.memo)(function InspectorPanel2({
               flexShrink: 0
             }),
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
                 TabButton,
                 {
                   active: tab === "state",
@@ -6924,7 +7206,7 @@ var InspectorPanel = (0, import_react31.memo)(function InspectorPanel2({
                   unstyled
                 }
               ),
-              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
                 TabButton,
                 {
                   active: tab === "trace",
@@ -6938,8 +7220,8 @@ var InspectorPanel = (0, import_react31.memo)(function InspectorPanel2({
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { "data-fp": "inspector-body", style: sx({ flex: 1, overflow: "auto" }), children: [
-          tab === "state" && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { "data-fp": "inspector-body", style: sx({ flex: 1, overflow: "auto" }), children: [
+          tab === "state" && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
             MemoryPanel,
             {
               snapshots,
@@ -6948,7 +7230,7 @@ var InspectorPanel = (0, import_react31.memo)(function InspectorPanel2({
               unstyled
             }
           ),
-          tab === "trace" && (traceContent ?? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+          tab === "trace" && (traceContent ?? /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
             DataTracePanel,
             {
               frames: dataTraceFrames,
@@ -6975,7 +7257,7 @@ function TabButton({
 }) {
   const fs = fontSize[size];
   const sx = (s) => unstyled ? void 0 : s;
-  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
     "button",
     {
       onClick,
@@ -6996,7 +7278,7 @@ function TabButton({
       }),
       children: [
         label,
-        badge && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+        badge && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
           "span",
           {
             style: sx({
@@ -7017,7 +7299,7 @@ function TabButton({
 
 // src/components/InsightPanel/InsightPanel.tsx
 var import_react32 = require("react");
-var import_jsx_runtime25 = require("react/jsx-runtime");
+var import_jsx_runtime26 = require("react/jsx-runtime");
 var InsightPanel = (0, import_react32.memo)(function InsightPanel2({
   insights,
   expandedId,
@@ -7029,12 +7311,12 @@ var InsightPanel = (0, import_react32.memo)(function InsightPanel2({
 }) {
   const chrome = { size, unstyled, className, style };
   if (insights.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(NoInsights, { ...chrome });
+    return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(NoInsights, { ...chrome });
   }
   if (mode === "grid") {
-    return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(InsightGrid, { insights, ...chrome });
+    return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(InsightGrid, { insights, ...chrome });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(InsightTabs, { insights, defaultId: expandedId, ...chrome });
+  return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(InsightTabs, { insights, defaultId: expandedId, ...chrome });
 });
 var styler = (unstyled) => (s) => unstyled ? void 0 : s;
 var INGREDIENTS = [
@@ -7051,7 +7333,7 @@ var NoInsights = (0, import_react32.memo)(function NoInsights2({
 }) {
   const fs = fontSize[size];
   const sx = styler(unstyled);
-  return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
     "div",
     {
       className,
@@ -7061,20 +7343,20 @@ var NoInsights = (0, import_react32.memo)(function NoInsights2({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { style: sx({ marginBottom: 8 }), children: "Nothing to show \u2014 this run was recorded without any of these. Each one lights one panel:" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("table", { style: sx({ borderCollapse: "collapse" }), children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("tbody", { children: INGREDIENTS.map(({ panel, call, from }) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("tr", { "data-fp": "insights-empty-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("td", { style: sx({ paddingRight: 10, color: theme.textSecondary, whiteSpace: "nowrap" }), children: panel }),
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("td", { style: sx({ fontFamily: theme.fontMono, fontSize: fs.label, whiteSpace: "nowrap" }), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { style: sx({ marginBottom: 8 }), children: "Nothing to show \u2014 this run was recorded without any of these. Each one lights one panel:" }),
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("table", { style: sx({ borderCollapse: "collapse" }), children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("tbody", { children: INGREDIENTS.map(({ panel, call, from }) => /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("tr", { "data-fp": "insights-empty-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("td", { style: sx({ paddingRight: 10, color: theme.textSecondary, whiteSpace: "nowrap" }), children: panel }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("td", { style: sx({ fontFamily: theme.fontMono, fontSize: fs.label, whiteSpace: "nowrap" }), children: [
             call,
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("span", { style: sx({ opacity: 0.7 }), children: [
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("span", { style: sx({ opacity: 0.7 }), children: [
               " \u2014 from ",
               from
             ] })
           ] })
         ] }, panel)) }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { style: sx({ marginTop: 8 }), children: [
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { style: sx({ marginTop: 8 }), children: [
           "Attach with ",
-          /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("code", { children: "executor.attachScopeRecorder(...)" }),
+          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("code", { children: "executor.attachScopeRecorder(...)" }),
           " before the run, then pass the snapshot here \u2014 each recorder's data rides along inside it."
         ] })
       ]
@@ -7093,7 +7375,7 @@ var InsightTabs = (0, import_react32.memo)(function InsightTabs2({
   const active = insights.find((i) => i.id === activeId) ?? insights[0];
   const fs = fontSize[size];
   const sx = styler(unstyled);
-  return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
     "div",
     {
       className,
@@ -7109,7 +7391,7 @@ var InsightTabs = (0, import_react32.memo)(function InsightTabs2({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
           "div",
           {
             "data-fp": "insight-tabs",
@@ -7119,7 +7401,7 @@ var InsightTabs = (0, import_react32.memo)(function InsightTabs2({
               flexShrink: 0,
               overflowX: "auto"
             }),
-            children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+            children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
               "button",
               {
                 onClick: () => setActiveId(insight.id),
@@ -7142,7 +7424,7 @@ var InsightTabs = (0, import_react32.memo)(function InsightTabs2({
             ))
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { "data-fp": "insight-body", style: sx({ flex: 1, overflow: "auto" }), children: active?.render() })
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { "data-fp": "insight-body", style: sx({ flex: 1, overflow: "auto" }), children: active?.render() })
       ]
     }
   );
@@ -7157,7 +7439,7 @@ var InsightGrid = (0, import_react32.memo)(function InsightGrid2({
   const cols = insights.length <= 2 ? 1 : 2;
   const fs = fontSize[size];
   const sx = styler(unstyled);
-  return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
     "div",
     {
       className,
@@ -7174,7 +7456,7 @@ var InsightGrid = (0, import_react32.memo)(function InsightGrid2({
         }),
         ...style
       },
-      children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+      children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
         "div",
         {
           "data-fp": "insight-cell",
@@ -7185,7 +7467,7 @@ var InsightGrid = (0, import_react32.memo)(function InsightGrid2({
             overflow: "hidden"
           }),
           children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
               "div",
               {
                 style: sx({
@@ -7200,7 +7482,7 @@ var InsightGrid = (0, import_react32.memo)(function InsightGrid2({
                 }),
                 children: [
                   insight.name,
-                  insight.summary && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+                  insight.summary && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
                     "span",
                     {
                       style: sx({
@@ -7215,7 +7497,7 @@ var InsightGrid = (0, import_react32.memo)(function InsightGrid2({
                 ]
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { "data-fp": "insight-cell-body", style: sx({ flex: 1, overflow: "auto" }), children: insight.render() })
+            /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { "data-fp": "insight-cell-body", style: sx({ flex: 1, overflow: "auto" }), children: insight.render() })
           ]
         },
         insight.id
@@ -7226,7 +7508,7 @@ var InsightGrid = (0, import_react32.memo)(function InsightGrid2({
 
 // src/components/CompactTimeline/CompactTimeline.tsx
 var import_react33 = require("react");
-var import_jsx_runtime26 = require("react/jsx-runtime");
+var import_jsx_runtime27 = require("react/jsx-runtime");
 var tint = (color, percent) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 var CompactTimeline = (0, import_react33.memo)(function CompactTimeline2({
   snapshots,
@@ -7236,8 +7518,8 @@ var CompactTimeline = (0, import_react33.memo)(function CompactTimeline2({
 }) {
   const [expanded, setExpanded] = (0, import_react33.useState)(defaultExpanded);
   if (snapshots.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { style: { borderTop: `1px solid ${theme.border}` }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { borderTop: `1px solid ${theme.border}` }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
       "button",
       {
         onClick: () => setExpanded((e) => !e),
@@ -7257,13 +7539,13 @@ var CompactTimeline = (0, import_react33.memo)(function CompactTimeline2({
           letterSpacing: "0.5px"
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
+          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
           label,
-          /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
             snapshots.length,
             " stages"
           ] }),
-          !expanded && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
+          !expanded && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
             "div",
             {
               style: {
@@ -7274,7 +7556,7 @@ var CompactTimeline = (0, import_react33.memo)(function CompactTimeline2({
                 marginLeft: 8
               },
               children: [
-                snapshots.map((snap, i) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+                snapshots.map((snap, i) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
                   "div",
                   {
                     style: {
@@ -7289,7 +7571,7 @@ var CompactTimeline = (0, import_react33.memo)(function CompactTimeline2({
                   },
                   i
                 )),
-                /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
                   "div",
                   {
                     style: {
@@ -7307,7 +7589,7 @@ var CompactTimeline = (0, import_react33.memo)(function CompactTimeline2({
         ]
       }
     ),
-    expanded && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { style: { padding: "0 12px 8px" }, children: /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+    expanded && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { padding: "0 12px 8px" }, children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
       GanttTimeline,
       {
         snapshots,
@@ -7318,7 +7600,7 @@ var CompactTimeline = (0, import_react33.memo)(function CompactTimeline2({
 });
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-var import_jsx_runtime27 = require("react/jsx-runtime");
+var import_jsx_runtime28 = require("react/jsx-runtime");
 var EXPLAINABLE_TAB_ID = "explainable";
 function isExplainableTab(tabId) {
   return tabId === EXPLAINABLE_TAB_ID || tabId === "ai-compatible";
@@ -7329,14 +7611,14 @@ var HLinePill = (0, import_react34.memo)(function HLinePill2({
   expanded,
   onClick
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: {
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: {
     display: "flex",
     alignItems: "center",
     gap: 0,
     padding: "0"
   }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } }),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } }),
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(
       "button",
       {
         onClick,
@@ -7360,13 +7642,13 @@ var HLinePill = (0, import_react34.memo)(function HLinePill2({
           transition: "color 0.15s ease"
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
           label,
-          detail && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
+          detail && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } })
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } })
   ] });
 });
 var VLinePill = (0, import_react34.memo)(function VLinePill2({
@@ -7376,15 +7658,15 @@ var VLinePill = (0, import_react34.memo)(function VLinePill2({
   onClick
 }) {
   const arrow = side === "right" ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25C0" : "\u25B6";
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: {
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
     gap: 0,
     padding: "0"
   }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } }),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } }),
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(
       "button",
       {
         onClick,
@@ -7409,19 +7691,19 @@ var VLinePill = (0, import_react34.memo)(function VLinePill2({
           transition: "color 0.15s ease"
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
           label
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } })
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } })
   ] });
 });
 var MissingChartNote = (0, import_react34.memo)(function MissingChartNote2({ unstyled }) {
-  const body = /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("strong", { children: "No chart \u2014 `traceGraph` was not provided." }),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { children: "A snapshot holds the memory, the story and the timeline. Only the chart's own structure can draw the chart. Two ways to get one:" }),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("pre", { style: unstyled ? void 0 : { margin: 0, whiteSpace: "pre-wrap", fontFamily: theme.fontMono, fontSize: 11 }, children: `// live build
+  const body = /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("strong", { children: "No chart \u2014 `traceGraph` was not provided." }),
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { children: "A snapshot holds the memory, the story and the timeline. Only the chart's own structure can draw the chart. Two ways to get one:" }),
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("pre", { style: unstyled ? void 0 : { margin: 0, whiteSpace: "pre-wrap", fontFamily: theme.fontMono, fontSize: 11 }, children: `// live build
 const trace = createTraceStructureRecorder();
 flowChart(..., { structureRecorders: [trace.recorder] });
 <ExplainableShell traceGraph={trace.getGraph()} />
@@ -7429,8 +7711,8 @@ flowChart(..., { structureRecorders: [trace.recorder] });
 // saved run \u2014 save chart.buildTimeStructure with your snapshot
 <ExplainableShell traceGraph={graphFromStructure(saved.structure)} />` })
   ] });
-  if (unstyled) return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { "data-fp": "shell-missing-chart", children: body });
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+  if (unstyled) return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { "data-fp": "shell-missing-chart", children: body });
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
     "div",
     {
       "data-fp": "shell-missing-chart",
@@ -7459,14 +7741,14 @@ var EmptyShell = (0, import_react34.memo)(function EmptyShell2({
   className,
   style
 }) {
-  const body = /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: unstyled ? void 0 : { fontWeight: 700, color: theme.textPrimary, fontSize: 13 }, children: reason }),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { "data-fp": "shell-empty-detail", children: detail })
+  const body = /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: unstyled ? void 0 : { fontWeight: 700, color: theme.textPrimary, fontSize: 13 }, children: reason }),
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { "data-fp": "shell-empty-detail", children: detail })
   ] });
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { className, style, "data-fp": "shell-empty", children: body });
+    return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { className, style, "data-fp": "shell-empty", children: body });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
     "div",
     {
       className,
@@ -7542,7 +7824,7 @@ function KeyedRecorderView({
   }, [snapshots, selectedIndex, detected?.keyType]);
   const isAtEnd = selectedIndex >= snapshots.length - 1;
   if (!detected) {
-    return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
+    return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
   }
   const steps = detected.steps;
   const hints = extractRenderHints(data);
@@ -7556,13 +7838,13 @@ function KeyedRecorderView({
     }
   }
   const grandTotal = hints?.grandTotal ?? 0;
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
-    description && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
+    description && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
       preferredOperation === "aggregate" ? (
         /* AGGREGATE: collect silently during scrub, button at end to reveal total */
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-          isAtEnd ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+          isAtEnd ? /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
             "button",
             {
               onClick: () => setShowAggregate(true),
@@ -7580,35 +7862,35 @@ function KeyedRecorderView({
               },
               children: "Aggregate \u2014 Show Grand Total"
             }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
-            numFieldKey && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
+          ) : /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
+            numFieldKey && /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
               grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1),
-              /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
+              /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
                 numFieldKey,
                 " \xB7 ",
                 allKeys.length,
                 " steps"
               ] })
             ] })
-          ] }) }) : /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
+          ] }) }) : /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
               visibleEntries.length,
               " of ",
               allKeys.length,
               " steps collected. Scrub to end to aggregate."
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
         ] })
       ) : preferredOperation === "accumulate" ? (
         /* ACCUMULATE: running total grows with slider — IS the total at end, no button */
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-          numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+          numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
               numFieldKey,
               " \xB7 ",
               visibleEntries.length,
@@ -7617,23 +7899,23 @@ function KeyedRecorderView({
               " steps"
             ] })
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
         ] })
       ) : (
         /* TRANSLATE: per-step entries prominent, no totals */
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
       ),
       visibleEntries.map((key) => {
         const entry = steps[key];
         const label = entry.stageName ?? key;
         const numVal = numFieldKey ? entry[numFieldKey] : void 0;
-        return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
-          numVal !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
+        return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
+          numVal !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
         ] }, key);
       }),
-      visibleEntries.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." })
+      visibleEntries.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." })
     ] })
   ] });
 }
@@ -7649,12 +7931,12 @@ var DetailsContent = (0, import_react34.memo)(function DetailsContent2({
     {
       id: "memory",
       name: "Memory",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: fillHeight ? { height: "100%" } : void 0 })
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: fillHeight ? { height: "100%" } : void 0 })
     },
     {
       id: "narrative",
       name: "Narrative",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries, size, style: fillHeight ? { height: "100%" } : void 0 })
+      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries, size, style: fillHeight ? { height: "100%" } : void 0 })
     }
   ];
   const allViews = [...builtInViews, ...extraViews ?? []];
@@ -7666,10 +7948,10 @@ var DetailsContent = (0, import_react34.memo)(function DetailsContent2({
     }
   }, [viewIds]);
   const activeView = allViews.find((v2) => v2.id === activeViewId) ?? allViews[0];
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
       const active = view.id === activeViewId;
-      return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
         "button",
         {
           onClick: () => setActiveViewId(view.id),
@@ -7693,7 +7975,7 @@ var DetailsContent = (0, import_react34.memo)(function DetailsContent2({
         view.id
       );
     }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
   ] });
 });
 function resolveSubflowFromRuntime(parentSnapshots, drillKey, narrativeEntries, subflowResults) {
@@ -7748,13 +8030,13 @@ var RightPanel = (0, import_react34.memo)(function RightPanel2({
     () => allTabs.some((t) => t.id === "result") ? ["insights", "what", "result"] : ["insights", "what"],
     [allTabs]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: {
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: {
       display: "flex",
       borderBottom: `1px solid ${theme.border}`,
       flexShrink: 0,
       background: theme.bgSecondary
-    }, children: modes.map((m) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+    }, children: modes.map((m) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
       "button",
       {
         onClick: () => onModeChange(m),
@@ -7776,7 +8058,7 @@ var RightPanel = (0, import_react34.memo)(function RightPanel2({
       },
       m
     )) }),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "result" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { height: "100%", overflow: "auto" }, children: renderTabBody("result", false) }) : mode === "insights" ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "result" ? /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { height: "100%", overflow: "auto" }, children: renderTabBody("result", false) }) : mode === "insights" ? /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
       InsightPanel,
       {
         mode: "tabs",
@@ -7787,7 +8069,7 @@ var RightPanel = (0, import_react34.memo)(function RightPanel2({
           render: () => renderTabBody(tab.id, false)
         }))
       }
-    ) : /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+    ) : /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
       InspectorPanel,
       {
         snapshots,
@@ -7892,7 +8174,7 @@ function ExplainableShell({
         ...traceTheme.current !== void 0 && { active: traceTheme.current },
         ...traceTheme.mode !== void 0 && { default: traceTheme.mode === "dark" ? "#94a3b8" : "#64748b" }
       };
-      return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
         TracedFlow,
         {
           graph: traceGraph,
@@ -8285,14 +8567,15 @@ function ExplainableShell({
   }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients, handleForkPrompt]);
   const traceTabContent = (0, import_react34.useMemo)(() => {
     if (tracing && traceWalk) {
-      return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+      const memoryView = recordStateDisplay(activeSnapshots[safeIdx], activeSnapshots[safeIdx - 1]);
+      return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
         TraceWalkCard,
         {
           walk: traceWalk,
           cursorRuntimeStageId: activeSnapshots[safeIdx]?.runtimeStageId ?? null,
           viaKey: activeViaKey,
           stepNumberOf,
-          previewValueOf: (k) => activeSnapshots[safeIdx]?.memory?.[k],
+          previewValueOf: (k) => memoryView.canCompare ? memoryView.memory?.[k] : void 0,
           onFollowIngredient: handleFollowIngredient,
           onJumpToStop: navigateToStage,
           onShowAll: activeViaKey ? handleShowAllIngredients : void 0,
@@ -8318,10 +8601,10 @@ function ExplainableShell({
     const query = traceSearch.trim().toLowerCase();
     const matchedKeys = query ? allTracedKeys.filter((k) => k.toLowerCase().includes(query)) : allTracedKeys;
     const shownKeys = matchedKeys.slice(0, 12);
-    return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-      !isInSubflow && (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { "data-fp": "trace-entry", style: { padding: "10px 14px 0", fontSize: 12 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { style: { color: theme.textMuted, marginRight: 6 }, children: "This step wrote:" }),
-        shellDataTrace.frames[0].keysWritten.map((k) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+      !isInSubflow && (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { "data-fp": "trace-entry", style: { padding: "10px 14px 0", fontSize: 12 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("span", { style: { color: theme.textMuted, marginRight: 6 }, children: "This step wrote:" }),
+        shellDataTrace.frames[0].keysWritten.map((k) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
           "button",
           {
             "data-fp": "trace-entry-chip",
@@ -8333,9 +8616,9 @@ function ExplainableShell({
           k
         ))
       ] }),
-      !isInSubflow && allTracedKeys.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { "data-fp": "trace-any", style: { padding: "6px 14px 0", fontSize: 12 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { color: theme.textMuted, marginBottom: 4 }, children: "Trace any variable:" }),
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+      !isInSubflow && allTracedKeys.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { "data-fp": "trace-any", style: { padding: "6px 14px 0", fontSize: 12 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { color: theme.textMuted, marginBottom: 4 }, children: "Trace any variable:" }),
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
           "input",
           {
             "data-fp": "trace-search",
@@ -8357,7 +8640,7 @@ function ExplainableShell({
             }
           }
         ),
-        shownKeys.map((k) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+        shownKeys.map((k) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
           "button",
           {
             "data-fp": "trace-any-chip",
@@ -8368,13 +8651,13 @@ function ExplainableShell({
           },
           k
         )),
-        query === "" && matchedKeys.length > shownKeys.length && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("span", { style: { color: theme.textMuted, fontSize: 11 }, children: [
+        query === "" && matchedKeys.length > shownKeys.length && /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("span", { style: { color: theme.textMuted, fontSize: 11 }, children: [
           "+",
           matchedKeys.length - shownKeys.length,
           " more \u2014 type to search"
         ] })
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+      /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
         DataTracePanel,
         {
           frames: shellDataTrace.frames,
@@ -8390,7 +8673,7 @@ function ExplainableShell({
   const renderTabBody = (0, import_react34.useCallback)(
     (tabId, plain) => {
       if (tabId === "result") {
-        return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
           ResultPanel,
           {
             data: resultData ?? null,
@@ -8402,7 +8685,7 @@ function ExplainableShell({
         );
       }
       if (tabId === "memory") {
-        return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
           MemoryPanel,
           {
             snapshots: activeSnapshots,
@@ -8414,7 +8697,7 @@ function ExplainableShell({
         );
       }
       if (tabId === "narrative") {
-        return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
           NarrativePanel,
           {
             snapshots: activeSnapshots,
@@ -8434,7 +8717,7 @@ function ExplainableShell({
       }
       const autoView = autoRecorderViews.find((v2) => v2.id === tabId);
       if (autoView) {
-        return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
           KeyedRecorderView,
           {
             data: autoView.data,
@@ -8474,59 +8757,59 @@ function ExplainableShell({
   const renderEmptyState = (themeVars) => {
     const shellStyle = { ...themeVars, ...style };
     if (derivedFromRuntime?.error) {
-      return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
         EmptyShell,
         {
           unstyled,
           className,
           style: shellStyle,
           reason: "That snapshot could not be read.",
-          detail: /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { children: [
+          detail: /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { children: [
               "Expected a footprintjs ",
-              /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("code", { children: "executor.getSnapshot()" }),
+              /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("code", { children: "executor.getSnapshot()" }),
               " \u2014",
               " ",
-              /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("code", { children: "{ sharedState, executionTree, commitLog }" }),
+              /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("code", { children: "{ sharedState, executionTree, commitLog }" }),
               "."
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: unstyled ? void 0 : { fontFamily: theme.fontMono, fontSize: 11, marginTop: 6 }, children: derivedFromRuntime.error })
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: unstyled ? void 0 : { fontFamily: theme.fontMono, fontSize: 11, marginTop: 6 }, children: derivedFromRuntime.error })
           ] })
         }
       );
     }
     const gotRunData = !!runtimeSnapshot || !!snapshotsProp;
-    return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
       EmptyShell,
       {
         unstyled,
         className,
         style: shellStyle,
         reason: gotRunData ? "That run has no stages to show." : "No run to show yet.",
-        detail: gotRunData ? /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { children: [
+        detail: gotRunData ? /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { children: [
           "The snapshot was read fine but its ",
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("code", { children: "executionTree" }),
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("code", { children: "executionTree" }),
           " is empty \u2014 a run that was never executed, or a snapshot taken before ",
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("code", { children: "run()" }),
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("code", { children: "run()" }),
           " finished."
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { children: [
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { children: [
             "Pass a recorded run: ",
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("code", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("code", { children: [
               "runtimeSnapshot=",
               "{executor.getSnapshot()}"
             ] }),
             " (the shell converts it), or pre-converted",
             " ",
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("code", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("code", { children: [
               "snapshots=",
               "{toVisualizationSnapshots(...)}"
             ] }),
             "."
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { children: [
             "Add ",
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("code", { children: "traceGraph" }),
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("code", { children: "traceGraph" }),
             " for the chart \u2014 it comes from the chart's structure, not the snapshot."
           ] })
         ] })
@@ -8535,23 +8818,23 @@ function ExplainableShell({
   };
   if (unstyled) {
     if (snapshots.length === 0) return renderEmptyState({});
-    return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { className, style, "data-fp": "explainable-shell", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { "data-fp": "shell-tabs", children: unstyledTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
-      /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { "data-fp": "shell-content", "data-tab": activeTab, children: isExplainableTab(activeTab) ? /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail }),
-        isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+    return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { className, style, "data-fp": "explainable-shell", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { "data-fp": "shell-tabs", children: unstyledTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
+      /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { "data-fp": "shell-content", "data-tab": activeTab, children: isExplainableTab(activeTab) ? /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail }),
+        isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
         traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...sliceCone && { sliceCone } }),
-        missingChart && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(MissingChartNote, { unstyled: true }),
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, unstyled: true }),
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
+        missingChart && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(MissingChartNote, { unstyled: true }),
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, unstyled: true }),
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
       ] }) : renderTabBody(activeTab, true) })
     ] });
   }
   const showTopology = !!effectiveRenderFlowchart && !!traceGraph;
   const detailsContent = renderTabBody(activeTab, false);
-  const detailsPanel = /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: {
+  const detailsPanel = /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: {
       display: "flex",
       borderBottom: `1px solid ${theme.border}`,
       background: theme.bgSecondary,
@@ -8559,7 +8842,7 @@ function ExplainableShell({
       overflowX: "auto"
     }, children: allTabs.map((tab) => {
       const active = tab.id === activeTab;
-      return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
         "button",
         {
           onClick: () => handleTabChange(tab.id),
@@ -8583,10 +8866,10 @@ function ExplainableShell({
         tab.id
       );
     }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
+    /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
   ] });
   if (snapshots.length === 0) return renderEmptyState(shellThemeVars);
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(
     "div",
     {
       ref: shellRef,
@@ -8605,7 +8888,7 @@ function ExplainableShell({
       },
       "data-fp": "explainable-shell",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
           TimeTravelControls,
           {
             snapshots: activeSnapshots,
@@ -8615,11 +8898,11 @@ function ExplainableShell({
             tracing: tracingRail
           }
         ),
-        isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
+        isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+        /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
           /* ── Mobile: stacked vertical ── */
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-            showTopology && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+            showTopology && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
               spec: null,
               snapshots: activeSnapshots,
               selectedIndex: safeIdx,
@@ -8629,10 +8912,10 @@ function ExplainableShell({
               onSubflowChange: handleChartSubflowChange,
               ...sliceCone && { sliceCone }
             }) }),
-            missingChart && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(MissingChartNote, {}),
-            showTreeSidebar && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
-              leftExpanded && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+            missingChart && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(MissingChartNote, {}),
+            showTreeSidebar && /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
+              leftExpanded && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
                 SubflowTree,
                 {
                   graph: traceGraph ?? { nodes: [], edges: [] },
@@ -8642,17 +8925,17 @@ function ExplainableShell({
                 }
               ) })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-            rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { maxHeight: 350, flexShrink: 0, overflow: "hidden" }, children: detailsPanel }),
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
-            timelineExpanded && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+            rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { maxHeight: 350, flexShrink: 0, overflow: "hidden" }, children: detailsPanel }),
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
+            timelineExpanded && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
           ] })
         ) : (
           /* ── Desktop: two-column — Flowchart | Right Panel ── */
-          /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
-              showTreeSidebar && (leftExpanded ? /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { style: { width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
+              showTreeSidebar && (leftExpanded ? /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: { width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+                /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
                   SubflowTree,
                   {
                     graph: traceGraph ?? { nodes: [], edges: [] },
@@ -8661,9 +8944,9 @@ function ExplainableShell({
                     onNodeSelect: handleTreeNodeSelect
                   }
                 ) }),
-                /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
-              ] }) : /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
-              showTopology ? /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
+                /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
+              ] }) : /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
+              showTopology ? /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
                 spec: null,
                 snapshots: activeSnapshots,
                 selectedIndex: safeIdx,
@@ -8672,9 +8955,9 @@ function ExplainableShell({
                 currentSubflowId: chartDrillKey,
                 onSubflowChange: handleChartSubflowChange,
                 ...sliceCone && { sliceCone }
-              }) }) : /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, minWidth: 0, overflow: "auto" }, children: missingChart && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(MissingChartNote, {}) }),
-              /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(VLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-              rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+              }) }) : /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { flex: 1, minWidth: 0, overflow: "auto" }, children: missingChart && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(MissingChartNote, {}) }),
+              /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(VLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
+              rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
                 RightPanel,
                 {
                   mode: rightPanelMode,
@@ -8693,7 +8976,7 @@ function ExplainableShell({
                 }
               ) })
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
               CompactTimeline,
               {
                 snapshots: activeSnapshots,
@@ -9105,7 +9388,7 @@ function graphFromStructure(structure) {
 }
 
 // src/components/TraceViewer/TraceViewer.tsx
-var import_jsx_runtime28 = require("react/jsx-runtime");
+var import_jsx_runtime29 = require("react/jsx-runtime");
 function parseRecording(input) {
   if (input == null) {
     return { ok: false, error: { kind: "invalid-json", message: "No recording provided." } };
@@ -9215,7 +9498,7 @@ function TraceViewer({
   if (!prepared.ok) {
     return fallback ?? null;
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(
     ExplainableShell,
     {
       runtimeSnapshot: prepared.recording.snapshot,
@@ -9236,7 +9519,7 @@ function TraceViewer({
 
 // src/components/ExplainableView/ExplainableContext.tsx
 var import_react36 = require("react");
-var import_jsx_runtime29 = require("react/jsx-runtime");
+var import_jsx_runtime30 = require("react/jsx-runtime");
 var ExplainableRunContext = (0, import_react36.createContext)(null);
 function parseRecording2(input) {
   if (input == null || input === "") {
@@ -9347,13 +9630,13 @@ function ExplainableProvider({
     }),
     [parsed.recording, prepared, selectedIndex, selectIndex, theme2?.flowchart]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(ExplainableRunContext.Provider, { value, children: /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(ExplainableRunContext.Provider, { value, children: /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
     "div",
     {
       className,
       "data-fp": "explainable-provider",
       style: { ...themeModeVars(theme2?.mode), display: "contents", ...style },
-      children: /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(FootprintTheme, { tokens: theme2?.tokens, children })
+      children: /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(FootprintTheme, { tokens: theme2?.tokens, children })
     }
   ) });
 }
@@ -9367,7 +9650,7 @@ function useExplainableRun() {
 
 // src/components/ExplainableView/TimelinePanel.tsx
 var import_react37 = require("react");
-var import_jsx_runtime30 = require("react/jsx-runtime");
+var import_jsx_runtime31 = require("react/jsx-runtime");
 function formatOffset(milliseconds) {
   return milliseconds < 1e3 ? `+${Math.round(milliseconds)}ms` : `+${(milliseconds / 1e3).toFixed(1)}s`;
 }
@@ -9384,9 +9667,9 @@ function TimelinePanel({
     focusedRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [selectedIndex]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("div", { className, style, "data-fp": "timeline-panel", children: snapshots.map((snapshot, index) => /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("button", { onClick: () => selectIndex(index), children: snapshot.stageLabel }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index}`)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { className, style, "data-fp": "timeline-panel", children: snapshots.map((snapshot, index) => /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", { onClick: () => selectIndex(index), children: snapshot.stageLabel }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index}`)) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
     "section",
     {
       className,
@@ -9403,15 +9686,15 @@ function TimelinePanel({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
-          /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: snapshots.length ? `${selectedIndex + 1} / ${snapshots.length}` : "0 stages" })
+        /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: snapshots.length ? `${selectedIndex + 1} / ${snapshots.length}` : "0 stages" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("div", { role: "listbox", "aria-label": title, style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 0 12px" }, children: snapshots.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("p", { style: { margin: 0, padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "This recording has no stages to walk." }) : snapshots.map((snapshot, index) => {
+        /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { role: "listbox", "aria-label": title, style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 0 12px" }, children: snapshots.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("p", { style: { margin: 0, padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "This recording has no stages to walk." }) : snapshots.map((snapshot, index) => {
           const selected = index === selectedIndex;
           const visited = index < selectedIndex;
-          return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { ref: selected ? focusedRef : void 0, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
+          return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { ref: selected ? focusedRef : void 0, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
               "button",
               {
                 type: "button",
@@ -9435,8 +9718,8 @@ function TimelinePanel({
                   textAlign: "left"
                 },
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { style: { color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10, textAlign: "right" }, children: formatOffset(snapshot.startMs) }),
-                  /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { style: { color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10, textAlign: "right" }, children: formatOffset(snapshot.startMs) }),
+                  /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
                     "span",
                     {
                       "aria-hidden": "true",
@@ -9450,15 +9733,15 @@ function TimelinePanel({
                       }
                     }
                   ),
-                  /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("span", { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("strong", { style: { display: "block", fontSize: 12 }, children: snapshot.stageLabel }),
-                    /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("small", { style: { color: theme.textMuted, fontFamily: theme.fontMono }, children: snapshot.runtimeStageId ?? snapshot.stageName })
+                  /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("span", { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("strong", { style: { display: "block", fontSize: 12 }, children: snapshot.stageLabel }),
+                    /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("small", { style: { color: theme.textMuted, fontFamily: theme.fontMono }, children: snapshot.runtimeStageId ?? snapshot.stageName })
                   ] })
                 ]
               }
             ),
-            selected && (snapshot.description || renderDetail) ? /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { style: { margin: "0 12px 10px 80px", color: theme.textSecondary, fontSize: 12, lineHeight: 1.5 }, children: [
-              snapshot.description ? /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("p", { style: { margin: "0 0 8px" }, children: snapshot.description }) : null,
+            selected && (snapshot.description || renderDetail) ? /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { style: { margin: "0 12px 10px 80px", color: theme.textSecondary, fontSize: 12, lineHeight: 1.5 }, children: [
+              snapshot.description ? /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("p", { style: { margin: "0 0 8px" }, children: snapshot.description }) : null,
               renderDetail?.(snapshot, index)
             ] }) : null
           ] }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index}`);
@@ -9470,7 +9753,7 @@ function TimelinePanel({
 
 // src/components/ExplainableView/FlowchartPanel.tsx
 var import_react38 = require("react");
-var import_jsx_runtime31 = require("react/jsx-runtime");
+var import_jsx_runtime32 = require("react/jsx-runtime");
 function baseStageId(runtimeStageId) {
   const hashIndex = runtimeStageId.indexOf("#");
   return hashIndex >= 0 ? runtimeStageId.slice(0, hashIndex) : runtimeStageId;
@@ -9510,9 +9793,9 @@ function FlowchartPanel({
     [selectedIndex, selectIndex, snapshots]
   );
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { className, style, "data-fp": "flowchart-panel", children: traceGraph.nodes.map((node) => /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("button", { onClick: () => handleNodeClick(node.id), children: String(node.data.label) }, node.id)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { className, style, "data-fp": "flowchart-panel", children: traceGraph.nodes.map((node) => /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("button", { onClick: () => handleNodeClick(node.id), children: String(node.data.label) }, node.id)) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
     "section",
     {
       className,
@@ -9529,14 +9812,14 @@ function FlowchartPanel({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
-          /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
             traceGraph.nodes.length,
             " nodes \xB7 click to move the cursor"
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { style: { flex: 1, minHeight: 0, overflow: "hidden" }, children: traceGraph.nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { style: { flex: 1, minHeight: 0, overflow: "hidden" }, children: traceGraph.nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
           TracedFlow,
           {
             graph: traceGraph,
@@ -9545,14 +9828,14 @@ function FlowchartPanel({
             colors: { ...flowchartColors, ...colors },
             onNodeClick: handleNodeClick
           }
-        ) : /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("p", { style: { padding: 18, color: theme.textMuted, fontSize: 12 }, children: "This recording carried no structure, so there is no chart to draw." }) })
+        ) : /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("p", { style: { padding: 18, color: theme.textMuted, fontSize: 12 }, children: "This recording carried no structure, so there is no chart to draw." }) })
       ]
     }
   );
 }
 
 // src/components/ExplainableView/ValueInspector.tsx
-var import_jsx_runtime32 = require("react/jsx-runtime");
+var import_jsx_runtime33 = require("react/jsx-runtime");
 function ValueInspector({
   title = "Inspect values",
   size = "compact",
@@ -9562,12 +9845,12 @@ function ValueInspector({
 }) {
   const { snapshots, selectedIndex, selectedSnapshot, error } = useExplainableRun();
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", { className, style, "data-fp": "value-inspector", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("strong", { children: selectedSnapshot?.stageLabel ?? title }),
-      /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(MemoryPanel, { snapshots, selectedIndex, unstyled: true })
+    return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { className, style, "data-fp": "value-inspector", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("strong", { children: selectedSnapshot?.stageLabel ?? title }),
+      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(MemoryPanel, { snapshots, selectedIndex, unstyled: true })
     ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
     "section",
     {
       className,
@@ -9584,15 +9867,15 @@ function ValueInspector({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("strong", { style: { display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
-          selectedSnapshot ? /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("span", { style: { display: "block", marginTop: 4, color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("strong", { style: { display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          selectedSnapshot ? /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("span", { style: { display: "block", marginTop: 4, color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: [
             selectedSnapshot.stageLabel,
             " \xB7 ",
             selectedSnapshot.runtimeStageId ?? selectedSnapshot.stageName
           ] }) : null
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { style: { flex: 1, minHeight: 0, overflow: "auto" }, children: snapshots.length ? /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(MemoryPanel, { snapshots, selectedIndex, size, style: { height: "100%" } }) : /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("p", { style: { padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "No values to inspect." }) })
+        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, minHeight: 0, overflow: "auto" }, children: snapshots.length ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(MemoryPanel, { snapshots, selectedIndex, size, style: { height: "100%" } }) : /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("p", { style: { padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "No values to inspect." }) })
       ]
     }
   );
@@ -9600,7 +9883,7 @@ function ValueInspector({
 
 // src/components/ExplainableView/CommentaryPanel.tsx
 var import_react39 = require("react");
-var import_jsx_runtime33 = require("react/jsx-runtime");
+var import_jsx_runtime34 = require("react/jsx-runtime");
 function CommentaryPanel({
   title = "Commentary",
   maxLines = 200,
@@ -9639,9 +9922,9 @@ function CommentaryPanel({
     currentRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [visibleEntries.length]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className, style, "data-fp": "commentary-panel", role: "log", children: visibleEntries.map((entry, index) => /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { children: renderEntry?.(entry, { index, current: index === visibleEntries.length - 1 }) ?? entry.text }, `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index}`)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("div", { className, style, "data-fp": "commentary-panel", role: "log", children: visibleEntries.map((entry, index) => /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("div", { children: renderEntry?.(entry, { index, current: index === visibleEntries.length - 1 }) ?? entry.text }, `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index}`)) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)(
     "section",
     {
       className,
@@ -9658,24 +9941,24 @@ function CommentaryPanel({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
             revealedCount,
             " of ",
             narrativeEntries.length,
             " lines"
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { role: "log", "aria-live": "polite", style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 12px" }, children: visibleEntries.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("p", { style: { color: theme.textMuted, fontSize: 12, fontStyle: "italic" }, children: emptyMessage }) : /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-          hiddenCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("p", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("div", { role: "log", "aria-live": "polite", style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 12px" }, children: visibleEntries.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("p", { style: { color: theme.textMuted, fontSize: 12, fontStyle: "italic" }, children: emptyMessage }) : /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)(import_jsx_runtime34.Fragment, { children: [
+          hiddenCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("p", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic" }, children: [
             "\u2026 ",
             hiddenCount,
             " earlier lines hidden; scrub backward to revisit them."
           ] }) : null,
           visibleEntries.map((entry, index) => {
             const current = index === visibleEntries.length - 1;
-            return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
+            return /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)(
               "div",
               {
                 ref: current ? currentRef : void 0,
@@ -9692,8 +9975,8 @@ function CommentaryPanel({
                   lineHeight: 1.55
                 },
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { style: { color: current ? theme.warning : theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: entry.type }),
-                  /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { fontSize: 12 }, children: renderEntry?.(entry, { index, current }) ?? entry.text })
+                  /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", { style: { color: current ? theme.warning : theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: entry.type }),
+                  /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("div", { style: { fontSize: 12 }, children: renderEntry?.(entry, { index, current }) ?? entry.text })
                 ]
               },
               `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index}`
@@ -9706,7 +9989,7 @@ function CommentaryPanel({
 }
 
 // src/components/ExplainableView/TimeTravelBar.tsx
-var import_jsx_runtime34 = require("react/jsx-runtime");
+var import_jsx_runtime35 = require("react/jsx-runtime");
 function TimeTravelBar({
   autoPlayable = true,
   size,
@@ -9715,7 +9998,7 @@ function TimeTravelBar({
   style
 }) {
   const { snapshots, selectedIndex, selectIndex } = useExplainableRun();
-  return /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(
     TimeTravelControls,
     {
       snapshots,
@@ -9737,7 +10020,7 @@ function TimeTravelBar({
 }
 
 // src/components/ExplainableView/CompactTimelinePanel.tsx
-var import_jsx_runtime35 = require("react/jsx-runtime");
+var import_jsx_runtime36 = require("react/jsx-runtime");
 function CompactTimelinePanel({
   defaultExpanded = false,
   unstyled = false,
@@ -9746,7 +10029,7 @@ function CompactTimelinePanel({
 }) {
   const { snapshots, selectedIndex, selectIndex } = useExplainableRun();
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime35.jsx)("div", { className, "data-fp": "compact-timeline-panel", style, children: snapshots.map((snapshot, index) => /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("div", { className, "data-fp": "compact-timeline-panel", style, children: snapshots.map((snapshot, index) => /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(
       "button",
       {
         "aria-current": index === selectedIndex ? "step" : void 0,
@@ -9757,7 +10040,7 @@ function CompactTimelinePanel({
       snapshot.runtimeStageId
     )) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(
     "section",
     {
       className,
@@ -9770,7 +10053,7 @@ function CompactTimelinePanel({
         color: theme.textPrimary,
         ...style
       },
-      children: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(
         CompactTimeline,
         {
           snapshots,
@@ -9783,7 +10066,7 @@ function CompactTimelinePanel({
 }
 
 // src/components/ExplainableView/SurfaceCollapseHandle.tsx
-var import_jsx_runtime36 = require("react/jsx-runtime");
+var import_jsx_runtime37 = require("react/jsx-runtime");
 function SurfaceCollapseHandle({
   label = "Details",
   expanded,
@@ -9795,7 +10078,7 @@ function SurfaceCollapseHandle({
 }) {
   const action = expanded ? "Collapse" : "Expand";
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
       "button",
       {
         "aria-expanded": expanded,
@@ -9814,7 +10097,7 @@ function SurfaceCollapseHandle({
     );
   }
   const vertical = orientation === "vertical";
-  return /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
     "div",
     {
       className,
@@ -9829,13 +10112,13 @@ function SurfaceCollapseHandle({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
           "div",
           {
             style: vertical ? { flex: 1, width: 1, background: theme.border } : { flex: 1, height: 1, background: theme.border }
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
           "button",
           {
             "aria-expanded": expanded,
@@ -9862,12 +10145,12 @@ function SurfaceCollapseHandle({
               writingMode: vertical ? "vertical-lr" : "horizontal-tb"
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: vertical ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25BC" : "\u25B6" }),
+              /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: vertical ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25BC" : "\u25B6" }),
               label
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
           "div",
           {
             style: vertical ? { flex: 1, width: 1, background: theme.border } : { flex: 1, height: 1, background: theme.border }
@@ -9880,7 +10163,7 @@ function SurfaceCollapseHandle({
 
 // src/components/ExplainableView/ExplainableView.tsx
 var React2 = __toESM(require("react"), 1);
-var import_jsx_runtime37 = require("react/jsx-runtime");
+var import_jsx_runtime38 = require("react/jsx-runtime");
 var layoutPresets = {
   developer: {
     columns: "minmax(0, 1.7fr) minmax(300px, 0.8fr)",
@@ -9994,17 +10277,17 @@ function ViewContents({
   const responsiveTemplateAreas = responsiveDefinition.areas.map((row) => `"${row.join(" ")}"`).join(" ");
   const renderSurface = (surface) => {
     const fallback = {
-      timeTravel: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TimeTravelBar, { unstyled }),
-      timeline: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(CompactTimelinePanel, { unstyled }),
-      stageRail: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(TimelinePanel, { unstyled }),
-      flowchart: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(FlowchartPanel, { unstyled }),
-      inspector: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(ValueInspector, { unstyled }),
-      commentary: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(CommentaryPanel, { unstyled })
+      timeTravel: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(TimeTravelBar, { unstyled }),
+      timeline: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(CompactTimelinePanel, { unstyled }),
+      stageRail: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(TimelinePanel, { unstyled }),
+      flowchart: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(FlowchartPanel, { unstyled }),
+      inspector: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(ValueInspector, { unstyled }),
+      commentary: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(CommentaryPanel, { unstyled })
     }[surface];
     return renderSlot(slots?.[surface], fallback, context);
   };
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("div", { className, style, "data-fp": "explainable-view", "data-layout": resolved.name, children: resolved.surfaces.map((surface) => /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("div", { "data-fp-surface": surface, children: renderSurface(surface) }, surface)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("div", { className, style, "data-fp": "explainable-view", "data-layout": resolved.name, children: resolved.surfaces.map((surface) => /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("div", { "data-fp-surface": surface, children: renderSurface(surface) }, surface)) });
   }
   if (resolved.name === "developer" || resolved.name === "product") {
     const product = resolved.name === "product";
@@ -10015,7 +10298,7 @@ function ViewContents({
       flexDirection: "column",
       overflow: "hidden"
     };
-    return /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(
       "div",
       {
         ref: rootRef,
@@ -10038,8 +10321,8 @@ function ViewContents({
           ...style
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("div", { "data-fp-surface": "timeTravel", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeTravel") }),
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("div", { "data-fp-surface": "timeTravel", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeTravel") }),
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(
             "div",
             {
               "data-fp": "workbench-main",
@@ -10052,7 +10335,7 @@ function ViewContents({
                 overflow: "hidden"
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
                   "div",
                   {
                     "data-fp-surface": "flowchart",
@@ -10063,7 +10346,7 @@ function ViewContents({
                     children: renderSurface("flowchart")
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
                   SurfaceCollapseHandle,
                   {
                     expanded: detailsExpanded,
@@ -10072,7 +10355,7 @@ function ViewContents({
                     orientation: isNarrow ? "horizontal" : "vertical"
                   }
                 ),
-                detailsExpanded ? /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+                detailsExpanded ? /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
                   "div",
                   {
                     "data-fp-surface": "inspector",
@@ -10089,7 +10372,7 @@ function ViewContents({
               ]
             }
           ),
-          product ? /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+          product ? /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
             "div",
             {
               "data-fp-surface": "commentary",
@@ -10101,12 +10384,12 @@ function ViewContents({
               },
               children: renderSurface("commentary")
             }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("div", { "data-fp-surface": "timeline", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeline") })
+          ) : /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("div", { "data-fp-surface": "timeline", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeline") })
         ]
       }
     );
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
     "div",
     {
       ref: rootRef,
@@ -10131,7 +10414,7 @@ function ViewContents({
         background: theme.border,
         ...style
       },
-      children: resolved.surfaces.map((surface) => /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+      children: resolved.surfaces.map((surface) => /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
         "div",
         {
           "data-fp-surface": surface,
@@ -10167,7 +10450,7 @@ function ExplainableView({
   className,
   style
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
     ExplainableProvider,
     {
       recording,
@@ -10175,7 +10458,7 @@ function ExplainableView({
       defaultSelectedIndex,
       onSelectedIndexChange,
       theme: viewTheme,
-      children: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
         ViewContents,
         {
           layout,

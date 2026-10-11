@@ -108,14 +108,16 @@ describe('toVisualizationSnapshots', () => {
     });
     const snaps = toVisualizationSnapshots(makeRuntime(tree));
     expect(snaps[0].stageName).toBe('Stage');
-    expect(snaps[0].memory).toEqual({ key: 'value' });
+    expect(snaps[0].memory).toEqual({});
+    expect(snaps[0].recordState).toMatchObject({ status: 'unavailable', reason: 'stage-not-recorded' });
+    expect(snaps[0].narrative).toContain('Wrote: key');
     expect(snaps[0].durationMs).toBe(42);
     expect(snaps[0].description).toBe('desc');
     expect(snaps[0].subflowId).toBe('sf-1');
     expect(snaps[0].status).toBe('done');
   });
 
-  it('builds cumulative memory from stageWrites across linear chain', () => {
+  it('preserves stageWrites narrative but refuses to fabricate cumulative state without records', () => {
     const tree = makeRuntimeNode('A', {
       stageWrites: { creditScore: 720 },
       next: makeRuntimeNode('B', {
@@ -123,10 +125,10 @@ describe('toVisualizationSnapshots', () => {
       }),
     });
     const snaps = toVisualizationSnapshots(makeRuntime(tree));
-    // Stage A: only creditScore
-    expect(snaps[0].memory).toEqual({ creditScore: 720 });
-    // Stage B: cumulative — both creditScore and decision
-    expect(snaps[1].memory).toEqual({ creditScore: 720, decision: 'approved' });
+    expect(snaps.map(s => s.memory)).toEqual([{}, {}]);
+    for (const snap of snaps) expect(snap.recordState).toMatchObject({ status: 'unavailable', reason: 'stage-not-recorded' });
+    expect(snaps[0].narrative).toContain('creditScore');
+    expect(snaps[1].narrative).toContain('decision');
   });
 
   it('does not include diagnostic logs in memory', () => {
@@ -138,7 +140,7 @@ describe('toVisualizationSnapshots', () => {
     expect(snaps[0].memory).toEqual({});
   });
 
-  it('handles value deletion (undefined) in stageWrites', () => {
+  it('does not interpret stageWrites undefined as a recorded deletion', () => {
     const tree = makeRuntimeNode('A', {
       stageWrites: { temp: 'data', keep: true },
       next: makeRuntimeNode('B', {
@@ -146,8 +148,9 @@ describe('toVisualizationSnapshots', () => {
       }),
     });
     const snaps = toVisualizationSnapshots(makeRuntime(tree));
-    expect(snaps[0].memory).toEqual({ temp: 'data', keep: true });
-    expect(snaps[1].memory).toEqual({ keep: true });
+    expect(snaps.map(s => s.memory)).toEqual([{}, {}]);
+    for (const snap of snaps) expect(snap.recordState?.status).toBe('unavailable');
+    expect(tree).toMatchObject({ stageWrites: { temp: 'data', keep: true } });
   });
 });
 
@@ -363,7 +366,7 @@ describe('toVisualizationSnapshots — cumulative memory accumulation', () => {
     expect((snaps[1].memory.obj as any).deep.v).toBe(2);
   });
 
-  it('falls back to stageWrites with deep-merge when no commit bundle matches', () => {
+  it('does not guess a recorded state from deep stageWrites patches', () => {
     const tree = makeRuntimeNode('a', {
       stageWrites: { applicant: { name: 'Ada', address: { zip: '90210' } } },
       next: makeRuntimeNode('b', {
@@ -371,22 +374,23 @@ describe('toVisualizationSnapshots — cumulative memory accumulation', () => {
       }),
     });
     const snaps = toVisualizationSnapshots(makeRuntime(tree));
-    // cross-stage deep-write patch no longer erases the sibling
-    expect(snaps[1].memory.applicant).toEqual({ name: 'Ada', address: { zip: '94016' } });
+    expect(snaps[1].memory).toEqual({});
+    expect(snaps[1].recordState).toMatchObject({ status: 'unavailable', reason: 'stage-not-recorded' });
   });
 
-  it('stageWrites fallback: undefined still deletes; markers pass through', () => {
+  it('keeps summary-marker and undefined stageWrites unsupported as state evidence', () => {
     const marker = { __writeSummary: true, type: 'object', size: 2 };
     const tree = makeRuntimeNode('a', {
       stageWrites: { gone: 'soon', big: { real: 'data' } },
       next: makeRuntimeNode('b', { stageWrites: { gone: undefined, big: marker } }),
     });
     const snaps = toVisualizationSnapshots(makeRuntime(tree));
-    expect('gone' in snaps[1].memory).toBe(false);
-    expect(snaps[1].memory.big).toEqual(marker);
+    expect(snaps[1].memory).toEqual({});
+    expect(snaps[1].recordState?.status).toBe('unavailable');
+    expect(tree).toMatchObject({ next: { stageWrites: { gone: undefined, big: marker } } });
   });
 
-  it('subflow drill-down histories without runtimeStageIds keep working (fallback path)', () => {
+  it('preserves presentation but refuses state without an exact execution identity', () => {
     // mirrors subflowResultToSnapshots: history bundles carry runtimeStageId ''
     const tree = makeRuntimeNode('inner', {
       stageWrites: { text: 'hello' },
@@ -399,6 +403,8 @@ describe('toVisualizationSnapshots — cumulative memory accumulation', () => {
       ],
     };
     const snaps = toVisualizationSnapshots(runtime);
-    expect(snaps[0].memory).toEqual({ text: 'hello' });
+    expect(snaps[0].memory).toEqual({});
+    expect(snaps[0].recordState).toMatchObject({ status: 'unavailable', reason: 'stage-not-recorded' });
+    expect(snaps[0].narrative).toContain('Wrote: text');
   });
 });

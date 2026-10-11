@@ -1,5 +1,10 @@
 # Flow record input seam — M2, source only
 
+Current use: the unpublished M3 major-preparation branch calls this seam from
+its canonical state adapter. The M2 contract below is unchanged: this module
+only selects/validates the envelope; Foottrace interprets the record. See
+`test/migration/M3-STATE-MIGRATION.md` for the approved state corrections.
+
 `adaptFlowRecord` recognizes an explicitly selected source envelope and hands its
 record fields to Foottrace. It does not replay, query causes, choose a cursor,
 discover a child, or replace any existing Flow view. It is not exported from the

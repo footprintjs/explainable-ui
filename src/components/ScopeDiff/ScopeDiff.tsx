@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { BaseComponentProps } from "../../types";
 import { theme, fontSize, padding } from "../../theme";
+import { displayValue, displayValuesEqual } from "../_internal/displayValue";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,7 +44,7 @@ function computeDiff(
       entries.push({ key, type: "added", newValue: newVal });
     } else if (inPrev && !inCurr) {
       entries.push({ key, type: "removed", oldValue: oldVal });
-    } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+    } else if (!displayValuesEqual(oldVal, newVal)) {
       entries.push({ key, type: "changed", oldValue: oldVal, newValue: newVal });
     } else {
       entries.push({ key, type: "unchanged", newValue: newVal });
@@ -56,9 +57,7 @@ function computeDiff(
 }
 
 function fmt(v: unknown): string {
-  if (typeof v === "string") return `"${v}"`;
-  if (typeof v === "object" && v !== null) return JSON.stringify(v, null, 2);
-  return String(v);
+  return displayValue(v, 2);
 }
 
 const diffColors: Record<DiffEntry["type"], { bg: string; fg: string; icon: string }> = {
