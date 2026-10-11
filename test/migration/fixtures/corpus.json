@@ -1,0 +1,24 @@
+{
+  "goldenProducer": "footprintjs 9.15.1",
+  "goldenFiles": [
+    "test/fixtures/golden/manifest.json",
+    "test/fixtures/golden/linear-decider.json",
+    "test/fixtures/golden/subflow-loop.json",
+    "test/fixtures/golden/parallel-fork.json",
+    "test/fixtures/golden/pause-resume.json",
+    "test/fixtures/golden/retry-attempts.json"
+  ],
+  "sha256": {
+    "test/fixtures/golden/manifest.json": "80917623e6b82f718b5898d3bbe1c1a39d694809eb30ea941675e19b0049606f",
+    "test/fixtures/golden/linear-decider.json": "79c841b760e177b34e37288bb98af4d05703da520eada8c2bc09e507d2995903",
+    "test/fixtures/golden/subflow-loop.json": "1c2ecf1c3ce2d36cbc45d17a9a24f6bfb177be3afb155bed5465f9d09473fb7a",
+    "test/fixtures/golden/parallel-fork.json": "7cb1603fc99d18a3ffcc384757e87d0d075b02ef5b22be1e845abec5c47ced80",
+    "test/fixtures/golden/pause-resume.json": "4e0fcc4ba5a47558053bd4614fc990c679c6d18617380677cc66269d208a9f5f",
+    "test/fixtures/golden/retry-attempts.json": "60cd84b7c79cd53cc6b667090278775abdac14823bc8b58555472e34a7a72060",
+    "pilots/record-lens/fixtures/flow.json": "6220e9422696028c8ad6f4243bc1c3caa33152a62ca6dcbdf54a17c5bd0259b1",
+    "pilots/record-lens/fixtures/hci.json": "fc287b4e0c4e955e2d0ec6b1145971e020e829238e0e77bdd0e39d0f614ceee8",
+    "pilots/record-lens/fixtures/provenance.json": "155058470440586dc015f36d61deb94d9d57f2c50ce8734ed0094a119b4cc23e",
+    "test/migration/fixtures/causal-phases/interleaved-fork-10.0.0.json": "45b01229a52eaf72b305577647c1e191c49025722614f1d610b6bfe251b4d07d",
+    "test/migration/fixtures/causal-phases/runtime-snapshot-10.0.0.json": "3a22244cf2f71465b5647a8639de1d0481c99f9342f0874c336c3d35f8613990"
+  }
+}

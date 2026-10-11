@@ -1,0 +1,1085 @@
+{
+  "baseline": {
+    "revision": "cc8e47f34440f518b1a1d69b3aeb77e532a602d4",
+    "version": "0.38.0",
+    "classification": "source export surface; confirmed by normal packed declaration/runtime gates"
+  },
+  "policy": "retain every existing name at every existing door for the first major",
+  "packageContract": {
+    "name": "footprint-explainable-ui",
+    "version": "0.38.0",
+    "engines": {
+      "node": ">=18"
+    },
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      },
+      "./flowchart": {
+        "import": {
+          "types": "./dist/flowchart.d.ts",
+          "default": "./dist/flowchart.js"
+        },
+        "require": {
+          "types": "./dist/flowchart.d.cts",
+          "default": "./dist/flowchart.cjs"
+        }
+      }
+    },
+    "typesVersions": {
+      "*": {
+        "flowchart": [
+          "./dist/flowchart.d.ts"
+        ]
+      }
+    },
+    "files": [
+      "dist"
+    ],
+    "dependencies": {
+      "dagre": "^0.8.5"
+    },
+    "peerDependencies": {
+      "@xyflow/react": "^12.0.0",
+      "react": ">=18.0.0",
+      "react-dom": ">=18.0.0"
+    }
+  },
+  "entries": {
+    ".": [
+      {
+        "name": "AdapterNarrativeEntry",
+        "kind": "type"
+      },
+      {
+        "name": "BaseComponentProps",
+        "kind": "type"
+      },
+      {
+        "name": "buildEntryRangeIndex",
+        "kind": "value"
+      },
+      {
+        "name": "buildTraceWalk",
+        "kind": "value"
+      },
+      {
+        "name": "CausalFrame",
+        "kind": "type"
+      },
+      {
+        "name": "CommentaryPanel",
+        "kind": "value"
+      },
+      {
+        "name": "CommentaryPanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "CommentaryRenderContext",
+        "kind": "type"
+      },
+      {
+        "name": "CompactTimeline",
+        "kind": "value"
+      },
+      {
+        "name": "CompactTimelinePanel",
+        "kind": "value"
+      },
+      {
+        "name": "CompactTimelinePanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "CompactTimelineProps",
+        "kind": "type"
+      },
+      {
+        "name": "computeRevealedEntryCount",
+        "kind": "value"
+      },
+      {
+        "name": "coolDark",
+        "kind": "value"
+      },
+      {
+        "name": "coolLight",
+        "kind": "value"
+      },
+      {
+        "name": "createSnapshots",
+        "kind": "value"
+      },
+      {
+        "name": "DarkModeTokensOptions",
+        "kind": "type"
+      },
+      {
+        "name": "DataTracePanel",
+        "kind": "value"
+      },
+      {
+        "name": "DataTracePanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "DEFAULT_EXCLUDED_KEYS",
+        "kind": "value"
+      },
+      {
+        "name": "DefaultExpanded",
+        "kind": "type"
+      },
+      {
+        "name": "defaultTokens",
+        "kind": "value"
+      },
+      {
+        "name": "DiffEntry",
+        "kind": "type"
+      },
+      {
+        "name": "EntryRangeIndex",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableLayoutDefinition",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableProvider",
+        "kind": "value"
+      },
+      {
+        "name": "ExplainableProviderProps",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableRecording",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableRecordingInput",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableRunContextValue",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableShell",
+        "kind": "value"
+      },
+      {
+        "name": "ExplainableShellProps",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableSurface",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableView",
+        "kind": "value"
+      },
+      {
+        "name": "ExplainableViewLayout",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableViewPreset",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableViewProps",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableViewSlot",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableViewSlots",
+        "kind": "type"
+      },
+      {
+        "name": "ExplainableViewTheme",
+        "kind": "type"
+      },
+      {
+        "name": "extractSubflowNarrative",
+        "kind": "value"
+      },
+      {
+        "name": "FlowchartPanel",
+        "kind": "value"
+      },
+      {
+        "name": "FlowchartPanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "FootprintTheme",
+        "kind": "value"
+      },
+      {
+        "name": "formatTraceWalk",
+        "kind": "value"
+      },
+      {
+        "name": "GanttTimeline",
+        "kind": "value"
+      },
+      {
+        "name": "GanttTimelineProps",
+        "kind": "type"
+      },
+      {
+        "name": "graphFromStructure",
+        "kind": "value"
+      },
+      {
+        "name": "InsightConfig",
+        "kind": "type"
+      },
+      {
+        "name": "InsightPanel",
+        "kind": "value"
+      },
+      {
+        "name": "InsightPanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "InspectorPanel",
+        "kind": "value"
+      },
+      {
+        "name": "InspectorPanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "MemoryChange",
+        "kind": "type"
+      },
+      {
+        "name": "MemoryInspector",
+        "kind": "value"
+      },
+      {
+        "name": "MemoryInspectorProps",
+        "kind": "type"
+      },
+      {
+        "name": "MemoryPanel",
+        "kind": "value"
+      },
+      {
+        "name": "MemoryPanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "mergeWritePatch",
+        "kind": "value"
+      },
+      {
+        "name": "NarrativeEntry",
+        "kind": "type"
+      },
+      {
+        "name": "narrativeFromSnapshot",
+        "kind": "value"
+      },
+      {
+        "name": "NarrativeLog",
+        "kind": "value"
+      },
+      {
+        "name": "NarrativeLogProps",
+        "kind": "type"
+      },
+      {
+        "name": "NarrativePanel",
+        "kind": "value"
+      },
+      {
+        "name": "NarrativePanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "NarrativeTrace",
+        "kind": "value"
+      },
+      {
+        "name": "NarrativeTraceProps",
+        "kind": "type"
+      },
+      {
+        "name": "overlayFromSnapshot",
+        "kind": "value"
+      },
+      {
+        "name": "OverlayFromSnapshotOptions",
+        "kind": "type"
+      },
+      {
+        "name": "PanelLabels",
+        "kind": "type"
+      },
+      {
+        "name": "rawDefaults",
+        "kind": "value"
+      },
+      {
+        "name": "RecorderView",
+        "kind": "type"
+      },
+      {
+        "name": "Recording",
+        "kind": "type"
+      },
+      {
+        "name": "ResultPanel",
+        "kind": "value"
+      },
+      {
+        "name": "ResultPanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "RuntimeExecutionStep",
+        "kind": "type"
+      },
+      {
+        "name": "RuntimeOverlay",
+        "kind": "type"
+      },
+      {
+        "name": "RuntimeSnapshotInput",
+        "kind": "type"
+      },
+      {
+        "name": "ScopeDiff",
+        "kind": "value"
+      },
+      {
+        "name": "ScopeDiffProps",
+        "kind": "type"
+      },
+      {
+        "name": "SerializedStructureNode",
+        "kind": "type"
+      },
+      {
+        "name": "ShellTab",
+        "kind": "type"
+      },
+      {
+        "name": "Size",
+        "kind": "type"
+      },
+      {
+        "name": "SnapshotPanel",
+        "kind": "value"
+      },
+      {
+        "name": "SnapshotPanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "SnapshotWithCommitLog",
+        "kind": "type"
+      },
+      {
+        "name": "StageDetailMode",
+        "kind": "type"
+      },
+      {
+        "name": "StageDetailPanel",
+        "kind": "value"
+      },
+      {
+        "name": "StageDetailPanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "StageSnapshot",
+        "kind": "type"
+      },
+      {
+        "name": "StoryNarrative",
+        "kind": "value"
+      },
+      {
+        "name": "StoryNarrativeProps",
+        "kind": "type"
+      },
+      {
+        "name": "subflowResultToSnapshots",
+        "kind": "value"
+      },
+      {
+        "name": "SubflowTree",
+        "kind": "value"
+      },
+      {
+        "name": "SubflowTreeEntry",
+        "kind": "type"
+      },
+      {
+        "name": "SubflowTreeProps",
+        "kind": "type"
+      },
+      {
+        "name": "SurfaceCollapseHandle",
+        "kind": "value"
+      },
+      {
+        "name": "SurfaceCollapseHandleProps",
+        "kind": "type"
+      },
+      {
+        "name": "ThemeMode",
+        "kind": "type"
+      },
+      {
+        "name": "ThemeModeProps",
+        "kind": "type"
+      },
+      {
+        "name": "themeModeVars",
+        "kind": "value"
+      },
+      {
+        "name": "ThemePresetName",
+        "kind": "type"
+      },
+      {
+        "name": "themePresets",
+        "kind": "value"
+      },
+      {
+        "name": "ThemeTokens",
+        "kind": "type"
+      },
+      {
+        "name": "TimelinePanel",
+        "kind": "value"
+      },
+      {
+        "name": "TimelinePanelProps",
+        "kind": "type"
+      },
+      {
+        "name": "TimeTravelBar",
+        "kind": "value"
+      },
+      {
+        "name": "TimeTravelBarProps",
+        "kind": "type"
+      },
+      {
+        "name": "TimeTravelControls",
+        "kind": "value"
+      },
+      {
+        "name": "TimeTravelControlsProps",
+        "kind": "type"
+      },
+      {
+        "name": "tokensToCSSVars",
+        "kind": "value"
+      },
+      {
+        "name": "toVisualizationSnapshots",
+        "kind": "value"
+      },
+      {
+        "name": "TraceGraph",
+        "kind": "type"
+      },
+      {
+        "name": "TraceIngredient",
+        "kind": "type"
+      },
+      {
+        "name": "TraceParseError",
+        "kind": "type"
+      },
+      {
+        "name": "TraceStop",
+        "kind": "type"
+      },
+      {
+        "name": "TraceTheme",
+        "kind": "type"
+      },
+      {
+        "name": "TraceViewer",
+        "kind": "value"
+      },
+      {
+        "name": "TraceViewerProps",
+        "kind": "type"
+      },
+      {
+        "name": "TraceWalk",
+        "kind": "type"
+      },
+      {
+        "name": "TraceWalkCard",
+        "kind": "value"
+      },
+      {
+        "name": "TraceWalkCardProps",
+        "kind": "type"
+      },
+      {
+        "name": "TraceWalkMissing",
+        "kind": "type"
+      },
+      {
+        "name": "TracingRail",
+        "kind": "type"
+      },
+      {
+        "name": "useDarkModeTokens",
+        "kind": "value"
+      },
+      {
+        "name": "useExplainableRun",
+        "kind": "value"
+      },
+      {
+        "name": "useFootprintTheme",
+        "kind": "value"
+      },
+      {
+        "name": "ValueInspector",
+        "kind": "value"
+      },
+      {
+        "name": "ValueInspectorProps",
+        "kind": "type"
+      },
+      {
+        "name": "warmDark",
+        "kind": "value"
+      },
+      {
+        "name": "warmLight",
+        "kind": "value"
+      }
+    ],
+    "./flowchart": [
+      {
+        "name": "applyGroupLayout",
+        "kind": "value"
+      },
+      {
+        "name": "asRuntimeStageId",
+        "kind": "value"
+      },
+      {
+        "name": "asStageId",
+        "kind": "value"
+      },
+      {
+        "name": "backtraceDataFlow",
+        "kind": "value"
+      },
+      {
+        "name": "backtraceStructural",
+        "kind": "value"
+      },
+      {
+        "name": "BreadcrumbEntry",
+        "kind": "type"
+      },
+      {
+        "name": "buildCommitChainTree",
+        "kind": "value"
+      },
+      {
+        "name": "buildSubflowBreadcrumb",
+        "kind": "value"
+      },
+      {
+        "name": "ChainSlotProps",
+        "kind": "type"
+      },
+      {
+        "name": "ChainTreeOptions",
+        "kind": "type"
+      },
+      {
+        "name": "CollapsedTraceGraph",
+        "kind": "type"
+      },
+      {
+        "name": "collapseTraceGraph",
+        "kind": "value"
+      },
+      {
+        "name": "CommitChain",
+        "kind": "type"
+      },
+      {
+        "name": "CommitChainLeaf",
+        "kind": "type"
+      },
+      {
+        "name": "CommitChainView",
+        "kind": "value"
+      },
+      {
+        "name": "CommitChainViewProps",
+        "kind": "type"
+      },
+      {
+        "name": "CommitFlowIndex",
+        "kind": "type"
+      },
+      {
+        "name": "CommitFlowRecorderHandle",
+        "kind": "type"
+      },
+      {
+        "name": "CommitInspector",
+        "kind": "value"
+      },
+      {
+        "name": "CommitInspectorProps",
+        "kind": "type"
+      },
+      {
+        "name": "CommitInspectorSlotProps",
+        "kind": "type"
+      },
+      {
+        "name": "CommitView",
+        "kind": "type"
+      },
+      {
+        "name": "createCommitFlowRecorder",
+        "kind": "value"
+      },
+      {
+        "name": "CreateCommitFlowRecorderOptions",
+        "kind": "type"
+      },
+      {
+        "name": "createDagreTraceLayout",
+        "kind": "value"
+      },
+      {
+        "name": "createGroupedLayout",
+        "kind": "value"
+      },
+      {
+        "name": "createMainChartBoxLayout",
+        "kind": "value"
+      },
+      {
+        "name": "createNodeViewRecorder",
+        "kind": "value"
+      },
+      {
+        "name": "CreateNodeViewRecorderOptions",
+        "kind": "type"
+      },
+      {
+        "name": "createSnappedDagreLayout",
+        "kind": "value"
+      },
+      {
+        "name": "createTraceBundle",
+        "kind": "value"
+      },
+      {
+        "name": "CreateTraceBundleOptions",
+        "kind": "type"
+      },
+      {
+        "name": "createTraceGroupLayout",
+        "kind": "value"
+      },
+      {
+        "name": "createTraceRuntimeOverlay",
+        "kind": "value"
+      },
+      {
+        "name": "CreateTraceRuntimeOverlayOptions",
+        "kind": "type"
+      },
+      {
+        "name": "createTraceStructureRecorder",
+        "kind": "value"
+      },
+      {
+        "name": "CreateTraceStructureRecorderOptions",
+        "kind": "type"
+      },
+      {
+        "name": "dagreTraceLayout",
+        "kind": "value"
+      },
+      {
+        "name": "DagreTraceLayoutOptions",
+        "kind": "type"
+      },
+      {
+        "name": "DataDependency",
+        "kind": "type"
+      },
+      {
+        "name": "defaultTraceFlowLayout",
+        "kind": "value"
+      },
+      {
+        "name": "EdgeMinLenResolver",
+        "kind": "type"
+      },
+      {
+        "name": "EdgeWeightResolver",
+        "kind": "type"
+      },
+      {
+        "name": "ExecutionRecord",
+        "kind": "type"
+      },
+      {
+        "name": "filterGraphForDrill",
+        "kind": "value"
+      },
+      {
+        "name": "forwardtraceStructural",
+        "kind": "value"
+      },
+      {
+        "name": "graphFromStructure",
+        "kind": "value"
+      },
+      {
+        "name": "GROUP_CONTAINER_NODE_TYPE",
+        "kind": "value"
+      },
+      {
+        "name": "GroupContainerNode",
+        "kind": "value"
+      },
+      {
+        "name": "GroupContainerNodeData",
+        "kind": "type"
+      },
+      {
+        "name": "GroupLayoutOptions",
+        "kind": "type"
+      },
+      {
+        "name": "LoopBackEdge",
+        "kind": "value"
+      },
+      {
+        "name": "MAIN_CHART_BOX_ID",
+        "kind": "value"
+      },
+      {
+        "name": "MainChartBoxOptions",
+        "kind": "type"
+      },
+      {
+        "name": "MinimalCommitFlowRecorder",
+        "kind": "type"
+      },
+      {
+        "name": "MinimalFlowRecorder",
+        "kind": "type"
+      },
+      {
+        "name": "MinimalNodeViewRecorder",
+        "kind": "type"
+      },
+      {
+        "name": "MinimalStructureRecorder",
+        "kind": "type"
+      },
+      {
+        "name": "NodeFootprint",
+        "kind": "type"
+      },
+      {
+        "name": "NodeInspector",
+        "kind": "value"
+      },
+      {
+        "name": "NodeInspectorProps",
+        "kind": "type"
+      },
+      {
+        "name": "NodeInspectorSlotProps",
+        "kind": "type"
+      },
+      {
+        "name": "NodeSizeResolver",
+        "kind": "type"
+      },
+      {
+        "name": "NodeView",
+        "kind": "type"
+      },
+      {
+        "name": "NodeViewIndex",
+        "kind": "type"
+      },
+      {
+        "name": "NodeViewRecorderHandle",
+        "kind": "type"
+      },
+      {
+        "name": "overlayFromSnapshot",
+        "kind": "value"
+      },
+      {
+        "name": "OverlayFromSnapshotOptions",
+        "kind": "type"
+      },
+      {
+        "name": "RunSlider",
+        "kind": "value"
+      },
+      {
+        "name": "RunSliderProps",
+        "kind": "type"
+      },
+      {
+        "name": "RuntimeExecutionStep",
+        "kind": "type"
+      },
+      {
+        "name": "RuntimeOverlay",
+        "kind": "type"
+      },
+      {
+        "name": "RuntimeOverlaySlice",
+        "kind": "type"
+      },
+      {
+        "name": "RuntimeStageId",
+        "kind": "type"
+      },
+      {
+        "name": "SerializedStructureNode",
+        "kind": "type"
+      },
+      {
+        "name": "SiblingOrderResolver",
+        "kind": "type"
+      },
+      {
+        "name": "sliceOverlay",
+        "kind": "value"
+      },
+      {
+        "name": "SliderSlotProps",
+        "kind": "type"
+      },
+      {
+        "name": "SlotPillNode",
+        "kind": "value"
+      },
+      {
+        "name": "SlotPillNodeData",
+        "kind": "type"
+      },
+      {
+        "name": "SmartStepEdge",
+        "kind": "value"
+      },
+      {
+        "name": "snapLinearSuccessors",
+        "kind": "value"
+      },
+      {
+        "name": "SnapLinearSuccessorsOptions",
+        "kind": "type"
+      },
+      {
+        "name": "SnapshotWithCommitLog",
+        "kind": "type"
+      },
+      {
+        "name": "StageId",
+        "kind": "type"
+      },
+      {
+        "name": "StageNode",
+        "kind": "value"
+      },
+      {
+        "name": "StageNodeData",
+        "kind": "type"
+      },
+      {
+        "name": "structureAsChainTree",
+        "kind": "value"
+      },
+      {
+        "name": "StructureChain",
+        "kind": "type"
+      },
+      {
+        "name": "StructureChainLeaf",
+        "kind": "type"
+      },
+      {
+        "name": "SubflowBreadcrumb",
+        "kind": "value"
+      },
+      {
+        "name": "SubflowBreadcrumbProps",
+        "kind": "type"
+      },
+      {
+        "name": "SubflowNavigation",
+        "kind": "type"
+      },
+      {
+        "name": "SubflowTree",
+        "kind": "value"
+      },
+      {
+        "name": "SubflowTreeEntry",
+        "kind": "type"
+      },
+      {
+        "name": "SubflowTreeProps",
+        "kind": "type"
+      },
+      {
+        "name": "TimeTravelDebugger",
+        "kind": "value"
+      },
+      {
+        "name": "TimeTravelDebuggerProps",
+        "kind": "type"
+      },
+      {
+        "name": "TraceBundle",
+        "kind": "type"
+      },
+      {
+        "name": "TracedFlow",
+        "kind": "value"
+      },
+      {
+        "name": "TracedFlowColors",
+        "kind": "type"
+      },
+      {
+        "name": "TracedFlowProps",
+        "kind": "type"
+      },
+      {
+        "name": "TraceEdge",
+        "kind": "type"
+      },
+      {
+        "name": "TraceEdgeData",
+        "kind": "type"
+      },
+      {
+        "name": "TraceExplorerShell",
+        "kind": "value"
+      },
+      {
+        "name": "TraceExplorerShellProps",
+        "kind": "type"
+      },
+      {
+        "name": "TraceExplorerSlots",
+        "kind": "type"
+      },
+      {
+        "name": "TraceFlow",
+        "kind": "value"
+      },
+      {
+        "name": "TraceFlowEdgeColors",
+        "kind": "type"
+      },
+      {
+        "name": "TraceFlowLayout",
+        "kind": "type"
+      },
+      {
+        "name": "TraceFlowProps",
+        "kind": "type"
+      },
+      {
+        "name": "TraceGraph",
+        "kind": "type"
+      },
+      {
+        "name": "traceGroupLayout",
+        "kind": "value"
+      },
+      {
+        "name": "TraceGroupLayoutOptions",
+        "kind": "type"
+      },
+      {
+        "name": "TraceNode",
+        "kind": "type"
+      },
+      {
+        "name": "TraceNodeData",
+        "kind": "type"
+      },
+      {
+        "name": "TraceRuntimeOverlayHandle",
+        "kind": "type"
+      },
+      {
+        "name": "TraceStructureRecorderHandle",
+        "kind": "type"
+      },
+      {
+        "name": "TranslatorHandleLike",
+        "kind": "type"
+      },
+      {
+        "name": "useSubflowNavigation",
+        "kind": "value"
+      },
+      {
+        "name": "useTranslator",
+        "kind": "value"
+      },
+      {
+        "name": "walkBackward",
+        "kind": "value"
+      },
+      {
+        "name": "walkForward",
+        "kind": "value"
+      },
+      {
+        "name": "WalkOptions",
+        "kind": "type"
+      },
+      {
+        "name": "wrapInMainChartBox",
+        "kind": "value"
+      }
+    ]
+  }
+}
