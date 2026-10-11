@@ -24,8 +24,12 @@ outside this change.
 For example, the real fork snapshot ends with both A's `y = 2` and B's `x = 9`.
 The old tree-based view instead shows Join with Seed's `x = 1`. R1 asserts both
 facts and their disagreement. R2 similarly distinguishes A's own row 1 from the
-old historical label pointing at empty repeat row 3. R4 observes Foottrace
-1.0.0's already reported causal defect, without implementing a Lens workaround.
+old historical label pointing at empty repeat row 3. R4 retains the historical
+Foottrace 1.0.0 defect observation in the ledger, while its regression now
+requires the corrected answer from the 1.0.1 development reader. The producer
+fixtures and their version metadata remain unchanged. No Lens workaround or
+production migration is introduced; public-package validation is required
+before merging the prepared development dependency update.
 
 ## Evidence inventory
 

@@ -2,8 +2,15 @@
 
 This is source-level design evidence, not a public `footprint-explainable-ui/record`
 entry point. The package's two existing exports, runtime dependencies, mandatory
-peers and Node >=18 consumer contract remain unchanged. Foottrace 1.0.0 is a
+peers and Node >=18 consumer contract remain unchanged. Foottrace 1.0.1 is a
 development prerequisite only; running this pilot requires Node >=22.
+
+The recorded fixtures still carry their original Foottrace 1.0.0 producer
+metadata. The newer development reader must explain those unchanged bytes;
+the R4 regression requires the early and full records to keep A's prior Seed
+cause and own written key, never the later B write. Local candidate validation
+does not establish npm availability: a clean install and these same gates
+against the published 1.0.1 package are required before merging this update.
 
 Run the normal build first, then:
 

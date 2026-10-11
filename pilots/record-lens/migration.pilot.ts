@@ -96,10 +96,10 @@ describe("M1 — real record truth (Node22 only, not the legacy display oracle)"
     expect(stateAt(source, 5).state).toEqual(snapshot.sharedState);
   });
 
-  it("R4 diagnostic: FT1.0.0 reports a later cause despite captured read evidence; upstream correction remains required", () => {
-    // This is a version-pinned defect observation, not the desired answer.
-    // The owning Foottrace regression tests the opposite invariant. When the
-    // fixed reader is adopted, update this diagnostic under R4 review.
+  it("R4 correction: early and full records keep A's own write and prior Seed cause", () => {
+    // The fixture was produced with Foottrace 1.0.0 and stays byte-identical.
+    // The corrected reader must explain that evidence, not preserve the old
+    // later-parent defect. No Lens-side causal algorithm or workaround is used.
     const log = witness.commitLog.map((row) => {
       if (!isCommitBundle(row))
         throw new Error("Real fixture contains an invalid row");
@@ -108,18 +108,23 @@ describe("M1 — real record truth (Node22 only, not the legacy display oracle)"
     const reads = keysReadFromExecutionTree(witness.executionTree);
     const key = ["runs", "a", "y"];
     const early = sliceToJSON(sliceForKey(log.slice(0, 2), key, reads));
-    const full = sliceToJSON(sliceForKey(log, key, reads));
+    const fullSlice = sliceForKey(log, key, reads);
+    const full = sliceToJSON(fullSlice);
     expect(witness.valueActuallyRead).toBe(1);
     expect(witness.executionTree.children[0].stageReads?.runs.b.x).toBe(1);
     expect(log[2].overwrite.runs).toEqual({ b: { x: 9 } });
-    expect(early.edges).toContainEqual(
-      expect.objectContaining({ from: "a#1", to: "seed#0" })
-    );
-    const observedLaterParent = full.edges?.some(
-      (edge) => edge.from === "a#1" && edge.to === "b#2"
-    );
-    const recordRequiresLaterParent = false;
-    expect(observedLaterParent).toBe(true);
-    expect(observedLaterParent).not.toBe(recordRequiresLaterParent);
+    for (const result of [early, full]) {
+      expect
+        .soft(result.edges)
+        .toContainEqual(expect.objectContaining({ from: "a#1", to: "seed#0" }));
+      expect
+        .soft(result.edges)
+        .not.toContainEqual(
+          expect.objectContaining({ from: "a#1", to: "b#2" })
+        );
+    }
+    expect(fullSlice.writer).toBe(log[1]);
+    expect.soft(fullSlice.root?.keysWritten).toEqual(["runs\u001fa\u001fy"]);
+    expect(full.nodes).toEqual(early.nodes);
   });
 });

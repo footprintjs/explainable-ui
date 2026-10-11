@@ -257,7 +257,7 @@ function verifyNormalPackage() {
   assert.deepEqual(manifest.typesVersions, {
     "*": { flowchart: ["./dist/flowchart.d.ts"] },
   });
-  assert.equal(manifest.devDependencies.foottrace, "1.0.0");
+  assert.equal(manifest.devDependencies.foottrace, "1.0.1");
   const packed = JSON.parse(
     execFileSync(
       "npm",
@@ -344,7 +344,7 @@ try {
       copyPrerequisite(name),
     ])
   );
-  assert.equal(versions.foottrace, "1.0.0");
+  assert.equal(versions.foottrace, "1.0.1");
   const fixtureDirectory = join(repo, "pilots/record-lens/fixtures");
   const fixtureHashes = json(
     join(fixtureDirectory, "provenance.json")

@@ -63,8 +63,11 @@
   },
   {
     "id": "R4",
-    "status": "requires-owning-layer-review",
+    "status": "foottrace-1.0.1-adoption-prepared",
     "approval": null,
+    "readerVersion": "1.0.1",
+    "testedExpectation": "Both the early prefix and full unchanged record retain A's own runs.a.y write and A-to-Seed cause; neither may report A-to-B.",
+    "publicVerification": "Clean published-package installation and all consumer gates are required before merge; local candidate validation alone is insufficient.",
     "observedIsCorrectnessOracle": false,
     "affectedPublicFunctions": [
       "Foottrace causalChain",
@@ -79,6 +82,6 @@
     "recordGroundedRequirement": "A read of 1 before B writes 9 cannot depend on B. Keep the real producer rows unchanged and fix occurrence-specific read anchoring upstream before M4/M5.",
     "owner": "Foottrace causalChain read-anchor rule; old Footprint 9 embedded reader maintenance separately",
     "consumerImpact": "M4/M5 remain blocked on reviewed upstream correctness. A diagnostic that reproduces the bug is not a passing correctness test.",
-    "releaseNoteDraft": "Pending upstream review: causal parents are anchored at the read's actual recorded occurrence, not a later continuation of the same stage."
+    "releaseNoteDraft": "Prepared development-reader update: the source-only record pilot retains causal parents at the read's actual recorded occurrence, not a later continuation. Existing Flow views and public exports are unchanged."
   }
 ]
