@@ -24,8 +24,8 @@
   },
   {
     "id": "R2",
-    "status": "M4-implemented-unreleased-review-pending-M5-pending",
-    "approval": "Owner approved the correction direction and the scoped M4 implementation; final M4 review and M5 implementation remain pending.",
+    "status": "M4-merged-M5-implemented-unreleased-review-pending",
+    "approval": "Owner approved R2 and the scoped M4/M5 implementations. M4 is merged; M5 independent review and hosted gates govern its merge. No release is authorized.",
     "observedIsCorrectnessOracle": false,
     "affectedPublicFunctions": ["buildTraceWalk", "ExplainableShell"],
     "fixtures": [
@@ -36,12 +36,12 @@
     "recordGroundedRequirement": "Keep source-local row and selected cutoff exact. A later continuation must not relocate an earlier write or admit a future cause. A whole-record first-write hint must be labelled separately.",
     "owner": "Flow cutoff/source adapter; Foottrace source-local addresses and causal readers",
     "consumerImpact": "Keep existing callback and public helper names; explicitly review any changed historical explanation.",
-    "releaseNoteDraft": "Unreleased M4: stage Data Trace uses its actual selected source boundary and Foottrace causal parents, not a later row with the same stage ID. The separate traceWalk writer/address inference remains M5 work."
+    "releaseNoteDraft": "Unreleased M5: variable tracing delegates to Foottrace sliceForKey and exact per-key writer lookups. Read anchors, actual contribution rows and grouped rail visits remain distinct, including two continuation writes from one execution. Sessions freeze their source and boundary; replacement recordings and stale/foreign callbacks cannot reuse a question. Previews use exact contributed rows, never current rail memory; ambiguous same-key contributions expose all rows without a fabricated scalar. Whole-record first-write hints are separately validated and labelled."
   },
   {
     "id": "R3",
-    "status": "M4-implemented-unreleased-review-pending-M5-pending",
-    "approval": "Owner approved the correction direction and the scoped M4 implementation; final M4 review and M5 implementation remain pending.",
+    "status": "M4-merged-M5-implemented-unreleased-review-pending",
+    "approval": "Owner approved R3 and the scoped M4/M5 implementations. M4 is merged; M5 independent review and hosted gates govern its merge. No release is authorized.",
     "observedIsCorrectnessOracle": false,
     "affectedPublicFunctions": [
       "buildTraceWalk",
@@ -57,9 +57,9 @@
     ],
     "observed": "The old reader matches path text exactly, infers global read availability and describes a missing writer as a run input.",
     "recordGroundedRequirement": "A missing writer is not proof of an input. Missing reads remain unknown; canonical path relationships, redaction and truncation qualifications survive display projection.",
-    "owner": "Foottrace slices and formatSlice; Flow labels and navigation projections",
+    "owner": "Foottrace slice/writer/value readers; shared Flow card/copy labels and navigation projection",
     "consumerImpact": "Keep ingredient chips, controlled navigation and copy/display agreement without preserving an unproved causal sentence.",
-    "releaseNoteDraft": "Unreleased M4: stage Data Trace retains canonical path relationships, unknown read capture, pre-run origin uncertainty, redaction and truncation. Its last displayed frame is not labelled an origin. traceWalk still drops canonical status/notes/depth-truncation and its formatter retains unproven input wording; those separate M5 corrections are not claimed complete."
+    "releaseNoteDraft": "Unreleased M5: variable card and copied story retain canonical unknown-read, untracked, redacted, nested/base and truncation qualifications. Missing writers are not called run inputs; empty read evidence is not independence. The shared bounded preview avoids payload getters/toJSON and retains non-JSON markers. Canonical deleted/undefined value basis is preserved without claiming physical property absence. Optional preview failure and stale clipboard completions cannot disrupt navigation or claim success on another walk."
   },
   {
     "id": "R4",

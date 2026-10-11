@@ -1,7 +1,13 @@
 # Flow record input seam — M2, source only
 
 Current use: the unpublished M3 major-preparation branch calls this seam from
-its canonical state adapter. The M2 contract below is unchanged: this module
+its canonical state adapter; M4/M5 use the adjacent `traceSource` composition
+for canonical stage/key queries. `prepareTracePrefix` selects the exclusive
+boundary, narrows each untouched row with Foottrace's guard, and obtains
+official read/fold evidence. `prepareTraceSource` additionally resolves an
+official stage stop. A missing stage is never a whole-log fallback. Explicit
+zero is a valid prefix; later invalid rows are not inspected, while invalid
+rows inside it refuse without filtering or new addresses. The M2 contract below is unchanged: this module
 only selects/validates the envelope; Foottrace interprets the record. See
 `test/migration/M3-STATE-MIGRATION.md` for the approved state corrections.
 
@@ -63,3 +69,7 @@ in Foottrace before a production consumer can claim support for those cases.
 Run `npm run test:record-pilot` on Node 22+. Focused seam checks are in
 `pilots/record-lens/record-input.pilot.ts`. M2 changes no exports, dependencies,
 package version, Node floor, fixtures, existing algorithms or release policy.
+
+M5's variable questions, exact per-contribution preview and recording-bound
+sessions are documented in `test/migration/M5-TRACE-WALK.md`. Those consumers
+do not add a path parser, state replay, causal search or read-tree walker here.

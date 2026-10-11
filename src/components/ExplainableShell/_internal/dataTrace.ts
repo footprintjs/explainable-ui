@@ -2,6 +2,7 @@
 import { causalChain, flattenCausalDAG } from "foottrace";
 import type { CausalNode, ReadsCoverage } from "foottrace";
 import { prepareTraceSource } from "../../../adapters/recordInput/traceSource";
+import type { TraceSource } from "../../../adapters/recordInput/traceSource";
 import type { FlowRecordSelection } from "../../../adapters/recordInput";
 
 /** The established panel/callback shape, unchanged. */
@@ -56,13 +57,21 @@ export function buildSelectedDataTrace(
       observedReads ||= keys.length > 0;
       return keys;
     }, { maxDepth, maxNodes: maxFrames, edgeAttribution: "stage" });
+    return projectDataTrace(source, root, observedReads);
+  } catch {
+    return unavailableDataTrace("Foottrace could not explain the selected source prefix.");
+  }
+}
+
+/** Shared presentation of canonical evidence, for stage and variable queries. */
+export function projectDataTrace(source: Extract<TraceSource, { status: "available" }>, root: CausalNode | undefined, observedReads: boolean): DataTraceResult {
     const nodes = root ? flattenCausalDAG(root) : [];
     const readsAvailable = observedReads || (source.reads.coverage?.stepsWithReads ?? 0) > 0 ||
       nodes.some(node => node.parentEdges.some(edge => edge.kind === "data") || (node.preRunReads?.keys.length ?? 0) > 0);
     const notes = ["Recorded stage-level dependencies; read capture may be incomplete."];
     if (!source.reads.coverage) notes.push("Read coverage is unknown; the supplied lookup does not establish complete capture.");
     if (!readsAvailable) notes.push("Read coverage is unknown or no read keys were recorded; missing edges do not prove independence.");
-    if (!root) notes.push("The selected stage is not present in this source prefix.");
+    if (!root) notes.push("No recorded causal anchor was found in this source prefix.");
     if (root?.truncated?.byDepth) notes.push("The depth limit cut the explanation short.");
     if (root?.truncated?.byNodes) notes.push("The frame limit cut the explanation short.");
     if (nodes.some(node => node.incompleteSources?.length)) notes.push("Some consumed sources were not tracked.");
@@ -88,9 +97,6 @@ export function buildSelectedDataTrace(
         nestedEdges, redactedPaths: source.fold.redactedPaths,
       },
     };
-  } catch {
-    return unavailableDataTrace("Foottrace could not explain the selected source prefix.");
-  }
 }
 
 /** Retained positional seam for existing internal callers, including traceWalk. */

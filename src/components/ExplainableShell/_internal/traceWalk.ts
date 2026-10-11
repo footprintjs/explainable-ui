@@ -1,65 +1,46 @@
-/**
- * traceWalk — the SAME-RAIL REWIND walk: a variable-anchored backward slice,
- * linearized in REVERSE COMMIT ORDER so it can be driven by the existing
- * time slider ("◀ earlier cause" stop by stop).
- *
- * THE LOAD-BEARING FACT (why one linear walk can cover a DAG): every
- * dependency was committed strictly EARLIER than the value derived from it,
- * so a backward slice is always a sub-sequence of the run's timeline — and
- * sorting its frames by commitIdx DESCENDING is a valid topological order.
- * One monotone "earlier" button therefore visits EVERY frame, including
- * both parents of a fork, with no branch-choosing UI and no second cursor.
- *
- * FORKS are explained, not navigated: each stop carries its `ingredients`
- * (the read keys + who wrote each), so a 2-parent value shows both chips;
- * "follow one ingredient" is a RE-ANCHORED walk (same function, key = the
- * ingredient, before = this stop) — never a special traversal mode.
- *
- * HONEST ABSENCE, two truthful sentences (they are different facts):
- *   'never-written'   — no commit in the WHOLE log wrote the key: it came
- *                       in with the run's inputs.
- *   'not-yet-written' — a later commit writes it, but none at or before
- *                       the cutoff: "not yet" is not "never".
- *
- * Shares the read→write BFS with dataTrace.ts (the causalChain mirror);
- * eui still never imports footprintjs — snapshot SHAPES only.
- */
+/** Variable-first canonical queries, projected onto the existing stage rail.
+ * Read anchors, actual contributed writes and grouped rail stops are distinct.
+ * This module owns no writer/path/tree/causal algorithm. */
+import { buildCommitIndex, commitValueAtWithBasis, findLastWriter, flattenCausalDAG, keyTimeline, sliceForKey } from "foottrace";
+import type { ReadsCoverage, ValueBasis } from "foottrace";
+import type { FlowRecordSelection } from "../../../adapters/recordInput";
+import { prepareTracePrefix } from "../../../adapters/recordInput/traceSource";
+import { projectDataTrace } from "./dataTrace";
+import { contributionBasisText, contributionPositionText, missingTraceText, noIngredientsText, unknownIngredientText } from "./traceWalkText";
 
-import { buildDataTrace } from "./dataTrace";
-
-/** One read key of a stop, resolved to the commit that wrote it. */
+/** One recorded dependency. null means no earlier recorded writer, not a proven input. */
 export interface TraceIngredient {
   key: string;
-  /** null = no commit before this stop wrote the key (a run-input terminus). */
   writerRuntimeStageId: string | null;
   writerStageName: string | null;
+  /** Exact source-local writer row, independent of the stage's read anchor. */
   writerCommitIdx: number | null;
+  basis?: "nested-rows";
 }
 
-/** One stop on the rewind rail — a slice frame with its rail position. */
 export interface TraceStop {
   runtimeStageId: string;
   stageId: string;
   stageName: string;
-  /** Position in the commit log — the stop's place on the time rail. */
+  /** Representative stage/read position; the root uses its exact anchor writer.
+   * Not a promise that every contributed key was written at this one row. */
   commitIdx: number;
-  /** The slice keys DOWNSTREAM members read from this stop (what it
-   *  contributed to the traced value). The anchor contributes the traced
-   *  key itself. */
   contributedKeys: string[];
   keysWritten: string[];
   ingredients: TraceIngredient[];
-  /** BFS hop distance from the anchor (tooltip-grade info, NOT the walk
-   *  order — the walk order is time). */
   depth: number;
-  /** 1-based pass number when the same stage appears more than once in
-   *  the walk (loop iterations); 0 = appears once. */
   loopPass: number;
+  /** The execution's own commit: where its captured reads belong. */
+  readCommitIdx?: number;
+  /** Actual writer positions for this stage's contributions to the slice. */
+  contributedWrites?: Array<{ key: string; commitIdx: number; valueBasis?: ValueBasis[] }>;
 }
 
 export interface TraceWalkMissing {
+  /** Compatibility vocabulary. 'never-written' means no recorded writer in
+   * the queried range; it makes no claim that the value was a run input. */
   reason: "never-written" | "not-yet-written";
-  /** For 'not-yet-written': where the FIRST write actually happens. */
+  /** Separately checked whole-record hint, never part of the historical answer. */
   firstWriteCommitIdx?: number;
   firstWriterRuntimeStageId?: string;
   firstWriterStageName?: string;
@@ -67,257 +48,172 @@ export interface TraceWalkMissing {
 
 export interface TraceWalk {
   key: string;
-  /** Stops in WALK ORDER: commitIdx DESCENDING. stops[0] is the anchor
-   *  (the last writer of `key` within the cutoff). */
+  /** One card per canonical execution, newest representative position first. */
   stops: TraceStop[];
-  /** Non-null ⇒ zero stops: the honest-absence card, not an empty chain. */
   missing: TraceWalkMissing | null;
-  /** Read keys that NO commit ever wrote — the run's inputs ("came in the
-   *  door"), deduped, in first-encounter order. */
+  /** Compatibility name: captured reads lacking an earlier recorded writer.
+   * Their origin is unknown; these are not asserted to be run inputs. */
   inputTermini: string[];
-  /** False when the snapshot recorded no reads anywhere — the chain is
-   *  UNKNOWABLE (not absent) beyond the anchor. */
+  /** Some captured reads were observed, never a complete-capture guarantee. */
   readsAvailable: boolean;
-  /** True when the underlying slice hit its frame/depth budget — the
-   *  earliest stop may not be the true origin. */
   truncated: boolean;
-}
-
-/** Duck-typed commit bundle (same stable snapshot shape dataTrace uses). */
-interface CommitEntry {
-  stage: string;
-  stageId: string;
-  runtimeStageId: string;
-  trace: Array<{ path: string }>;
-}
-
-const DEFAULT_MAX_DEPTH = 10;
-const DEFAULT_MAX_FRAMES = 50;
-
-/**
- * Build the rewind walk for `key`.
- *
- * `beforeCommitIdx` (EXCLUSIVE) scopes the question to "the value as it
- * stood before that moment" — it is also how ingredient-following works:
- * follow ingredient K at stop S = buildTraceWalk(K, { beforeCommitIdx:
- * S.commitIdx }) — one function, no traversal modes.
- */
-export function buildTraceWalk(
-  commitLog: unknown[],
-  executionTree: unknown,
-  key: string,
-  opts?: { beforeCommitIdx?: number; maxDepth?: number; maxFrames?: number },
-): TraceWalk {
-  const log = (commitLog ?? []) as CommitEntry[];
-  const cutoff = opts?.beforeCommitIdx ?? log.length;
-  const maxDepth = opts?.maxDepth ?? DEFAULT_MAX_DEPTH;
-  const maxFrames = opts?.maxFrames ?? DEFAULT_MAX_FRAMES;
-
-  const writerOf = (k: string, beforeIdx: number): number => {
-    for (let i = Math.min(beforeIdx, log.length) - 1; i >= 0; i--) {
-      if (log[i].trace.some((t) => t.path === k)) return i;
-    }
-    return -1;
+  /** Optional additions keep caller-created walks source-compatible. */
+  status?: "available" | "not-recorded" | "unavailable";
+  note?: string;
+  evidence?: {
+    sourceId: string;
+    beforeCommitIdx: number;
+    readsKind: string;
+    readsCoverage?: ReadsCoverage;
+    truncated?: { byDepth: boolean; byNodes: boolean };
   };
+}
 
-  // ── Anchor: the last writer of `key` within the cutoff ──
-  const anchorIdx = writerOf(key, cutoff);
-  if (anchorIdx < 0) {
-    // Honest absence — distinguish "never" from "not yet" by checking the
-    // FULL log: conflating them would assert a falsehood under a cutoff.
-    const firstEver = log.findIndex((c) => c.trace.some((t) => t.path === key));
-    const missing: TraceWalkMissing =
-      firstEver < 0
-        ? { reason: "never-written" }
-        : {
-            reason: "not-yet-written",
-            firstWriteCommitIdx: firstEver,
-            firstWriterRuntimeStageId: log[firstEver].runtimeStageId,
-            firstWriterStageName: log[firstEver].stage,
-          };
-    return { key, stops: [], missing, inputTermini: [], readsAvailable: true, truncated: false };
-  }
+type WalkOptions = { beforeCommitIdx?: number; maxDepth?: number; maxFrames?: number };
+const label = (value: unknown, fallback: string) => typeof value === "string" ? value : fallback;
+export function unavailableTraceWalk(key: string, note: string): TraceWalk {
+  return { key, stops: [], missing: null, inputTermini: [], readsAvailable: false, truncated: false, status: "unavailable", note };
+}
 
-  // ── Slice: reuse the shared read→write BFS, anchored at the writer.
-  // Truncation detection: ask for one frame beyond the budget — if it comes
-  // back full we know the budget bit (buildDataTrace stops AT maxFrames).
-  const slice = buildDataTrace(
-    log.slice(0, anchorIdx + 1),
-    executionTree,
-    log[anchorIdx].runtimeStageId,
-    maxDepth,
-    maxFrames + 1,
-  );
-  const truncated = slice.frames.length > maxFrames;
-  const frames = truncated ? slice.frames.slice(0, maxFrames) : slice.frames;
+/** Retained public positional API. No fabricated stage is needed for a key query. */
+export function buildTraceWalk(commitLog: unknown[], executionTree: unknown, key: string, opts?: WalkOptions): TraceWalk {
+  return buildSelectedTraceWalk({ sourceId: "flow:record", format: "snapshot", record: { commitLog, executionTree }, reads: { status: "unknown" } }, key, opts);
+}
 
-  // ── Per-stop ingredients + run-input termini ──
-  const idxOf = new Map<string, number>();
-  for (let i = 0; i < log.length; i++) idxOf.set(log[i].runtimeStageId, i);
-  const readsOf = readKeysByStep(executionTree);
-  const inputTermini: string[] = [];
-  const terminiSeen = new Set<string>();
-
-  const stops: TraceStop[] = frames.map((f) => {
-    const commitIdx = idxOf.get(f.runtimeStageId) ?? -1;
-    const ingredients: TraceIngredient[] = (readsOf.get(f.runtimeStageId) ?? []).map((k) => {
-      const w = writerOf(k, commitIdx);
-      if (w < 0 && !terminiSeen.has(k)) {
-        terminiSeen.add(k);
-        inputTermini.push(k);
-      }
-      return {
-        key: k,
-        writerRuntimeStageId: w >= 0 ? log[w].runtimeStageId : null,
-        writerStageName: w >= 0 ? log[w].stage : null,
-        writerCommitIdx: w >= 0 ? w : null,
-      };
-    });
-    return {
-      runtimeStageId: f.runtimeStageId,
-      stageId: f.stageId,
-      stageName: f.stageName,
-      commitIdx,
-      contributedKeys: [] as string[],
-      keysWritten: f.keysWritten,
-      ingredients,
-      depth: f.depth,
-      loopPass: 0,
+/** The Shell supplies its actual source/base and a frozen exclusive boundary. */
+export function buildSelectedTraceWalk(selection: FlowRecordSelection, key: string, opts: WalkOptions = {}): TraceWalk {
+  const maxDepth = opts.maxDepth ?? 10, maxFrames = opts.maxFrames ?? 50;
+  if (!Number.isSafeInteger(maxDepth) || maxDepth < 0 || !Number.isSafeInteger(maxFrames) || maxFrames < 1)
+    return unavailableTraceWalk(key, "Causal tracing needs a nonnegative depth and a positive frame limit.");
+  const source = prepareTracePrefix(selection, opts.beforeCommitIdx);
+  if (source.status === "unavailable") return unavailableTraceWalk(key, source.message);
+  try {
+    let observedReads = false;
+    const reads = { ...source.reads, lookup: (id: string) => {
+      const keys = source.reads.lookup(id);
+      observedReads ||= keys.length > 0;
+      return keys;
+    } };
+    const slice = sliceForKey(source.log, key, reads, { before: source.beforeCommitIdx, maxDepth, maxNodes: maxFrames, edgeAttribution: "stage" });
+    const projected = projectDataTrace(source, slice.root, observedReads);
+    const notes = [projected.note, ...(slice.notes ?? []).map(note => note.detail)];
+    const evidence: NonNullable<TraceWalk["evidence"]> = {
+      sourceId: source.sourceId, beforeCommitIdx: source.beforeCommitIdx, readsKind: source.reads.kind,
+      ...(source.reads.coverage && { readsCoverage: source.reads.coverage }),
+      ...(slice.root?.truncated && { truncated: slice.root.truncated }),
     };
-  });
-
-  // contributedKeys — derived from the INGREDIENT edges (not the BFS's
-  // first-link `linkedBy`, which records only one path into a shared
-  // ancestor): a stop contributed key K when some slice member's K
-  // ingredient resolves to it. The anchor contributed the traced key.
-  const stopById = new Map(stops.map((s) => [s.runtimeStageId, s]));
-  const contributed = new Map<string, Set<string>>();
-  contributed.set(log[anchorIdx].runtimeStageId, new Set([key]));
-  for (const s of stops) {
-    for (const ing of s.ingredients) {
-      if (!ing.writerRuntimeStageId || !stopById.has(ing.writerRuntimeStageId)) continue;
-      const set = contributed.get(ing.writerRuntimeStageId) ?? new Set<string>();
-      set.add(ing.key);
-      contributed.set(ing.writerRuntimeStageId, set);
+    if (!slice.root || !slice.writer) {
+      const missing: TraceWalkMissing = { reason: "never-written" };
+      // Future hint is a separate whole-record query. Its failure cannot
+      // invalidate this valid historical prefix or establish global absence.
+      const whole = prepareTracePrefix(selection);
+      if (whole.status === "available") {
+        try {
+          const first = keyTimeline(whole.log, key, whole.reads).moments?.find(moment => moment.kind === "write");
+          if (first && first.commitIdx >= source.beforeCommitIdx) {
+            Object.assign(missing, { reason: "not-yet-written", firstWriteCommitIdx: first.commitIdx,
+              firstWriterRuntimeStageId: first.runtimeStageId, firstWriterStageName: label(first.stageName, first.runtimeStageId) });
+          }
+        } catch { notes.push("The separate whole-record first-write hint is unavailable."); }
+      } else notes.push("Later record rows were not used to establish a whole-record first-write hint.");
+      return { key, stops: [], missing, inputTermini: [], readsAvailable: projected.readsAvailable, truncated: false,
+        status: "not-recorded", note: notes.join(" "), evidence };
     }
-  }
-  for (const s of stops) s.contributedKeys = [...(contributed.get(s.runtimeStageId) ?? [])];
-
-  // ── Walk order: reverse time (the topological linearization) ──
-  stops.sort((a, b) => b.commitIdx - a.commitIdx);
-
-  // Loop passes: when one STAGE appears at several iterations, number them
-  // in time order ("pass 1", "pass 2") so the card can say which visit.
-  const byStagePart = new Map<string, TraceStop[]>();
-  for (const s of stops) {
-    const part = s.runtimeStageId.split("#")[0];
-    const arr = byStagePart.get(part) ?? [];
-    arr.push(s);
-    byStagePart.set(part, arr);
-  }
-  for (const arr of byStagePart.values()) {
-    if (arr.length < 2) continue;
-    // arr is in reverse time; pass numbers count forward in time.
-    for (let i = 0; i < arr.length; i++) arr[i].loopPass = arr.length - i;
-  }
-
-  return { key, stops, missing: null, inputTermini, readsAvailable: slice.readsAvailable, truncated };
-}
-
-/** Duck-typed execution-tree node — mirrors dataTrace.ts's private walker
- *  (kept separate so dataTrace's contract stays untouched). */
-interface TreeNode {
-  runtimeStageId?: string;
-  stageReads?: Record<string, unknown>;
-  next?: TreeNode;
-  children?: TreeNode[];
-}
-
-function readKeysByStep(tree: unknown): Map<string, string[]> {
-  const byStep = new Map<string, string[]>();
-  const root = tree as TreeNode | undefined;
-  if (!root) return byStep;
-  const visited = new Set<TreeNode>();
-  const stack: TreeNode[] = [root];
-  while (stack.length > 0) {
-    const node = stack.pop()!;
-    if (visited.has(node)) continue;
-    visited.add(node);
-    if (node.runtimeStageId && node.stageReads) {
-      const keys = Object.keys(node.stageReads);
-      if (keys.length > 0) byStep.set(node.runtimeStageId, keys);
+    const nodes = flattenCausalDAG(slice.root);
+    const readIndex = buildCommitIndex(source.log);
+    const anchorIndex = source.log.indexOf(slice.writer);
+    const contributions = new Map<string, NonNullable<TraceStop["contributedWrites"]>>();
+    contributions.set(slice.writer.runtimeStageId, [{ key, commitIdx: anchorIndex }]);
+    const termini = new Set<string>();
+    const stops = nodes.map(node => {
+      const readCommitIdx = readIndex.get(node.runtimeStageId);
+      if (readCommitIdx === undefined) throw new Error("Canonical node has no source-local read anchor");
+      const ingredients: TraceIngredient[] = node.parentEdges.flatMap(edge => {
+        if (edge.kind !== "data" || edge.key === undefined) return [];
+        // A keyed edge can point to a different continuation of the SAME node.
+        // Resolve this exact edge, never substitute that node's first/last row.
+        const edgeKey = edge.key;
+        const writer = findLastWriter(source.log, edgeKey, readCommitIdx);
+        if (!writer || writer.runtimeStageId !== edge.parent.runtimeStageId) throw new Error("Canonical edge writer cannot be resolved in this source");
+        const writerCommitIdx = source.log.indexOf(writer);
+        const writes = contributions.get(writer.runtimeStageId) ?? [];
+        if (!writes.some(write => write.key === edgeKey && write.commitIdx === writerCommitIdx)) writes.push({ key: edgeKey, commitIdx: writerCommitIdx });
+        contributions.set(writer.runtimeStageId, writes);
+        return [{ key: edgeKey, writerRuntimeStageId: writer.runtimeStageId, writerStageName: label(writer.stage, writer.runtimeStageId), writerCommitIdx,
+          ...(edge.basis && { basis: edge.basis }) }];
+      });
+      for (const read of node.preRunReads?.keys ?? []) {
+        termini.add(read);
+        ingredients.push({ key: read, writerRuntimeStageId: null, writerStageName: null, writerCommitIdx: null });
+      }
+      return { runtimeStageId: node.runtimeStageId, stageId: label(node.stageId, node.runtimeStageId), stageName: label(node.stageName, node.runtimeStageId),
+        commitIdx: node === slice.root ? anchorIndex : readCommitIdx, readCommitIdx,
+        contributedKeys: [] as string[], contributedWrites: [] as NonNullable<TraceStop["contributedWrites"]>, keysWritten: node.keysWritten,
+        ingredients, depth: node.depth, loopPass: 0 };
+    });
+    for (const stop of stops) {
+      stop.contributedWrites = contributions.get(stop.runtimeStageId) ?? [];
+      for (const write of stop.contributedWrites) {
+        const value = commitValueAtWithBasis(source.log, write.commitIdx, write.key,
+          source.initialState === undefined ? undefined : { initialState: source.initialState });
+        if (value.basis.length) write.valueBasis = value.basis;
+      }
+      stop.contributedKeys = [...new Set(stop.contributedWrites.map(write => write.key))];
     }
-    if (node.next) stack.push(node.next);
-    if (node.children) for (const c of node.children) stack.push(c);
+    stops.sort((a, b) => b.commitIdx - a.commitIdx);
+    const visits = new Map<string, TraceStop[]>();
+    for (const stop of stops) {
+      const stagePart = stop.runtimeStageId.split("#")[0];
+      const group = visits.get(stagePart) ?? [];
+      group.push(stop); visits.set(stagePart, group);
+    }
+    for (const group of visits.values()) if (group.length > 1) group.forEach((stop, index) => { stop.loopPass = group.length - index; });
+    return { key, stops, missing: null, inputTermini: [...termini], readsAvailable: projected.readsAvailable,
+      truncated: !!(slice.root.truncated?.byDepth || slice.root.truncated?.byNodes), status: "available", note: notes.join(" "), evidence };
+  } catch {
+    return unavailableTraceWalk(key, "Foottrace could not explain the selected source prefix.");
   }
-  return byStep;
 }
 
-/**
- * formatTraceWalk — THE parity artifact: the [Copy story] button and any
- * LLM backtrack tool emit THIS string, so the human's board and the
- * agent's answer are the same text, not two translations.
- *
- * `stepNumberOf` maps a runtimeStageId to the 1-based step number shown on
- * the rail (null = not on the rail); walk order and wording match the
- * stop cards exactly.
- */
-export function formatTraceWalk(
-  walk: TraceWalk,
-  stepNumberOf: (runtimeStageId: string) => number | null,
-): string {
+/** Exact contribution value, not the grouped rail's possibly-later memory. */
+export function traceContributionPreview(selection: FlowRecordSelection, walk: TraceWalk, stop: TraceStop, key: string): unknown {
+  if (!walk.evidence || walk.status !== "available") return undefined;
+  const writes = stop.contributedWrites?.filter(row => row.key === key);
+  const write = writes?.length === 1 ? writes[0] : undefined;
+  if (!write || write.commitIdx >= walk.evidence.beforeCommitIdx) return undefined;
+  const source = prepareTracePrefix(selection, walk.evidence.beforeCommitIdx);
+  if (source.status !== "available" || source.sourceId !== walk.evidence.sourceId) return undefined;
+  try {
+    const value = commitValueAtWithBasis(source.log, write.commitIdx, key,
+      source.initialState === undefined ? undefined : { initialState: source.initialState });
+    // An uncertain value is not presented as an exact numeric/string preview.
+    return value.basis.length === 0 ? value.value : undefined;
+  } catch { return undefined; }
+}
+
+/** Copy story and the card consume the same qualified presentation facts. */
+export function formatTraceWalk(walk: TraceWalk, stepNumberOf: (runtimeStageId: string) => number | null): string {
   const lines: string[] = [];
-  if (walk.missing) {
-    if (walk.missing.reason === "never-written") {
-      lines.push(
-        `\`${walk.key}\` was never written in this run — it arrived with the run's inputs.`,
-      );
-    } else {
-      const at = walk.missing.firstWriterRuntimeStageId
-        ? stepNumberOf(walk.missing.firstWriterRuntimeStageId)
-        : null;
-      lines.push(
-        `\`${walk.key}\` has not been written yet at this moment — its first write happens later` +
-          (walk.missing.firstWriterStageName
-            ? `, at ${walk.missing.firstWriterStageName}${at ? ` (step ${at})` : ""}.`
-            : "."),
-      );
-    }
-    return lines.join("\n");
+  if (walk.status === "unavailable") return walk.note ?? "Recorded explanation unavailable.";
+  if (walk.missing) lines.push(missingTraceText(walk, stepNumberOf));
+  else {
+    lines.push(`Tracing \`${walk.key}\` — ${walk.stops.length} stops, newest first.`);
+    walk.stops.forEach((stop, i) => {
+      const step = stepNumberOf(stop.runtimeStageId);
+      const pass = stop.loopPass > 0 ? ` (pass ${stop.loopPass})` : "";
+      const made = stop.ingredients.length ? ` · recorded ingredients: ${stop.ingredients.map(ing => ing.writerRuntimeStageId
+        ? `${ing.key} (← ${ing.writerStageName}${stepNumberOf(ing.writerRuntimeStageId) ? `, step ${stepNumberOf(ing.writerRuntimeStageId)}` : ""}${ing.basis ? "; nested contribution" : ""})`
+        : `${ing.key} (${unknownIngredientText})`).join(", ")}` : ` · ${noIngredientsText}`;
+      lines.push(`stop ${i + 1}/${walk.stops.length} · ${step ? `step ${step} · ` : ""}${stop.stageName}${pass} recorded changes to \`${stop.contributedKeys.join("`, `")}\`${made}`);
+      const positions = contributionPositionText(stop);
+      if (positions) lines.push(positions);
+      const basis = contributionBasisText(stop);
+      if (basis) lines.push(basis);
+    });
+    if (walk.inputTermini.length) lines.push(`Reads without an earlier recorded writer (origin unknown): ${walk.inputTermini.join(", ")}`);
   }
-
-  lines.push(`Tracing \`${walk.key}\` — ${walk.stops.length} stops, newest first.`);
-  walk.stops.forEach((stop, i) => {
-    const step = stepNumberOf(stop.runtimeStageId);
-    const pass = stop.loopPass > 0 ? ` (pass ${stop.loopPass})` : "";
-    const made =
-      stop.ingredients.length > 0
-        ? ` · made from: ${stop.ingredients
-            .map((ing) =>
-              ing.writerRuntimeStageId
-                ? `${ing.key} (← ${ing.writerStageName}${
-                    stepNumberOf(ing.writerRuntimeStageId)
-                      ? `, step ${stepNumberOf(ing.writerRuntimeStageId)}`
-                      : ""
-                  })`
-                : `${ing.key} (run input — never written)`,
-            )
-            .join(", ")}`
-        : walk.readsAvailable
-          ? " · reads nothing — origin"
-          : "";
-    lines.push(
-      `stop ${i + 1}/${walk.stops.length} · ${step ? `step ${step} · ` : ""}${stop.stageName}${pass} wrote \`${stop.contributedKeys.join("`, `")}\`${made}`,
-    );
-  });
-  if (walk.inputTermini.length > 0) {
-    lines.push(`run inputs (never written): ${walk.inputTermini.join(", ")}`);
-  }
-  if (!walk.readsAvailable) {
-    lines.push("⚠ reads were not recorded — dependencies are unknowable, not absent.");
-  }
-  if (walk.truncated) {
-    lines.push("⚠ walk truncated at its frame budget — the earliest stop may not be the true origin.");
-  }
+  if (walk.note) lines.push(walk.note);
+  else if (!walk.readsAvailable) lines.push("Read evidence is unknown; dependencies are unknowable, not absent.");
+  if (walk.truncated && !walk.evidence?.truncated) lines.push("The recorded explanation is truncated; its earliest displayed stop need not be an origin.");
   return lines.join("\n");
 }

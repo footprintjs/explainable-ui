@@ -1,4 +1,7 @@
-# M4 — canonical Data Trace (unreleased, review pending)
+# M4 — canonical Data Trace (merged, unreleased)
+
+This document preserves the scope at M4 merge. The subsequently approved
+M5 replacements and tests are described in [M5-TRACE-WALK.md](./M5-TRACE-WALK.md).
 
 The shared Data Trace helper now projects Foottrace's causalChain and
 flattenCausalDAG. Its old BFS, writer scan and read-tree walker are deleted.

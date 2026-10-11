@@ -67,7 +67,7 @@ describe("M1 — real saved Flow display interactions", () => {
     expect(writeText).toHaveBeenCalledExactlyOnceWith(
       formatTraceWalk(walk, stepOf)
     );
-    expect(screen.getByText(/Made from 1 ingredient/)).toBeTruthy();
+    expect(screen.getByText(/1 recorded ingredient/)).toBeTruthy();
   });
 
   it("keeps the current Data Trace navigation contract and no-reads qualification", () => {

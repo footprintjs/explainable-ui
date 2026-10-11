@@ -1,8 +1,9 @@
 # M1: behavior and public-contract evidence
 
-The unreleased M4 Data Trace implementation, using the corrected public
-Foottrace 1.0.3 reader and awaiting its own final review, is recorded
-in [M4-CANONICAL-DATA-TRACE.md](./M4-CANONICAL-DATA-TRACE.md).
+The merged, unreleased M4 Data Trace implementation is recorded in
+[M4-CANONICAL-DATA-TRACE.md](./M4-CANONICAL-DATA-TRACE.md). The subsequent
+M5 variable trace/session/preview draft and intended corrections are in
+[M5-TRACE-WALK.md](./M5-TRACE-WALK.md). Both use public Foottrace 1.0.3.
 
 For the approved, unpublished-major canonical state replacement, see
 [M3-STATE-MIGRATION.md](./M3-STATE-MIGRATION.md). This document retains the M1
@@ -98,7 +99,7 @@ unknown-read qualification preserve that distinction for the later adapter.
 
 ## Run
 
-Current Node 22/24 suite (M3 delegates state and M4 stage causality to Foottrace):
+Current Node 22/24 suite (M3 state, M4 stage causality and M5 variable queries delegate to Foottrace):
 
 ```sh
 npm run build
