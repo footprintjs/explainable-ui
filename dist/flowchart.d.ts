@@ -2819,9 +2819,10 @@ interface OverlayFromSnapshotOptions {
      * The run's narrative entries — `executor.getNarrativeEntries()`, or a
      * recording's `narrativeEntries`. The retry source for a recording from
      * footprintjs 9.15–10.0, whose tree carries no `attemptSummary`: its
-     * narrative keeps one `type: 'retry'` entry per failed attempt. A stage the
-     * tree summarises takes the tree's count. Optional: with neither source the
-     * overlay carries no attempt facts (honest absence — never a guess).
+     * narrative keeps one `type: 'retry'` entry per failed attempt. Where the
+     * tree stamps a retried execution's count, that count wins. Optional: with
+     * neither source the overlay carries no attempt facts (honest absence —
+     * never a guess).
      */
     readonly narrativeEntries?: readonly NarrativeEntryLike[] | null;
 }

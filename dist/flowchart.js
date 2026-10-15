@@ -6302,7 +6302,17 @@ function overlayFromSnapshot(snapshot, options = {}) {
 function retryAttemptsFrom(snapshot, entries) {
   const attempts = retryAttemptsFromNarrative(entries);
   for (const [runtimeStageId, count] of attemptsFromTrees(snapshot)) attempts.set(runtimeStageId, count);
-  return attempts;
+  return new Map([...attempts].sort(([a], [b]) => compareExecutionIndex(a, b)));
+}
+function compareExecutionIndex(a, b) {
+  const x = executionIndexOf(a);
+  const y = executionIndexOf(b);
+  return x === y ? 0 : x < y ? -1 : 1;
+}
+function executionIndexOf(runtimeStageId) {
+  const hashIdx = runtimeStageId.lastIndexOf("#");
+  const index = hashIdx >= 0 ? Number(runtimeStageId.slice(hashIdx + 1)) : Number.NaN;
+  return Number.isFinite(index) ? index : Number.POSITIVE_INFINITY;
 }
 function attemptsFromTrees(snapshot) {
   const counts = /* @__PURE__ */ new Map();

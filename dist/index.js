@@ -3689,7 +3689,17 @@ function overlayFromSnapshot(snapshot, options = {}) {
 function retryAttemptsFrom(snapshot, entries) {
   const attempts = retryAttemptsFromNarrative(entries);
   for (const [runtimeStageId, count] of attemptsFromTrees(snapshot)) attempts.set(runtimeStageId, count);
-  return attempts;
+  return new Map([...attempts].sort(([a], [b]) => compareExecutionIndex(a, b)));
+}
+function compareExecutionIndex(a, b) {
+  const x = executionIndexOf(a);
+  const y = executionIndexOf(b);
+  return x === y ? 0 : x < y ? -1 : 1;
+}
+function executionIndexOf(runtimeStageId) {
+  const hashIdx = runtimeStageId.lastIndexOf("#");
+  const index = hashIdx >= 0 ? Number(runtimeStageId.slice(hashIdx + 1)) : Number.NaN;
+  return Number.isFinite(index) ? index : Number.POSITIVE_INFINITY;
 }
 function attemptsFromTrees(snapshot) {
   const counts = /* @__PURE__ */ new Map();
@@ -7819,9 +7829,9 @@ function ExplainableShell({
   const snapshots = snapshotsProp ?? derivedFromRuntime?.snapshots ?? [];
   const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
   const runtimeOverlay = useMemo14(
-    () => runtimeOverlayProp ?? // The narrative rides along because retries leave no mark on the commit
-    // log: a failed attempt discards its writes. Without it a replayed
-    // retried stage would be the one thing the chart could not show.
+    () => runtimeOverlayProp ?? // Retries leave no mark on the commit log (a failed attempt discards its
+    // writes): the snapshot's tree carries their counts (footprintjs >= 10.1),
+    // and for an older recording the narrative's `retry` entries do.
     (runtimeSnapshot ? overlayFromSnapshot(runtimeSnapshot, { narrativeEntries }) : void 0),
     [runtimeOverlayProp, runtimeSnapshot, narrativeEntries]
   );
@@ -9167,8 +9177,9 @@ function TraceViewer({
   }, [prepared]);
   const runtimeOverlay = useMemo15(
     () => prepared.ok ? overlayFromSnapshot(prepared.recording.snapshot, {
-      // Retry attempts live in the narrative, never in the commit log —
-      // a discarded attempt commits nothing.
+      // Retry attempts are never in the commit log (a discarded attempt
+      // commits nothing): the snapshot's tree carries them on footprintjs
+      // >= 10.1, the narrative's `retry` entries on an older recording.
       narrativeEntries: prepared.recording.narrativeEntries
     }) : void 0,
     [prepared]
