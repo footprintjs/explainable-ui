@@ -35,13 +35,16 @@
  *     failing stage's writes land (footprintjs commits before rethrow)
  *     but the message does not. Error painting needs the live recorder.
  *   - **`running` is false.** A recording is a finished run by definition.
- *   - **Retry attempts need the narrative.** A retried attempt commits
- *     nothing (footprintjs discards a failed attempt's staged writes), so
- *     the commit log cannot know a stage was attempted more than once. Pass
- *     the run's `narrativeEntries` — it records one `type: 'retry'` entry per
- *     failed attempt, stamped with the stage's runtimeStageId — and the
- *     rebuilt overlay carries the same `retryAttempts` a live recorder would
- *     have accumulated. Omit them and attempts are absent, not guessed.
+ *   - **Retry attempts come from the execution tree, not the commit log.** A
+ *     retried attempt commits nothing (footprintjs discards a failed
+ *     attempt's staged writes), so the log cannot know a stage was attempted
+ *     more than once. footprintjs >= 10.1 stamps each retried stage's node
+ *     with `attemptSummary` (its `count` is the attempts made), so a whole
+ *     `executor.getSnapshot()` carries the counts — subflow stages included,
+ *     through `subflowResults`. A recording from footprintjs 9.15–10.0 has no
+ *     summary: pass its `narrativeEntries`, whose `type: 'retry'` entries
+ *     (one per failed attempt) give the same counts. Neither source, and
+ *     attempts are absent, not guessed.
  *   - **Subflow-internal steps are absent when the engine isolated them.**
  *     footprintjs keeps deep-subflow commits out of the run-level
  *     commitLog by design, so a recording of a chart with subflows yields
@@ -71,6 +74,21 @@ interface CommitBundleLike {
  *  a whole `executor.getSnapshot()` or just `{ commitLog }`. */
 export interface SnapshotWithCommitLog {
   commitLog?: unknown;
+  /** The run's execution tree (`getSnapshot().executionTree`). Read for each
+   *  retried stage's `attemptSummary` (footprintjs >= 10.1). */
+  executionTree?: unknown;
+  /** The subflows' results (`getSnapshot().subflowResults`). Each one's own
+   *  tree (`treeContext.stageContexts`) holds its stages' `attemptSummary`. */
+  subflowResults?: unknown;
+}
+
+/** The slice of footprintjs's `StageSnapshot` (one execution-tree node) the
+ *  attempt reader consumes. */
+interface StageSnapshotLike {
+  runtimeStageId?: unknown;
+  attemptSummary?: unknown;
+  next?: unknown;
+  children?: unknown;
 }
 
 /** The slice of a narrative entry this reader consumes — duck-typed so both
@@ -84,11 +102,11 @@ interface NarrativeEntryLike {
 export interface OverlayFromSnapshotOptions {
   /**
    * The run's narrative entries — `executor.getNarrativeEntries()`, or a
-   * recording's `narrativeEntries`. The ONLY post-hoc source of retry facts:
-   * `onStageRetry` fires during a stage and leaves no trace in the commit
-   * log, but the narrative keeps one `type: 'retry'` entry per failed
-   * attempt. Optional: without it the overlay simply carries no attempt
-   * facts (honest absence — never a guess).
+   * recording's `narrativeEntries`. The retry source for a recording from
+   * footprintjs 9.15–10.0, whose tree carries no `attemptSummary`: its
+   * narrative keeps one `type: 'retry'` entry per failed attempt. A stage the
+   * tree summarises takes the tree's count. Optional: with neither source the
+   * overlay carries no attempt facts (honest absence — never a guess).
    */
   readonly narrativeEntries?: readonly NarrativeEntryLike[] | null;
 }
@@ -139,21 +157,82 @@ export function overlayFromSnapshot(
     executionOrder,
     errors: new Map(),
     running: false,
-    retryAttempts: retryAttemptsFrom(options.narrativeEntries),
+    retryAttempts: retryAttemptsFrom(snapshot, options.narrativeEntries),
   };
 }
 
 /**
- * Attempt counts per runtimeStageId, rebuilt from the narrative.
+ * Attempt counts per runtimeStageId, for the executions that took more than
+ * one attempt. The tree's stamped `attemptSummary.count` (footprintjs >= 10.1)
+ * wins; the narrative's `retry` entries (9.15–10.0) fill in a stage the tree
+ * does not summarise.
+ */
+function retryAttemptsFrom(
+  snapshot: SnapshotWithCommitLog | null | undefined,
+  entries: readonly NarrativeEntryLike[] | null | undefined,
+): ReadonlyMap<string, number> {
+  const attempts = retryAttemptsFromNarrative(entries);
+  for (const [runtimeStageId, count] of attemptsFromTrees(snapshot)) attempts.set(runtimeStageId, count);
+  return attempts;
+}
+
+/**
+ * `attemptSummary.count` of every retried node in the run's tree and in each
+ * subflow's own tree. A count of 1 is an execution that was never retried, so
+ * it is not an entry — the same silence as a run with no policy.
+ */
+function attemptsFromTrees(snapshot: SnapshotWithCommitLog | null | undefined): Map<string, number> {
+  const counts = new Map<string, number>();
+  const roots: unknown[] = [snapshot?.executionTree];
+  const subflowResults = snapshot?.subflowResults;
+  if (subflowResults !== null && typeof subflowResults === "object") {
+    for (const result of Object.values(subflowResults as Record<string, unknown>)) {
+      const treeContext = isObject(result) ? result.treeContext : undefined;
+      roots.push(isObject(treeContext) ? treeContext.stageContexts : undefined);
+    }
+  }
+  // Iterative, with a visited set: a tree is as deep as its run is long, and
+  // a hand-built input must not be able to loop the walk.
+  const seen = new Set<object>();
+  const stack = roots.filter(isObject);
+  while (stack.length > 0) {
+    const node = stack.pop() as StageSnapshotLike & object;
+    if (seen.has(node)) continue;
+    seen.add(node);
+    const count = isObject(node.attemptSummary) ? node.attemptSummary.count : undefined;
+    const runtimeStageId = node.runtimeStageId;
+    if (
+      typeof count === "number" &&
+      Number.isInteger(count) &&
+      count > 1 &&
+      typeof runtimeStageId === "string" &&
+      runtimeStageId.length > 0
+    ) {
+      counts.set(runtimeStageId, count);
+    }
+    if (isObject(node.next)) stack.push(node.next);
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) if (isObject(child)) stack.push(child);
+    }
+  }
+  return counts;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
+
+/**
+ * Attempt counts per runtimeStageId, rebuilt from a 9.15–10.0 narrative.
  *
  * The engine writes one `retry` entry per attempt that FAILED and was
  * followed by another — so N retry entries means N+1 attempts were made.
  * That is the same arithmetic the live recorder does on `onStageRetry`
  * (`attempt + 1`), which is why the two paths agree.
  */
-function retryAttemptsFrom(
+function retryAttemptsFromNarrative(
   entries: readonly NarrativeEntryLike[] | null | undefined,
-): ReadonlyMap<string, number> {
+): Map<string, number> {
   const attempts = new Map<string, number>();
   if (!Array.isArray(entries)) return attempts;
   for (const entry of entries) {

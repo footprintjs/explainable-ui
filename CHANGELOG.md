@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **A new footprintjs narrative kind no longer breaks your build.**
+  `NarrativeEntry['type']` was a closed union, so each kind footprintjs added
+  (`retry` in 9.15, `attempt` in 10.1) made every app that passes
+  `executor.getNarrativeEntries()` to a component here fail to compile. The
+  type now keeps the known kinds and accepts any other string.
+  `<StoryNarrative>` renders an unknown kind with a plain `◦` badge labelled
+  "Narrative entry" and its text as written. It used the `step` badge before,
+  which told a screen reader it was a "Data operation".
+- **`attempt` entries (footprintjs 10.1) render as their own lines.** Each
+  attempt of a retried stage gets one line with an "Attempt" badge, styled
+  like `retry`.
+- **`overlayFromSnapshot` counts retries on footprintjs 10.1.** It reads each
+  stage's `attemptSummary` from the snapshot's tree, subflows included. 10.1
+  narrates `attempt` lines instead of `retry` lines, so counting `retry`
+  entries would have found no retries. A 9.15–10.0 recording has no summary,
+  so its `retry` entries are still counted.
+
 ## [0.38.0] - 2026-08-19
 
 An audit read this library the way a new consumer does and got stuck on the
