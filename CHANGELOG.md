@@ -34,7 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     branch.
   - A map typed `Record<NarrativeEntry['type'], …>` must now list `attempt`
     as well. Each known kind is still a required key, so the compiler tells
-    you when a new kind arrives.
+    you when this package adds a kind. A kind footprintjs adds first never
+    breaks the build.
 
 ## [0.38.0] - 2026-08-19
 
