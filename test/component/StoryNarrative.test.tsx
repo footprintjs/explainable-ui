@@ -313,8 +313,17 @@ describe('StoryNarrative component', () => {
       e('stage', 'Stage 2: Format the answer.'),
     ];
     const { container } = render(<StoryNarrative entries={entries} revealedEntryCount={4} unstyled />);
-    expect(container.querySelectorAll('[data-type="attempt"]')).toHaveLength(2);
-    expect(screen.getByText(/^2\./)).toBeTruthy();
+    // Every row, exactly: an attempt line numbered by mistake would read "2. …" and push the stage to "4.".
+    const rows = Array.from(container.querySelectorAll('[data-fp="narrative-entry"]')).map((row) => [
+      row.getAttribute('data-type'),
+      row.textContent,
+    ]);
+    expect(rows).toEqual([
+      ['stage', '1. [Stage: ] Fetch rate.'],
+      ['attempt', 'Attempt 1 of 2 at Fetch rate failed in 4ms (boom), retrying immediately.'],
+      ['attempt', 'Attempt 2 of 2 at Fetch rate succeeded in 3ms.'],
+      ['stage', '2. [Stage: ] Format the answer.'],
+    ]);
   });
 
   it('shows retry text verbatim and gives it no heading number', () => {

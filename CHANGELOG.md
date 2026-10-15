@@ -26,6 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   entries would have found no retries. A 9.15–10.0 recording has no summary,
   so its `retry` entries are still counted.
 
+### Changed
+
+- **What the open type means for your own code.** Two effects:
+  - Because any string is a valid kind, a `switch` over `entry.type` can no
+    longer end in an exhaustive `never` check. Give unknown kinds a default
+    branch.
+  - A map typed `Record<NarrativeEntry['type'], …>` must now list `attempt`
+    as well. Each known kind is still a required key, so the compiler tells
+    you when a new kind arrives.
+
 ## [0.38.0] - 2026-08-19
 
 An audit read this library the way a new consumer does and got stuck on the

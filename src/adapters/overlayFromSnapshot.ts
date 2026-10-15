@@ -104,9 +104,10 @@ export interface OverlayFromSnapshotOptions {
    * The run's narrative entries — `executor.getNarrativeEntries()`, or a
    * recording's `narrativeEntries`. The retry source for a recording from
    * footprintjs 9.15–10.0, whose tree carries no `attemptSummary`: its
-   * narrative keeps one `type: 'retry'` entry per failed attempt. A stage the
-   * tree summarises takes the tree's count. Optional: with neither source the
-   * overlay carries no attempt facts (honest absence — never a guess).
+   * narrative keeps one `type: 'retry'` entry per failed attempt. Where the
+   * tree stamps a retried execution's count, that count wins. Optional: with
+   * neither source the overlay carries no attempt facts (honest absence —
+   * never a guess).
    */
   readonly narrativeEntries?: readonly NarrativeEntryLike[] | null;
 }
@@ -163,9 +164,15 @@ export function overlayFromSnapshot(
 
 /**
  * Attempt counts per runtimeStageId, for the executions that took more than
- * one attempt. The tree's stamped `attemptSummary.count` (footprintjs >= 10.1)
- * wins; the narrative's `retry` entries (9.15–10.0) fill in a stage the tree
- * does not summarise.
+ * one attempt. Where the tree stamps a retried execution's
+ * `attemptSummary.count` (footprintjs >= 10.1), that count wins; the
+ * narrative's `retry` entries (9.15–10.0) fill in the rest.
+ *
+ * Returned in EXECUTION order, the order the live recorder fills its map in:
+ * `sliceOverlay` lets the LATER entry of a stage win for an execution with no
+ * step on the rail (a stage inside a subflow, or one that exhausted its
+ * policy), so a loop's latest execution must come last. The tree walk does
+ * not visit in that order, so the entries are sorted by execution index.
  */
 function retryAttemptsFrom(
   snapshot: SnapshotWithCommitLog | null | undefined,
@@ -173,7 +180,21 @@ function retryAttemptsFrom(
 ): ReadonlyMap<string, number> {
   const attempts = retryAttemptsFromNarrative(entries);
   for (const [runtimeStageId, count] of attemptsFromTrees(snapshot)) attempts.set(runtimeStageId, count);
-  return attempts;
+  return new Map([...attempts].sort(([a], [b]) => compareExecutionIndex(a, b)));
+}
+
+/** Order two runtimeStageIds by execution index (the number after the last
+ *  `#`). An id without one sorts last; the sort is stable. */
+function compareExecutionIndex(a: string, b: string): number {
+  const x = executionIndexOf(a);
+  const y = executionIndexOf(b);
+  return x === y ? 0 : x < y ? -1 : 1;
+}
+
+function executionIndexOf(runtimeStageId: string): number {
+  const hashIdx = runtimeStageId.lastIndexOf("#");
+  const index = hashIdx >= 0 ? Number(runtimeStageId.slice(hashIdx + 1)) : Number.NaN;
+  return Number.isFinite(index) ? index : Number.POSITIVE_INFINITY;
 }
 
 /**

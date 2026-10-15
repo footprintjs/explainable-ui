@@ -371,6 +371,24 @@ describe("overlayFromSnapshot — attempts read from attemptSummary (footprintjs
     expect(overlay.retryAttempts?.get("fetch-quote#0")).toBe(3);
   });
 
+  it("regression: a subflow looped twice — its LATEST execution's count shows, as live and narrative do", () => {
+    // The inner stage runs once per mount, under one id with two execution
+    // indexes. It has no step on the replayed rail (subflow internals stay in
+    // the subflow's own log), so the slice takes the LATER map entry for its
+    // node — the map must be in execution order, whatever order the trees
+    // are walked in.
+    const overlay = overlayFromSnapshot({
+      commitLog: [bundle(0, "seed#0", "Seed"), bundle(1, "sf#3", "Sub"), bundle(2, "sf#8", "Sub")],
+      executionTree: { id: "seed", runtimeStageId: "seed#0" },
+      subflowResults: {
+        "sf#3": { treeContext: { stageContexts: retriedNode("sf/inner", "sf/inner#4", 2) } },
+        "sf#8": { treeContext: { stageContexts: retriedNode("sf/inner", "sf/inner#9", 3) } },
+      },
+    });
+    expect([...(overlay.retryAttempts ?? []).keys()]).toEqual(["sf/inner#4", "sf/inner#9"]);
+    expect(sliceOverlay(overlay, 2).retryAttempts.get("sf/inner")).toBe(3);
+  });
+
   it("boundary: malformed summaries and nodes are ignored, never guessed", () => {
     const overlay = overlayFromSnapshot({
       commitLog: [],

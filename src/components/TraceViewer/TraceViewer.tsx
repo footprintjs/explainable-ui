@@ -230,8 +230,9 @@ export function TraceViewer({
     () =>
       prepared.ok
         ? overlayFromSnapshot(prepared.recording.snapshot as never, {
-            // Retry attempts live in the narrative, never in the commit log —
-            // a discarded attempt commits nothing.
+            // Retry attempts are never in the commit log (a discarded attempt
+            // commits nothing): the snapshot's tree carries them on footprintjs
+            // >= 10.1, the narrative's `retry` entries on an older recording.
             narrativeEntries: prepared.recording.narrativeEntries as
               | readonly { type?: unknown; runtimeStageId?: unknown }[]
               | undefined,

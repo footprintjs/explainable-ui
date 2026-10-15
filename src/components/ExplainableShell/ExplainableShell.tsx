@@ -1112,9 +1112,9 @@ export function ExplainableShell({
   const runtimeOverlay = useMemo(
     () =>
       runtimeOverlayProp ??
-      // The narrative rides along because retries leave no mark on the commit
-      // log: a failed attempt discards its writes. Without it a replayed
-      // retried stage would be the one thing the chart could not show.
+      // Retries leave no mark on the commit log (a failed attempt discards its
+      // writes): the snapshot's tree carries their counts (footprintjs >= 10.1),
+      // and for an older recording the narrative's `retry` entries do.
       (runtimeSnapshot
         ? overlayFromSnapshot(runtimeSnapshot, { narrativeEntries })
         : undefined),
