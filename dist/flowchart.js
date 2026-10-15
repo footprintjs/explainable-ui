@@ -6296,10 +6296,46 @@ function overlayFromSnapshot(snapshot, options = {}) {
     executionOrder,
     errors: /* @__PURE__ */ new Map(),
     running: false,
-    retryAttempts: retryAttemptsFrom(options.narrativeEntries)
+    retryAttempts: retryAttemptsFrom(snapshot, options.narrativeEntries)
   };
 }
-function retryAttemptsFrom(entries) {
+function retryAttemptsFrom(snapshot, entries) {
+  const attempts = retryAttemptsFromNarrative(entries);
+  for (const [runtimeStageId, count] of attemptsFromTrees(snapshot)) attempts.set(runtimeStageId, count);
+  return attempts;
+}
+function attemptsFromTrees(snapshot) {
+  const counts = /* @__PURE__ */ new Map();
+  const roots = [snapshot?.executionTree];
+  const subflowResults = snapshot?.subflowResults;
+  if (subflowResults !== null && typeof subflowResults === "object") {
+    for (const result of Object.values(subflowResults)) {
+      const treeContext = isObject(result) ? result.treeContext : void 0;
+      roots.push(isObject(treeContext) ? treeContext.stageContexts : void 0);
+    }
+  }
+  const seen = /* @__PURE__ */ new Set();
+  const stack = roots.filter(isObject);
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (seen.has(node)) continue;
+    seen.add(node);
+    const count = isObject(node.attemptSummary) ? node.attemptSummary.count : void 0;
+    const runtimeStageId = node.runtimeStageId;
+    if (typeof count === "number" && Number.isInteger(count) && count > 1 && typeof runtimeStageId === "string" && runtimeStageId.length > 0) {
+      counts.set(runtimeStageId, count);
+    }
+    if (isObject(node.next)) stack.push(node.next);
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) if (isObject(child)) stack.push(child);
+    }
+  }
+  return counts;
+}
+function isObject(value) {
+  return value !== null && typeof value === "object";
+}
+function retryAttemptsFromNarrative(entries) {
   const attempts = /* @__PURE__ */ new Map();
   if (!Array.isArray(entries)) return attempts;
   for (const entry of entries) {

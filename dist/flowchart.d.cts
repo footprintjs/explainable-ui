@@ -2778,13 +2778,16 @@ declare function RunSlider({ index, cursorRuntimeStageId, onCursorChange, render
  *     failing stage's writes land (footprintjs commits before rethrow)
  *     but the message does not. Error painting needs the live recorder.
  *   - **`running` is false.** A recording is a finished run by definition.
- *   - **Retry attempts need the narrative.** A retried attempt commits
- *     nothing (footprintjs discards a failed attempt's staged writes), so
- *     the commit log cannot know a stage was attempted more than once. Pass
- *     the run's `narrativeEntries` — it records one `type: 'retry'` entry per
- *     failed attempt, stamped with the stage's runtimeStageId — and the
- *     rebuilt overlay carries the same `retryAttempts` a live recorder would
- *     have accumulated. Omit them and attempts are absent, not guessed.
+ *   - **Retry attempts come from the execution tree, not the commit log.** A
+ *     retried attempt commits nothing (footprintjs discards a failed
+ *     attempt's staged writes), so the log cannot know a stage was attempted
+ *     more than once. footprintjs >= 10.1 stamps each retried stage's node
+ *     with `attemptSummary` (its `count` is the attempts made), so a whole
+ *     `executor.getSnapshot()` carries the counts — subflow stages included,
+ *     through `subflowResults`. A recording from footprintjs 9.15–10.0 has no
+ *     summary: pass its `narrativeEntries`, whose `type: 'retry'` entries
+ *     (one per failed attempt) give the same counts. Neither source, and
+ *     attempts are absent, not guessed.
  *   - **Subflow-internal steps are absent when the engine isolated them.**
  *     footprintjs keeps deep-subflow commits out of the run-level
  *     commitLog by design, so a recording of a chart with subflows yields
@@ -2797,6 +2800,12 @@ declare function RunSlider({ index, cursorRuntimeStageId, onCursorChange, render
  *  a whole `executor.getSnapshot()` or just `{ commitLog }`. */
 interface SnapshotWithCommitLog {
     commitLog?: unknown;
+    /** The run's execution tree (`getSnapshot().executionTree`). Read for each
+     *  retried stage's `attemptSummary` (footprintjs >= 10.1). */
+    executionTree?: unknown;
+    /** The subflows' results (`getSnapshot().subflowResults`). Each one's own
+     *  tree (`treeContext.stageContexts`) holds its stages' `attemptSummary`. */
+    subflowResults?: unknown;
 }
 /** The slice of a narrative entry this reader consumes — duck-typed so both
  *  footprintjs's `CombinedNarrativeEntry` and this library's `NarrativeEntry`
@@ -2808,11 +2817,11 @@ interface NarrativeEntryLike {
 interface OverlayFromSnapshotOptions {
     /**
      * The run's narrative entries — `executor.getNarrativeEntries()`, or a
-     * recording's `narrativeEntries`. The ONLY post-hoc source of retry facts:
-     * `onStageRetry` fires during a stage and leaves no trace in the commit
-     * log, but the narrative keeps one `type: 'retry'` entry per failed
-     * attempt. Optional: without it the overlay simply carries no attempt
-     * facts (honest absence — never a guess).
+     * recording's `narrativeEntries`. The retry source for a recording from
+     * footprintjs 9.15–10.0, whose tree carries no `attemptSummary`: its
+     * narrative keeps one `type: 'retry'` entry per failed attempt. A stage the
+     * tree summarises takes the tree's count. Optional: with neither source the
+     * overlay carries no attempt facts (honest absence — never a guess).
      */
     readonly narrativeEntries?: readonly NarrativeEntryLike[] | null;
 }
