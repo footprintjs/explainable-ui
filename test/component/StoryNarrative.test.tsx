@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { StoryNarrative } from '../../src/components/StoryNarrative/StoryNarrative';
-import type { NarrativeEntry } from '../../src/types';
+import type { KnownNarrativeEntryType, NarrativeEntry } from '../../src/types';
 
 function e(type: NarrativeEntry['type'], text: string, extra?: Partial<NarrativeEntry>): NarrativeEntry {
   return { type, text, depth: 0, ...extra } as NarrativeEntry;
@@ -172,12 +172,15 @@ describe('StoryNarrative component', () => {
   });
 
   it('every narrative kind renders a badge of its own', () => {
-    // The runtime half of the compile-time gate: a kind added to the map
-    // without a union member (or listed here and then dropped) shows up.
-    const kinds: NarrativeEntry['type'][] = [
-      'stage', 'step', 'condition', 'fork', 'selector', 'subflow',
-      'loop', 'break', 'error', 'pause', 'resume', 'emit', 'retry',
-    ];
+    // The runtime half of the compile-time gate. The list is a record keyed
+    // by the known union, so a known kind missing from it is a compile error
+    // (`npm test` typechecks this file) — the list cannot fall behind.
+    const known: Record<KnownNarrativeEntryType, true> = {
+      stage: true, step: true, condition: true, fork: true, selector: true, subflow: true,
+      loop: true, break: true, error: true, pause: true, resume: true, emit: true, retry: true,
+      attempt: true,
+    };
+    const kinds = Object.keys(known) as KnownNarrativeEntryType[];
     const labels = kinds.map((type) => {
       const { container, unmount } = render(
         <StoryNarrative entries={[e(type, `${type} line`, { depth: 1 })]} revealedEntryCount={1} />,
@@ -187,30 +190,140 @@ describe('StoryNarrative component', () => {
       unmount();
       return label;
     });
-    // Only `step` may say "Data operation" — for anything else that label is
-    // the fallback firing, which is exactly the bug this guards.
+    // Only `step` may say "Data operation", and no known kind may wear the
+    // unknown-kind badge — either would be a fallback firing for a kind this
+    // release knows, which is exactly the bug this guards.
     expect(labels.filter((l) => l === 'Data operation')).toEqual(['Data operation']);
+    expect(labels).not.toContain('Narrative entry');
     expect(labels.every((l) => typeof l === 'string' && l.length > 0)).toBe(true);
   });
 
   it('an entry kind from a NEWER footprintjs still renders, labelled honestly', () => {
     // Forward compatibility: the fallback is not dead code, it is what an
-    // unknown-to-us kind gets. It must render, not crash or vanish.
-    const entries = [{ type: 'teleport', text: 'something new happened', depth: 1 } as unknown as NarrativeEntry];
-    const styled = render(<StoryNarrative entries={entries} revealedEntryCount={1} />);
+    // unknown-to-us kind gets. It must render, not crash or vanish — and the
+    // TYPE accepts it with no cast, which is what keeps a consumer compiling.
+    const entries: NarrativeEntry[] = [
+      { type: 'stage', text: 'Stage 1: Seed.', depth: 0 },
+      { type: 'teleport', text: 'something new happened', depth: 1 },
+      { type: 'stage', text: 'Stage 2: Finish.', depth: 0 },
+    ];
+    const styled = render(<StoryNarrative entries={entries} revealedEntryCount={3} />);
     expect(screen.getByText(/something new happened/)).toBeTruthy();
-    // It gets the neutral step badge — the honest answer for "we don't know
-    // this kind yet", and the reason the `??` fallback stays at the call site.
-    expect(styled.container.querySelector('span[aria-label]')?.getAttribute('aria-label')).toBe(
-      'Data operation',
-    );
+    // A plain generic badge: it claims nothing about the entry. The `step`
+    // badge would tell a screen reader it was a "Data operation".
+    const badge = screen.getByLabelText('Narrative entry');
+    expect(badge.textContent).toBe('◦');
+    expect(screen.queryByLabelText('Data operation')).toBeNull();
+    // It is not a step of the flowchart, so it takes no heading number.
+    expect(screen.getByText(/2\. \[Stage/)).toBeTruthy();
     styled.unmount();
     // Unstyled mode passes the raw kind through as `data-type`, so a consumer
     // styling by selector can reach a kind this release never heard of.
     const { container } = render(
-      <StoryNarrative entries={entries} revealedEntryCount={1} unstyled />,
+      <StoryNarrative entries={entries} revealedEntryCount={3} unstyled />,
     );
-    expect(container.querySelector('[data-type="teleport"]')).toBeTruthy();
+    expect(container.querySelector('[data-type="teleport"]')?.textContent).toBe('something new happened');
+  });
+
+  it('a kind named like an Object.prototype member gets the generic badge, not a phantom one', () => {
+    // The kind is any string. A plain `map[type]` lookup would find
+    // `Object.prototype.constructor` for "constructor" and render a badge
+    // with no icon and no label.
+    for (const type of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      const { unmount } = render(
+        <StoryNarrative entries={[{ type, text: `${type} happened`, depth: 1 }]} revealedEntryCount={1} />,
+      );
+      expect(screen.getByLabelText('Narrative entry').textContent).toBe('◦');
+      expect(screen.getByText(`${type} happened`)).toBeTruthy();
+      unmount();
+    }
+  });
+
+  it('accepts a newer engine’s entries without a cast — the consumer’s own assignment compiles', () => {
+    // The exact shape that broke two apps when footprintjs added `attempt`: the
+    // engine's entry type is a union of literals that includes a kind this
+    // package had never listed. `npm test` typechecks this file, so a return
+    // to a closed union fails here, at compile time, before any consumer.
+    interface NewerEngineEntry {
+      type: 'stage' | 'attempt' | 'deadline';
+      text: string;
+      depth: number;
+      runtimeStageId?: string;
+    }
+    const fromEngine: NewerEngineEntry[] = [
+      { type: 'stage', text: 'Stage 1: Charge.', depth: 0, runtimeStageId: 'charge#0' },
+      { type: 'attempt', text: 'Attempt 1 of 2 at Charge succeeded in 3ms.', depth: 1 },
+      { type: 'deadline', text: 'The run had 2s left.', depth: 1 },
+    ];
+    const accepted: NarrativeEntry[] = fromEngine;
+    render(<StoryNarrative entries={accepted} revealedEntryCount={3} />);
+    expect(screen.getByLabelText('Attempt')).toBeTruthy();
+    expect(screen.getByLabelText('Narrative entry')).toBeTruthy();
+    // The KNOWN list stays closed: only the entry's `type` is open.
+    // @ts-expect-error — 'deadline' is not a kind this release knows
+    const notKnown: KnownNarrativeEntryType = 'deadline';
+    expect(notKnown).toBe('deadline');
+  });
+
+  // ── attempt (footprintjs >= 10.1) ──────────────────────────────────────
+  // One line per attempt of a retried stage, replacing the `retry` line. It
+  // is styled exactly as `retry` was: same glyph, same warning weight, nested
+  // in its stage, no heading number — and its own label.
+
+  it('renders each attempt as its own line, verbatim, with the Attempt badge', () => {
+    const entries = [
+      e('stage', 'Stage 1: Fetch rate.'),
+      e('attempt', 'Attempt 1 of 3 at Fetch rate failed in 812ms (server: 503), retrying in 100ms.', { depth: 1 }),
+      e('attempt', 'Attempt 2 of 3 at Fetch rate succeeded in 9ms.', { depth: 1 }),
+    ];
+    render(<StoryNarrative entries={entries} revealedEntryCount={3} />);
+    const badges = screen.getAllByLabelText('Attempt');
+    expect(badges).toHaveLength(2);
+    expect(badges.every((badge) => badge.textContent === '↺')).toBe(true);
+    expect(screen.getByText(/failed in 812ms \(server: 503\), retrying in 100ms\./)).toBeTruthy();
+    expect(screen.getByText(/succeeded in 9ms\./)).toBeTruthy();
+  });
+
+  it('styles an attempt line exactly as a retry line', () => {
+    const styleOf = (type: 'retry' | 'attempt') => {
+      const { container, unmount } = render(
+        <StoryNarrative entries={[e(type, 'one try', { depth: 1 })]} revealedEntryCount={1} />,
+      );
+      const row = container.querySelector('[data-fp="story-narrative"] > div');
+      const spans = row ? Array.from(row.querySelectorAll('span')) : [];
+      const style = {
+        row: row?.getAttribute('style'),
+        icon: spans[0]?.getAttribute('style'),
+        iconText: spans[0]?.textContent,
+        text: spans[1]?.getAttribute('style'),
+      };
+      unmount();
+      return style;
+    };
+    expect(styleOf('attempt')).toEqual(styleOf('retry'));
+    // Warning weight, not error weight: an attempt is not the stage's outcome.
+    expect(styleOf('attempt').text).toContain('--fp-color-warning');
+  });
+
+  it('gives attempt lines no heading number — the next stage keeps its number', () => {
+    const entries = [
+      e('stage', 'Stage 1: Fetch rate.'),
+      e('attempt', 'Attempt 1 of 2 at Fetch rate failed in 4ms (boom), retrying immediately.', { depth: 1 }),
+      e('attempt', 'Attempt 2 of 2 at Fetch rate succeeded in 3ms.', { depth: 1 }),
+      e('stage', 'Stage 2: Format the answer.'),
+    ];
+    const { container } = render(<StoryNarrative entries={entries} revealedEntryCount={4} unstyled />);
+    // Every row, exactly: an attempt line numbered by mistake would read "2. …" and push the stage to "4.".
+    const rows = Array.from(container.querySelectorAll('[data-fp="narrative-entry"]')).map((row) => [
+      row.getAttribute('data-type'),
+      row.textContent,
+    ]);
+    expect(rows).toEqual([
+      ['stage', '1. [Stage: ] Fetch rate.'],
+      ['attempt', 'Attempt 1 of 2 at Fetch rate failed in 4ms (boom), retrying immediately.'],
+      ['attempt', 'Attempt 2 of 2 at Fetch rate succeeded in 3ms.'],
+      ['stage', '2. [Stage: ] Format the answer.'],
+    ]);
   });
 
   it('shows retry text verbatim and gives it no heading number', () => {

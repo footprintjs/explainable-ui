@@ -7,7 +7,9 @@
  * tests pin the fact the chart now paints from, on both paths:
  *
  *   live    — `createTraceRuntimeOverlay().recorder.onStageRetry`
- *   replay  — `overlayFromSnapshot(snapshot, { narrativeEntries })`
+ *   replay  — `overlayFromSnapshot(snapshot)`: each node's `attemptSummary`
+ *             (footprintjs >= 10.1), or `{ narrativeEntries }`' `retry`
+ *             entries for a 9.15–10.0 recording
  *
  * The engine's law these rest on (footprintjs >= 9.15.0): every attempt of a
  * stage runs under ONE runtimeStageId and produces ONE commit bundle, and
@@ -283,5 +285,136 @@ describe("overlayFromSnapshot — attempts rebuilt from the narrative", () => {
     expect([...sliceOverlay(replayed, 1).retryAttempts]).toEqual([
       ...sliceOverlay(live.getOverlay(), 1).retryAttempts,
     ]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Post-hoc, footprintjs >= 10.1: the count the engine stamped on the tree
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** An execution-tree node as footprintjs 10.1 shapes it, carrying a finished series' summary. */
+const retriedNode = (id: string, rsid: string, count: number, extra: Record<string, unknown> = {}) => ({
+  id,
+  runtimeStageId: rsid,
+  attemptSummary: {
+    count,
+    ok: 1,
+    failed: count - 1,
+    timeout: 0,
+    aborted: 0,
+    paused: 0,
+    last: { next: "done", reason: "succeeded" },
+  },
+  ...extra,
+});
+
+describe("overlayFromSnapshot — attempts read from attemptSummary (footprintjs >= 10.1)", () => {
+  it("unit: a retried node's stamped count is the attempt count — no narrative needed", () => {
+    // 10.1 narrates `attempt` lines, never `retry`, so counting `retry`
+    // entries would read zero; the tree has the number.
+    const overlay = overlayFromSnapshot({
+      commitLog: [bundle(0, "seed#0", "Seed"), bundle(1, "fetch-quote#1", "FetchQuote")],
+      executionTree: { id: "seed", runtimeStageId: "seed#0", next: retriedNode("fetch-quote", "fetch-quote#1", 3) },
+    });
+    expect([...(overlay.retryAttempts ?? [])]).toEqual([["fetch-quote#1", 3]]);
+    expect(sliceOverlay(overlay, 1).retryAttempts.get("fetch-quote")).toBe(3);
+  });
+
+  it("unit: a policy stage that succeeded first time (count 1) has no entry", () => {
+    const overlay = overlayFromSnapshot({
+      commitLog: [bundle(0, "settle#0", "Settle")],
+      executionTree: retriedNode("settle", "settle#0", 1),
+    });
+    expect(overlay.retryAttempts?.size).toBe(0);
+  });
+
+  it("functional: fork children and subflow stages are counted under their own runtimeStageIds", () => {
+    const overlay = overlayFromSnapshot({
+      commitLog: [bundle(0, "seed#0", "Seed")],
+      executionTree: {
+        id: "seed",
+        runtimeStageId: "seed#0",
+        children: [retriedNode("a", "a#1", 2), { id: "b", runtimeStageId: "b#2" }],
+      },
+      subflowResults: {
+        // dual-keyed, as footprintjs serves it: the same result under two keys
+        "sf#3": { treeContext: { stageContexts: retriedNode("sf/inner", "sf/inner#4", 4) } },
+        sf: { treeContext: { stageContexts: retriedNode("sf/inner", "sf/inner#4", 4) } },
+      },
+    });
+    expect(Object.fromEntries(overlay.retryAttempts ?? [])).toEqual({ "a#1": 2, "sf/inner#4": 4 });
+  });
+
+  it("precedence: the tree's count wins; `retry` entries fill a stage the tree does not summarise", () => {
+    // Older source: a 9.15–10.0 recording's narrative. Where both speak, the
+    // stamped number is the record's — a narrative a formatter thinned out
+    // must not lower it.
+    const overlay = overlayFromSnapshot(
+      {
+        commitLog: [bundle(0, "fetch-quote#0", "FetchQuote"), bundle(1, "settle#1", "Settle")],
+        executionTree: retriedNode("fetch-quote", "fetch-quote#0", 3, { next: { id: "settle", runtimeStageId: "settle#1" } }),
+      },
+      { narrativeEntries: [retryEntry("fetch-quote#0"), retryEntry("settle#1")] },
+    );
+    expect(overlay.retryAttempts?.get("fetch-quote#0")).toBe(3);
+    expect(overlay.retryAttempts?.get("settle#1")).toBe(2);
+  });
+
+  it("regression: a 9.15–10.0 recording (no summary) still counts its `retry` entries", () => {
+    const overlay = overlayFromSnapshot(
+      {
+        commitLog: [bundle(0, "fetch-quote#0", "FetchQuote")],
+        executionTree: { id: "fetch-quote", runtimeStageId: "fetch-quote#0" },
+      },
+      { narrativeEntries: [retryEntry("fetch-quote#0"), retryEntry("fetch-quote#0")] },
+    );
+    expect(overlay.retryAttempts?.get("fetch-quote#0")).toBe(3);
+  });
+
+  it("regression: a subflow looped twice — its LATEST execution's count shows, as live and narrative do", () => {
+    // The inner stage runs once per mount, under one id with two execution
+    // indexes. It has no step on the replayed rail (subflow internals stay in
+    // the subflow's own log), so the slice takes the LATER map entry for its
+    // node — the map must be in execution order, whatever order the trees
+    // are walked in.
+    const overlay = overlayFromSnapshot({
+      commitLog: [bundle(0, "seed#0", "Seed"), bundle(1, "sf#3", "Sub"), bundle(2, "sf#8", "Sub")],
+      executionTree: { id: "seed", runtimeStageId: "seed#0" },
+      subflowResults: {
+        "sf#3": { treeContext: { stageContexts: retriedNode("sf/inner", "sf/inner#4", 2) } },
+        "sf#8": { treeContext: { stageContexts: retriedNode("sf/inner", "sf/inner#9", 3) } },
+      },
+    });
+    expect([...(overlay.retryAttempts ?? []).keys()]).toEqual(["sf/inner#4", "sf/inner#9"]);
+    expect(sliceOverlay(overlay, 2).retryAttempts.get("sf/inner")).toBe(3);
+  });
+
+  it("boundary: malformed summaries and nodes are ignored, never guessed", () => {
+    const overlay = overlayFromSnapshot({
+      commitLog: [],
+      executionTree: {
+        id: "root",
+        runtimeStageId: "root#0",
+        attemptSummary: { count: "3" },
+        children: [
+          { id: "nan", runtimeStageId: "nan#1", attemptSummary: { count: Number.NaN } },
+          { id: "frac", runtimeStageId: "frac#2", attemptSummary: { count: 2.5 } },
+          { id: "no-id", attemptSummary: { count: 3 } },
+          { id: "null-summary", runtimeStageId: "null#3", attemptSummary: null },
+          null,
+          "not a node",
+        ],
+      },
+      subflowResults: { broken: null, alsoBroken: { treeContext: "x" } },
+    });
+    expect(overlay.retryAttempts?.size).toBe(0);
+  });
+
+  it("boundary: a hand-built tree with a cycle is walked once, not forever", () => {
+    const node: Record<string, unknown> = retriedNode("loop", "loop#0", 2);
+    node.next = node;
+    node.children = [node];
+    const overlay = overlayFromSnapshot({ commitLog: [], executionTree: node });
+    expect(overlay.retryAttempts?.get("loop#0")).toBe(2);
   });
 });

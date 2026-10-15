@@ -3773,10 +3773,56 @@ function overlayFromSnapshot(snapshot, options = {}) {
     executionOrder,
     errors: /* @__PURE__ */ new Map(),
     running: false,
-    retryAttempts: retryAttemptsFrom(options.narrativeEntries)
+    retryAttempts: retryAttemptsFrom(snapshot, options.narrativeEntries)
   };
 }
-function retryAttemptsFrom(entries) {
+function retryAttemptsFrom(snapshot, entries) {
+  const attempts = retryAttemptsFromNarrative(entries);
+  for (const [runtimeStageId, count] of attemptsFromTrees(snapshot)) attempts.set(runtimeStageId, count);
+  return new Map([...attempts].sort(([a], [b]) => compareExecutionIndex(a, b)));
+}
+function compareExecutionIndex(a, b) {
+  const x = executionIndexOf(a);
+  const y = executionIndexOf(b);
+  return x === y ? 0 : x < y ? -1 : 1;
+}
+function executionIndexOf(runtimeStageId) {
+  const hashIdx = runtimeStageId.lastIndexOf("#");
+  const index = hashIdx >= 0 ? Number(runtimeStageId.slice(hashIdx + 1)) : Number.NaN;
+  return Number.isFinite(index) ? index : Number.POSITIVE_INFINITY;
+}
+function attemptsFromTrees(snapshot) {
+  const counts = /* @__PURE__ */ new Map();
+  const roots = [snapshot?.executionTree];
+  const subflowResults = snapshot?.subflowResults;
+  if (subflowResults !== null && typeof subflowResults === "object") {
+    for (const result of Object.values(subflowResults)) {
+      const treeContext = isObject(result) ? result.treeContext : void 0;
+      roots.push(isObject(treeContext) ? treeContext.stageContexts : void 0);
+    }
+  }
+  const seen = /* @__PURE__ */ new Set();
+  const stack = roots.filter(isObject);
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (seen.has(node)) continue;
+    seen.add(node);
+    const count = isObject(node.attemptSummary) ? node.attemptSummary.count : void 0;
+    const runtimeStageId = node.runtimeStageId;
+    if (typeof count === "number" && Number.isInteger(count) && count > 1 && typeof runtimeStageId === "string" && runtimeStageId.length > 0) {
+      counts.set(runtimeStageId, count);
+    }
+    if (isObject(node.next)) stack.push(node.next);
+    if (Array.isArray(node.children)) {
+      for (const child of node.children) if (isObject(child)) stack.push(child);
+    }
+  }
+  return counts;
+}
+function isObject(value) {
+  return value !== null && typeof value === "object";
+}
+function retryAttemptsFromNarrative(entries) {
   const attempts = /* @__PURE__ */ new Map();
   if (!Array.isArray(entries)) return attempts;
   for (const entry of entries) {
@@ -3861,6 +3907,12 @@ var ENTRY_ICONS = {
   // the chart rather than a failure. Precedent for icon reuse with a distinct
   // label: `fork` and `selector` already share ⑃.
   retry: { icon: "\u21BA", color: theme.warning, label: "Retry" },
+  // One attempt of a retried stage (footprintjs >= 10.1, where it replaces the
+  // `retry` line), styled exactly as `retry` was. The entry carries its outcome
+  // only in its text, and this renderer never parses prose, so every line of
+  // the series gets the same weight: the stage needed its retry policy. Shares
+  // ↺ with `retry` and tells itself apart by its label (as fork and selector do).
+  attempt: { icon: "\u21BA", color: theme.warning, label: "Attempt" },
   // The run stopped and is waiting on someone — warning-weight for the same
   // reason `retry` is: it wants the eye, but nothing has failed. Hollow ▷ for
   // the resume so it reads against `stage`'s filled ▸ at a glance, and
@@ -3871,6 +3923,10 @@ var ENTRY_ICONS = {
   // weight: it is the app talking, not the engine reporting on itself.
   emit: { icon: "\u25C8", color: theme.textSecondary, label: "Emitted event" }
 };
+var UNKNOWN_ENTRY_BADGE = { icon: "\u25E6", color: theme.textSecondary, label: "Narrative entry" };
+function badgeOf(type) {
+  return Object.prototype.hasOwnProperty.call(ENTRY_ICONS, type) ? ENTRY_ICONS[type] : UNKNOWN_ENTRY_BADGE;
+}
 function StoryNarrative({
   entries,
   revealedEntryCount,
@@ -3978,12 +4034,12 @@ function StoryNarrative({
       children: [
         numberedEntries.map((entry, i) => {
           if (entry.isSubflowExit) return null;
-          const meta = ENTRY_ICONS[entry.type] ?? ENTRY_ICONS.step;
+          const meta = badgeOf(entry.type);
           const isHeading = entry.isHeading;
           const isDecision = entry.type === "condition";
           const isError = entry.type === "error";
           const isBreak = entry.type === "break";
-          const isRetry = entry.type === "retry";
+          const isAttemptLine = entry.type === "retry" || entry.type === "attempt";
           const isSubflow = entry.isSubflow;
           const isLast = i === numberedEntries.length - 1;
           const headingType = entry.headingType;
@@ -4022,7 +4078,7 @@ function StoryNarrative({
                     style: {
                       fontSize: isHeading ? fs.body : fs.small,
                       fontWeight: isHeading ? 600 : 400,
-                      color: isError || isBreak ? theme.error : isDecision || isRetry ? theme.warning : isHeading ? theme.textPrimary : theme.textSecondary,
+                      color: isError || isBreak ? theme.error : isDecision || isAttemptLine ? theme.warning : isHeading ? theme.textPrimary : theme.textSecondary,
                       lineHeight: 1.6,
                       fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
                     },
@@ -7858,9 +7914,9 @@ function ExplainableShell({
   const snapshots = snapshotsProp ?? derivedFromRuntime?.snapshots ?? [];
   const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
   const runtimeOverlay = (0, import_react34.useMemo)(
-    () => runtimeOverlayProp ?? // The narrative rides along because retries leave no mark on the commit
-    // log: a failed attempt discards its writes. Without it a replayed
-    // retried stage would be the one thing the chart could not show.
+    () => runtimeOverlayProp ?? // Retries leave no mark on the commit log (a failed attempt discards its
+    // writes): the snapshot's tree carries their counts (footprintjs >= 10.1),
+    // and for an older recording the narrative's `retry` entries do.
     (runtimeSnapshot ? overlayFromSnapshot(runtimeSnapshot, { narrativeEntries }) : void 0),
     [runtimeOverlayProp, runtimeSnapshot, narrativeEntries]
   );
@@ -9206,8 +9262,9 @@ function TraceViewer({
   }, [prepared]);
   const runtimeOverlay = (0, import_react35.useMemo)(
     () => prepared.ok ? overlayFromSnapshot(prepared.recording.snapshot, {
-      // Retry attempts live in the narrative, never in the commit log —
-      // a discarded attempt commits nothing.
+      // Retry attempts are never in the commit log (a discarded attempt
+      // commits nothing): the snapshot's tree carries them on footprintjs
+      // >= 10.1, the narrative's `retry` entries on an older recording.
       narrativeEntries: prepared.recording.narrativeEntries
     }) : void 0,
     [prepared]

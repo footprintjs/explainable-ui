@@ -486,13 +486,17 @@ Three things it deliberately will not do:
 - **It never appears at `×1`.** One attempt is the silent default.
 
 The chart reads this from the overlay, so it works live and on replay. Live
-comes free (`createTraceRuntimeOverlay` now listens to `onStageRetry`); on
-replay, hand `overlayFromSnapshot` the run's narrative — a failed attempt
-discards its writes, so the commit log genuinely cannot know:
+comes free (`createTraceRuntimeOverlay` now listens to `onStageRetry`). On
+replay, a failed attempt discards its writes, so the commit log genuinely
+cannot know — `overlayFromSnapshot` reads the count the engine stamped on the
+stage's execution-tree node instead (`attemptSummary`, footprintjs ≥ 10.1),
+so a whole `executor.getSnapshot()` is enough. A recording from footprintjs
+9.15–10.0 has no summary; pass its narrative, whose `retry` entries carry the
+same count:
 
 ```tsx
 overlay={overlayFromSnapshot(recording.snapshot, {
-  narrativeEntries: recording.narrativeEntries,   // where the attempts live
+  narrativeEntries: recording.narrativeEntries,   // only for 9.15–10.0 recordings
 })}
 ```
 
@@ -772,7 +776,7 @@ experimental; the ones you will actually reach for are in the first table.
 |---|---|
 | `toVisualizationSnapshots` | Convert `FlowChartExecutor.getSnapshot()` → `StageSnapshot[]` |
 | `graphFromStructure` | Rebuild the chart's `TraceGraph` from a saved `chart.buildTimeStructure` — the post-hoc twin of `createTraceStructureRecorder` |
-| `overlayFromSnapshot` | Rebuild the chart's `RuntimeOverlay` from a recorded snapshot (replay without a live executor). Pass `{ narrativeEntries }` to recover retry attempts too |
+| `overlayFromSnapshot` | Rebuild the chart's `RuntimeOverlay` from a recorded snapshot (replay without a live executor). Retry attempts come from the snapshot's tree (footprintjs ≥ 10.1); for a 9.15–10.0 recording pass `{ narrativeEntries }` |
 | `narrativeFromSnapshot` | Read the narrative a recorded snapshot carries in `snapshot.recorders` |
 | `subflowResultToSnapshots` | Convert subflow result → `StageSnapshot[]` |
 | `createSnapshots` | Build `StageSnapshot[]` from simple arrays (testing/custom data) |
@@ -819,9 +823,10 @@ own badge — the icon you see, and the label a screen reader hears:
 | `pause` | ‖ | Paused | The run stopped and is waiting on someone. |
 | `resume` | ▷ | Resumed | It carried on from the checkpoint. |
 | `emit` | ◈ | Emitted event | Your own `scope.$emit` telemetry. |
-| `retry` | ↺ | Retry | One attempt failed and the stage is running again. |
+| `retry` | ↺ | Retry | One attempt failed and the stage is running again (footprintjs 9.15–10.0). |
+| `attempt` | ↺ | Attempt | One attempt of a retried stage: how it ended, how long it took, and whether the stage tries again (footprintjs ≥ 10.1). |
 
-Two kinds are worth reading twice. **`retry`** (footprintjs ≥ 9.15.0) is
+Two kinds are worth reading twice. **`retry`** (footprintjs 9.15–10.0) is
 *attempt* telemetry, not an outcome — the entry's text carries the arithmetic
 ("attempt 2 of 3 at FetchQuote failed"), it nests inside its own stage, and the
 stage may still succeed, so it is warning-weight rather than error-weight. All
@@ -829,10 +834,14 @@ attempts share ONE step on the time-travel rail, so a retried stage never
 multiplies your cursor — and the flowchart says the same thing with the same
 arrow (see the attempt chip above), so the two surfaces never disagree.
 **`loop`** and **`retry`** deliberately use different arrows: ↻ is a by-design
-back-edge, ↺ is a failure going round again.
+back-edge, ↺ is a failure going round again. footprintjs 10.1 replaces the
+`retry` line with one **`attempt`** line per attempt, styled the same way.
 
-A kind from a newer footprintjs than this release knows about still renders —
-it gets the neutral `step` badge rather than disappearing.
+A kind from a newer footprintjs than this release knows about still compiles
+and still renders. `NarrativeEntry['type']` accepts any string, so handing
+`executor.getNarrativeEntries()` to a component here never breaks your build
+when the engine gains a kind. The entry gets a plain `◦` badge labelled
+"Narrative entry" and its text as the engine wrote it.
 
 In `unstyled` mode each entry also carries `data-type="<kind>"`, so you can
 style any kind — including a future one — by selector:

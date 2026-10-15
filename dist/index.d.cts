@@ -27,14 +27,37 @@ interface StageSnapshot {
     /** Subflow execution result — present on stages that ran a subflow. */
     subflowResult?: unknown;
 }
+/**
+ * The narrative entry kinds this package renders with a badge of its own.
+ * Closed on purpose: `StoryNarrative` keys its badge map by this union, so a
+ * kind added here without a badge is a compile error.
+ */
+type KnownNarrativeEntryType = 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume' | 'emit'
+/** One failed attempt at a stage that declares a `retry` policy — the
+ *  stage is about to run again. Attempt telemetry, not an outcome: the
+ *  stage may still succeed, so this is warning-weight, not error-weight.
+ *  Emitted by footprintjs 9.15–10.0, nested inside its own stage; later
+ *  releases narrate `attempt` lines instead. */
+ | 'retry'
+/** One attempt of a stage that declares a `retry` policy — its outcome,
+ *  how long it took, its cause and the retry-or-stop decision, one line per
+ *  attempt. Emitted by footprintjs >= 10.1, nested inside its own stage
+ *  (beneath the `error` line when the stage failed for good). */
+ | 'attempt';
+/**
+ * A narrative entry's kind: one this package knows, or ANY other string.
+ *
+ * Open on purpose. footprintjs adds entry kinds in minor releases (`retry` in
+ * 9.15, `attempt` in 10.1); while this type was a closed union, each addition
+ * made every app that hands `executor.getNarrativeEntries()` to a component
+ * here fail to compile. A kind this release does not know renders with a plain
+ * generic badge and its text as written. `(string & {})` keeps editor
+ * completion for the known kinds.
+ */
+type NarrativeEntryType = KnownNarrativeEntryType | (string & {});
 /** Structured narrative entry — preserves type info for semantic rendering. */
 interface NarrativeEntry {
-    type: 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume' | 'emit'
-    /** One failed attempt at a stage that declares a `retry` policy — the
-     *  stage is about to run again. Attempt telemetry, not an outcome: the
-     *  stage may still succeed, so this is warning-weight, not error-weight.
-     *  Emitted by footprintjs >= 9.15.0, nested inside its own stage. */
-     | 'retry';
+    type: NarrativeEntryType;
     text: string;
     depth: number;
     stageName?: string;
@@ -1353,13 +1376,16 @@ declare function createSnapshots(stages: Array<{
  *     failing stage's writes land (footprintjs commits before rethrow)
  *     but the message does not. Error painting needs the live recorder.
  *   - **`running` is false.** A recording is a finished run by definition.
- *   - **Retry attempts need the narrative.** A retried attempt commits
- *     nothing (footprintjs discards a failed attempt's staged writes), so
- *     the commit log cannot know a stage was attempted more than once. Pass
- *     the run's `narrativeEntries` — it records one `type: 'retry'` entry per
- *     failed attempt, stamped with the stage's runtimeStageId — and the
- *     rebuilt overlay carries the same `retryAttempts` a live recorder would
- *     have accumulated. Omit them and attempts are absent, not guessed.
+ *   - **Retry attempts come from the execution tree, not the commit log.** A
+ *     retried attempt commits nothing (footprintjs discards a failed
+ *     attempt's staged writes), so the log cannot know a stage was attempted
+ *     more than once. footprintjs >= 10.1 stamps each retried stage's node
+ *     with `attemptSummary` (its `count` is the attempts made), so a whole
+ *     `executor.getSnapshot()` carries the counts — subflow stages included,
+ *     through `subflowResults`. A recording from footprintjs 9.15–10.0 has no
+ *     summary: pass its `narrativeEntries`, whose `type: 'retry'` entries
+ *     (one per failed attempt) give the same counts. Neither source, and
+ *     attempts are absent, not guessed.
  *   - **Subflow-internal steps are absent when the engine isolated them.**
  *     footprintjs keeps deep-subflow commits out of the run-level
  *     commitLog by design, so a recording of a chart with subflows yields
@@ -1372,6 +1398,12 @@ declare function createSnapshots(stages: Array<{
  *  a whole `executor.getSnapshot()` or just `{ commitLog }`. */
 interface SnapshotWithCommitLog {
     commitLog?: unknown;
+    /** The run's execution tree (`getSnapshot().executionTree`). Read for each
+     *  retried stage's `attemptSummary` (footprintjs >= 10.1). */
+    executionTree?: unknown;
+    /** The subflows' results (`getSnapshot().subflowResults`). Each one's own
+     *  tree (`treeContext.stageContexts`) holds its stages' `attemptSummary`. */
+    subflowResults?: unknown;
 }
 /** The slice of a narrative entry this reader consumes — duck-typed so both
  *  footprintjs's `CombinedNarrativeEntry` and this library's `NarrativeEntry`
@@ -1383,11 +1415,12 @@ interface NarrativeEntryLike {
 interface OverlayFromSnapshotOptions {
     /**
      * The run's narrative entries — `executor.getNarrativeEntries()`, or a
-     * recording's `narrativeEntries`. The ONLY post-hoc source of retry facts:
-     * `onStageRetry` fires during a stage and leaves no trace in the commit
-     * log, but the narrative keeps one `type: 'retry'` entry per failed
-     * attempt. Optional: without it the overlay simply carries no attempt
-     * facts (honest absence — never a guess).
+     * recording's `narrativeEntries`. The retry source for a recording from
+     * footprintjs 9.15–10.0, whose tree carries no `attemptSummary`: its
+     * narrative keeps one `type: 'retry'` entry per failed attempt. Where the
+     * tree stamps a retried execution's count, that count wins. Optional: with
+     * neither source the overlay carries no attempt facts (honest absence —
+     * never a guess).
      */
     readonly narrativeEntries?: readonly NarrativeEntryLike[] | null;
 }

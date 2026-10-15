@@ -3,13 +3,14 @@
  *
  * Recorder-based view: renders CombinedNarrativeRecorder output with
  * progressive reveal synced to snapshot index. Each entry is typed
- * (stage, step, condition, fork, subflow, loop, break, error, retry) and
- * rendered with appropriate icon + indentation.
+ * (stage, step, condition, fork, subflow, loop, break, error, retry,
+ * attempt, …) and rendered with appropriate icon + indentation; a kind this
+ * release does not know gets a plain generic badge and its text as written.
  *
  * Data source: FlowRecorder (fires AFTER stage execution)
  */
 import { useMemo, useRef, useEffect } from "react";
-import type { NarrativeEntry, BaseComponentProps } from "../../types";
+import type { NarrativeEntry, BaseComponentProps, KnownNarrativeEntryType } from "../../types";
 import { theme, fontSize, padding } from "../../theme";
 
 export interface StoryNarrativeProps extends BaseComponentProps {
@@ -30,19 +31,24 @@ export interface StoryNarrativeProps extends BaseComponentProps {
   scopeSubflowId?: string;
 }
 
+interface EntryBadge {
+  icon: string;
+  color: string;
+  label: string;
+}
+
 /**
  * Badge per narrative kind — icon, colour and the accessible label.
  *
- * Keyed by `NarrativeEntry["type"]` ON PURPOSE, not by `string`: a kind added
- * to the union without a badge here is now a COMPILE error. It used to be
- * `Record<string, …>`, and the cost of that was silent — `pause`, `resume` and
- * `emit` had been in the union (and in real engine output) for releases while
- * rendering with the `step` fallback, which told a screen reader that a paused
- * run was a "Data operation". The fallback at the call site stays for entries
- * that arrive from a NEWER footprintjs than this package compiles against, but
- * it is no longer how a kind we already know about gets rendered.
+ * Keyed by `KnownNarrativeEntryType` ON PURPOSE, not by `string`: a known kind
+ * without a badge here is a COMPILE error. It used to be `Record<string, …>`,
+ * and the cost of that was silent — `pause`, `resume` and `emit` had been in
+ * the union (and in real engine output) for releases while rendering with the
+ * `step` fallback, which told a screen reader that a paused run was a "Data
+ * operation". A kind from a NEWER footprintjs than this package knows gets
+ * {@link UNKNOWN_ENTRY_BADGE} instead (see {@link badgeOf}).
  */
-const ENTRY_ICONS: Record<NarrativeEntry["type"], { icon: string; color: string; label: string }> = {
+const ENTRY_ICONS: Record<KnownNarrativeEntryType, EntryBadge> = {
   stage:     { icon: "▸", color: theme.primary,       label: "Stage" },
   step:      { icon: "·", color: theme.textMuted,      label: "Data operation" },
   condition: { icon: "◇", color: theme.warning,        label: "Decision" },
@@ -61,6 +67,12 @@ const ENTRY_ICONS: Record<NarrativeEntry["type"], { icon: string; color: string;
   // the chart rather than a failure. Precedent for icon reuse with a distinct
   // label: `fork` and `selector` already share ⑃.
   retry:     { icon: "↺", color: theme.warning,        label: "Retry" },
+  // One attempt of a retried stage (footprintjs >= 10.1, where it replaces the
+  // `retry` line), styled exactly as `retry` was. The entry carries its outcome
+  // only in its text, and this renderer never parses prose, so every line of
+  // the series gets the same weight: the stage needed its retry policy. Shares
+  // ↺ with `retry` and tells itself apart by its label (as fork and selector do).
+  attempt:   { icon: "↺", color: theme.warning,        label: "Attempt" },
   // The run stopped and is waiting on someone — warning-weight for the same
   // reason `retry` is: it wants the eye, but nothing has failed. Hollow ▷ for
   // the resume so it reads against `stage`'s filled ▸ at a glance, and
@@ -71,6 +83,24 @@ const ENTRY_ICONS: Record<NarrativeEntry["type"], { icon: string; color: string;
   // weight: it is the app talking, not the engine reporting on itself.
   emit:      { icon: "◈", color: theme.textSecondary,  label: "Emitted event" },
 };
+
+/**
+ * The badge for a kind this release does not know — plain and neutral. It
+ * claims nothing about the entry (the `step` badge would call it a "Data
+ * operation"); the text, which the engine already wrote, says what happened.
+ */
+const UNKNOWN_ENTRY_BADGE: EntryBadge = { icon: "◦", color: theme.textSecondary, label: "Narrative entry" };
+
+/**
+ * The badge for an entry kind. An OWN-property lookup: the kind is any string,
+ * and a name like `constructor` or `__proto__` must not find something on
+ * `Object.prototype` and render it as a badge.
+ */
+function badgeOf(type: string): EntryBadge {
+  return Object.prototype.hasOwnProperty.call(ENTRY_ICONS, type)
+    ? ENTRY_ICONS[type as KnownNarrativeEntryType]
+    : UNKNOWN_ENTRY_BADGE;
+}
 
 export function StoryNarrative({
   entries,
@@ -207,10 +237,11 @@ export function StoryNarrative({
         return { ...entry, heading: null, isHeading: false, text: cleanText };
       }
 
-      // loop, break, step, error, retry — no heading number
-      // Loop is a back-edge (not a new node), break is a termination signal,
-      // and retry is one failed attempt WITHIN the stage above it — numbering
-      // any of them would invent a step the flowchart never took.
+      // loop, break, step, error, retry, attempt, and any kind this release
+      // does not know — no heading number. Loop is a back-edge (not a new
+      // node), break is a termination signal, and retry / attempt lines sit
+      // WITHIN the stage above them — numbering any of them would invent a
+      // step the flowchart never took.
       return { ...entry, heading: null, isHeading: false };
     });
   }, [revealed]);
@@ -253,14 +284,14 @@ export function StoryNarrative({
         // Skip subflow exit markers — entry marker is enough
         if ((entry as any).isSubflowExit) return null;
 
-        const meta = ENTRY_ICONS[entry.type] ?? ENTRY_ICONS.step;
+        const meta = badgeOf(entry.type);
         const isHeading = entry.isHeading;
         const isDecision = entry.type === "condition";
         const isError = entry.type === "error";
         const isBreak = entry.type === "break";
-        // Warning-weight alongside decisions: a failed attempt is a fact worth
-        // catching the eye, but the stage has not failed yet.
-        const isRetry = entry.type === "retry";
+        // Warning-weight alongside decisions: an attempt is a fact worth
+        // catching the eye, but it is not the stage's outcome.
+        const isAttemptLine = entry.type === "retry" || entry.type === "attempt";
         const isSubflow = (entry as any).isSubflow;
         const isLast = i === numberedEntries.length - 1;
         const headingType = (entry as any).headingType as string | undefined;
@@ -298,7 +329,7 @@ export function StoryNarrative({
                 fontWeight: isHeading ? 600 : 400,
                 color: isError || isBreak
                   ? theme.error
-                  : isDecision || isRetry
+                  : isDecision || isAttemptLine
                     ? theme.warning
                     : isHeading
                       ? theme.textPrimary
