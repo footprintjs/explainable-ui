@@ -24,9 +24,12 @@ jobs:
       # Fresh resolution (no committed lockfile — a library's lock is stripped on publish
       # and can only pin the build env to a stale internal dep). This job has NO publish
       # power, so an unpinned dep here cannot reach the registry token.
-      - run: npm install
-      - run: npm test
+      # npm 10's Arborist crashes resolving the current unlocked peer graph
+      # (edgesOut of null) — v0.38.1 was tagged but never published because of it.
+      # Same pinned installer and same order as ci.yml (build, then test).
+      - run: npx --yes npm@11.21.0 install
       - run: npm run build
+      - run: npm test
 
       # Packaging-correctness gate — block a publish that would ship a types masquerade /
       # broken subpath export.

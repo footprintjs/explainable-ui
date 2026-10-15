@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.38.2] - 2026-10-15
+
+### Fixed
+
+- **The publish workflow installs the way CI does.** 0.38.1 was tagged but
+  never published: the publish job's `npm install` crashed on npm 10
+  (`edgesOut` of null). `publish.yml` now uses the same pinned installer as
+  `ci.yml` and builds before it tests. 0.38.2 carries exactly the 0.38.1
+  changes below.
+
 ## [0.38.1] - 2026-10-15
 
 ### Fixed
