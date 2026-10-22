@@ -1,3 +1,4 @@
+import { TRACE_WORK_LIMIT } from "../../../trace/safeRecordRead";
 import type { TraceAvailability } from "./traceScope";
 export function TraceUnavailableNote({
   availability,
@@ -9,10 +10,12 @@ export function TraceUnavailableNote({
   if (availability.ok) return null;
   const reason =
     availability.reason === "too-large"
-      ? `${scopeLabel} trace is too large to trace here (${availability.items ?? "more than 100,000"} items).`
+      ? `${scopeLabel} trace is too large to trace here (more than ${TRACE_WORK_LIMIT.toLocaleString(
+          "en-US"
+        )} inspected items).`
       : availability.reason === "no-history"
-        ? `${scopeLabel} trace history was not recorded.`
-        : `${scopeLabel} trace evidence is unavailable or malformed.`;
+      ? `${scopeLabel} trace history was not recorded.`
+      : `${scopeLabel} trace evidence is unavailable or malformed.`;
   return (
     <div data-fp="trace-unavailable" role="status" style={{ padding: 14 }}>
       {reason} Dependencies are unknown.

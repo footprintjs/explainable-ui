@@ -1,3 +1,4 @@
+import { projectTraceInvocation } from "../../src/index";
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -69,6 +70,11 @@ describe("selected records agree with the dev-only Foottrace reader", () => {
         expect(drilled, `exact ${id}`).toBeTruthy();
         const selected = childTraceScope(result, [id], hasReads);
         expect(selected.availability).toEqual({ ok: true });
+        const publicProjection = projectTraceInvocation(source, id);
+        expect(publicProjection.availability).toEqual({ ok: true });
+        expect(publicProjection.commitLog).toEqual(selected.commitLog);
+        expect(publicProjection.executionTree).toEqual(selected.executionTree);
+        expect(publicProjection.scope.readsAvailable).toBe(selected.readsAvailable);
         const stops = drilled!.stops.filter(
           (stop) => stop.kind === "commit" || stop.kind === "mount",
         );

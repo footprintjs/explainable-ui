@@ -15,9 +15,9 @@ import type { ReactNode } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme, themeModeVars } from "../../theme";
 import { runHasRecordedReads, sourceRunKey, rootMountLabels, type TraceScope } from "./_internal/traceScope";
-import { exactSubflowResults, resolveSubflowLevel, type DrillDownEntry } from "./_internal/subflowRecord";
-import { pathMountChain, type InvocationResolution } from "./_internal/subflowInvocation";
-import { presentScopedWalk } from "./_internal/tracePresentation";
+import { exactSubflowResults } from "./_internal/subflowRecord";
+import { useSubflowNavigation } from "./_internal/useSubflowNavigation";
+import { SubflowNavigationStatus } from "./_internal/SubflowNavigationStatus";
 import { TraceUnavailableNote, StoryUnavailableNote } from "./_internal/TraceUnavailableNote";
 import { useRunCompanions } from "./_internal/useRunCompanions";
 import { ownDataField, isPlainRecord } from "./_internal/safeRecordRead";
@@ -40,7 +40,6 @@ import { NarrativePanel } from "../NarrativePanel";
 import { SubflowTree } from "../FlowchartView/SubflowTree";
 import { SubflowBreadcrumb } from "../FlowchartView/SubflowBreadcrumb";
 import { TracedFlow } from "../FlowchartView/TracedFlow";
-import { buildSubflowBreadcrumb } from "../FlowchartView/_internal/subflowDrill";
 
 /**
  * Minimal subflow-walking spec shape. Used INTERNALLY by drill-down
@@ -1016,6 +1015,11 @@ export function ExplainableShell({
   const companionNarrativeMissing = companions.staleKeys.includes("narrativeEntries") && !snapshotNarrative;
   const narrativeEntries = companions.values.narrativeEntries ?? snapshotNarrative?.entries;
 
+  const exactResults = useMemo(
+    () => exactSubflowResults(ownDataField(runtimeSnapshot, "subflowResults")),
+    [runtimeSnapshot],
+  );
+
   // Convert runtimeSnapshot → visualization snapshots (zero-boilerplate mode).
   // A snapshot we cannot read is REMEMBERED, not swallowed: the empty state
   // below reports it instead of rendering full chrome with nothing in it.
@@ -1024,13 +1028,13 @@ export function ExplainableShell({
     try {
       // Consume only known own fields. Spreading a stored source would
       // evaluate unrelated accessors that no renderer ever asked to read.
-      const sharedState=ownDataField(runtimeSnapshot,"sharedState");
-      if(!isPlainRecord(sharedState))throw new Error("sharedState is not a plain object");
+      const sharedState = ownDataField(runtimeSnapshot, "sharedState");
+      if (!isPlainRecord(sharedState)) throw new Error("sharedState is not a plain object");
       const input = {
         sharedState,
         executionTree: ownDataField(runtimeSnapshot,"executionTree"),
         commitLog: ownDataField(runtimeSnapshot,"commitLog"),
-        subflowResults: exactSubflowResults(ownDataField(runtimeSnapshot,"subflowResults")),
+        subflowResults: exactResults,
         recorders: ownDataField(runtimeSnapshot,"recorders"),
       };
       const snaps = toVisualizationSnapshots(input as any, narrativeEntries as any);
@@ -1042,7 +1046,7 @@ export function ExplainableShell({
         error: err instanceof Error ? err.message : String(err),
       };
     }
-  }, [runtimeSnapshot, narrativeEntries]);
+  }, [runtimeSnapshot, narrativeEntries, exactResults]);
 
   // Use derived data when runtimeSnapshot is provided, otherwise use explicit props
   const snapshots = companions.values.snapshots ?? derivedFromRuntime?.snapshots ?? [];
@@ -1240,8 +1244,7 @@ export function ExplainableShell({
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
   const [activeTab, setActiveTab] = useState<string>(resolvedDefault);
-  const [snapshotIdx, setSnapshotIdx] = useState(0);
-  const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
+  const [snapshotIdx, setSnapshotIdxRaw] = useState(0);
   const [rightExpanded, setRightExpanded] = useState(defaultExpanded?.details ?? true);
   const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>("insights");
   // Inspector's active tab, lifted so the chart can paint the dependency
@@ -1318,68 +1321,19 @@ export function ExplainableShell({
       ),
     [runtimeSnapshot, snapshots],
   );
-  const exactResults = useMemo(
-    () => exactSubflowResults(runtimeSnapshot?.subflowResults),
-    [runtimeSnapshot],
-  );
-  const [navigationNotice, setNavigationNotice] = useState("");
-  const [visitChoice, setVisitChoice] = useState<null | {
-    mountKey: string;
-    choiceKey: string;
-    selectedInvocations: ReadonlyMap<string,string>;
-    visits: Extract<InvocationResolution, { kind: "ambiguous" }>["visits"];
-  }>(null);
-  // Resolve the entire selected chain before rendering ANY panel. A new run
-  // cannot leave old state/story values visible for an effect-sized frame.
-  const selectedStack = useMemo(() => {
-    if (drillDownStack.length === 0) return drillDownStack;
-    const resolved: DrillDownEntry[] = [];
-    let parent = snapshots;
-    for (const previous of drillDownStack) {
-      const found = resolveSubflowLevel(
-        parent,
-        previous.subflowId,
-        undefined,
-        resolved.at(-1)?.traceScope.invocationPath ?? [],
-        sourceRunId,
-        readsAvailable,
-        exactResults,
-        narrativeEntries,
-        previous.mountRuntimeStageId,
-      );
-      if (found.kind !== "found") break;
-      resolved.push(found.entry);
-      parent = found.entry.snapshots;
-    }
-    return resolved;
-  }, [
-    drillDownStack,
-    sourceRunId,
-    snapshots,
-    readsAvailable,
-    exactResults,
-    narrativeEntries,
-  ]);
-  const priorRun = useRef(sourceRunId);
-  useEffect(() => {
-    if (priorRun.current === sourceRunId) return;
-    // Preserve the established root live-append behavior for legacy sources
-    // with no recorded run ID. Drilled legacy records remain object-scoped.
-    if (!drillDownStack.length && typeof sourceRunId !== "string") {
-      priorRun.current = sourceRunId;
-      return;
-    }
-    priorRun.current = sourceRunId;
-    setDrillDownStack(selectedStack);
-    setTracing(null);
-    setForkChooserOpen(false);
-    setTraceSearch("");
-    setVisitChoice(null);
-    setSnapshotIdx(0);
-    setNavigationNotice(
-      "Source run changed. The view moved to the deepest recorded invocation still available.",
-    );
-  }, [sourceRunId, selectedStack, drillDownStack.length]);
+  const onScopeReset = useCallback(() => {
+    setTracing(null); setForkChooserOpen(false); setTraceSearch("");
+  }, []);
+  const navigation = useSubflowNavigation({
+    snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries,
+    traceGraph, snapshotIdx, setSnapshotIdxRaw,
+    activeTab: JSON.stringify([activeTab, rightPanelMode, inspectorTab]),
+    onScopeReset,
+  });
+  const {
+    selectedStack, setSnapshotIdx, handleDrillDown, handleBreadcrumbNavigate,
+    handleChartSubflowChange, handleNodeClick,
+  } = navigation;
   const isInSubflow = selectedStack.length > 0;
   const currentLevel = useMemo(() => {
     const top = selectedStack.at(-1);
@@ -1449,12 +1403,17 @@ export function ExplainableShell({
   // (entry / follow / show-all), never on scrub: the anchor is frozen in
   // the session state, so walking the rail cannot shift the question.
   const traceWalk = useMemo<TraceWalk | null>(() => {
-    if (!tracing || tracing.scope !== activeTraceKey || !activeTraceScope.availability.ok) return null;
+    if (navigation.sourceChanged || !tracing || tracing.scope !== activeTraceKey || !activeTraceScope.availability.ok) return null;
     const scope = tracing.via.length > 0 ? tracing.via[tracing.via.length - 1] : tracing;
-    return presentScopedWalk(buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
+    return buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
       beforeCommitIdx: scope.beforeCommitIdx,
-    }), activeTraceScope);
-  }, [tracing, activeTraceScope, activeTraceKey]);
+      scope: {
+        invocationPath: activeTraceScope.invocationPath,
+        mountLabels: Object.fromEntries(activeTraceScope.mountLabels),
+        readsAvailable: activeTraceScope.readsAvailable,
+      },
+    });
+  }, [tracing, activeTraceScope, activeTraceKey, navigation.sourceChanged]);
 
   // Rail stops use exact runtime IDs from the selected record. Display names
   // and stripped chart prefixes never identify a mount invocation.
@@ -1545,12 +1504,12 @@ export function ExplainableShell({
   // ── Handlers ──
   const handleTabChange = useCallback((tab: ShellTab) => {
     setActiveTab(tab);
-    setDrillDownStack([]);
-  }, []);
+    navigation.resetRoot();
+  }, [navigation.resetRoot]);
 
   const handleSnapshotChange = useCallback((idx: number | string) => {
     if (typeof idx === "number") setSnapshotIdx(idx);
-  }, []);
+  }, [setSnapshotIdx]);
 
   // ── Tracing handlers ──
   // Entry FREEZES the question at the cursor's moment ("why is it this value
@@ -1643,169 +1602,6 @@ export function ExplainableShell({
   // state, so a drill started from the Topology tree, the breadcrumb or a
   // chart card can no longer disagree with the chart on screen.
   const chartDrillKey = selectedStack.at(-1)?.subflowId ?? null;
-  const buildDrillStack = useCallback(
-    (
-      mountKey: string,
-      selectedInvocations: ReadonlyMap<string, string> = new Map(),
-    ) => {
-      const graphChain = traceGraph
-        ? buildSubflowBreadcrumb(traceGraph, mountKey)
-            .slice(1)
-            .flatMap((entry) => (entry.subflowId ? [entry.subflowId] : []))
-        : [];
-      // A graph missing this mount supplies no ancestry. Exact path segments
-      // replace the old suffix/label guesses, including custom renderers.
-      const keys = graphChain.length > 1 ? graphChain : pathMountChain(mountKey);
-      const stack: DrillDownEntry[] = [];
-      let parent = snapshots;
-      for (const [depth, key] of keys.entries()) {
-        const existing = selectedStack[depth];
-        const requestedId = selectedInvocations.get(key);
-        const parentPath = stack.at(-1)?.traceScope.invocationPath ?? [];
-        const existingPath = existing?.traceScope.invocationPath;
-        const sameParent =
-          existingPath !== undefined &&
-          existingPath.length === parentPath.length + 1 &&
-          parentPath.every((part, index) => existingPath[index] === part);
-        if (
-          existing?.subflowId === key &&
-          existing.sourceRunId === sourceRunId &&
-          sameParent &&
-          (!requestedId || requestedId === existing.mountRuntimeStageId)
-        ) {
-          stack.push(existing);
-          parent = existing.snapshots;
-          continue;
-        }
-        const cursorIdx = sameParent
-          ? existing?.parentSnapshotIdx
-          : depth === selectedStack.length
-            ? snapshotIdx
-            : undefined;
-        const found = resolveSubflowLevel(
-          parent,
-          key,
-          cursorIdx === undefined ? undefined : parent[cursorIdx]?.runtimeStageId,
-          parentPath,
-          sourceRunId,
-          readsAvailable,
-          exactResults,
-          narrativeEntries,
-          requestedId,
-        );
-        if (found.kind !== "found")
-          return { ...found, mountKey, choiceKey: key, selectedInvocations };
-        stack.push(found.entry);
-        parent = found.entry.snapshots;
-      }
-      return { kind: "found" as const, stack };
-    },
-    [
-      traceGraph,
-      selectedStack,
-      snapshots,
-      snapshotIdx,
-      sourceRunId,
-      readsAvailable,
-      exactResults,
-      narrativeEntries,
-    ],
-  );
-  const applyDrill = useCallback(
-    (
-      mountKey: string,
-      selectedInvocations: ReadonlyMap<string, string> = new Map(),
-    ) => {
-      const resolution = buildDrillStack(mountKey, selectedInvocations);
-      if (resolution.kind === "ambiguous") {
-        setVisitChoice({
-          mountKey,
-          visits: resolution.visits,
-          choiceKey: resolution.choiceKey,
-          selectedInvocations: resolution.selectedInvocations,
-        });
-        return;
-      }
-      if (resolution.kind !== "found") {
-        setNavigationNotice("That recorded subflow invocation is unavailable.");
-        return;
-      }
-      setTracing(null);
-      setTraceSearch("");
-      setForkChooserOpen(false);
-      setVisitChoice(null);
-      setNavigationNotice("");
-      setDrillDownStack(resolution.stack);
-      setSnapshotIdx(0);
-    },
-    [buildDrillStack],
-  );
-  const handleDrillDown = applyDrill;
-  const handleBreadcrumbNavigate = useCallback(
-    (level: number) => {
-      setTracing(null);
-      setForkChooserOpen(false);
-      setTraceSearch("");
-      setVisitChoice(null);
-      const popped = level === 0 ? selectedStack[0] : selectedStack[level];
-      if (popped) setSnapshotIdx(popped.parentSnapshotIdx);
-      setDrillDownStack(level === 0 ? [] : selectedStack.slice(0, level));
-    },
-    [selectedStack],
-  );
-  // TracedFlow sends scope change then node click in one event. Remember it
-  // synchronously so the second callback never projects the same child twice.
-  const chartHandledMount = useRef<string | null>(null);
-  const handleChartSubflowChange = useCallback(
-    (mountKey: string | null) => {
-      chartHandledMount.current = mountKey;
-      queueMicrotask(() => {
-        if (chartHandledMount.current === mountKey)
-          chartHandledMount.current = null;
-      });
-      if (mountKey === null) {
-        handleBreadcrumbNavigate(0);
-        return;
-      }
-      const at = selectedStack.findIndex((entry) => entry.subflowId === mountKey);
-      if (at >= 0) {
-        if (at < selectedStack.length - 1) handleBreadcrumbNavigate(at + 1);
-        return;
-      }
-      applyDrill(mountKey);
-    },
-    [selectedStack, handleBreadcrumbNavigate, applyDrill],
-  );
-  const handleNodeClick = useCallback(
-    (indexOrId: number | string) => {
-      if (typeof indexOrId === "number") {
-        setSnapshotIdx(indexOrId);
-        return;
-      }
-      if (chartHandledMount.current === indexOrId) return;
-      const mount = activeSnapshots.some(
-        (stage) =>
-          stage.subflowResult &&
-          (stage.subflowId === indexOrId ||
-            stage.runtimeStageId?.split("#")[0] === indexOrId),
-      );
-      if (
-        mount ||
-        indexOrId.includes("/") ||
-        traceGraph?.nodes.some(
-          (node) => node.id === indexOrId && node.data?.isSubflow,
-        )
-      ) {
-        applyDrill(indexOrId);
-        return;
-      }
-      const matches = activeSnapshots
-        .map((stage, index) => ({ stage, index }))
-        .filter(({ stage }) => stage.stageLabel === indexOrId);
-      if (matches.length === 1) setSnapshotIdx(matches[0].index);
-    },
-    [activeSnapshots, traceGraph, applyDrill],
-  );
   const handleTreeNodeSelect = useCallback(
     (name: string, isSubflow: boolean, nodeId?: string) => {
       if (isSubflow) {
@@ -1814,12 +1610,12 @@ export function ExplainableShell({
         // "Prepare"), and a nested mount needs its ancestors drilled too.
         handleDrillDown(nodeId ?? name);
       } else {
-        setDrillDownStack([]);
+        navigation.resetRoot();
         const idx = snapshots.findIndex((s) => s.stageLabel === name);
         if (idx >= 0) setSnapshotIdx(idx);
       }
     },
-    [snapshots, handleDrillDown]
+    [snapshots, handleDrillDown, navigation.resetRoot, setSnapshotIdx]
   );
 
   const navigateToStage = useCallback(
@@ -1981,53 +1777,13 @@ export function ExplainableShell({
     );
   }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, activeTraceScope, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
 
-  const navigationStatus = (
-    <>
-      {companions.staleKeys.length > 0 && (
-        <div
-          data-fp="companion-source-note"
-          role="status"
-          style={{ padding: 10 }}
-        >
-          Companion inputs unchanged from the previous run were withheld. Supply
-          paired inputs for this run; missing Story evidence stays unknown.
-        </div>
-      )}
-      {navigationNotice && (
-        <div data-fp="source-change-note" role="status" style={{ padding: 10 }}>
-          {navigationNotice}
-        </div>
-      )}
-      {visitChoice && (
-        <div
-          data-fp="subflow-visit-choice"
-          role="group"
-          aria-label="Choose subflow visit"
-          style={{ padding: 10 }}
-        >
-          <div>
-            This step ran {visitChoice.visits.length} times. Choose a visit:
-          </div>
-          {visitChoice.visits.map((visit) => (
-            <button
-              key={visit.runtimeStageId}
-              onClick={() =>
-                applyDrill(
-                  visitChoice.mountKey,
-                  new Map([
-                    ...visitChoice.selectedInvocations,
-                    [visitChoice.choiceKey, visit.runtimeStageId],
-                  ]),
-                )
-              }
-            >
-              step {visit.step} · visit {visit.visit} of {visit.total}
-            </button>
-          ))}
-        </div>
-      )}
-    </>
-  );
+  const navigationStatus = <SubflowNavigationStatus
+    staleInputs={companions.staleKeys.length > 0}
+    notice={navigation.navigationNotice}
+    choice={navigation.visitChoice}
+    onChoose={navigation.applyDrill}
+    onDismiss={navigation.clearTransient}
+  />;
   // Map tab id → label for rendering
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
 

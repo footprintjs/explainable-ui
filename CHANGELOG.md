@@ -19,8 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   snapshots preserve the question, and a replacement run reconciles every
   panel. Ambiguous clicks offer visit choices; breadcrumbs, copied stories
   and Story entries identify the selected invocation.
-  The mount input-mapping bundle is a child input boundary, not a child rail
-  step; tracing does not infer parent ancestry or exact read versions.
+  Invocation-start state is a boundary (input mapping or restored state), not
+  a child rail step; tracing does not infer parent ancestry or exact read versions.
+- Public `TraceWalkScope` options on `buildTraceWalk`/`formatTraceWalk` and
+  `projectTraceInvocation` let non-UI tools produce the same scoped text as
+  the viewer, including restored invocation state after a pause.
 
 ### Changed
 
@@ -28,7 +31,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   A path-only result alias is no longer used as proof of a visit. Custom hosts
   should key results by the recorded runtime ID or attach the matching result
   to each stage snapshot. Actual dual-keyed current and legacy recordings stay
-  readable; the exported legacy snapshot adapter is unchanged.
+  readable; the direct adapter still supports legacy path aliases.
+
+### Fixed
+
+- Ordinary full-path step clicks and labels containing slashes navigate the
+  timeline instead of attempting a subflow drill. New root runs keep their
+  cursor (clamped to available steps), and notices only describe a lost visit.
+  Cursor/tab navigation dismisses stale notices and visit choices; chooser
+  buttons never submit a hosting form.
+- Null inputs and explicit empty Story arrays remain valid across runs.
+  Inherited object names cannot become subflow results.
+- Iterative recorded-tree conversion opens long linear children without
+  exhausting the call stack while preserving branch order, time and memory.
+  Malformed children/cycles are refused, and conversion failures name the
+  drawing problem instead of reporting a missing invocation.
 
 ## [0.38.2] - 2026-10-15
 

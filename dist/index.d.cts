@@ -1663,6 +1663,18 @@ declare const InspectorPanel: React$1.NamedExoticComponent<InspectorPanelProps>;
  * Shares the read→write BFS with dataTrace.ts (the causalChain mirror);
  * eui still never imports footprintjs — snapshot SHAPES only.
  */
+/** Explicit, serializable presentation and recording scope. Child ancestry stays unknown. */
+interface TraceWalkScope {
+    readonly invocationPath: readonly string[];
+    readonly mountLabels?: Readonly<Record<string, string>>;
+    readonly readsAvailable?: boolean;
+}
+interface TraceWalkOptions {
+    beforeCommitIdx?: number;
+    maxDepth?: number;
+    maxFrames?: number;
+    scope?: TraceWalkScope;
+}
 /** One read key of a stop, resolved to the commit that wrote it. */
 interface TraceIngredient {
     key: string;
@@ -1699,6 +1711,8 @@ interface TraceWalkMissing {
     firstWriterStageName?: string;
 }
 interface TraceWalk {
+    /** Detached explicit scope; absent preserves the existing root contract. */
+    readonly scope?: TraceWalkScope;
     key: string;
     /** Stops in WALK ORDER: commitIdx DESCENDING. stops[0] is the anchor
      *  (the last writer of `key` within the cutoff). */
@@ -1723,11 +1737,7 @@ interface TraceWalk {
  * follow ingredient K at stop S = buildTraceWalk(K, { beforeCommitIdx:
  * S.commitIdx }) — one function, no traversal modes.
  */
-declare function buildTraceWalk(commitLog: unknown[], executionTree: unknown, key: string, opts?: {
-    beforeCommitIdx?: number;
-    maxDepth?: number;
-    maxFrames?: number;
-}): TraceWalk;
+declare function buildTraceWalk(commitLog: unknown[], executionTree: unknown, key: string, opts?: TraceWalkOptions): TraceWalk;
 /**
  * formatTraceWalk — THE parity artifact: the [Copy story] button and any
  * LLM backtrack tool emit THIS string, so the human's board and the
@@ -1737,7 +1747,9 @@ declare function buildTraceWalk(commitLog: unknown[], executionTree: unknown, ke
  * the rail (null = not on the rail); walk order and wording match the
  * stop cards exactly.
  */
-declare function formatTraceWalk(walk: TraceWalk, stepNumberOf: (runtimeStageId: string) => number | null): string;
+declare function formatTraceWalk(walk: TraceWalk, stepNumberOf: (runtimeStageId: string) => number | null, options?: {
+    scope?: TraceWalkScope;
+}): string;
 
 interface TraceWalkCardProps extends BaseComponentProps {
     walk: TraceWalk;
@@ -1976,4 +1988,30 @@ interface ExplainableViewProps extends Omit<ExplainableProviderProps, "children"
 }
 declare function ExplainableView({ recording, selectedIndex, defaultSelectedIndex, onSelectedIndexChange, theme: viewTheme, layout, slots, minHeight, detailsExpanded, defaultDetailsExpanded, onDetailsExpandedChange, detailsLabel, unstyled, className, style, }: ExplainableViewProps): React$1.JSX.Element;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };
+type TraceAvailability = {
+    ok: true;
+} | {
+    ok: false;
+    reason: "no-history" | "malformed" | "too-large";
+    items?: number;
+};
+
+/** Exact recorded-invocation projection for both UI and non-UI clients.
+ * No path aliases, stage-label fallback, values, engine or storage access. */
+
+interface TraceInvocationOptions {
+    /** Optional exact outer-to-inner invocation stamps. No ancestor is inferred. */
+    invocationPath?: readonly string[];
+}
+interface TraceInvocationProjection {
+    readonly availability: TraceAvailability | {
+        ok: false;
+        reason: "invocation-not-recorded" | "ancestor-not-recorded";
+    };
+    readonly commitLog: unknown[];
+    readonly executionTree: unknown;
+    readonly scope: TraceWalkScope;
+}
+declare function projectTraceInvocation(snapshot: unknown, exactMountId: string, options?: TraceInvocationOptions): TraceInvocationProjection;
+
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceInvocationOptions, type TraceInvocationProjection, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TraceWalkOptions, type TraceWalkScope, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, projectTraceInvocation, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };

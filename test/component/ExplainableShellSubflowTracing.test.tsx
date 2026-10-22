@@ -121,7 +121,8 @@ describe('ExplainableShell selected subflow tracing', () => {
     drill.replace([mount('quote', childResult('quote', 'newKey'))]);
     expect(screen.getByRole('toolbar').getAttribute('data-tracing')).toBeNull();
     expect(keys()).toEqual(['newKey', 'subtotal', 'total']);
-    expect(document.querySelector('[data-fp="source-change-note"]')).toBeTruthy();
+    // The exact visit still exists, so no navigation movement was needed.
+    expect(document.querySelector('[data-fp="source-change-note"]')).toBeNull();
     expect(document.querySelector('[data-fp="trace-walk-card"]')).toBeNull();
     expect(document.body.textContent).not.toContain('oldPrivateKey');
   });

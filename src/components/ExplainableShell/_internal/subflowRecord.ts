@@ -19,38 +19,53 @@ export interface DrillDownEntry {
 }
 export type DrillResolution =
   | { kind: "found"; entry: DrillDownEntry }
-  | Exclude<InvocationResolution, { kind: "found" }>;
+  | Exclude<InvocationResolution, { kind: "found" }>
+  | { kind: "conversion-failed" };
 /** Never let the adapter's legacy path alias pick the last repeated visit. */
 export function exactSubflowResults(
-  results: unknown,
+  results: unknown
 ): Record<string, unknown> | undefined {
   if (!isPlainRecord(results)) return undefined;
-  return Object.fromEntries(
-    Object.keys(results)
-      .filter((key) => key.includes("#"))
-      .map((key) => [key, ownDataField(results, key)]),
+  return Object.assign(
+    Object.create(null),
+    Object.fromEntries(
+      Object.keys(results)
+        .filter((key) => key.includes("#"))
+        .map((key) => [key, ownDataField(results, key)])
+    )
   );
 }
 const cache = new WeakMap<
   object,
   Map<string, { scope: TraceScope; snapshots: StageSnapshot[] }>
 >();
-export function resolveSubflowLevel(
-  parent: StageSnapshot[],
-  key: string,
-  cursorId: string | undefined,
-  parentPath: readonly string[],
-  sourceRunId: unknown,
-  readsAvailable: boolean,
-  results: Record<string, unknown> | undefined,
-  narrative: NarrativeEntry[] | undefined,
-  requestedId?: string,
-): DrillResolution {
+export interface SubflowLevelOptions {
+  parent: StageSnapshot[];
+  key: string;
+  cursorId?: string;
+  parentPath: readonly string[];
+  sourceRunId: unknown;
+  readsAvailable: boolean;
+  results?: Record<string, unknown>;
+  narrative?: NarrativeEntry[];
+  requestedId?: string;
+}
+export function resolveSubflowLevel({
+  parent,
+  key,
+  cursorId,
+  parentPath,
+  sourceRunId,
+  readsAvailable,
+  results,
+  narrative,
+  requestedId,
+}: SubflowLevelOptions): DrillResolution {
   const resolution = resolveSubflowInvocation(
     parent,
     key,
     cursorId,
-    requestedId,
+    requestedId
   );
   if (resolution.kind !== "found") return resolution;
   const snapshot = resolution.snapshot;
@@ -74,7 +89,7 @@ export function resolveSubflowLevel(
     try {
       snapshots = subflowResultToSnapshots(result);
     } catch {
-      return { kind: "missing" };
+      return { kind: "conversion-failed" };
     }
     projection = { scope, snapshots };
     cached.set(cacheKey, projection);
@@ -84,13 +99,13 @@ export function resolveSubflowLevel(
   // parent's immutable record. Never retain an old map inside a cached rail.
   const snapshots = projection.snapshots.map((stage) => {
     const child = stage.runtimeStageId
-      ? results?.[stage.runtimeStageId]
+      ? ownDataField(results, stage.runtimeStageId)
       : undefined;
     return child ? { ...stage, subflowResult: child } : stage;
   });
   const runtimeIds = new Set(snapshots.map((stage) => stage.runtimeStageId));
   const selectedNarrative = narrative?.filter(
-    (entry) => !!entry.runtimeStageId && runtimeIds.has(entry.runtimeStageId),
+    (entry) => !!entry.runtimeStageId && runtimeIds.has(entry.runtimeStageId)
   );
   const label = snapshot.stageLabel ?? snapshot.stageName ?? key;
   return {

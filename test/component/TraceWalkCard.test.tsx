@@ -15,7 +15,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 
-import { presentScopedWalk } from "../../src/components/ExplainableShell/_internal/tracePresentation";
 import { TraceWalkCard } from "../../src/components/DataTracePanel/TraceWalkCard";
 import {
   buildTraceWalk,
@@ -253,9 +252,20 @@ describe("TraceWalkCard — fork chooser (F2)", () => {
 
 describe("child input boundary in a missing-value card",()=>{
  it("does not use the root never-written claim for a mapped child input",()=>{
-   const walk=presentScopedWalk(buildTraceWalk(LOG,TREE,"config"),{invocationPath:["child#3"],commitLog:LOG,executionTree:TREE,availability:{ok:true},readsAvailable:true,mountLabels:new Map()});
+   const walk=buildTraceWalk(LOG,TREE,"config",{scope:{invocationPath:["child#3"],readsAvailable:true,mountLabels:{}}});
    render(<TraceWalkCard walk={walk} cursorRuntimeStageId={null} stepNumberOf={stepOf}/>);
-   expect(document.querySelector('[data-fp="trace-walk-card"]')?.textContent).toContain("received at the subflow boundary");
+   expect(document.querySelector('[data-fp="trace-walk-card"]')?.textContent).toContain("present when invocation child#3 started");
    expect(document.querySelector('[data-fp="trace-walk-card"]')?.textContent).not.toContain("never written");
  });
+});
+
+
+describe("explicit raw child start boundary", () => {
+  it("uses scope facts rather than matching the invocation name against display text", () => {
+    const log = [{stage:"Restore",stageId:"resume",runtimeStageId:"prepare#4",trace:[{path:"items"}]}];
+    const walk = buildTraceWalk(log,{runtimeStageId:"prepare#4",stageReads:{}},"items",{scope:{invocationPath:["prepare#4"],readsAvailable:true}});
+    const {container}=render(<TraceWalkCard walk={walk} cursorRuntimeStageId={null} stepNumberOf={()=>1}/>);
+    expect(container.querySelector('[data-fp="twc-boundary"]')?.textContent).toContain("state restored on resume");
+    expect(container.querySelector('[data-fp="twc-origin"]')).toBeNull();
+  });
 });

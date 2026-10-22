@@ -7,7 +7,19 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
   it("keeps all root and flowchart names, including deprecations and duplicate homes", () => {
     expect(
       exportSurface({ ".": "src/index.ts", "./flowchart": "src/flowchart.ts" })
-    ).toEqual(ledger.entries);
+    ).toEqual({
+      ...ledger.entries,
+      // Keep the historical baseline intact; these reviewed additive APIs
+      // are the only permitted extension to its exact export contract.
+      ".": [
+        ...ledger.entries["."],
+        { name: "projectTraceInvocation", kind: "value" },
+        { name: "TraceInvocationOptions", kind: "type" },
+        { name: "TraceInvocationProjection", kind: "type" },
+        { name: "TraceWalkOptions", kind: "type" },
+        { name: "TraceWalkScope", kind: "type" },
+      ].sort((a, b) => a.name.localeCompare(b.name)),
+    });
     expect(ledger.policy).toBe(
       "retain every existing name at every existing door for the first major"
     );

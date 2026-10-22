@@ -3,9 +3,12 @@
 The shell selects one invocation chain. `subflowInvocation` resolves exact paths
 and runtime IDs and reports ambiguity; `subflowRecord` projects the chosen
 record once and caches its rail and trace names. It filters Story by selected
-runtime IDs. The shell owns the one timeline cursor and source-run change.
-`tracePresentation` supplies internal card/copy metadata without changing the
-published walk or card types. `dataTrace` and `traceWalk` still own traversal.
+runtime IDs. `useSubflowNavigation` owns drill resolution, source replacement and transient
+visit/notice state; the shell keeps the single timeline cursor.
+`SubflowNavigationStatus` renders that feedback separately. The shared pure
+owners now live in `src/trace`; old shell-internal paths only re-export them.
+`TraceWalkScope` is explicit serializable data on the walk, shared by cards
+and non-UI callers. No hidden WeakMap or in-place walk mutation is involved.
 
 A missing `stageReads` is a normal no-read step. The read-tracking dial applies
 to a whole run, so any recorded read in the root or its child trees establishes
@@ -13,16 +16,19 @@ that the dial was on. No recorded reads stays unknowable; this is evidence of
 coverage, not a capture-completeness certificate or exact read attribution.
 A mount has its own inner computation and never becomes a no-read origin.
 
-The exact first mapper bundle belongs to the child input boundary. Current
-records stamp it with the mount runtime ID; engines through 9.33 may use an
-empty stamp. Both are excluded from the child's step rail and described in
-card text, tooltips and copied stories as input mapping at that invocation.
+The exact first bundle belongs to invocation-start state. Current records
+stamp it with the mount runtime ID; engines through 9.33 may use an empty
+stamp. Both are excluded from the child's step rail. Card text, tooltips and
+copied stories say it may be input mapping or state restored after a pause;
+neither claims a fresh origin or the writer of pre-pause state.
 The dev-only Foottrace parity test checks its start bookend and grouped stops.
 
 Admission of new child evidence has one 100,000-item allowance, counting commits,
-write names, tree nodes, child-list members and read names. It now admits normal
-1,000-iteration histories. A refused budget says too-large and reports work
-items observed, rather than calling the record incomplete. Names are capped at
+write names, tree nodes, child-list members and read names. This is a work
+allowance, not a guaranteed number of stages/iterations. A refused budget says
+more than the limit was inspected, not the total size of the source. Iterative
+rail conversion avoids call-stack exhaustion on long linear histories; any
+conversion failure has a distinct drawing-failure notice. Names are capped at
 4,096 characters and invocation chains at 128 components / 8,192 characters.
 These are local viewer admission limits, not claims that producer data is lost.
 Root mount metadata now uses the same bounded descriptor-only admission
@@ -65,8 +71,61 @@ mount runtime ID or attach the corresponding result to each `StageSnapshot`.
 The old chart-sync synthetic fixtures now include their documented exact keys,
 referencing the same objects as their path aliases; every original assertion
 is preserved. Real 10.3.0 and legacy 9.15.1 fixture maps already had both keys.
-The exported legacy snapshot adapter is unchanged.
+The adapter keeps its prior lookup precedence but only accepts own result
+properties; iterative traversal preserves valid-tree output, timing and memory.
+Malformed child entries and cycles are refused, never silently shortened.
 
 When a direct nested path crosses repeated ancestors, the chooser carries one
 explicit selection per ancestor path until the complete requested leaf opens.
 Changing an ancestor never reuses a child projection from another invocation.
+
+
+## Public scoped trace text
+
+Use the same projection and immutable scope for a human card and an agent tool:
+
+```ts
+import {projectTraceInvocation, buildTraceWalk, formatTraceWalk} from "footprint-explainable-ui";
+const selected = projectTraceInvocation(snapshot, "pipeline/prepare#8", {
+  invocationPath: ["pipeline#6", "pipeline/prepare#8"],
+});
+if (selected.availability.ok) {
+  const walk = buildTraceWalk(selected.commitLog, selected.executionTree, "total", {
+    scope: selected.scope,
+  });
+  const text = formatTraceWalk(walk, () => null);
+}
+```
+
+The exact ID identifies one recorded invocation. A supplied chain must be
+witnessed at every level; a direct exact lookup leaves ancestry unknown.
+An invocation's initial state may be input mapping or state restored after a
+pause. It is not proof of who wrote a value before that boundary. Passing a
+scope explicitly to `formatTraceWalk` is also supported; callers using raw
+child histories must provide the scope so a mount-stamped start is not called
+an origin. Calls without scope preserve the existing root behavior.
+
+## Navigation and source replacement
+
+Ordinary chart IDs and labels containing slashes navigate the current rail;
+only recorded mount metadata starts a drill. Exact runtime IDs select that
+visit. Otherwise repeated ordinary steps choose the latest matching visit at
+or before the cursor, or the earliest available visit. A new root run preserves
+the cursor (clamped for rendering); a missing selected child returns to its
+nearest recorded ancestor. Only an actual chain loss raises a notice. Cursor,
+chart, breadcrumb and tab movement dismiss transient notices/visit choices.
+Chooser buttons have `type="button"` and a Cancel action.
+
+Only non-null object payloads can be known-stale companion references. An
+explicit empty array is a host override, not evidence left from a previous run.
+Null/primitive inputs do not trigger a banner. Freshly copied but wrongly
+paired arrays remain the host's responsibility; this guard is not authentication.
+
+## Offline package reproduction
+
+After the normal build, run `node scripts/check-scoped-trace-package.mjs`.
+It packs without scripts or network, replays actual public ESM/CommonJS doors,
+and deletes only its private scratch directory. Do not run full suites, fresh
+installs/build comparisons, record pilot or installed-type packaging checks
+while a shared-host storage measurement is active. Focused development tests
+use one worker, no file parallelism and low scheduling priority.

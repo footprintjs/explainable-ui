@@ -377,33 +377,20 @@ have. One cursor, no new axis.
   path-only alias is not proof of a visit, even if a partial record shows just
   one. Custom snapshot hosts can provide the exact result map or attach the
   matching result to the selected `StageSnapshot`.
-- A mapper-seeded value was **received at the subflow boundary**. The visible
-  card and copied story identify that invocation and leave parent ancestry
-  unknown. A nested mount is “computed inside …; drill in to trace it”, not
-  an origin. These are conservative stage-read links, not exact read versions
-  or proof that reading a value caused a write.
-- A step with no reads is normal. Read coverage is checked across the run;
-  reads-off records use the same “ingredients are unknowable, not absent”
-  explanation at every level. Missing, malformed and too-large child records
-  get their own explanation and never borrow a parent's log. Legacy empty
-  input-mapper stamps remain readable.
-- Fresh snapshots with the same recorded `runId` keep the selected invocation
-  and trace question. A different run re-resolves the invocation chain and
-  returns to its deepest available level, with a notice; state, Story and
-  breadcrumbs move together. Hosts must pair each source with its snapshots,
-  Story, result and overlay inputs. An unchanged companion reference from the
-  previous run is withheld; the current record's own data is preferred and
-  missing Story evidence stays unknown. This catches known stale references,
-  not freshly copied but wrongly paired data; hosts own that association.
-  Without a run ID, legacy child selections are
-  conservatively scoped to the supplied object; root live append keeps its
-  existing behavior.
-- The child projection is cached per record. Its admission limits and
-  storage/algorithm limits are documented in
-  [the internal tracing guide](https://github.com/footprintjs/explainable-ui/blob/main/src/components/ExplainableShell/_internal/README.md).
-  This adds scoped navigation, not another cause-finding algorithm or storage
-  loading. For a reproducible offline packed ESM/CommonJS replay, build the
-  package then run `node scripts/check-scoped-trace-package.mjs`.
+- Values already present when a child starts may come from input mapping or
+  state restored after a pause. Cards and copied stories say so and leave
+  earlier ancestry unknown. Missing evidence stays unknown.
+- Refreshing the same run keeps the selected visit and trace question. A new
+  run keeps the root cursor; if a selected child visit is absent, the viewer
+  returns to the nearest available level and explains why. Navigation clears
+  that notice and any visit chooser.
+- Supply each run's own Story, state and overlay when overriding the recorded
+  data. Known old inputs are withheld; null inputs and explicit empty arrays
+  remain valid choices.
+- Agent tools can use the same public `projectTraceInvocation`,
+  `buildTraceWalk` and `formatTraceWalk` functions as the viewer. See
+  [the tracing guide](https://github.com/footprintjs/explainable-ui/blob/main/src/components/ExplainableShell/_internal/README.md)
+  for the scope example, evidence limits and offline package checks.
 - **Trace anything**: below the current step's chips, a search box lists
   *every* variable the run ever wrote — trace any of them from wherever you
   stand.
@@ -728,6 +715,7 @@ the primitive can work.
 | `extractSubflowNarrative` | Just one subflow's lines out of a run's story |
 | `buildTraceWalk` | The value-tracing walk (stops + ingredients) for one key |
 | `formatTraceWalk` | That walk as the exact text an LLM backtrack tool returns |
+| `projectTraceInvocation` | Select one exact recorded child invocation and its scope for UI or agent trace text |
 | `mergeWritePatch` | Replay a commit patch onto a state object (objects merge; arrays REPLACE) |
 | `DEFAULT_EXCLUDED_KEYS` | The keys `StageDetailPanel` hides by default |
 

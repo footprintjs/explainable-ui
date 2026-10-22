@@ -2,9 +2,16 @@ import { useState } from "react";
 import { sourceRunKey } from "./traceScope";
 /** A host owns cohort association. Only known unchanged references can be
  * quarantined; a freshly copied but wrongly paired input cannot be proven. */
+function hasPayload(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    (!Array.isArray(value) || value.length > 0)
+  );
+}
 export function useRunCompanions<T extends Record<string, unknown>>(
   source: unknown,
-  inputs: T,
+  inputs: T
 ): { values: Partial<T>; staleKeys: Array<keyof T> } {
   const sourceKey = sourceRunKey(source);
   // Legacy sources without a recorded ID keep the established root append
@@ -20,7 +27,7 @@ export function useRunCompanions<T extends Record<string, unknown>>(
   if (cohort.runId !== runId) {
     const quarantined: Partial<T> = {};
     for (const key of keys)
-      if (inputs[key] !== undefined && inputs[key] === cohort.refs[key])
+      if (hasPayload(inputs[key]) && inputs[key] === cohort.refs[key])
         quarantined[key] = inputs[key];
     current = { runId, refs: inputs, quarantined };
   } else if (keys.some((key) => inputs[key] !== cohort.refs[key]))
@@ -31,7 +38,7 @@ export function useRunCompanions<T extends Record<string, unknown>>(
   const values: Partial<T> = {};
   const staleKeys: Array<keyof T> = [];
   for (const key of keys) {
-    if (inputs[key] !== undefined && inputs[key] === current.quarantined[key])
+    if (hasPayload(inputs[key]) && inputs[key] === current.quarantined[key])
       staleKeys.push(key);
     else values[key] = inputs[key];
   }

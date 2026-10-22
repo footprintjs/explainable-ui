@@ -25,14 +25,16 @@ function run(command, args, cwd) {
   const result = spawnSync(command, args, { cwd, env, encoding: "utf8" });
   if (result.status !== 0)
     throw Error(
-      `${command} failed (${result.status})\n${result.stdout ?? ""}\n${result.stderr ?? ""}`,
+      `${command} failed (${result.status})\n${result.stdout ?? ""}\n${
+        result.stderr ?? ""
+      }`
     );
   return result.stdout;
 }
 try {
   const npm = join(
     dirname(process.execPath),
-    "../lib/node_modules/npm/bin/npm-cli.js",
+    "../lib/node_modules/npm/bin/npm-cli.js"
   );
   const packed = JSON.parse(
     run(
@@ -45,8 +47,8 @@ try {
         "--pack-destination",
         scratch,
       ],
-      repo,
-    ),
+      repo
+    )
   );
   const modules = join(scratch, "node_modules");
   mkdirSync(modules);
@@ -61,7 +63,7 @@ try {
       "-C",
       destination,
     ],
-    repo,
+    repo
   );
   const manifest = JSON.parse(readFileSync(join(repo, "package.json"), "utf8"));
   for (const name of [
@@ -86,23 +88,28 @@ try {
   for (const suite of [
     "ExplainableShellSubflowRecorded",
     "ExplainableShellSubflowRevision",
+    "ExplainableShellNavigationReview",
+    "PublicTraceScopeParity",
   ]) {
     const source = readFileSync(
       join(repo, `test/component/${suite}.test.tsx`),
-      "utf8",
+      "utf8"
     );
     // Exercise the actual public doors in each format: Shell is on root,
     // while the structure recorder belongs to the /flowchart subpath.
     const consumer = source
       .replace(
         /(["'])\.\.\/\.\.\/src\/components\/ExplainableShell\/ExplainableShell\1/g,
-        '"__PACKED_SHELL__"',
+        '"__PACKED_SHELL__"'
       )
       .replace(
         /(["'])\.\.\/\.\.\/src\/components\/FlowchartView\/traceStructureRecorder\1/g,
-        '"__PACKED_FLOWCHART__"',
+        '"__PACKED_FLOWCHART__"'
       );
-    if (consumer.includes("../../src/"))
+    const publicConsumer = consumer
+      .replace(/(["'])\.\.\/\.\.\/src\/index\1/g, '"__PACKED_SHELL__"')
+      .replace(/(["'])\.\.\/\.\.\/src\/flowchart\1/g, '"__PACKED_FLOWCHART__"');
+    if (publicConsumer.includes("../../src/"))
       throw new Error("Unexpected source-only import in packed replay suite");
     for (const [format, extension] of [
       ["esm", "js"],
@@ -110,25 +117,25 @@ try {
     ]) {
       writeFileSync(
         join(tests, `${suite}-${format}.test.tsx`),
-        consumer
+        publicConsumer
           .replaceAll(
             '"__PACKED_SHELL__"',
-            JSON.stringify(join(destination, "dist", `index.${extension}`)),
+            JSON.stringify(join(destination, "dist", `index.${extension}`))
           )
           .replaceAll(
             '"__PACKED_FLOWCHART__"',
-            JSON.stringify(join(destination, "dist", `flowchart.${extension}`)),
-          ),
+            JSON.stringify(join(destination, "dist", `flowchart.${extension}`))
+          )
       );
     }
   }
   writeFileSync(
     join(scratch, "package.json"),
-    JSON.stringify({ private: true, type: "module" }),
+    JSON.stringify({ private: true, type: "module" })
   );
   writeFileSync(
     join(scratch, "vitest.config.mjs"),
-    `export default {test:{include:['test/*.test.tsx'],setupFiles:['test/setup.ts'],maxWorkers:2}};\n`,
+    `export default {test:{include:['test/*.test.tsx'],setupFiles:['test/setup.ts'],maxWorkers:1,fileParallelism:false}};\n`
   );
   const output = run(
     process.execPath,
@@ -138,7 +145,7 @@ try {
       "--config",
       join(scratch, "vitest.config.mjs"),
     ],
-    scratch,
+    scratch
   );
   console.log(output);
   console.log(
@@ -147,7 +154,7 @@ try {
       installedPackedFiles: true,
       formats: ["esm", "cjs"],
       packageIntegrity: packed[0].integrity,
-    }),
+    })
   );
 } finally {
   rmSync(scratch, { recursive: true, force: true });

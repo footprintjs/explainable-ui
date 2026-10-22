@@ -142,7 +142,7 @@ describe("recorded subflow review regressions", () => {
     fireEvent.click(screen.getByText("Copy story"));
     const text = writeText.mock.calls[0][0] as string;
     expect(text).toContain("pipeline/prepare#8");
-    expect(text).toContain("received at the subflow boundary");
+    expect(text).toContain("present when invocation");
     expect(text).not.toContain("never written");
   });
   it.each([false, true])(
@@ -288,10 +288,12 @@ describe("recorded subflow review regressions", () => {
     ui.replace(source);
     move(2);
     ui.drill("prepare");
-    ui.inspector();
     expect(
       document.querySelector('[data-fp="source-change-note"]')?.textContent,
     ).toContain("unavailable");
+    ui.inspector();
+    // Changing visible tabs dismisses feedback about the previous gesture.
+    expect(document.querySelector('[data-fp="source-change-note"]')).toBeNull();
     expect(document.querySelector('[data-fp="trace-walk-card"]')).toBeNull();
   });
 
