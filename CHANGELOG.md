@@ -13,9 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   ingredient follow and the timeline use the child's own history and tree;
   full mount runtime IDs distinguish repeated invocations and nested scopes.
   Scope changes clear the previous trace, search and fork chooser. Missing
-  child evidence is explicitly unavailable instead of borrowing parent data.
+  child evidence has distinct missing, malformed and too-large explanations
+  instead of borrowing parent data. Run-wide read coverage accepts no-read
+  stages, mount boundaries stay distinct from origins, fresh same-run
+  snapshots preserve the question, and a replacement run reconciles every
+  panel. Ambiguous clicks offer visit choices; breadcrumbs, copied stories
+  and Story entries identify the selected invocation.
   The mount input-mapping bundle is a child input boundary, not a child rail
   step; tracing does not infer parent ancestry or exact read versions.
+
+### Changed
+
+- Recorded subflow navigation requires an exact invocation/result association.
+  A path-only result alias is no longer used as proof of a visit. Custom hosts
+  should key results by the recorded runtime ID or attach the matching result
+  to each stage snapshot. Actual dual-keyed current and legacy recordings stay
+  readable; the exported legacy snapshot adapter is unchanged.
 
 ## [0.38.2] - 2026-10-15
 

@@ -370,27 +370,40 @@ have. One cursor, no new axis.
   human's board and the agent's answer are one artifact.
 - **Trace inside a subflow**: drill into a recorded child, then open
   Inspector → Data Trace. Search, ingredient follow, earlier cause and Done
-  use that child's own history and execution tree. Returning by breadcrumb
-  clears the previous trace and search. Repeated mount invocations are
-  distinguished by their full runtime IDs, never by a shared local label.
-- A child history's exact mount input-mapping bundle is an **input boundary**,
-  not a child stage. It is excluded from the child rail. “Run inputs” in a
-  child trace means inputs at that subflow boundary; parent ancestry is
-  unknown. No parent log is substituted. If child history, per-step writes
-  or per-step reads are missing or cannot be inspected safely, Data Trace
-  says **unavailable / unknown** instead of claiming an origin. When several
-  mount invocations share a chart node, select the desired invocation on
-  the parent timeline before drilling; an ambiguous off-cursor drill is
-  refused. Replacing the source recording while a child is open makes that
-  child trace unavailable until a fresh drill; an immutable append on the
-  root rail keeps its existing frozen tracing question.
-- Child projection has one 10,000-item work allowance across commits,
-  writes, read names and tree nodes. Names are capped at 4,096 characters;
-  a scope identity has at most 128 components and 8,192 characters total.
-  Exceeding these bounds yields unavailable evidence, never a partial origin.
-- These are the existing conservative stage-read links, not exact read
-  versions or proof that a read caused a write. This change adds scoped
-  navigation, not a second cause-finding algorithm or storage loading.
+  use that child's own history. Repeated visits are identified by runtime ID;
+  the breadcrumb names the selected visit, and an ambiguous click offers a
+  visit choice. Story shows only that visit's recorded entries.
+  Recorded child results must be keyed by the exact mount runtime ID; a
+  path-only alias is not proof of a visit, even if a partial record shows just
+  one. Custom snapshot hosts can provide the exact result map or attach the
+  matching result to the selected `StageSnapshot`.
+- A mapper-seeded value was **received at the subflow boundary**. The visible
+  card and copied story identify that invocation and leave parent ancestry
+  unknown. A nested mount is “computed inside …; drill in to trace it”, not
+  an origin. These are conservative stage-read links, not exact read versions
+  or proof that reading a value caused a write.
+- A step with no reads is normal. Read coverage is checked across the run;
+  reads-off records use the same “ingredients are unknowable, not absent”
+  explanation at every level. Missing, malformed and too-large child records
+  get their own explanation and never borrow a parent's log. Legacy empty
+  input-mapper stamps remain readable.
+- Fresh snapshots with the same recorded `runId` keep the selected invocation
+  and trace question. A different run re-resolves the invocation chain and
+  returns to its deepest available level, with a notice; state, Story and
+  breadcrumbs move together. Hosts must pair each source with its snapshots,
+  Story, result and overlay inputs. An unchanged companion reference from the
+  previous run is withheld; the current record's own data is preferred and
+  missing Story evidence stays unknown. This catches known stale references,
+  not freshly copied but wrongly paired data; hosts own that association.
+  Without a run ID, legacy child selections are
+  conservatively scoped to the supplied object; root live append keeps its
+  existing behavior.
+- The child projection is cached per record. Its admission limits and
+  storage/algorithm limits are documented in
+  [the internal tracing guide](https://github.com/footprintjs/explainable-ui/blob/main/src/components/ExplainableShell/_internal/README.md).
+  This adds scoped navigation, not another cause-finding algorithm or storage
+  loading. For a reproducible offline packed ESM/CommonJS replay, build the
+  package then run `node scripts/check-scoped-trace-package.mjs`.
 - **Trace anything**: below the current step's chips, a search box lists
   *every* variable the run ever wrote — trace any of them from wherever you
   stand.

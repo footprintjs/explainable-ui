@@ -26,3 +26,11 @@ regenerate them simply to make a test pass.
 Child tracing uses the child's own history and stops at its input boundary.
 These recordings do not supply exact cross-scope read-source provenance, and
 these tests do not claim it.
+
+`review-recordings.json` adds real 10.3.0 seedless, reads-off, redacted, nested
+loop and three-branch fan-out runs. Its separate `review-provenance.json` pins
+the bytes, so the original nested/repeated fixture remains untouched. Generate
+only that corpus with `generate-review.mjs` and the same two directory options.
+Ordinary tests need no producer installation or network. The dev-only Foottrace
+parity suite checks exact drill IDs, grouped commit rails, legacy/current mapper
+bookends and run-wide recorded-read coverage on the same saved records.

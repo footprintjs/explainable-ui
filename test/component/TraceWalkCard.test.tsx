@@ -15,6 +15,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 
+import { presentScopedWalk } from "../../src/components/ExplainableShell/_internal/tracePresentation";
 import { TraceWalkCard } from "../../src/components/DataTracePanel/TraceWalkCard";
 import {
   buildTraceWalk,
@@ -248,4 +249,13 @@ describe("TraceWalkCard — fork chooser (F2)", () => {
     );
     expect(container.querySelector('[data-fp="twc-fork-chooser"]')).toBeNull();
   });
+});
+
+describe("child input boundary in a missing-value card",()=>{
+ it("does not use the root never-written claim for a mapped child input",()=>{
+   const walk=presentScopedWalk(buildTraceWalk(LOG,TREE,"config"),{invocationPath:["child#3"],commitLog:LOG,executionTree:TREE,availability:{ok:true},readsAvailable:true,mountLabels:new Map()});
+   render(<TraceWalkCard walk={walk} cursorRuntimeStageId={null} stepNumberOf={stepOf}/>);
+   expect(document.querySelector('[data-fp="trace-walk-card"]')?.textContent).toContain("received at the subflow boundary");
+   expect(document.querySelector('[data-fp="trace-walk-card"]')?.textContent).not.toContain("never written");
+ });
 });

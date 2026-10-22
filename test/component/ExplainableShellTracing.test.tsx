@@ -240,8 +240,15 @@ describe('ExplainableShell root tracing during live append', () => {
     const ui = render(React.createElement(ExplainableShell, props));
     enterTracing();
     const originalStory = document.querySelector('[data-fp="trace-walk-card"]')?.textContent;
+    // A live snapshot appends the tree node together with its commit. The
+    // root coverage guard correctly refuses a log-only forged new step.
+    const appendedTree = structuredClone(initial.executionTree)!;
+    let tail = appendedTree;
+    while (tail.next) tail = tail.next as Record<string, unknown>;
+    tail.next = { runtimeStageId: 'later#5', stageReads: { total: 1 } };
     const appended = {
       ...initial,
+      executionTree: appendedTree,
       commitLog: [...initial.commitLog, {
         stage: 'Later Total', stageId: 'later', runtimeStageId: 'later#5', trace: [{ path: 'total' }],
       }],

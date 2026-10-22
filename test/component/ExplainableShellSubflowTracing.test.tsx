@@ -99,17 +99,17 @@ describe('ExplainableShell selected subflow tracing', () => {
     const drill = setup([mount('quote', partial)]);
     drill('quote');
     expect(keys()).toEqual([]);
-    expect(screen.getByText(/child trace evidence is unavailable/i)).toBeTruthy();
+    expect(screen.getByText(/Child trace history was not recorded/i)).toBeTruthy();
     expect(document.body.textContent).not.toContain('arrived with the run');
   });
 
-  it('refuses partial child read tracking instead of calling an unrecorded stage an origin', () => {
+  it('accepts an ordinary no-read step using run-wide coverage', () => {
     const partial = childResult('quote');
     delete (partial.treeContext.stageContexts as { stageReads?: unknown }).stageReads;
     const drill = setup([mount('quote', partial)]);
     drill('quote');
-    expect(keys()).toEqual([]);
-    expect(screen.getByText(/child trace evidence is unavailable/i)).toBeTruthy();
+    expect(keys()).toEqual(['price', 'subtotal', 'total']);
+    expect(screen.queryByText(/unavailable/i)).toBeNull();
   });
 
   it('does not reuse an open child record after its source run is replaced', () => {
@@ -120,10 +120,10 @@ describe('ExplainableShell selected subflow tracing', () => {
     trace();
     drill.replace([mount('quote', childResult('quote', 'newKey'))]);
     expect(screen.getByRole('toolbar').getAttribute('data-tracing')).toBeNull();
-    expect(keys()).toEqual([]);
-    expect(screen.getByText(/child trace evidence is unavailable/i)).toBeTruthy();
+    expect(keys()).toEqual(['newKey', 'subtotal', 'total']);
+    expect(document.querySelector('[data-fp="source-change-note"]')).toBeTruthy();
     expect(document.querySelector('[data-fp="trace-walk-card"]')).toBeNull();
-    expect(document.querySelector('[data-fp="trace-unavailable"]')?.textContent).not.toContain('oldPrivateKey');
+    expect(document.body.textContent).not.toContain('oldPrivateKey');
   });
 
   it('resets child tracing and search when navigating back with a breadcrumb', () => {

@@ -26,6 +26,7 @@
  */
 
 import { buildDataTrace } from "./dataTrace";
+import { tracePresentation, scopeSentence, inputSentence } from "./tracePresentation";
 
 /** One read key of a stop, resolved to the commit that wrote it. */
 export interface TraceIngredient {
@@ -266,11 +267,13 @@ export function formatTraceWalk(
   walk: TraceWalk,
   stepNumberOf: (runtimeStageId: string) => number | null,
 ): string {
-  const lines: string[] = [];
+  const presentation = tracePresentation(walk);
+  const scope = scopeSentence(presentation);
+  const lines: string[] = scope ? [scope] : [];
   if (walk.missing) {
     if (walk.missing.reason === "never-written") {
       lines.push(
-        `\`${walk.key}\` was never written in this run — it arrived with the run's inputs.`,
+        `\`${walk.key}\` ${presentation?.invocationPath.length ? inputSentence(presentation) : "was never written in this run — it arrived with the run's inputs"}.`,
       );
     } else {
       const at = walk.missing.firstWriterRuntimeStageId
@@ -290,7 +293,8 @@ export function formatTraceWalk(
   walk.stops.forEach((stop, i) => {
     const step = stepNumberOf(stop.runtimeStageId);
     const pass = stop.loopPass > 0 ? ` (pass ${stop.loopPass})` : "";
-    const made =
+    const boundary = presentation?.mountLabels.get(stop.runtimeStageId);
+    const made = boundary ? ` · computed inside ${boundary}; drill in to trace it` :
       stop.ingredients.length > 0
         ? ` · made from: ${stop.ingredients
             .map((ing) =>
@@ -300,7 +304,7 @@ export function formatTraceWalk(
                       ? `, step ${stepNumberOf(ing.writerRuntimeStageId)}`
                       : ""
                   })`
-                : `${ing.key} (run input — never written)`,
+                : `${ing.key} (${inputSentence(presentation)})`,
             )
             .join(", ")}`
         : walk.readsAvailable
@@ -311,7 +315,7 @@ export function formatTraceWalk(
     );
   });
   if (walk.inputTermini.length > 0) {
-    lines.push(`run inputs (never written): ${walk.inputTermini.join(", ")}`);
+    lines.push(`${presentation?.invocationPath.length ? inputSentence(presentation) : "run inputs (never written)"}: ${walk.inputTermini.join(", ")}`);
   }
   if (!walk.readsAvailable) {
     lines.push("⚠ reads were not recorded — dependencies are unknowable, not absent.");

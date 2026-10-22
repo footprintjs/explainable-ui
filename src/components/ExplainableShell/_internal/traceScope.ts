@@ -1,116 +1,265 @@
-/** Scope selection only. The existing dataTrace / traceWalk own traversal. */
+/** Scope admission only. Existing dataTrace / traceWalk own traversal. */
+import {
+  ownDataField,
+  optionalOwnDataField,
+  isPlainRecord,
+  readName,
+  readOwnArray,
+  WorkBudget,
+  TraceAdmissionError,
+  classifyAdmissionFailure,
+} from "./safeRecordRead";
+export type TraceAvailability =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "no-history" | "malformed" | "too-large";
+      items?: number;
+    };
 export interface TraceScope {
-  /** Full mount invocation chain; chart labels and local names are not identity. */
-  identity: readonly string[];
+  invocationPath: readonly string[];
   commitLog: unknown[];
   executionTree: unknown;
-  unavailable: boolean;
+  availability: TraceAvailability;
+  readsAvailable: boolean;
+  mountLabels: ReadonlyMap<string, string>;
 }
-
-const MAX_ITEMS = 10_000;
-const MAX_NAME_LENGTH = 4_096;
-
-/** New child-record boundary: never evaluate accessors from a stored record. */
-function own(value: unknown, key: PropertyKey): unknown {
-  if (!value || typeof value !== 'object') return undefined;
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor && 'value' in descriptor ? descriptor.value : undefined;
-}
-function record(value: unknown): value is Record<string, unknown> {
-  if (!value || typeof value !== 'object') return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-function array(value: unknown, spend: (count: number) => void): unknown[] {
-  const length = own(value, 'length');
-  if (!Array.isArray(value) || typeof length !== 'number' || !Number.isInteger(length) || length < 0 || length > MAX_ITEMS) throw new Error('unavailable');
-  spend(length);
-  const result: unknown[] = [];
-  for (let index = 0; index < length; index++) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, index);
-    if (!descriptor || !('value' in descriptor)) throw new Error('unavailable');
-    result.push(descriptor.value);
-  }
-  return result;
-}
-function text(value: unknown): string {
-  if (typeof value !== 'string' || value.length === 0 || value.length > MAX_NAME_LENGTH) throw new Error('unavailable');
-  return value;
-}
-
-/**
- * Project the child's OWN trace evidence. Never substitute its parent's log.
- * Missing per-step reads or writes are unknown, not an empty successful trace.
- * Projection copies names only; it never reads stored values or error text.
- */
-export function childTraceScope(result: unknown, identity: readonly string[]): TraceScope {
-  const unavailable = (): TraceScope => ({ identity, commitLog: [], executionTree: undefined, unavailable: true });
+/** The run-wide dial is inherited by children. Empty/missing per-step reads are normal. */
+export function runHasRecordedReads(
+  snapshot: unknown,
+  additionalResults: unknown[] = [],
+): boolean {
   try {
-    let remaining = MAX_ITEMS;
-    const spend = (count: number) => {
-      remaining -= count;
-      if (remaining < 0) throw new Error('unavailable');
+    const budget = new WorkBudget();
+    const seen = new Set<unknown>();
+    const queue = [ownDataField(snapshot, "executionTree")];
+    for (const result of additionalResults)
+      queue.push(
+        ownDataField(ownDataField(result, "treeContext"), "stageContexts"),
+      );
+    const results = ownDataField(snapshot, "subflowResults");
+    if (isPlainRecord(results))
+      for (const key of Object.keys(results)) {
+        budget.spend(1);
+        queue.push(
+          ownDataField(
+            ownDataField(ownDataField(results, key), "treeContext"),
+            "stageContexts",
+          ),
+        );
+      }
+    for (let index = 0; index < queue.length; index++) {
+      budget.spend(1);
+      const node = queue[index];
+      if (!isPlainRecord(node) || seen.has(node)) continue;
+      seen.add(node);
+      const reads = ownDataField(node, "stageReads");
+      if (isPlainRecord(reads) && Object.keys(reads).length > 0) return true;
+      const next = ownDataField(node, "next");
+      if (next) queue.push(next);
+      const children = ownDataField(node, "children");
+      if (children !== undefined) queue.push(...readOwnArray(children, budget));
+    }
+  } catch {
+    /* Unknown coverage stays conservative. */
+  }
+  return false;
+}
+/** Stable public run identity where supplied; old recordings stay object-scoped. */
+export function sourceRunKey(snapshot: unknown): unknown {
+  try {
+    const id = ownDataField(snapshot, "runId");
+    return typeof id === "string" && id.length > 0 ? id : snapshot;
+  } catch {
+    return snapshot;
+  }
+}
+export function childTraceScope(
+  result: unknown,
+  invocationPath: readonly string[],
+  readsAvailable?: boolean,
+): TraceScope {
+  const unavailable = (
+    reason: "no-history" | "malformed" | "too-large",
+    items?: number,
+  ): TraceScope => ({
+    invocationPath,
+    commitLog: [],
+    executionTree: undefined,
+    availability: {
+      ok: false,
+      reason,
+      ...(items === undefined ? {} : { items }),
+    },
+    readsAvailable: readsAvailable ?? false,
+    mountLabels: new Map(),
+  });
+  try {
+    const budget = new WorkBudget();
+    if (
+      invocationPath.length === 0 ||
+      invocationPath.length > 128 ||
+      invocationPath.some(
+        (part) =>
+          typeof part !== "string" || part.length === 0 || part.length > 4_096,
+      ) ||
+      invocationPath.join("").length > 8_192
+    )
+      return unavailable("malformed");
+    const context = ownDataField(result, "treeContext");
+    const rawHistory = ownDataField(context, "history");
+    if (rawHistory === undefined) return unavailable("no-history");
+    const history = readOwnArray(rawHistory, budget);
+    if (history.length === 0) return unavailable("no-history");
+    const mountInvocation = invocationPath[invocationPath.length - 1];
+    const recordedCommits = history.map((entry, index) => {
+      const runtimeStageId = ownDataField(entry, "runtimeStageId");
+      // Through 9.33 the first input mapper bundle used an empty stamp.
+      if (
+        index === 0 &&
+        (runtimeStageId === "" || runtimeStageId === mountInvocation)
+      )
+        return null;
+      return {
+        stage: readName(ownDataField(entry, "stage")),
+        stageId: readName(ownDataField(entry, "stageId")),
+        runtimeStageId: readName(runtimeStageId),
+        trace: readOwnArray(ownDataField(entry, "trace"), budget).map(
+          (write) => ({ path: readName(ownDataField(write, "path")) }),
+        ),
+      };
+    });
+    type TraceNode = {
+      runtimeStageId: string;
+      stageReads?: Record<string, boolean>;
+      next?: TraceNode;
+      children?: TraceNode[];
     };
-    // Scope identity is host navigation state, not a local display label.
-    if (identity.length === 0 || identity.length > 128 ||
-      identity.some(part => typeof part !== 'string' || part.length === 0 || part.length > MAX_NAME_LENGTH) ||
-      identity.join('').length > MAX_NAME_LENGTH * 2) return unavailable();
-    const context = own(result, 'treeContext');
-    const history = array(own(context, 'history'), spend);
-    if (history.length === 0) return unavailable();
-    const recordedCommits = history.map(entry => ({
-      stage: text(own(entry, 'stage')),
-      stageId: text(own(entry, 'stageId')),
-      runtimeStageId: text(own(entry, 'runtimeStageId')),
-      trace: array(own(entry, 'trace'), spend).map(write => ({ path: text(own(write, 'path')) })),
-    }));
-    type TraceNode = { runtimeStageId: string; stageReads?: Record<string, boolean>; next?: TraceNode; children?: TraceNode[] };
-    const source = own(context, 'stageContexts');
     const executionTree = {} as TraceNode;
-    const queue: Array<[unknown, TraceNode]> = [[source, executionTree]];
+    const queue: Array<[unknown, TraceNode]> = [
+      [ownDataField(context, "stageContexts"), executionTree],
+    ];
     const seen = new Set<unknown>();
     const runtimeIds = new Set<string>();
-    const capturedReads = new Set<string>();
+    const mountLabels = new Map<string, string>();
+    let ownReads = false;
     for (let index = 0; index < queue.length; index++) {
-      spend(1);
+      budget.spend(1);
       const [node, target] = queue[index];
-      if (!record(node) || seen.has(node)) return unavailable();
+      if (!isPlainRecord(node) || seen.has(node))
+        return unavailable("malformed");
       seen.add(node);
-      target.runtimeStageId = text(own(node, 'runtimeStageId'));
-      if (runtimeIds.has(target.runtimeStageId)) return unavailable();
+      target.runtimeStageId = readName(ownDataField(node, "runtimeStageId"));
+      if (runtimeIds.has(target.runtimeStageId))
+        return unavailable("malformed");
       runtimeIds.add(target.runtimeStageId);
-      const reads = own(node, 'stageReads');
-      if (record(reads)) {
+      const readDescriptor = Object.getOwnPropertyDescriptor(
+        node,
+        "stageReads",
+      );
+      if (readDescriptor && !("value" in readDescriptor))
+        return unavailable("malformed");
+      const reads = ownDataField(node, "stageReads");
+      if (reads !== undefined && !isPlainRecord(reads))
+        return unavailable("malformed");
+      if (isPlainRecord(reads)) {
         const keys = Object.keys(reads);
-        spend(keys.length);
-        if (keys.some(key => key.length > MAX_NAME_LENGTH)) return unavailable();
-        target.stageReads = Object.fromEntries(keys.map(key => [key, true]));
-        capturedReads.add(target.runtimeStageId);
+        budget.spend(keys.length);
+        if (keys.some((key) => key.length > 4_096))
+          return unavailable("malformed");
+        target.stageReads = Object.fromEntries(keys.map((key) => [key, true]));
+        ownReads ||= keys.length > 0;
       }
-      const next = own(node, 'next');
+      const subflowId = ownDataField(node, "subflowId");
+      if (typeof subflowId === "string" && subflowId.length > 0)
+        mountLabels.set(
+          target.runtimeStageId,
+          typeof ownDataField(node, "name") === "string"
+            ? String(ownDataField(node, "name"))
+            : subflowId,
+        );
+      const next = ownDataField(node, "next");
       if (next !== undefined && next !== null) {
         target.next = {} as TraceNode;
         queue.push([next, target.next]);
       }
-      const children = own(node, 'children');
-      if (children !== undefined) {
-        target.children = array(children, spend).map(child => {
+      const children = ownDataField(node, "children");
+      if (children !== undefined)
+        target.children = readOwnArray(children, budget).map((child) => {
           const projected = {} as TraceNode;
           queue.push([child, projected]);
           return projected;
         });
+    }
+    const commitLog = recordedCommits.filter(
+      (entry): entry is NonNullable<typeof entry> => entry !== null,
+    );
+    if (commitLog.some((entry) => !runtimeIds.has(entry.runtimeStageId)))
+      return unavailable("malformed");
+    return {
+      invocationPath,
+      commitLog,
+      executionTree,
+      availability: { ok: true },
+      readsAvailable: readsAvailable ?? ownReads,
+      mountLabels,
+    };
+  } catch (error) {
+    const failure = classifyAdmissionFailure(error);
+    return unavailable(failure.reason, failure.items);
+  }
+}
+export function rootMountLabels(
+  tree: unknown,
+  commitLog?: unknown[],
+): {
+  labels: ReadonlyMap<string, string>;
+  availability: TraceAvailability;
+  hasTree: boolean;
+} {
+  const labels = new Map<string, string>();
+  const budget = new WorkBudget();
+  const seen = new Set<unknown>();
+  const queue: unknown[] = tree === undefined || tree === null ? [] : [tree];
+  const runtimeIds = new Set<string>();
+  try {
+    for (let i = 0; i < queue.length; i++) {
+      budget.spend(1);
+      const node = queue[i];
+      if (!isPlainRecord(node)) throw new TraceAdmissionError("malformed");
+      if (seen.has(node)) throw new TraceAdmissionError("malformed");
+      seen.add(node);
+      const id = optionalOwnDataField(node, "runtimeStageId");
+      if (typeof id === "string" && id.length > 0) {
+        if (runtimeIds.has(id)) throw new TraceAdmissionError("malformed");
+        runtimeIds.add(id);
+      }
+      const mount = optionalOwnDataField(node, "subflowId");
+      const name = optionalOwnDataField(node, "name");
+      if (typeof id === "string" && typeof mount === "string")
+        labels.set(id, typeof name === "string" ? name : mount);
+      const next = optionalOwnDataField(node, "next");
+      if (next !== undefined && next !== null) queue.push(next);
+      const children = optionalOwnDataField(node, "children");
+      if (children !== undefined)
+        for (const child of readOwnArray(children, budget)) queue.push(child);
+    }
+    if (commitLog !== undefined) {
+      for (const [index, entry] of readOwnArray(commitLog, budget).entries()) {
+        const id = optionalOwnDataField(entry, "runtimeStageId");
+        // A legacy first mapper stamp is an input boundary, not a step.
+        if (index === 0 && id === "") continue;
+        if (typeof id !== "string" || !runtimeIds.has(id))
+          throw new TraceAdmissionError("malformed");
       }
     }
-    // Current engine histories start with the mount's input-mapping bundle.
-    // It belongs to the parent invocation, not to a step on this child rail.
-    // Its writes become child inputs; their parent ancestry is not inferred.
-    const mountInvocation = identity[identity.length - 1];
-    const commitLog = recordedCommits.filter(entry =>
-      entry.runtimeStageId !== mountInvocation || capturedReads.has(entry.runtimeStageId));
-    if (commitLog.length === 0 || commitLog.some(entry => !capturedReads.has(entry.runtimeStageId))) return unavailable();
-    return { identity, commitLog, executionTree, unavailable: false };
-  } catch {
-    // Includes hostile proxies: a failed inspection is unknown, never a trace.
-    return unavailable();
+    return { labels, availability: { ok: true }, hasTree: runtimeIds.size > 0 };
+  } catch (error) {
+    // No partial map can turn a mount omitted by admission into an origin.
+    return {
+      labels: new Map(),
+      hasTree: false,
+      availability: { ok: false, ...classifyAdmissionFailure(error) },
+    };
   }
 }
