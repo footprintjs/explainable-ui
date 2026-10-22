@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Variable tracing inside selected recorded subflow invocations. Search,
+  ingredient follow and the timeline use the child's own history and tree;
+  full mount runtime IDs distinguish repeated invocations and nested scopes.
+  Scope changes clear the previous trace, search and fork chooser. Missing
+  child evidence is explicitly unavailable instead of borrowing parent data.
+  The mount input-mapping bundle is a child input boundary, not a child rail
+  step; tracing does not infer parent ancestry or exact read versions.
+
 ## [0.38.2] - 2026-10-15
 
 ### Fixed

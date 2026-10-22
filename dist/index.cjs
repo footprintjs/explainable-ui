@@ -2594,6 +2594,98 @@ function TimeTravelControls({
 // src/components/ExplainableShell/ExplainableShell.tsx
 var import_react34 = require("react");
 
+// src/components/ExplainableShell/_internal/traceScope.ts
+var MAX_ITEMS = 1e4;
+var MAX_NAME_LENGTH = 4096;
+function own(value, key) {
+  if (!value || typeof value !== "object") return void 0;
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor && "value" in descriptor ? descriptor.value : void 0;
+}
+function record(value) {
+  if (!value || typeof value !== "object") return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+function array(value, spend) {
+  const length = own(value, "length");
+  if (!Array.isArray(value) || typeof length !== "number" || !Number.isInteger(length) || length < 0 || length > MAX_ITEMS) throw new Error("unavailable");
+  spend(length);
+  const result = [];
+  for (let index = 0; index < length; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, index);
+    if (!descriptor || !("value" in descriptor)) throw new Error("unavailable");
+    result.push(descriptor.value);
+  }
+  return result;
+}
+function text(value) {
+  if (typeof value !== "string" || value.length === 0 || value.length > MAX_NAME_LENGTH) throw new Error("unavailable");
+  return value;
+}
+function childTraceScope(result, identity) {
+  const unavailable = () => ({ identity, commitLog: [], executionTree: void 0, unavailable: true });
+  try {
+    let remaining = MAX_ITEMS;
+    const spend = (count) => {
+      remaining -= count;
+      if (remaining < 0) throw new Error("unavailable");
+    };
+    if (identity.length === 0 || identity.length > 128 || identity.some((part) => typeof part !== "string" || part.length === 0 || part.length > MAX_NAME_LENGTH) || identity.join("").length > MAX_NAME_LENGTH * 2) return unavailable();
+    const context = own(result, "treeContext");
+    const history = array(own(context, "history"), spend);
+    if (history.length === 0) return unavailable();
+    const recordedCommits = history.map((entry) => ({
+      stage: text(own(entry, "stage")),
+      stageId: text(own(entry, "stageId")),
+      runtimeStageId: text(own(entry, "runtimeStageId")),
+      trace: array(own(entry, "trace"), spend).map((write) => ({ path: text(own(write, "path")) }))
+    }));
+    const source = own(context, "stageContexts");
+    const executionTree = {};
+    const queue = [[source, executionTree]];
+    const seen = /* @__PURE__ */ new Set();
+    const runtimeIds = /* @__PURE__ */ new Set();
+    const capturedReads = /* @__PURE__ */ new Set();
+    for (let index = 0; index < queue.length; index++) {
+      spend(1);
+      const [node, target] = queue[index];
+      if (!record(node) || seen.has(node)) return unavailable();
+      seen.add(node);
+      target.runtimeStageId = text(own(node, "runtimeStageId"));
+      if (runtimeIds.has(target.runtimeStageId)) return unavailable();
+      runtimeIds.add(target.runtimeStageId);
+      const reads = own(node, "stageReads");
+      if (record(reads)) {
+        const keys = Object.keys(reads);
+        spend(keys.length);
+        if (keys.some((key) => key.length > MAX_NAME_LENGTH)) return unavailable();
+        target.stageReads = Object.fromEntries(keys.map((key) => [key, true]));
+        capturedReads.add(target.runtimeStageId);
+      }
+      const next = own(node, "next");
+      if (next !== void 0 && next !== null) {
+        target.next = {};
+        queue.push([next, target.next]);
+      }
+      const children = own(node, "children");
+      if (children !== void 0) {
+        target.children = array(children, spend).map((child) => {
+          const projected = {};
+          queue.push([child, projected]);
+          return projected;
+        });
+      }
+    }
+    const mountInvocation = identity[identity.length - 1];
+    const commitLog = recordedCommits.filter((entry) => entry.runtimeStageId !== mountInvocation || capturedReads.has(entry.runtimeStageId));
+    if (commitLog.length === 0 || commitLog.some((entry) => !capturedReads.has(entry.runtimeStageId))) return unavailable();
+    return { identity, commitLog, executionTree, unavailable: false };
+  } catch {
+    return unavailable();
+  }
+}
+
 // src/components/ExplainableShell/_internal/dataTrace.ts
 function readsByStep(tree) {
   const byStep = /* @__PURE__ */ new Map();
@@ -2848,8 +2940,8 @@ var TraceWalkCard = (0, import_react11.memo)(function TraceWalkCard2({
   const followableCount = current ? current.ingredients.filter((ing) => ing.writerRuntimeStageId !== null).length : 0;
   const chooserVisible = !!forkChooserOpen && followableCount >= 2;
   const copyStory = () => {
-    const text = formatTraceWalk(walk, stepNumberOf);
-    void navigator.clipboard?.writeText(text).then(() => {
+    const text2 = formatTraceWalk(walk, stepNumberOf);
+    void navigator.clipboard?.writeText(text2).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     });
@@ -4130,7 +4222,7 @@ function safeJsonStringify(value) {
   const seen = /* @__PURE__ */ new WeakSet();
   const MAX_CHARS = 5e5;
   try {
-    let text = JSON.stringify(
+    let text2 = JSON.stringify(
       value,
       (_key, v2) => {
         if (typeof v2 === "object" && v2 !== null) {
@@ -4141,11 +4233,11 @@ function safeJsonStringify(value) {
       },
       2
     );
-    if (text && text.length > MAX_CHARS) {
-      text = text.slice(0, MAX_CHARS) + `
+    if (text2 && text2.length > MAX_CHARS) {
+      text2 = text2.slice(0, MAX_CHARS) + `
 ... [truncated at ${MAX_CHARS} chars]`;
     }
-    return text ?? "undefined";
+    return text2 ?? "undefined";
   } catch (err) {
     return `[stringify error: ${err instanceof Error ? err.message : String(err)}]`;
   }
@@ -4230,12 +4322,12 @@ function NarrativePanel({
       const lines = [];
       for (const e of entries) {
         if (opts?.inSubflow && e.type === "subflow") continue;
-        let text = e.text;
+        let text2 = e.text;
         if (opts?.inSubflow) {
           const prefix = `[${opts.inSubflow}/`;
-          const idx = text.indexOf(prefix);
+          const idx = text2.indexOf(prefix);
           if (idx !== -1) {
-            text = text.slice(0, idx) + "[" + text.slice(idx + prefix.length);
+            text2 = text2.slice(0, idx) + "[" + text2.slice(idx + prefix.length);
           }
         }
         const isHeading = e.type === "stage" || e.type === "subflow" || e.type === "fork" || e.type === "selector";
@@ -4243,9 +4335,9 @@ function NarrativePanel({
           counter++;
           const sfId = e.subflowId;
           const idSuffix = e.type === "subflow" && sfId ? ` [\u2192 ${sfId}]` : "";
-          lines.push(`${counter}. ${text}${idSuffix}`);
+          lines.push(`${counter}. ${text2}${idSuffix}`);
         } else {
-          lines.push(`  ${text}`);
+          lines.push(`  ${text2}`);
         }
       }
       return lines.join("\n");
@@ -4312,8 +4404,8 @@ function NarrativePanel({
     return sections.join("\n");
   }, [narrativeEntries, narrative, runtimeSnapshot, spec]);
   const handleCopy = (0, import_react14.useCallback)(async () => {
-    const text = buildLLMNarrative();
-    await navigator.clipboard.writeText(text);
+    const text2 = buildLLMNarrative();
+    await navigator.clipboard.writeText(text2);
     setCopied(true);
     setTimeout(() => setCopied(false), 2e3);
   }, [buildLLMNarrative]);
@@ -7752,23 +7844,23 @@ var DetailsContent = (0, import_react34.memo)(function DetailsContent2({
     /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
   ] });
 });
-function resolveSubflowFromRuntime(parentSnapshots, drillKey, narrativeEntries, subflowResults) {
+function resolveSubflowFromRuntime(parentSnapshots, drillKey, narrativeEntries, subflowResults, cursorRuntimeStageId, parentIdentity = [], runtimeSource) {
   const localId = drillKey.split("/").pop() ?? drillKey;
   const pathOf = (s) => s.runtimeStageId?.split("#")[0];
   const withResult = parentSnapshots.filter((s) => !!s.subflowResult);
-  const parentSnap = (
-    // Tier 1 — this exact mount, by full path.
-    withResult.find((s) => s.subflowId === drillKey || pathOf(s) === drillKey) ?? // Tier 2 — the same mount seen from inside its own subflow, where the
-    // enclosing prefix has been stripped off the ids.
-    withResult.find((s) => {
-      const p = pathOf(s);
-      return p !== void 0 && drillKey.endsWith("/" + p) || s.subflowId !== void 0 && drillKey.endsWith("/" + s.subflowId);
-    }) ?? // Tier 3 — legacy callers that drill by a bare subflow id or a label.
-    withResult.find((s) => {
-      const leaf = pathOf(s)?.split("/").pop();
-      return s.subflowId === localId || s.stageName === drillKey || s.stageLabel === drillKey || leaf === drillKey || leaf === localId;
+  const tiers = [
+    withResult.filter((snapshot) => snapshot.subflowId === drillKey || pathOf(snapshot) === drillKey),
+    withResult.filter((snapshot) => {
+      const path = pathOf(snapshot);
+      return path !== void 0 && drillKey.endsWith("/" + path) || snapshot.subflowId !== void 0 && drillKey.endsWith("/" + snapshot.subflowId);
+    }),
+    withResult.filter((snapshot) => {
+      const leaf = pathOf(snapshot)?.split("/").pop();
+      return snapshot.subflowId === localId || snapshot.stageName === drillKey || snapshot.stageLabel === drillKey || leaf === drillKey || leaf === localId;
     })
-  );
+  ];
+  const candidates = tiers.find((tier) => tier.length > 0) ?? [];
+  const parentSnap = candidates.find((snapshot) => snapshot.runtimeStageId === cursorRuntimeStageId) ?? (candidates.length === 1 ? candidates[0] : void 0);
   if (!parentSnap?.subflowResult) return null;
   const label = parentSnap.stageLabel ?? parentSnap.stageName ?? localId;
   const sfNarrative = narrativeEntries ? extractSubflowNarrative(narrativeEntries, drillKey, label) : void 0;
@@ -7778,7 +7870,18 @@ function resolveSubflowFromRuntime(parentSnapshots, drillKey, narrativeEntries, 
     subflowResults
   );
   if (sfSnapshots.length === 0) return null;
-  return { subflowId: drillKey, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
+  return {
+    subflowId: drillKey,
+    label,
+    spec: null,
+    snapshots: sfSnapshots,
+    narrative: sfNarrative,
+    traceScope: childTraceScope(
+      parentSnap.subflowResult,
+      parentSnap.runtimeStageId ? [...parentIdentity, parentSnap.runtimeStageId] : []
+    ),
+    runtimeSource
+  };
 }
 var RIGHT_PANEL_MODE_LABELS = {
   insights: "Insights",
@@ -8067,18 +8170,42 @@ function ExplainableShell({
   const currentLevel = (0, import_react34.useMemo)(() => {
     if (drillDownStack.length > 0) {
       const top = drillDownStack[drillDownStack.length - 1];
-      return { spec: top.spec, snapshots: top.snapshots, narrative: top.narrative, subflowId: top.subflowId };
+      return { spec: top.spec, snapshots: top.snapshots, narrative: top.narrative, subflowId: top.subflowId, traceScope: top.traceScope, runtimeSource: top.runtimeSource };
     }
-    return { spec: null, snapshots, narrative: void 0, subflowId: void 0 };
+    return { spec: null, snapshots, narrative: void 0, subflowId: void 0, traceScope: void 0, runtimeSource: void 0 };
   }, [drillDownStack, snapshots]);
+  const activeTraceScope = (0, import_react34.useMemo)(() => {
+    const child = currentLevel.traceScope;
+    if (child) {
+      if (currentLevel.runtimeSource !== runtimeSnapshot) return {
+        identity: child.identity,
+        commitLog: [],
+        executionTree: void 0,
+        unavailable: true
+      };
+      return child;
+    }
+    return {
+      identity: [],
+      commitLog: runtimeSnapshot?.commitLog ?? [],
+      executionTree: runtimeSnapshot?.executionTree,
+      unavailable: false
+    };
+  }, [currentLevel.traceScope, currentLevel.runtimeSource, runtimeSnapshot]);
+  const childSource = isInSubflow ? runtimeSnapshot : void 0;
+  (0, import_react34.useEffect)(() => {
+    setTracing(null);
+    setForkChooserOpen(false);
+    setTraceSearch("");
+  }, [currentLevel.traceScope, childSource]);
   const activeSnapshots = currentLevel.snapshots;
   const safeIdx = activeSnapshots.length > 0 ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1)) : 0;
   const shellDataTrace = (0, import_react34.useMemo)(
-    () => runtimeSnapshot?.commitLog ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "") : { frames: [], readsAvailable: true },
-    [runtimeSnapshot, activeSnapshots, safeIdx]
+    () => !activeTraceScope.unavailable && (isInSubflow || runtimeSnapshot?.commitLog) ? buildDataTrace(activeTraceScope.commitLog, activeTraceScope.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "") : { frames: [], readsAvailable: true },
+    [activeTraceScope, isInSubflow, runtimeSnapshot, activeSnapshots, safeIdx]
   );
   const allTracedKeys = (0, import_react34.useMemo)(() => {
-    const log = runtimeSnapshot?.commitLog;
+    const log = activeTraceScope.commitLog;
     if (!log?.length) return [];
     const seen = /* @__PURE__ */ new Set();
     const keys = [];
@@ -8091,19 +8218,19 @@ function ExplainableShell({
       }
     }
     return keys;
-  }, [runtimeSnapshot]);
+  }, [activeTraceScope]);
   const traceWalk = (0, import_react34.useMemo)(() => {
-    if (!tracing || !runtimeSnapshot?.commitLog) return null;
+    if (!tracing || tracing.scope !== (isInSubflow ? activeTraceScope : null) || activeTraceScope.unavailable) return null;
     const scope = tracing.via.length > 0 ? tracing.via[tracing.via.length - 1] : tracing;
-    return buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
+    return buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
       beforeCommitIdx: scope.beforeCommitIdx
     });
-  }, [tracing, runtimeSnapshot]);
+  }, [tracing, activeTraceScope, isInSubflow]);
   const traceStopIndices = (0, import_react34.useMemo)(() => {
-    if (!traceWalk || traceWalk.missing || isInSubflow) return [];
+    if (!traceWalk || traceWalk.missing) return [];
     const idxByRsid = new Map(activeSnapshots.map((sn, i) => [sn.runtimeStageId, i]));
     return traceWalk.stops.map((stop) => idxByRsid.get(stop.runtimeStageId)).filter((i) => i !== void 0).sort((a, b) => a - b);
-  }, [traceWalk, activeSnapshots, isInSubflow]);
+  }, [traceWalk, activeSnapshots]);
   const sliceCone = (0, import_react34.useMemo)(() => {
     if (traceWalk && !traceWalk.missing && traceWalk.stops.length >= 2) {
       const cone2 = /* @__PURE__ */ new Map();
@@ -8172,46 +8299,46 @@ function ExplainableShell({
   );
   const handleStartTracing = (0, import_react34.useCallback)(
     (key) => {
-      if (!runtimeSnapshot?.commitLog || isInSubflow) return;
-      const log = runtimeSnapshot.commitLog;
+      if (activeTraceScope.unavailable) return;
+      const log = activeTraceScope.commitLog;
       const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
       const cursorCommitIdx = log.findIndex((c) => c.runtimeStageId === cursorRsid);
       const beforeCommitIdx = cursorCommitIdx >= 0 ? cursorCommitIdx + 1 : void 0;
-      setTracing({ key, beforeCommitIdx, via: [] });
+      setTracing({ scope: isInSubflow ? activeTraceScope : null, key, beforeCommitIdx, via: [] });
       setForkChooserOpen(false);
       setTraceSearch("");
       setRightPanelMode("what");
       setInspectorTab("trace");
       jumpToAnchor(
-        buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, key, { beforeCommitIdx })
+        buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, key, { beforeCommitIdx })
       );
     },
-    [runtimeSnapshot, isInSubflow, activeSnapshots, safeIdx, jumpToAnchor]
+    [activeTraceScope, isInSubflow, activeSnapshots, safeIdx, jumpToAnchor]
   );
   const handleFollowIngredient = (0, import_react34.useCallback)(
     (ing) => {
-      if (!tracing || !runtimeSnapshot?.commitLog || ing.writerCommitIdx === null) return;
+      if (!tracing || activeTraceScope.unavailable || ing.writerCommitIdx === null) return;
       const scope = { key: ing.key, beforeCommitIdx: ing.writerCommitIdx + 1 };
       setTracing({ ...tracing, via: [...tracing.via, scope] });
       setForkChooserOpen(false);
       jumpToAnchor(
-        buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
+        buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
           beforeCommitIdx: scope.beforeCommitIdx
         })
       );
     },
-    [tracing, runtimeSnapshot, jumpToAnchor]
+    [tracing, activeTraceScope, jumpToAnchor]
   );
   const handleShowAllIngredients = (0, import_react34.useCallback)(() => {
-    if (!tracing || !runtimeSnapshot?.commitLog) return;
+    if (!tracing || activeTraceScope.unavailable) return;
     setTracing({ ...tracing, via: [] });
     setForkChooserOpen(false);
     jumpToAnchor(
-      buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, tracing.key, {
+      buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, tracing.key, {
         beforeCommitIdx: tracing.beforeCommitIdx
       })
     );
-  }, [tracing, runtimeSnapshot, jumpToAnchor]);
+  }, [tracing, activeTraceScope, jumpToAnchor]);
   const handleExitTracing = (0, import_react34.useCallback)(() => {
     setTracing(null);
     setForkChooserOpen(false);
@@ -8229,26 +8356,32 @@ function ExplainableShell({
       const keys = chain.length > 0 ? chain : [mountKey];
       const stack = [];
       let levelSnapshots = snapshots;
-      for (const key of keys) {
-        const entry = resolveSubflowFromRuntime(
+      for (const [depth, key] of keys.entries()) {
+        const existing = drillDownStack[depth];
+        const parentCursorIdx = existing?.parentSnapshotIdx ?? (depth === drillDownStack.length ? snapshotIdx : 0);
+        const entry = existing?.subflowId === key && existing.runtimeSource === runtimeSnapshot ? existing : resolveSubflowFromRuntime(
           levelSnapshots,
           key,
           narrativeEntries,
-          runtimeSnapshot?.subflowResults
+          runtimeSnapshot?.subflowResults,
+          levelSnapshots[parentCursorIdx]?.runtimeStageId,
+          stack[stack.length - 1]?.traceScope.identity,
+          runtimeSnapshot
         );
         if (!entry) return null;
-        stack.push({ ...entry, parentSnapshotIdx: stack.length === 0 ? snapshotIdx : 0 });
+        stack.push({ ...entry, parentSnapshotIdx: parentCursorIdx });
         levelSnapshots = entry.snapshots;
       }
       return stack.length > 0 ? stack : null;
     },
-    [traceGraph, snapshots, narrativeEntries, runtimeSnapshot, snapshotIdx]
+    [traceGraph, snapshots, narrativeEntries, runtimeSnapshot, snapshotIdx, drillDownStack]
   );
   const handleDrillDown = (0, import_react34.useCallback)(
     (mountKey) => {
       const stack = buildDrillStack(mountKey);
       if (stack) {
         setTracing(null);
+        setTraceSearch("");
         setForkChooserOpen(false);
         setDrillDownStack(stack);
         setSnapshotIdx(0);
@@ -8257,6 +8390,9 @@ function ExplainableShell({
     [buildDrillStack]
   );
   const handleBreadcrumbNavigate = (0, import_react34.useCallback)((level) => {
+    setTracing(null);
+    setForkChooserOpen(false);
+    setTraceSearch("");
     setDrillDownStack((prev) => {
       const popped = level === 0 ? prev[0] : prev[level];
       if (popped) setSnapshotIdx(popped.parentSnapshotIdx);
@@ -8340,24 +8476,30 @@ function ExplainableShell({
     };
   }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients, handleForkPrompt]);
   const traceTabContent = (0, import_react34.useMemo)(() => {
+    if (activeTraceScope.unavailable) {
+      return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { "data-fp": "trace-unavailable", role: "status", style: { padding: 14 }, children: "Child trace evidence is unavailable or incomplete \u2014 dependencies are unknown. No parent record was substituted." });
+    }
     if (tracing && traceWalk) {
-      return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
-        TraceWalkCard,
-        {
-          walk: traceWalk,
-          cursorRuntimeStageId: activeSnapshots[safeIdx]?.runtimeStageId ?? null,
-          viaKey: activeViaKey,
-          stepNumberOf,
-          previewValueOf: (k) => activeSnapshots[safeIdx]?.memory?.[k],
-          onFollowIngredient: handleFollowIngredient,
-          onJumpToStop: navigateToStage,
-          onShowAll: activeViaKey ? handleShowAllIngredients : void 0,
-          onExit: handleExitTracing,
-          forkChooserOpen,
-          onContinueTimeOrder: handleContinueTimeOrder,
-          canContinueTimeOrder: traceStopIndices.some((i) => i < safeIdx)
-        }
-      );
+      return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
+        isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { "data-fp": "trace-scope-note", style: { padding: "10px 14px 0", fontSize: 12 }, children: "Tracing this subflow invocation only. \u201CRun inputs\u201D means inputs at this subflow boundary; their parent ancestry is unknown." }),
+        /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+          TraceWalkCard,
+          {
+            walk: traceWalk,
+            cursorRuntimeStageId: activeSnapshots[safeIdx]?.runtimeStageId ?? null,
+            viaKey: activeViaKey,
+            stepNumberOf,
+            previewValueOf: (k) => activeSnapshots[safeIdx]?.memory?.[k],
+            onFollowIngredient: handleFollowIngredient,
+            onJumpToStop: navigateToStage,
+            onShowAll: activeViaKey ? handleShowAllIngredients : void 0,
+            onExit: handleExitTracing,
+            forkChooserOpen,
+            onContinueTimeOrder: handleContinueTimeOrder,
+            canContinueTimeOrder: traceStopIndices.some((i) => i < safeIdx)
+          }
+        )
+      ] });
     }
     const chipStyle = {
       border: "1px solid var(--fp-accent, #6366f1)",
@@ -8375,7 +8517,7 @@ function ExplainableShell({
     const matchedKeys = query ? allTracedKeys.filter((k) => k.toLowerCase().includes(query)) : allTracedKeys;
     const shownKeys = matchedKeys.slice(0, 12);
     return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
-      !isInSubflow && (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { "data-fp": "trace-entry", style: { padding: "10px 14px 0", fontSize: 12 }, children: [
+      (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { "data-fp": "trace-entry", style: { padding: "10px 14px 0", fontSize: 12 }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("span", { style: { color: theme.textMuted, marginRight: 6 }, children: "This step wrote:" }),
         shellDataTrace.frames[0].keysWritten.map((k) => /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           "button",
@@ -8389,7 +8531,7 @@ function ExplainableShell({
           k
         ))
       ] }),
-      !isInSubflow && allTracedKeys.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { "data-fp": "trace-any", style: { padding: "6px 14px 0", fontSize: 12 }, children: [
+      allTracedKeys.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { "data-fp": "trace-any", style: { padding: "6px 14px 0", fontSize: 12 }, children: [
         /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("div", { style: { color: theme.textMuted, marginBottom: 4 }, children: "Trace any variable:" }),
         /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
           "input",
@@ -8441,7 +8583,7 @@ function ExplainableShell({
         }
       )
     ] });
-  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
+  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, activeTraceScope, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
   const renderTabBody = (0, import_react34.useCallback)(
     (tabId, plain) => {

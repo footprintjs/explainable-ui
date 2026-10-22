@@ -368,7 +368,29 @@ have. One cursor, no new axis.
   first write happens. Reads-off runs say "unknowable, not absent".
 - **[Copy story]** emits the same text an LLM backtrack tool returns — the
   human's board and the agent's answer are one artifact.
-- Tracing lives on the root rail: drilling into a subflow exits it honestly.
+- **Trace inside a subflow**: drill into a recorded child, then open
+  Inspector → Data Trace. Search, ingredient follow, earlier cause and Done
+  use that child's own history and execution tree. Returning by breadcrumb
+  clears the previous trace and search. Repeated mount invocations are
+  distinguished by their full runtime IDs, never by a shared local label.
+- A child history's exact mount input-mapping bundle is an **input boundary**,
+  not a child stage. It is excluded from the child rail. “Run inputs” in a
+  child trace means inputs at that subflow boundary; parent ancestry is
+  unknown. No parent log is substituted. If child history, per-step writes
+  or per-step reads are missing or cannot be inspected safely, Data Trace
+  says **unavailable / unknown** instead of claiming an origin. When several
+  mount invocations share a chart node, select the desired invocation on
+  the parent timeline before drilling; an ambiguous off-cursor drill is
+  refused. Replacing the source recording while a child is open makes that
+  child trace unavailable until a fresh drill; an immutable append on the
+  root rail keeps its existing frozen tracing question.
+- Child projection has one 10,000-item work allowance across commits,
+  writes, read names and tree nodes. Names are capped at 4,096 characters;
+  a scope identity has at most 128 components and 8,192 characters total.
+  Exceeding these bounds yields unavailable evidence, never a partial origin.
+- These are the existing conservative stage-read links, not exact read
+  versions or proof that a read caused a write. This change adds scoped
+  navigation, not a second cause-finding algorithm or storage loading.
 - **Trace anything**: below the current step's chips, a search box lists
   *every* variable the run ever wrote — trace any of them from wherever you
   stand.

@@ -1,0 +1,3701 @@
+{
+  "nested": {
+    "runtimeSnapshot": {
+      "sharedState": {
+        "base": 10,
+        "total": 24,
+        "nestedTotal": 44,
+        "report": 44
+      },
+      "executionTree": {
+        "id": "seed",
+        "runtimeStageId": "seed#0",
+        "name": "Root Seed",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "base": 10,
+          "total": 9999
+        },
+        "flowMessages": [
+          {
+            "type": "next",
+            "description": "Moving to First Quote stage",
+            "timestamp": 1792643206366,
+            "targetStage": "First Quote"
+          }
+        ],
+        "next": {
+          "id": "prepare",
+          "runtimeStageId": "prepare#1",
+          "name": "First Quote",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "subflowId": "prepare",
+          "flowMessages": [
+            {
+              "type": "subflow",
+              "description": "Entering First Quote subflow",
+              "timestamp": 1792643206367,
+              "targetStage": "prepare"
+            },
+            {
+              "type": "subflow",
+              "description": "Exiting First Quote subflow",
+              "timestamp": 1792643206368,
+              "targetStage": "prepare"
+            }
+          ],
+          "next": {
+            "id": "pipeline",
+            "runtimeStageId": "pipeline#6",
+            "name": "Pipeline",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "subflowId": "pipeline",
+            "flowMessages": [
+              {
+                "type": "subflow",
+                "description": "Entering Pipeline subflow",
+                "timestamp": 1792643206368,
+                "targetStage": "pipeline"
+              },
+              {
+                "type": "subflow",
+                "description": "Exiting Pipeline subflow",
+                "timestamp": 1792643206369,
+                "targetStage": "pipeline"
+              }
+            ],
+            "next": {
+              "id": "report",
+              "runtimeStageId": "report#13",
+              "name": "Root Report",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "report": 44
+              },
+              "stageReads": {
+                "nestedTotal": 44
+              }
+            }
+          }
+        }
+      },
+      "initialState": {},
+      "commitLog": [
+        {
+          "overwrite": {
+            "base": 10,
+            "total": 9999
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "base",
+              "verb": "set"
+            },
+            {
+              "path": "total",
+              "verb": "set"
+            }
+          ],
+          "stage": "Root Seed",
+          "stageId": "seed",
+          "runtimeStageId": "seed#0",
+          "idx": 0
+        },
+        {
+          "overwrite": {
+            "total": 24
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "total",
+              "verb": "set"
+            }
+          ],
+          "stage": "First Quote",
+          "stageId": "prepare",
+          "runtimeStageId": "prepare#1",
+          "idx": 1
+        },
+        {
+          "overwrite": {},
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [],
+          "stage": "First Quote",
+          "stageId": "prepare",
+          "runtimeStageId": "prepare#1",
+          "phase": "exit",
+          "idx": 2
+        },
+        {
+          "overwrite": {
+            "nestedTotal": 44
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "nestedTotal",
+              "verb": "set"
+            }
+          ],
+          "stage": "Pipeline",
+          "stageId": "pipeline",
+          "runtimeStageId": "pipeline#6",
+          "idx": 3
+        },
+        {
+          "overwrite": {},
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [],
+          "stage": "Pipeline",
+          "stageId": "pipeline",
+          "runtimeStageId": "pipeline#6",
+          "phase": "exit",
+          "idx": 4
+        },
+        {
+          "overwrite": {
+            "report": 44
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "report",
+              "verb": "set"
+            }
+          ],
+          "stage": "Root Report",
+          "stageId": "report",
+          "runtimeStageId": "report#13",
+          "idx": 5
+        }
+      ],
+      "logAddress": {
+        "logRunId": "1792643206364-0000000001",
+        "drillPath": []
+      },
+      "commitValues": "full",
+      "writeProvenance": "off",
+      "runId": "1792643206364-0000000001",
+      "subflowResults": {
+        "prepare": {
+          "subflowId": "prepare",
+          "subflowName": "First Quote",
+          "treeContext": {
+            "globalContext": {
+              "base": 10,
+              "items": [
+                10,
+                2
+              ],
+              "rate": 2,
+              "subtotal": 12,
+              "audit": "12",
+              "total": 24
+            },
+            "stageContexts": {
+              "id": "prepare/seed",
+              "runtimeStageId": "prepare/seed#2",
+              "name": "prepare/Child Seed",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "items": [
+                  10,
+                  2
+                ],
+                "rate": 2
+              },
+              "stageReads": {
+                "base": 10
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to prepare/Child Sum stage",
+                  "timestamp": 1792643206368,
+                  "targetStage": "prepare/Child Sum"
+                }
+              ],
+              "next": {
+                "id": "prepare/sum",
+                "runtimeStageId": "prepare/sum#3",
+                "name": "prepare/Child Sum",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "subtotal": 12
+                },
+                "stageReads": {
+                  "items": [
+                    10,
+                    2
+                  ]
+                },
+                "flowMessages": [
+                  {
+                    "type": "next",
+                    "description": "Moving to prepare/Child Audit stage",
+                    "timestamp": 1792643206368,
+                    "targetStage": "prepare/Child Audit"
+                  }
+                ],
+                "next": {
+                  "id": "prepare/audit",
+                  "runtimeStageId": "prepare/audit#4",
+                  "name": "prepare/Child Audit",
+                  "isDecider": false,
+                  "isFork": false,
+                  "logs": {},
+                  "errors": {},
+                  "metrics": {},
+                  "evals": {},
+                  "stageWrites": {
+                    "audit": "12"
+                  },
+                  "stageReads": {
+                    "subtotal": 12
+                  },
+                  "flowMessages": [
+                    {
+                      "type": "next",
+                      "description": "Moving to prepare/Child Total stage",
+                      "timestamp": 1792643206368,
+                      "targetStage": "prepare/Child Total"
+                    }
+                  ],
+                  "next": {
+                    "id": "prepare/total",
+                    "runtimeStageId": "prepare/total#5",
+                    "name": "prepare/Child Total",
+                    "isDecider": false,
+                    "isFork": false,
+                    "logs": {},
+                    "errors": {},
+                    "metrics": {},
+                    "evals": {},
+                    "stageWrites": {
+                      "total": 24
+                    },
+                    "stageReads": {
+                      "subtotal": 12,
+                      "rate": 2
+                    }
+                  }
+                }
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 10
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "First Quote",
+                "stageId": "prepare",
+                "runtimeStageId": "prepare#1",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "items": [
+                    10,
+                    2
+                  ],
+                  "rate": 2
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "items",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "rate",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Seed",
+                "stageId": "prepare/seed",
+                "runtimeStageId": "prepare/seed#2",
+                "idx": 1
+              },
+              {
+                "overwrite": {
+                  "subtotal": 12
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "subtotal",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Sum",
+                "stageId": "prepare/sum",
+                "runtimeStageId": "prepare/sum#3",
+                "idx": 2
+              },
+              {
+                "overwrite": {
+                  "audit": "12"
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "audit",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Audit",
+                "stageId": "prepare/audit",
+                "runtimeStageId": "prepare/audit#4",
+                "idx": 3
+              },
+              {
+                "overwrite": {
+                  "total": 24
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Total",
+                "stageId": "prepare/total",
+                "runtimeStageId": "prepare/total#5",
+                "idx": 4
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792643206364-0000000001",
+              "drillPath": [
+                "prepare#1"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "First Quote"
+        },
+        "prepare#1": {
+          "subflowId": "prepare",
+          "subflowName": "First Quote",
+          "treeContext": {
+            "globalContext": {
+              "base": 10,
+              "items": [
+                10,
+                2
+              ],
+              "rate": 2,
+              "subtotal": 12,
+              "audit": "12",
+              "total": 24
+            },
+            "stageContexts": {
+              "id": "prepare/seed",
+              "runtimeStageId": "prepare/seed#2",
+              "name": "prepare/Child Seed",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "items": [
+                  10,
+                  2
+                ],
+                "rate": 2
+              },
+              "stageReads": {
+                "base": 10
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to prepare/Child Sum stage",
+                  "timestamp": 1792643206368,
+                  "targetStage": "prepare/Child Sum"
+                }
+              ],
+              "next": {
+                "id": "prepare/sum",
+                "runtimeStageId": "prepare/sum#3",
+                "name": "prepare/Child Sum",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "subtotal": 12
+                },
+                "stageReads": {
+                  "items": [
+                    10,
+                    2
+                  ]
+                },
+                "flowMessages": [
+                  {
+                    "type": "next",
+                    "description": "Moving to prepare/Child Audit stage",
+                    "timestamp": 1792643206368,
+                    "targetStage": "prepare/Child Audit"
+                  }
+                ],
+                "next": {
+                  "id": "prepare/audit",
+                  "runtimeStageId": "prepare/audit#4",
+                  "name": "prepare/Child Audit",
+                  "isDecider": false,
+                  "isFork": false,
+                  "logs": {},
+                  "errors": {},
+                  "metrics": {},
+                  "evals": {},
+                  "stageWrites": {
+                    "audit": "12"
+                  },
+                  "stageReads": {
+                    "subtotal": 12
+                  },
+                  "flowMessages": [
+                    {
+                      "type": "next",
+                      "description": "Moving to prepare/Child Total stage",
+                      "timestamp": 1792643206368,
+                      "targetStage": "prepare/Child Total"
+                    }
+                  ],
+                  "next": {
+                    "id": "prepare/total",
+                    "runtimeStageId": "prepare/total#5",
+                    "name": "prepare/Child Total",
+                    "isDecider": false,
+                    "isFork": false,
+                    "logs": {},
+                    "errors": {},
+                    "metrics": {},
+                    "evals": {},
+                    "stageWrites": {
+                      "total": 24
+                    },
+                    "stageReads": {
+                      "subtotal": 12,
+                      "rate": 2
+                    }
+                  }
+                }
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 10
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "First Quote",
+                "stageId": "prepare",
+                "runtimeStageId": "prepare#1",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "items": [
+                    10,
+                    2
+                  ],
+                  "rate": 2
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "items",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "rate",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Seed",
+                "stageId": "prepare/seed",
+                "runtimeStageId": "prepare/seed#2",
+                "idx": 1
+              },
+              {
+                "overwrite": {
+                  "subtotal": 12
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "subtotal",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Sum",
+                "stageId": "prepare/sum",
+                "runtimeStageId": "prepare/sum#3",
+                "idx": 2
+              },
+              {
+                "overwrite": {
+                  "audit": "12"
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "audit",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Audit",
+                "stageId": "prepare/audit",
+                "runtimeStageId": "prepare/audit#4",
+                "idx": 3
+              },
+              {
+                "overwrite": {
+                  "total": 24
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Total",
+                "stageId": "prepare/total",
+                "runtimeStageId": "prepare/total#5",
+                "idx": 4
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792643206364-0000000001",
+              "drillPath": [
+                "prepare#1"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "First Quote"
+        },
+        "pipeline/prepare": {
+          "subflowId": "pipeline/prepare",
+          "subflowName": "Nested Quote",
+          "treeContext": {
+            "globalContext": {
+              "base": 20,
+              "items": [
+                20,
+                2
+              ],
+              "rate": 2,
+              "subtotal": 22,
+              "audit": "22",
+              "total": 44
+            },
+            "stageContexts": {
+              "id": "pipeline/prepare/seed",
+              "runtimeStageId": "pipeline/prepare/seed#9",
+              "name": "pipeline/prepare/Child Seed",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "items": [
+                  20,
+                  2
+                ],
+                "rate": 2
+              },
+              "stageReads": {
+                "base": 20
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to pipeline/prepare/Child Sum stage",
+                  "timestamp": 1792643206369,
+                  "targetStage": "pipeline/prepare/Child Sum"
+                }
+              ],
+              "next": {
+                "id": "pipeline/prepare/sum",
+                "runtimeStageId": "pipeline/prepare/sum#10",
+                "name": "pipeline/prepare/Child Sum",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "subtotal": 22
+                },
+                "stageReads": {
+                  "items": [
+                    20,
+                    2
+                  ]
+                },
+                "flowMessages": [
+                  {
+                    "type": "next",
+                    "description": "Moving to pipeline/prepare/Child Audit stage",
+                    "timestamp": 1792643206369,
+                    "targetStage": "pipeline/prepare/Child Audit"
+                  }
+                ],
+                "next": {
+                  "id": "pipeline/prepare/audit",
+                  "runtimeStageId": "pipeline/prepare/audit#11",
+                  "name": "pipeline/prepare/Child Audit",
+                  "isDecider": false,
+                  "isFork": false,
+                  "logs": {},
+                  "errors": {},
+                  "metrics": {},
+                  "evals": {},
+                  "stageWrites": {
+                    "audit": "22"
+                  },
+                  "stageReads": {
+                    "subtotal": 22
+                  },
+                  "flowMessages": [
+                    {
+                      "type": "next",
+                      "description": "Moving to pipeline/prepare/Child Total stage",
+                      "timestamp": 1792643206369,
+                      "targetStage": "pipeline/prepare/Child Total"
+                    }
+                  ],
+                  "next": {
+                    "id": "pipeline/prepare/total",
+                    "runtimeStageId": "pipeline/prepare/total#12",
+                    "name": "pipeline/prepare/Child Total",
+                    "isDecider": false,
+                    "isFork": false,
+                    "logs": {},
+                    "errors": {},
+                    "metrics": {},
+                    "evals": {},
+                    "stageWrites": {
+                      "total": 44
+                    },
+                    "stageReads": {
+                      "subtotal": 22,
+                      "rate": 2
+                    }
+                  }
+                }
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 20
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/Nested Quote",
+                "stageId": "pipeline/prepare",
+                "runtimeStageId": "pipeline/prepare#8",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "items": [
+                    20,
+                    2
+                  ],
+                  "rate": 2
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "items",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "rate",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/prepare/Child Seed",
+                "stageId": "pipeline/prepare/seed",
+                "runtimeStageId": "pipeline/prepare/seed#9",
+                "idx": 1
+              },
+              {
+                "overwrite": {
+                  "subtotal": 22
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "subtotal",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/prepare/Child Sum",
+                "stageId": "pipeline/prepare/sum",
+                "runtimeStageId": "pipeline/prepare/sum#10",
+                "idx": 2
+              },
+              {
+                "overwrite": {
+                  "audit": "22"
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "audit",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/prepare/Child Audit",
+                "stageId": "pipeline/prepare/audit",
+                "runtimeStageId": "pipeline/prepare/audit#11",
+                "idx": 3
+              },
+              {
+                "overwrite": {
+                  "total": 44
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/prepare/Child Total",
+                "stageId": "pipeline/prepare/total",
+                "runtimeStageId": "pipeline/prepare/total#12",
+                "idx": 4
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792643206364-0000000001",
+              "drillPath": [
+                "pipeline#6",
+                "pipeline/prepare#8"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "pipeline/Nested Quote"
+        },
+        "pipeline/prepare#8": {
+          "subflowId": "pipeline/prepare",
+          "subflowName": "Nested Quote",
+          "treeContext": {
+            "globalContext": {
+              "base": 20,
+              "items": [
+                20,
+                2
+              ],
+              "rate": 2,
+              "subtotal": 22,
+              "audit": "22",
+              "total": 44
+            },
+            "stageContexts": {
+              "id": "pipeline/prepare/seed",
+              "runtimeStageId": "pipeline/prepare/seed#9",
+              "name": "pipeline/prepare/Child Seed",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "items": [
+                  20,
+                  2
+                ],
+                "rate": 2
+              },
+              "stageReads": {
+                "base": 20
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to pipeline/prepare/Child Sum stage",
+                  "timestamp": 1792643206369,
+                  "targetStage": "pipeline/prepare/Child Sum"
+                }
+              ],
+              "next": {
+                "id": "pipeline/prepare/sum",
+                "runtimeStageId": "pipeline/prepare/sum#10",
+                "name": "pipeline/prepare/Child Sum",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "subtotal": 22
+                },
+                "stageReads": {
+                  "items": [
+                    20,
+                    2
+                  ]
+                },
+                "flowMessages": [
+                  {
+                    "type": "next",
+                    "description": "Moving to pipeline/prepare/Child Audit stage",
+                    "timestamp": 1792643206369,
+                    "targetStage": "pipeline/prepare/Child Audit"
+                  }
+                ],
+                "next": {
+                  "id": "pipeline/prepare/audit",
+                  "runtimeStageId": "pipeline/prepare/audit#11",
+                  "name": "pipeline/prepare/Child Audit",
+                  "isDecider": false,
+                  "isFork": false,
+                  "logs": {},
+                  "errors": {},
+                  "metrics": {},
+                  "evals": {},
+                  "stageWrites": {
+                    "audit": "22"
+                  },
+                  "stageReads": {
+                    "subtotal": 22
+                  },
+                  "flowMessages": [
+                    {
+                      "type": "next",
+                      "description": "Moving to pipeline/prepare/Child Total stage",
+                      "timestamp": 1792643206369,
+                      "targetStage": "pipeline/prepare/Child Total"
+                    }
+                  ],
+                  "next": {
+                    "id": "pipeline/prepare/total",
+                    "runtimeStageId": "pipeline/prepare/total#12",
+                    "name": "pipeline/prepare/Child Total",
+                    "isDecider": false,
+                    "isFork": false,
+                    "logs": {},
+                    "errors": {},
+                    "metrics": {},
+                    "evals": {},
+                    "stageWrites": {
+                      "total": 44
+                    },
+                    "stageReads": {
+                      "subtotal": 22,
+                      "rate": 2
+                    }
+                  }
+                }
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 20
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/Nested Quote",
+                "stageId": "pipeline/prepare",
+                "runtimeStageId": "pipeline/prepare#8",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "items": [
+                    20,
+                    2
+                  ],
+                  "rate": 2
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "items",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "rate",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/prepare/Child Seed",
+                "stageId": "pipeline/prepare/seed",
+                "runtimeStageId": "pipeline/prepare/seed#9",
+                "idx": 1
+              },
+              {
+                "overwrite": {
+                  "subtotal": 22
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "subtotal",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/prepare/Child Sum",
+                "stageId": "pipeline/prepare/sum",
+                "runtimeStageId": "pipeline/prepare/sum#10",
+                "idx": 2
+              },
+              {
+                "overwrite": {
+                  "audit": "22"
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "audit",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/prepare/Child Audit",
+                "stageId": "pipeline/prepare/audit",
+                "runtimeStageId": "pipeline/prepare/audit#11",
+                "idx": 3
+              },
+              {
+                "overwrite": {
+                  "total": 44
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/prepare/Child Total",
+                "stageId": "pipeline/prepare/total",
+                "runtimeStageId": "pipeline/prepare/total#12",
+                "idx": 4
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792643206364-0000000001",
+              "drillPath": [
+                "pipeline#6",
+                "pipeline/prepare#8"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "pipeline/Nested Quote"
+        },
+        "pipeline": {
+          "subflowId": "pipeline",
+          "subflowName": "Pipeline",
+          "treeContext": {
+            "globalContext": {
+              "base": 20,
+              "total": 44
+            },
+            "stageContexts": {
+              "id": "pipeline/seed",
+              "runtimeStageId": "pipeline/seed#7",
+              "name": "pipeline/Middle Seed",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "base": 20
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to pipeline/Nested Quote stage",
+                  "timestamp": 1792643206369,
+                  "targetStage": "pipeline/Nested Quote"
+                }
+              ],
+              "next": {
+                "id": "pipeline/prepare",
+                "runtimeStageId": "pipeline/prepare#8",
+                "name": "pipeline/Nested Quote",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "subflowId": "pipeline/prepare",
+                "flowMessages": [
+                  {
+                    "type": "subflow",
+                    "description": "Entering Nested Quote subflow",
+                    "timestamp": 1792643206369,
+                    "targetStage": "pipeline/prepare"
+                  },
+                  {
+                    "type": "subflow",
+                    "description": "Exiting Nested Quote subflow",
+                    "timestamp": 1792643206369,
+                    "targetStage": "pipeline/prepare"
+                  }
+                ]
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 20
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/Middle Seed",
+                "stageId": "pipeline/seed",
+                "runtimeStageId": "pipeline/seed#7",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "total": 44
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/Nested Quote",
+                "stageId": "pipeline/prepare",
+                "runtimeStageId": "pipeline/prepare#8",
+                "idx": 1
+              },
+              {
+                "overwrite": {},
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [],
+                "stage": "pipeline/Nested Quote",
+                "stageId": "pipeline/prepare",
+                "runtimeStageId": "pipeline/prepare#8",
+                "phase": "exit",
+                "idx": 2
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792643206364-0000000001",
+              "drillPath": [
+                "pipeline#6"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "Pipeline"
+        },
+        "pipeline#6": {
+          "subflowId": "pipeline",
+          "subflowName": "Pipeline",
+          "treeContext": {
+            "globalContext": {
+              "base": 20,
+              "total": 44
+            },
+            "stageContexts": {
+              "id": "pipeline/seed",
+              "runtimeStageId": "pipeline/seed#7",
+              "name": "pipeline/Middle Seed",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "base": 20
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to pipeline/Nested Quote stage",
+                  "timestamp": 1792643206369,
+                  "targetStage": "pipeline/Nested Quote"
+                }
+              ],
+              "next": {
+                "id": "pipeline/prepare",
+                "runtimeStageId": "pipeline/prepare#8",
+                "name": "pipeline/Nested Quote",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "subflowId": "pipeline/prepare",
+                "flowMessages": [
+                  {
+                    "type": "subflow",
+                    "description": "Entering Nested Quote subflow",
+                    "timestamp": 1792643206369,
+                    "targetStage": "pipeline/prepare"
+                  },
+                  {
+                    "type": "subflow",
+                    "description": "Exiting Nested Quote subflow",
+                    "timestamp": 1792643206369,
+                    "targetStage": "pipeline/prepare"
+                  }
+                ]
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 20
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/Middle Seed",
+                "stageId": "pipeline/seed",
+                "runtimeStageId": "pipeline/seed#7",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "total": 44
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "pipeline/Nested Quote",
+                "stageId": "pipeline/prepare",
+                "runtimeStageId": "pipeline/prepare#8",
+                "idx": 1
+              },
+              {
+                "overwrite": {},
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [],
+                "stage": "pipeline/Nested Quote",
+                "stageId": "pipeline/prepare",
+                "runtimeStageId": "pipeline/prepare#8",
+                "phase": "exit",
+                "idx": 2
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792643206364-0000000001",
+              "drillPath": [
+                "pipeline#6"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "Pipeline"
+        }
+      }
+    },
+    "narrativeEntries": [
+      {
+        "type": "stage",
+        "text": "Stage 1: The process began with Root Seed.",
+        "depth": 0,
+        "stageName": "Root Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Write base = 10",
+        "depth": 1,
+        "stageName": "Root Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0",
+        "stepNumber": 1,
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write total = 9999",
+        "depth": 1,
+        "stageName": "Root Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0",
+        "stepNumber": 2,
+        "key": "total",
+        "rawValue": 9999
+      },
+      {
+        "type": "subflow",
+        "text": "Entering the First Quote subflow.",
+        "depth": 0,
+        "stageName": "First Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#1",
+        "subflowId": "prepare",
+        "direction": "entry"
+      },
+      {
+        "type": "step",
+        "text": "Input: base = 10",
+        "depth": 1,
+        "stageName": "First Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#1",
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "stage",
+        "text": "Stage 1: The process began with prepare/Child Seed.",
+        "depth": 0,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#2",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read base = 10",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#2",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write items = (2 items)",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#2",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "items",
+        "rawValue": [
+          10,
+          2
+        ]
+      },
+      {
+        "type": "step",
+        "text": "Step 3: Write rate = 2",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#2",
+        "stepNumber": 3,
+        "subflowId": "prepare",
+        "key": "rate",
+        "rawValue": 2
+      },
+      {
+        "type": "stage",
+        "text": "Stage 2: Next, it moved on to prepare/Child Sum.",
+        "depth": 0,
+        "stageName": "prepare/Child Sum",
+        "stageId": "prepare/sum",
+        "runtimeStageId": "prepare/sum#3",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read items = (2 items)",
+        "depth": 1,
+        "stageName": "prepare/Child Sum",
+        "stageId": "prepare/sum",
+        "runtimeStageId": "prepare/sum#3",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "items",
+        "rawValue": [
+          10,
+          2
+        ]
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write subtotal = 12",
+        "depth": 1,
+        "stageName": "prepare/Child Sum",
+        "stageId": "prepare/sum",
+        "runtimeStageId": "prepare/sum#3",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "subtotal",
+        "rawValue": 12
+      },
+      {
+        "type": "stage",
+        "text": "Stage 3: Next, it moved on to prepare/Child Audit.",
+        "depth": 0,
+        "stageName": "prepare/Child Audit",
+        "stageId": "prepare/audit",
+        "runtimeStageId": "prepare/audit#4",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read subtotal = 12",
+        "depth": 1,
+        "stageName": "prepare/Child Audit",
+        "stageId": "prepare/audit",
+        "runtimeStageId": "prepare/audit#4",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "subtotal",
+        "rawValue": 12
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write audit = \"12\"",
+        "depth": 1,
+        "stageName": "prepare/Child Audit",
+        "stageId": "prepare/audit",
+        "runtimeStageId": "prepare/audit#4",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "audit",
+        "rawValue": "12"
+      },
+      {
+        "type": "stage",
+        "text": "Stage 4: Next, it moved on to prepare/Child Total.",
+        "depth": 0,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#5",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read subtotal = 12",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#5",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "subtotal",
+        "rawValue": 12
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Read rate = 2",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#5",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "rate",
+        "rawValue": 2
+      },
+      {
+        "type": "step",
+        "text": "Step 3: Write total = 24",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#5",
+        "stepNumber": 3,
+        "subflowId": "prepare",
+        "key": "total",
+        "rawValue": 24
+      },
+      {
+        "type": "subflow",
+        "text": "Exiting the First Quote subflow.",
+        "depth": 0,
+        "stageName": "First Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#1",
+        "subflowId": "prepare",
+        "direction": "exit"
+      },
+      {
+        "type": "subflow",
+        "text": "Entering the Pipeline subflow.",
+        "depth": 0,
+        "stageName": "Pipeline",
+        "stageId": "pipeline",
+        "runtimeStageId": "pipeline#6",
+        "subflowId": "pipeline",
+        "direction": "entry"
+      },
+      {
+        "type": "stage",
+        "text": "Stage 1: The process began with pipeline/Middle Seed.",
+        "depth": 0,
+        "stageName": "pipeline/Middle Seed",
+        "stageId": "pipeline/seed",
+        "runtimeStageId": "pipeline/seed#7",
+        "subflowId": "pipeline"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Write base = 20",
+        "depth": 1,
+        "stageName": "pipeline/Middle Seed",
+        "stageId": "pipeline/seed",
+        "runtimeStageId": "pipeline/seed#7",
+        "stepNumber": 1,
+        "subflowId": "pipeline",
+        "key": "base",
+        "rawValue": 20
+      },
+      {
+        "type": "subflow",
+        "text": "Entering the Nested Quote subflow.",
+        "depth": 0,
+        "stageName": "Nested Quote",
+        "stageId": "pipeline/prepare",
+        "runtimeStageId": "pipeline/prepare#8",
+        "subflowId": "pipeline/prepare",
+        "direction": "entry"
+      },
+      {
+        "type": "step",
+        "text": "Input: base = 20",
+        "depth": 1,
+        "stageName": "Nested Quote",
+        "stageId": "pipeline/prepare",
+        "runtimeStageId": "pipeline/prepare#8",
+        "subflowId": "pipeline/prepare",
+        "key": "base",
+        "rawValue": 20
+      },
+      {
+        "type": "stage",
+        "text": "Stage 1: The process began with pipeline/prepare/Child Seed.",
+        "depth": 0,
+        "stageName": "pipeline/prepare/Child Seed",
+        "stageId": "pipeline/prepare/seed",
+        "runtimeStageId": "pipeline/prepare/seed#9",
+        "subflowId": "pipeline/prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read base = 20",
+        "depth": 1,
+        "stageName": "pipeline/prepare/Child Seed",
+        "stageId": "pipeline/prepare/seed",
+        "runtimeStageId": "pipeline/prepare/seed#9",
+        "stepNumber": 1,
+        "subflowId": "pipeline/prepare",
+        "key": "base",
+        "rawValue": 20
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write items = (2 items)",
+        "depth": 1,
+        "stageName": "pipeline/prepare/Child Seed",
+        "stageId": "pipeline/prepare/seed",
+        "runtimeStageId": "pipeline/prepare/seed#9",
+        "stepNumber": 2,
+        "subflowId": "pipeline/prepare",
+        "key": "items",
+        "rawValue": [
+          20,
+          2
+        ]
+      },
+      {
+        "type": "step",
+        "text": "Step 3: Write rate = 2",
+        "depth": 1,
+        "stageName": "pipeline/prepare/Child Seed",
+        "stageId": "pipeline/prepare/seed",
+        "runtimeStageId": "pipeline/prepare/seed#9",
+        "stepNumber": 3,
+        "subflowId": "pipeline/prepare",
+        "key": "rate",
+        "rawValue": 2
+      },
+      {
+        "type": "stage",
+        "text": "Stage 2: Next, it moved on to pipeline/prepare/Child Sum.",
+        "depth": 0,
+        "stageName": "pipeline/prepare/Child Sum",
+        "stageId": "pipeline/prepare/sum",
+        "runtimeStageId": "pipeline/prepare/sum#10",
+        "subflowId": "pipeline/prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read items = (2 items)",
+        "depth": 1,
+        "stageName": "pipeline/prepare/Child Sum",
+        "stageId": "pipeline/prepare/sum",
+        "runtimeStageId": "pipeline/prepare/sum#10",
+        "stepNumber": 1,
+        "subflowId": "pipeline/prepare",
+        "key": "items",
+        "rawValue": [
+          20,
+          2
+        ]
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write subtotal = 22",
+        "depth": 1,
+        "stageName": "pipeline/prepare/Child Sum",
+        "stageId": "pipeline/prepare/sum",
+        "runtimeStageId": "pipeline/prepare/sum#10",
+        "stepNumber": 2,
+        "subflowId": "pipeline/prepare",
+        "key": "subtotal",
+        "rawValue": 22
+      },
+      {
+        "type": "stage",
+        "text": "Stage 3: Next, it moved on to pipeline/prepare/Child Audit.",
+        "depth": 0,
+        "stageName": "pipeline/prepare/Child Audit",
+        "stageId": "pipeline/prepare/audit",
+        "runtimeStageId": "pipeline/prepare/audit#11",
+        "subflowId": "pipeline/prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read subtotal = 22",
+        "depth": 1,
+        "stageName": "pipeline/prepare/Child Audit",
+        "stageId": "pipeline/prepare/audit",
+        "runtimeStageId": "pipeline/prepare/audit#11",
+        "stepNumber": 1,
+        "subflowId": "pipeline/prepare",
+        "key": "subtotal",
+        "rawValue": 22
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write audit = \"22\"",
+        "depth": 1,
+        "stageName": "pipeline/prepare/Child Audit",
+        "stageId": "pipeline/prepare/audit",
+        "runtimeStageId": "pipeline/prepare/audit#11",
+        "stepNumber": 2,
+        "subflowId": "pipeline/prepare",
+        "key": "audit",
+        "rawValue": "22"
+      },
+      {
+        "type": "stage",
+        "text": "Stage 4: Next, it moved on to pipeline/prepare/Child Total.",
+        "depth": 0,
+        "stageName": "pipeline/prepare/Child Total",
+        "stageId": "pipeline/prepare/total",
+        "runtimeStageId": "pipeline/prepare/total#12",
+        "subflowId": "pipeline/prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read subtotal = 22",
+        "depth": 1,
+        "stageName": "pipeline/prepare/Child Total",
+        "stageId": "pipeline/prepare/total",
+        "runtimeStageId": "pipeline/prepare/total#12",
+        "stepNumber": 1,
+        "subflowId": "pipeline/prepare",
+        "key": "subtotal",
+        "rawValue": 22
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Read rate = 2",
+        "depth": 1,
+        "stageName": "pipeline/prepare/Child Total",
+        "stageId": "pipeline/prepare/total",
+        "runtimeStageId": "pipeline/prepare/total#12",
+        "stepNumber": 2,
+        "subflowId": "pipeline/prepare",
+        "key": "rate",
+        "rawValue": 2
+      },
+      {
+        "type": "step",
+        "text": "Step 3: Write total = 44",
+        "depth": 1,
+        "stageName": "pipeline/prepare/Child Total",
+        "stageId": "pipeline/prepare/total",
+        "runtimeStageId": "pipeline/prepare/total#12",
+        "stepNumber": 3,
+        "subflowId": "pipeline/prepare",
+        "key": "total",
+        "rawValue": 44
+      },
+      {
+        "type": "subflow",
+        "text": "Exiting the Nested Quote subflow.",
+        "depth": 0,
+        "stageName": "Nested Quote",
+        "stageId": "pipeline/prepare",
+        "runtimeStageId": "pipeline/prepare#8",
+        "subflowId": "pipeline/prepare",
+        "direction": "exit"
+      },
+      {
+        "type": "subflow",
+        "text": "Exiting the Pipeline subflow.",
+        "depth": 0,
+        "stageName": "Pipeline",
+        "stageId": "pipeline",
+        "runtimeStageId": "pipeline#6",
+        "subflowId": "pipeline",
+        "direction": "exit"
+      },
+      {
+        "type": "stage",
+        "text": "Stage 2: Next, it moved on to Root Report.",
+        "depth": 0,
+        "stageName": "Root Report",
+        "stageId": "report",
+        "runtimeStageId": "report#13"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read nestedTotal = 44",
+        "depth": 1,
+        "stageName": "Root Report",
+        "stageId": "report",
+        "runtimeStageId": "report#13",
+        "stepNumber": 1,
+        "key": "nestedTotal",
+        "rawValue": 44
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write report = 44",
+        "depth": 1,
+        "stageName": "Root Report",
+        "stageId": "report",
+        "runtimeStageId": "report#13",
+        "stepNumber": 2,
+        "key": "report",
+        "rawValue": 44
+      }
+    ],
+    "structureEvents": [
+      {
+        "method": "onStageAdded",
+        "event": {
+          "stageId": "seed",
+          "name": "Root Seed",
+          "type": "stage",
+          "spec": {
+            "name": "Root Seed",
+            "id": "seed",
+            "type": "stage"
+          }
+        }
+      },
+      {
+        "method": "onStageAdded",
+        "event": {
+          "stageId": "prepare",
+          "name": "First Quote",
+          "type": "stage",
+          "spec": {
+            "name": "First Quote",
+            "type": "stage",
+            "id": "prepare",
+            "isSubflowRoot": true,
+            "subflowId": "prepare",
+            "subflowName": "First Quote",
+            "subflowStructure": {
+              "name": "Child Seed",
+              "id": "seed",
+              "type": "stage",
+              "next": {
+                "name": "Child Sum",
+                "id": "sum",
+                "type": "stage",
+                "next": {
+                  "name": "Child Audit",
+                  "id": "audit",
+                  "type": "stage",
+                  "next": {
+                    "name": "Child Total",
+                    "id": "total",
+                    "type": "stage"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "method": "onEdgeAdded",
+        "event": {
+          "from": "seed",
+          "to": "prepare",
+          "kind": "next"
+        }
+      },
+      {
+        "method": "onSubflowMounted",
+        "event": {
+          "subflowId": "prepare",
+          "subflowName": "First Quote",
+          "rootStageId": "prepare",
+          "subflowSpec": {
+            "name": "Child Seed",
+            "id": "seed",
+            "type": "stage",
+            "next": {
+              "name": "Child Sum",
+              "id": "sum",
+              "type": "stage",
+              "next": {
+                "name": "Child Audit",
+                "id": "audit",
+                "type": "stage",
+                "next": {
+                  "name": "Child Total",
+                  "id": "total",
+                  "type": "stage"
+                }
+              }
+            }
+          },
+          "subflowPath": "prepare"
+        }
+      },
+      {
+        "method": "onStageAdded",
+        "event": {
+          "stageId": "pipeline",
+          "name": "Pipeline",
+          "type": "stage",
+          "spec": {
+            "name": "Pipeline",
+            "type": "stage",
+            "id": "pipeline",
+            "isSubflowRoot": true,
+            "subflowId": "pipeline",
+            "subflowName": "Pipeline",
+            "subflowStructure": {
+              "name": "Middle Seed",
+              "id": "seed",
+              "type": "stage",
+              "next": {
+                "name": "Nested Quote",
+                "type": "stage",
+                "id": "prepare",
+                "isSubflowRoot": true,
+                "subflowId": "prepare",
+                "subflowName": "Nested Quote",
+                "subflowStructure": {
+                  "name": "Child Seed",
+                  "id": "seed",
+                  "type": "stage",
+                  "next": {
+                    "name": "Child Sum",
+                    "id": "sum",
+                    "type": "stage",
+                    "next": {
+                      "name": "Child Audit",
+                      "id": "audit",
+                      "type": "stage",
+                      "next": {
+                        "name": "Child Total",
+                        "id": "total",
+                        "type": "stage"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "method": "onEdgeAdded",
+        "event": {
+          "from": "prepare",
+          "to": "pipeline",
+          "kind": "next"
+        }
+      },
+      {
+        "method": "onSubflowMounted",
+        "event": {
+          "subflowId": "pipeline",
+          "subflowName": "Pipeline",
+          "rootStageId": "pipeline",
+          "subflowSpec": {
+            "name": "Middle Seed",
+            "id": "seed",
+            "type": "stage",
+            "next": {
+              "name": "Nested Quote",
+              "type": "stage",
+              "id": "prepare",
+              "isSubflowRoot": true,
+              "subflowId": "prepare",
+              "subflowName": "Nested Quote",
+              "subflowStructure": {
+                "name": "Child Seed",
+                "id": "seed",
+                "type": "stage",
+                "next": {
+                  "name": "Child Sum",
+                  "id": "sum",
+                  "type": "stage",
+                  "next": {
+                    "name": "Child Audit",
+                    "id": "audit",
+                    "type": "stage",
+                    "next": {
+                      "name": "Child Total",
+                      "id": "total",
+                      "type": "stage"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "subflowPath": "pipeline"
+        }
+      },
+      {
+        "method": "onStageAdded",
+        "event": {
+          "stageId": "report",
+          "name": "Root Report",
+          "type": "stage",
+          "spec": {
+            "name": "Root Report",
+            "id": "report",
+            "type": "stage"
+          }
+        }
+      },
+      {
+        "method": "onEdgeAdded",
+        "event": {
+          "from": "pipeline",
+          "to": "report",
+          "kind": "next"
+        }
+      }
+    ]
+  },
+  "repeated": {
+    "runtimeSnapshot": {
+      "sharedState": {
+        "pass": 2,
+        "base": 20,
+        "total": 44
+      },
+      "executionTree": {
+        "id": "seed",
+        "runtimeStageId": "seed#0",
+        "name": "Root Seed",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "pass": 0
+        },
+        "flowMessages": [
+          {
+            "type": "next",
+            "description": "Moving to Advance stage",
+            "timestamp": 1792643206370,
+            "targetStage": "Advance"
+          }
+        ],
+        "next": {
+          "id": "advance",
+          "runtimeStageId": "advance#1",
+          "name": "Advance",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "pass": 1,
+            "base": 10
+          },
+          "stageReads": {
+            "pass": 1
+          },
+          "flowMessages": [
+            {
+              "type": "next",
+              "description": "Moving to Repeated Quote stage",
+              "timestamp": 1792643206370,
+              "targetStage": "Repeated Quote"
+            }
+          ],
+          "next": {
+            "id": "prepare",
+            "runtimeStageId": "prepare#2",
+            "name": "Repeated Quote",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "subflowId": "prepare",
+            "flowMessages": [
+              {
+                "type": "subflow",
+                "description": "Entering Repeated Quote subflow",
+                "timestamp": 1792643206370,
+                "targetStage": "prepare"
+              },
+              {
+                "type": "subflow",
+                "description": "Exiting Repeated Quote subflow",
+                "timestamp": 1792643206370,
+                "targetStage": "prepare"
+              }
+            ],
+            "next": {
+              "id": "check",
+              "runtimeStageId": "check#7",
+              "name": "Check Pass",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {
+                "dynamicNextTarget": "advance",
+                "dynamicNextIteration": 0
+              },
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageReads": {
+                "pass": 1
+              },
+              "flowMessages": [
+                {
+                  "type": "loop",
+                  "description": "Looping back to Advance (iteration 1)",
+                  "timestamp": 1792643206370,
+                  "targetStage": "Advance",
+                  "iteration": 1
+                }
+              ],
+              "next": {
+                "id": "advance",
+                "runtimeStageId": "advance#8",
+                "name": "Advance",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "pass": 2,
+                  "base": 20
+                },
+                "stageReads": {
+                  "pass": 2
+                },
+                "flowMessages": [
+                  {
+                    "type": "next",
+                    "description": "Moving to Repeated Quote stage",
+                    "timestamp": 1792643206370,
+                    "targetStage": "Repeated Quote"
+                  }
+                ],
+                "next": {
+                  "id": "prepare",
+                  "runtimeStageId": "prepare#9",
+                  "name": "Repeated Quote",
+                  "isDecider": false,
+                  "isFork": false,
+                  "logs": {},
+                  "errors": {},
+                  "metrics": {},
+                  "evals": {},
+                  "subflowId": "prepare",
+                  "flowMessages": [
+                    {
+                      "type": "subflow",
+                      "description": "Entering Repeated Quote subflow",
+                      "timestamp": 1792643206370,
+                      "targetStage": "prepare"
+                    },
+                    {
+                      "type": "subflow",
+                      "description": "Exiting Repeated Quote subflow",
+                      "timestamp": 1792643206371,
+                      "targetStage": "prepare"
+                    }
+                  ],
+                  "next": {
+                    "id": "check",
+                    "runtimeStageId": "check#14",
+                    "name": "Check Pass",
+                    "isDecider": false,
+                    "isFork": false,
+                    "logs": {},
+                    "errors": {},
+                    "metrics": {},
+                    "evals": {},
+                    "stageReads": {
+                      "pass": 2
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "initialState": {},
+      "commitLog": [
+        {
+          "overwrite": {
+            "pass": 0
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "pass",
+              "verb": "set"
+            }
+          ],
+          "stage": "Root Seed",
+          "stageId": "seed",
+          "runtimeStageId": "seed#0",
+          "idx": 0
+        },
+        {
+          "overwrite": {
+            "pass": 1,
+            "base": 10
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "pass",
+              "verb": "set"
+            },
+            {
+              "path": "base",
+              "verb": "set"
+            }
+          ],
+          "stage": "Advance",
+          "stageId": "advance",
+          "runtimeStageId": "advance#1",
+          "idx": 1
+        },
+        {
+          "overwrite": {
+            "total": 24
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "total",
+              "verb": "set"
+            }
+          ],
+          "stage": "Repeated Quote",
+          "stageId": "prepare",
+          "runtimeStageId": "prepare#2",
+          "idx": 2
+        },
+        {
+          "overwrite": {},
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [],
+          "stage": "Repeated Quote",
+          "stageId": "prepare",
+          "runtimeStageId": "prepare#2",
+          "phase": "exit",
+          "idx": 3
+        },
+        {
+          "overwrite": {},
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [],
+          "stage": "Check Pass",
+          "stageId": "check",
+          "runtimeStageId": "check#7",
+          "idx": 4
+        },
+        {
+          "overwrite": {
+            "pass": 2,
+            "base": 20
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "pass",
+              "verb": "set"
+            },
+            {
+              "path": "base",
+              "verb": "set"
+            }
+          ],
+          "stage": "Advance",
+          "stageId": "advance",
+          "runtimeStageId": "advance#8",
+          "idx": 5
+        },
+        {
+          "overwrite": {
+            "total": 44
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "total",
+              "verb": "set"
+            }
+          ],
+          "stage": "Repeated Quote",
+          "stageId": "prepare",
+          "runtimeStageId": "prepare#9",
+          "idx": 6
+        },
+        {
+          "overwrite": {},
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [],
+          "stage": "Repeated Quote",
+          "stageId": "prepare",
+          "runtimeStageId": "prepare#9",
+          "phase": "exit",
+          "idx": 7
+        },
+        {
+          "overwrite": {},
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [],
+          "stage": "Check Pass",
+          "stageId": "check",
+          "runtimeStageId": "check#14",
+          "idx": 8
+        }
+      ],
+      "logAddress": {
+        "logRunId": "1792643206370-0000000002",
+        "drillPath": []
+      },
+      "commitValues": "full",
+      "writeProvenance": "off",
+      "runId": "1792643206370-0000000002",
+      "subflowResults": {
+        "prepare": {
+          "subflowId": "prepare",
+          "subflowName": "Repeated Quote",
+          "treeContext": {
+            "globalContext": {
+              "base": 20,
+              "items": [
+                20,
+                2
+              ],
+              "rate": 2,
+              "subtotal": 22,
+              "audit": "22",
+              "total": 44
+            },
+            "stageContexts": {
+              "id": "prepare/seed",
+              "runtimeStageId": "prepare/seed#10",
+              "name": "prepare/Child Seed",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "items": [
+                  20,
+                  2
+                ],
+                "rate": 2
+              },
+              "stageReads": {
+                "base": 20
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to prepare/Child Sum stage",
+                  "timestamp": 1792643206370,
+                  "targetStage": "prepare/Child Sum"
+                }
+              ],
+              "next": {
+                "id": "prepare/sum",
+                "runtimeStageId": "prepare/sum#11",
+                "name": "prepare/Child Sum",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "subtotal": 22
+                },
+                "stageReads": {
+                  "items": [
+                    20,
+                    2
+                  ]
+                },
+                "flowMessages": [
+                  {
+                    "type": "next",
+                    "description": "Moving to prepare/Child Audit stage",
+                    "timestamp": 1792643206371,
+                    "targetStage": "prepare/Child Audit"
+                  }
+                ],
+                "next": {
+                  "id": "prepare/audit",
+                  "runtimeStageId": "prepare/audit#12",
+                  "name": "prepare/Child Audit",
+                  "isDecider": false,
+                  "isFork": false,
+                  "logs": {},
+                  "errors": {},
+                  "metrics": {},
+                  "evals": {},
+                  "stageWrites": {
+                    "audit": "22"
+                  },
+                  "stageReads": {
+                    "subtotal": 22
+                  },
+                  "flowMessages": [
+                    {
+                      "type": "next",
+                      "description": "Moving to prepare/Child Total stage",
+                      "timestamp": 1792643206371,
+                      "targetStage": "prepare/Child Total"
+                    }
+                  ],
+                  "next": {
+                    "id": "prepare/total",
+                    "runtimeStageId": "prepare/total#13",
+                    "name": "prepare/Child Total",
+                    "isDecider": false,
+                    "isFork": false,
+                    "logs": {},
+                    "errors": {},
+                    "metrics": {},
+                    "evals": {},
+                    "stageWrites": {
+                      "total": 44
+                    },
+                    "stageReads": {
+                      "subtotal": 22,
+                      "rate": 2
+                    }
+                  }
+                }
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 20
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "Repeated Quote",
+                "stageId": "prepare",
+                "runtimeStageId": "prepare#9",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "items": [
+                    20,
+                    2
+                  ],
+                  "rate": 2
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "items",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "rate",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Seed",
+                "stageId": "prepare/seed",
+                "runtimeStageId": "prepare/seed#10",
+                "idx": 1
+              },
+              {
+                "overwrite": {
+                  "subtotal": 22
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "subtotal",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Sum",
+                "stageId": "prepare/sum",
+                "runtimeStageId": "prepare/sum#11",
+                "idx": 2
+              },
+              {
+                "overwrite": {
+                  "audit": "22"
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "audit",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Audit",
+                "stageId": "prepare/audit",
+                "runtimeStageId": "prepare/audit#12",
+                "idx": 3
+              },
+              {
+                "overwrite": {
+                  "total": 44
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Total",
+                "stageId": "prepare/total",
+                "runtimeStageId": "prepare/total#13",
+                "idx": 4
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792643206370-0000000002",
+              "drillPath": [
+                "prepare#9"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "Repeated Quote"
+        },
+        "prepare#2": {
+          "subflowId": "prepare",
+          "subflowName": "Repeated Quote",
+          "treeContext": {
+            "globalContext": {
+              "base": 10,
+              "items": [
+                10,
+                2
+              ],
+              "rate": 2,
+              "subtotal": 12,
+              "audit": "12",
+              "total": 24
+            },
+            "stageContexts": {
+              "id": "prepare/seed",
+              "runtimeStageId": "prepare/seed#3",
+              "name": "prepare/Child Seed",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "items": [
+                  10,
+                  2
+                ],
+                "rate": 2
+              },
+              "stageReads": {
+                "base": 10
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to prepare/Child Sum stage",
+                  "timestamp": 1792643206370,
+                  "targetStage": "prepare/Child Sum"
+                }
+              ],
+              "next": {
+                "id": "prepare/sum",
+                "runtimeStageId": "prepare/sum#4",
+                "name": "prepare/Child Sum",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "subtotal": 12
+                },
+                "stageReads": {
+                  "items": [
+                    10,
+                    2
+                  ]
+                },
+                "flowMessages": [
+                  {
+                    "type": "next",
+                    "description": "Moving to prepare/Child Audit stage",
+                    "timestamp": 1792643206370,
+                    "targetStage": "prepare/Child Audit"
+                  }
+                ],
+                "next": {
+                  "id": "prepare/audit",
+                  "runtimeStageId": "prepare/audit#5",
+                  "name": "prepare/Child Audit",
+                  "isDecider": false,
+                  "isFork": false,
+                  "logs": {},
+                  "errors": {},
+                  "metrics": {},
+                  "evals": {},
+                  "stageWrites": {
+                    "audit": "12"
+                  },
+                  "stageReads": {
+                    "subtotal": 12
+                  },
+                  "flowMessages": [
+                    {
+                      "type": "next",
+                      "description": "Moving to prepare/Child Total stage",
+                      "timestamp": 1792643206370,
+                      "targetStage": "prepare/Child Total"
+                    }
+                  ],
+                  "next": {
+                    "id": "prepare/total",
+                    "runtimeStageId": "prepare/total#6",
+                    "name": "prepare/Child Total",
+                    "isDecider": false,
+                    "isFork": false,
+                    "logs": {},
+                    "errors": {},
+                    "metrics": {},
+                    "evals": {},
+                    "stageWrites": {
+                      "total": 24
+                    },
+                    "stageReads": {
+                      "subtotal": 12,
+                      "rate": 2
+                    }
+                  }
+                }
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 10
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "Repeated Quote",
+                "stageId": "prepare",
+                "runtimeStageId": "prepare#2",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "items": [
+                    10,
+                    2
+                  ],
+                  "rate": 2
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "items",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "rate",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Seed",
+                "stageId": "prepare/seed",
+                "runtimeStageId": "prepare/seed#3",
+                "idx": 1
+              },
+              {
+                "overwrite": {
+                  "subtotal": 12
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "subtotal",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Sum",
+                "stageId": "prepare/sum",
+                "runtimeStageId": "prepare/sum#4",
+                "idx": 2
+              },
+              {
+                "overwrite": {
+                  "audit": "12"
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "audit",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Audit",
+                "stageId": "prepare/audit",
+                "runtimeStageId": "prepare/audit#5",
+                "idx": 3
+              },
+              {
+                "overwrite": {
+                  "total": 24
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Total",
+                "stageId": "prepare/total",
+                "runtimeStageId": "prepare/total#6",
+                "idx": 4
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792643206370-0000000002",
+              "drillPath": [
+                "prepare#2"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "Repeated Quote"
+        },
+        "prepare#9": {
+          "subflowId": "prepare",
+          "subflowName": "Repeated Quote",
+          "treeContext": {
+            "globalContext": {
+              "base": 20,
+              "items": [
+                20,
+                2
+              ],
+              "rate": 2,
+              "subtotal": 22,
+              "audit": "22",
+              "total": 44
+            },
+            "stageContexts": {
+              "id": "prepare/seed",
+              "runtimeStageId": "prepare/seed#10",
+              "name": "prepare/Child Seed",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "items": [
+                  20,
+                  2
+                ],
+                "rate": 2
+              },
+              "stageReads": {
+                "base": 20
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to prepare/Child Sum stage",
+                  "timestamp": 1792643206370,
+                  "targetStage": "prepare/Child Sum"
+                }
+              ],
+              "next": {
+                "id": "prepare/sum",
+                "runtimeStageId": "prepare/sum#11",
+                "name": "prepare/Child Sum",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "subtotal": 22
+                },
+                "stageReads": {
+                  "items": [
+                    20,
+                    2
+                  ]
+                },
+                "flowMessages": [
+                  {
+                    "type": "next",
+                    "description": "Moving to prepare/Child Audit stage",
+                    "timestamp": 1792643206371,
+                    "targetStage": "prepare/Child Audit"
+                  }
+                ],
+                "next": {
+                  "id": "prepare/audit",
+                  "runtimeStageId": "prepare/audit#12",
+                  "name": "prepare/Child Audit",
+                  "isDecider": false,
+                  "isFork": false,
+                  "logs": {},
+                  "errors": {},
+                  "metrics": {},
+                  "evals": {},
+                  "stageWrites": {
+                    "audit": "22"
+                  },
+                  "stageReads": {
+                    "subtotal": 22
+                  },
+                  "flowMessages": [
+                    {
+                      "type": "next",
+                      "description": "Moving to prepare/Child Total stage",
+                      "timestamp": 1792643206371,
+                      "targetStage": "prepare/Child Total"
+                    }
+                  ],
+                  "next": {
+                    "id": "prepare/total",
+                    "runtimeStageId": "prepare/total#13",
+                    "name": "prepare/Child Total",
+                    "isDecider": false,
+                    "isFork": false,
+                    "logs": {},
+                    "errors": {},
+                    "metrics": {},
+                    "evals": {},
+                    "stageWrites": {
+                      "total": 44
+                    },
+                    "stageReads": {
+                      "subtotal": 22,
+                      "rate": 2
+                    }
+                  }
+                }
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 20
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "Repeated Quote",
+                "stageId": "prepare",
+                "runtimeStageId": "prepare#9",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "items": [
+                    20,
+                    2
+                  ],
+                  "rate": 2
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "items",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "rate",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Seed",
+                "stageId": "prepare/seed",
+                "runtimeStageId": "prepare/seed#10",
+                "idx": 1
+              },
+              {
+                "overwrite": {
+                  "subtotal": 22
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "subtotal",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Sum",
+                "stageId": "prepare/sum",
+                "runtimeStageId": "prepare/sum#11",
+                "idx": 2
+              },
+              {
+                "overwrite": {
+                  "audit": "22"
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "audit",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Audit",
+                "stageId": "prepare/audit",
+                "runtimeStageId": "prepare/audit#12",
+                "idx": 3
+              },
+              {
+                "overwrite": {
+                  "total": 44
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Total",
+                "stageId": "prepare/total",
+                "runtimeStageId": "prepare/total#13",
+                "idx": 4
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792643206370-0000000002",
+              "drillPath": [
+                "prepare#9"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "Repeated Quote"
+        }
+      }
+    },
+    "narrativeEntries": [
+      {
+        "type": "stage",
+        "text": "Stage 1: The process began with Root Seed.",
+        "depth": 0,
+        "stageName": "Root Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Write pass = 0",
+        "depth": 1,
+        "stageName": "Root Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0",
+        "stepNumber": 1,
+        "key": "pass",
+        "rawValue": 0
+      },
+      {
+        "type": "stage",
+        "text": "Stage 2: Next, it moved on to Advance.",
+        "depth": 0,
+        "stageName": "Advance",
+        "stageId": "advance",
+        "runtimeStageId": "advance#1"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read pass = 0",
+        "depth": 1,
+        "stageName": "Advance",
+        "stageId": "advance",
+        "runtimeStageId": "advance#1",
+        "stepNumber": 1,
+        "key": "pass",
+        "rawValue": 0
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write pass = 1",
+        "depth": 1,
+        "stageName": "Advance",
+        "stageId": "advance",
+        "runtimeStageId": "advance#1",
+        "stepNumber": 2,
+        "key": "pass",
+        "rawValue": 1
+      },
+      {
+        "type": "step",
+        "text": "Step 3: Read pass = 1",
+        "depth": 1,
+        "stageName": "Advance",
+        "stageId": "advance",
+        "runtimeStageId": "advance#1",
+        "stepNumber": 3,
+        "key": "pass",
+        "rawValue": 1
+      },
+      {
+        "type": "step",
+        "text": "Step 4: Write base = 10",
+        "depth": 1,
+        "stageName": "Advance",
+        "stageId": "advance",
+        "runtimeStageId": "advance#1",
+        "stepNumber": 4,
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "subflow",
+        "text": "Entering the Repeated Quote subflow.",
+        "depth": 0,
+        "stageName": "Repeated Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#2",
+        "subflowId": "prepare",
+        "direction": "entry"
+      },
+      {
+        "type": "step",
+        "text": "Input: base = 10",
+        "depth": 1,
+        "stageName": "Repeated Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#2",
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "stage",
+        "text": "Stage 1: The process began with prepare/Child Seed.",
+        "depth": 0,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#3",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read base = 10",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#3",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write items = (2 items)",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#3",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "items",
+        "rawValue": [
+          10,
+          2
+        ]
+      },
+      {
+        "type": "step",
+        "text": "Step 3: Write rate = 2",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#3",
+        "stepNumber": 3,
+        "subflowId": "prepare",
+        "key": "rate",
+        "rawValue": 2
+      },
+      {
+        "type": "stage",
+        "text": "Stage 2: Next, it moved on to prepare/Child Sum.",
+        "depth": 0,
+        "stageName": "prepare/Child Sum",
+        "stageId": "prepare/sum",
+        "runtimeStageId": "prepare/sum#4",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read items = (2 items)",
+        "depth": 1,
+        "stageName": "prepare/Child Sum",
+        "stageId": "prepare/sum",
+        "runtimeStageId": "prepare/sum#4",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "items",
+        "rawValue": [
+          10,
+          2
+        ]
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write subtotal = 12",
+        "depth": 1,
+        "stageName": "prepare/Child Sum",
+        "stageId": "prepare/sum",
+        "runtimeStageId": "prepare/sum#4",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "subtotal",
+        "rawValue": 12
+      },
+      {
+        "type": "stage",
+        "text": "Stage 3: Next, it moved on to prepare/Child Audit.",
+        "depth": 0,
+        "stageName": "prepare/Child Audit",
+        "stageId": "prepare/audit",
+        "runtimeStageId": "prepare/audit#5",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read subtotal = 12",
+        "depth": 1,
+        "stageName": "prepare/Child Audit",
+        "stageId": "prepare/audit",
+        "runtimeStageId": "prepare/audit#5",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "subtotal",
+        "rawValue": 12
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write audit = \"12\"",
+        "depth": 1,
+        "stageName": "prepare/Child Audit",
+        "stageId": "prepare/audit",
+        "runtimeStageId": "prepare/audit#5",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "audit",
+        "rawValue": "12"
+      },
+      {
+        "type": "stage",
+        "text": "Stage 4: Next, it moved on to prepare/Child Total.",
+        "depth": 0,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#6",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read subtotal = 12",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#6",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "subtotal",
+        "rawValue": 12
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Read rate = 2",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#6",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "rate",
+        "rawValue": 2
+      },
+      {
+        "type": "step",
+        "text": "Step 3: Write total = 24",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#6",
+        "stepNumber": 3,
+        "subflowId": "prepare",
+        "key": "total",
+        "rawValue": 24
+      },
+      {
+        "type": "subflow",
+        "text": "Exiting the Repeated Quote subflow.",
+        "depth": 0,
+        "stageName": "Repeated Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#2",
+        "subflowId": "prepare",
+        "direction": "exit"
+      },
+      {
+        "type": "stage",
+        "text": "Stage 3: Next, it moved on to Check Pass.",
+        "depth": 0,
+        "stageName": "Check Pass",
+        "stageId": "check",
+        "runtimeStageId": "check#7"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read pass = 1",
+        "depth": 1,
+        "stageName": "Check Pass",
+        "stageId": "check",
+        "runtimeStageId": "check#7",
+        "stepNumber": 1,
+        "key": "pass",
+        "rawValue": 1
+      },
+      {
+        "type": "loop",
+        "text": "On pass 1 through Advance.",
+        "depth": 0,
+        "stageId": "check",
+        "runtimeStageId": "check#7"
+      },
+      {
+        "type": "stage",
+        "text": "Stage 4: Looped back to Advance (pass 1).",
+        "depth": 0,
+        "stageName": "Advance",
+        "stageId": "advance",
+        "runtimeStageId": "advance#8"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read pass = 1",
+        "depth": 1,
+        "stageName": "Advance",
+        "stageId": "advance",
+        "runtimeStageId": "advance#8",
+        "stepNumber": 1,
+        "key": "pass",
+        "rawValue": 1
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write pass = 2",
+        "depth": 1,
+        "stageName": "Advance",
+        "stageId": "advance",
+        "runtimeStageId": "advance#8",
+        "stepNumber": 2,
+        "key": "pass",
+        "rawValue": 2
+      },
+      {
+        "type": "step",
+        "text": "Step 3: Read pass = 2",
+        "depth": 1,
+        "stageName": "Advance",
+        "stageId": "advance",
+        "runtimeStageId": "advance#8",
+        "stepNumber": 3,
+        "key": "pass",
+        "rawValue": 2
+      },
+      {
+        "type": "step",
+        "text": "Step 4: Write base = 20",
+        "depth": 1,
+        "stageName": "Advance",
+        "stageId": "advance",
+        "runtimeStageId": "advance#8",
+        "stepNumber": 4,
+        "key": "base",
+        "rawValue": 20
+      },
+      {
+        "type": "subflow",
+        "text": "Entering the Repeated Quote subflow.",
+        "depth": 0,
+        "stageName": "Repeated Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#9",
+        "subflowId": "prepare",
+        "direction": "entry"
+      },
+      {
+        "type": "step",
+        "text": "Input: base = 20",
+        "depth": 1,
+        "stageName": "Repeated Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#9",
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 20
+      },
+      {
+        "type": "stage",
+        "text": "Stage 1: The process began with prepare/Child Seed.",
+        "depth": 0,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#10",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read base = 20",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#10",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 20
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write items = (2 items)",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#10",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "items",
+        "rawValue": [
+          20,
+          2
+        ]
+      },
+      {
+        "type": "step",
+        "text": "Step 3: Write rate = 2",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#10",
+        "stepNumber": 3,
+        "subflowId": "prepare",
+        "key": "rate",
+        "rawValue": 2
+      },
+      {
+        "type": "stage",
+        "text": "Stage 2: Looped back to prepare/Child Sum (pass 1).",
+        "depth": 0,
+        "stageName": "prepare/Child Sum",
+        "stageId": "prepare/sum",
+        "runtimeStageId": "prepare/sum#11",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read items = (2 items)",
+        "depth": 1,
+        "stageName": "prepare/Child Sum",
+        "stageId": "prepare/sum",
+        "runtimeStageId": "prepare/sum#11",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "items",
+        "rawValue": [
+          20,
+          2
+        ]
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write subtotal = 22",
+        "depth": 1,
+        "stageName": "prepare/Child Sum",
+        "stageId": "prepare/sum",
+        "runtimeStageId": "prepare/sum#11",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "subtotal",
+        "rawValue": 22
+      },
+      {
+        "type": "stage",
+        "text": "Stage 3: Looped back to prepare/Child Audit (pass 1).",
+        "depth": 0,
+        "stageName": "prepare/Child Audit",
+        "stageId": "prepare/audit",
+        "runtimeStageId": "prepare/audit#12",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read subtotal = 22",
+        "depth": 1,
+        "stageName": "prepare/Child Audit",
+        "stageId": "prepare/audit",
+        "runtimeStageId": "prepare/audit#12",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "subtotal",
+        "rawValue": 22
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write audit = \"22\"",
+        "depth": 1,
+        "stageName": "prepare/Child Audit",
+        "stageId": "prepare/audit",
+        "runtimeStageId": "prepare/audit#12",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "audit",
+        "rawValue": "22"
+      },
+      {
+        "type": "stage",
+        "text": "Stage 4: Looped back to prepare/Child Total (pass 1).",
+        "depth": 0,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#13",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read subtotal = 22",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#13",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "subtotal",
+        "rawValue": 22
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Read rate = 2",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#13",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "rate",
+        "rawValue": 2
+      },
+      {
+        "type": "step",
+        "text": "Step 3: Write total = 44",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#13",
+        "stepNumber": 3,
+        "subflowId": "prepare",
+        "key": "total",
+        "rawValue": 44
+      },
+      {
+        "type": "subflow",
+        "text": "Exiting the Repeated Quote subflow.",
+        "depth": 0,
+        "stageName": "Repeated Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#9",
+        "subflowId": "prepare",
+        "direction": "exit"
+      },
+      {
+        "type": "stage",
+        "text": "Stage 5: Looped back to Check Pass (pass 1).",
+        "depth": 0,
+        "stageName": "Check Pass",
+        "stageId": "check",
+        "runtimeStageId": "check#14"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read pass = 2",
+        "depth": 1,
+        "stageName": "Check Pass",
+        "stageId": "check",
+        "runtimeStageId": "check#14",
+        "stepNumber": 1,
+        "key": "pass",
+        "rawValue": 2
+      },
+      {
+        "type": "break",
+        "text": "Execution stopped at Check Pass.",
+        "depth": 0,
+        "stageName": "Check Pass",
+        "stageId": "check",
+        "runtimeStageId": "check#14"
+      }
+    ],
+    "structureEvents": [
+      {
+        "method": "onStageAdded",
+        "event": {
+          "stageId": "seed",
+          "name": "Root Seed",
+          "type": "stage",
+          "spec": {
+            "name": "Root Seed",
+            "id": "seed",
+            "type": "stage"
+          }
+        }
+      },
+      {
+        "method": "onStageAdded",
+        "event": {
+          "stageId": "advance",
+          "name": "Advance",
+          "type": "stage",
+          "spec": {
+            "name": "Advance",
+            "id": "advance",
+            "type": "stage"
+          }
+        }
+      },
+      {
+        "method": "onEdgeAdded",
+        "event": {
+          "from": "seed",
+          "to": "advance",
+          "kind": "next"
+        }
+      },
+      {
+        "method": "onStageAdded",
+        "event": {
+          "stageId": "prepare",
+          "name": "Repeated Quote",
+          "type": "stage",
+          "spec": {
+            "name": "Repeated Quote",
+            "type": "stage",
+            "id": "prepare",
+            "isSubflowRoot": true,
+            "subflowId": "prepare",
+            "subflowName": "Repeated Quote",
+            "subflowStructure": {
+              "name": "Child Seed",
+              "id": "seed",
+              "type": "stage",
+              "next": {
+                "name": "Child Sum",
+                "id": "sum",
+                "type": "stage",
+                "next": {
+                  "name": "Child Audit",
+                  "id": "audit",
+                  "type": "stage",
+                  "next": {
+                    "name": "Child Total",
+                    "id": "total",
+                    "type": "stage"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "method": "onEdgeAdded",
+        "event": {
+          "from": "advance",
+          "to": "prepare",
+          "kind": "next"
+        }
+      },
+      {
+        "method": "onSubflowMounted",
+        "event": {
+          "subflowId": "prepare",
+          "subflowName": "Repeated Quote",
+          "rootStageId": "prepare",
+          "subflowSpec": {
+            "name": "Child Seed",
+            "id": "seed",
+            "type": "stage",
+            "next": {
+              "name": "Child Sum",
+              "id": "sum",
+              "type": "stage",
+              "next": {
+                "name": "Child Audit",
+                "id": "audit",
+                "type": "stage",
+                "next": {
+                  "name": "Child Total",
+                  "id": "total",
+                  "type": "stage"
+                }
+              }
+            }
+          },
+          "subflowPath": "prepare"
+        }
+      },
+      {
+        "method": "onStageAdded",
+        "event": {
+          "stageId": "check",
+          "name": "Check Pass",
+          "type": "stage",
+          "spec": {
+            "name": "Check Pass",
+            "id": "check",
+            "type": "stage"
+          }
+        }
+      },
+      {
+        "method": "onEdgeAdded",
+        "event": {
+          "from": "prepare",
+          "to": "check",
+          "kind": "next"
+        }
+      },
+      {
+        "method": "onLoopEdgeAdded",
+        "event": {
+          "from": "check",
+          "to": "advance"
+        }
+      }
+    ]
+  }
+}

@@ -14,6 +14,7 @@ import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme, themeModeVars } from "../../theme";
+import { childTraceScope, type TraceScope } from "./_internal/traceScope";
 import { buildDataTrace } from "./_internal/dataTrace";
 import { buildTraceWalk, type TraceIngredient, type TraceWalk } from "./_internal/traceWalk";
 import { TraceWalkCard } from "../DataTracePanel/TraceWalkCard";
@@ -89,6 +90,8 @@ interface SubflowLevel {
   /** Subflow-scoped, subflow-renumbered narrative for the Story panel while
    *  drilled in (so it reveals to the subflow-local cursor, not whole-run). */
   narrative?: NarrativeEntry[];
+  traceScope: TraceScope;
+  runtimeSource: RuntimeSnapshotInput | null | undefined;
 }
 
 interface DrillDownEntry extends SubflowLevel {
@@ -849,34 +852,32 @@ function resolveSubflowFromRuntime(
   drillKey: string,
   narrativeEntries?: NarrativeEntry[],
   subflowResults?: Record<string, unknown>,
+  cursorRuntimeStageId?: string,
+  parentIdentity: readonly string[] = [],
+  runtimeSource?: RuntimeSnapshotInput | null,
 ): SubflowLevel | null {
   const localId = drillKey.split("/").pop() ?? drillKey;
   const pathOf = (s: StageSnapshot): string | undefined =>
     s.runtimeStageId?.split("#")[0];
   const withResult = parentSnapshots.filter((s) => !!s.subflowResult);
-  const parentSnap =
-    // Tier 1 — this exact mount, by full path.
-    withResult.find((s) => s.subflowId === drillKey || pathOf(s) === drillKey) ??
-    // Tier 2 — the same mount seen from inside its own subflow, where the
-    // enclosing prefix has been stripped off the ids.
-    withResult.find((s) => {
-      const p = pathOf(s);
-      return (
-        (p !== undefined && drillKey.endsWith("/" + p)) ||
-        (s.subflowId !== undefined && drillKey.endsWith("/" + s.subflowId))
-      );
-    }) ??
-    // Tier 3 — legacy callers that drill by a bare subflow id or a label.
-    withResult.find((s) => {
-      const leaf = pathOf(s)?.split("/").pop();
-      return (
-        s.subflowId === localId ||
-        s.stageName === drillKey ||
-        s.stageLabel === drillKey ||
-        leaf === drillKey ||
-        leaf === localId
-      );
-    });
+  // Exact invocation first. A chart mount can execute repeatedly; selecting
+  // its local name must not silently pick the first iteration's record.
+  const tiers = [
+    withResult.filter((snapshot) => snapshot.subflowId === drillKey || pathOf(snapshot) === drillKey),
+    withResult.filter((snapshot) => {
+      const path = pathOf(snapshot);
+      return (path !== undefined && drillKey.endsWith("/" + path)) ||
+        (snapshot.subflowId !== undefined && drillKey.endsWith("/" + snapshot.subflowId));
+    }),
+    withResult.filter((snapshot) => {
+      const leaf = pathOf(snapshot)?.split("/").pop();
+      return snapshot.subflowId === localId || snapshot.stageName === drillKey ||
+        snapshot.stageLabel === drillKey || leaf === drillKey || leaf === localId;
+    }),
+  ];
+  const candidates = tiers.find((tier) => tier.length > 0) ?? [];
+  const parentSnap = candidates.find((snapshot) => snapshot.runtimeStageId === cursorRuntimeStageId) ??
+    (candidates.length === 1 ? candidates[0] : undefined);
   if (!parentSnap?.subflowResult) return null;
   const label = parentSnap.stageLabel ?? parentSnap.stageName ?? localId;
   const sfNarrative = narrativeEntries
@@ -888,7 +889,12 @@ function resolveSubflowFromRuntime(
     subflowResults,
   );
   if (sfSnapshots.length === 0) return null;
-  return { subflowId: drillKey, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
+  return {
+    subflowId: drillKey, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative,
+    traceScope: childTraceScope(parentSnap.subflowResult,
+      parentSnap.runtimeStageId ? [...parentIdentity, parentSnap.runtimeStageId] : []),
+    runtimeSource,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1308,8 +1314,9 @@ export function ExplainableShell({
   // The traced key + a stack of followed ingredients ({key, beforeCommitIdx}
   // scopes — following = RE-ANCHORING, see traceWalk.ts). This is a LENS
   // ({what are we asking about}), NOT a cursor: the one position stays
-  // `snapshotIdx`. Root-level only; drilling into a subflow exits it.
+  // `snapshotIdx`. Changing the selected record exits the previous lens.
   const [tracing, setTracing] = useState<null | {
+    scope: TraceScope | null;
     key: string;
     beforeCommitIdx?: number;
     via: Array<{ key: string; beforeCommitIdx: number }>;
@@ -1367,10 +1374,32 @@ export function ExplainableShell({
   const currentLevel = useMemo(() => {
     if (drillDownStack.length > 0) {
       const top = drillDownStack[drillDownStack.length - 1];
-      return { spec: top.spec, snapshots: top.snapshots, narrative: top.narrative, subflowId: top.subflowId as string | undefined };
+      return { spec: top.spec, snapshots: top.snapshots, narrative: top.narrative, subflowId: top.subflowId as string | undefined, traceScope: top.traceScope, runtimeSource: top.runtimeSource };
     }
-    return { spec: null, snapshots, narrative: undefined as NarrativeEntry[] | undefined, subflowId: undefined as string | undefined };
+    return { spec: null, snapshots, narrative: undefined as NarrativeEntry[] | undefined, subflowId: undefined as string | undefined, traceScope: undefined, runtimeSource: undefined };
   }, [drillDownStack, snapshots]);
+
+  const activeTraceScope = useMemo<TraceScope>(() => {
+    const child = currentLevel.traceScope;
+    if (child) {
+      // A selected child belongs to one source record. Replacement input
+      // must not keep tracing data retained from a different run.
+      if (currentLevel.runtimeSource !== runtimeSnapshot) return {
+        identity: child.identity, commitLog: [], executionTree: undefined, unavailable: true,
+      };
+      return child;
+    }
+    return { identity: [], commitLog: runtimeSnapshot?.commitLog ?? [],
+      executionTree: runtimeSnapshot?.executionTree, unavailable: false };
+  }, [currentLevel.traceScope, currentLevel.runtimeSource, runtimeSnapshot]);
+  // Only scope changes clear the lens. Root live updates retain their
+  // existing session behavior; a replaced child source is explicitly unknown.
+  const childSource = isInSubflow ? runtimeSnapshot : undefined;
+  useEffect(() => {
+    setTracing(null);
+    setForkChooserOpen(false);
+    setTraceSearch("");
+  }, [currentLevel.traceScope, childSource]);
 
   const activeSnapshots = currentLevel.snapshots;
   const safeIdx = activeSnapshots.length > 0
@@ -1382,18 +1411,18 @@ export function ExplainableShell({
   // (snapshot, cursor) so the panel and the chart can never disagree.
   const shellDataTrace = useMemo(
     () =>
-      runtimeSnapshot?.commitLog
-        ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "")
+      !activeTraceScope.unavailable && (isInSubflow || runtimeSnapshot?.commitLog)
+        ? buildDataTrace(activeTraceScope.commitLog, activeTraceScope.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "")
         : { frames: [] as import("./_internal/dataTrace").DataTraceFrame[], readsAvailable: true },
-    [runtimeSnapshot, activeSnapshots, safeIdx],
+    [activeTraceScope, isInSubflow, runtimeSnapshot, activeSnapshots, safeIdx],
   );
 
-  // F1: every key the RUN ever wrote, in first-write order — so the user can
+  // F1: every key the SELECTED RECORD wrote, in first-write order — so the user can
   // ask "why is X this value?" from anywhere, not only at X's writer stage.
   // handleStartTracing already answers honestly for keys not yet written at
   // the cursor (the 'not-yet-written' card), so no special-casing here.
   const allTracedKeys = useMemo<string[]>(() => {
-    const log = runtimeSnapshot?.commitLog as
+    const log = activeTraceScope.commitLog as
       | Array<{ trace?: Array<{ path: string }> }>
       | undefined;
     if (!log?.length) return [];
@@ -1408,29 +1437,29 @@ export function ExplainableShell({
       }
     }
     return keys;
-  }, [runtimeSnapshot]);
+  }, [activeTraceScope]);
 
   // The active tracing walk — recomputed only when the SESSION changes
   // (entry / follow / show-all), never on scrub: the anchor is frozen in
   // the session state, so walking the rail cannot shift the question.
   const traceWalk = useMemo<TraceWalk | null>(() => {
-    if (!tracing || !runtimeSnapshot?.commitLog) return null;
+    if (!tracing || tracing.scope !== (isInSubflow ? activeTraceScope : null) || activeTraceScope.unavailable) return null;
     const scope = tracing.via.length > 0 ? tracing.via[tracing.via.length - 1] : tracing;
-    return buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
+    return buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
       beforeCommitIdx: scope.beforeCommitIdx,
     });
-  }, [tracing, runtimeSnapshot]);
+  }, [tracing, activeTraceScope, isInSubflow]);
 
-  // Rail stops: walk frames mapped onto the snapshot rail (root level only —
-  // every walk frame comes from the root commit log, so this is total).
+  // Rail stops use exact runtime IDs from the selected record. Display names
+  // and stripped chart prefixes never identify a mount invocation.
   const traceStopIndices = useMemo<number[]>(() => {
-    if (!traceWalk || traceWalk.missing || isInSubflow) return [];
+    if (!traceWalk || traceWalk.missing) return [];
     const idxByRsid = new Map(activeSnapshots.map((sn, i) => [sn.runtimeStageId, i]));
     return traceWalk.stops
       .map((stop) => idxByRsid.get(stop.runtimeStageId))
       .filter((i): i is number => i !== undefined)
       .sort((a, b) => a - b);
-  }, [traceWalk, activeSnapshots, isInSubflow]);
+  }, [traceWalk, activeSnapshots]);
 
   // The cone: chart node id (stage part — strip the '#N' execution index) →
   // BFS depth. Painted while TRACING (from the walk, so a via-filter narrows
@@ -1534,51 +1563,51 @@ export function ExplainableShell({
 
   const handleStartTracing = useCallback(
     (key: string) => {
-      if (!runtimeSnapshot?.commitLog || isInSubflow) return;
-      const log = runtimeSnapshot.commitLog as Array<{ runtimeStageId?: string }>;
+      if (activeTraceScope.unavailable) return;
+      const log = activeTraceScope.commitLog as Array<{ runtimeStageId?: string }>;
       const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
       const cursorCommitIdx = log.findIndex((c) => c.runtimeStageId === cursorRsid);
       // -1 only when a consumer pairs a HAND-BUILT `snapshots` prop (ids the
       // log doesn't know) with `runtimeSnapshot`; we then trace the whole log
       // and the entry jump may land after the cursor — defined, not a bug.
       const beforeCommitIdx = cursorCommitIdx >= 0 ? cursorCommitIdx + 1 : undefined;
-      setTracing({ key, beforeCommitIdx, via: [] });
+      setTracing({ scope: isInSubflow ? activeTraceScope : null, key, beforeCommitIdx, via: [] });
       setForkChooserOpen(false); // a fresh question — no stale chooser
       setTraceSearch(""); // and no stale filter greeting the next visit (review fix)
       setRightPanelMode("what");
       setInspectorTab("trace");
       jumpToAnchor(
-        buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, key, { beforeCommitIdx }),
+        buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, key, { beforeCommitIdx }),
       );
     },
-    [runtimeSnapshot, isInSubflow, activeSnapshots, safeIdx, jumpToAnchor],
+    [activeTraceScope, isInSubflow, activeSnapshots, safeIdx, jumpToAnchor],
   );
 
   const handleFollowIngredient = useCallback(
     (ing: TraceIngredient) => {
-      if (!tracing || !runtimeSnapshot?.commitLog || ing.writerCommitIdx === null) return;
+      if (!tracing || activeTraceScope.unavailable || ing.writerCommitIdx === null) return;
       const scope = { key: ing.key, beforeCommitIdx: ing.writerCommitIdx + 1 };
       setTracing({ ...tracing, via: [...tracing.via, scope] });
       setForkChooserOpen(false); // following IS the answer to the chooser
       jumpToAnchor(
-        buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
+        buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
           beforeCommitIdx: scope.beforeCommitIdx,
         }),
       );
     },
-    [tracing, runtimeSnapshot, jumpToAnchor],
+    [tracing, activeTraceScope, jumpToAnchor],
   );
 
   const handleShowAllIngredients = useCallback(() => {
-    if (!tracing || !runtimeSnapshot?.commitLog) return;
+    if (!tracing || activeTraceScope.unavailable) return;
     setTracing({ ...tracing, via: [] });
     setForkChooserOpen(false);
     jumpToAnchor(
-      buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, tracing.key, {
+      buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, tracing.key, {
         beforeCommitIdx: tracing.beforeCommitIdx,
       }),
     );
-  }, [tracing, runtimeSnapshot, jumpToAnchor]);
+  }, [tracing, activeTraceScope, jumpToAnchor]);
 
   // Exit keeps the cursor exactly where the walk left it — you land in
   // normal time-travel at the cause you found.
@@ -1635,20 +1664,28 @@ export function ExplainableShell({
       const keys = chain.length > 0 ? chain : [mountKey];
       const stack: DrillDownEntry[] = [];
       let levelSnapshots = snapshots;
-      for (const key of keys) {
-        const entry = resolveSubflowFromRuntime(
+      for (const [depth, key] of keys.entries()) {
+        // Keep an already-selected ancestor's invocation. Re-resolving it
+        // using a child-local cursor could choose another loop iteration.
+        const existing = drillDownStack[depth];
+        const parentCursorIdx = existing?.parentSnapshotIdx ??
+          (depth === drillDownStack.length ? snapshotIdx : 0);
+        const entry = existing?.subflowId === key && existing.runtimeSource === runtimeSnapshot ? existing : resolveSubflowFromRuntime(
           levelSnapshots,
           key,
           narrativeEntries,
           runtimeSnapshot?.subflowResults,
+          levelSnapshots[parentCursorIdx]?.runtimeStageId,
+          stack[stack.length - 1]?.traceScope.identity,
+          runtimeSnapshot,
         );
         if (!entry) return null;
-        stack.push({ ...entry, parentSnapshotIdx: stack.length === 0 ? snapshotIdx : 0 });
+        stack.push({ ...entry, parentSnapshotIdx: parentCursorIdx });
         levelSnapshots = entry.snapshots;
       }
       return stack.length > 0 ? stack : null;
     },
-    [traceGraph, snapshots, narrativeEntries, runtimeSnapshot, snapshotIdx],
+    [traceGraph, snapshots, narrativeEntries, runtimeSnapshot, snapshotIdx, drillDownStack],
   );
 
   const handleDrillDown = useCallback(
@@ -1658,7 +1695,8 @@ export function ExplainableShell({
       // rescopes the slider / story / overlay / chart together.
       const stack = buildDrillStack(mountKey);
       if (stack) {
-        setTracing(null); // the walk lives on the ROOT rail — drilling exits it honestly
+        setTracing(null); // a different selected record starts a fresh question
+        setTraceSearch("");
         setForkChooserOpen(false);
         setDrillDownStack(stack);
         setSnapshotIdx(0);
@@ -1668,6 +1706,9 @@ export function ExplainableShell({
   );
 
   const handleBreadcrumbNavigate = useCallback((level: number) => {
+    setTracing(null);
+    setForkChooserOpen(false);
+    setTraceSearch("");
     setDrillDownStack((prev) => {
       const popped = level === 0 ? prev[0] : prev[level];
       if (popped) setSnapshotIdx(popped.parentSnapshotIdx);
@@ -1768,9 +1809,18 @@ export function ExplainableShell({
   // step wrote:") and, below it, a search over EVERY key the run ever wrote
   // ("Trace any variable:", F1). Both roads lead to handleStartTracing.
   const traceTabContent: ReactNode = useMemo(() => {
+    if (activeTraceScope.unavailable) {
+      return <div data-fp="trace-unavailable" role="status" style={{ padding: 14 }}>Child trace evidence is unavailable or incomplete — dependencies are unknown. No parent record was substituted.</div>;
+    }
     if (tracing && traceWalk) {
       return (
-        <TraceWalkCard
+        <>
+          {isInSubflow && (
+            <div data-fp="trace-scope-note" style={{ padding: "10px 14px 0", fontSize: 12 }}>
+              Tracing this subflow invocation only. “Run inputs” means inputs at this subflow boundary; their parent ancestry is unknown.
+            </div>
+          )}
+          <TraceWalkCard
           walk={traceWalk}
           cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null}
           viaKey={activeViaKey}
@@ -1784,6 +1834,7 @@ export function ExplainableShell({
           onContinueTimeOrder={handleContinueTimeOrder}
           canContinueTimeOrder={traceStopIndices.some((i) => i < safeIdx)}
         />
+        </>
       );
     }
     // Same chip look for both entry blocks — one affordance, one meaning.
@@ -1808,7 +1859,7 @@ export function ExplainableShell({
     const shownKeys = matchedKeys.slice(0, 12);
     return (
       <>
-        {!isInSubflow && (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && (
+        {(shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && (
           <div data-fp="trace-entry" style={{ padding: "10px 14px 0", fontSize: 12 }}>
             <span style={{ color: theme.textMuted, marginRight: 6 }}>This step wrote:</span>
             {shellDataTrace.frames[0].keysWritten.map((k) => (
@@ -1824,7 +1875,7 @@ export function ExplainableShell({
             ))}
           </div>
         )}
-        {!isInSubflow && allTracedKeys.length > 0 && (
+        {allTracedKeys.length > 0 && (
           <div data-fp="trace-any" style={{ padding: "6px 14px 0", fontSize: 12 }}>
             <div style={{ color: theme.textMuted, marginBottom: 4 }}>Trace any variable:</div>
             <input
@@ -1873,7 +1924,7 @@ export function ExplainableShell({
         />
       </>
     );
-  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
+  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, activeTraceScope, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
 
   // Map tab id → label for rendering
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));

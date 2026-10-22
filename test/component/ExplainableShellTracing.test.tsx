@@ -13,7 +13,7 @@
  * 3. FOLLOW: an ingredient chip (in the chooser) re-anchors the walk
  *    (breadcrumb "▸ via"), "show all" restores the full walk.
  * 4. EXIT: Done leaves the cursor where the walk ended (no teleport).
- * 5. DRILL exits tracing (the walk lives on the root rail — honesty).
+ * 5. DRILL clears the previous tracing session before selecting a child record.
  * 6. F1: ANY variable ever written is traceable from the search block —
  *    including keys not yet written at the cursor (the honest card).
  */
@@ -230,5 +230,29 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
     // rate's anchor is Seed itself — a 1-stop walk, no rail mode (< 2 stops is
     // still a walk; rail shows when stops exist). Here we assert the card.
     expect(screen.getByText(/Why this value/i)).toBeTruthy();
+  });
+});
+
+describe('ExplainableShell root tracing during live append', () => {
+  it('keeps the frozen root question when the caller replaces the snapshot with an immutable append', () => {
+    const initial = makeRuntimeSnapshot();
+    const props = { snapshots: SNAPSHOTS, runtimeSnapshot: initial as never, title: 'Quote' };
+    const ui = render(React.createElement(ExplainableShell, props));
+    enterTracing();
+    const originalStory = document.querySelector('[data-fp="trace-walk-card"]')?.textContent;
+    const appended = {
+      ...initial,
+      commitLog: [...initial.commitLog, {
+        stage: 'Later Total', stageId: 'later', runtimeStageId: 'later#5', trace: [{ path: 'total' }],
+      }],
+    };
+    ui.rerender(React.createElement(ExplainableShell, {
+      ...props,
+      runtimeSnapshot: appended as never,
+      snapshots: [...SNAPSHOTS, { ...SNAPSHOTS[4], stageName: 'later', stageLabel: 'Later Total', runtimeStageId: 'later#5' }],
+    }));
+    expect(toolbar().getAttribute('data-tracing')).toBe('true');
+    expect(document.querySelector('[data-fp="trace-walk-card"]')?.textContent).toBe(originalStory);
+    expect(document.querySelector('[data-fp="trace-walk-card"]')?.textContent).not.toContain('Later Total');
   });
 });

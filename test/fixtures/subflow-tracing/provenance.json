@@ -1,0 +1,8 @@
+{
+  "producer": {
+    "footprintjs": "10.3.0"
+  },
+  "source": "test/fixtures/subflow-tracing/generate.mjs",
+  "sha256": "ee1179e6f465272a334ecebe91192f768d95b322a6e67c75182657d4c1b48f54",
+  "note": "Actual public run snapshots. Producer run IDs and times retained; no claim of byte-deterministic regeneration."
+}
