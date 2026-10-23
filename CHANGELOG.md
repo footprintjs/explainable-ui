@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- `TraceWalkMissing.reason` adds `"evidence-unavailable"` for missing or refused
+  write evidence. Consumers that exhaustively handle the previous union must
+  add this case.
 - Recorded subflow navigation requires an exact invocation/result association.
   A path-only result alias is no longer used as proof of a visit. Custom hosts
   should key results by the recorded runtime ID or attach the matching result
