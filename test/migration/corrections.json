@@ -27,7 +27,10 @@
     "status": "requires-owning-layer-review",
     "approval": null,
     "observedIsCorrectnessOracle": false,
-    "affectedPublicFunctions": ["buildTraceWalk", "ExplainableShell"],
+    "affectedPublicFunctions": [
+      "buildTraceWalk",
+      "ExplainableShell"
+    ],
     "fixtures": [
       "causal-phases/runtime-snapshot-10.0.0.json",
       "pilot flow.json"
@@ -59,7 +62,7 @@
     "recordGroundedRequirement": "A missing writer is not proof of an input. Missing reads remain unknown; canonical path relationships, redaction and truncation qualifications survive display projection.",
     "owner": "Foottrace slices and formatSlice; Flow labels and navigation projections",
     "consumerImpact": "Keep ingredient chips, controlled navigation and copy/display agreement without preserving an unproved causal sentence.",
-    "releaseNoteDraft": "Pending review: missing evidence is stated as unknown rather than presented as a known input or independence."
+    "releaseNoteDraft": "Missing writers now remain unknown unless the selected starting data records the key; canonical path/reader migration remains separate."
   },
   {
     "id": "R4",

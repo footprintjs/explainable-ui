@@ -107,6 +107,7 @@ export function projectTraceInvocation(
               Object.fromEntries(selected.mountLabels)
             ),
             readsAvailable: selected.readsAvailable,
+            startKeys: selected.startKeys,
           }),
         };
       }

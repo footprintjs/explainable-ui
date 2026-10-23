@@ -12,7 +12,7 @@
  * an empty list. [Copy story] emits formatTraceWalk's exact string: the
  * human's board and an LLM's backtrack answer are the same text.
  */
-import { scopeSentence, inputSentence, isInvocationStart, mountLabel } from "../../trace/tracePresentation";
+import { scopeSentence, START_SENTENCE, inputSentence, isInvocationStart, mountLabel } from "../../trace/tracePresentation";
 import { memo, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { fontSize, theme, v } from "../../theme";
@@ -100,7 +100,6 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   style,
 }: TraceWalkCardProps) {
   const presentation = walk.scope;
-  const childScope = !!presentation?.invocationPath.length;
   const fs = fontSize[size];
   const sx = unstyled ? BARE : PAINT;
   const [copied, setCopied] = useState(false);
@@ -124,7 +123,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
     : 0;
   const chooserVisible = !!forkChooserOpen && followableCount >= 2;
 
-  const inputLabel = inputSentence(presentation);
+  const inputLabel = inputSentence(presentation, walk.key);
   const copyStory = () => {
     const text = formatTraceWalk(walk, stepNumberOf);
     void navigator.clipboard?.writeText(text).then(() => {
@@ -145,13 +144,10 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         <CardHeader label={`Why this value — \`${walk.key}\``} onExit={onExit} sx={sx} fs={fs} />
         {scopeSentence(presentation) && <div data-fp="trace-scope-note">{scopeSentence(presentation)}</div>}
         <div style={sx({ color: theme.textPrimary, marginTop: 8 })}>
-          {walk.missing.reason === "never-written" ? presentation?.invocationPath.length ? (
-            <><code style={sx({color:accent})}>{walk.key}</code> has no recorded write in this invocation; if present, it was {inputLabel}.</>
-          ) : (
-            <>
-              <code style={sx({ color: accent })}>{walk.key}</code> was <b>never written in this run</b> —
-              it arrived with the run&apos;s inputs.
-            </>
+          {walk.missing.reason === "evidence-unavailable" ? (
+            <><code>{walk.key}</code>: write evidence is unavailable; value origin unknown.</>
+          ) : walk.missing.reason === "never-written" ? (
+            <><code style={sx({color:accent})}>{walk.key}</code>: {inputLabel}.</>
           ) : (
             <>
               <code style={sx({ color: accent })}>{walk.key}</code> has <b>not been written yet at this
@@ -259,8 +255,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
                 onFollow={onFollowIngredient}
                 sx={sx}
                 fs={fs}
-                inputLabel={inputLabel}
-                childScope={childScope}
+                inputLabel={inputSentence(presentation, ing.key)}
               />
             ))}
           </div>
@@ -293,7 +288,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           question; rendering both would be noise (implementer's own note,
           promoted to a fix). ── */}
       <div style={sx({ marginTop: 10 })}>
-        {atInvocationStart ? <div data-fp="twc-boundary">{inputLabel}.</div> : boundary ? <div data-fp="twc-boundary">computed inside {boundary}; drill in to trace it.</div> : chooserVisible ? null : current.ingredients.length > 0 ? (
+        {atInvocationStart ? <div data-fp="twc-boundary">{START_SENTENCE}.</div> : boundary ? <div data-fp="twc-boundary">computed inside {boundary}; drill in to trace it.</div> : chooserVisible ? null : current.ingredients.length > 0 ? (
           <>
             <div style={sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 })}>
               Made from {current.ingredients.length} ingredient{current.ingredients.length > 1 ? "s" : ""}
@@ -308,8 +303,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
                   onFollow={onFollowIngredient}
                   sx={sx}
                   fs={fs}
-                  inputLabel={inputLabel}
-                childScope={childScope}
+                  inputLabel={inputSentence(presentation, ing.key)}
                 />
               ))}
             </div>
@@ -371,11 +365,8 @@ export const TraceWalkCard = memo(function TraceWalkCard({
       <div style={sx({ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 })}>
         {walk.inputTermini.length > 0 && (
           <div data-fp="twc-run-inputs" style={sx({ fontSize: fs.label, color: theme.textMuted })}>
-            ⚑ {presentation?.invocationPath.length ? inputLabel : "run inputs (never written)"}: {walk.inputTermini.map((k, i) => (
-              <code key={k}>
-                {i > 0 && ", "}
-                {k}
-              </code>
+            ⚑ No local writer: {walk.inputTermini.map((k, i) => (
+              <span key={k}>{i > 0 && ", "}<code>{k}</code> ({inputSentence(presentation, k)})</span>
             ))}
           </div>
         )}
@@ -445,11 +436,9 @@ function IngredientChip({
   sx,
   fs,
   inputLabel,
-  childScope,
 }: {
   ing: TraceIngredient;
   inputLabel: string;
-  childScope: boolean;
   color: string;
   step: number | null;
   onFollow?: (ing: TraceIngredient) => void;
@@ -465,7 +454,7 @@ function IngredientChip({
       onClick={() => onFollow?.(ing)}
       title={
         terminus
-          ? childScope ? `${ing.key}: ${inputLabel}` : `${ing.key} was never written — it came in with the run's inputs`
+          ? `${ing.key}: ${inputLabel}`
           : `Follow ${ing.key} — re-anchor the walk on its writer`
       }
       style={sx({
@@ -484,7 +473,7 @@ function IngredientChip({
     >
       <code>{ing.key}</code>
       {terminus ? (
-        <span style={sx({ fontWeight: 400 })}>— {childScope ? "invocation start state" : "run input"} ⚑</span>
+        <span style={sx({ fontWeight: 400 })}>— {inputLabel} ⚑</span>
       ) : (
         <span style={sx({ fontWeight: 400 })}>
           ← {ing.writerStageName}

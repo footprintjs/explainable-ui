@@ -1655,8 +1655,8 @@ declare const InspectorPanel: React$1.NamedExoticComponent<InspectorPanelProps>;
  * ingredient, before = this stop) — never a special traversal mode.
  *
  * HONEST ABSENCE, two truthful sentences (they are different facts):
- *   'never-written'   — no commit in the WHOLE log wrote the key: it came
- *                       in with the run's inputs.
+ *   'never-written'   — no commit in the WHOLE log wrote the key. Its
+ *                       earlier origin needs separate starting-state evidence.
  *   'not-yet-written' — a later commit writes it, but none at or before
  *                       the cutoff: "not yet" is not "never".
  *
@@ -1668,6 +1668,8 @@ interface TraceWalkScope {
     readonly invocationPath: readonly string[];
     readonly mountLabels?: Readonly<Record<string, string>>;
     readonly readsAvailable?: boolean;
+    /** Recorded non-undefined starting keys, without their values or inferred origin. */
+    readonly startKeys?: readonly string[];
 }
 interface TraceWalkOptions {
     beforeCommitIdx?: number;
@@ -1678,7 +1680,7 @@ interface TraceWalkOptions {
 /** One read key of a stop, resolved to the commit that wrote it. */
 interface TraceIngredient {
     key: string;
-    /** null = no commit before this stop wrote the key (a run-input terminus). */
+    /** null = no commit before this stop wrote the key (an unresolved local-writer terminus). */
     writerRuntimeStageId: string | null;
     writerStageName: string | null;
     writerCommitIdx: number | null;
@@ -1704,14 +1706,14 @@ interface TraceStop {
     loopPass: number;
 }
 interface TraceWalkMissing {
-    reason: "never-written" | "not-yet-written";
+    reason: "never-written" | "not-yet-written" | "evidence-unavailable";
     /** For 'not-yet-written': where the FIRST write actually happens. */
     firstWriteCommitIdx?: number;
     firstWriterRuntimeStageId?: string;
     firstWriterStageName?: string;
 }
 interface TraceWalk {
-    /** Detached explicit scope; absent preserves the existing root contract. */
+    /** Detached scope, including root mount labels derived from recorded metadata. */
     readonly scope?: TraceWalkScope;
     key: string;
     /** Stops in WALK ORDER: commitIdx DESCENDING. stops[0] is the anchor
@@ -1719,8 +1721,8 @@ interface TraceWalk {
     stops: TraceStop[];
     /** Non-null ⇒ zero stops: the honest-absence card, not an empty chain. */
     missing: TraceWalkMissing | null;
-    /** Read keys that NO commit ever wrote — the run's inputs ("came in the
-     *  door"), deduped, in first-encounter order. */
+    /** Read keys with no recorded local writer, deduped in encounter order.
+     * Their earlier origin requires separate starting-state evidence. */
     inputTermini: string[];
     /** False when the snapshot recorded no reads anywhere — the chain is
      *  UNKNOWABLE (not absent) beyond the anchor. */

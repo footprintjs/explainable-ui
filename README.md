@@ -362,12 +362,12 @@ have. One cursor, no new axis.
   breadcrumb shows `key ▸ via ingredient · show all`).
 - Every stop shows the world **as it was at that moment** — the state panel
   time-travels with the walk for free.
-- **Honest absence**: a value nobody wrote gets a truthful card ("never
-  written in this run — it arrived with the run's inputs"), and a value not
+- **Honest absence**: a value nobody wrote gets a truthful card ("no recorded write; value unknown"), and a value not
   written *yet* at the cursor's moment says exactly that, naming where its
   first write happens. Reads-off runs say "unknowable, not absent".
-- **[Copy story]** emits the same text an LLM backtrack tool returns — the
-  human's board and the agent's answer are one artifact.
+- **[Copy story]** uses `formatTraceWalk`. A tool using the same selected record, scope and
+  step numbering receives the identical text; arbitrary external tools need
+  not use that formatter. Root mount labels are derived from the recorded tree.
 - **Trace inside a subflow**: drill into a recorded child, then open
   Inspector → Data Trace. Search, ingredient follow, earlier cause and Done
   use that child's own history. Repeated visits are identified by runtime ID;
@@ -378,8 +378,12 @@ have. One cursor, no new axis.
   one. Custom snapshot hosts can provide the exact result map or attach the
   matching result to the selected `StageSnapshot`.
 - Values already present when a child starts may come from input mapping or
-  state restored after a pause. Cards and copied stories say so and leave
-  earlier ancestry unknown. Missing evidence stays unknown.
+  state restored after a pause. Cards and copied stories check the selected
+  invocation's own starting data for each key. A recorded non-undefined
+  starting value says "recorded at invocation start; earlier origin unknown";
+  a key absent there says "no recorded write; value unknown". These records
+  cannot reliably distinguish input mapping from restored state, so neither
+  origin is asserted. Missing evidence stays unknown.
 - Refreshing the same run keeps the selected visit and trace question. A new
   run keeps the root cursor; if a selected child visit is absent, the viewer
   returns to the nearest available level and explains why. Navigation clears

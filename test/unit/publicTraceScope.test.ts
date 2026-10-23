@@ -23,7 +23,7 @@ describe("public scoped trace explanations", () => {
     const text = api.formatTraceWalk(walk, step);
     expect(text).toContain("Tracing subflow invocation pipeline/prepare#8");
     expect(text).toContain(
-      "present when invocation pipeline/prepare#8 started (input mapping, or state restored on resume)"
+      "recorded at invocation start; earlier origin unknown"
     );
     expect(text).not.toContain("never written");
     const copied = JSON.parse(JSON.stringify(walk));
@@ -38,7 +38,7 @@ describe("public scoped trace explanations", () => {
       { scope }
     );
     const text = api.formatTraceWalk(walk, step);
-    expect(text).toContain("state restored on resume");
+    expect(text).toContain("recorded at invocation start; earlier origin unknown");
     expect(text).not.toContain("reads nothing — origin");
     expect(text).not.toContain("run input — never written");
   });
@@ -51,7 +51,7 @@ describe("public scoped trace explanations", () => {
     const before = JSON.stringify(walk);
     const scope = { invocationPath: [childId] };
     expect(api.formatTraceWalk(walk, step, { scope })).toContain(
-      "state restored on resume"
+      "no recorded write; value unknown"
     );
     expect(JSON.stringify(walk)).toBe(before);
   });

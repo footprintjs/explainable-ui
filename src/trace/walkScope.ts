@@ -32,12 +32,15 @@ export function snapshotWalkScope(value: TraceWalkScope): TraceWalkScope {
         )
       );
     }
+    const sourceKeys = optionalOwnDataField(value, "startKeys");
+    const startKeys = sourceKeys === undefined ? undefined : Object.freeze(readOwnArray(sourceKeys, budget).map(readName));
     const readsAvailable = optionalOwnDataField(value, "readsAvailable");
     if (readsAvailable !== undefined && typeof readsAvailable !== "boolean")
       throw new Error();
     return Object.freeze({
       invocationPath: Object.freeze(invocationPath),
       ...(mountLabels === undefined ? {} : { mountLabels }),
+      ...(startKeys === undefined ? {} : { startKeys }),
       ...(readsAvailable === undefined ? {} : { readsAvailable }),
     });
   } catch {

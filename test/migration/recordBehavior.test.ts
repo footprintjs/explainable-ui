@@ -143,10 +143,10 @@ describe("M1 — diagnostic observations, NOT approved future answers", () => {
     ).toBe(false);
   });
 
-  it("R3 exposes the old unproven run-input claim for a key that has no recorded evidence", () => {
+  it("R3 corrects the old unproven run-input claim for a key that has no recorded evidence", () => {
     const walk = buildTraceWalk(orderedLegacyLog, undefined, "absent");
     expect(formatTraceWalk(walk, () => null)).toBe(
-      "`absent` was never written in this run — it arrived with the run's inputs."
+      "`absent`: no recorded write; value unknown."
     );
     expect(orderedLegacyLog.some((row) => owns(row.overwrite, "absent"))).toBe(
       false

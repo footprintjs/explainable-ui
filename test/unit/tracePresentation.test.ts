@@ -22,14 +22,14 @@ describe("explicit scoped copy metadata", () => {
     const second = buildTraceWalk(log, tree, "total", { scope: scope("second#9") });
     expect(root.scope).toBeUndefined();
     expect(formatTraceWalk(root, () => 1)).toContain(
-      "run input — never written",
+      "no recorded write; value unknown",
     );
     expect(formatTraceWalk(first, () => 1)).toContain(
-      "present when invocation first#2 started",
+      "Tracing subflow invocation first#2",
     );
     expect(formatTraceWalk(first, () => 1)).not.toContain("second#9");
     expect(formatTraceWalk(second, () => 1)).toContain(
-      "present when invocation second#9 started",
+      "Tracing subflow invocation second#9",
     );
     expect(formatTraceWalk(second, () => 1)).not.toContain("first#2");
   });
@@ -37,7 +37,7 @@ describe("explicit scoped copy metadata", () => {
     const walk = buildTraceWalk(log, tree, "base", { scope: scope("child#3") });
     const text = formatTraceWalk(walk, () => null);
     expect(text).toContain("Tracing subflow invocation child#3");
-    expect(text).toContain("present when invocation child#3 started");
+    expect(text).toContain("no recorded write; value unknown");
     expect(text).not.toContain("never written");
   });
 });

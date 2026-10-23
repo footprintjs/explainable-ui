@@ -38,6 +38,23 @@ describe("public tool text equals the shell Copy story artifact", () => {
       expect(first.runtimeStageId).toBe("prepare#4");
     }
   });
+  it("matches Copy story at the root without supplying UI-only mount labels", () => {
+    const writeText=vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText}});
+    render(React.createElement(ExplainableShell,{runtimeSnapshot:nested.runtimeSnapshot} as Props));
+    for(let i=1;i<nested.runtimeSnapshot.commitLog.length;i++) fireEvent.click(screen.getByLabelText("Next stage"));
+    fireEvent.click(screen.getByText("Inspector"));
+    fireEvent.click(screen.getByText("Data Trace"));
+    const chip=[...document.querySelectorAll('[data-fp="trace-any-chip"]')].find(node=>node.textContent==="total");
+    fireEvent.click(chip!);
+    fireEvent.click(screen.getByText("Copy story"));
+    const log=nested.runtimeSnapshot.commitLog;
+    const expected=formatTraceWalk(buildTraceWalk(log,nested.runtimeSnapshot.executionTree,"total"),id=>{
+      const index=log.findIndex((row:any)=>row.runtimeStageId===id);return index<0?null:index+1;
+    });
+    expect(expected).toContain("computed inside");
+    expect(writeText.mock.calls[0][0]).toBe(expected);
+  });
   it.each([
     [
       "nested",
@@ -111,7 +128,7 @@ describe("public tool text equals the shell Copy story artifact", () => {
       );
       const expected = formatTraceWalk(walk, stepNumberOf);
       expect(writeText.mock.calls[0]?.[0]).toBe(expected);
-      expect(expected).toContain("state restored on resume");
+      expect(expected).toContain("recorded at invocation start; earlier origin unknown");
       expect(expected).not.toContain("never written");
       expect(expected).not.toContain("reads nothing — origin");
     }

@@ -142,7 +142,7 @@ describe("recorded subflow review regressions", () => {
     fireEvent.click(screen.getByText("Copy story"));
     const text = writeText.mock.calls[0][0] as string;
     expect(text).toContain("pipeline/prepare#8");
-    expect(text).toContain("present when invocation");
+    expect(text).toContain("recorded at invocation start; earlier origin unknown");
     expect(text).not.toContain("never written");
   });
   it.each([false, true])(
@@ -168,6 +168,68 @@ describe("recorded subflow review regressions", () => {
     trace("total");
     expect(card().textContent).toContain("= 44");
     expect(screen.getByText(/prepare · visit 2 of 2/)).toBeTruthy();
+  });
+  it("reports a vanished selected visit even when the replacement has one usable visit", () => {
+    const ui = setup("repeated");
+    move(7);
+    ui.click("prepare");
+    fireEvent.click(screen.getByRole("button", { name: /visit 2 of 2/ }));
+    expect(screen.getByText(/prepare · visit 2 of 2/)).toBeTruthy();
+    const replacement = structuredClone(recordings.repeated.runtimeSnapshot) as any;
+    replacement.runId = "one-visit-replacement";
+    // Keep the first exact result valid; remove only the selected second visit.
+    let node = replacement.executionTree;
+    while (node.next) {
+      if (node.next.runtimeStageId === "prepare#9") node.next = node.next.next;
+      else node = node.next;
+    }
+    delete replacement.subflowResults["prepare#9"];
+    replacement.commitLog = replacement.commitLog.filter((row: any) => row.runtimeStageId !== "prepare#9");
+    ui.replace(replacement);
+    expect(document.querySelector('[data-fp="source-change-note"]')?.textContent).toContain("selected visit is not in this run");
+    expect(screen.queryByText(/prepare · visit/)).toBeNull();
+    // It must return to the root, never silently substitute the usable first result.
+    ui.inspector();
+    trace("total");
+    expect(document.querySelector('[data-fp="trace-scope-note"]')).toBeNull();
+  });
+  it("does not crash when a root trace chip reaches a commit with no trace list", () => {
+    const ui=setup("repeated");
+    const broken=structuredClone(ui.run.runtimeSnapshot) as any;
+    delete broken.commitLog[0].trace;
+    ui.replace(broken);
+    ui.inspector();
+    move(7);
+    trace("total");
+    expect(card()?.textContent).toContain("write evidence is unavailable");
+  });
+  it("shows a drawing failure for shared tree nodes without expanding the screen", () => {
+    const ui=setup("repeated");
+    const broken=structuredClone(ui.run.runtimeSnapshot) as any;
+    let shared:any={id:"leaf",runtimeStageId:"leaf#0"};
+    for(let i=0;i<20;i++) shared={id:`level${i}`,runtimeStageId:`level${i}#${i}`,children:[shared,shared]};
+    broken.executionTree=shared;
+    expect(()=>ui.replace(broken)).not.toThrow();
+    expect(document.body.textContent).toContain("shared nodes");
+    expect(document.querySelectorAll('[data-fp="tt-tick"]').length).toBeLessThan(100);
+  });
+  it("keeps absent reads unknown in both the child card and copied story", () => {
+    const ui=setup("nested");
+    const source=structuredClone(ui.run.runtimeSnapshot) as any;
+    const context=source.subflowResults["pipeline/prepare#8"].treeContext;
+    context.stageContexts.stageReads.absent = undefined;
+    source.runId="absent-read-run";
+    ui.replace(source);
+    const writeText=vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText}});
+    ui.drill("pipeline/prepare");
+    ui.inspector();
+    move(3);
+    trace("total");
+    expect(card().textContent).toContain("absent (no recorded write; value unknown)");
+    fireEvent.click(screen.getByText("Copy story"));
+    expect(writeText.mock.calls[0][0]).toContain("absent (no recorded write; value unknown)");
+    expect(writeText.mock.calls[0][0]).not.toContain("absent (recorded at invocation start");
   });
   it("keeps Story entries inside the selected visit runtime IDs", () => {
     const ui = setup("repeated");

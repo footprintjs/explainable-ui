@@ -23,6 +23,8 @@ export interface TraceScope {
   availability: TraceAvailability;
   readsAvailable: boolean;
   mountLabels: ReadonlyMap<string, string>;
+  /** Names only; a start snapshot does not attest input-mapping versus resume origin. */
+  startKeys?: readonly string[];
 }
 /** The run-wide dial is inherited by children. Empty/missing per-step reads are normal. */
 export function runHasRecordedReads(
@@ -112,6 +114,20 @@ export function childTraceScope(
     const history = readOwnArray(rawHistory, budget);
     if (history.length === 0) return unavailable("no-history");
     const mountInvocation = invocationPath[invocationPath.length - 1];
+    const firstId = ownDataField(history[0], "runtimeStageId");
+    const start = firstId === "" || firstId === mountInvocation
+      ? ownDataField(history[0], "overwrite") : undefined;
+    const startKeys: string[] = [];
+    if (isPlainRecord(start)) {
+      const keys = Object.keys(start);
+      budget.spend(keys.length);
+      for (const key of keys) {
+        const descriptor = Object.getOwnPropertyDescriptor(start, key);
+        // Never execute stored code, or turn an undefined read into a starting value.
+        if (descriptor && "value" in descriptor && descriptor.value !== undefined)
+          startKeys.push(readName(key));
+      }
+    }
     const recordedCommits = history.map((entry, index) => {
       const runtimeStageId = ownDataField(entry, "runtimeStageId");
       // Through 9.33 the first input mapper bundle used an empty stamp.
@@ -205,6 +221,7 @@ export function childTraceScope(
       availability: { ok: true },
       readsAvailable: readsAvailable ?? ownReads,
       mountLabels,
+      startKeys: Object.freeze(startKeys),
     };
   } catch (error) {
     const failure = classifyAdmissionFailure(error);

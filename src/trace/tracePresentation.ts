@@ -9,13 +9,11 @@ export function scopeSentence(
       )}. Parent ancestry is unknown.`
     : undefined;
 }
-export function inputSentence(scope: TraceWalkScope | undefined): string {
-  const path = scope?.invocationPath;
-  return path?.length
-    ? `present when invocation ${
-        path[path.length - 1]
-      } started (input mapping, or state restored on resume)`
-    : "run input — never written";
+export const START_SENTENCE = "recorded at invocation start; earlier origin unknown";
+export function inputSentence(scope: TraceWalkScope | undefined, key: string): string {
+  return scope?.startKeys?.includes(key)
+    ? START_SENTENCE
+    : "no recorded write; value unknown";
 }
 /** Only the exact invocation stamp (or its legacy empty stamp) is a start boundary. */
 export function isInvocationStart(

@@ -2644,6 +2644,18 @@ function childTraceScope(result, invocationPath, readsAvailable) {
     const history = readOwnArray(rawHistory, budget);
     if (history.length === 0) return unavailable("no-history");
     const mountInvocation = invocationPath[invocationPath.length - 1];
+    const firstId = ownDataField(history[0], "runtimeStageId");
+    const start = firstId === "" || firstId === mountInvocation ? ownDataField(history[0], "overwrite") : void 0;
+    const startKeys = [];
+    if (isPlainRecord(start)) {
+      const keys = Object.keys(start);
+      budget.spend(keys.length);
+      for (const key of keys) {
+        const descriptor = Object.getOwnPropertyDescriptor(start, key);
+        if (descriptor && "value" in descriptor && descriptor.value !== void 0)
+          startKeys.push(readName(key));
+      }
+    }
     const recordedCommits = history.map((entry, index) => {
       const runtimeStageId = ownDataField(entry, "runtimeStageId");
       if (index === 0 && (runtimeStageId === "" || runtimeStageId === mountInvocation))
@@ -2726,7 +2738,8 @@ function childTraceScope(result, invocationPath, readsAvailable) {
       executionTree,
       availability: { ok: true },
       readsAvailable: readsAvailable ?? ownReads,
-      mountLabels
+      mountLabels,
+      startKeys: Object.freeze(startKeys)
     };
   } catch (error) {
     const failure = classifyAdmissionFailure(error);
@@ -2985,12 +2998,16 @@ function flattenTree(node, out, sharedState, accumulatedMs = 0, subflowResults, 
   });
   const frames = [frameFor(node, accumulatedMs, cumulativeMemory)];
   const active = /* @__PURE__ */ new Set();
+  const seen = /* @__PURE__ */ new Set();
   let completedMs = accumulatedMs;
   while (frames.length) {
     const frame = frames[frames.length - 1];
     if (frame.phase === "enter") {
       if (active.has(frame.node))
         throw new Error("Recorded stage tree contains a cycle");
+      if (seen.has(frame.node))
+        throw new Error("Recorded stage tree contains shared nodes");
+      seen.add(frame.node);
       active.add(frame.node);
       const node2 = frame.node;
       if (node2.children && !Array.isArray(node2.children))
@@ -3766,12 +3783,15 @@ function snapshotWalkScope(value) {
         )
       );
     }
+    const sourceKeys = optionalOwnDataField(value, "startKeys");
+    const startKeys = sourceKeys === void 0 ? void 0 : Object.freeze(readOwnArray(sourceKeys, budget).map(readName));
     const readsAvailable = optionalOwnDataField(value, "readsAvailable");
     if (readsAvailable !== void 0 && typeof readsAvailable !== "boolean")
       throw new Error();
     return Object.freeze({
       invocationPath: Object.freeze(invocationPath),
       ...mountLabels === void 0 ? {} : { mountLabels },
+      ...startKeys === void 0 ? {} : { startKeys },
       ...readsAvailable === void 0 ? {} : { readsAvailable }
     });
   } catch {
@@ -3787,9 +3807,9 @@ function scopeSentence(scope) {
     " \u2192 "
   )}. Parent ancestry is unknown.` : void 0;
 }
-function inputSentence(scope) {
-  const path = scope?.invocationPath;
-  return path?.length ? `present when invocation ${path[path.length - 1]} started (input mapping, or state restored on resume)` : "run input \u2014 never written";
+var START_SENTENCE = "recorded at invocation start; earlier origin unknown";
+function inputSentence(scope, key) {
+  return scope?.startKeys?.includes(key) ? START_SENTENCE : "no recorded write; value unknown";
 }
 function isInvocationStart(scope, runtimeStageId) {
   return !!scope?.invocationPath.length && (runtimeStageId === scope.invocationPath[scope.invocationPath.length - 1] || runtimeStageId === "");
@@ -3807,9 +3827,34 @@ function mountLabel(scope, runtimeStageId) {
 var DEFAULT_MAX_DEPTH = 10;
 var DEFAULT_MAX_FRAMES = 50;
 function buildTraceWalk(commitLog, executionTree, key, opts) {
-  const scope = opts?.scope === void 0 ? void 0 : snapshotWalkScope(opts.scope);
+  const root = opts?.scope === void 0 ? rootMountLabels(executionTree) : void 0;
+  const inferred = root?.availability.ok && root.labels.size > 0 ? { invocationPath: [], mountLabels: Object.fromEntries(root.labels) } : void 0;
+  const selectedScope = opts?.scope ?? inferred;
+  const scope = selectedScope === void 0 ? void 0 : snapshotWalkScope(selectedScope);
   const scoped = scope === void 0 ? {} : { scope };
-  const log = commitLog ?? [];
+  let log;
+  try {
+    if (root && !root.availability.ok) throw new Error("Unavailable tree evidence");
+    const budget = new WorkBudget();
+    log = readOwnArray(commitLog ?? [], budget).map((entry) => ({
+      stage: ownDataField(entry, "stage"),
+      stageId: ownDataField(entry, "stageId"),
+      runtimeStageId: ownDataField(entry, "runtimeStageId"),
+      trace: readOwnArray(ownDataField(entry, "trace"), budget).map((write) => ({
+        path: readName(ownDataField(write, "path"))
+      }))
+    }));
+  } catch {
+    return {
+      key,
+      stops: [],
+      missing: { reason: "evidence-unavailable" },
+      inputTermini: [],
+      readsAvailable: false,
+      truncated: false,
+      ...scoped
+    };
+  }
   const cutoff = opts?.beforeCommitIdx ?? log.length;
   const maxDepth = opts?.maxDepth ?? DEFAULT_MAX_DEPTH;
   const maxFrames = opts?.maxFrames ?? DEFAULT_MAX_FRAMES;
@@ -3941,12 +3986,10 @@ function formatTraceWalk(walk, stepNumberOf, options) {
   const scope = scopeSentence(presentation);
   const lines = scope ? [scope] : [];
   if (walk.missing) {
-    if (walk.missing.reason === "never-written") {
-      lines.push(
-        `\`${walk.key}\` ${presentation?.invocationPath.length ? `has no recorded write in this invocation; if present, it was ${inputSentence(
-          presentation
-        )}` : "was never written in this run \u2014 it arrived with the run's inputs"}.`
-      );
+    if (walk.missing.reason === "evidence-unavailable") {
+      lines.push(`\`${walk.key}\`: write evidence is unavailable; value origin unknown.`);
+    } else if (walk.missing.reason === "never-written") {
+      lines.push(`\`${walk.key}\`: ${inputSentence(presentation, walk.key)}.`);
     } else {
       const at = walk.missing.firstWriterRuntimeStageId ? stepNumberOf(walk.missing.firstWriterRuntimeStageId) : null;
       lines.push(
@@ -3962,17 +4005,15 @@ function formatTraceWalk(walk, stepNumberOf, options) {
     const step = stepNumberOf(stop.runtimeStageId);
     const pass = stop.loopPass > 0 ? ` (pass ${stop.loopPass})` : "";
     const boundary = mountLabel(presentation, stop.runtimeStageId);
-    const made = isInvocationStart(presentation, stop.runtimeStageId) ? ` \xB7 ${inputSentence(presentation)}` : boundary ? ` \xB7 computed inside ${boundary}; drill in to trace it` : stop.ingredients.length > 0 ? ` \xB7 made from: ${stop.ingredients.map(
-      (ing) => ing.writerRuntimeStageId ? `${ing.key} (\u2190 ${ing.writerStageName}${stepNumberOf(ing.writerRuntimeStageId) ? `, step ${stepNumberOf(ing.writerRuntimeStageId)}` : ""})` : `${ing.key} (${inputSentence(presentation)})`
+    const made = isInvocationStart(presentation, stop.runtimeStageId) ? ` \xB7 ${START_SENTENCE}` : boundary ? ` \xB7 computed inside ${boundary}; drill in to trace it` : stop.ingredients.length > 0 ? ` \xB7 made from: ${stop.ingredients.map(
+      (ing) => ing.writerRuntimeStageId ? `${ing.key} (\u2190 ${ing.writerStageName}${stepNumberOf(ing.writerRuntimeStageId) ? `, step ${stepNumberOf(ing.writerRuntimeStageId)}` : ""})` : `${ing.key} (${inputSentence(presentation, ing.key)})`
     ).join(", ")}` : readsAvailable ? " \xB7 reads nothing \u2014 origin" : "";
     lines.push(
       `stop ${i + 1}/${walk.stops.length} \xB7 ${step ? `step ${step} \xB7 ` : ""}${stop.stageName}${pass} wrote \`${stop.contributedKeys.join("`, `")}\`${made}`
     );
   });
   if (walk.inputTermini.length > 0) {
-    lines.push(
-      `${presentation?.invocationPath.length ? inputSentence(presentation) : "run inputs (never written)"}: ${walk.inputTermini.join(", ")}`
-    );
+    lines.push(`No local writer: ${walk.inputTermini.map((key) => `${key} (${inputSentence(presentation, key)})`).join(", ")}`);
   }
   if (!readsAvailable) {
     lines.push(
@@ -4017,7 +4058,6 @@ var TraceWalkCard = memo(function TraceWalkCard2({
   style
 }) {
   const presentation = walk.scope;
-  const childScope = !!presentation?.invocationPath.length;
   const fs = fontSize[size];
   const sx = unstyled ? BARE : PAINT;
   const [copied, setCopied] = useState9(false);
@@ -4033,7 +4073,7 @@ var TraceWalkCard = memo(function TraceWalkCard2({
   const atInvocationStart = isInvocationStart(presentation, current?.runtimeStageId ?? "");
   const followableCount = current ? current.ingredients.filter((ing) => ing.writerRuntimeStageId !== null).length : 0;
   const chooserVisible = !!forkChooserOpen && followableCount >= 2;
-  const inputLabel = inputSentence(presentation);
+  const inputLabel = inputSentence(presentation, walk.key);
   const copyStory = () => {
     const text = formatTraceWalk(walk, stepNumberOf);
     void navigator.clipboard?.writeText(text).then(() => {
@@ -4052,16 +4092,14 @@ var TraceWalkCard = memo(function TraceWalkCard2({
         children: [
           /* @__PURE__ */ jsx13(CardHeader, { label: `Why this value \u2014 \`${walk.key}\``, onExit, sx, fs }),
           scopeSentence(presentation) && /* @__PURE__ */ jsx13("div", { "data-fp": "trace-scope-note", children: scopeSentence(presentation) }),
-          /* @__PURE__ */ jsx13("div", { style: sx({ color: theme.textPrimary, marginTop: 8 }), children: walk.missing.reason === "never-written" ? presentation?.invocationPath.length ? /* @__PURE__ */ jsxs12(Fragment5, { children: [
+          /* @__PURE__ */ jsx13("div", { style: sx({ color: theme.textPrimary, marginTop: 8 }), children: walk.missing.reason === "evidence-unavailable" ? /* @__PURE__ */ jsxs12(Fragment5, { children: [
+            /* @__PURE__ */ jsx13("code", { children: walk.key }),
+            ": write evidence is unavailable; value origin unknown."
+          ] }) : walk.missing.reason === "never-written" ? /* @__PURE__ */ jsxs12(Fragment5, { children: [
             /* @__PURE__ */ jsx13("code", { style: sx({ color: accent }), children: walk.key }),
-            " has no recorded write in this invocation; if present, it was ",
+            ": ",
             inputLabel,
             "."
-          ] }) : /* @__PURE__ */ jsxs12(Fragment5, { children: [
-            /* @__PURE__ */ jsx13("code", { style: sx({ color: accent }), children: walk.key }),
-            " was ",
-            /* @__PURE__ */ jsx13("b", { children: "never written in this run" }),
-            " \u2014 it arrived with the run's inputs."
           ] }) : /* @__PURE__ */ jsxs12(Fragment5, { children: [
             /* @__PURE__ */ jsx13("code", { style: sx({ color: accent }), children: walk.key }),
             " has ",
@@ -4169,8 +4207,7 @@ var TraceWalkCard = memo(function TraceWalkCard2({
                   onFollow: onFollowIngredient,
                   sx,
                   fs,
-                  inputLabel,
-                  childScope
+                  inputLabel: inputSentence(presentation, ing.key)
                 },
                 ing.key
               )) }),
@@ -4201,7 +4238,7 @@ var TraceWalkCard = memo(function TraceWalkCard2({
           }
         ),
         /* @__PURE__ */ jsx13("div", { style: sx({ marginTop: 10 }), children: atInvocationStart ? /* @__PURE__ */ jsxs12("div", { "data-fp": "twc-boundary", children: [
-          inputLabel,
+          START_SENTENCE,
           "."
         ] }) : boundary ? /* @__PURE__ */ jsxs12("div", { "data-fp": "twc-boundary", children: [
           "computed inside ",
@@ -4223,8 +4260,7 @@ var TraceWalkCard = memo(function TraceWalkCard2({
               onFollow: onFollowIngredient,
               sx,
               fs,
-              inputLabel,
-              childScope
+              inputLabel: inputSentence(presentation, ing.key)
             },
             ing.key
           )) })
@@ -4281,12 +4317,13 @@ var TraceWalkCard = memo(function TraceWalkCard2({
         ] }),
         /* @__PURE__ */ jsxs12("div", { style: sx({ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 }), children: [
           walk.inputTermini.length > 0 && /* @__PURE__ */ jsxs12("div", { "data-fp": "twc-run-inputs", style: sx({ fontSize: fs.label, color: theme.textMuted }), children: [
-            "\u2691 ",
-            presentation?.invocationPath.length ? inputLabel : "run inputs (never written)",
-            ": ",
-            walk.inputTermini.map((k, i) => /* @__PURE__ */ jsxs12("code", { children: [
+            "\u2691 No local writer: ",
+            walk.inputTermini.map((k, i) => /* @__PURE__ */ jsxs12("span", { children: [
               i > 0 && ", ",
-              k
+              /* @__PURE__ */ jsx13("code", { children: k }),
+              " (",
+              inputSentence(presentation, k),
+              ")"
             ] }, k))
           ] }),
           walk.truncated && /* @__PURE__ */ jsx13("div", { "data-fp": "twc-truncated", style: sx({ fontSize: fs.label, color: theme.warning }), children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
@@ -4342,8 +4379,7 @@ function IngredientChip({
   onFollow,
   sx,
   fs,
-  inputLabel,
-  childScope
+  inputLabel
 }) {
   const terminus = !ing.writerRuntimeStageId;
   return /* @__PURE__ */ jsxs12(
@@ -4353,7 +4389,7 @@ function IngredientChip({
       "data-terminus": terminus || void 0,
       disabled: terminus || !onFollow,
       onClick: () => onFollow?.(ing),
-      title: terminus ? childScope ? `${ing.key}: ${inputLabel}` : `${ing.key} was never written \u2014 it came in with the run's inputs` : `Follow ${ing.key} \u2014 re-anchor the walk on its writer`,
+      title: terminus ? `${ing.key}: ${inputLabel}` : `Follow ${ing.key} \u2014 re-anchor the walk on its writer`,
       style: sx({
         display: "inline-flex",
         alignItems: "center",
@@ -4371,7 +4407,7 @@ function IngredientChip({
         /* @__PURE__ */ jsx13("code", { children: ing.key }),
         terminus ? /* @__PURE__ */ jsxs12("span", { style: sx({ fontWeight: 400 }), children: [
           "\u2014 ",
-          childScope ? "invocation start state" : "run input",
+          inputLabel,
           " \u2691"
         ] }) : /* @__PURE__ */ jsxs12("span", { style: sx({ fontWeight: 400 }), children: [
           "\u2190 ",
@@ -9013,7 +9049,8 @@ function ExplainableShell({
       scope: {
         invocationPath: activeTraceScope.invocationPath,
         mountLabels: Object.fromEntries(activeTraceScope.mountLabels),
-        readsAvailable: activeTraceScope.readsAvailable
+        readsAvailable: activeTraceScope.readsAvailable,
+        startKeys: activeTraceScope.startKeys
       }
     });
   }, [tracing, activeTraceScope, activeTraceKey, navigation.sourceChanged]);
@@ -11172,7 +11209,8 @@ function projectTraceInvocation(snapshot, exactMountId, options) {
             mountLabels: Object.freeze(
               Object.fromEntries(selected.mountLabels)
             ),
-            readsAvailable: selected.readsAvailable
+            readsAvailable: selected.readsAvailable,
+            startKeys: selected.startKeys
           })
         };
       }

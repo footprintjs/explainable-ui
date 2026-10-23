@@ -16,8 +16,8 @@
  * ingredient, before = this stop) — never a special traversal mode.
  *
  * HONEST ABSENCE, two truthful sentences (they are different facts):
- *   'never-written'   — no commit in the WHOLE log wrote the key: it came
- *                       in with the run's inputs.
+ *   'never-written'   — no commit in the WHOLE log wrote the key. Its
+ *                       earlier origin needs separate starting-state evidence.
  *   'not-yet-written' — a later commit writes it, but none at or before
  *                       the cutoff: "not yet" is not "never".
  *
@@ -25,10 +25,13 @@
  * eui still never imports footprintjs — snapshot SHAPES only.
  */
 
+import { rootMountLabels } from "./traceScope";
+import { ownDataField, readOwnArray, readName, WorkBudget } from "./safeRecordRead";
 import { snapshotWalkScope } from "./walkScope";
 import { buildDataTrace } from "./dataTrace";
 import {
   scopeSentence,
+  START_SENTENCE,
   inputSentence,
   isInvocationStart,
   mountLabel,
@@ -39,6 +42,8 @@ export interface TraceWalkScope {
   readonly invocationPath: readonly string[];
   readonly mountLabels?: Readonly<Record<string, string>>;
   readonly readsAvailable?: boolean;
+  /** Recorded non-undefined starting keys, without their values or inferred origin. */
+  readonly startKeys?: readonly string[];
 }
 export interface TraceWalkOptions {
   beforeCommitIdx?: number;
@@ -49,7 +54,7 @@ export interface TraceWalkOptions {
 /** One read key of a stop, resolved to the commit that wrote it. */
 export interface TraceIngredient {
   key: string;
-  /** null = no commit before this stop wrote the key (a run-input terminus). */
+  /** null = no commit before this stop wrote the key (an unresolved local-writer terminus). */
   writerRuntimeStageId: string | null;
   writerStageName: string | null;
   writerCommitIdx: number | null;
@@ -77,7 +82,7 @@ export interface TraceStop {
 }
 
 export interface TraceWalkMissing {
-  reason: "never-written" | "not-yet-written";
+  reason: "never-written" | "not-yet-written" | "evidence-unavailable";
   /** For 'not-yet-written': where the FIRST write actually happens. */
   firstWriteCommitIdx?: number;
   firstWriterRuntimeStageId?: string;
@@ -85,7 +90,7 @@ export interface TraceWalkMissing {
 }
 
 export interface TraceWalk {
-  /** Detached explicit scope; absent preserves the existing root contract. */
+  /** Detached scope, including root mount labels derived from recorded metadata. */
   readonly scope?: TraceWalkScope;
   key: string;
   /** Stops in WALK ORDER: commitIdx DESCENDING. stops[0] is the anchor
@@ -93,8 +98,8 @@ export interface TraceWalk {
   stops: TraceStop[];
   /** Non-null ⇒ zero stops: the honest-absence card, not an empty chain. */
   missing: TraceWalkMissing | null;
-  /** Read keys that NO commit ever wrote — the run's inputs ("came in the
-   *  door"), deduped, in first-encounter order. */
+  /** Read keys with no recorded local writer, deduped in encounter order.
+   * Their earlier origin requires separate starting-state evidence. */
   inputTermini: string[];
   /** False when the snapshot recorded no reads anywhere — the chain is
    *  UNKNOWABLE (not absent) beyond the anchor. */
@@ -129,10 +134,39 @@ export function buildTraceWalk(
   key: string,
   opts?: TraceWalkOptions
 ): TraceWalk {
+  const root =
+    opts?.scope === undefined ? rootMountLabels(executionTree) : undefined;
+  const inferred =
+    root?.availability.ok && root.labels.size > 0
+      ? { invocationPath: [], mountLabels: Object.fromEntries(root.labels) }
+      : undefined;
+  const selectedScope = opts?.scope ?? inferred;
   const scope =
-    opts?.scope === undefined ? undefined : snapshotWalkScope(opts.scope);
+    selectedScope === undefined ? undefined : snapshotWalkScope(selectedScope);
   const scoped = scope === undefined ? {} : { scope };
-  const log = (commitLog ?? []) as CommitEntry[];
+  let log: CommitEntry[];
+  try {
+    if (root && !root.availability.ok) throw new Error("Unavailable tree evidence");
+    const budget = new WorkBudget();
+    log = readOwnArray(commitLog ?? [], budget).map((entry) => ({
+      stage: ownDataField(entry, "stage") as string,
+      stageId: ownDataField(entry, "stageId") as string,
+      runtimeStageId: ownDataField(entry, "runtimeStageId") as string,
+      trace: readOwnArray(ownDataField(entry, "trace"), budget).map((write) => ({
+        path: readName(ownDataField(write, "path")),
+      })),
+    }));
+  } catch {
+    return {
+      key,
+      stops: [],
+      missing: { reason: "evidence-unavailable" },
+      inputTermini: [],
+      readsAvailable: false,
+      truncated: false,
+      ...scoped,
+    };
+  }
   const cutoff = opts?.beforeCommitIdx ?? log.length;
   const maxDepth = opts?.maxDepth ?? DEFAULT_MAX_DEPTH;
   const maxFrames = opts?.maxFrames ?? DEFAULT_MAX_FRAMES;
@@ -319,16 +353,10 @@ export function formatTraceWalk(
   const scope = scopeSentence(presentation);
   const lines: string[] = scope ? [scope] : [];
   if (walk.missing) {
-    if (walk.missing.reason === "never-written") {
-      lines.push(
-        `\`${walk.key}\` ${
-          presentation?.invocationPath.length
-            ? `has no recorded write in this invocation; if present, it was ${inputSentence(
-                presentation
-              )}`
-            : "was never written in this run — it arrived with the run's inputs"
-        }.`
-      );
+    if (walk.missing.reason === "evidence-unavailable") {
+      lines.push(`\`${walk.key}\`: write evidence is unavailable; value origin unknown.`);
+    } else if (walk.missing.reason === "never-written") {
+      lines.push(`\`${walk.key}\`: ${inputSentence(presentation, walk.key)}.`);
     } else {
       const at = walk.missing.firstWriterRuntimeStageId
         ? stepNumberOf(walk.missing.firstWriterRuntimeStageId)
@@ -353,7 +381,7 @@ export function formatTraceWalk(
     const pass = stop.loopPass > 0 ? ` (pass ${stop.loopPass})` : "";
     const boundary = mountLabel(presentation, stop.runtimeStageId);
     const made = isInvocationStart(presentation, stop.runtimeStageId)
-      ? ` · ${inputSentence(presentation)}`
+      ? ` · ${START_SENTENCE}`
       : boundary
       ? ` · computed inside ${boundary}; drill in to trace it`
       : stop.ingredients.length > 0
@@ -365,7 +393,7 @@ export function formatTraceWalk(
                     ? `, step ${stepNumberOf(ing.writerRuntimeStageId)}`
                     : ""
                 })`
-              : `${ing.key} (${inputSentence(presentation)})`
+              : `${ing.key} (${inputSentence(presentation, ing.key)})`
           )
           .join(", ")}`
       : readsAvailable
@@ -378,13 +406,7 @@ export function formatTraceWalk(
     );
   });
   if (walk.inputTermini.length > 0) {
-    lines.push(
-      `${
-        presentation?.invocationPath.length
-          ? inputSentence(presentation)
-          : "run inputs (never written)"
-      }: ${walk.inputTermini.join(", ")}`
-    );
+    lines.push(`No local writer: ${walk.inputTermini.map(key => `${key} (${inputSentence(presentation, key)})`).join(", ")}`);
   }
   if (!readsAvailable) {
     lines.push(

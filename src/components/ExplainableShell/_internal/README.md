@@ -19,7 +19,7 @@ A mount has its own inner computation and never becomes a no-read origin.
 The exact first bundle belongs to invocation-start state. Current records
 stamp it with the mount runtime ID; engines through 9.33 may use an empty
 stamp. Both are excluded from the child's step rail. Card text, tooltips and
-copied stories say it may be input mapping or state restored after a pause;
+copied stories identify only keys actually recorded in the starting data;
 neither claims a fresh origin or the writer of pre-pause state.
 The dev-only Foottrace parity test checks its start bookend and grouped stops.
 
@@ -100,10 +100,14 @@ if (selected.availability.ok) {
 The exact ID identifies one recorded invocation. A supplied chain must be
 witnessed at every level; a direct exact lookup leaves ancestry unknown.
 An invocation's initial state may be input mapping or state restored after a
-pause. It is not proof of who wrote a value before that boundary. Passing a
+pause. Only non-undefined own data fields become names-only `startKeys` in the
+projected scope. Their earlier origin remains unknown; an absent key is never
+called an input. It is not proof of who wrote a value before that boundary. Passing a
 scope explicitly to `formatTraceWalk` is also supported; callers using raw
 child histories must provide the scope so a mount-stamped start is not called
-an origin. Calls without scope preserve the existing root behavior.
+an origin. Calls without scope derive root mount labels from the recorded tree. Missing
+writers are unknown without separately recorded starting keys; absence alone
+is never proof of input mapping.
 
 ## Navigation and source replacement
 

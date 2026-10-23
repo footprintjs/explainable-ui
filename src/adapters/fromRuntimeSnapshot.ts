@@ -521,12 +521,16 @@ function flattenTree(
   });
   const frames: Frame[] = [frameFor(node, accumulatedMs, cumulativeMemory)];
   const active = new Set<RuntimeStageSnapshot>();
+  const seen = new Set<RuntimeStageSnapshot>();
   let completedMs = accumulatedMs;
   while (frames.length) {
     const frame = frames[frames.length - 1];
     if (frame.phase === "enter") {
       if (active.has(frame.node))
         throw new Error("Recorded stage tree contains a cycle");
+      if (seen.has(frame.node))
+        throw new Error("Recorded stage tree contains shared nodes");
+      seen.add(frame.node);
       active.add(frame.node);
       const node = frame.node;
       if (node.children && !Array.isArray(node.children))

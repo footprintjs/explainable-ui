@@ -1411,6 +1411,7 @@ export function ExplainableShell({
         invocationPath: activeTraceScope.invocationPath,
         mountLabels: Object.fromEntries(activeTraceScope.mountLabels),
         readsAvailable: activeTraceScope.readsAvailable,
+        startKeys: activeTraceScope.startKeys,
       },
     });
   }, [tracing, activeTraceScope, activeTraceKey, navigation.sourceChanged]);

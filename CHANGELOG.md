@@ -31,9 +31,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   A path-only result alias is no longer used as proof of a visit. Custom hosts
   should key results by the recorded runtime ID or attach the matching result
   to each stage snapshot. Actual dual-keyed current and legacy recordings stay
-  readable; the direct adapter still supports legacy path aliases.
+  readable when exact invocation keys exist; footprintjs 9.0–9.5 path-only
+  child records cannot identify a visit and stay unavailable. The direct
+  adapter still supports legacy path aliases.
+- Trace admission remains bounded by 100,000 inspected items across history
+  and tree metadata. This can withhold histories above 50,000 steps; the UI
+  reports too-large evidence rather than attempting unbounded work.
 
 ### Fixed
+
+- Trace cards and copied/public stories distinguish recorded starting keys from
+  absent evidence. Missing writers no longer imply a run input, and root mount
+  outputs are described as child computations in the public formatter too.
+- Missing write traces return an explicit unknown answer. Shared tree nodes are
+  refused before rendering can expand them repeatedly.
+- The packed scoped-trace consumer check now runs in CI on Node 22.
 
 - Ordinary full-path step clicks and labels containing slashes navigate the
   timeline instead of attempting a subflow drill. New root runs keep their
