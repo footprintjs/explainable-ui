@@ -83,7 +83,7 @@ describe("TraceWalkCard", () => {
     render(
       <TraceWalkCard walk={WALK} cursorRuntimeStageId="seed#0" stepNumberOf={stepOf} onFollowIngredient={vi.fn()} />,
     );
-    const terminus = screen.getByTitle(/never written — it came in with the run's inputs/);
+    const terminus = screen.getByTitle(/no recorded write; value unknown/);
     expect(terminus.textContent).toContain("config");
     expect((terminus as HTMLButtonElement).disabled).toBe(true);
   });
@@ -123,8 +123,8 @@ describe("TraceWalkCard", () => {
     );
     const card = container.querySelector('[data-fp="trace-walk-card"]')!;
     expect(card.getAttribute("data-missing")).toBe("never-written");
-    expect(card.textContent).toContain("never written in this run");
-    expect(card.textContent).toContain("arrived with the run's inputs");
+    expect(card.textContent).toContain("no recorded write");
+    expect(card.textContent).toContain("value unknown");
   });
 
   it("renders the not-yet-written sentence with the first write's location", () => {
@@ -247,5 +247,25 @@ describe("TraceWalkCard — fork chooser (F2)", () => {
       />,
     );
     expect(container.querySelector('[data-fp="twc-fork-chooser"]')).toBeNull();
+  });
+});
+
+describe("child input boundary in a missing-value card",()=>{
+ it("does not use the root never-written claim for a mapped child input",()=>{
+   const walk=buildTraceWalk(LOG,TREE,"config",{scope:{invocationPath:["child#3"],readsAvailable:true,mountLabels:{}}});
+   render(<TraceWalkCard walk={walk} cursorRuntimeStageId={null} stepNumberOf={stepOf}/>);
+   expect(document.querySelector('[data-fp="trace-walk-card"]')?.textContent).toContain("no recorded write; value unknown");
+   expect(document.querySelector('[data-fp="trace-walk-card"]')?.textContent).not.toContain("never written");
+ });
+});
+
+
+describe("explicit raw child start boundary", () => {
+  it("uses scope facts rather than matching the invocation name against display text", () => {
+    const log = [{stage:"Restore",stageId:"resume",runtimeStageId:"prepare#4",trace:[{path:"items"}]}];
+    const walk = buildTraceWalk(log,{runtimeStageId:"prepare#4",stageReads:{}},"items",{scope:{invocationPath:["prepare#4"],readsAvailable:true}});
+    const {container}=render(<TraceWalkCard walk={walk} cursorRuntimeStageId={null} stepNumberOf={()=>1}/>);
+    expect(container.querySelector('[data-fp="twc-boundary"]')?.textContent).toContain("recorded at invocation start; earlier origin unknown");
+    expect(container.querySelector('[data-fp="twc-origin"]')).toBeNull();
   });
 });

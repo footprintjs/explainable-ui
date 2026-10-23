@@ -1,0 +1,1185 @@
+{
+  "paused": {
+    "runtimeSnapshot": {
+      "sharedState": {
+        "base": 10
+      },
+      "executionTree": {
+        "id": "seed",
+        "runtimeStageId": "seed#0",
+        "name": "Root Seed",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "base": 10
+        },
+        "flowMessages": [
+          {
+            "type": "next",
+            "description": "Moving to Quote stage",
+            "timestamp": 1792671420583,
+            "targetStage": "Quote"
+          }
+        ],
+        "next": {
+          "id": "prepare",
+          "runtimeStageId": "prepare#1",
+          "name": "Quote",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "subflowId": "prepare",
+          "flowMessages": [
+            {
+              "type": "subflow",
+              "description": "Entering Quote subflow",
+              "timestamp": 1792671420584,
+              "targetStage": "prepare"
+            }
+          ]
+        }
+      },
+      "initialState": {},
+      "commitLog": [
+        {
+          "overwrite": {
+            "base": 10
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "base",
+              "verb": "set"
+            }
+          ],
+          "stage": "Root Seed",
+          "stageId": "seed",
+          "runtimeStageId": "seed#0",
+          "idx": 0
+        }
+      ],
+      "logAddress": {
+        "logRunId": "1792671420581-0000000001",
+        "drillPath": []
+      },
+      "commitValues": "full",
+      "writeProvenance": "off",
+      "runId": "1792671420581-0000000001"
+    },
+    "narrativeEntries": [
+      {
+        "type": "stage",
+        "text": "Stage 1: The process began with Root Seed.",
+        "depth": 0,
+        "stageName": "Root Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Write base = 10",
+        "depth": 1,
+        "stageName": "Root Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0",
+        "stepNumber": 1,
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "subflow",
+        "text": "Entering the Quote subflow.",
+        "depth": 0,
+        "stageName": "Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#1",
+        "subflowId": "prepare",
+        "direction": "entry"
+      },
+      {
+        "type": "step",
+        "text": "Input: base = 10",
+        "depth": 1,
+        "stageName": "Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#1",
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "stage",
+        "text": "Stage 1: The process began with prepare/Child Seed.",
+        "depth": 0,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#2",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read base = 10",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#2",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write items = (2 items)",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#2",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "items",
+        "rawValue": [
+          10,
+          2
+        ]
+      },
+      {
+        "type": "pause",
+        "text": "Execution paused at prepare/Child Approve.",
+        "depth": 0,
+        "stageName": "prepare/Child Approve",
+        "stageId": "prepare/approve",
+        "runtimeStageId": "prepare/approve#3",
+        "subflowId": "prepare"
+      }
+    ]
+  },
+  "sameExecutor": {
+    "runtimeSnapshot": {
+      "sharedState": {
+        "base": 10,
+        "total": 12
+      },
+      "executionTree": {
+        "id": "seed",
+        "runtimeStageId": "seed#0",
+        "name": "Root Seed",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "base": 10
+        },
+        "flowMessages": [
+          {
+            "type": "next",
+            "description": "Moving to Quote stage",
+            "timestamp": 1792671420583,
+            "targetStage": "Quote"
+          }
+        ],
+        "next": {
+          "id": "prepare",
+          "runtimeStageId": "prepare#1",
+          "name": "Quote",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "subflowId": "prepare",
+          "flowMessages": [
+            {
+              "type": "subflow",
+              "description": "Entering Quote subflow",
+              "timestamp": 1792671420584,
+              "targetStage": "prepare"
+            }
+          ],
+          "next": {
+            "id": "prepare",
+            "runtimeStageId": "prepare#4",
+            "name": "Quote",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "subflowId": "prepare",
+            "flowMessages": [
+              {
+                "type": "subflow",
+                "description": "Entering Quote subflow",
+                "timestamp": 1792671420586,
+                "targetStage": "prepare"
+              },
+              {
+                "type": "subflow",
+                "description": "Exiting Quote subflow",
+                "timestamp": 1792671420586,
+                "targetStage": "prepare"
+              }
+            ]
+          }
+        }
+      },
+      "initialState": {},
+      "commitLog": [
+        {
+          "overwrite": {
+            "base": 10
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "base",
+              "verb": "set"
+            }
+          ],
+          "stage": "Root Seed",
+          "stageId": "seed",
+          "runtimeStageId": "seed#0",
+          "idx": 0
+        },
+        {
+          "overwrite": {
+            "total": 12
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "total",
+              "verb": "set"
+            }
+          ],
+          "stage": "Quote",
+          "stageId": "prepare",
+          "runtimeStageId": "prepare#4",
+          "idx": 1
+        },
+        {
+          "overwrite": {},
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [],
+          "stage": "Quote",
+          "stageId": "prepare",
+          "runtimeStageId": "prepare#4",
+          "phase": "exit",
+          "idx": 2
+        }
+      ],
+      "logAddress": {
+        "logRunId": "1792671420581-0000000001",
+        "drillPath": []
+      },
+      "commitValues": "full",
+      "writeProvenance": "off",
+      "runId": "1792671420585-0000000002",
+      "subflowResults": {
+        "prepare": {
+          "subflowId": "prepare",
+          "subflowName": "Quote",
+          "treeContext": {
+            "globalContext": {
+              "base": 10,
+              "items": [
+                10,
+                2
+              ],
+              "asked": true,
+              "approved": true,
+              "total": 12
+            },
+            "stageContexts": {
+              "id": "prepare/approve",
+              "runtimeStageId": "prepare/approve#5",
+              "name": "prepare/Child Approve",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "approved": true
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to prepare/Child Total stage",
+                  "timestamp": 1792671420586,
+                  "targetStage": "prepare/Child Total"
+                }
+              ],
+              "next": {
+                "id": "prepare/total",
+                "runtimeStageId": "prepare/total#6",
+                "name": "prepare/Child Total",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "total": 12
+                },
+                "stageReads": {
+                  "items": [
+                    10,
+                    2
+                  ]
+                }
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 10,
+                  "items": [
+                    10,
+                    2
+                  ],
+                  "asked": true
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "items",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "asked",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "Quote",
+                "stageId": "prepare",
+                "runtimeStageId": "prepare#4",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "approved": true
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "approved",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Approve",
+                "stageId": "prepare/approve",
+                "runtimeStageId": "prepare/approve#5",
+                "idx": 1
+              },
+              {
+                "overwrite": {
+                  "total": 12
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Total",
+                "stageId": "prepare/total",
+                "runtimeStageId": "prepare/total#6",
+                "idx": 2
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792671420585-0000000002",
+              "drillPath": [
+                "prepare#4"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "Quote"
+        },
+        "prepare#4": {
+          "subflowId": "prepare",
+          "subflowName": "Quote",
+          "treeContext": {
+            "globalContext": {
+              "base": 10,
+              "items": [
+                10,
+                2
+              ],
+              "asked": true,
+              "approved": true,
+              "total": 12
+            },
+            "stageContexts": {
+              "id": "prepare/approve",
+              "runtimeStageId": "prepare/approve#5",
+              "name": "prepare/Child Approve",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "approved": true
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to prepare/Child Total stage",
+                  "timestamp": 1792671420586,
+                  "targetStage": "prepare/Child Total"
+                }
+              ],
+              "next": {
+                "id": "prepare/total",
+                "runtimeStageId": "prepare/total#6",
+                "name": "prepare/Child Total",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "total": 12
+                },
+                "stageReads": {
+                  "items": [
+                    10,
+                    2
+                  ]
+                }
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 10,
+                  "items": [
+                    10,
+                    2
+                  ],
+                  "asked": true
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "items",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "asked",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "Quote",
+                "stageId": "prepare",
+                "runtimeStageId": "prepare#4",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "approved": true
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "approved",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Approve",
+                "stageId": "prepare/approve",
+                "runtimeStageId": "prepare/approve#5",
+                "idx": 1
+              },
+              {
+                "overwrite": {
+                  "total": 12
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Total",
+                "stageId": "prepare/total",
+                "runtimeStageId": "prepare/total#6",
+                "idx": 2
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792671420585-0000000002",
+              "drillPath": [
+                "prepare#4"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "Quote"
+        }
+      }
+    },
+    "narrativeEntries": [
+      {
+        "type": "stage",
+        "text": "Stage 1: The process began with Root Seed.",
+        "depth": 0,
+        "stageName": "Root Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Write base = 10",
+        "depth": 1,
+        "stageName": "Root Seed",
+        "stageId": "seed",
+        "runtimeStageId": "seed#0",
+        "stepNumber": 1,
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "subflow",
+        "text": "Entering the Quote subflow.",
+        "depth": 0,
+        "stageName": "Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#1",
+        "subflowId": "prepare",
+        "direction": "entry"
+      },
+      {
+        "type": "step",
+        "text": "Input: base = 10",
+        "depth": 1,
+        "stageName": "Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#1",
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "stage",
+        "text": "Stage 1: The process began with prepare/Child Seed.",
+        "depth": 0,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#2",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read base = 10",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#2",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write items = (2 items)",
+        "depth": 1,
+        "stageName": "prepare/Child Seed",
+        "stageId": "prepare/seed",
+        "runtimeStageId": "prepare/seed#2",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "items",
+        "rawValue": [
+          10,
+          2
+        ]
+      },
+      {
+        "type": "pause",
+        "text": "Execution paused at prepare/Child Approve.",
+        "depth": 0,
+        "stageName": "prepare/Child Approve",
+        "stageId": "prepare/approve",
+        "runtimeStageId": "prepare/approve#3",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "resume",
+        "text": "Execution resumed at prepare/Child Approve with input.",
+        "depth": 0,
+        "stageName": "prepare/Child Approve",
+        "stageId": "prepare/approve",
+        "runtimeStageId": "prepare/approve#5",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "subflow",
+        "text": "Entering the Quote subflow.",
+        "depth": 0,
+        "stageName": "Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#4",
+        "subflowId": "prepare",
+        "direction": "entry"
+      },
+      {
+        "type": "step",
+        "text": "Input: base = 10",
+        "depth": 1,
+        "stageName": "Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#4",
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "stage",
+        "text": "Stage 1: It continued from the pause.",
+        "depth": 0,
+        "stageName": "prepare/Child Approve",
+        "stageId": "prepare/approve",
+        "runtimeStageId": "prepare/approve#5",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Write approved = true",
+        "depth": 1,
+        "stageName": "prepare/Child Approve",
+        "stageId": "prepare/approve",
+        "runtimeStageId": "prepare/approve#5",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "approved",
+        "rawValue": true
+      },
+      {
+        "type": "stage",
+        "text": "Stage 2: Next, it moved on to prepare/Child Total.",
+        "depth": 0,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#6",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read items = (2 items)",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#6",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "items",
+        "rawValue": [
+          10,
+          2
+        ]
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write total = 12",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#6",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "total",
+        "rawValue": 12
+      },
+      {
+        "type": "subflow",
+        "text": "Exiting the Quote subflow.",
+        "depth": 0,
+        "stageName": "Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#4",
+        "subflowId": "prepare",
+        "direction": "exit"
+      }
+    ]
+  },
+  "freshExecutor": {
+    "runtimeSnapshot": {
+      "sharedState": {
+        "base": 10,
+        "total": 12
+      },
+      "executionTree": {
+        "id": "prepare",
+        "runtimeStageId": "prepare#4",
+        "name": "Quote",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "subflowId": "prepare",
+        "flowMessages": [
+          {
+            "type": "subflow",
+            "description": "Entering Quote subflow",
+            "timestamp": 1792671420586,
+            "targetStage": "prepare"
+          },
+          {
+            "type": "subflow",
+            "description": "Exiting Quote subflow",
+            "timestamp": 1792671420587,
+            "targetStage": "prepare"
+          }
+        ]
+      },
+      "initialState": {
+        "base": 10
+      },
+      "commitLog": [
+        {
+          "overwrite": {
+            "total": 12
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "total",
+              "verb": "set"
+            }
+          ],
+          "stage": "Quote",
+          "stageId": "prepare",
+          "runtimeStageId": "prepare#4",
+          "idx": 0
+        },
+        {
+          "overwrite": {},
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [],
+          "stage": "Quote",
+          "stageId": "prepare",
+          "runtimeStageId": "prepare#4",
+          "phase": "exit",
+          "idx": 1
+        }
+      ],
+      "logAddress": {
+        "logRunId": "1792671420586-0000000003",
+        "drillPath": []
+      },
+      "commitValues": "full",
+      "writeProvenance": "off",
+      "runId": "1792671420586-0000000003",
+      "subflowResults": {
+        "prepare": {
+          "subflowId": "prepare",
+          "subflowName": "Quote",
+          "treeContext": {
+            "globalContext": {
+              "base": 10,
+              "items": [
+                10,
+                2
+              ],
+              "asked": true,
+              "approved": true,
+              "total": 12
+            },
+            "stageContexts": {
+              "id": "prepare/approve",
+              "runtimeStageId": "prepare/approve#5",
+              "name": "prepare/Child Approve",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "approved": true
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to prepare/Child Total stage",
+                  "timestamp": 1792671420587,
+                  "targetStage": "prepare/Child Total"
+                }
+              ],
+              "next": {
+                "id": "prepare/total",
+                "runtimeStageId": "prepare/total#6",
+                "name": "prepare/Child Total",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "total": 12
+                },
+                "stageReads": {
+                  "items": [
+                    10,
+                    2
+                  ]
+                }
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 10,
+                  "items": [
+                    10,
+                    2
+                  ],
+                  "asked": true
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "items",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "asked",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "Quote",
+                "stageId": "prepare",
+                "runtimeStageId": "prepare#4",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "approved": true
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "approved",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Approve",
+                "stageId": "prepare/approve",
+                "runtimeStageId": "prepare/approve#5",
+                "idx": 1
+              },
+              {
+                "overwrite": {
+                  "total": 12
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Total",
+                "stageId": "prepare/total",
+                "runtimeStageId": "prepare/total#6",
+                "idx": 2
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792671420586-0000000003",
+              "drillPath": [
+                "prepare#4"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "Quote"
+        },
+        "prepare#4": {
+          "subflowId": "prepare",
+          "subflowName": "Quote",
+          "treeContext": {
+            "globalContext": {
+              "base": 10,
+              "items": [
+                10,
+                2
+              ],
+              "asked": true,
+              "approved": true,
+              "total": 12
+            },
+            "stageContexts": {
+              "id": "prepare/approve",
+              "runtimeStageId": "prepare/approve#5",
+              "name": "prepare/Child Approve",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "approved": true
+              },
+              "flowMessages": [
+                {
+                  "type": "next",
+                  "description": "Moving to prepare/Child Total stage",
+                  "timestamp": 1792671420587,
+                  "targetStage": "prepare/Child Total"
+                }
+              ],
+              "next": {
+                "id": "prepare/total",
+                "runtimeStageId": "prepare/total#6",
+                "name": "prepare/Child Total",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "total": 12
+                },
+                "stageReads": {
+                  "items": [
+                    10,
+                    2
+                  ]
+                }
+              }
+            },
+            "history": [
+              {
+                "overwrite": {
+                  "base": 10,
+                  "items": [
+                    10,
+                    2
+                  ],
+                  "asked": true
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "base",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "items",
+                    "verb": "set"
+                  },
+                  {
+                    "path": "asked",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "Quote",
+                "stageId": "prepare",
+                "runtimeStageId": "prepare#4",
+                "idx": 0
+              },
+              {
+                "overwrite": {
+                  "approved": true
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "approved",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Approve",
+                "stageId": "prepare/approve",
+                "runtimeStageId": "prepare/approve#5",
+                "idx": 1
+              },
+              {
+                "overwrite": {
+                  "total": 12
+                },
+                "updates": {},
+                "redactedPaths": [],
+                "trace": [
+                  {
+                    "path": "total",
+                    "verb": "set"
+                  }
+                ],
+                "stage": "prepare/Child Total",
+                "stageId": "prepare/total",
+                "runtimeStageId": "prepare/total#6",
+                "idx": 2
+              }
+            ],
+            "logAddress": {
+              "logRunId": "1792671420586-0000000003",
+              "drillPath": [
+                "prepare#4"
+              ]
+            },
+            "initialState": {}
+          },
+          "parentStageId": "Quote"
+        }
+      }
+    },
+    "narrativeEntries": [
+      {
+        "type": "resume",
+        "text": "Execution resumed at prepare/Child Approve with input.",
+        "depth": 0,
+        "stageName": "prepare/Child Approve",
+        "stageId": "prepare/approve",
+        "runtimeStageId": "prepare/approve#5",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "subflow",
+        "text": "Entering the Quote subflow.",
+        "depth": 0,
+        "stageName": "Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#4",
+        "subflowId": "prepare",
+        "direction": "entry"
+      },
+      {
+        "type": "step",
+        "text": "Input: base = 10",
+        "depth": 1,
+        "stageName": "Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#4",
+        "subflowId": "prepare",
+        "key": "base",
+        "rawValue": 10
+      },
+      {
+        "type": "stage",
+        "text": "Stage 1: It continued from the pause.",
+        "depth": 0,
+        "stageName": "prepare/Child Approve",
+        "stageId": "prepare/approve",
+        "runtimeStageId": "prepare/approve#5",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Write approved = true",
+        "depth": 1,
+        "stageName": "prepare/Child Approve",
+        "stageId": "prepare/approve",
+        "runtimeStageId": "prepare/approve#5",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "approved",
+        "rawValue": true
+      },
+      {
+        "type": "stage",
+        "text": "Stage 2: Next, it moved on to prepare/Child Total.",
+        "depth": 0,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#6",
+        "subflowId": "prepare"
+      },
+      {
+        "type": "step",
+        "text": "Step 1: Read items = (2 items)",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#6",
+        "stepNumber": 1,
+        "subflowId": "prepare",
+        "key": "items",
+        "rawValue": [
+          10,
+          2
+        ]
+      },
+      {
+        "type": "step",
+        "text": "Step 2: Write total = 12",
+        "depth": 1,
+        "stageName": "prepare/Child Total",
+        "stageId": "prepare/total",
+        "runtimeStageId": "prepare/total#6",
+        "stepNumber": 2,
+        "subflowId": "prepare",
+        "key": "total",
+        "rawValue": 12
+      },
+      {
+        "type": "subflow",
+        "text": "Exiting the Quote subflow.",
+        "depth": 0,
+        "stageName": "Quote",
+        "stageId": "prepare",
+        "runtimeStageId": "prepare#4",
+        "subflowId": "prepare",
+        "direction": "exit"
+      }
+    ]
+  }
+}

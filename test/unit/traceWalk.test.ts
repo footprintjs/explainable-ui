@@ -219,7 +219,7 @@ describe("formatTraceWalk — the parity artifact", () => {
   it("absence renders the exact truthful sentence, not an empty chain", () => {
     const never = buildTraceWalk(DIAMOND_LOG, DIAMOND_TREE, "phantom");
     expect(formatTraceWalk(never, stepOf)).toBe(
-      "`phantom` was never written in this run — it arrived with the run's inputs.",
+      "`phantom`: no recorded write; value unknown.",
     );
     const notYet = buildTraceWalk(DIAMOND_LOG, DIAMOND_TREE, "total", { beforeCommitIdx: 4 });
     expect(formatTraceWalk(notYet, stepOf)).toContain(

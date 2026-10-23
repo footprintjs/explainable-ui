@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Variable tracing inside selected recorded subflow invocations. Search,
+  ingredient follow and the timeline use the child's own history and tree;
+  full mount runtime IDs distinguish repeated invocations and nested scopes.
+  Scope changes clear the previous trace, search and fork chooser. Missing
+  child evidence has distinct missing, malformed and too-large explanations
+  instead of borrowing parent data. Run-wide read coverage accepts no-read
+  stages, mount boundaries stay distinct from origins, fresh same-run
+  snapshots preserve the question, and a replacement run reconciles every
+  panel. Ambiguous clicks offer visit choices; breadcrumbs, copied stories
+  and Story entries identify the selected invocation.
+  Invocation-start state is a boundary (input mapping or restored state), not
+  a child rail step; tracing does not infer parent ancestry or exact read versions.
+- Public `TraceWalkScope` options on `buildTraceWalk`/`formatTraceWalk` and
+  `projectTraceInvocation` let non-UI tools produce the same scoped text as
+  the viewer, including restored invocation state after a pause.
+
+### Changed
+
+- `TraceWalkMissing.reason` adds `"evidence-unavailable"` for missing or refused
+  write evidence. Consumers that exhaustively handle the previous union must
+  add this case.
+- Recorded subflow navigation requires an exact invocation/result association.
+  A path-only result alias is no longer used as proof of a visit. Custom hosts
+  should key results by the recorded runtime ID or attach the matching result
+  to each stage snapshot. Actual dual-keyed current and legacy recordings stay
+  readable when exact invocation keys exist; footprintjs 9.0–9.5 path-only
+  child records cannot identify a visit and stay unavailable. The direct
+  adapter still supports legacy path aliases.
+- Trace admission remains bounded by 100,000 inspected items across history
+  and tree metadata. This can withhold histories above 50,000 steps; the UI
+  reports too-large evidence rather than attempting unbounded work.
+
+### Fixed
+
+- Trace cards and copied/public stories distinguish recorded starting keys from
+  absent evidence. Missing writers no longer imply a run input, and root mount
+  outputs are described as child computations in the public formatter too.
+- Missing write traces return an explicit unknown answer. Shared tree nodes are
+  refused before rendering can expand them repeatedly.
+- The packed scoped-trace consumer check now runs in CI on Node 22.
+
+- Ordinary full-path step clicks and labels containing slashes navigate the
+  timeline instead of attempting a subflow drill. New root runs keep their
+  cursor (clamped to available steps), and notices only describe a lost visit.
+  Cursor/tab navigation dismisses stale notices and visit choices; chooser
+  buttons never submit a hosting form.
+- Null inputs and explicit empty Story arrays remain valid across runs.
+  Inherited object names cannot become subflow results.
+- Iterative recorded-tree conversion opens long linear children without
+  exhausting the call stack while preserving branch order, time and memory.
+  Malformed children/cycles are refused, and conversion failures name the
+  drawing problem instead of reporting a missing invocation.
+
 ## [0.38.2] - 2026-10-15
 
 ### Fixed

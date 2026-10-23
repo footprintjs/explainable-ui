@@ -1,0 +1,8 @@
+{
+  "producer": {
+    "footprintjs": "10.3.0"
+  },
+  "source": "test/fixtures/subflow-tracing/generate-review.mjs",
+  "sha256": "c92485ef4a153bec627716ba44cd5129952d805b8107d678eec8325c5ec68568",
+  "note": "Actual offline runs. Producer IDs and timestamps retained; values in the redacted fixture are masked by the producer."
+}

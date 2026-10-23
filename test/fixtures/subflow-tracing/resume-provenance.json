@@ -1,0 +1,8 @@
+{
+  "producer": {
+    "footprintjs": "10.3.0"
+  },
+  "source": "test/fixtures/subflow-tracing/generate-resume.mjs",
+  "sha256": "84105d3cab392a8d75eb955d62c80c7e7515baf403ac4f3df8bbe4d4dc5b872b",
+  "note": "Actual offline public API runs, pausing inside a child and resuming the same saved checkpoint on both the original and a fresh executor. Original IDs and times retained. Values are synthetic. No earlier fixture regenerated."
+}

@@ -14,15 +14,20 @@ import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme, themeModeVars } from "../../theme";
+import { runHasRecordedReads, sourceRunKey, rootMountLabels, type TraceScope } from "./_internal/traceScope";
+import { exactSubflowResults } from "./_internal/subflowRecord";
+import { useSubflowNavigation } from "./_internal/useSubflowNavigation";
+import { SubflowNavigationStatus } from "./_internal/SubflowNavigationStatus";
+import { TraceUnavailableNote, StoryUnavailableNote } from "./_internal/TraceUnavailableNote";
+import { useRunCompanions } from "./_internal/useRunCompanions";
+import { ownDataField, isPlainRecord } from "./_internal/safeRecordRead";
 import { buildDataTrace } from "./_internal/dataTrace";
 import { buildTraceWalk, type TraceIngredient, type TraceWalk } from "./_internal/traceWalk";
 import { TraceWalkCard } from "../DataTracePanel/TraceWalkCard";
 import { DataTracePanel } from "../DataTracePanel/DataTracePanel";
 import type { TracingRail } from "../TimeTravelControls/TimeTravelControls";
-import { extractSubflowNarrative } from "../../utils/narrativeSync";
 import {
   toVisualizationSnapshots,
-  subflowResultToSnapshots,
   narrativeRecorderFromSnapshot,
 } from "../../adapters/fromRuntimeSnapshot";
 import { overlayFromSnapshot } from "../../adapters/overlayFromSnapshot";
@@ -35,7 +40,6 @@ import { NarrativePanel } from "../NarrativePanel";
 import { SubflowTree } from "../FlowchartView/SubflowTree";
 import { SubflowBreadcrumb } from "../FlowchartView/SubflowBreadcrumb";
 import { TracedFlow } from "../FlowchartView/TracedFlow";
-import { buildSubflowBreadcrumb } from "../FlowchartView/_internal/subflowDrill";
 
 /**
  * Minimal subflow-walking spec shape. Used INTERNALLY by drill-down
@@ -78,22 +82,6 @@ function isExplainableTab(tabId: string): boolean {
   return tabId === EXPLAINABLE_TAB_ID || tabId === "ai-compatible";
 }
 
-
-interface SubflowLevel {
-  subflowId: string;
-  label: string;
-  /** Null on the recorder-driven (traceGraph) path — there is no spec tree;
-   *  the level is resolved from the mount stage's `subflowResult` instead. */
-  spec: SpecNode | null;
-  snapshots: StageSnapshot[];
-  /** Subflow-scoped, subflow-renumbered narrative for the Story panel while
-   *  drilled in (so it reveals to the subflow-local cursor, not whole-run). */
-  narrative?: NarrativeEntry[];
-}
-
-interface DrillDownEntry extends SubflowLevel {
-  parentSnapshotIdx: number;
-}
 
 export interface PanelLabels {
   /** Left panel pill label (subflow tree). Default: "Topology" */
@@ -827,69 +815,6 @@ const DetailsContent = memo(function DetailsContent({
   );
 });
 
-// ---------------------------------------------------------------------------
-// Subflow resolution helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Recorder-driven drill resolution. There is no spec tree on the traceGraph
- * path, so the subflow level is resolved straight from the mount stage's
- * recorded `subflowResult` — so all four panels (slider / story / overlay /
- * chart) rescope to the subflow together.
- *
- * `drillKey` is the mount NODE's id, which is path-qualified
- * (`pipeline/prepare`) whenever the mount sits inside another subflow.
- * Matching is TIERED — full path first, then a path suffix, and only then the
- * bare-local-id fallbacks. The order matters: two mounts of the same child
- * chart share a local id, so a loose match lands on whichever mount comes
- * first in the array rather than the one that was clicked.
- */
-function resolveSubflowFromRuntime(
-  parentSnapshots: StageSnapshot[],
-  drillKey: string,
-  narrativeEntries?: NarrativeEntry[],
-  subflowResults?: Record<string, unknown>,
-): SubflowLevel | null {
-  const localId = drillKey.split("/").pop() ?? drillKey;
-  const pathOf = (s: StageSnapshot): string | undefined =>
-    s.runtimeStageId?.split("#")[0];
-  const withResult = parentSnapshots.filter((s) => !!s.subflowResult);
-  const parentSnap =
-    // Tier 1 — this exact mount, by full path.
-    withResult.find((s) => s.subflowId === drillKey || pathOf(s) === drillKey) ??
-    // Tier 2 — the same mount seen from inside its own subflow, where the
-    // enclosing prefix has been stripped off the ids.
-    withResult.find((s) => {
-      const p = pathOf(s);
-      return (
-        (p !== undefined && drillKey.endsWith("/" + p)) ||
-        (s.subflowId !== undefined && drillKey.endsWith("/" + s.subflowId))
-      );
-    }) ??
-    // Tier 3 — legacy callers that drill by a bare subflow id or a label.
-    withResult.find((s) => {
-      const leaf = pathOf(s)?.split("/").pop();
-      return (
-        s.subflowId === localId ||
-        s.stageName === drillKey ||
-        s.stageLabel === drillKey ||
-        leaf === drillKey ||
-        leaf === localId
-      );
-    });
-  if (!parentSnap?.subflowResult) return null;
-  const label = parentSnap.stageLabel ?? parentSnap.stageName ?? localId;
-  const sfNarrative = narrativeEntries
-    ? extractSubflowNarrative(narrativeEntries, drillKey, label)
-    : undefined;
-  const sfSnapshots = subflowResultToSnapshots(
-    parentSnap.subflowResult,
-    sfNarrative,
-    subflowResults,
-  );
-  if (sfSnapshots.length === 0) return null;
-  return { subflowId: drillKey, label, spec: null, snapshots: sfSnapshots, narrative: sfNarrative };
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -1075,13 +1000,25 @@ export function ExplainableShell({
   // A run recorded WITH footprintjs's narrative recorder carries its story
   // inside the snapshot, so a replayed recording tells the same story the
   // live run did — no executor left to call getNarrativeEntries() on. The
-  // prop always wins: a caller who passes entries (or deliberately passes
-  // none but has a snapshot they don't want narrated) stays in control.
+  // A paired prop takes precedence. Known unchanged companions from a
+  // previous run are withheld; a current record-owned Story can replace them.
   const snapshotNarrative = useMemo(
     () => narrativeRecorderFromSnapshot(runtimeSnapshot),
     [runtimeSnapshot],
   );
-  const narrativeEntries = narrativeEntriesProp ?? snapshotNarrative?.entries;
+  const companions = useRunCompanions(runtimeSnapshot, {
+    narrativeEntries: narrativeEntriesProp,
+    snapshots: snapshotsProp,
+    resultData: resultDataProp,
+    runtimeOverlay: runtimeOverlayProp,
+  });
+  const companionNarrativeMissing = companions.staleKeys.includes("narrativeEntries") && !snapshotNarrative;
+  const narrativeEntries = companions.values.narrativeEntries ?? snapshotNarrative?.entries;
+
+  const exactResults = useMemo(
+    () => exactSubflowResults(ownDataField(runtimeSnapshot, "subflowResults")),
+    [runtimeSnapshot],
+  );
 
   // Convert runtimeSnapshot → visualization snapshots (zero-boilerplate mode).
   // A snapshot we cannot read is REMEMBERED, not swallowed: the empty state
@@ -1089,8 +1026,19 @@ export function ExplainableShell({
   const derivedFromRuntime = useMemo(() => {
     if (!runtimeSnapshot) return null;
     try {
-      const snaps = toVisualizationSnapshots(runtimeSnapshot as any, narrativeEntries as any);
-      return { snapshots: snaps, resultData: runtimeSnapshot.sharedState, error: null as string | null };
+      // Consume only known own fields. Spreading a stored source would
+      // evaluate unrelated accessors that no renderer ever asked to read.
+      const sharedState = ownDataField(runtimeSnapshot, "sharedState");
+      if (!isPlainRecord(sharedState)) throw new Error("sharedState is not a plain object");
+      const input = {
+        sharedState,
+        executionTree: ownDataField(runtimeSnapshot,"executionTree"),
+        commitLog: ownDataField(runtimeSnapshot,"commitLog"),
+        subflowResults: exactResults,
+        recorders: ownDataField(runtimeSnapshot,"recorders"),
+      };
+      const snaps = toVisualizationSnapshots(input as any, narrativeEntries as any);
+      return { snapshots: snaps, resultData: input.sharedState, error: null as string | null };
     } catch (err) {
       return {
         snapshots: [] as StageSnapshot[],
@@ -1098,11 +1046,11 @@ export function ExplainableShell({
         error: err instanceof Error ? err.message : String(err),
       };
     }
-  }, [runtimeSnapshot, narrativeEntries]);
+  }, [runtimeSnapshot, narrativeEntries, exactResults]);
 
   // Use derived data when runtimeSnapshot is provided, otherwise use explicit props
-  const snapshots = snapshotsProp ?? derivedFromRuntime?.snapshots ?? [];
-  const resultData = resultDataProp ?? derivedFromRuntime?.resultData ?? null;
+  const snapshots = companions.values.snapshots ?? derivedFromRuntime?.snapshots ?? [];
+  const resultData = companions.values.resultData ?? derivedFromRuntime?.resultData ?? null;
 
   // The chart's colouring, rebuilt from the recording when the caller didn't
   // hand us a live one. `runtimeSnapshot` + `traceGraph` with no overlay used
@@ -1111,14 +1059,14 @@ export function ExplainableShell({
   // the execution order, so there is nothing to ask the consumer for.
   const runtimeOverlay = useMemo(
     () =>
-      runtimeOverlayProp ??
+      companions.values.runtimeOverlay ??
       // Retries leave no mark on the commit log (a failed attempt discards its
       // writes): the snapshot's tree carries their counts (footprintjs >= 10.1),
       // and for an older recording the narrative's `retry` entries do.
       (runtimeSnapshot
         ? overlayFromSnapshot(runtimeSnapshot, { narrativeEntries })
         : undefined),
-    [runtimeOverlayProp, runtimeSnapshot, narrativeEntries],
+    [companions.values.runtimeOverlay, runtimeSnapshot, narrativeEntries],
   );
 
   // A recording is THREE things — events, snapshot, structure — and only the
@@ -1126,7 +1074,7 @@ export function ExplainableShell({
   // shell used to omit the entire chart region in silence, which reads as
   // "this library doesn't draw charts" rather than "one ingredient is
   // missing". Say it once in the console, and once on screen (below).
-  const missingChart = snapshots.length > 0 && !traceGraph?.nodes.length;
+  const missingChart = snapshots.length > 0 && !traceGraph?.nodes.length && !renderFlowchart;
   useEffect(() => {
     if (!missingChart) return;
     devWarn(
@@ -1257,7 +1205,7 @@ export function ExplainableShell({
 
   // Build tab list: Result + Memory (always), Narrative (when data exists),
   // explicit recorder views, auto-detected recorder views
-  const hasNarrative = !!narrativeEntries?.length;
+  const hasNarrative = !!narrativeEntries?.length || companionNarrativeMissing;
   const allTabs = useMemo(() => {
     const tabs: Array<{ id: string; name: string; description?: string }> = [
       { id: "result", name: "Result", description: "Final output and console logs" },
@@ -1296,8 +1244,7 @@ export function ExplainableShell({
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
   const [activeTab, setActiveTab] = useState<string>(resolvedDefault);
-  const [snapshotIdx, setSnapshotIdx] = useState(0);
-  const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
+  const [snapshotIdx, setSnapshotIdxRaw] = useState(0);
   const [rightExpanded, setRightExpanded] = useState(defaultExpanded?.details ?? true);
   const [rightPanelMode, setRightPanelMode] = useState<RightPanelMode>("insights");
   // Inspector's active tab, lifted so the chart can paint the dependency
@@ -1308,8 +1255,9 @@ export function ExplainableShell({
   // The traced key + a stack of followed ingredients ({key, beforeCommitIdx}
   // scopes — following = RE-ANCHORING, see traceWalk.ts). This is a LENS
   // ({what are we asking about}), NOT a cursor: the one position stays
-  // `snapshotIdx`. Root-level only; drilling into a subflow exits it.
+  // `snapshotIdx`. Changing the selected record exits the previous lens.
   const [tracing, setTracing] = useState<null | {
+    scope: string | null;
     key: string;
     beforeCommitIdx?: number;
     via: Array<{ key: string; beforeCommitIdx: number }>;
@@ -1362,16 +1310,58 @@ export function ExplainableShell({
   const toggleRight = useCallback((v: boolean) => { setRightExpanded(v); triggerReflow(); }, [triggerReflow]);
   const toggleTimeline = useCallback(() => { setTimelineExpanded((p) => !p); triggerReflow(); }, [triggerReflow]);
 
-  const isInSubflow = drillDownStack.length > 0;
-
+  const sourceRunId = sourceRunKey(runtimeSnapshot);
+  const readsAvailable = useMemo(
+    () =>
+      runHasRecordedReads(
+        runtimeSnapshot,
+        snapshots.flatMap((stage) =>
+          stage.subflowResult ? [stage.subflowResult] : [],
+        ),
+      ),
+    [runtimeSnapshot, snapshots],
+  );
+  const onScopeReset = useCallback(() => {
+    setTracing(null); setForkChooserOpen(false); setTraceSearch("");
+  }, []);
+  const navigation = useSubflowNavigation({
+    snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries,
+    traceGraph, snapshotIdx, setSnapshotIdxRaw,
+    activeTab: JSON.stringify([activeTab, rightPanelMode, inspectorTab]),
+    onScopeReset,
+  });
+  const {
+    selectedStack, setSnapshotIdx, handleDrillDown, handleBreadcrumbNavigate,
+    handleChartSubflowChange, handleNodeClick,
+  } = navigation;
+  const isInSubflow = selectedStack.length > 0;
   const currentLevel = useMemo(() => {
-    if (drillDownStack.length > 0) {
-      const top = drillDownStack[drillDownStack.length - 1];
-      return { spec: top.spec, snapshots: top.snapshots, narrative: top.narrative, subflowId: top.subflowId as string | undefined };
-    }
-    return { spec: null, snapshots, narrative: undefined as NarrativeEntry[] | undefined, subflowId: undefined as string | undefined };
-  }, [drillDownStack, snapshots]);
-
+    const top = selectedStack.at(-1);
+    return (
+      top ?? {
+        spec: null,
+        snapshots,
+        narrative: undefined,
+        subflowId: undefined,
+        traceScope: undefined,
+      }
+    );
+  }, [selectedStack, snapshots]);
+  const activeTraceScope = useMemo<TraceScope>(() => {
+    if (currentLevel.traceScope) return currentLevel.traceScope;
+    const metadata = rootMountLabels(runtimeSnapshot?.executionTree, runtimeSnapshot?.commitLog);
+    return {
+      invocationPath: [],
+      commitLog: metadata.availability.ok ? runtimeSnapshot?.commitLog ?? [] : [],
+      executionTree: metadata.availability.ok ? runtimeSnapshot?.executionTree : undefined,
+      availability: metadata.availability,
+      readsAvailable: readsAvailable && metadata.hasTree,
+      mountLabels: metadata.labels,
+    };
+  }, [currentLevel.traceScope, runtimeSnapshot, readsAvailable]);
+  const activeTraceKey = isInSubflow
+    ? JSON.stringify(activeTraceScope.invocationPath)
+    : null;
   const activeSnapshots = currentLevel.snapshots;
   const safeIdx = activeSnapshots.length > 0
     ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1))
@@ -1380,20 +1370,19 @@ export function ExplainableShell({
   // ONE backward slice, THREE consumers: the Data Trace tab (frames), its
   // honesty note, and the chart's dependency cone. Computed once per
   // (snapshot, cursor) so the panel and the chart can never disagree.
-  const shellDataTrace = useMemo(
-    () =>
-      runtimeSnapshot?.commitLog
-        ? buildDataTrace(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "")
-        : { frames: [] as import("./_internal/dataTrace").DataTraceFrame[], readsAvailable: true },
-    [runtimeSnapshot, activeSnapshots, safeIdx],
-  );
+  const shellDataTrace = useMemo(() => {
+    const trace = activeTraceScope.availability.ok && (isInSubflow || runtimeSnapshot?.commitLog)
+      ? buildDataTrace(activeTraceScope.commitLog, activeTraceScope.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "")
+      : {frames: [] as import("./_internal/dataTrace").DataTraceFrame[], readsAvailable: false};
+    return {...trace, readsAvailable: activeTraceScope.readsAvailable};
+  }, [activeTraceScope, isInSubflow, runtimeSnapshot, activeSnapshots, safeIdx]);
 
-  // F1: every key the RUN ever wrote, in first-write order — so the user can
+  // F1: every key the SELECTED RECORD wrote, in first-write order — so the user can
   // ask "why is X this value?" from anywhere, not only at X's writer stage.
   // handleStartTracing already answers honestly for keys not yet written at
   // the cursor (the 'not-yet-written' card), so no special-casing here.
   const allTracedKeys = useMemo<string[]>(() => {
-    const log = runtimeSnapshot?.commitLog as
+    const log = activeTraceScope.commitLog as
       | Array<{ trace?: Array<{ path: string }> }>
       | undefined;
     if (!log?.length) return [];
@@ -1408,29 +1397,35 @@ export function ExplainableShell({
       }
     }
     return keys;
-  }, [runtimeSnapshot]);
+  }, [activeTraceScope]);
 
   // The active tracing walk — recomputed only when the SESSION changes
   // (entry / follow / show-all), never on scrub: the anchor is frozen in
   // the session state, so walking the rail cannot shift the question.
   const traceWalk = useMemo<TraceWalk | null>(() => {
-    if (!tracing || !runtimeSnapshot?.commitLog) return null;
+    if (navigation.sourceChanged || !tracing || tracing.scope !== activeTraceKey || !activeTraceScope.availability.ok) return null;
     const scope = tracing.via.length > 0 ? tracing.via[tracing.via.length - 1] : tracing;
-    return buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
+    return buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
       beforeCommitIdx: scope.beforeCommitIdx,
+      scope: {
+        invocationPath: activeTraceScope.invocationPath,
+        mountLabels: Object.fromEntries(activeTraceScope.mountLabels),
+        readsAvailable: activeTraceScope.readsAvailable,
+        startKeys: activeTraceScope.startKeys,
+      },
     });
-  }, [tracing, runtimeSnapshot]);
+  }, [tracing, activeTraceScope, activeTraceKey, navigation.sourceChanged]);
 
-  // Rail stops: walk frames mapped onto the snapshot rail (root level only —
-  // every walk frame comes from the root commit log, so this is total).
+  // Rail stops use exact runtime IDs from the selected record. Display names
+  // and stripped chart prefixes never identify a mount invocation.
   const traceStopIndices = useMemo<number[]>(() => {
-    if (!traceWalk || traceWalk.missing || isInSubflow) return [];
+    if (!traceWalk || traceWalk.missing) return [];
     const idxByRsid = new Map(activeSnapshots.map((sn, i) => [sn.runtimeStageId, i]));
     return traceWalk.stops
       .map((stop) => idxByRsid.get(stop.runtimeStageId))
       .filter((i): i is number => i !== undefined)
       .sort((a, b) => a - b);
-  }, [traceWalk, activeSnapshots, isInSubflow]);
+  }, [traceWalk, activeSnapshots]);
 
   // The cone: chart node id (stage part — strip the '#N' execution index) →
   // BFS depth. Painted while TRACING (from the walk, so a via-filter narrows
@@ -1486,8 +1481,8 @@ export function ExplainableShell({
 
   const breadcrumbs = useMemo(() => {
     const root = { label: title || "Flowchart", spec: null, description: undefined as string | undefined };
-    return [root, ...drillDownStack.map((e) => ({ label: e.label, spec: e.spec, description: undefined as string | undefined }))];
-  }, [title, drillDownStack]);
+    return [root, ...selectedStack.map((e) => ({ label: e.label, spec: e.spec, description: undefined as string | undefined }))];
+  }, [title, selectedStack]);
 
   // Recorder-driven: derive subflow presence from the build-time graph.
   // Falls back to the legacy spec walk only when traceGraph is absent
@@ -1510,12 +1505,12 @@ export function ExplainableShell({
   // ── Handlers ──
   const handleTabChange = useCallback((tab: ShellTab) => {
     setActiveTab(tab);
-    setDrillDownStack([]);
-  }, []);
+    navigation.resetRoot();
+  }, [navigation.resetRoot]);
 
   const handleSnapshotChange = useCallback((idx: number | string) => {
     if (typeof idx === "number") setSnapshotIdx(idx);
-  }, []);
+  }, [setSnapshotIdx]);
 
   // ── Tracing handlers ──
   // Entry FREEZES the question at the cursor's moment ("why is it this value
@@ -1534,51 +1529,51 @@ export function ExplainableShell({
 
   const handleStartTracing = useCallback(
     (key: string) => {
-      if (!runtimeSnapshot?.commitLog || isInSubflow) return;
-      const log = runtimeSnapshot.commitLog as Array<{ runtimeStageId?: string }>;
+      if (!activeTraceScope.availability.ok) return;
+      const log = activeTraceScope.commitLog as Array<{ runtimeStageId?: string }>;
       const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
       const cursorCommitIdx = log.findIndex((c) => c.runtimeStageId === cursorRsid);
       // -1 only when a consumer pairs a HAND-BUILT `snapshots` prop (ids the
       // log doesn't know) with `runtimeSnapshot`; we then trace the whole log
       // and the entry jump may land after the cursor — defined, not a bug.
       const beforeCommitIdx = cursorCommitIdx >= 0 ? cursorCommitIdx + 1 : undefined;
-      setTracing({ key, beforeCommitIdx, via: [] });
+      setTracing({ scope: activeTraceKey, key, beforeCommitIdx, via: [] });
       setForkChooserOpen(false); // a fresh question — no stale chooser
       setTraceSearch(""); // and no stale filter greeting the next visit (review fix)
       setRightPanelMode("what");
       setInspectorTab("trace");
       jumpToAnchor(
-        buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, key, { beforeCommitIdx }),
+        buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, key, { beforeCommitIdx }),
       );
     },
-    [runtimeSnapshot, isInSubflow, activeSnapshots, safeIdx, jumpToAnchor],
+    [activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, jumpToAnchor],
   );
 
   const handleFollowIngredient = useCallback(
     (ing: TraceIngredient) => {
-      if (!tracing || !runtimeSnapshot?.commitLog || ing.writerCommitIdx === null) return;
+      if (!tracing || !activeTraceScope.availability.ok || ing.writerCommitIdx === null) return;
       const scope = { key: ing.key, beforeCommitIdx: ing.writerCommitIdx + 1 };
       setTracing({ ...tracing, via: [...tracing.via, scope] });
       setForkChooserOpen(false); // following IS the answer to the chooser
       jumpToAnchor(
-        buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, scope.key, {
+        buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
           beforeCommitIdx: scope.beforeCommitIdx,
         }),
       );
     },
-    [tracing, runtimeSnapshot, jumpToAnchor],
+    [tracing, activeTraceScope, jumpToAnchor],
   );
 
   const handleShowAllIngredients = useCallback(() => {
-    if (!tracing || !runtimeSnapshot?.commitLog) return;
+    if (!tracing || !activeTraceScope.availability.ok) return;
     setTracing({ ...tracing, via: [] });
     setForkChooserOpen(false);
     jumpToAnchor(
-      buildTraceWalk(runtimeSnapshot.commitLog, runtimeSnapshot.executionTree, tracing.key, {
+      buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, tracing.key, {
         beforeCommitIdx: tracing.beforeCommitIdx,
       }),
     );
-  }, [tracing, runtimeSnapshot, jumpToAnchor]);
+  }, [tracing, activeTraceScope, jumpToAnchor]);
 
   // Exit keeps the cursor exactly where the walk left it — you land in
   // normal time-travel at the cause you found.
@@ -1607,104 +1602,7 @@ export function ExplainableShell({
   // chart as its CONTROLLED scope. The chart no longer keeps a private drill
   // state, so a drill started from the Topology tree, the breadcrumb or a
   // chart card can no longer disagree with the chart on screen.
-  const chartDrillKey = drillDownStack.length > 0
-    ? drillDownStack[drillDownStack.length - 1].subflowId
-    : null;
-
-  /**
-   * Build the WHOLE stack for a mount, from the root down. Every entry path
-   * calls this with the mount node's id, so drilling a nested subflow
-   * straight from the tree lands on the same state as walking there card by
-   * card — including the ancestors in the breadcrumb.
-   *
-   * Returns null when the run has no recorded result for some level (a lazy
-   * mount that never executed, say) — the caller then leaves the view alone
-   * rather than half-drilling.
-   */
-  const buildDrillStack = useCallback(
-    (mountKey: string): DrillDownEntry[] | null => {
-      // The graph knows the ancestor chain; the runtime knows each level's
-      // data. Walk the chain outermost-first, resolving each level inside
-      // the level above it.
-      const chain = traceGraph
-        ? buildSubflowBreadcrumb(traceGraph, mountKey)
-            .slice(1) // drop the synthetic root entry
-            .map((c) => c.subflowId)
-            .filter((id): id is string => id !== null)
-        : [mountKey];
-      const keys = chain.length > 0 ? chain : [mountKey];
-      const stack: DrillDownEntry[] = [];
-      let levelSnapshots = snapshots;
-      for (const key of keys) {
-        const entry = resolveSubflowFromRuntime(
-          levelSnapshots,
-          key,
-          narrativeEntries,
-          runtimeSnapshot?.subflowResults,
-        );
-        if (!entry) return null;
-        stack.push({ ...entry, parentSnapshotIdx: stack.length === 0 ? snapshotIdx : 0 });
-        levelSnapshots = entry.snapshots;
-      }
-      return stack.length > 0 ? stack : null;
-    },
-    [traceGraph, snapshots, narrativeEntries, runtimeSnapshot, snapshotIdx],
-  );
-
-  const handleDrillDown = useCallback(
-    (mountKey: string) => {
-      // Recorder path: resolve each level from its mount stage's recorded
-      // `subflowResult` (no spec tree needed). Replacing the drillDownStack
-      // rescopes the slider / story / overlay / chart together.
-      const stack = buildDrillStack(mountKey);
-      if (stack) {
-        setTracing(null); // the walk lives on the ROOT rail — drilling exits it honestly
-        setForkChooserOpen(false);
-        setDrillDownStack(stack);
-        setSnapshotIdx(0);
-      }
-    },
-    [buildDrillStack],
-  );
-
-  const handleBreadcrumbNavigate = useCallback((level: number) => {
-    setDrillDownStack((prev) => {
-      const popped = level === 0 ? prev[0] : prev[level];
-      if (popped) setSnapshotIdx(popped.parentSnapshotIdx);
-      return level === 0 ? [] : prev.slice(0, level);
-    });
-  }, []);
-
-  /**
-   * The chart's drill scope changed (a mount card, or the chart's own
-   * breadcrumb). Popping BACK to a level already on the stack must not push
-   * a duplicate, so an existing key navigates instead of drilling.
-   */
-  const handleChartSubflowChange = useCallback(
-    (mountKey: string | null) => {
-      if (mountKey === null) { handleBreadcrumbNavigate(0); return; }
-      const at = drillDownStack.findIndex((e) => e.subflowId === mountKey);
-      if (at >= 0) {
-        if (at < drillDownStack.length - 1) handleBreadcrumbNavigate(at + 1);
-        return;
-      }
-      handleDrillDown(mountKey);
-    },
-    [drillDownStack, handleBreadcrumbNavigate, handleDrillDown],
-  );
-
-  const handleNodeClick = useCallback(
-    (indexOrId: number | string) => {
-      if (typeof indexOrId === "number") { setSnapshotIdx(indexOrId); return; }
-      // Drill if this names a subflow — via the recorder path (the chart
-      // forwards a mount node id here through onSubflowChange).
-      if (buildDrillStack(indexOrId)) { handleChartSubflowChange(indexOrId); return; }
-      const idx = activeSnapshots.findIndex((s) => s.stageLabel === indexOrId);
-      if (idx >= 0) setSnapshotIdx(idx);
-    },
-    [activeSnapshots, buildDrillStack, handleChartSubflowChange]
-  );
-
+  const chartDrillKey = selectedStack.at(-1)?.subflowId ?? null;
   const handleTreeNodeSelect = useCallback(
     (name: string, isSubflow: boolean, nodeId?: string) => {
       if (isSubflow) {
@@ -1713,12 +1611,12 @@ export function ExplainableShell({
         // "Prepare"), and a nested mount needs its ancestors drilled too.
         handleDrillDown(nodeId ?? name);
       } else {
-        setDrillDownStack([]);
+        navigation.resetRoot();
         const idx = snapshots.findIndex((s) => s.stageLabel === name);
         if (idx >= 0) setSnapshotIdx(idx);
       }
     },
-    [snapshots, handleDrillDown]
+    [snapshots, handleDrillDown, navigation.resetRoot, setSnapshotIdx]
   );
 
   const navigateToStage = useCallback(
@@ -1768,9 +1666,13 @@ export function ExplainableShell({
   // step wrote:") and, below it, a search over EVERY key the run ever wrote
   // ("Trace any variable:", F1). Both roads lead to handleStartTracing.
   const traceTabContent: ReactNode = useMemo(() => {
+    if (!activeTraceScope.availability.ok) {
+      return <TraceUnavailableNote availability={activeTraceScope.availability} scopeLabel={isInSubflow ? "Child" : "Root"} />;
+    }
     if (tracing && traceWalk) {
       return (
-        <TraceWalkCard
+        <>
+          <TraceWalkCard
           walk={traceWalk}
           cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null}
           viaKey={activeViaKey}
@@ -1784,6 +1686,7 @@ export function ExplainableShell({
           onContinueTimeOrder={handleContinueTimeOrder}
           canContinueTimeOrder={traceStopIndices.some((i) => i < safeIdx)}
         />
+        </>
       );
     }
     // Same chip look for both entry blocks — one affordance, one meaning.
@@ -1808,7 +1711,7 @@ export function ExplainableShell({
     const shownKeys = matchedKeys.slice(0, 12);
     return (
       <>
-        {!isInSubflow && (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && (
+        {(shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && (
           <div data-fp="trace-entry" style={{ padding: "10px 14px 0", fontSize: 12 }}>
             <span style={{ color: theme.textMuted, marginRight: 6 }}>This step wrote:</span>
             {shellDataTrace.frames[0].keysWritten.map((k) => (
@@ -1824,7 +1727,7 @@ export function ExplainableShell({
             ))}
           </div>
         )}
-        {!isInSubflow && allTracedKeys.length > 0 && (
+        {allTracedKeys.length > 0 && (
           <div data-fp="trace-any" style={{ padding: "6px 14px 0", fontSize: 12 }}>
             <div style={{ color: theme.textMuted, marginBottom: 4 }}>Trace any variable:</div>
             <input
@@ -1873,8 +1776,15 @@ export function ExplainableShell({
         />
       </>
     );
-  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
+  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, activeTraceScope, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
 
+  const navigationStatus = <SubflowNavigationStatus
+    staleInputs={companions.staleKeys.length > 0}
+    notice={navigation.navigationNotice}
+    choice={navigation.visitChoice}
+    onChoose={navigation.applyDrill}
+    onDismiss={navigation.clearTransient}
+  />;
   // Map tab id → label for rendering
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
 
@@ -1917,6 +1827,7 @@ export function ExplainableShell({
         );
       }
       if (tabId === "narrative") {
+        if (companionNarrativeMissing) return <StoryUnavailableNote />;
         return (
           <NarrativePanel
             snapshots={activeSnapshots}
@@ -1960,6 +1871,7 @@ export function ExplainableShell({
       activeSnapshots,
       safeIdx,
       activeNarrativeEntries,
+      companionNarrativeMissing,
       narrativeScopeSubflowId,
       runtimeSnapshot,
       recorderViews,
@@ -2059,11 +1971,12 @@ export function ExplainableShell({
           {isExplainableTab(activeTab) ? (
             <>
               <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} />
+              {navigationStatus}
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
-              {traceGraph && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...(sliceCone && { sliceCone }) })}
+              {(traceGraph || renderFlowchart) && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...(sliceCone && { sliceCone }) })}
               {missingChart && <MissingChartNote unstyled />}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
-              <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} scopeSubflowId={narrativeScopeSubflowId} unstyled />
+              {companionNarrativeMissing ? <StoryUnavailableNote /> : <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} scopeSubflowId={narrativeScopeSubflowId} unstyled />}
               <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
             </>
           ) : (
@@ -2082,7 +1995,7 @@ export function ExplainableShell({
   // was drilled via the runtime path (`resolveSubflowFromRuntime` returns
   // spec: null), while the slider/story/breadcrumb kept working. See
   // test/component/ExplainableShellDrill.test.tsx.
-  const showTopology = !!effectiveRenderFlowchart && !!traceGraph;
+  const showTopology = !!effectiveRenderFlowchart && (!!renderFlowchart || !!traceGraph);
 
   // Render the active details tab content
   const detailsContent = renderTabBody(activeTab, false);
@@ -2163,6 +2076,7 @@ export function ExplainableShell({
         tracing={tracingRail}
       />
 
+      {navigationStatus}
       {/* Breadcrumb */}
       {isInSubflow && (
         <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />

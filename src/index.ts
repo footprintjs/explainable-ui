@@ -93,13 +93,15 @@ export { DataTracePanel } from "./components/DataTracePanel/DataTracePanel";
 export type { DataTracePanelProps, CausalFrame } from "./components/DataTracePanel/DataTracePanel";
 export { TraceWalkCard } from "./components/DataTracePanel/TraceWalkCard";
 export type { TraceWalkCardProps } from "./components/DataTracePanel/TraceWalkCard";
-export { buildTraceWalk, formatTraceWalk } from "./components/ExplainableShell/_internal/traceWalk";
+export { buildTraceWalk, formatTraceWalk } from "./trace/traceWalk";
 export type {
   TraceWalk,
   TraceStop,
   TraceIngredient,
   TraceWalkMissing,
-} from "./components/ExplainableShell/_internal/traceWalk";
+  TraceWalkScope,
+  TraceWalkOptions,
+} from "./trace/traceWalk";
 
 // Insights: recorder tabs / grid (was "Recorders")
 export { InsightPanel } from "./components/InsightPanel/InsightPanel";
@@ -145,3 +147,6 @@ export type {
   ExplainableViewSlot,
   ExplainableViewSlots,
 } from "./components/ExplainableView";
+
+export { projectTraceInvocation } from "./trace/projectTraceInvocation";
+export type { TraceInvocationProjection, TraceInvocationOptions } from "./trace/projectTraceInvocation";

@@ -39,7 +39,7 @@ function treeContext(stageContexts: unknown) {
  * prepare: clean → scale
  */
 function makeRuntimeSnapshot() {
-  return {
+  const snapshot = {
     sharedState: {},
     commitLog: [],
     executionTree: runtimeNode('seed', {
@@ -79,6 +79,13 @@ function makeRuntimeSnapshot() {
       },
     },
   };
+  // Match the dual-keyed shape described above; aliases alone are not an
+  // invocation witness, even when this synthetic tree shows just one visit.
+  Object.assign(snapshot.subflowResults, {
+    'pipeline#1': snapshot.subflowResults.pipeline,
+    'pipeline/prepare#3': snapshot.subflowResults['pipeline/prepare'],
+  });
+  return snapshot;
 }
 
 function graphNode(id: string, data: Record<string, unknown>) {

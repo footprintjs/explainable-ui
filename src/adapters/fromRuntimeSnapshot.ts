@@ -486,103 +486,185 @@ function flattenTree(
   subflowResults?: Record<string, unknown>,
   cumulativeMemory: Record<string, unknown> = {},
   stageNarrativeMap: Map<string, string[]> = new Map(),
-  stageTimings: StageTimings = { byRuntimeStageId: new Map(), byStageName: new Map() },
-  commitIndex: Map<string, CommitBundleLike[]> = new Map(),
+  stageTimings: StageTimings = {
+    byRuntimeStageId: new Map(),
+    byStageName: new Map(),
+  },
+  commitIndex: Map<string, CommitBundleLike[]> = new Map()
 ): number {
-  // Prefer the timing recorded for THIS execution (a loop's 2nd pass is its
-  // own row), then the legacy per-name aggregate, then scope.$metric, then 0.
-  const stageName = node.name ?? node.id;
-  const durationMs =
-    (node.runtimeStageId ? stageTimings.byRuntimeStageId.get(node.runtimeStageId) : undefined) ??
-    (stageName ? stageTimings.byStageName.get(stageName) : undefined) ??
-    (typeof node.metrics?.durationMs === "number" ? node.metrics.durationMs : 0);
-
-  const startMs = accumulatedMs;
-  // Use id for matching (stable, matches spec node ids).
-  // name may carry display prefixes like "[service-name] STAGE".
-  const stageId = node.id || node.name || 'unknown';
-  const displayName = node.name || node.id || 'unknown';
-
-  // Narrative comes from the library. When not available (e.g. subflow internals
-  // where the root recorder only captures enter/exit markers), build a basic
-  // narrative from the stage name, description, and data operations.
-  // Try id first, then name — narrative entries use node.name (may be prefixed)
-  // while snapshot uses node.id (stable). Both need to match for subflows.
-  const stageLines = stageNarrativeMap.get(stageId) ?? stageNarrativeMap.get(displayName);
-  let narrative: string;
-  if (stageLines) {
-    narrative = stageLines.join('\n');
-  } else {
-    const parts: string[] = [`${displayName} executed.`];
-    if (node.description) parts.push(node.description);
-    if (node.stageWrites) {
-      const keys = Object.keys(node.stageWrites);
-      if (keys.length > 0) parts.push(`Wrote: ${keys.join(', ')}`);
-    }
-    narrative = parts.join('\n');
+  // Explicit frames preserve depth-first order, branch start times and the
+  // parent-only continuation memory without consuming the JavaScript stack.
+  interface Frame {
+    node: RuntimeStageSnapshot;
+    start: number;
+    inherited: Record<string, unknown>;
+    phase: "enter" | "children" | "continuation" | "return";
+    memory?: Record<string, unknown>;
+    end: number;
+    childrenStart: number;
+    childIndex: number;
+    waiting: boolean;
   }
-
-  // Build cumulative memory. Preferred source: this execution's commit
-  // bundles (replayed with engine verb semantics — set/merge/append/delete —
-  // so deep-write patches keep sibling fields, exactly like the engine's
-  // sharedState). Fallback: stageWrites, deep-merged via mergeWritePatch
-  // (whole-key overwrite would erase siblings on net-change patches).
-  const memory = { ...cumulativeMemory };
-  const bundles = node.runtimeStageId ? commitIndex.get(node.runtimeStageId) : undefined;
-  if (bundles && bundles.length > 0) {
-    for (const bundle of bundles) applyCommitBundle(memory, bundle);
-  } else if (node.stageWrites) {
-    for (const [key, value] of Object.entries(node.stageWrites)) {
-      if (UNSAFE_KEYS.has(key)) continue;
-      if (value === undefined) {
-        delete memory[key];
-      } else {
-        memory[key] = mergeWritePatch(memory[key], value);
-      }
-    }
-  }
-
-  // Prefer the per-iteration result keyed by this node's UNIQUE runtimeStageId, falling back to
-  // the subflow PATH key. A LOOPING subflow re-enters with the same `subflowId`, so the path key
-  // holds only the LAST iteration — keying by `runtimeStageId` gives THIS iteration's drill-down
-  // (footprintjs dual-keys subflowResults; see docs/design/subflow-commit-visibility.md). The
-  // fallback keeps non-looping subflows and older snapshots working unchanged.
-  const sfResult =
-    (node.runtimeStageId ? subflowResults?.[node.runtimeStageId] : undefined) ??
-    subflowResults?.[node.subflowId ?? stageId];
-
-  out.push({
-    stageName: displayName,
-    stageLabel: stageId,
-    runtimeStageId: node.runtimeStageId ?? undefined,
-    memory,
-    narrative,
-    startMs,
-    durationMs,
-    status: "done",
-    ...(node.description ? { description: node.description } : undefined),
-    ...(node.subflowId ? { subflowId: node.subflowId } : undefined),
-    ...(sfResult ? { subflowResult: sfResult } : undefined),
+  const frameFor = (
+    node: RuntimeStageSnapshot,
+    start: number,
+    inherited: Record<string, unknown>
+  ): Frame => ({
+    node,
+    start,
+    inherited,
+    phase: "enter",
+    end: start,
+    childrenStart: start,
+    childIndex: 0,
+    waiting: false,
   });
+  const frames: Frame[] = [frameFor(node, accumulatedMs, cumulativeMemory)];
+  const active = new Set<RuntimeStageSnapshot>();
+  const seen = new Set<RuntimeStageSnapshot>();
+  let completedMs = accumulatedMs;
+  while (frames.length) {
+    const frame = frames[frames.length - 1];
+    if (frame.phase === "enter") {
+      if (active.has(frame.node))
+        throw new Error("Recorded stage tree contains a cycle");
+      if (seen.has(frame.node))
+        throw new Error("Recorded stage tree contains shared nodes");
+      seen.add(frame.node);
+      active.add(frame.node);
+      const node = frame.node;
+      if (node.children && !Array.isArray(node.children))
+        throw new Error("Recorded stage tree has an invalid child list");
+      const accumulatedMs = frame.start;
+      const cumulativeMemory = frame.inherited;
+      // Prefer the timing recorded for THIS execution (a loop's 2nd pass is its
+      // own row), then the legacy per-name aggregate, then scope.$metric, then 0.
+      const stageName = node.name ?? node.id;
+      const durationMs =
+        (node.runtimeStageId
+          ? stageTimings.byRuntimeStageId.get(node.runtimeStageId)
+          : undefined) ??
+        (stageName ? stageTimings.byStageName.get(stageName) : undefined) ??
+        (typeof node.metrics?.durationMs === "number"
+          ? node.metrics.durationMs
+          : 0);
 
-  let nextMs = startMs + durationMs;
+      const startMs = accumulatedMs;
+      // Use id for matching (stable, matches spec node ids).
+      // name may carry display prefixes like "[service-name] STAGE".
+      const stageId = node.id || node.name || "unknown";
+      const displayName = node.name || node.id || "unknown";
 
-  // Handle parallel children (fork)
-  if (node.children && node.children.length > 0) {
-    let maxChildEnd = nextMs;
-    for (const child of node.children) {
-      const childEnd = flattenTree(child, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
-      maxChildEnd = Math.max(maxChildEnd, childEnd);
+      // Narrative comes from the library. When not available (e.g. subflow internals
+      // where the root recorder only captures enter/exit markers), build a basic
+      // narrative from the stage name, description, and data operations.
+      // Try id first, then name — narrative entries use node.name (may be prefixed)
+      // while snapshot uses node.id (stable). Both need to match for subflows.
+      const stageLines =
+        stageNarrativeMap.get(stageId) ?? stageNarrativeMap.get(displayName);
+      let narrative: string;
+      if (stageLines) {
+        narrative = stageLines.join("\n");
+      } else {
+        const parts: string[] = [`${displayName} executed.`];
+        if (node.description) parts.push(node.description);
+        if (node.stageWrites) {
+          const keys = Object.keys(node.stageWrites);
+          if (keys.length > 0) parts.push(`Wrote: ${keys.join(", ")}`);
+        }
+        narrative = parts.join("\n");
+      }
+
+      // Build cumulative memory. Preferred source: this execution's commit
+      // bundles (replayed with engine verb semantics — set/merge/append/delete —
+      // so deep-write patches keep sibling fields, exactly like the engine's
+      // sharedState). Fallback: stageWrites, deep-merged via mergeWritePatch
+      // (whole-key overwrite would erase siblings on net-change patches).
+      const memory = { ...cumulativeMemory };
+      const bundles = node.runtimeStageId
+        ? commitIndex.get(node.runtimeStageId)
+        : undefined;
+      if (bundles && bundles.length > 0) {
+        for (const bundle of bundles) applyCommitBundle(memory, bundle);
+      } else if (node.stageWrites) {
+        for (const [key, value] of Object.entries(node.stageWrites)) {
+          if (UNSAFE_KEYS.has(key)) continue;
+          if (value === undefined) {
+            delete memory[key];
+          } else {
+            memory[key] = mergeWritePatch(memory[key], value);
+          }
+        }
+      }
+
+      // Prefer the per-iteration result keyed by this node's UNIQUE runtimeStageId, falling back to
+      // the subflow PATH key. A LOOPING subflow re-enters with the same `subflowId`, so the path key
+      // holds only the LAST iteration — keying by `runtimeStageId` gives THIS iteration's drill-down
+      // (footprintjs dual-keys subflowResults; see docs/design/subflow-commit-visibility.md). The
+      // fallback keeps non-looping subflows and older snapshots working unchanged.
+      const sfResult =
+        (node.runtimeStageId &&
+        subflowResults &&
+        Object.prototype.hasOwnProperty.call(
+          subflowResults,
+          node.runtimeStageId
+        )
+          ? subflowResults[node.runtimeStageId]
+          : undefined) ??
+        (subflowResults &&
+        Object.prototype.hasOwnProperty.call(
+          subflowResults,
+          node.subflowId ?? stageId
+        )
+          ? subflowResults[node.subflowId ?? stageId]
+          : undefined);
+
+      out.push({
+        stageName: displayName,
+        stageLabel: stageId,
+        runtimeStageId: node.runtimeStageId ?? undefined,
+        memory,
+        narrative,
+        startMs,
+        durationMs,
+        status: "done",
+        ...(node.description ? { description: node.description } : undefined),
+        ...(node.subflowId ? { subflowId: node.subflowId } : undefined),
+        ...(sfResult ? { subflowResult: sfResult } : undefined),
+      });
+      frame.memory = memory;
+      frame.end = startMs + durationMs;
+      frame.childrenStart = frame.end;
+      frame.phase = "children";
     }
-    nextMs = maxChildEnd;
+    if (frame.phase === "children") {
+      if (frame.waiting) {
+        frame.end = Math.max(frame.end, completedMs);
+        frame.waiting = false;
+      }
+      if (
+        frame.node.children &&
+        frame.childIndex < frame.node.children.length
+      ) {
+        const child = frame.node.children[frame.childIndex++];
+        if (!child || typeof child !== "object")
+          throw new Error("Recorded stage tree has an invalid child");
+        frame.waiting = true;
+        frames.push(frameFor(child, frame.childrenStart, frame.memory!));
+        continue;
+      }
+      frame.phase = "continuation";
+    }
+    if (frame.phase === "continuation" && frame.node.next) {
+      frame.phase = "return";
+      frames.push(frameFor(frame.node.next, frame.end, frame.memory!));
+      continue;
+    }
+    completedMs = frame.phase === "return" ? completedMs : frame.end;
+    active.delete(frame.node);
+    frames.pop();
   }
-
-  // Handle linear continuation
-  if (node.next) {
-    nextMs = flattenTree(node.next, out, sharedState, nextMs, subflowResults, memory, stageNarrativeMap, stageTimings, commitIndex);
-  }
-
-  return nextMs;
+  return completedMs;
 }
 
 /**

@@ -27,7 +27,7 @@ function runtimeNode(name: string, overrides: Record<string, unknown> = {}) {
 
 /** Runtime snapshot whose `sf-x` stage carries a resolvable `subflowResult`. */
 function makeRuntimeSnapshot(subflowId: string) {
-  return {
+  const snapshot = {
     sharedState: {},
     commitLog: [],
     executionTree: runtimeNode('root', {
@@ -46,6 +46,9 @@ function makeRuntimeSnapshot(subflowId: string) {
       },
     },
   };
+  // Current and saved producer records key each invocation explicitly.
+  Object.assign(snapshot.subflowResults, { [`${subflowId}#1`]: snapshot.subflowResults[subflowId] });
+  return snapshot;
 }
 
 function makeTraceGraph(subflowId: string): TraceGraph {
