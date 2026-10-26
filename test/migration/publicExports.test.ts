@@ -13,6 +13,10 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
       // are the only permitted extension to its exact export contract.
       ".": [
         ...ledger.entries["."],
+        { name: "InvestigationPanel", kind: "value" },
+        { name: "InvestigationPanelProps", kind: "type" },
+        { name: "InvestigationPort", kind: "type" },
+        { name: "InvestigationResult", kind: "type" },
         { name: "projectTraceInvocation", kind: "value" },
         { name: "TraceInvocationOptions", kind: "type" },
         { name: "TraceInvocationProjection", kind: "type" },

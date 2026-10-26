@@ -4,7 +4,14 @@ export default defineConfig([
   {
     entry: { index: "src/index.ts" },
     format: ["esm", "cjs"],
-    dts: true,
+    dts: {
+      resolve: true,
+      compilerOptions: {
+        paths: {
+          "foottrace/cause": ["./node_modules/foottrace/dist/esm/cause.d.ts"],
+        },
+      },
+    },
     sourcemap: true,
     external: ["react", "react-dom", "@xyflow/react"],
     esbuildOptions(options) {

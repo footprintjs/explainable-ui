@@ -43,6 +43,7 @@ __export(src_exports, {
   GanttTimeline: () => GanttTimeline,
   InsightPanel: () => InsightPanel,
   InspectorPanel: () => InspectorPanel,
+  InvestigationPanel: () => InvestigationPanel,
   MemoryInspector: () => MemoryInspector,
   MemoryPanel: () => MemoryPanel,
   NarrativeLog: () => NarrativeLog,
@@ -1971,9 +1972,9 @@ function DevView({
           borderRadius: theme.radius,
           overflow: "hidden"
         },
-        children: rows.map((row) => {
-          if (row.kind === "change") {
-            const { change } = row;
+        children: rows.map((row2) => {
+          if (row2.kind === "change") {
+            const { change } = row2;
             const badge = changeBadge[change.type];
             return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
               "div",
@@ -2068,13 +2069,13 @@ function DevView({
                       flexShrink: 0,
                       lineHeight: 1.8
                     },
-                    children: row.key
+                    children: row2.key
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8, color: theme.textMuted }, children: fmt2(row.value) })
+                /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { flex: 1, minWidth: 0, lineHeight: 1.8, color: theme.textMuted }, children: fmt2(row2.value) })
               ]
             },
-            row.key
+            row2.key
           );
         })
       }
@@ -2097,9 +2098,9 @@ function UnstyledDevView({
   const rows = (0, import_react9.useMemo)(() => buildMemoryRows(currMemory, changes), [currMemory, changes]);
   return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { "data-fp": "stage-detail-dev", children: [
     /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { "data-fp": "stage-label", children: snapshot.stageLabel }),
-    rows.map((row) => {
-      if (row.kind === "change") {
-        const c = row.change;
+    rows.map((row2) => {
+      if (row2.kind === "change") {
+        const c = row2.change;
         return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { "data-fp": "memory-change", "data-type": c.type, children: [
           /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "change-key", children: c.key }),
           c.type === "updated" && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
@@ -2111,9 +2112,9 @@ function UnstyledDevView({
         ] }, c.key);
       }
       return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { "data-fp": "memory-unchanged", children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "unchanged-key", children: row.key }),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "unchanged-value", children: fmt2(row.value) })
-      ] }, row.key);
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "unchanged-key", children: row2.key }),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { "data-fp": "unchanged-value", children: fmt2(row2.value) })
+      ] }, row2.key);
     })
   ] });
 }
@@ -7272,10 +7273,10 @@ function applyGroupLayout(graph, opts) {
     groupBox.set(sfId, { width: boxWidth, height: boxHeight, minX, minY, members: innerPositioned.nodes });
   }
   const outerNodes = graph.nodes.filter((n) => !memberIds.has(n.id)).map((n) => {
-    const box = n.data?.subflowId ? groupBox.get(n.data.subflowId) : void 0;
-    return box ? {
+    const box2 = n.data?.subflowId ? groupBox.get(n.data.subflowId) : void 0;
+    return box2 ? {
       ...n,
-      style: { ...n.style ?? {}, width: box.width, height: box.height },
+      style: { ...n.style ?? {}, width: box2.width, height: box2.height },
       data: { ...n.data, isGroupContainer: true }
     } : n;
   });
@@ -7286,8 +7287,8 @@ function applyGroupLayout(graph, opts) {
   const outerPosById = new Map(outerPositioned.nodes.map((n) => [n.id, n.position]));
   for (const sfId of activeGroups) {
     const mount = mountBySubflow.get(sfId);
-    const box = groupBox.get(sfId);
-    const { width: boxWidth, height: boxHeight, minX, minY } = box;
+    const box2 = groupBox.get(sfId);
+    const { width: boxWidth, height: boxHeight, minX, minY } = box2;
     const mountPos = outerPosById.get(mount.id) ?? mount.position ?? { x: 0, y: 0 };
     containerNodes.push({
       ...mount,
@@ -7296,7 +7297,7 @@ function applyGroupLayout(graph, opts) {
       style: { ...mount.style ?? {}, width: boxWidth, height: boxHeight },
       data: { ...mount.data, isGroupContainer: true }
     });
-    for (const m of box.members) {
+    for (const m of box2.members) {
       const relX = m.position.x - minX + padding2;
       const relY = m.position.y - minY + headerHeight + padding2;
       nestedMembers.push({
@@ -10983,7 +10984,7 @@ function resolveLayout(layout) {
     throw new Error("ExplainableView layout areas must contain at least one surface.");
   }
   const width = definition.areas[0]?.length ?? 0;
-  if (definition.areas.some((row) => row.length !== width)) {
+  if (definition.areas.some((row2) => row2.length !== width)) {
     throw new Error("ExplainableView layout area rows must have equal lengths.");
   }
   const surfaces = Array.from(
@@ -11036,7 +11037,7 @@ function ViewContents({
     return () => observer.disconnect();
   }, []);
   const responsiveDefinition = resolved.definition;
-  const responsiveTemplateAreas = responsiveDefinition.areas.map((row) => `"${row.join(" ")}"`).join(" ");
+  const responsiveTemplateAreas = responsiveDefinition.areas.map((row2) => `"${row2.join(" ")}"`).join(" ");
   const renderSurface = (surface) => {
     const fallback = {
       timeTravel: /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(TimeTravelBar, { unstyled }),
@@ -11306,6 +11307,511 @@ function projectTraceInvocation(snapshot, exactMountId, options) {
     return unavailable({ ok: false, ...classifyAdmissionFailure(error) });
   }
 }
+
+// src/components/InvestigationPanel/InvestigationPanel.tsx
+var import_react43 = require("react");
+
+// src/_internal/useIsomorphicLayoutEffect.ts
+var import_react42 = require("react");
+var useIsomorphicLayoutEffect = typeof window === "undefined" ? import_react42.useEffect : import_react42.useLayoutEffect;
+
+// src/components/InvestigationPanel/admission.ts
+var MAX_ITEMS = 256;
+var MAX_TEXT = 65536;
+var MAX_STRING = 2048;
+var gapMessages = {
+  "not-collected": "Some evidence was not collected.",
+  "untracked-input": "An input's earlier origin is unknown.",
+  redacted: "Some evidence is hidden.",
+  conservative: "The recorded relationship is uncertain.",
+  "scope-boundary": "Evidence stops at an execution boundary.",
+  "invalid-data": "Some recorded evidence could not be read.",
+  unavailable: "Some evidence is unavailable.",
+  timeout: "The evidence search reached its time allowance.",
+  cancelled: "The evidence search was cancelled.",
+  cycle: "A repeated dependency could not be resolved.",
+  "node-limit": "The evidence search reached its item allowance.",
+  "depth-limit": "The evidence search reached its depth allowance.",
+  "edge-limit": "The evidence search reached its relationship allowance.",
+  "call-limit": "The evidence search reached its request allowance.",
+  truncated: "The recorded evidence is incomplete.",
+  "strategy-failed": "Candidate ordering is unavailable.",
+  "not-checked": "Some evidence has not been checked.",
+  "no-match": "No matching evidence was found.",
+  ambiguous: "More than one explanation remains possible.",
+  stale: "Some evidence belongs to an earlier recording.",
+  incompatible: "Some evidence uses an unsupported format.",
+  unsupported: "Some evidence is unsupported.",
+  "not-permitted": "Some evidence is unavailable for this view."
+};
+var reasons = {
+  ERROR_RECORDED: true,
+  UNKNOWN_EFFECT_RECORDED: true,
+  RETRY_STOP_RECORDED: true,
+  TIMEOUT_RECORDED: true,
+  RETRY_RECORDED: true,
+  QUALITY_DROP_RECORDED: true,
+  EVIDENCE_NOT_COLLECTED: true,
+  OUTLIER_RECORDED: true,
+  BUSINESS_RULE_MATCHED: true
+};
+var Refused = class extends Error {
+};
+function field(value, key) {
+  if (!value || typeof value !== "object") throw new Refused();
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (!descriptor) return void 0;
+  if (!("value" in descriptor)) throw new Refused();
+  return descriptor.value;
+}
+var Admission = class {
+  constructor() {
+    this.remaining = MAX_TEXT;
+    this.evidence = (value) => this.list(value, 32, (entry) => this.text(entry));
+    this.attention = (value) => {
+      const reason = field(value, "reason");
+      if (typeof reason !== "string" || !Object.prototype.hasOwnProperty.call(reasons, reason))
+        throw new Refused();
+      return {
+        kind: this.text(field(value, "kind")),
+        reason,
+        evidence: this.evidence(field(value, "evidence"))
+      };
+    };
+    this.gaps = (value) => this.list(value, 128, (entry) => {
+      const code = field(entry, "code");
+      if (typeof code !== "string" || !Object.prototype.hasOwnProperty.call(gapMessages, code))
+        throw new Refused();
+      const nodeId = field(entry, "nodeId");
+      return {
+        code,
+        ...nodeId !== void 0 && { nodeId: this.text(nodeId) },
+        evidence: this.evidence(field(entry, "evidence"))
+      };
+    });
+  }
+  text(value) {
+    if (typeof value !== "string" || !value.length || value.length > MAX_STRING)
+      throw new Refused();
+    this.remaining -= value.length;
+    if (this.remaining < 0) throw new Refused();
+    return value;
+  }
+  list(value, max, parse) {
+    if (!Array.isArray(value)) throw new Refused();
+    const length = field(value, "length");
+    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0 || length > max)
+      throw new Refused();
+    const copy = [];
+    for (let index = 0; index < length; index++)
+      copy.push(parse(field(value, String(index))));
+    return copy;
+  }
+  confidence(value) {
+    if (value !== "complete" && value !== "incomplete") throw new Refused();
+    return value;
+  }
+  impact(value) {
+    const nodes = this.list(
+      field(value, "nodes"),
+      MAX_ITEMS,
+      (entry) => this.text(entry)
+    );
+    if (new Set(nodes).size !== nodes.length) throw new Refused();
+    return {
+      nodes,
+      confidence: this.confidence(field(value, "confidence")),
+      gaps: this.gaps(field(value, "gaps"))
+    };
+  }
+};
+function admitAttention(value) {
+  try {
+    const reader = new Admission();
+    const nodes = reader.list(
+      field(value, "nodes"),
+      MAX_ITEMS,
+      (entry) => ({
+        nodeId: reader.text(field(entry, "nodeId")),
+        attention: reader.list(field(entry, "attention"), 16, reader.attention)
+      })
+    );
+    if (new Set(nodes.map((node) => node.nodeId)).size !== nodes.length)
+      return void 0;
+    return {
+      nodes,
+      confidence: reader.confidence(field(value, "confidence")),
+      gaps: reader.gaps(field(value, "gaps"))
+    };
+  } catch {
+    return void 0;
+  }
+}
+function admitExplanation(value, requested) {
+  try {
+    const reader = new Admission();
+    const nodeId = reader.text(field(value, "nodeId"));
+    if (nodeId !== requested) return void 0;
+    const path = reader.list(
+      field(value, "path"),
+      MAX_ITEMS,
+      (entry) => reader.text(entry)
+    );
+    const alternatives = reader.list(
+      field(value, "alternatives"),
+      MAX_ITEMS,
+      (entry) => reader.text(entry)
+    );
+    if (path.length && path[0] !== nodeId || new Set(path).size !== path.length || new Set(alternatives).size !== alternatives.length)
+      return void 0;
+    const confidence = reader.confidence(field(value, "confidence"));
+    const gaps = reader.gaps(field(value, "gaps"));
+    const root = field(value, "rootCause");
+    const rootCause = root === void 0 ? void 0 : reader.text(root);
+    if (rootCause !== void 0 && (alternatives.length || path[path.length - 1] !== rootCause))
+      return void 0;
+    return {
+      nodeId,
+      attention: reader.list(field(value, "attention"), 16, reader.attention),
+      ...rootCause !== void 0 && { rootCause },
+      path,
+      alternatives,
+      impact: reader.impact(field(value, "impact")),
+      confidence,
+      gaps
+    };
+  } catch {
+    return void 0;
+  }
+}
+function displayLabel(labels, nodeId) {
+  try {
+    const label = field(labels, nodeId);
+    return typeof label === "string" && label.length > 0 && label.length <= 512 ? label : nodeId;
+  } catch {
+    return nodeId;
+  }
+}
+
+// src/components/InvestigationPanel/InvestigationPanel.tsx
+var import_jsx_runtime40 = require("react/jsx-runtime");
+var box = {
+  color: theme.textPrimary,
+  background: theme.bg,
+  border: `1px solid ${theme.border}`,
+  borderRadius: theme.radius,
+  padding: 20,
+  fontFamily: theme.fontSans,
+  lineHeight: 1.5,
+  minWidth: 0,
+  overflowWrap: "anywhere"
+};
+var button = {
+  color: theme.textPrimary,
+  background: theme.bgSecondary,
+  border: `1px solid ${theme.border}`,
+  borderRadius: 6,
+  padding: "6px 10px",
+  font: "inherit",
+  cursor: "pointer"
+};
+var row = {
+  borderBlockEnd: `1px solid ${theme.border}`,
+  paddingBlock: 12
+};
+var attentionNames = {
+  error: "Recorded error",
+  "unknown-effect": "Outcome unknown",
+  "gave-up": "Stopped retrying",
+  timeout: "Timed out",
+  retried: "Retried",
+  "quality-drop": "Quality changed",
+  "not-collected": "Evidence unavailable",
+  outlier: "Unusual result"
+};
+function Badges({ marks }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(import_jsx_runtime40.Fragment, { children: marks.map((mark, index) => /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
+    "span",
+    {
+      style: {
+        display: "inline-block",
+        marginInlineEnd: 6,
+        marginBlock: 3,
+        padding: "2px 7px",
+        borderRadius: 4,
+        background: theme.accentBg
+      },
+      children: Object.prototype.hasOwnProperty.call(attentionNames, mark.kind) ? attentionNames[mark.kind] : mark.kind
+    },
+    index
+  )) });
+}
+function Gaps({ gaps }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(import_jsx_runtime40.Fragment, { children: gaps.map((gap, index) => /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { role: "status", children: gapMessages[gap.code] }, index)) });
+}
+function InvestigationPanel(props) {
+  if (!props.port)
+    return /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(
+      "section",
+      {
+        "aria-label": "Investigation",
+        className: props.className,
+        style: { ...box, ...props.style },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("h2", { children: "Needs attention" }),
+          /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { role: "status", children: "Investigation is unavailable for this recording." })
+        ]
+      }
+    );
+  return /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(BoundInvestigationPanel, { ...props, port: props.port });
+}
+function BoundInvestigationPanel({
+  port,
+  className,
+  style
+}) {
+  const attention = (0, import_react43.useMemo)(
+    () => admitAttention(port.attention),
+    [port.attention]
+  );
+  const owner = port.binding;
+  const currentOwner = (0, import_react43.useRef)(null);
+  const active = (0, import_react43.useRef)(null);
+  const explanationElement = (0, import_react43.useRef)(null);
+  const attentionElements = (0, import_react43.useRef)(/* @__PURE__ */ new Map());
+  const returnTo = (0, import_react43.useRef)(null);
+  const focusIntent = (0, import_react43.useRef)(null);
+  const [state, setState] = (0, import_react43.useState)(null);
+  const [page, setPage] = (0, import_react43.useState)({ owner, count: 20 });
+  const visible = page.owner === owner ? page.count : 20;
+  const [showPath, setShowPath] = (0, import_react43.useState)(false);
+  const [showImpact, setShowImpact] = (0, import_react43.useState)(false);
+  const [showAlternatives, setShowAlternatives] = (0, import_react43.useState)(false);
+  useIsomorphicLayoutEffect(() => {
+    currentOwner.current = owner;
+    if (returnTo.current?.owner !== owner) returnTo.current = null;
+    if (!active.current) {
+      setState(
+        (previous) => previous?.owner === owner && previous.status === "loading" ? null : previous
+      );
+    }
+    return () => {
+      currentOwner.current = null;
+      focusIntent.current = null;
+      active.current?.abort();
+      active.current = null;
+    };
+  }, [owner]);
+  const selected = state?.owner === owner ? state : null;
+  useIsomorphicLayoutEffect(() => {
+    const intent = focusIntent.current;
+    if (!intent || intent.owner !== owner || currentOwner.current !== owner)
+      return;
+    if (intent.kind === "explanation") {
+      if (selected?.request !== intent.request || active.current !== intent.request || intent.request.signal.aborted)
+        return;
+      focusIntent.current = null;
+      explanationElement.current?.focus();
+    } else if (!selected) {
+      focusIntent.current = null;
+      attentionElements.current.get(intent.nodeId)?.focus();
+    }
+  });
+  const close = () => {
+    active.current?.abort();
+    active.current = null;
+    const target = returnTo.current;
+    focusIntent.current = target?.owner === owner ? { ...target, kind: "attention" } : null;
+    setState(null);
+  };
+  const query = (nodeId, fromAttention = false) => {
+    active.current?.abort();
+    const controller = new AbortController();
+    active.current = controller;
+    if (fromAttention) returnTo.current = { owner, nodeId };
+    focusIntent.current = { owner, kind: "explanation", request: controller };
+    setShowPath(false);
+    setShowImpact(false);
+    setShowAlternatives(false);
+    setState({ owner, nodeId, request: controller, status: "loading" });
+    Promise.resolve().then(() => {
+      if (controller.signal.aborted || currentOwner.current !== owner)
+        return void 0;
+      return port.explain(nodeId, { signal: controller.signal });
+    }).then(
+      (value) => {
+        if (active.current !== controller || controller.signal.aborted || currentOwner.current !== owner)
+          return;
+        const result = admitExplanation(value, nodeId);
+        setState(
+          result ? { owner, nodeId, request: controller, status: "ready", result } : { owner, nodeId, request: controller, status: "refused" }
+        );
+      },
+      () => {
+        if (active.current === controller && !controller.signal.aborted && currentOwner.current === owner)
+          setState({ owner, nodeId, request: controller, status: "error" });
+      }
+    );
+  };
+  const label = (nodeId) => displayLabel(port.labels, nodeId);
+  const item = (nodeId, index) => /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)("li", { style: row, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("span", { children: label(nodeId) }),
+    " ",
+    /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
+      "button",
+      {
+        type: "button",
+        style: button,
+        "aria-label": `Investigate related item ${index + 1}`,
+        onClick: () => query(nodeId),
+        children: "Investigate"
+      }
+    )
+  ] }, `${index}:${nodeId}`);
+  return /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(
+    "section",
+    {
+      "aria-label": "Investigation",
+      className,
+      style: { ...box, ...style },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("h2", { style: { marginBlockStart: 0 }, children: "Needs attention" }),
+        /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { style: { color: theme.textSecondary }, children: "Choose an item to inspect its recorded causes and effects." }),
+        !attention ? /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { role: "alert", children: "The attention list could not be verified." }) : /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(import_jsx_runtime40.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(Gaps, { gaps: attention.gaps }),
+          attention.confidence === "incomplete" && attention.nodes.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { role: "status", children: "Attention coverage is incomplete. Other outcomes remain unknown." }),
+          !attention.nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { children: attention.confidence === "incomplete" || attention.gaps.length ? "No attention items are available. Coverage is unknown." : "No attention items were reported in the supplied evidence." }) : /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("ul", { style: { listStyle: "none", padding: 0 }, children: attention.nodes.slice(0, selected ? 20 : visible).map((node, index) => /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)("li", { style: row, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("div", { children: label(node.nodeId) }),
+            /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(Badges, { marks: node.attention }),
+            " ",
+            /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
+              "button",
+              {
+                ref: (element) => {
+                  if (element)
+                    attentionElements.current.set(node.nodeId, element);
+                  else attentionElements.current.delete(node.nodeId);
+                },
+                type: "button",
+                style: button,
+                "aria-label": `Investigate item ${index + 1}`,
+                onClick: () => query(node.nodeId, true),
+                children: "Investigate"
+              }
+            )
+          ] }, node.nodeId)) }),
+          !selected && attention.nodes.length > visible && /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
+            "button",
+            {
+              type: "button",
+              style: button,
+              onClick: () => setPage({ owner, count: visible + 20 }),
+              children: "Show more attention items"
+            }
+          )
+        ] }),
+        selected && /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(
+          "section",
+          {
+            ref: explanationElement,
+            tabIndex: -1,
+            "aria-label": "Selected explanation",
+            "aria-busy": selected.status === "loading",
+            style: {
+              borderBlockStart: `1px solid ${theme.border}`,
+              marginBlockStart: 20,
+              paddingBlockStart: 16
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("button", { type: "button", style: button, onClick: close, children: "Close investigation" }),
+              /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("h3", { children: label(selected.nodeId) }),
+              selected.status === "loading" ? /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { role: "status", children: "Loading explanation\u2026" }) : selected.status === "error" ? /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(import_jsx_runtime40.Fragment, { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { role: "alert", children: "Explanation unavailable. Try again." }),
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    style: button,
+                    onClick: () => query(selected.nodeId),
+                    children: "Try again"
+                  }
+                )
+              ] }) : selected.status === "refused" ? /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(import_jsx_runtime40.Fragment, { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { role: "alert", children: "This explanation could not be verified." }),
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { children: "Its evidence is unsupported, too large, or from a different selection." })
+              ] }) : /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(import_jsx_runtime40.Fragment, { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(Badges, { marks: selected.result.attention }),
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("h4", { children: selected.result.rootCause ? "Supported root cause" : "Root cause unknown" }),
+                selected.result.rootCause && /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { children: label(selected.result.rootCause) }),
+                !selected.result.rootCause && /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { children: "The supplied evidence does not establish one root cause." }),
+                !!selected.result.gaps.length && /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("h4", { children: "Evidence coverage" }),
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(Gaps, { gaps: selected.result.gaps }),
+                selected.result.confidence === "incomplete" && !selected.result.gaps.length && /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { role: "status", children: "The recorded explanation is incomplete." }),
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)("details", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("summary", { children: "Recorded evidence references" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("ul", { children: [
+                    ...selected.result.attention.flatMap(
+                      (mark) => mark.evidence
+                    ),
+                    ...selected.result.gaps.flatMap((gap) => gap.evidence),
+                    ...selected.result.impact.gaps.flatMap(
+                      (gap) => gap.evidence
+                    )
+                  ].map((reference, index) => /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("li", { children: reference }, index)) })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    style: button,
+                    "aria-expanded": showPath,
+                    onClick: () => setShowPath((value) => !value),
+                    children: showPath ? "Hide recorded path" : "Show recorded path"
+                  }
+                ),
+                showPath && /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(import_jsx_runtime40.Fragment, { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("h4", { children: "Recorded dependency path" }),
+                  selected.result.path.length ? /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("ol", { children: selected.result.path.map(item) }) : /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { children: "No dependency path was supplied." })
+                ] }),
+                !!selected.result.alternatives.length && /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(import_jsx_runtime40.Fragment, { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("h4", { children: "Alternative candidates" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { children: "These candidates remain uncertain." }),
+                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
+                    "button",
+                    {
+                      type: "button",
+                      style: button,
+                      "aria-expanded": showAlternatives,
+                      onClick: () => setShowAlternatives((value) => !value),
+                      children: showAlternatives ? "Hide alternative candidates" : "Show alternative candidates"
+                    }
+                  ),
+                  showAlternatives && /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("ul", { children: selected.result.alternatives.map(item) })
+                ] }),
+                /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("div", { style: { marginBlockStart: 16 }, children: /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
+                  "button",
+                  {
+                    type: "button",
+                    style: button,
+                    "aria-expanded": showImpact,
+                    onClick: () => setShowImpact((value) => !value),
+                    children: showImpact ? "Hide affected items" : "Show affected items"
+                  }
+                ) }),
+                showImpact && /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(import_jsx_runtime40.Fragment, { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("h4", { children: "Affected items" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(Gaps, { gaps: selected.result.impact.gaps }),
+                  selected.result.impact.confidence === "incomplete" && /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { role: "status", children: "Affected-item coverage is incomplete. Unlisted items remain unknown." }),
+                  selected.result.impact.nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("ul", { children: selected.result.impact.nodes.map(item) }) : /* @__PURE__ */ (0, import_jsx_runtime40.jsx)("p", { children: "No affected items were reported in the supplied evidence." })
+                ] })
+              ] })
+            ]
+          }
+        )
+      ]
+    }
+  );
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   CommentaryPanel,
@@ -11321,6 +11827,7 @@ function projectTraceInvocation(snapshot, exactMountId, options) {
   GanttTimeline,
   InsightPanel,
   InspectorPanel,
+  InvestigationPanel,
   MemoryInspector,
   MemoryPanel,
   NarrativeLog,

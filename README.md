@@ -669,6 +669,7 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | `InspectorPanel` | The Inspector: State tab + Data Trace tab, time-travel synced |
 | `DataTracePanel` | The backward causal chain as a stack trace — click a frame to go there |
 | `TraceWalkCard` | The "why this value" stop card for the tracing rail (ingredient chips, itinerary, Copy story) |
+| `InvestigationPanel` | Host-bound, on-demand recorded cause and impact results with unknown evidence states |
 | `InsightPanel` | Recorder outputs as tabs or a grid — Story, Performance, Quality, Cost |
 | `CompactTimeline` | Collapsed = a row of dots, expanded = the Gantt. The shell's footer |
 
@@ -999,6 +1000,70 @@ pipeline and snapshot-asserts the outputs in `test/golden/__snapshots__/`.
 
 `footprintjs` is a devDependency used ONLY by the generator — the published
 library still has zero footprintjs dependency (it consumes plain JSON shapes).
+
+## On-demand investigation
+
+`InvestigationPanel` is a standalone, optional panel. Existing viewers and their
+selected visits do not change. The host supplies a bounded canonical attention
+list and handles each explicit investigation with Foottrace's `explain` API.
+No query runs on mount. Recorded paths, alternatives, affected items and evidence
+references start collapsed; selecting a related item requests only that item.
+An explicit investigation moves keyboard focus into the selected explanation.
+Closing it restores focus to the original attention item, including after
+following related items or opening an item beyond the first attention page.
+
+```tsx
+import { useMemo } from "react";
+import { InvestigationPanel, type InvestigationPort } from "footprint-explainable-ui";
+import { explain } from "foottrace/cause";
+
+function RunInvestigation({ session }) {
+  // session is a trusted host object for ONE tenant/run/source and exact
+  // invocation, attempt and visit. Replace it when any of these changes.
+  const port = useMemo<InvestigationPort>(() => ({
+    binding: session,
+    attention: session.attention,
+    labels: session.labels, // include exact visit/attempt labels when relevant
+    explain: (nodeId, { signal }) => explain(session.graph, nodeId, {
+      signal, maxNodes: 128, maxEdges: 256, maxCalls: 512, timeoutMs: 2_000,
+    }),
+  }), [session]);
+  return <InvestigationPanel port={port} />;
+}
+```
+
+The host binds authorization, tenant, run, storage, exact selected scope and
+query/storage budgets before creating the port. A request contains only the
+opaque canonical `NodeId` already supplied by that host, plus cancellation.
+Create a new `binding` identity whenever the bound evidence or selected
+invocation, attempt, visit or run changes. Ordinary rerenders and callback
+replacements with the same binding preserve the open query. Source mutation in
+place is unsupported: replace the binding when evidence changes. Late results
+from a previous binding or closed panel are ignored even if the host ignores
+cancellation. `port={null}` explicitly presents an unavailable investigation.
+
+The panel displays Foottrace's selected root and alternatives; it does not walk,
+rank or discover a graph. A supported root can coexist with incomplete forward
+impact evidence. Missing evidence, not-collected outcomes, unlisted effects and
+unsupported results stay unknown. The canonical-derived `InvestigationResult`
+omits unused impact edges, so new edge attribution metadata can pass through a
+host without translation. Unknown future gap codes are refused explicitly.
+
+Display admission checks only the fields it uses: each node list has at most
+256 entries, each item at most 16 attention marks, each gap list at most 128
+entries, each evidence list at most 32 references, free-form projected
+strings at most 2,048 code units each and 65,536 combined per result. Fixed enum
+text is separately bounded by its closed vocabulary and the list limits. Names are plain
+escaped text, capped at 512 code units; IDs remain the selection identity.
+Unsupported, mismatched, oversized, sparse or accessor-backed projected fields
+produce a fixed unavailable message. Unused graph metadata is neither inspected
+nor displayed. This is display admission, not authentication or a JavaScript
+sandbox. The host still enforces storage admission and actual query work limits.
+
+No storage adapter ships in this panel. Supplying an already loaded archive does
+not establish storage-I/O laziness; per-scope receipt and ownership admission is
+required before a future indexed loader can expose a scope. Foottrace remains
+the owner of graph traversal and source interpretation.
 
 ## The footprintjs ecosystem
 

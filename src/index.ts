@@ -150,3 +150,7 @@ export type {
 
 export { projectTraceInvocation } from "./trace/projectTraceInvocation";
 export type { TraceInvocationProjection, TraceInvocationOptions } from "./trace/projectTraceInvocation";
+
+// Host-bound, on-demand canonical cause and impact presentation.
+export { InvestigationPanel } from "./components/InvestigationPanel/InvestigationPanel";
+export type { InvestigationPanelProps, InvestigationPort, InvestigationResult } from "./components/InvestigationPanel/types";
