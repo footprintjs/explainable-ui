@@ -11577,6 +11577,10 @@ function BoundInvestigationPanel({
   const owner = port.binding;
   const currentOwner = (0, import_react43.useRef)(null);
   const active = (0, import_react43.useRef)(null);
+  const explanationElement = (0, import_react43.useRef)(null);
+  const attentionElements = (0, import_react43.useRef)(/* @__PURE__ */ new Map());
+  const returnTo = (0, import_react43.useRef)(null);
+  const focusIntent = (0, import_react43.useRef)(null);
   const [state, setState] = (0, import_react43.useState)(null);
   const [page, setPage] = (0, import_react43.useState)({ owner, count: 20 });
   const visible = page.owner === owner ? page.count : 20;
@@ -11585,6 +11589,7 @@ function BoundInvestigationPanel({
   const [showAlternatives, setShowAlternatives] = (0, import_react43.useState)(false);
   useIsomorphicLayoutEffect(() => {
     currentOwner.current = owner;
+    if (returnTo.current?.owner !== owner) returnTo.current = null;
     if (!active.current) {
       setState(
         (previous) => previous?.owner === owner && previous.status === "loading" ? null : previous
@@ -11592,24 +11597,43 @@ function BoundInvestigationPanel({
     }
     return () => {
       currentOwner.current = null;
+      focusIntent.current = null;
       active.current?.abort();
       active.current = null;
     };
   }, [owner]);
   const selected = state?.owner === owner ? state : null;
+  useIsomorphicLayoutEffect(() => {
+    const intent = focusIntent.current;
+    if (!intent || intent.owner !== owner || currentOwner.current !== owner)
+      return;
+    if (intent.kind === "explanation") {
+      if (selected?.request !== intent.request || active.current !== intent.request || intent.request.signal.aborted)
+        return;
+      focusIntent.current = null;
+      explanationElement.current?.focus();
+    } else if (!selected) {
+      focusIntent.current = null;
+      attentionElements.current.get(intent.nodeId)?.focus();
+    }
+  });
   const close = () => {
     active.current?.abort();
     active.current = null;
+    const target = returnTo.current;
+    focusIntent.current = target?.owner === owner ? { ...target, kind: "attention" } : null;
     setState(null);
   };
-  const query = (nodeId) => {
+  const query = (nodeId, fromAttention = false) => {
     active.current?.abort();
     const controller = new AbortController();
     active.current = controller;
+    if (fromAttention) returnTo.current = { owner, nodeId };
+    focusIntent.current = { owner, kind: "explanation", request: controller };
     setShowPath(false);
     setShowImpact(false);
     setShowAlternatives(false);
-    setState({ owner, nodeId, status: "loading" });
+    setState({ owner, nodeId, request: controller, status: "loading" });
     Promise.resolve().then(() => {
       if (controller.signal.aborted || currentOwner.current !== owner)
         return void 0;
@@ -11620,12 +11644,12 @@ function BoundInvestigationPanel({
           return;
         const result = admitExplanation(value, nodeId);
         setState(
-          result ? { owner, nodeId, status: "ready", result } : { owner, nodeId, status: "refused" }
+          result ? { owner, nodeId, request: controller, status: "ready", result } : { owner, nodeId, request: controller, status: "refused" }
         );
       },
       () => {
         if (active.current === controller && !controller.signal.aborted && currentOwner.current === owner)
-          setState({ owner, nodeId, status: "error" });
+          setState({ owner, nodeId, request: controller, status: "error" });
       }
     );
   };
@@ -11663,10 +11687,15 @@ function BoundInvestigationPanel({
             /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
               "button",
               {
+                ref: (element) => {
+                  if (element)
+                    attentionElements.current.set(node.nodeId, element);
+                  else attentionElements.current.delete(node.nodeId);
+                },
                 type: "button",
                 style: button,
                 "aria-label": `Investigate item ${index + 1}`,
-                onClick: () => query(node.nodeId),
+                onClick: () => query(node.nodeId, true),
                 children: "Investigate"
               }
             )
@@ -11684,6 +11713,8 @@ function BoundInvestigationPanel({
         selected && /* @__PURE__ */ (0, import_jsx_runtime40.jsxs)(
           "section",
           {
+            ref: explanationElement,
+            tabIndex: -1,
             "aria-label": "Selected explanation",
             "aria-busy": selected.status === "loading",
             style: {

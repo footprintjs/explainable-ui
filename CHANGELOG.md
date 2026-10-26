@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   selected across ordinary rerenders; changing the host binding or closing the
   panel cancels pending work and isolates late responses. Evidence gaps and
   unsupported or oversized results remain unknown. Existing viewers are unchanged.
+  Keyboard focus moves into each requested explanation and returns to the original
+  attention item when closed, including paged and related-item investigations.
 
 - Variable tracing inside selected recorded subflow invocations. Search,
   ingredient follow and the timeline use the child's own history and tree;

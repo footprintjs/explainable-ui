@@ -186,6 +186,7 @@ render(<InvestigationPanel port={port}/>);expect(explain).not.toHaveBeenCalled()
   ]) {
     for (const [name, sourcePath] of [
       ["lifecycle", "test/component/InvestigationPanelLifecycle.test.tsx"],
+      ["focus", "test/component/InvestigationPanelFocus.test.tsx"],
       ["ssr", "test/unit/InvestigationPanelSSR.test.tsx"],
     ]) {
       const consumer = readFileSync(join(repo, sourcePath), "utf8").replace(

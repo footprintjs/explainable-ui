@@ -85,15 +85,20 @@ type QueryState =
       [Status in "loading" | "error" | "refused"]: {
         owner: object;
         nodeId: string;
+        request: AbortController;
         status: Status;
       };
     }["loading" | "error" | "refused"]
   | {
       owner: object;
       nodeId: string;
+      request: AbortController;
       status: "ready";
       result: InvestigationResult;
     };
+type FocusIntent =
+  | { owner: object; kind: "explanation"; request: AbortController }
+  | { owner: object; kind: "attention"; nodeId: string };
 
 /** Bounded presentation over host-selected canonical Foottrace results. Never traverses or loads a graph. */
 export function InvestigationPanel(props: InvestigationPanelProps) {
@@ -124,6 +129,10 @@ function BoundInvestigationPanel({
   const owner = port.binding;
   const currentOwner = useRef<object | null>(null);
   const active = useRef<AbortController | null>(null);
+  const explanationElement = useRef<HTMLElement | null>(null);
+  const attentionElements = useRef(new Map<string, HTMLButtonElement>());
+  const returnTo = useRef<{ owner: object; nodeId: string } | null>(null);
+  const focusIntent = useRef<FocusIntent | null>(null);
   const [state, setState] = useState<QueryState | null>(null);
   const [page, setPage] = useState({ owner, count: 20 });
   const visible = page.owner === owner ? page.count : 20;
@@ -135,6 +144,7 @@ function BoundInvestigationPanel({
   // can observe a newly committed binding; abandoned renders leave it untouched.
   useIsomorphicLayoutEffect(() => {
     currentOwner.current = owner;
+    if (returnTo.current?.owner !== owner) returnTo.current = null;
     // Suspense can replay layout setup while retaining this component's state.
     // A request canceled while hidden must not reappear as orphaned loading.
     if (!active.current) {
@@ -146,24 +156,50 @@ function BoundInvestigationPanel({
     }
     return () => {
       currentOwner.current = null;
+      focusIntent.current = null;
       active.current?.abort();
       active.current = null;
     };
   }, [owner]);
   const selected = state?.owner === owner ? state : null;
+  // Only explicit user actions request focus. Consume intent after their state
+  // and callback refs commit, never during speculative render or settlement.
+  useIsomorphicLayoutEffect(() => {
+    const intent = focusIntent.current;
+    if (!intent || intent.owner !== owner || currentOwner.current !== owner)
+      return;
+    if (intent.kind === "explanation") {
+      if (
+        selected?.request !== intent.request ||
+        active.current !== intent.request ||
+        intent.request.signal.aborted
+      )
+        return;
+      focusIntent.current = null;
+      explanationElement.current?.focus();
+    } else if (!selected) {
+      focusIntent.current = null;
+      attentionElements.current.get(intent.nodeId)?.focus();
+    }
+  });
   const close = () => {
     active.current?.abort();
     active.current = null;
+    const target = returnTo.current;
+    focusIntent.current =
+      target?.owner === owner ? { ...target, kind: "attention" } : null;
     setState(null);
   };
-  const query = (nodeId: string) => {
+  const query = (nodeId: string, fromAttention = false) => {
     active.current?.abort();
     const controller = new AbortController();
     active.current = controller;
+    if (fromAttention) returnTo.current = { owner, nodeId };
+    focusIntent.current = { owner, kind: "explanation", request: controller };
     setShowPath(false);
     setShowImpact(false);
     setShowAlternatives(false);
-    setState({ owner, nodeId, status: "loading" });
+    setState({ owner, nodeId, request: controller, status: "loading" });
     // Deferring the host call also captures a synchronous refusal without exposing its error details.
     Promise.resolve()
       .then(() => {
@@ -182,8 +218,8 @@ function BoundInvestigationPanel({
           const result = admitExplanation(value, nodeId);
           setState(
             result
-              ? { owner, nodeId, status: "ready", result }
-              : { owner, nodeId, status: "refused" }
+              ? { owner, nodeId, request: controller, status: "ready", result }
+              : { owner, nodeId, request: controller, status: "refused" }
           );
         },
         () => {
@@ -192,7 +228,7 @@ function BoundInvestigationPanel({
             !controller.signal.aborted &&
             currentOwner.current === owner
           )
-            setState({ owner, nodeId, status: "error" });
+            setState({ owner, nodeId, request: controller, status: "error" });
         }
       );
   };
@@ -246,10 +282,15 @@ function BoundInvestigationPanel({
                     <div>{label(node.nodeId)}</div>
                     <Badges marks={node.attention} />{" "}
                     <button
+                      ref={(element) => {
+                        if (element)
+                          attentionElements.current.set(node.nodeId, element);
+                        else attentionElements.current.delete(node.nodeId);
+                      }}
                       type="button"
                       style={button}
                       aria-label={`Investigate item ${index + 1}`}
-                      onClick={() => query(node.nodeId)}
+                      onClick={() => query(node.nodeId, true)}
                     >
                       Investigate
                     </button>
@@ -270,6 +311,8 @@ function BoundInvestigationPanel({
       )}
       {selected && (
         <section
+          ref={explanationElement}
+          tabIndex={-1}
           aria-label="Selected explanation"
           aria-busy={selected.status === "loading"}
           style={{

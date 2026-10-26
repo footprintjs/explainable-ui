@@ -1008,6 +1008,9 @@ selected visits do not change. The host supplies a bounded canonical attention
 list and handles each explicit investigation with Foottrace's `explain` API.
 No query runs on mount. Recorded paths, alternatives, affected items and evidence
 references start collapsed; selecting a related item requests only that item.
+An explicit investigation moves keyboard focus into the selected explanation.
+Closing it restores focus to the original attention item, including after
+following related items or opening an item beyond the first attention page.
 
 ```tsx
 import { useMemo } from "react";
