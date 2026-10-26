@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Optional standalone `InvestigationPanel`, `InvestigationPort`,
+  `InvestigationPanelProps` and canonical-derived `InvestigationResult` for
+  host-bound, on-demand cause and impact results. Exact opaque node IDs remain
+  selected across ordinary rerenders; changing the host binding or closing the
+  panel cancels pending work and isolates late responses. Evidence gaps and
+  unsupported or oversized results remain unknown. Existing viewers are unchanged.
+
 - Variable tracing inside selected recorded subflow invocations. Search,
   ingredient follow and the timeline use the child's own history and tree;
   full mount runtime IDs distinguish repeated invocations and nested scopes.
@@ -26,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   the viewer, including restored invocation state after a pause.
 
 ### Changed
+
+- The dev-only Foottrace pin moves from 1.0.1 to 1.7.0 for canonical cause types.
+  Public declarations bundle their required canonical types; applications do
+  not acquire a Foottrace runtime dependency through the panel. Hosts using
+  Foottrace remain responsible for its own runtime requirements and budgets.
 
 - `TraceWalkMissing.reason` adds `"evidence-unavailable"` for missing or refused
   write evidence. Consumers that exhaustively handle the previous union must

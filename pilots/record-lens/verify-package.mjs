@@ -21,6 +21,7 @@ import { gzipSync } from "node:zlib";
 import { build as bundle } from "esbuild";
 import { build as buildPackage } from "tsup";
 import ts from "typescript";
+import { assertNoFoottraceRuntime } from "./shipping-boundary.mjs";
 
 const repo = fileURLToPath(new URL("../../", import.meta.url));
 const require = createRequire(join(repo, "package.json"));
@@ -257,7 +258,7 @@ function verifyNormalPackage() {
   assert.deepEqual(manifest.typesVersions, {
     "*": { flowchart: ["./dist/flowchart.d.ts"] },
   });
-  assert.equal(manifest.devDependencies.foottrace, "1.0.1");
+  assert.equal(manifest.devDependencies.foottrace, "1.7.0");
   const packed = JSON.parse(
     execFileSync(
       "npm",
@@ -288,9 +289,14 @@ function verifyNormalPackage() {
     );
     if (rel.startsWith("dist/")) {
       assert(
-        !/foottrace|src\/record|record-lens/i.test(readFileSync(path, "utf8")),
-        `Normal shipped output contains pilot dependency/source: ${rel}`
+        !/src\/record|record-lens/i.test(readFileSync(path, "utf8")),
+        `Normal shipped output contains pilot source: ${rel}`
       );
+      // Canonical cause TYPES are bundled for the optional panel; no Foottrace
+      // runtime import is allowed. Source-map admission below also rejects any
+      // bundled runtime input outside src/, including node_modules/foottrace.
+      if (/\.(?:c?js)$/.test(rel))
+        assertNoFoottraceRuntime(readFileSync(path, "utf8"), rel);
       inspectedDistFiles.push(rel);
       if (rel.endsWith(".map")) {
         const map = json(path);
@@ -344,7 +350,7 @@ try {
       copyPrerequisite(name),
     ])
   );
-  assert.equal(versions.foottrace, "1.0.1");
+  assert.equal(versions.foottrace, "1.7.0");
   const fixtureDirectory = join(repo, "pilots/record-lens/fixtures");
   const fixtureHashes = json(
     join(fixtureDirectory, "provenance.json")
