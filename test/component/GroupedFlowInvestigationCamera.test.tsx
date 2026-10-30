@@ -112,3 +112,41 @@ it("keeps keyboard focus at the clicked diagram card rather than scrolling to th
   related.focus(); fireEvent.click(related);
   expect(document.activeElement).toBe(screen.getByRole("region", { name: "Selected explanation" }));
 });
+
+it("keeps the phone root readable for Fit recorded view while Whole flow and All recorded connections are explicit overviews", async () => {
+  const before = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 390 });
+  try {
+    const a = source("a"); render(<GroupedFlowInvestigation {...a} />); await explain();
+    expect(canvas().getAttribute("data-camera-focus")).toBe("source-a");
+    fireEvent.click(screen.getByRole("button", { name: "All recorded connections" }));
+    expect(canvas().getAttribute("data-camera-focus")).toContain("failed-a");
+    fireEvent.click(screen.getByRole("button", { name: "Fit recorded view" }));
+    expect(canvas().getAttribute("data-camera-focus")).toBe("source-a");
+    fireEvent.click(screen.getByRole("button", { name: "Show whole flow" })); expect(canvas().getAttribute("data-camera-focus")).toBe("overview");
+    fireEvent.click(screen.getByRole("button", { name: "Focus on recorded links" })); expect(canvas().getAttribute("data-camera-focus")).toBe("source-a");
+    expect(a.port.explain).toHaveBeenCalledTimes(1);
+  } finally {
+    if (before) Object.defineProperty(HTMLElement.prototype, "clientWidth", before); else delete (HTMLElement.prototype as any).clientWidth;
+  }
+});
+
+it.each([390, 1024])("fits visible group targets after a deliberate fold at %spx without reopening it or moving the canonical cause badge", async width => {
+  const before = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => width });
+  try {
+    const a = source("a"), definition = { nodes: [{ id: "batch", label: "Batch", kind: "group" as const },
+      ...a.definition.nodes.map(node => node.id === "source-a" ? { ...node, parentId: "batch" } : node)], edges: [] };
+    render(<GroupedFlowInvestigation {...a} definition={definition} />); await explain();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Batch" }));
+    expect(document.querySelector('[data-node-id="source-a"]')).toBeNull(); expect(screen.getByText("Cause inside")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Fit recorded view" }));
+    const fitted = canvas().getAttribute("data-camera-focus")!.split(" ");
+    expect(fitted).not.toContain("source-a"); expect(fitted).toEqual(width === 390 ? ["batch"] : ["batch", "failed-a"]);
+    expect(screen.getByRole("button", { name: "Expand Batch" })).toBeTruthy(); expect(screen.queryByText("Supported cause")).toBeNull();
+    expect(screen.getByRole("status", { name: "Cause summary" }).textContent).toContain("Supported cause: Source");
+    expect(screen.getByText("Supported root cause")).toBeTruthy(); expect(a.port.explain).toHaveBeenCalledTimes(1);
+  } finally {
+    if (before) Object.defineProperty(HTMLElement.prototype, "clientWidth", before); else delete (HTMLElement.prototype as any).clientWidth;
+  }
+});

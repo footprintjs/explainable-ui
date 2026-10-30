@@ -1187,6 +1187,21 @@ item/ancestor recorded as not run. No diagram traversal discovers that role.
 Diagram gestures keep keyboard focus at the card while the live cause summary
 updates; they do not scroll down to the detailed text. Explicit queries within
 the text panel retain its normal explanation-focus behavior.
+
+Accepted results open in **Cause focus** or **Impact focus**. These views keep all
+returned recorded references available, fade unrelated cards and hide the
+competing workflow arrows. **Show whole flow** restores the context at the same
+card positions. Switching views reuses the accepted result. A new request or host
+binding resets the view choice; ordinary rerenders preserve it. Missing evidence
+and competing causes remain explicit in either view.
+
+Focused views omit repetitive visible connection captions until a link is hovered
+or selected. Full relationship names and evidence references remain accessible in
+the diagram and the evidence list. **Fit recorded view** keeps the cause or selected
+item readable on a narrow screen; **All recorded connections** and the whole-flow
+view provide explicit overviews.
+If that item is inside a collapsed group, fitting frames its nearest visible
+group without reopening it or changing the recorded cause identity.
 When backward relationships are supplied, every path item and alternative must be
 in that returned membership, and each adjacent path pair must have a matching
 returned dependent-to-source link. A stage-level relationship or incomplete
@@ -1200,11 +1215,14 @@ structural layout, execution state or branch outcomes. Parallel relationships st
 separate and have a folded evidence list. A bounded routing layer uses the existing
 card positions to steer rounded connections around card content, group headers,
 badges and branch labels. Shared connections get separate lanes and caption space;
-the card layout and structural arrows stay unchanged. Backward cause arrows use a
+the card layout and structural relationships stay unchanged. Backward cause arrows use a
 warm red, impact arrows use teal, and ordinary flow arrows stay grey. The cause
 colour identifies recorded sources; it does not say that every linked step failed.
 Recorded status badges retain that distinction. Decision steps use rounded cards
 with a small decision marker and keep their Yes/No branch labels.
+Each recorded connection has its own entry and exit ports. Their placement follows
+the neighbouring cards, so an incoming arrowhead does not share a centre point with
+outgoing stems. Crowded ports use another clear side or the drawing-limit notice.
 
 Compact Data/Read/Rule/Step captions retain their full fixed kind and attribution
 in accessible names, tooltips and the evidence list. Routing work is bounded. If a

@@ -1,5 +1,5 @@
 // src/components/GroupedFlowDiagram/GroupedFlowDiagram.tsx
-import { useEffect as useEffect4, useMemo, useRef as useRef2, useState as useState2 } from "react";
+import { useContext as useContext3, useEffect as useEffect4, useMemo, useRef as useRef2, useState as useState3 } from "react";
 import { Background, Controls, MarkerType, ReactFlow } from "@xyflow/react";
 
 // src/theme/ThemeProvider.tsx
@@ -539,18 +539,19 @@ function DiagramIcon({ icon, style }) {
 import { Fragment, jsx as jsx4, jsxs as jsxs2 } from "react/jsx-runtime";
 var statusText = { unknown: "Status unknown", running: "Running", completed: "Completed", failed: "Failed", "not-run": "Not run (recorded)" };
 var smallButton = { font: "inherit", border: `1px solid ${theme.border}`, borderRadius: 8, padding: "5px 10px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
-function DependencyHandles() {
-  return /* @__PURE__ */ jsx4(Fragment, { children: ["left", "right", "top", "bottom"].flatMap((side) => ["source", "target"].map((type) => /* @__PURE__ */ jsx4(
+function DependencyHandles({ ports = [] }) {
+  return /* @__PURE__ */ jsx4(Fragment, { children: ports.map((port) => /* @__PURE__ */ jsx4(
     Handle2,
     {
-      id: `recorded-${side}-${type}`,
-      type,
-      position: { left: Position2.Left, right: Position2.Right, top: Position2.Top, bottom: Position2.Bottom }[side],
+      id: port.id,
+      type: port.type,
+      "data-recorded-port": port.id,
+      position: { left: Position2.Left, right: Position2.Right, top: Position2.Top, bottom: Position2.Bottom }[port.side],
       isConnectable: false,
-      style: { opacity: 0 }
+      style: { opacity: 0, pointerEvents: "none", ...port.side === "top" || port.side === "bottom" ? { left: port.offset } : { top: port.offset } }
     },
-    `${side}-${type}`
-  ))) });
+    port.id
+  )) });
 }
 function CauseBadge({ item }) {
   if (!item.isRootCause && !item.containsRootCause) return null;
@@ -606,7 +607,7 @@ function DiagramGroupNode(props) {
       done: item.state === "completed",
       active: item.state === "running"
     } }),
-    /* @__PURE__ */ jsx4(DependencyHandles, {}),
+    /* @__PURE__ */ jsx4(DependencyHandles, { ports: d.recordedPorts }),
     /* @__PURE__ */ jsx4(CauseBadge, { item })
   ] });
 }
@@ -696,7 +697,7 @@ function DiagramItemNode({ data: d }) {
         item.state === "completed" && /* @__PURE__ */ jsx4("span", { "aria-hidden": "true", style: { position: "absolute", top: -9, right: -9, width: 26, height: 26, borderRadius: "50%", background: theme.success, color: "white", textAlign: "center", fontSize: 19 }, children: "\u2713" }),
         item.state === "failed" && /* @__PURE__ */ jsx4("span", { "aria-hidden": "true", style: { position: "absolute", top: -9, right: -9, width: 26, height: 26, borderRadius: "50%", background: theme.error, color: "white", textAlign: "center", fontSize: 20 }, children: "\xD7" }),
         /* @__PURE__ */ jsx4(Handle2, { type: "source", position: d.direction === "LR" ? Position2.Right : Position2.Bottom, isConnectable: false }),
-        /* @__PURE__ */ jsx4(DependencyHandles, {}),
+        /* @__PURE__ */ jsx4(DependencyHandles, { ports: d.recordedPorts }),
         /* @__PURE__ */ jsx4(CauseBadge, { item })
       ]
     }
@@ -1121,9 +1122,9 @@ var STUB = 18;
 var MAX_WORK = 2e6;
 var MAX_VISITS = 1e5;
 var intersects = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-var point = (box2, side) => ({
-  x: side === "left" ? box2.x : side === "right" ? box2.x + box2.width : box2.x + box2.width / 2,
-  y: side === "top" ? box2.y : side === "bottom" ? box2.y + box2.height : box2.y + box2.height / 2
+var point = (box2, side, offset) => ({
+  x: side === "left" ? box2.x : side === "right" ? box2.x + box2.width : box2.x + (offset ?? box2.width / 2),
+  y: side === "top" ? box2.y : side === "bottom" ? box2.y + box2.height : box2.y + (offset ?? box2.height / 2)
 });
 var escape = (p, side) => ({ x: p.x + (side === "left" ? -STUB : side === "right" ? STUB : 0), y: p.y + (side === "top" ? -STUB : side === "bottom" ? STUB : 0) });
 var crossing = (a, b, box2) => a.x === b.x ? a.x > box2.x && a.x < box2.x + box2.width && Math.max(a.y, b.y) > box2.y && Math.min(a.y, b.y) < box2.y + box2.height : a.y > box2.y && a.y < box2.y + box2.height && Math.max(a.x, b.x) > box2.x && Math.min(a.x, b.x) < box2.x + box2.width;
@@ -1216,6 +1217,12 @@ function routeRecordedRelationships(links, model) {
   }
   const ordered = [...links].sort((a, b) => a.relationship.id < b.relationship.id ? -1 : a.relationship.id > b.relationship.id ? 1 : 0);
   const candidates = /* @__PURE__ */ new Map();
+  const slots = (id, side, type, remote) => {
+    const box2 = boxes.get(id), item = byId.get(id), length = side === "top" || side === "bottom" ? box2.width : box2.height;
+    const count = Math.min(6, Math.floor((length - 56) / 24) + 1), offsets = Array.from({ length: Math.max(0, count) }, (_, index2) => 28 + (length - 56) * index2 / Math.max(1, count - 1)).filter((offset) => Math.abs(offset - length / 2) >= 20 && !(item.expanded && (side === "left" || side === "right") && offset < 96));
+    const neighbour = side === "top" || side === "bottom" ? remote.x + remote.width / 2 - box2.x : remote.y + remote.height / 2 - box2.y;
+    return offsets.sort((a, b) => Math.abs(a - neighbour) - Math.abs(b - neighbour) || (type === "source" ? a - b : b - a));
+  };
   const xs = /* @__PURE__ */ new Set(), ys = /* @__PURE__ */ new Set();
   for (const box2 of obstacles) for (const offset of [-18, 0, 18]) {
     xs.add(box2.x + offset);
@@ -1223,26 +1230,36 @@ function routeRecordedRelationships(links, model) {
     ys.add(box2.y + offset);
     ys.add(box2.y + box2.height + offset);
   }
-  for (const link of ordered) {
+  for (const [ordinal, link] of ordered.entries()) {
     const a = boxes.get(link.source), b = boxes.get(link.target);
     if (!a || !b) continue;
     const backward = link.relationship.direction === "backward";
     const pairs = link.source === link.target ? [["bottom", "right"], ["right", "top"], ["left", "bottom"]] : model.direction === "LR" ? backward ? [["bottom", "bottom"], ["top", "top"], ["left", "right"]] : [["top", "top"], ["bottom", "bottom"], ["right", "left"]] : backward ? [["right", "right"], ["left", "left"], ["top", "bottom"]] : [["left", "left"], ["right", "right"], ["bottom", "top"]];
-    const options = pairs.filter(([sourceSide, targetSide]) => !(sourceSide === "top" && (byId.get(link.source)?.isRootCause || byId.get(link.source)?.containsRootCause)) && !(targetSide === "top" && (byId.get(link.target)?.isRootCause || byId.get(link.target)?.containsRootCause))).map(([sourceSide, targetSide]) => {
-      const source = point(a, sourceSide), target = point(b, targetSide), start = escape(source, sourceSide), end = escape(target, targetSide);
+    const options = pairs.filter(([sourceSide, targetSide]) => !(sourceSide === "top" && (byId.get(link.source)?.expanded || byId.get(link.source)?.isRootCause || byId.get(link.source)?.containsRootCause)) && !(targetSide === "top" && (byId.get(link.target)?.expanded || byId.get(link.target)?.isRootCause || byId.get(link.target)?.containsRootCause))).flatMap(([sourceSide, targetSide]) => slots(link.source, sourceSide, "source", b).flatMap((sourceOffset) => slots(link.target, targetSide, "target", a).map((targetOffset) => {
+      const source = point(a, sourceSide, sourceOffset), target = point(b, targetSide, targetOffset), start = escape(source, sourceSide), end = escape(target, targetSide);
       for (const p of [start, end]) {
         xs.add(p.x);
         ys.add(p.y);
       }
-      return { sourceSide, targetSide, source, target, start, end };
-    });
+      return {
+        sourceSide,
+        targetSide,
+        source,
+        target,
+        start,
+        end,
+        sourcePort: { id: `recorded-${ordinal}-source`, type: "source", side: sourceSide, offset: sourceOffset },
+        targetPort: { id: `recorded-${ordinal}-target`, type: "target", side: targetSide, offset: targetOffset }
+      };
+    })));
     candidates.set(link.relationship.id, options);
   }
   const columns = [...xs].sort((a, b) => a - b), rows = [...ys].sort((a, b) => a - b), width = columns.length;
   if (!width || !rows.length) return outcome();
   const position = (at) => ({ x: columns[at % width], y: rows[Math.floor(at / width)] });
   const index = (p) => rows.indexOf(p.y) * width + columns.indexOf(p.x);
-  const occupied = /* @__PURE__ */ new Map(), checked = /* @__PURE__ */ new Map(), labels = [];
+  const occupied = /* @__PURE__ */ new Map(), occupiedVertices = /* @__PURE__ */ new Map(), checked = /* @__PURE__ */ new Map(), labels = [], usedPorts = /* @__PURE__ */ new Set();
+  const portKey = (id, port) => JSON.stringify([id, port.side, port.offset]);
   const segmentKey = (a, b) => a < b ? `${a}:${b}` : `${b}:${a}`;
   const clear = (a, b, boxes2, ignore) => {
     for (const box2 of boxes2) {
@@ -1282,7 +1299,7 @@ function routeRecordedRelationships(links, model) {
           checked.set(edge, free);
         }
         if (!free || !clear(a, b, labels)) continue;
-        const direction = a.y === b.y ? 1 : 2, cost = current.cost + distance(a, b) + (current.direction && current.direction !== direction ? 20 : 0) + (occupied.get(edge) ?? 0) * (100 + distance(a, b) * 4);
+        const direction = a.y === b.y ? 1 : 2, cost = current.cost + distance(a, b) + (current.direction && current.direction !== direction ? 20 : 0) + (occupied.get(edge) ?? 0) * (100 + distance(a, b) * 4) + (occupiedVertices.get(next) ?? 0) * 500;
         const key = next * 3 + direction;
         if (cost >= (costs.get(key) ?? Infinity)) continue;
         costs.set(key, cost);
@@ -1311,6 +1328,8 @@ function routeRecordedRelationships(links, model) {
   for (const link of ordered) {
     if (work >= MAX_WORK || visits > MAX_VISITS) break;
     for (const option of candidates.get(link.relationship.id) ?? []) {
+      const sourceKey = portKey(link.source, option.sourcePort), targetKey = portKey(link.target, option.targetPort);
+      if (usedPorts.has(sourceKey) || usedPorts.has(targetKey) || sourceKey === targetKey) continue;
       if (!clear(option.source, option.start, obstacles, link.source) || !clear(option.end, option.target, obstacles, link.target) || !clear(option.source, option.start, labels) || !clear(option.end, option.target, labels)) continue;
       const found = search(option.start, option.end);
       if (!found) continue;
@@ -1319,7 +1338,20 @@ function routeRecordedRelationships(links, model) {
       if (!label) continue;
       labels.push(label.box);
       for (const segment of found.segments) occupied.set(segment, (occupied.get(segment) ?? 0) + 1);
-      routes.set(link.relationship.id, { points, sourceSide: option.sourceSide, targetSide: option.targetSide, label: { x: label.x, y: label.y, width: label.width, height: label.height } });
+      for (const p of found.points) {
+        const at = index(p);
+        occupiedVertices.set(at, (occupiedVertices.get(at) ?? 0) + 1);
+      }
+      usedPorts.add(sourceKey);
+      usedPorts.add(targetKey);
+      routes.set(link.relationship.id, {
+        points,
+        sourceSide: option.sourceSide,
+        targetSide: option.targetSide,
+        sourcePort: option.sourcePort,
+        targetPort: option.targetPort,
+        label: { x: label.x, y: label.y, width: label.width, height: label.height }
+      });
       break;
     }
   }
@@ -1359,8 +1391,32 @@ function recordedVisualBounds(plan, links, focus) {
 }
 
 // src/components/GroupedFlowDiagram/RecordedRelationshipEdge.tsx
+import { useContext as useContext2, useState as useState2 } from "react";
+
+// src/components/GroupedFlowDiagram/presentation.ts
+import { createContext as createContext2 } from "react";
+var RecordedFocusContext = createContext2({ focused: false });
+function visibleRecordedFitTargets(ids, model) {
+  if (ids.length > 512) return void 0;
+  const declared = new Map(model.definition.nodes.map((node) => [node.id, node])), visible = new Set(model.nodes.map((item) => item.node.id)), result = /* @__PURE__ */ new Set();
+  for (const id of ids) {
+    if (!declared.has(id)) return void 0;
+    let target = id, depth = 0;
+    while (!visible.has(target)) {
+      if (depth++ >= 16) return void 0;
+      const parent = declared.get(target)?.parentId;
+      if (parent === void 0 || !declared.has(parent)) return void 0;
+      target = parent;
+    }
+    result.add(target);
+  }
+  return [...result];
+}
+
+// src/components/GroupedFlowDiagram/RecordedRelationshipEdge.tsx
 import { Fragment as Fragment2, jsx as jsx5, jsxs as jsxs3 } from "react/jsx-runtime";
 function RecordedRelationshipEdge(props) {
+  const { focused } = useContext2(RecordedFocusContext), [hovered, setHovered] = useState2(false);
   const data = props.data;
   const relationship = data?.relationship;
   const route = data?.route;
@@ -1369,8 +1425,12 @@ function RecordedRelationshipEdge(props) {
   const fullLabel = typeof props.label === "string" ? props.label : "Recorded dependency";
   const path = recordedRoutePath(route, { x: props.sourceX, y: props.sourceY }, { x: props.targetX, y: props.targetY });
   const { x, y } = route.label;
+  const showCaption = !focused || caption !== "Data" || hovered || props.selected;
   return /* @__PURE__ */ jsxs3(Fragment2, { children: [
-    /* @__PURE__ */ jsx5(BaseEdge, { id: props.id, path, markerEnd: props.markerEnd, style: props.style }),
+    /* @__PURE__ */ jsxs3("g", { onMouseEnter: () => setHovered(true), onMouseLeave: () => setHovered(false), "data-recorded-connection": props.id, children: [
+      /* @__PURE__ */ jsx5("title", { children: fullLabel }),
+      /* @__PURE__ */ jsx5(BaseEdge, { id: props.id, path, markerEnd: props.markerEnd, style: props.style })
+    ] }),
     /* @__PURE__ */ jsx5(EdgeLabelRenderer, { children: /* @__PURE__ */ jsx5(
       "span",
       {
@@ -1378,6 +1438,7 @@ function RecordedRelationshipEdge(props) {
         title: fullLabel,
         "aria-label": fullLabel,
         "data-relationship-id": props.id,
+        "data-caption-visible": showCaption,
         style: {
           position: "absolute",
           transform: `translate(-50%, -50%) translate(${x}px,${y}px)`,
@@ -1392,6 +1453,7 @@ function RecordedRelationshipEdge(props) {
           whiteSpace: "nowrap",
           borderRadius: 4,
           padding: "2px 5px",
+          opacity: showCaption ? 1 : 0,
           border: `1px solid ${relationship?.direction === "backward" ? theme.error : relationship?.direction === "forward" ? theme.tracing : theme.textSecondary}`,
           color: theme.textPrimary,
           background: theme.bgElevated,
@@ -1408,12 +1470,13 @@ var recordedRelationshipEdgeTypes = { recordedRelationship: RecordedRelationship
 import { jsx as jsx6, jsxs as jsxs4 } from "react/jsx-runtime";
 var buttonStyle = { font: "inherit", fontSize: 12, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "7px 12px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
 function GroupedFlowDiagram(props) {
-  const [localExpanded, setLocalExpanded] = useState2(props.defaultExpandedGroupIds ?? []);
-  const [localSelected, setLocalSelected] = useState2();
+  const { focused: recordedFocus, fitNodeIds } = useContext3(RecordedFocusContext);
+  const [localExpanded, setLocalExpanded] = useState3(props.defaultExpandedGroupIds ?? []);
+  const [localSelected, setLocalSelected] = useState3();
   const wrapper = useRef2(null);
-  const [narrow, setNarrow] = useState2(false);
-  const [focusIds, setFocusIds] = useState2();
-  const [focusRequest, setFocusRequest] = useState2(0);
+  const [narrow, setNarrow] = useState3(false);
+  const [focusIds, setFocusIds] = useState3();
+  const [focusRequest, setFocusRequest] = useState3(0);
   const initiallyFocused = useRef2(false);
   const expanded = props.expandedGroupIds ?? localExpanded;
   const selected = props.selectedNodeId === void 0 ? localSelected : props.selectedNodeId ?? void 0;
@@ -1432,7 +1495,14 @@ function GroupedFlowDiagram(props) {
   const overlay = useMemo(() => !model || props.recordedRelationships === void 0 ? [] : projectRecordedRelationships(props.recordedRelationships, model), [model, props.recordedRelationships]);
   const routing = useMemo(() => model && overlay ? routeRecordedRelationships(overlay, model) : void 0, [model, overlay]);
   const visualBounds = useMemo(() => routing && overlay ? recordedVisualBounds(routing, overlay, focusIds) : void 0, [routing, overlay, focusIds]);
-  const camera = useMemo(() => !model || props.focusRequest === void 0 ? void 0 : admitFocusRequest(props.focusRequest, model), [model, props.focusRequest]);
+  const fitTargets = useMemo(() => model && recordedFocus ? visibleRecordedFitTargets(fitNodeIds ?? [], model) : void 0, [model, recordedFocus, fitNodeIds]);
+  const camera = useMemo(() => {
+    if (!model || props.focusRequest === void 0) return void 0;
+    const requested = admitFocusRequest(props.focusRequest, model);
+    if (!requested || !recordedFocus || !requested.nodeIds.length) return requested;
+    const visible = visibleRecordedFitTargets(requested.nodeIds, model);
+    return visible ? { ...requested, nodeIds: visible } : void 0;
+  }, [model, props.focusRequest, recordedFocus]);
   const lastCameraKey = useRef2(/* @__PURE__ */ Symbol());
   const changeExpanded = (next) => {
     if (props.expandedGroupIds === void 0) setLocalExpanded(next);
@@ -1465,6 +1535,13 @@ function GroupedFlowDiagram(props) {
       return [node.id, [context, siblingDuplicate || !node.parentId && duplicate ? `Item ${index + 1}` : ""].filter(Boolean).join(" \xB7 ")];
     }));
   }, [props.definition, model]);
+  const ports = /* @__PURE__ */ new Map();
+  for (const item of overlay ?? []) {
+    const route = routing?.routes.get(item.relationship.id);
+    if (!route) continue;
+    ports.set(item.source, [...ports.get(item.source) ?? [], route.sourcePort]);
+    ports.set(item.target, [...ports.get(item.target) ?? [], route.targetPort]);
+  }
   const nodes = model?.nodes.map((item) => ({
     id: item.node.id,
     type: item.expanded ? "flowDiagramGroup" : "flowDiagramItem",
@@ -1472,7 +1549,7 @@ function GroupedFlowDiagram(props) {
     position: item.position,
     width: item.width,
     height: item.height,
-    style: { width: item.width, height: item.height, pointerEvents: "all" },
+    style: { width: item.width, height: item.height, pointerEvents: "all", ...recordedFocus && !item.highlighted ? { opacity: 0.28 } : {} },
     draggable: false,
     selectable: false,
     data: {
@@ -1481,6 +1558,7 @@ function GroupedFlowDiagram(props) {
       selected: item.node.id === selected,
       direction: model.direction,
       canToggle,
+      recordedPorts: ports.get(item.node.id),
       onToggle: (id) => {
         requestFocus(narrow ? [id] : void 0);
         changeExpanded(model.expandedGroupIds.includes(id) ? model.expandedGroupIds.filter((value) => value !== id) : [...model.expandedGroupIds, id]);
@@ -1496,6 +1574,7 @@ function GroupedFlowDiagram(props) {
       target: item.target,
       type: "smoothstep",
       label: item.edge.label,
+      ...recordedFocus ? { hidden: true } : {},
       className: `gfd-edge-${item.state}${item.highlighted ? " gfd-edge-highlighted" : ""}`,
       ariaLabel: `${item.edge.label ?? "Relationship"}. ${item.state === "observed" ? "Recorded" : item.state === "not-taken" ? "Not taken (recorded)" : "Not verified"}${item.collapsed ? ". Grouped view of the original relationship" : ""}.`,
       markerEnd: { type: MarkerType.ArrowClosed, color },
@@ -1526,8 +1605,8 @@ function GroupedFlowDiagram(props) {
       source: item.source,
       target: item.target,
       type: "recordedRelationship",
-      sourceHandle: `recorded-${route.sourceSide}-source`,
-      targetHandle: `recorded-${route.targetSide}-target`,
+      sourceHandle: route.sourcePort.id,
+      targetHandle: route.targetPort.id,
       label: `${relationshipLabels[relationship.attribution]} \xB7 ${relationship.kind}`,
       ariaLabel: `${relationship.direction === "backward" ? "Backward source trail, not a failed step. " : relationship.direction === "forward" ? "Forward recorded impact. " : "Recorded dependency. "}${relationshipLabels[relationship.attribution]}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
       data: { relationship, collapsed: item.collapsed, route },
@@ -1580,10 +1659,15 @@ function GroupedFlowDiagram(props) {
       "data-camera-focus": focusIds?.join(" ") ?? "overview",
       "data-narrow": narrow,
       "data-direction": model.direction,
+      "data-investigation-focus": recordedFocus,
       style: { display: "flex", flexDirection: "column", width: "100%", height: 560, minHeight: 320, minWidth: 0, fontFamily: theme.fontSans, color: theme.textPrimary, ...props.style },
       children: [
         /* @__PURE__ */ jsxs4("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "10px 0" }, children: [
-          /* @__PURE__ */ jsx6("button", { type: "button", style: buttonStyle, onClick: () => requestFocus(), children: "Fit diagram" }),
+          /* @__PURE__ */ jsx6("button", { type: "button", style: buttonStyle, disabled: recordedFocus && !fitTargets?.length, onClick: () => {
+            if (recordedFocus) {
+              if (fitTargets?.length) requestFocus(fitTargets);
+            } else requestFocus();
+          }, children: recordedFocus ? "Fit recorded view" : "Fit diagram" }),
           /* @__PURE__ */ jsx6("button", { type: "button", style: buttonStyle, disabled: !selected || !canToggle, onClick: () => {
             if (!selected) return;
             requestFocus([selected]);
@@ -1592,9 +1676,10 @@ function GroupedFlowDiagram(props) {
           }, children: "Reveal selection" }),
           /* @__PURE__ */ jsx6("button", { type: "button", style: buttonStyle, disabled: !highlightFocusIds.size, onClick: () => {
             if (highlightFocusIds.size) requestFocus([...highlightFocusIds]);
-          }, children: "Focus highlighted path" }),
+          }, children: recordedFocus ? "All recorded connections" : "Focus highlighted path" }),
           /* @__PURE__ */ jsx6("span", { style: { fontSize: 11, color: theme.textSecondary }, children: "Open a flow to see its steps. Missing information stays unknown." })
         ] }),
+        recordedFocus && !fitTargets?.length && /* @__PURE__ */ jsx6("p", { role: "status", children: "The recorded view cannot be fitted yet. Check its diagram mapping or expand the containing flow." }),
         /* @__PURE__ */ jsx6("div", { ref: wrapper, style: { flex: 1, minHeight: 220, minWidth: 0, border: `1px solid ${theme.border}`, borderRadius: 16, overflow: "hidden", background: theme.bg }, children: /* @__PURE__ */ jsxs4(
           ReactFlow,
           {
@@ -2191,7 +2276,7 @@ var StageNode = memo(function StageNode2({
 });
 
 // src/components/TimeTravelDebugger/TimeTravelDebugger.tsx
-import { useState as useState6 } from "react";
+import { useState as useState7 } from "react";
 
 // src/components/FlowchartView/_internal/devWarn.ts
 function isDevModeEnv() {
@@ -2498,7 +2583,7 @@ function NarrativeLog({
 }
 
 // src/components/GanttTimeline/GanttTimeline.tsx
-import { useState as useState3, useMemo as useMemo4, useRef as useRef4, useEffect as useEffect6 } from "react";
+import { useState as useState4, useMemo as useMemo4, useRef as useRef4, useEffect as useEffect6 } from "react";
 import { jsx as jsx10, jsxs as jsxs8 } from "react/jsx-runtime";
 var NO_TIMING_NOTE = "No timing recorded \u2014 bars show the order stages ran, not how long they took.";
 var NO_TIMING_HINT = "Durations come from footprintjs's metrics recorder; this run was recorded without one.";
@@ -2514,7 +2599,7 @@ function GanttTimeline({
   theme: themeMode,
   maxVisibleRows = 5
 }) {
-  const [expanded, setExpanded] = useState3(false);
+  const [expanded, setExpanded] = useState4(false);
   const activeRowRef = useRef4(null);
   const scrollContainerRef = useRef4(null);
   const totalWallTime = useMemo4(
@@ -3500,7 +3585,7 @@ function TraceFlow(props) {
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-import { useCallback as useCallback3, useEffect as useEffect9, useMemo as useMemo6, useRef as useRef7, useState as useState5 } from "react";
+import { useCallback as useCallback3, useEffect as useEffect9, useMemo as useMemo6, useRef as useRef7, useState as useState6 } from "react";
 import {
   ReactFlow as ReactFlow3,
   Background as Background3,
@@ -4067,10 +4152,10 @@ function edgeCarriesCursor(via, standIns) {
 }
 
 // src/components/FlowchartView/_internal/useSubflowDrill.ts
-import { useCallback as useCallback2, useEffect as useEffect7, useRef as useRef6, useState as useState4 } from "react";
+import { useCallback as useCallback2, useEffect as useEffect7, useRef as useRef6, useState as useState5 } from "react";
 function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
   const isControlled = controlledSubflowId !== void 0;
-  const [ownSubflowId, setOwnSubflowId] = useState4(null);
+  const [ownSubflowId, setOwnSubflowId] = useState5(null);
   const currentSubflowId = isControlled ? controlledSubflowId : ownSubflowId;
   const lastGraphRef = useRef6(null);
   if (!isControlled && lastGraphRef.current !== graph) {
@@ -4395,7 +4480,7 @@ function TracedFlow({
     () => buildSubflowBreadcrumb(effectiveGraph, drill.currentSubflowId),
     [effectiveGraph, drill.currentSubflowId]
   );
-  const [measuredSizes, setMeasuredSizes] = useState5(null);
+  const [measuredSizes, setMeasuredSizes] = useState6(null);
   const positioned = useMemo6(() => {
     const nodeSize = measuredSizes ? (n) => measuredSizes.get(n.id) : void 0;
     const sizeOpts = nodeSize ? { nodeSize } : {};
@@ -4454,7 +4539,7 @@ function TracedFlow({
     ),
     [positioned.edges, slice, colors, cursorStandIns]
   );
-  const [coneRevealed, setConeRevealed] = useState5(false);
+  const [coneRevealed, setConeRevealed] = useState6(false);
   useEffect9(() => {
     if (!sliceCone) return;
     setConeRevealed(false);
@@ -4571,7 +4656,7 @@ function TimeTravelDebugger({
     "TimeTravelDebugger",
     "Use <SnapshotPanel> (same panels, controlled cursor), <ExplainableShell> (those plus the chart and drill-down), or the footprint-viewer package."
   );
-  const [selectedIndex, setSelectedIndex] = useState6(0);
+  const [selectedIndex, setSelectedIndex] = useState7(0);
   const fs = fontSize[size];
   const pad = padding[size];
   if (snapshots.length === 0) {
@@ -4952,14 +5037,14 @@ var SubflowBreadcrumb = memo2(function SubflowBreadcrumb2({
 });
 
 // src/components/FlowchartView/useSubflowNavigation.ts
-import { useState as useState7, useCallback as useCallback4, useMemo as useMemo7 } from "react";
+import { useState as useState8, useCallback as useCallback4, useMemo as useMemo7 } from "react";
 var EMPTY_GRAPH2 = { nodes: [], edges: [] };
 function useSubflowNavigation(rootGraph) {
   warnDeprecated(
     "useSubflowNavigation",
     "It keys the drill by the child chart's LOCAL subflowId, which is not unique across two mounts of the same chart. Use <TracedFlow>'s built-in drill (currentSubflowId + onSubflowChange), or filterGraphForDrill + buildSubflowBreadcrumb with the MOUNT NODE'S id."
   );
-  const [stack, setStack] = useState7([]);
+  const [stack, setStack] = useState8([]);
   const safeRootGraph = rootGraph ?? EMPTY_GRAPH2;
   const subflowMounts = useMemo7(() => {
     const map = /* @__PURE__ */ new Map();
@@ -5022,7 +5107,7 @@ function useSubflowNavigation(rootGraph) {
 }
 
 // src/components/FlowchartView/SubflowTree.tsx
-import { memo as memo3, useState as useState8, useCallback as useCallback5, useMemo as useMemo8 } from "react";
+import { memo as memo3, useState as useState9, useCallback as useCallback5, useMemo as useMemo8 } from "react";
 import { Fragment as Fragment4, jsx as jsx18, jsxs as jsxs14 } from "react/jsx-runtime";
 function graphToSubflowEntries(graph) {
   if (!graph?.nodes?.length) return [];
@@ -5047,7 +5132,7 @@ var TreeNode = memo3(function TreeNode2({
   doneStages,
   onNodeSelect
 }) {
-  const [expanded, setExpanded] = useState8(true);
+  const [expanded, setExpanded] = useState9(true);
   const hasChildren = entry.children && entry.children.length > 0;
   const isActive = activeStage === entry.name;
   const isDone = doneStages?.has(entry.name);
@@ -7132,7 +7217,7 @@ var boxBaseStyle = {
 };
 
 // src/components/FlowchartView/TraceExplorerShell.tsx
-import { useMemo as useMemo13, useState as useState9, useCallback as useCallback7 } from "react";
+import { useMemo as useMemo13, useState as useState10, useCallback as useCallback7 } from "react";
 
 // src/components/FlowchartView/RunSlider.tsx
 import { useCallback as useCallback6, useMemo as useMemo12 } from "react";
@@ -7243,7 +7328,7 @@ function TraceExplorerShell({
   className,
   style
 }) {
-  const [internalSel, setInternalSel] = useState9(null);
+  const [internalSel, setInternalSel] = useState10(null);
   const isControlled = controlledSel !== void 0;
   const selectedRuntimeStageId = isControlled ? controlledSel : internalSel;
   const handleSelect = useCallback7(
@@ -7615,10 +7700,10 @@ function graphFromStructure(structure) {
 }
 
 // src/components/GroupedFlowInvestigation/GroupedFlowInvestigation.tsx
-import { useEffect as useEffect10, useMemo as useMemo15, useRef as useRef10, useState as useState12 } from "react";
+import { useEffect as useEffect10, useMemo as useMemo15, useRef as useRef10, useState as useState13 } from "react";
 
 // src/components/InvestigationPanel/InvestigationPanel.tsx
-import { useMemo as useMemo14, useRef as useRef9, useState as useState11 } from "react";
+import { useMemo as useMemo14, useRef as useRef9, useState as useState12 } from "react";
 
 // src/components/InvestigationPanel/admission.ts
 var MAX_ITEMS = 256;
@@ -7832,13 +7917,13 @@ function displayLabel(labels, nodeId) {
 }
 
 // src/components/InvestigationPanel/useInvestigationQuery.ts
-import { useRef as useRef8, useState as useState10 } from "react";
+import { useRef as useRef8, useState as useState11 } from "react";
 function useInvestigationQuery(port, admit) {
   const owner = port.binding;
   const currentOwner = useRef8(null);
   const active = useRef8(null);
-  const [state, setState] = useState10(null);
-  const [selection, setSelection] = useState10(null);
+  const [state, setState] = useState11(null);
+  const [selection, setSelection] = useState11(null);
   useIsomorphicLayoutEffect(() => {
     currentOwner.current = owner;
     if (!active.current) setState((previous) => previous?.owner === owner && previous.status === "loading" ? null : previous);
@@ -7980,11 +8065,11 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
   const attentionElements = useRef9(/* @__PURE__ */ new Map());
   const returnTo = useRef9(null);
   const focusIntent = useRef9(null);
-  const [page, setPage] = useState11({ owner, count: 20 });
+  const [page, setPage] = useState12({ owner, count: 20 });
   const visible = page.owner === owner ? page.count : 20;
-  const [showPath, setShowPath] = useState11(false);
-  const [showImpact, setShowImpact] = useState11(false);
-  const [showAlternatives, setShowAlternatives] = useState11(false);
+  const [showPath, setShowPath] = useState12(false);
+  const [showImpact, setShowImpact] = useState12(false);
+  const [showAlternatives, setShowAlternatives] = useState12(false);
   const lastRequest = useRef9(null);
   useIsomorphicLayoutEffect(() => {
     if (returnTo.current?.owner !== owner) returnTo.current = null;
@@ -8283,10 +8368,13 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
   const { owner, selected } = controller;
   const ready = selected?.status === "ready" ? selected : void 0;
   const wrapper = useRef10(null);
-  const [narrow, setNarrow] = useState12(false);
-  const [expansion, setExpansion] = useState12({ owner, ids: [] });
-  const [mode, setMode] = useState12();
-  const [focusCommand, setFocusCommand] = useState12();
+  const [narrow, setNarrow] = useState13(false);
+  const [expansion, setExpansion] = useState13({ owner, ids: [] });
+  const [mode, setMode] = useState13();
+  const [focusCommand, setFocusCommand] = useState13();
+  const [view, setView] = useState13();
+  const activeView = view?.request === ready?.request ? view : void 0;
+  const whole = activeView?.whole ?? false;
   const phase = mode && mode.request === selected?.request ? mode.value : "cause";
   const diagramBindings = useRef10(/* @__PURE__ */ new WeakMap());
   const nextDiagramBinding = useRef10(0);
@@ -8322,7 +8410,7 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
   }, []);
   const selectedId = controller.selection && known.has(controller.selection) ? controller.selection : null;
   const activeFocusCommand = focusCommand?.request === ready?.request && focusCommand?.phase === phase ? focusCommand : void 0;
-  const cameraKey = useMemo15(() => ({ owner, request: ready?.request, phase, command: activeFocusCommand }), [owner, ready?.request, phase, activeFocusCommand]);
+  const cameraKey = useMemo15(() => ({ owner, request: ready?.request, phase, command: activeFocusCommand, view: activeView }), [owner, ready?.request, phase, activeFocusCommand, activeView]);
   let focusNodeIds = [.../* @__PURE__ */ new Set([...projected?.groupIds ?? [], ...projected?.nodeIds ?? []])];
   if (ready && (activeFocusCommand || narrow)) {
     const target = !activeFocusCommand && phase === "cause" && ready.result.rootCause && known.has(ready.result.rootCause) ? ready.result.rootCause : selectedId;
@@ -8342,6 +8430,11 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
     }
   }
   const summary = selected?.status === "loading" ? "Checking recorded evidence\u2026" : ready && mappedRoot ? `Supported cause: ${known.get(mappedRoot).label}. ${phase === "cause" ? "The recorded path is highlighted below." : "Showing recorded affected items below."}` : ready && root && !known.has(root) ? "The supported cause is not shown in this diagram. No substitute card is labelled." : ready || selected?.status === "error" || selected?.status === "refused" ? "Cause unknown. The available evidence does not support a cause on this diagram." : "Select a failed item, or select another item and choose Investigate selected item.";
+  const recordedFitIds = narrow && ready ? phase === "cause" && mappedRoot ? [mappedRoot] : selectedId ? [selectedId] : [] : [.../* @__PURE__ */ new Set([...projected?.groupIds ?? [], ...projected?.nodeIds ?? []])];
+  const changeView = () => {
+    if (!ready || controller.currentOwner.current !== owner || controller.active.current !== ready.request || ready.request.signal.aborted) return;
+    setView({ request: ready.request, whole: !whole });
+  };
   return /* @__PURE__ */ jsxs23(
     "section",
     {
@@ -8351,7 +8444,12 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
       style: { display: "grid", gap: 16, minWidth: 0, color: theme.textPrimary, fontFamily: theme.fontSans, ...props.style },
       children: [
         /* @__PURE__ */ jsx27("div", { role: "status", "aria-label": "Cause summary", "aria-live": "polite", style: { padding: "12px 16px", border: `1px solid ${theme.border}`, borderRadius: 10, background: theme.bgElevated }, children: /* @__PURE__ */ jsx27("strong", { children: summary }) }),
-        /* @__PURE__ */ jsx27(
+        ready && /* @__PURE__ */ jsxs23("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }, children: [
+          /* @__PURE__ */ jsx27("strong", { children: whole ? "Whole flow" : phase === "cause" ? "Cause focus" : "Impact focus" }),
+          /* @__PURE__ */ jsx27("button", { type: "button", style: action, onClick: changeView, children: whole ? "Focus on recorded links" : "Show whole flow" }),
+          !whole && /* @__PURE__ */ jsx27("span", { style: { fontSize: 12, color: theme.textSecondary }, children: "Workflow arrows are hidden so the recorded connections are easier to follow." })
+        ] }),
+        /* @__PURE__ */ jsx27(RecordedFocusContext.Provider, { value: { focused: !!ready && !whole, fitNodeIds: recordedFitIds }, children: /* @__PURE__ */ jsx27(
           GroupedFlowDiagram,
           {
             definition: admitted.definition,
@@ -8363,10 +8461,10 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
             onExpandedGroupIdsChange: (ids) => setExpansion({ owner, ids }),
             highlight: projected ? { nodeIds: projected.nodeIds, ...phase === "cause" && mappedRoot ? { rootCauseId: mappedRoot } : {} } : void 0,
             recordedRelationships: projected?.relationships,
-            focusRequest: ready && focusNodeIds.length ? { key: cameraKey, nodeIds: focusNodeIds } : void 0
+            focusRequest: ready && (whole || focusNodeIds.length) ? { key: cameraKey, nodeIds: whole ? [] : focusNodeIds } : void 0
           },
           diagramBindingKey
-        ),
+        ) }),
         /* @__PURE__ */ jsxs23("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 }, children: [
           /* @__PURE__ */ jsx27("button", { type: "button", style: action, disabled: !selectedId || selected?.status === "loading", onClick: () => {
             if (selectedId) controller.query(selectedId);

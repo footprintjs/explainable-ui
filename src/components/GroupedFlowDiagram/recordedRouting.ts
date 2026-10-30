@@ -5,17 +5,20 @@ import type { ProjectedRecordedRelationship } from "./relationships";
 type Point = { x: number; y: number };
 type Box = Point & { width: number; height: number; owner?: string };
 export type RecordedSide = "left" | "right" | "top" | "bottom";
+export interface RecordedPort { readonly id: string; readonly type: "source" | "target"; readonly side: RecordedSide; readonly offset: number }
 export interface RecordedRoute {
   readonly points: readonly Point[];
   readonly sourceSide: RecordedSide;
   readonly targetSide: RecordedSide;
+  readonly sourcePort: RecordedPort;
+  readonly targetPort: RecordedPort;
   readonly label: Point & { width: number; height: number };
 }
 const SIDE = { left: Position.Left, right: Position.Right, top: Position.Top, bottom: Position.Bottom };
 const HALO = 16, STUB = 18, MAX_WORK = 2_000_000, MAX_VISITS = 100_000;
 const intersects = (a: Box, b: Box) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-const point = (box: Box, side: RecordedSide): Point => ({ x: side === "left" ? box.x : side === "right" ? box.x + box.width : box.x + box.width / 2,
-  y: side === "top" ? box.y : side === "bottom" ? box.y + box.height : box.y + box.height / 2 });
+const point = (box: Box, side: RecordedSide, offset?: number): Point => ({ x: side === "left" ? box.x : side === "right" ? box.x + box.width : box.x + (offset ?? box.width / 2),
+  y: side === "top" ? box.y : side === "bottom" ? box.y + box.height : box.y + (offset ?? box.height / 2) });
 const escape = (p: Point, side: RecordedSide): Point => ({ x: p.x + (side === "left" ? -STUB : side === "right" ? STUB : 0), y: p.y + (side === "top" ? -STUB : side === "bottom" ? STUB : 0) });
 const crossing = (a: Point, b: Point, box: Box) => a.x === b.x
   ? a.x > box.x && a.x < box.x + box.width && Math.max(a.y, b.y) > box.y && Math.min(a.y, b.y) < box.y + box.height
@@ -63,27 +66,38 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
     const width = Math.min(180, edge.edge.label.length * 8 + 24); obstacles.push({ x: x - width / 2, y: y - 20, width, height: 40 });
   }
   const ordered = [...links].sort((a, b) => a.relationship.id < b.relationship.id ? -1 : a.relationship.id > b.relationship.id ? 1 : 0);
-  const candidates = new Map<string, { sourceSide: RecordedSide; targetSide: RecordedSide; source: Point; target: Point; start: Point; end: Point }[]>();
+  const candidates = new Map<string, { sourceSide: RecordedSide; targetSide: RecordedSide; sourcePort: RecordedPort; targetPort: RecordedPort; source: Point; target: Point; start: Point; end: Point }[]>();
+  const slots = (id: string, side: RecordedSide, type: "source" | "target", remote: Box) => {
+    const box = boxes.get(id)!, item = byId.get(id)!, length = side === "top" || side === "bottom" ? box.width : box.height;
+    const count = Math.min(6, Math.floor((length - 56) / 24) + 1), offsets = Array.from({ length: Math.max(0, count) }, (_, index) => 28 + (length - 56) * index / Math.max(1, count - 1))
+      .filter(offset => Math.abs(offset - length / 2) >= 20 && !(item.expanded && (side === "left" || side === "right") && offset < 96));
+    const neighbour = side === "top" || side === "bottom" ? remote.x + remote.width / 2 - box.x : remote.y + remote.height / 2 - box.y;
+    return offsets.sort((a, b) => Math.abs(a - neighbour) - Math.abs(b - neighbour) || (type === "source" ? a - b : b - a));
+  };
   const xs = new Set<number>(), ys = new Set<number>();
   for (const box of obstacles) for (const offset of [-18, 0, 18]) { xs.add(box.x + offset); xs.add(box.x + box.width + offset); ys.add(box.y + offset); ys.add(box.y + box.height + offset); }
-  for (const link of ordered) {
+  for (const [ordinal, link] of ordered.entries()) {
     const a = boxes.get(link.source), b = boxes.get(link.target); if (!a || !b) continue;
     const backward = link.relationship.direction === "backward";
     const pairs: [RecordedSide, RecordedSide][] = link.source === link.target ? [["bottom", "right"], ["right", "top"], ["left", "bottom"]]
       : model.direction === "LR" ? (backward ? [["bottom", "bottom"], ["top", "top"], ["left", "right"]] : [["top", "top"], ["bottom", "bottom"], ["right", "left"]])
       : backward ? [["right", "right"], ["left", "left"], ["top", "bottom"]] : [["left", "left"], ["right", "right"], ["bottom", "top"]];
-    const options = pairs.filter(([sourceSide, targetSide]) => !(sourceSide === "top" && (byId.get(link.source)?.isRootCause || byId.get(link.source)?.containsRootCause))
-      && !(targetSide === "top" && (byId.get(link.target)?.isRootCause || byId.get(link.target)?.containsRootCause))).map(([sourceSide, targetSide]) => {
-      const source = point(a, sourceSide), target = point(b, targetSide), start = escape(source, sourceSide), end = escape(target, targetSide);
-      for (const p of [start, end]) { xs.add(p.x); ys.add(p.y); }
-      return { sourceSide, targetSide, source, target, start, end };
-    }); candidates.set(link.relationship.id, options);
+    const options = pairs.filter(([sourceSide, targetSide]) => !(sourceSide === "top" && (byId.get(link.source)?.expanded || byId.get(link.source)?.isRootCause || byId.get(link.source)?.containsRootCause))
+      && !(targetSide === "top" && (byId.get(link.target)?.expanded || byId.get(link.target)?.isRootCause || byId.get(link.target)?.containsRootCause)))
+      .flatMap(([sourceSide, targetSide]) => slots(link.source, sourceSide, "source", b).flatMap(sourceOffset => slots(link.target, targetSide, "target", a).map(targetOffset => {
+        const source = point(a, sourceSide, sourceOffset), target = point(b, targetSide, targetOffset), start = escape(source, sourceSide), end = escape(target, targetSide);
+        for (const p of [start, end]) { xs.add(p.x); ys.add(p.y); }
+        return { sourceSide, targetSide, source, target, start, end,
+          sourcePort: { id: `recorded-${ordinal}-source`, type: "source" as const, side: sourceSide, offset: sourceOffset },
+          targetPort: { id: `recorded-${ordinal}-target`, type: "target" as const, side: targetSide, offset: targetOffset } };
+      }))); candidates.set(link.relationship.id, options);
   }
   const columns = [...xs].sort((a, b) => a - b), rows = [...ys].sort((a, b) => a - b), width = columns.length;
   if (!width || !rows.length) return outcome();
   const position = (at: number): Point => ({ x: columns[at % width]!, y: rows[Math.floor(at / width)]! });
   const index = (p: Point) => rows.indexOf(p.y) * width + columns.indexOf(p.x);
-  const occupied = new Map<string, number>(), checked = new Map<string, boolean>(), labels: Box[] = [];
+  const occupied = new Map<string, number>(), occupiedVertices = new Map<number, number>(), checked = new Map<string, boolean>(), labels: Box[] = [], usedPorts = new Set<string>();
+  const portKey = (id: string, port: RecordedPort) => JSON.stringify([id, port.side, port.offset]);
   const segmentKey = (a: number, b: number) => a < b ? `${a}:${b}` : `${b}:${a}`;
   const clear = (a: Point, b: Point, boxes: readonly Box[], ignore?: string) => {
     for (const box of boxes) { if (work >= MAX_WORK) return false; work++; if ((ignore === undefined || box.owner !== ignore) && crossing(a, b, box)) return false; } return true;
@@ -105,7 +119,8 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
         if (next < 0) continue; const b = position(next), edge = segmentKey(current.at, next); let free = checked.get(edge);
         if (free === undefined) { free = clear(a, b, obstacles); checked.set(edge, free); }
         if (!free || !clear(a, b, labels)) continue;
-        const direction = a.y === b.y ? 1 : 2, cost = current.cost + distance(a, b) + (current.direction && current.direction !== direction ? 20 : 0) + (occupied.get(edge) ?? 0) * (100 + distance(a, b) * 4);
+        const direction = a.y === b.y ? 1 : 2, cost = current.cost + distance(a, b) + (current.direction && current.direction !== direction ? 20 : 0)
+          + (occupied.get(edge) ?? 0) * (100 + distance(a, b) * 4) + (occupiedVertices.get(next) ?? 0) * 500;
         const key = next * 3 + direction; if (cost >= (costs.get(key) ?? Infinity)) continue;
         costs.set(key, cost); parents.set(key, current.key); queue.push({ at: next, direction, cost, score: cost + distance(b, end), key });
       }
@@ -127,20 +142,25 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
   for (const link of ordered) {
     if (work >= MAX_WORK || visits > MAX_VISITS) break;
     for (const option of candidates.get(link.relationship.id) ?? []) {
+      const sourceKey = portKey(link.source, option.sourcePort), targetKey = portKey(link.target, option.targetPort);
+      if (usedPorts.has(sourceKey) || usedPorts.has(targetKey) || sourceKey === targetKey) continue;
       if (!clear(option.source, option.start, obstacles, link.source) || !clear(option.end, option.target, obstacles, link.target)
         || !clear(option.source, option.start, labels) || !clear(option.end, option.target, labels)) continue;
       const found = search(option.start, option.end); if (!found) continue;
       const corners = found.points.filter((p, at, all) => !at || at === all.length - 1 || (all[at - 1]!.x === p.x) !== (p.x === all[at + 1]!.x));
       const points = [option.source, ...corners, option.target], label = labelFor(points); if (!label) continue;
       labels.push(label.box); for (const segment of found.segments) occupied.set(segment, (occupied.get(segment) ?? 0) + 1);
-      routes.set(link.relationship.id, { points, sourceSide: option.sourceSide, targetSide: option.targetSide, label: { x: label.x, y: label.y, width: label.width, height: label.height } }); break;
+      for (const p of found.points) { const at = index(p); occupiedVertices.set(at, (occupiedVertices.get(at) ?? 0) + 1); }
+      usedPorts.add(sourceKey); usedPorts.add(targetKey);
+      routes.set(link.relationship.id, { points, sourceSide: option.sourceSide, targetSide: option.targetSide, sourcePort: option.sourcePort, targetPort: option.targetPort,
+        label: { x: label.x, y: label.y, width: label.width, height: label.height } }); break;
     }
   }
   return outcome();
 }
 
 /** Keep xyflow's measured anchor pixels authoritative and round only the planned clear corridor. */
-export function recordedRoutePath(route: RecordedRoute, source: Point, target: Point) {
+export function recordedRoutePath(route: Omit<RecordedRoute, "sourcePort" | "targetPort">, source: Point, target: Point) {
   const interior = route.points.slice(1, -1), start = interior[0]!, end = interior[interior.length - 1]!;
   const bridge = (p: Point, actual: Point, side: RecordedSide) => side === "left" || side === "right" ? { x: p.x, y: actual.y } : { x: actual.x, y: p.y };
   // Preserve both planned stubs. Independently measured half-pixels must not

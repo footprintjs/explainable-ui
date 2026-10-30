@@ -119,3 +119,26 @@ it("fits route/caption paint for overview or both endpoint targets while a singl
   expect(recordedVisualBounds(plan, links, ["root"])).toEqual({ x: 20, y: 144, width: 198, height: 164 });
   expect(recordedVisualBounds(plan, links, ["source"])).toBeUndefined();
 });
+
+it("separates incoming arrowheads and parallel outgoing stubs on one decision instead of joining them at the same centre port", () => {
+  const nodes = [item("root", 20, 160, 180, 148, { isRootCause: true }), item("decision", 320, 160, 180, 172), item("source", 620, 340)];
+  const incoming = link("0-incoming", "source", "decision"), read = link("1-read", "decision", "root"), rule = { ...link("2-rule", "decision", "root"),
+    relationship: { ...link("2-rule", "decision", "root").relationship, kind: "control" as const, attribution: "recorded-control" as const } };
+  const links = [incoming, read, rule], planned = routeRecordedRelationships(links, model(nodes)); expect(planned.undrawn).toBe(0);
+  const received = planned.routes.get("0-incoming")!.points.at(-1)!, sent = [planned.routes.get("1-read")!.points[0]!, planned.routes.get("2-rule")!.points[0]!];
+  expect(distanceBetween(received, sent[0]!)).toBeGreaterThanOrEqual(24); expect(distanceBetween(received, sent[1]!)).toBeGreaterThanOrEqual(24);
+  expect(distanceBetween(sent[0]!, sent[1]!)).toBeGreaterThanOrEqual(24);
+  expect(sent[0]!.x).toBeLessThan(received.x); expect(sent[1]!.x).toBeLessThan(received.x);
+  const routes = [...planned.routes.values()]; let crossings = 0;
+  for (let one = 0; one < routes.length; one++) for (let two = one + 1; two < routes.length; two++) {
+    for (let at = 1; at < routes[one]!.points.length; at++) for (let next = 1; next < routes[two]!.points.length; next++) {
+      const a = routes[one]!.points[at - 1]!, b = routes[one]!.points[at]!, c = routes[two]!.points[next - 1]!, d = routes[two]!.points[next]!;
+      const vertical = a.x === b.x, otherVertical = c.x === d.x; if (vertical === otherVertical) continue;
+      const v0 = vertical ? a : c, v1 = vertical ? b : d, h0 = vertical ? c : a, h1 = vertical ? d : b;
+      if (v0.x > Math.min(h0.x, h1.x) && v0.x < Math.max(h0.x, h1.x) && h0.y > Math.min(v0.y, v1.y) && h0.y < Math.max(v0.y, v1.y)) crossings++;
+    }
+  }
+  expect(crossings).toBe(0);
+  expect([...planned.routes]).toEqual([...routeRecordedRelationships([...links].reverse(), model(nodes)).routes]);
+});
+const distanceBetween = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);

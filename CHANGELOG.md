@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   distinct cause/impact colours and a display-limit notice that preserves the
   recorded result. Decision cards retain their branching role inside a rounded
   rectangle.
+  Cause/impact focus separates recorded links from workflow arrows, with a
+  query-free whole-flow view, per-connection entry/exit ports and readable focused
+  fitting on narrow screens. Connection details remain accessible while repeated
+  visual captions are shown only on interaction in the focused view.
 
 - Optional `GroupedFlowDiagram` and pure `projectGroupedFlowDiagram` for app-supplied,
   instance-bound flow definitions: configurable names/icons, nested expandable groups,

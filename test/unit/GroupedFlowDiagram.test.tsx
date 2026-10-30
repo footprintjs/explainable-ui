@@ -5,6 +5,7 @@ import { GroupedFlowDiagram } from "../../src/components/GroupedFlowDiagram/Grou
 import { GroupContainerNode } from "../../src/components/GroupContainerNode";
 import type { FlowDiagramDefinition } from "../../src/components/GroupedFlowDiagram/types";
 import { theme } from "../../src/theme";
+import { RecordedFocusContext } from "../../src/components/GroupedFlowDiagram/presentation";
 vi.mock("../../src/components/FlowchartView/_internal/useChartAutoRefit", () => ({ ChartAutoRefit: (props: any) => <output data-testid="camera-targets" data-focus={props.focusNodeIds?.join(" ") ?? "overview"} /> }));
 
 vi.mock("@xyflow/react", async original => ({ ...await original<typeof import("@xyflow/react")>(),
@@ -127,7 +128,7 @@ it("keeps the structural geometry and transitions unchanged when recorded depend
   expect(screen.getByTestId("canvas-model").getAttribute("data-model-nodes")).toBe(before);
   const edges = JSON.parse(screen.getByTestId("canvas-model").getAttribute("data-model-edges")!);
   expect(edges.find((edge: any) => edge.id === "paid-ship").className).toBe("gfd-edge-unknown");
-  expect(edges.find((edge: any) => edge.id === "dep")).toMatchObject({ source: "capture", target: "authorize", sourceHandle: "recorded-bottom-source", targetHandle: "recorded-bottom-target", data: { relationship: relationships[0], route: expect.any(Object) }, style: { strokeWidth: 1.8 }, markerEnd: { width: 14, height: 14 } });
+  expect(edges.find((edge: any) => edge.id === "dep")).toMatchObject({ source: "capture", target: "authorize", sourceHandle: "recorded-0-source", targetHandle: "recorded-0-target", data: { relationship: relationships[0], route: expect.any(Object) }, style: { strokeWidth: 1.8 }, markerEnd: { width: 14, height: 14 } });
 });
 
 it("applies one explicit camera key without stealing camera ownership on equivalent renders", () => {
@@ -179,4 +180,15 @@ it("keeps a relationship without a direction hint neutral rather than claiming f
   const edge = JSON.parse(screen.getByTestId("canvas-model").getAttribute("data-model-edges")!).find((edge: any) => edge.id === "neutral");
   expect(edge.style.stroke).toBe(theme.textSecondary); expect(edge.ariaLabel).toContain("Recorded dependency.");
   expect(edge.ariaLabel).not.toMatch(/Forward recorded impact|Backward source trail/);
+});
+
+it.each([{ targets: [] }, { targets: ["outside"] }])("refuses an empty or unknown focused fit batch without falling through to an overview ($targets)", ({ targets }) => {
+  const key = {}, request = { key, nodeIds: ["ship"] };
+  const view = render(<RecordedFocusContext.Provider value={{ focused: true, fitNodeIds: ["ship"] }}><GroupedFlowDiagram definition={definition} focusRequest={request} /></RecordedFocusContext.Provider>);
+  expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("ship");
+  view.rerender(<RecordedFocusContext.Provider value={{ focused: true, fitNodeIds: targets }}><GroupedFlowDiagram definition={definition} focusRequest={request} /></RecordedFocusContext.Provider>);
+  const fit = screen.getByRole("button", { name: "Fit recorded view" }) as HTMLButtonElement;
+  expect(fit.disabled).toBe(true); fireEvent.click(fit);
+  expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("ship");
+  expect(screen.getByText(/The recorded view cannot be fitted yet/)).toBeTruthy();
 });

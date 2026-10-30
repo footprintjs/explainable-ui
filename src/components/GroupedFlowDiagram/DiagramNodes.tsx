@@ -4,6 +4,7 @@ import { GroupContainerNode } from "../GroupContainerNode";
 import { theme } from "../../theme";
 import { DiagramIcon } from "./icons";
 import type { PositionedFlowDiagramNode } from "./types";
+import type { RecordedPort } from "./recordedRouting";
 
 export interface DiagramNodeData extends Record<string, unknown> {
   item: PositionedFlowDiagramNode;
@@ -13,15 +14,16 @@ export interface DiagramNodeData extends Record<string, unknown> {
   onToggle(id: string): void;
   onSelect(id: string): void;
   canToggle: boolean;
+  recordedPorts?: readonly RecordedPort[];
 }
 export type DiagramReactNode = Node<DiagramNodeData>;
 const statusText = { unknown: "Status unknown", running: "Running", completed: "Completed", failed: "Failed", "not-run": "Not run (recorded)" };
 const smallButton: CSSProperties = { font: "inherit", border: `1px solid ${theme.border}`, borderRadius: 8, padding: "5px 10px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
 
-function DependencyHandles() {
-  return <>{(["left", "right", "top", "bottom"] as const).flatMap(side => (["source", "target"] as const).map(type =>
-    <Handle key={`${side}-${type}`} id={`recorded-${side}-${type}`} type={type} position={{ left: Position.Left, right: Position.Right, top: Position.Top, bottom: Position.Bottom }[side]}
-      isConnectable={false} style={{ opacity: 0 }} />))}</>;
+function DependencyHandles({ ports = [] }: { ports?: readonly RecordedPort[] }) {
+  return <>{ports.map(port => <Handle key={port.id} id={port.id} type={port.type} data-recorded-port={port.id}
+    position={{ left: Position.Left, right: Position.Right, top: Position.Top, bottom: Position.Bottom }[port.side]} isConnectable={false}
+    style={{ opacity: 0, pointerEvents: "none", ...(port.side === "top" || port.side === "bottom" ? { left: port.offset } : { top: port.offset }) }} />)}</>;
 }
 
 function CauseBadge({ item }: { item: PositionedFlowDiagramNode }) {
@@ -44,7 +46,7 @@ export function DiagramGroupNode(props: NodeProps<DiagramReactNode>) {
     <GroupContainerNode {...props} data={{ label: item.node.label, headerMode: "expandable", iconContent: <DiagramIcon icon={item.node.icon ?? "flow"} style={{ width: 22, height: 22, color: theme.nodeMain }} />,
       headerAction: action, statusLabel: text, statusLabelId: statusId, handleDirection: d.direction, highlighted: item.highlighted, compactHeader: true,
       error: item.state === "failed", done: item.state === "completed", active: item.state === "running" }} />
-    <DependencyHandles />
+    <DependencyHandles ports={d.recordedPorts} />
     <CauseBadge item={item} />
   </div>;
 }
@@ -80,7 +82,7 @@ export function DiagramItemNode({ data: d }: NodeProps<DiagramReactNode>) {
     {item.state === "completed" && <span aria-hidden="true" style={{ position: "absolute", top: -9, right: -9, width: 26, height: 26, borderRadius: "50%", background: theme.success, color: "white", textAlign: "center", fontSize: 19 }}>✓</span>}
     {item.state === "failed" && <span aria-hidden="true" style={{ position: "absolute", top: -9, right: -9, width: 26, height: 26, borderRadius: "50%", background: theme.error, color: "white", textAlign: "center", fontSize: 20 }}>×</span>}
     <Handle type="source" position={d.direction === "LR" ? Position.Right : Position.Bottom} isConnectable={false} />
-    <DependencyHandles />
+    <DependencyHandles ports={d.recordedPorts} />
     <CauseBadge item={item} />
   </div>;
 }

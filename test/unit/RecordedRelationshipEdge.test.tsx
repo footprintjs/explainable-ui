@@ -1,8 +1,9 @@
 /** @vitest-environment jsdom */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { Position } from "@xyflow/react";
 import { RecordedRelationshipEdge } from "../../src/components/GroupedFlowDiagram/RecordedRelationshipEdge";
+import { RecordedFocusContext } from "../../src/components/GroupedFlowDiagram/presentation";
 vi.mock("@xyflow/react", async original => ({ ...await original<typeof import("@xyflow/react")>(),
   BaseEdge: (props: any) => <output data-testid={props.id} data-path={props.path} />,
   EdgeLabelRenderer: ({ children }: any) => children,
@@ -35,4 +36,16 @@ it("honors the obstacle-aware route and the actual handle pixels instead of draw
   expect(path.startsWith("M601,180")).toBe(true); expect(path.endsWith("99,180")).toBe(true);
   expect(path).toContain("40"); expect(path).toContain("Q"); expect(path).not.toContain(" C");
   expect(screen.getByText("Read").style.transform).toContain("350px,40px");
+});
+
+it("keeps routine Data metadata accessible while showing its caption only on hover or in whole-flow context", () => {
+  const data = { ...props.data, relationship: { ...props.data.relationship, attribution: "per-write" } }, label = "Per-write link · data";
+  const view = render(<RecordedFocusContext.Provider value={{ focused: true }}><RecordedRelationshipEdge {...props} label={label} data={data} /></RecordedFocusContext.Provider>);
+  const caption = screen.getByLabelText(label), path = screen.getByTestId("link").getAttribute("data-path");
+  expect(caption.style.opacity).toBe("0"); expect(caption.getAttribute("title")).toBe(label);
+  const connection = document.querySelector('[data-recorded-connection="link"]')!;
+  fireEvent.mouseEnter(connection); expect(caption.style.opacity).toBe("1");
+  fireEvent.mouseLeave(connection); expect(caption.style.opacity).toBe("0");
+  view.rerender(<RecordedFocusContext.Provider value={{ focused: false }}><RecordedRelationshipEdge {...props} label={label} data={data} /></RecordedFocusContext.Provider>);
+  expect(caption.style.opacity).toBe("1"); expect(screen.getByTestId("link").getAttribute("data-path")).toBe(path);
 });

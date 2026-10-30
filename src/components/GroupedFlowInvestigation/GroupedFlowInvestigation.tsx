@@ -11,6 +11,7 @@ import type { InvestigationPort } from "../InvestigationPanel/types";
 import { projectInvestigation } from "./projection";
 import { DependencyEvidence } from "./DependencyEvidence";
 import type { GroupedFlowInvestigationProps } from "./types";
+import { RecordedFocusContext } from "../GroupedFlowDiagram/presentation";
 
 const action = { font: "inherit", fontSize: 12, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "7px 12px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
 
@@ -36,6 +37,9 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
   const [expansion, setExpansion] = useState<{ owner: object; ids: readonly string[] }>({ owner, ids: [] });
   const [mode, setMode] = useState<{ request: AbortController; value: "cause" | "impact" }>();
   const [focusCommand, setFocusCommand] = useState<{ request: AbortController; phase: "cause" | "impact"; count: number }>();
+  const [view, setView] = useState<{ request: AbortController; whole: boolean }>();
+  const activeView = view?.request === ready?.request ? view : undefined;
+  const whole = activeView?.whole ?? false;
   const phase = mode && mode.request === selected?.request ? mode.value : "cause";
   const diagramBindings = useRef(new WeakMap<object, number>());
   const nextDiagramBinding = useRef(0);
@@ -69,7 +73,7 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
   }, []);
   const selectedId = controller.selection && known.has(controller.selection) ? controller.selection : null;
   const activeFocusCommand = focusCommand?.request === ready?.request && focusCommand?.phase === phase ? focusCommand : undefined;
-  const cameraKey = useMemo(() => ({ owner, request: ready?.request, phase, command: activeFocusCommand }), [owner, ready?.request, phase, activeFocusCommand]);
+  const cameraKey = useMemo(() => ({ owner, request: ready?.request, phase, command: activeFocusCommand, view: activeView }), [owner, ready?.request, phase, activeFocusCommand, activeView]);
   let focusNodeIds = [...new Set([...(projected?.groupIds ?? []), ...(projected?.nodeIds ?? [])])];
   if (ready && (activeFocusCommand || narrow)) {
     const target = !activeFocusCommand && phase === "cause" && ready.result.rootCause && known.has(ready.result.rootCause) ? ready.result.rootCause : selectedId;
@@ -90,15 +94,28 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
     : ready && root && !known.has(root) ? "The supported cause is not shown in this diagram. No substitute card is labelled."
     : ready || selected?.status === "error" || selected?.status === "refused" ? "Cause unknown. The available evidence does not support a cause on this diagram."
     : "Select a failed item, or select another item and choose Investigate selected item.";
+  const recordedFitIds = narrow && ready ? phase === "cause" && mappedRoot ? [mappedRoot] : selectedId ? [selectedId] : []
+    : [...new Set([...(projected?.groupIds ?? []), ...(projected?.nodeIds ?? [])])];
+  const changeView = () => {
+    if (!ready || controller.currentOwner.current !== owner || controller.active.current !== ready.request || ready.request.signal.aborted) return;
+    setView({ request: ready.request, whole: !whole });
+  };
   return <section ref={wrapper} className={props.className} aria-label={props["aria-label"] ?? "Grouped flow investigation"}
     style={{ display: "grid", gap: 16, minWidth: 0, color: theme.textPrimary, fontFamily: theme.fontSans, ...props.style }}>
     <div role="status" aria-label="Cause summary" aria-live="polite" style={{ padding: "12px 16px", border: `1px solid ${theme.border}`, borderRadius: 10, background: theme.bgElevated }}>
       <strong>{summary}</strong>
     </div>
+    {ready && <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+      <strong>{whole ? "Whole flow" : phase === "cause" ? "Cause focus" : "Impact focus"}</strong>
+      <button type="button" style={action} onClick={changeView}>{whole ? "Focus on recorded links" : "Show whole flow"}</button>
+      {!whole && <span style={{ fontSize: 12, color: theme.textSecondary }}>Workflow arrows are hidden so the recorded connections are easier to follow.</span>}
+    </div>}
+    <RecordedFocusContext.Provider value={{ focused: !!ready && !whole, fitNodeIds: recordedFitIds }}>
     <GroupedFlowDiagram key={diagramBindingKey} definition={admitted.definition} observation={props.observation} direction={props.direction}
       selectedNodeId={selectedId} onSelectNode={choose} expandedGroupIds={expandedGroupIds} onExpandedGroupIdsChange={ids => setExpansion({ owner, ids })}
       highlight={projected ? { nodeIds: projected.nodeIds, ...(phase === "cause" && mappedRoot ? { rootCauseId: mappedRoot } : {}) } : undefined} recordedRelationships={projected?.relationships}
-      focusRequest={ready && focusNodeIds.length ? { key: cameraKey, nodeIds: focusNodeIds } : undefined} />
+      focusRequest={ready && (whole || focusNodeIds.length) ? { key: cameraKey, nodeIds: whole ? [] : focusNodeIds } : undefined} />
+    </RecordedFocusContext.Provider>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
       <button type="button" style={action} disabled={!selectedId || selected?.status === "loading"} onClick={() => { if (selectedId) controller.query(selectedId); }}>Investigate selected item</button>
       <button type="button" style={action} disabled={!ready} aria-pressed={phase === "cause"} onClick={() => { if (ready) setMode({ request: ready.request, value: "cause" }); }}>Why it happened</button>

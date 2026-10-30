@@ -104,7 +104,7 @@ const unchangedDesign = (actual, expected) => {
   }
   return {maxCoordinateDrift,tolerance:.001};
 };
-const desktopFraming = async () => {
+const desktopFraming = async (requireDesign=false) => {
   await page.waitForFunction(() => {
     const canvas=document.querySelector('.react-flow')?.getBoundingClientRect(), group=document.querySelector('[data-node-id="delivery-group"]');
     const collapse=group?.querySelector('button')?.getBoundingClientRect();
@@ -116,8 +116,8 @@ const desktopFraming = async () => {
     const no=[...document.querySelectorAll('.react-flow__edge-text')].find(node=>node.textContent==='No')?.getBoundingClientRect();
     return{no:no?.toJSON(),recorded:[...document.querySelectorAll('[data-relationship-id]')].map(node=>({id:node.getAttribute('data-relationship-id'),text:node.textContent,bounds:node.getBoundingClientRect().toJSON(),title:node.getAttribute('title')}))};
   });
-  assert(labels.no);assert.equal(labels.recorded.length,3);
-  for(const label of labels.recorded){const a=label.bounds,b=labels.no;assert(!(a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top),'Recorded caption must not overlap the design No caption.');assert(label.title?.includes('Per-write'));}
+  if(requireDesign)assert(labels.no);assert.equal(labels.recorded.length,3);
+  for(const label of labels.recorded){const a=label.bounds,b=labels.no;if(b)assert(!(a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top),'Recorded caption must not overlap the design No caption.');assert(label.title?.includes('Per-write'));}
   return labels;
 };
 const relationshipsMatch = async (result, ids=result.backward.edges.map((_,index)=>`recorded-dependency:${index}`)) => {
@@ -127,15 +127,17 @@ const relationshipsMatch = async (result, ids=result.backward.edges.map((_,index
     const path = rendered?.querySelector('.react-flow__edge-path'), matrix = path?.getScreenCTM();
     const endpoint = (id, type, point) => {
       const node = [...document.querySelectorAll('[data-node-id]')].find(item => item.getAttribute('data-node-id') === id);
-      return [...node?.querySelectorAll('[data-handleid]') ?? []].flatMap(handle => {
-        const match = handle.getAttribute('data-handleid')?.match(new RegExp(`^recorded-(left|right|top|bottom)-${type}$`));
+      const ordinal=[...ids].sort().indexOf(ids[index]);
+      return [...node?.querySelectorAll('[data-recorded-port]') ?? []].flatMap(handle => {
+        const matches=handle.getAttribute('data-recorded-port')===`recorded-${ordinal}-${type}`;
         const box = handle.getBoundingClientRect();
-        return match && point && point.x >= box.left-2 && point.x <= box.right+2 && point.y >= box.top-2 && point.y <= box.bottom+2 ? [{...box.toJSON(),side:match[1]}] : [];
+        const side=handle.getAttribute('data-handlepos')??['left','right','top','bottom'].find(value=>handle.classList.contains(`react-flow__handle-${value}`));
+        return matches && point && point.x >= box.left-2 && point.x <= box.right+2 && point.y >= box.top-2 && point.y <= box.bottom+2 ? [{...box.toJSON(),side,port:handle.getAttribute('data-recorded-port'),nodeBounds:node.getBoundingClientRect().toJSON(),scale:Math.abs(matrix.a)}] : [];
       })[0] ?? null;
     };
     const point = distance => { if (!path || !matrix) return null; const p = path.getPointAtLength(distance); return new DOMPoint(p.x,p.y).matrixTransform(matrix).toJSON(); };
     const length=path?.getTotalLength()??0,start=point(0),end=point(length),first=path?.getPointAtLength(4),last=path?.getPointAtLength(length-4),localStart=path?.getPointAtLength(0),localEnd=path?.getPointAtLength(length);
-    return { from: edge.from, to: edge.to, attribution:edge.attribution,start, end, source: endpoint(edge.from,'source',start), target: endpoint(edge.to,'target',end), sourceDelta:first&&{x:first.x-localStart.x,y:first.y-localStart.y},targetDelta:last&&{x:localEnd.x-last.x,y:localEnd.y-last.y},label: rendered?.getAttribute('aria-label') };
+    return { from: edge.from, to: edge.to, attribution:edge.attribution,start, end,worldStart:localStart&&{x:localStart.x,y:localStart.y},worldEnd:localEnd&&{x:localEnd.x,y:localEnd.y},source: endpoint(edge.from,'source',start), target: endpoint(edge.to,'target',end), sourceDelta:first&&{x:first.x-localStart.x,y:first.y-localStart.y},targetDelta:last&&{x:localEnd.x-last.x,y:localEnd.y-last.y},label: rendered?.getAttribute('aria-label') };
   }), {edges:result.backward.edges,ids});
   evidence.currentRelationshipPoints = points;
   const touches = (point,handle) => point.x>=handle.left-2 && point.x<=handle.right+2 && point.y>=handle.top-2 && point.y<=handle.bottom+2;
@@ -147,10 +149,15 @@ const relationshipsMatch = async (result, ids=result.backward.edges.map((_,index
       const normal=handle.side==='left'?{x:-1,y:0}:handle.side==='right'?{x:1,y:0}:handle.side==='top'?{x:0,y:-1}:{x:0,y:1};
       assert(Math.abs(normal.x?delta.y:delta.x)<=.05,'Arrow stubs must meet the handle face normally.');
       assert((delta.x*normal.x+delta.y*normal.y)*(type==='source'?1:-1)>=3.9,'Arrow stubs must point outward at the source and inward at the target.');
+      const centre=normal.x?(handle.nodeBounds.top+handle.nodeBounds.bottom)/2:(handle.nodeBounds.left+handle.nodeBounds.right)/2,port=normal.x?(handle.top+handle.bottom)/2:(handle.left+handle.right)/2;
+      assert(Math.abs(port-centre)/handle.scale>=20-.001,'Recorded ports must clear the standard workflow centre.');
     }
     assert.match(edge.label, /data dependency/);
     if(edge.attribution==='per-write')assert.match(edge.label,/Per-write link[.] data dependency/);
   }
+  const endpoints=points.flatMap(edge=>[{node:edge.from,point:edge.worldStart,port:edge.source.port},{node:edge.to,point:edge.worldEnd,port:edge.target.port}]);
+  assert.equal(new Set(endpoints.map(endpoint=>endpoint.port)).size,endpoints.length,'Each recorded endpoint needs its own stable port.');
+  for(let a=0;a<endpoints.length;a++)for(let b=a+1;b<endpoints.length;b++)if(endpoints[a].node===endpoints[b].node)assert(Math.hypot(endpoints[a].point.x-endpoints[b].point.x,endpoints[a].point.y-endpoints[b].point.y)>=24-.001,'Recorded endpoints on the same card must be at least24 diagram pixels apart.');
   return points;
 };
 const routingReadability = async ({visible=false}={}) => {
@@ -174,6 +181,32 @@ const routingReadability = async ({visible=false}={}) => {
   if(visible)for(const label of result.labels){const b=label.bounds,c=result.canvas;assert(b.left>=c.left&&b.right<=c.right&&b.top>=c.top&&b.bottom<=c.bottom,'Auto-framed recorded labels must be fully inside the canvas.');}
   return result;
 };
+const canonicalCrossings = async () => {
+  const crossings=await page.evaluate(()=>{
+    const items=[...document.querySelectorAll('.gfd-recorded-relationship')].map(edge=>{const path=edge.querySelector('.react-flow__edge-path'),length=path.getTotalLength(),points=[];for(let at=0;at<length;at+=2){const p=path.getPointAtLength(at);points.push({x:p.x,y:p.y});}const end=path.getPointAtLength(length);points.push({x:end.x,y:end.y});return{id:edge.getAttribute('data-id'),points};});
+    const hits=[],cross=(a,b)=>a.x*b.y-a.y*b.x;
+    for(let a=0;a<items.length;a++)for(let b=a+1;b<items.length;b++){const one=items[a],two=items[b];for(let i=1;i<one.points.length;i++)for(let j=1;j<two.points.length;j++){
+      const p=one.points[i-1],q=two.points[j-1],r={x:one.points[i].x-p.x,y:one.points[i].y-p.y},s={x:two.points[j].x-q.x,y:two.points[j].y-q.y},den=cross(r,s);if(Math.abs(den)<1e-7)continue;
+      const qp={x:q.x-p.x,y:q.y-p.y},t=cross(qp,s)/den,u=cross(qp,r)/den;if(t< -1e-6||t>1+1e-6||u< -1e-6||u>1+1e-6)continue;
+      const point={x:p.x+t*r.x,y:p.y+t*r.y},dot=Math.abs(r.x*s.x+r.y*s.y)/Math.hypot(r.x,r.y)/Math.hypot(s.x,s.y);
+      if(dot>.1||[one.points[0],one.points.at(-1),two.points[0],two.points.at(-1)].some(end=>Math.hypot(point.x-end.x,point.y-end.y)<1))continue;
+      if(!hits.some(hit=>hit.a===one.id&&hit.b===two.id&&Math.hypot(hit.point.x-point.x,hit.point.y-point.y)<1))hits.push({a:one.id,b:two.id,point});
+    }}return hits;
+  });
+  assert.deepEqual(crossings,[],'This canonical three-link example must have no perpendicular recorded crossings.');return crossings;
+};
+const scopeState = () => page.evaluate(()=>({focus:document.querySelector('[data-investigation-focus]')?.getAttribute('data-investigation-focus'),captions:[...document.querySelectorAll('[data-relationship-id]')].map(node=>({id:node.getAttribute('data-relationship-id'),opacity:Number(getComputedStyle(node).opacity),visible:node.getAttribute('data-caption-visible'),title:node.getAttribute('title'),aria:node.getAttribute('aria-label')})),ports:[...document.querySelectorAll('[data-recorded-port]')].map(node=>({id:node.getAttribute('data-recorded-port'),left:node.style.left,top:node.style.top})).sort((a,b)=>a.id.localeCompare(b.id))}));
+const scopeRestoration = async () => {
+  const focused=await snapshot(),focusedState=await scopeState();assert.equal(focusedState.focus,'true');assert.deepEqual(focused.design,[]);assert(focusedState.captions.every(caption=>caption.opacity===0&&caption.title&&caption.aria));
+  await page.getByRole('button',{name:'Show whole flow',exact:true}).click();await designCount(8);await settle();await calls(1);
+  const whole=await snapshot(),wholeState=await scopeState();assert.equal(wholeState.focus,'false');assert.deepEqual(whole.geometry,focused.geometry);assert.deepEqual(whole.relationships,focused.relationships);assert.deepEqual(wholeState.ports,focusedState.ports);assert(wholeState.captions.every(caption=>caption.opacity===1));
+  const framing=await desktopFraming(true);if(prior){assert.deepEqual(whole.geometry,prior.checks.complete.geometry);unchangedDesign(whole.design,prior.checks.complete.design);}
+  await page.getByRole('button',{name:'What it affected',exact:true}).click();await settle();await calls(1);assert.equal((await scopeState()).focus,'false');await page.getByRole('button',{name:'Why it happened',exact:true}).click();await edgeCount(3);await calls(1);assert.equal((await scopeState()).focus,'false');
+  await page.getByRole('button',{name:'Focus on recorded links',exact:true}).click();await designCount(0);await settle();await calls(1);assert.equal((await scopeState()).focus,'true');assert.deepEqual((await snapshot()).geometry,focused.geometry);
+  const point=await page.evaluate(()=>{const path=document.querySelector('[data-recorded-connection="recorded-dependency:0"] .react-flow__edge-path'),p=path.getPointAtLength(path.getTotalLength()/2),q=new DOMPoint(p.x,p.y).matrixTransform(path.getScreenCTM());return{x:q.x,y:q.y};});await page.mouse.move(point.x,point.y);await page.waitForFunction(()=>document.querySelector('[data-relationship-id="recorded-dependency:0"]')?.getAttribute('data-caption-visible')==='true');
+  const hovered=await scopeState();assert.equal(hovered.captions.find(caption=>caption.id==='recorded-dependency:0').opacity,1);await page.mouse.move(5,5);await page.waitForFunction(()=>{const caption=document.querySelector('[data-relationship-id="recorded-dependency:0"]');return caption&&Number(getComputedStyle(caption).opacity)===0;});
+  return{focused:focusedState,whole:wholeState,wholeGeometry:whole.geometry,wholeDesign:whole.design,framing,hoverRevealsMetadata:true,modeChangesReuseQuery:true};
+};
 const decisionPresentation = async id => {
   const result=await page.evaluate(target=>{
     const node=[...document.querySelectorAll('[data-node-id]')].find(item=>item.getAttribute('data-node-id')===target),button=node?.querySelector('button'),title=button?.querySelector('strong');
@@ -182,6 +215,50 @@ const decisionPresentation = async id => {
   assert.match(result.description,/Decision/);assert.match(result.description,/Completed/);assert.equal(result.outerDiamond,0);assert(result.hostIcon&&result.titleFits);assert(Number.parseFloat(result.radius)>0);assert.equal(result.title,'Rates usable?');
   assert.equal(await page.getByText(/Warm backward links: recorded sources, not failed steps/).count(),1);assert.equal(await page.getByText(/Teal forward links: recorded impact, not proof of harm/).count(),1);
   return result;
+};
+const requestOwnership = async () => {
+  await page.setViewportSize({width:1440,height:1200});await page.goto(base.origin,{waitUntil:'networkidle'});
+  await page.evaluate(async entry=>{
+    const urls=performance.getEntriesByType('resource').map(item=>item.name),r=await import(urls.find(url=>/\/react[.]js(?:[?]|$)/.test(url))),d=await import(urls.find(url=>/\/react-dom_client[.]js(?:[?]|$)/.test(url))),React=r.default??r,{createRoot}=d.default??d,{GroupedFlowInvestigation}=await import('/@fs/'+entry),{createRecordedInvestigationExample}=await import('/recorded.ts');
+    const first=createRecordedInvestigationExample('complete'),next=createRecordedInvestigationExample('missing'),counts={old:0,next:0};let finish,refresh=()=>{},settled=false;
+    const delayed={...first.port,explain:nodeId=>{counts.old++;refresh();return new Promise(resolve=>{finish=async()=>{const result=await first.port.explain(nodeId,{signal:new AbortController().signal});resolve(result);settled=true;refresh();};});}},current={...next.port,explain:(...args)=>{counts.next++;refresh();return next.port.explain(...args);}};
+    function Host(){const[changed,setChanged]=React.useState(false),[,rerender]=React.useState(0);refresh=()=>rerender(value=>value+1);const sample=changed?next:first;return React.createElement(React.Fragment,null,React.createElement('button',{onClick:()=>setChanged(true)},'Switch recording owner'),React.createElement('button',{onClick:()=>finish?.()},'Resolve previous evidence'),React.createElement('button',{onClick:refresh},'Rerender same recording'),React.createElement('output',{'data-testid':'analysis-count'},counts.old+counts.next),React.createElement('output',{'data-owner':changed?'missing':'complete','data-old-settled':settled},settled?'Previous evidence resolved':'Waiting for previous evidence'),React.createElement(GroupedFlowInvestigation,{definition:sample.definition,observation:sample.observation,port:changed?current:delayed,direction:'LR'}));}
+    const host=document.createElement('main');host.style.padding='20px';document.body.replaceChildren(host);createRoot(host).render(React.createElement(Host));
+  },fileURLToPath(new URL('../../src/flowchart.ts',import.meta.url)));
+  await page.getByRole('button',{name:'Select No shipping option',exact:true}).click();await calls(1);await page.getByRole('button',{name:'Switch recording owner',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-owner]')?.getAttribute('data-owner')==='missing');assert.equal((await scopeState()).focus,'false');
+  await page.getByRole('button',{name:'Resolve previous evidence',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-old-settled]')?.getAttribute('data-old-settled')==='true');await settle();assert.equal(await page.getByText('Supported cause',{exact:true}).count(),0);assert.equal(await page.getByRole('heading',{name:'Supported root cause',exact:true}).count(),0);await edgeCount(0);await calls(1);
+  await page.getByRole('button',{name:'Select No shipping option',exact:true}).click();await page.getByRole('heading',{name:'Root cause unknown',exact:true}).waitFor();await calls(2);assert.equal((await scopeState()).focus,'true');
+  await page.getByRole('button',{name:'Show whole flow',exact:true}).click();await designCount(8);await page.getByRole('button',{name:'Rerender same recording',exact:true}).click();await settle();assert.equal((await scopeState()).focus,'false');await calls(2);
+  await page.getByRole('button',{name:'Select No shipping option',exact:true}).click();await page.getByRole('button',{name:'Show whole flow',exact:true}).waitFor();await calls(3);assert.equal((await scopeState()).focus,'true');assert.equal(await page.getByText('Supported cause',{exact:true}).count(),0);
+  return{lateOldOwnerCompletionIgnored:true,newOwnerStartsWholeFlow:true,sameOwnerRerenderPreservesWholeFlow:true,newRequestResetsFocus:true,callsForThreeExplicitFailureClicks:3};
+};
+const collapsedRecordedFit = async (width, expected) => {
+  await page.setViewportSize({width,height:width<600?844:1200});await page.goto(base.origin,{waitUntil:'networkidle'});
+  await page.getByRole('button',{name:'Select No shipping option',exact:true}).click();await page.getByRole('heading',{name:'Supported root cause',exact:true}).waitFor();await calls(1);
+  const summary=await page.getByRole('status',{name:'Cause summary',exact:true}).textContent();
+  const detail=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Recorded dependency evidence'})}),references=await detail.textContent();
+  await page.getByRole('button',{name:'Show whole flow',exact:true}).click();await designCount(8);await settle();
+  await page.getByRole('button',{name:'Collapse Delivery checks',exact:true}).click();await page.getByRole('button',{name:'Expand Delivery checks',exact:true}).waitFor();
+  await page.getByRole('button',{name:'Focus on recorded links',exact:true}).click();await edgeCount(1);await settle();
+  await page.locator('.react-flow').evaluate(element=>element.scrollIntoView({block:'center'}));await settle();
+  const canvas=await page.locator('.react-flow').boundingBox(),height=page.viewportSize().height;
+  const origin={x:canvas.x+canvas.width-10,y:Math.min(canvas.y+canvas.height-10,height-10)};
+  const beforePan=(await snapshot()).viewport;
+  await page.mouse.move(origin.x,origin.y);await page.mouse.down();await page.mouse.move(origin.x-160,origin.y-110,{steps:8});await page.mouse.up();await settle();
+  const panned=(await snapshot()).viewport;assert.notEqual(panned,beforePan,'The regression must move the camera away before fitting the collapsed root.');
+  await page.getByRole('button',{name:'Fit recorded view',exact:true}).click();await settle();
+  const view=await snapshot(),proxy=view.nodes.find(node=>node.id==='delivery-group'),fittedCanvas=await page.locator('.react-flow').boundingBox();
+  assert.notEqual(view.viewport,panned,'Fit recorded view must move the camera to the visible collapsed proxy.');
+  assert(proxy&&proxy.bounds.left>=fittedCanvas.x&&proxy.bounds.right<=fittedCanvas.x+fittedCanvas.width&&proxy.bounds.top>=fittedCanvas.y&&proxy.bounds.bottom<=fittedCanvas.y+fittedCanvas.height,'The collapsed proxy must be fully inside the canvas.');
+  if(width<600)assert(proxy.bounds.width>=140&&proxy.bounds.top>=0&&proxy.bounds.bottom<=height,'Phone fitting must show a readable visible group proxy.');
+  assert.equal(proxy.state,'unknown');assert(!view.nodes.some(node=>node.id===expected.result.rootCause),'Fitting must respect the owner’s collapsed group.');
+  assert.equal(await page.getByRole('button',{name:'Expand Delivery checks',exact:true}).count(),1);assert.equal(await page.getByText('Supported cause',{exact:true}).count(),0,'A visible camera proxy must never become the supported root.');
+  assert.equal(await page.getByText('Cause inside',{exact:true}).count(),1);assert.equal(await page.getByRole('status',{name:'Cause summary',exact:true}).textContent(),summary);assert.equal(await detail.textContent(),references);
+  assert.deepEqual(view.relationships.map(edge=>edge.id),['recorded-dependency:0'],'The collapsed external link retains its canonical relationship ID.');assert.equal(view.nodes.find(node=>node.id===expected.ids.failure).selected,'true');await calls(1);
+  const requested=await page.locator('[data-camera-focus]').getAttribute('data-camera-focus');assert(requested.includes('delivery-group')&&!requested.includes(expected.result.rootCause),'The camera target must use visible containment while the canonical root remains exact.');
+  if(width<600)assert.equal(requested,'delivery-group');else assert.equal(requested.split('delivery-group').length-1,1,'Desktop fit targets deduplicate the shared visible ancestor.');
+  if(width===390){const path=join(report,'mobile-390-collapsed-cause.png');await page.screenshot({path,fullPage:false});evidence.screenshots.push(path);}
+  return{width,proxy:proxy.bounds,cameraTarget:requested,beforePan,panned,fitted:view.viewport,canonicalRoot:expected.result.rootCause,summary,ownerCollapsePreserved:true,proxyCauseInsideOnly:true,evidenceUnchanged:true,analysisCalls:1};
 };
 const denseRoutingCases = async () => {
   await page.setViewportSize({width:1440,height:1200});await page.goto(base.origin,{waitUntil:'networkidle'});
@@ -241,6 +318,7 @@ try {
     const expected = cases[name]; assert(expected.result.backward, 'Native reader must provide backward evidence.');
     if (name !== 'complete') await page.getByLabel('Recording to inspect', { exact:true }).selectOption(name);
     await calls(0); await page.getByRole('button',{name:'Select No shipping option',exact:true}).waitFor();
+    assert.equal((await scopeState()).focus,'false','A new recording must begin with the whole workflow.');assert.equal(await page.getByRole('button',{name:'Show whole flow',exact:true}).count(),0);
     assert.equal(await page.getByText('Supported cause',{exact:true}).count(),0,'A fresh recording must not retain the previous root marker.');
     assert.equal(await page.getByText('Cause inside',{exact:true}).count(),0);
     assert.equal(await page.getByRole('button',{name:'Expand Payment',exact:true}).count(),1);
@@ -259,20 +337,22 @@ try {
     const routing=await routingReadability({visible:true}),decision=await decisionPresentation(expected.ids.decision);
     const markers = await markerCheck(expected, scrollBefore);
     const framing=await desktopFraming();
+    const crossings=name==='complete'?await canonicalCrossings():undefined;
     const groups=new Set(expected.definition.nodes.filter(node=>node.kind==='group').map(node=>node.id));
     assert.deepEqual(view.nodes.filter(node=>node.highlighted==='true'&&!groups.has(node.id)).map(node=>node.id).sort(), [...new Set(expected.result.backward.nodes)].sort());
     assert.deepEqual(view.nodes.filter(node=>node.highlighted==='true'&&groups.has(node.id)).map(node=>node.id),['delivery-group']);
     assert.equal(view.nodes.find(node=>node.id==='delivery-group').state,'unknown');
     assert.equal(view.nodes.find(node=>node.id==='payment-group').state,'unknown');
     assert.equal(view.nodes.find(node=>node.id===expected.ids.failure).selected,'true');
-    assert(view.design.every(edge=>edge.id.startsWith('design:') && !edge.className.includes('gfd-edge-highlighted')));
+    assert.deepEqual(view.design,[],'Cause focus must hide competing workflow arrows.');
     const detail=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Recorded dependency evidence'})});
     assert.equal(await detail.count(),1);
     const evidenceText=await detail.textContent();
     for(const edge of expected.result.backward.edges)for(const reference of edge.evidence)assert(evidenceText.includes(reference),'Returned edge evidence must remain inspectable.');
-    if(name==='complete') { assert.equal(expected.result.rootCause,expected.ids.shipping); assert.match(await page.getByRole('region',{name:'Selected explanation'}).textContent(),/Shipping rates/); assert.deepEqual(view.geometry,evidence.checks.unadornedExpandedGeometry.geometry); evidence.checks.designGeometry=unchangedDesign(view.design,evidence.checks.unadornedExpandedGeometry.design); if(prior){assert.deepEqual(view.geometry,prior.checks.complete.geometry,'Routing and card styling must preserve the prior node world geometry.');evidence.checks.priorDesignGeometry=unchangedDesign(view.design,prior.checks.complete.design);} }
+    const scope=await scopeRestoration();assert(scope.wholeDesign.every(edge=>edge.id.startsWith('design:')&&!edge.className.includes('gfd-edge-highlighted')));
+    if(name==='complete') { assert.equal(expected.result.rootCause,expected.ids.shipping); assert.match(await page.getByRole('region',{name:'Selected explanation'}).textContent(),/Shipping rates/); assert.deepEqual(view.geometry,evidence.checks.unadornedExpandedGeometry.geometry); evidence.checks.designGeometry=unchangedDesign(scope.wholeDesign,evidence.checks.unadornedExpandedGeometry.design); if(prior){assert.deepEqual(view.geometry,prior.checks.complete.geometry,'Routing and card styling must preserve the prior node world geometry.');evidence.checks.priorDesignGeometry=unchangedDesign(scope.wholeDesign,prior.checks.complete.design);} }
     else { assert.equal(expected.result.rootCause,undefined); assert.equal(await page.getByRole('heading',{name:'Supported root cause',exact:true}).count(),0); if(name==='missing')assert.equal(await page.getByText(/Some evidence is missing/).count(),1); else assert(expected.result.alternatives.length>1); }
-    evidence.checks[name]={...view,canonicalEdges:expected.result.backward.edges,renderedEndpoints:points,framing,markers,routing,decision};
+    evidence.checks[name]={...view,focusDesign:view.design,design:scope.wholeDesign,canonicalEdges:expected.result.backward.edges,renderedEndpoints:points,framing,markers,routing,decision,scope,crossings};
     await capture(`desktop-${name}-cause`);
     await page.getByRole('button',{name:'What it affected',exact:true}).focus(); await page.keyboard.press('Space'); await edgeCount(expected.result.impact.edges.length); await calls(1);
     assert.equal(await page.getByText('Supported cause',{exact:true}).count(),0,'Impact view must not label an unrelated root.');
@@ -288,7 +368,9 @@ try {
     assert(mobile.nodes.find(node=>node.id===id).bounds.width>=140);
     const markers = await markerCheck(cases.complete, scrollBefore);
     const endpoints=await relationshipsMatch(cases.complete.result),routing=await routingReadability();
-    evidence.checks[`mobile${width}`]={...mobile,markers,endpoints,routing}; await capture(`mobile-${width}-cause`);
+    await page.getByRole('button',{name:'Show whole flow',exact:true}).click();await designCount(8);await calls(1);await page.getByRole('button',{name:'Focus on recorded links',exact:true}).click();await designCount(0);await calls(1);
+    await page.getByRole('button',{name:'Fit recorded view',exact:true}).click();await settle();const fitted=(await snapshot()).nodes.find(node=>node.id===id),canvas=await page.locator('.react-flow').boundingBox();assert(fitted.bounds.width>=140&&fitted.bounds.left>=canvas.x&&fitted.bounds.right<=canvas.x+canvas.width&&fitted.bounds.top>=canvas.y&&fitted.bounds.bottom<=canvas.y+canvas.height,'Phone fit must keep the readable root visibly inside the canvas.');
+    evidence.checks[`mobile${width}`]={...mobile,markers,endpoints,routing,focusedFitRoot:fitted.bounds,wholeFocusQueryReuse:true}; await capture(`mobile-${width}-cause`);
     await page.getByRole('button',{name:'Back to selected item',exact:true}).focus();
     await page.evaluate(()=>{window.__investigationFrames=[];let n=0;const read=()=>{window.__investigationFrames.push(document.querySelector('.react-flow__viewport')?.getAttribute('style'));if(++n<16)requestAnimationFrame(read);};requestAnimationFrame(read);});
     await page.keyboard.press('Enter'); await page.waitForFunction(()=>window.__investigationFrames.length===16);
@@ -296,6 +378,9 @@ try {
     assert(await page.evaluate(()=>matchMedia('(prefers-reduced-motion: reduce)').matches)); await calls(1);
     const selected=(await snapshot()).nodes.find(node=>node.id===cases.complete.ids.failure);assert(selected.bounds.width>=140);
   }
+  evidence.checks.collapsedRecordedFit=[];
+  for(const width of[390,320,1440])evidence.checks.collapsedRecordedFit.push(await collapsedRecordedFit(width,cases.complete));
+  evidence.checks.requestOwnership=await requestOwnership();
   evidence.checks.denseRouting=await denseRoutingCases();
   assert.deepEqual(evidence.blockedRequests,[]); assert.deepEqual(evidence.pageErrors,[]); assert.deepEqual(evidence.consoleErrors,[]);
   evidence.passed=true;
