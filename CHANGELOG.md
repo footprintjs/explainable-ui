@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   query-free whole-flow view, per-connection entry/exit ports and readable focused
   fitting on narrow screens. Connection details remain accessible while repeated
   visual captions are shown only on interaction in the focused view.
+  Forks prefer clear, facing ports and rounded branch paths while retaining safe
+  outside detours when the direct approach is obstructed.
 
 - Optional `GroupedFlowDiagram` and pure `projectGroupedFlowDiagram` for app-supplied,
   instance-bound flow definitions: configurable names/icons, nested expandable groups,

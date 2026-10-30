@@ -1223,6 +1223,8 @@ with a small decision marker and keep their Yes/No branch labels.
 Each recorded connection has its own entry and exit ports. Their placement follows
 the neighbouring cards, so an incoming arrowhead does not share a centre point with
 outgoing stems. Crowded ports use another clear side or the drawing-limit notice.
+Where space permits, branches use the sides facing their destination cards before
+trying checked outside detours. Rounded elbows keep short forks readable.
 
 Compact Data/Read/Rule/Step captions retain their full fixed kind and attribution
 in accessible names, tooltips and the evidence list. Routing work is bounded. If a

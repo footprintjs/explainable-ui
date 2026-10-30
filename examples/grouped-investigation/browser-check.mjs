@@ -195,6 +195,22 @@ const canonicalCrossings = async () => {
   });
   assert.deepEqual(crossings,[],'This canonical three-link example must have no perpendicular recorded crossings.');return crossings;
 };
+const canonicalFacingFork = async (expected, points, checkCurvature) => {
+  const paths=await page.evaluate(()=>[...document.querySelectorAll('.gfd-recorded-relationship')].map(edge=>{
+    const d=edge.querySelector('.react-flow__edge-path').getAttribute('d'),tokens=d.match(/[MLQ]|[-+]?(?:\d*\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?/g),curves=[];let previous;
+    for(let at=0;at<tokens.length;){const command=tokens[at++],count={M:2,L:2,Q:4}[command];if(!count)throw Error('Expected the existing rounded orthogonal SVG commands.');const values=tokens.slice(at,at+count).map(Number);at+=count;const end={x:values.at(-2),y:values.at(-1)};if(command==='Q'){const control={x:values[0],y:values[1]},radius=Math.min(Math.hypot(previous.x-control.x,previous.y-control.y),Math.hypot(end.x-control.x,end.y-control.y));if(radius>.05)curves.push({radius,control});}previous=end;}
+    return{id:edge.getAttribute('data-id'),curves};
+  }));
+  const anchors=[];
+  for(const point of points){
+    assert.equal(point.source.side,'left','This clear leftward fixture must exit through a LEFT port.');assert.equal(point.target.side,'right','This clear leftward fixture must enter through a RIGHT port.');
+    for(const[type,handle]of[['source',point.source],['target',point.target]]){const actual=type==='source'?point.start:point.end,face={x:type==='source'?handle.left:handle.right,y:(handle.top+handle.bottom)/2},drift=Math.hypot(actual.x-face.x,actual.y-face.y)/handle.scale;assert(drift<=.001,'The native SVG anchor must remain on its actual handle outer face within serialization precision.');anchors.push({port:handle.port,faceDrift:drift});}
+  }
+  const fork=points.map((point,index)=>({...point,id:`recorded-dependency:${index}`})).filter(point=>point.from===expected.ids.decision).sort((a,b)=>a.worldEnd.y-b.worldEnd.y);
+  assert.equal(fork.length,2);assert(fork[0].worldStart.y<fork[1].worldStart.y,'Decision LEFT exits must follow the upper/lower target order.');
+  if(checkCurvature)for(const branch of fork){const curves=paths.find(path=>path.id===branch.id).curves;assert.equal(curves.length,2,'Each canonical fork branch must retain two visible rounded bends.');assert(curves.every(curve=>curve.radius>=7.4&&curve.radius<=16+.001),'This canonical gap must keep its measured rounded bends; smaller legitimate gaps have no universal radius promise.');}
+  return{naturalLeftExitRightEntry:true,upperLowerForkOrder:true,anchors,paths,curvatureChecked:checkCurvature};
+};
 const scopeState = () => page.evaluate(()=>({focus:document.querySelector('[data-investigation-focus]')?.getAttribute('data-investigation-focus'),captions:[...document.querySelectorAll('[data-relationship-id]')].map(node=>({id:node.getAttribute('data-relationship-id'),opacity:Number(getComputedStyle(node).opacity),visible:node.getAttribute('data-caption-visible'),title:node.getAttribute('title'),aria:node.getAttribute('aria-label')})),ports:[...document.querySelectorAll('[data-recorded-port]')].map(node=>({id:node.getAttribute('data-recorded-port'),left:node.style.left,top:node.style.top})).sort((a,b)=>a.id.localeCompare(b.id))}));
 const scopeRestoration = async () => {
   const focused=await snapshot(),focusedState=await scopeState();assert.equal(focusedState.focus,'true');assert.deepEqual(focused.design,[]);assert(focusedState.captions.every(caption=>caption.opacity===0&&caption.title&&caption.aria));
@@ -338,6 +354,7 @@ try {
     const markers = await markerCheck(expected, scrollBefore);
     const framing=await desktopFraming();
     const crossings=name==='complete'?await canonicalCrossings():undefined;
+    const facingFork=await canonicalFacingFork(expected,points,name==='complete');
     const groups=new Set(expected.definition.nodes.filter(node=>node.kind==='group').map(node=>node.id));
     assert.deepEqual(view.nodes.filter(node=>node.highlighted==='true'&&!groups.has(node.id)).map(node=>node.id).sort(), [...new Set(expected.result.backward.nodes)].sort());
     assert.deepEqual(view.nodes.filter(node=>node.highlighted==='true'&&groups.has(node.id)).map(node=>node.id),['delivery-group']);
@@ -352,7 +369,7 @@ try {
     const scope=await scopeRestoration();assert(scope.wholeDesign.every(edge=>edge.id.startsWith('design:')&&!edge.className.includes('gfd-edge-highlighted')));
     if(name==='complete') { assert.equal(expected.result.rootCause,expected.ids.shipping); assert.match(await page.getByRole('region',{name:'Selected explanation'}).textContent(),/Shipping rates/); assert.deepEqual(view.geometry,evidence.checks.unadornedExpandedGeometry.geometry); evidence.checks.designGeometry=unchangedDesign(scope.wholeDesign,evidence.checks.unadornedExpandedGeometry.design); if(prior){assert.deepEqual(view.geometry,prior.checks.complete.geometry,'Routing and card styling must preserve the prior node world geometry.');evidence.checks.priorDesignGeometry=unchangedDesign(scope.wholeDesign,prior.checks.complete.design);} }
     else { assert.equal(expected.result.rootCause,undefined); assert.equal(await page.getByRole('heading',{name:'Supported root cause',exact:true}).count(),0); if(name==='missing')assert.equal(await page.getByText(/Some evidence is missing/).count(),1); else assert(expected.result.alternatives.length>1); }
-    evidence.checks[name]={...view,focusDesign:view.design,design:scope.wholeDesign,canonicalEdges:expected.result.backward.edges,renderedEndpoints:points,framing,markers,routing,decision,scope,crossings};
+    evidence.checks[name]={...view,focusDesign:view.design,design:scope.wholeDesign,canonicalEdges:expected.result.backward.edges,renderedEndpoints:points,framing,markers,routing,decision,scope,crossings,facingFork};
     await capture(`desktop-${name}-cause`);
     await page.getByRole('button',{name:'What it affected',exact:true}).focus(); await page.keyboard.press('Space'); await edgeCount(expected.result.impact.edges.length); await calls(1);
     assert.equal(await page.getByText('Supported cause',{exact:true}).count(),0,'Impact view must not label an unrelated root.');

@@ -129,6 +129,7 @@ it("separates incoming arrowheads and parallel outgoing stubs on one decision in
   expect(distanceBetween(received, sent[0]!)).toBeGreaterThanOrEqual(24); expect(distanceBetween(received, sent[1]!)).toBeGreaterThanOrEqual(24);
   expect(distanceBetween(sent[0]!, sent[1]!)).toBeGreaterThanOrEqual(24);
   expect(sent[0]!.x).toBeLessThan(received.x); expect(sent[1]!.x).toBeLessThan(received.x);
+  expect(planned.routes.get("1-read")!.targetPort.offset).toBeLessThan(planned.routes.get("2-rule")!.targetPort.offset);
   const routes = [...planned.routes.values()]; let crossings = 0;
   for (let one = 0; one < routes.length; one++) for (let two = one + 1; two < routes.length; two++) {
     for (let at = 1; at < routes[one]!.points.length; at++) for (let next = 1; next < routes[two]!.points.length; next++) {
@@ -142,3 +143,68 @@ it("separates incoming arrowheads and parallel outgoing stubs on one decision in
   expect([...planned.routes]).toEqual([...routeRecordedRelationships([...links].reverse(), model(nodes)).routes]);
 });
 const distanceBetween = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
+
+it.each(["LR", "TB"] as const)("uses clear geometry-facing %s ports for a fork before trying outside bracket lanes", direction => {
+  const nodes = [item("root", 20, 40, 180, 148, { isRootCause: true }), item("healthy", 20, 320),
+    item("decision", 320, 160, 180, 172), item("failure", 620, 160)];
+  if (direction === "TB") for (const node of nodes) Object.assign(node, { position: { x: node.position.y, y: node.position.x }, width: node.height, height: node.width });
+  const links = [link("0-failure", "failure", "decision"), link("1-rates", "decision", "root"), link("2-area", "decision", "healthy")];
+  const source = model(nodes, direction), before = JSON.stringify(source), planned = routeRecordedRelationships(links, source);
+  expect(planned.undrawn).toBe(0); expect(JSON.stringify(source)).toBe(before);
+  for (const route of planned.routes.values()) {
+    expect(route.sourceSide).toBe(direction === "LR" ? "left" : "top");
+    expect(route.targetSide).toBe(direction === "LR" ? "right" : "bottom");
+    assertClear(route, nodes.map(node => ({ ...node.position, width: node.width, height: node.height })));
+  }
+  const upper = planned.routes.get("1-rates")!.sourcePort.offset, lower = planned.routes.get("2-area")!.sourcePort.offset;
+  expect(lower - upper).toBeGreaterThanOrEqual(24);
+  expect([...planned.routes]).toEqual([...routeRecordedRelationships([...links].reverse(), source).routes]);
+});
+
+it("rounds a short facing fork elbow without a redundant arrival waypoint making the corner almost square", () => {
+  const route = { points: [{ x: 420, y: 400 }, { x: 402, y: 400 }, { x: 402, y: 320 }, { x: 400, y: 320 }, { x: 382, y: 320 }],
+    sourceSide: "left" as const, targetSide: "right" as const, label: { x: 402, y: 360, width: 48, height: 22 } };
+  const path = recordedRoutePath(route, route.points[0]!, route.points.at(-1)!);
+  const turn = [...path.matchAll(/Q([^MLQ]+)/g)].map(match => match[1]!.trim().split(/[ ,]+/).map(Number)).find(numbers => numbers[0] === 402 && numbers[1] === 320)!;
+  expect(turn).toBeTruthy(); expect(402 - turn[2]!).toBeGreaterThanOrEqual(8);
+  expect(path).toMatch(/^M420,400 L411,400 Q402,400 402,391/);
+  expect(path).toMatch(/L382,320$/);
+});
+
+it.each(["LR", "TB"] as const)("keeps exact %s native anchors and meaningful fork bends through subpixel transform noise", direction => {
+  const points = [{ x: 420, y: 400 }, { x: 402, y: 400 }, { x: 402, y: 320 }, { x: 400, y: 320 }, { x: 382, y: 320 }];
+  const source = { x: 420, y: 400.00003 }, target = { x: 382, y: 319.99995 };
+  if (direction === "TB") for (const p of [...points, source, target]) [p.x, p.y] = [p.y, p.x];
+  const path = recordedRoutePath({ points, sourceSide: direction === "LR" ? "left" : "top", targetSide: direction === "LR" ? "right" : "bottom", label: { x: 402, y: 360, width: 48, height: 22 } }, source, target);
+  const commands = [...path.matchAll(/([MLQ])([^MLQ]+)/g)].map(match => ({ type: match[1], numbers: match[2]!.trim().split(/[ ,]+/).map(Number) }));
+  expect(commands[0]!.numbers).toEqual([source.x, source.y]); expect(commands.at(-1)!.numbers).toEqual([target.x, target.y]);
+  const axis = direction === "LR" ? 1 : 0;
+  expect(commands[1]!.numbers[axis]).toBe(axis ? source.y : source.x);
+  expect(commands.at(-2)!.numbers[axis + 2]).toBe(axis ? target.y : target.x);
+  const turn = commands.find(command => command.type === "Q" && command.numbers[axis] === (axis ? target.y : target.x))!.numbers;
+  expect(Math.hypot(turn[0]! - turn[2]!, turn[1]! - turn[3]!)).toBeGreaterThanOrEqual(8);
+});
+
+it("preserves independent near-equal source and target axes instead of snapping either measured anchor", () => {
+  const points = [{ x: 400, y: 80 }, { x: 382, y: 80 }, { x: 118, y: 80 }, { x: 100, y: 80 }];
+  const source = { x: 400, y: 80.00003 }, target = { x: 100, y: 79.99995 };
+  const path = recordedRoutePath({ points, sourceSide: "left", targetSide: "right", label: { x: 250, y: 80, width: 48, height: 22 } }, source, target);
+  const commands = [...path.matchAll(/([MLQ])([^MLQ]+)/g)].map(match => ({ type: match[1], numbers: match[2]!.trim().split(/[ ,]+/).map(Number) }));
+  expect(commands[0]!.numbers).toEqual([source.x, source.y]); expect(commands.at(-1)!.numbers).toEqual([target.x, target.y]);
+  expect(commands[1]!.numbers[1]).toBe(source.y); expect(commands.at(-2)!.numbers[3]).toBe(target.y);
+});
+
+it.each(["LR", "TB"] as const)("uses actual %s geometry even when a backward relationship points along the design direction", direction => {
+  const nodes = [item("source", 20, 160), item("root", 500, 160)];
+  if (direction === "TB") for (const node of nodes) Object.assign(node, { position: { x: node.position.y, y: node.position.x }, width: node.height, height: node.width });
+  const relationship = link("reverse-geometry"), planned = routeRecordedRelationships([relationship], model(nodes, direction));
+  expect(planned.undrawn).toBe(0);
+  expect(planned.routes.get("reverse-geometry")).toMatchObject({ sourceSide: direction === "LR" ? "right" : "bottom", targetSide: direction === "LR" ? "left" : "top" });
+  expect(relationship.relationship).toMatchObject({ id: "reverse-geometry", source: "source", target: "root", direction: "backward" });
+});
+
+it("keeps real reversals instead of simplifying them into a different recorded corridor", () => {
+  const points = [{ x: 400, y: 80 }, { x: 382, y: 80 }, { x: 390, y: 80 }, { x: 100, y: 80 }];
+  const path = recordedRoutePath({ points, sourceSide: "left", targetSide: "right", label: { x: 250, y: 80, width: 48, height: 22 } }, points[0]!, points.at(-1)!);
+  expect(path).toContain("Q382,80"); expect(path).toContain("Q390,80");
+});

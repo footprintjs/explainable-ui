@@ -67,11 +67,11 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
   }
   const ordered = [...links].sort((a, b) => a.relationship.id < b.relationship.id ? -1 : a.relationship.id > b.relationship.id ? 1 : 0);
   const candidates = new Map<string, { sourceSide: RecordedSide; targetSide: RecordedSide; sourcePort: RecordedPort; targetPort: RecordedPort; source: Point; target: Point; start: Point; end: Point }[]>();
-  const slots = (id: string, side: RecordedSide, type: "source" | "target", remote: Box) => {
+  const slots = (id: string, side: RecordedSide, type: "source" | "target", remote: Box, remotePort?: Point) => {
     const box = boxes.get(id)!, item = byId.get(id)!, length = side === "top" || side === "bottom" ? box.width : box.height;
     const count = Math.min(6, Math.floor((length - 56) / 24) + 1), offsets = Array.from({ length: Math.max(0, count) }, (_, index) => 28 + (length - 56) * index / Math.max(1, count - 1))
       .filter(offset => Math.abs(offset - length / 2) >= 20 && !(item.expanded && (side === "left" || side === "right") && offset < 96));
-    const neighbour = side === "top" || side === "bottom" ? remote.x + remote.width / 2 - box.x : remote.y + remote.height / 2 - box.y;
+    const neighbour = side === "top" || side === "bottom" ? (remotePort?.x ?? remote.x + remote.width / 2) - box.x : (remotePort?.y ?? remote.y + remote.height / 2) - box.y;
     return offsets.sort((a, b) => Math.abs(a - neighbour) - Math.abs(b - neighbour) || (type === "source" ? a - b : b - a));
   };
   const xs = new Set<number>(), ys = new Set<number>();
@@ -79,12 +79,18 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
   for (const [ordinal, link] of ordered.entries()) {
     const a = boxes.get(link.source), b = boxes.get(link.target); if (!a || !b) continue;
     const backward = link.relationship.direction === "backward";
-    const pairs: [RecordedSide, RecordedSide][] = link.source === link.target ? [["bottom", "right"], ["right", "top"], ["left", "bottom"]]
+    const fallback: [RecordedSide, RecordedSide][] = link.source === link.target ? [["bottom", "right"], ["right", "top"], ["left", "bottom"]]
       : model.direction === "LR" ? (backward ? [["bottom", "bottom"], ["top", "top"], ["left", "right"]] : [["top", "top"], ["bottom", "bottom"], ["right", "left"]])
       : backward ? [["right", "right"], ["left", "left"], ["top", "bottom"]] : [["left", "left"], ["right", "right"], ["bottom", "top"]];
+    // Face the actual neighbour first when both normal stubs fit in the gap.
+    // Obstacle and occupied-lane checks still decide whether that route is usable.
+    const facing: [RecordedSide, RecordedSide] | undefined = link.source === link.target ? undefined
+      : model.direction === "LR" ? b.x + b.width + STUB * 2 <= a.x ? ["left", "right"] : a.x + a.width + STUB * 2 <= b.x ? ["right", "left"] : undefined
+      : b.y + b.height + STUB * 2 <= a.y ? ["top", "bottom"] : a.y + a.height + STUB * 2 <= b.y ? ["bottom", "top"] : undefined;
+    const pairs = facing ? [facing, ...fallback.filter(pair => pair[0] !== facing[0] || pair[1] !== facing[1])] : fallback;
     const options = pairs.filter(([sourceSide, targetSide]) => !(sourceSide === "top" && (byId.get(link.source)?.expanded || byId.get(link.source)?.isRootCause || byId.get(link.source)?.containsRootCause))
       && !(targetSide === "top" && (byId.get(link.target)?.expanded || byId.get(link.target)?.isRootCause || byId.get(link.target)?.containsRootCause)))
-      .flatMap(([sourceSide, targetSide]) => slots(link.source, sourceSide, "source", b).flatMap(sourceOffset => slots(link.target, targetSide, "target", a).map(targetOffset => {
+      .flatMap(([sourceSide, targetSide]) => slots(link.source, sourceSide, "source", b).flatMap(sourceOffset => slots(link.target, targetSide, "target", a, point(a, sourceSide, sourceOffset)).map(targetOffset => {
         const source = point(a, sourceSide, sourceOffset), target = point(b, targetSide, targetOffset), start = escape(source, sourceSide), end = escape(target, targetSide);
         for (const p of [start, end]) { xs.add(p.x); ys.add(p.y); }
         return { sourceSide, targetSide, source, target, start, end,
@@ -161,12 +167,34 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
 
 /** Keep xyflow's measured anchor pixels authoritative and round only the planned clear corridor. */
 export function recordedRoutePath(route: Omit<RecordedRoute, "sourcePort" | "targetPort">, source: Point, target: Point) {
-  const interior = route.points.slice(1, -1), start = interior[0]!, end = interior[interior.length - 1]!;
+  const interior = route.points.slice(1, -1).map(p => ({ ...p }));
+  const normalize = (anchor: Point, side: RecordedSide, reverse: boolean) => {
+    const axis = side === "left" || side === "right" ? "y" : "x", from = reverse ? interior.length - 1 : 0;
+    const expected = route.points[from + 1]![axis];
+    if (Math.abs(expected - anchor[axis]) > .001) return;
+    // Native transforms introduce tiny noise. Only the planned straight end
+    // corridor follows it; exact measured anchors and larger offsets never snap.
+    for (let at = from; at >= 0 && at < interior.length && route.points[at + 1]![axis] === expected; at += reverse ? -1 : 1) interior[at]![axis] = anchor[axis];
+  };
+  normalize(source, route.sourceSide, false); normalize(target, route.targetSide, true);
+  const start = interior[0]!, end = interior[interior.length - 1]!;
   const bridge = (p: Point, actual: Point, side: RecordedSide) => side === "left" || side === "right" ? { x: p.x, y: actual.y } : { x: actual.x, y: p.y };
   // Preserve both planned stubs. Independently measured half-pixels must not
   // shift a whole straight corridor or turn the opposite arrival diagonal.
-  const points = [source, bridge(start, source, route.sourceSide), ...interior, bridge(end, target, route.targetSide), target]
+  const assembled = [source, bridge(start, source, route.sourceSide), ...interior, bridge(end, target, route.targetSide), target]
     .filter((p, at, all) => !at || p.x !== all[at - 1]!.x || p.y !== all[at - 1]!.y);
+  const points: Point[] = [];
+  for (const next of assembled) {
+    // Remove only redundant monotonic points after measured-anchor bridges.
+    // Real turns, reversals and independent anchor adjustments stay intact.
+    while (points.length > 1) {
+      const a = points[points.length - 2]!, middle = points[points.length - 1]!;
+      const straight = a.x === middle.x && middle.x === next.x && middle.y >= Math.min(a.y, next.y) && middle.y <= Math.max(a.y, next.y)
+        || a.y === middle.y && middle.y === next.y && middle.x >= Math.min(a.x, next.x) && middle.x <= Math.max(a.x, next.x);
+      if (!straight) break; points.pop();
+    }
+    points.push(next);
+  }
   let path = `M${source.x},${source.y}`;
   for (let at = 1; at < points.length - 1; at++) {
     const a = points[at - 1]!, p = points[at]!, b = points[at + 1]!;

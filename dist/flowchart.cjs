@@ -1306,10 +1306,10 @@ function routeRecordedRelationships(links, model) {
   }
   const ordered = [...links].sort((a, b) => a.relationship.id < b.relationship.id ? -1 : a.relationship.id > b.relationship.id ? 1 : 0);
   const candidates = /* @__PURE__ */ new Map();
-  const slots = (id, side, type, remote) => {
+  const slots = (id, side, type, remote, remotePort) => {
     const box2 = boxes.get(id), item = byId.get(id), length = side === "top" || side === "bottom" ? box2.width : box2.height;
     const count = Math.min(6, Math.floor((length - 56) / 24) + 1), offsets = Array.from({ length: Math.max(0, count) }, (_, index2) => 28 + (length - 56) * index2 / Math.max(1, count - 1)).filter((offset) => Math.abs(offset - length / 2) >= 20 && !(item.expanded && (side === "left" || side === "right") && offset < 96));
-    const neighbour = side === "top" || side === "bottom" ? remote.x + remote.width / 2 - box2.x : remote.y + remote.height / 2 - box2.y;
+    const neighbour = side === "top" || side === "bottom" ? (remotePort?.x ?? remote.x + remote.width / 2) - box2.x : (remotePort?.y ?? remote.y + remote.height / 2) - box2.y;
     return offsets.sort((a, b) => Math.abs(a - neighbour) - Math.abs(b - neighbour) || (type === "source" ? a - b : b - a));
   };
   const xs = /* @__PURE__ */ new Set(), ys = /* @__PURE__ */ new Set();
@@ -1323,8 +1323,10 @@ function routeRecordedRelationships(links, model) {
     const a = boxes.get(link.source), b = boxes.get(link.target);
     if (!a || !b) continue;
     const backward = link.relationship.direction === "backward";
-    const pairs = link.source === link.target ? [["bottom", "right"], ["right", "top"], ["left", "bottom"]] : model.direction === "LR" ? backward ? [["bottom", "bottom"], ["top", "top"], ["left", "right"]] : [["top", "top"], ["bottom", "bottom"], ["right", "left"]] : backward ? [["right", "right"], ["left", "left"], ["top", "bottom"]] : [["left", "left"], ["right", "right"], ["bottom", "top"]];
-    const options = pairs.filter(([sourceSide, targetSide]) => !(sourceSide === "top" && (byId.get(link.source)?.expanded || byId.get(link.source)?.isRootCause || byId.get(link.source)?.containsRootCause)) && !(targetSide === "top" && (byId.get(link.target)?.expanded || byId.get(link.target)?.isRootCause || byId.get(link.target)?.containsRootCause))).flatMap(([sourceSide, targetSide]) => slots(link.source, sourceSide, "source", b).flatMap((sourceOffset) => slots(link.target, targetSide, "target", a).map((targetOffset) => {
+    const fallback = link.source === link.target ? [["bottom", "right"], ["right", "top"], ["left", "bottom"]] : model.direction === "LR" ? backward ? [["bottom", "bottom"], ["top", "top"], ["left", "right"]] : [["top", "top"], ["bottom", "bottom"], ["right", "left"]] : backward ? [["right", "right"], ["left", "left"], ["top", "bottom"]] : [["left", "left"], ["right", "right"], ["bottom", "top"]];
+    const facing = link.source === link.target ? void 0 : model.direction === "LR" ? b.x + b.width + STUB * 2 <= a.x ? ["left", "right"] : a.x + a.width + STUB * 2 <= b.x ? ["right", "left"] : void 0 : b.y + b.height + STUB * 2 <= a.y ? ["top", "bottom"] : a.y + a.height + STUB * 2 <= b.y ? ["bottom", "top"] : void 0;
+    const pairs = facing ? [facing, ...fallback.filter((pair) => pair[0] !== facing[0] || pair[1] !== facing[1])] : fallback;
+    const options = pairs.filter(([sourceSide, targetSide]) => !(sourceSide === "top" && (byId.get(link.source)?.expanded || byId.get(link.source)?.isRootCause || byId.get(link.source)?.containsRootCause)) && !(targetSide === "top" && (byId.get(link.target)?.expanded || byId.get(link.target)?.isRootCause || byId.get(link.target)?.containsRootCause))).flatMap(([sourceSide, targetSide]) => slots(link.source, sourceSide, "source", b).flatMap((sourceOffset) => slots(link.target, targetSide, "target", a, point(a, sourceSide, sourceOffset)).map((targetOffset) => {
       const source = point(a, sourceSide, sourceOffset), target = point(b, targetSide, targetOffset), start = escape(source, sourceSide), end = escape(target, targetSide);
       for (const p of [start, end]) {
         xs.add(p.x);
@@ -1447,9 +1449,28 @@ function routeRecordedRelationships(links, model) {
   return outcome();
 }
 function recordedRoutePath(route, source, target) {
-  const interior = route.points.slice(1, -1), start = interior[0], end = interior[interior.length - 1];
+  const interior = route.points.slice(1, -1).map((p) => ({ ...p }));
+  const normalize = (anchor, side, reverse) => {
+    const axis = side === "left" || side === "right" ? "y" : "x", from = reverse ? interior.length - 1 : 0;
+    const expected = route.points[from + 1][axis];
+    if (Math.abs(expected - anchor[axis]) > 1e-3) return;
+    for (let at = from; at >= 0 && at < interior.length && route.points[at + 1][axis] === expected; at += reverse ? -1 : 1) interior[at][axis] = anchor[axis];
+  };
+  normalize(source, route.sourceSide, false);
+  normalize(target, route.targetSide, true);
+  const start = interior[0], end = interior[interior.length - 1];
   const bridge = (p, actual, side) => side === "left" || side === "right" ? { x: p.x, y: actual.y } : { x: actual.x, y: p.y };
-  const points = [source, bridge(start, source, route.sourceSide), ...interior, bridge(end, target, route.targetSide), target].filter((p, at, all) => !at || p.x !== all[at - 1].x || p.y !== all[at - 1].y);
+  const assembled = [source, bridge(start, source, route.sourceSide), ...interior, bridge(end, target, route.targetSide), target].filter((p, at, all) => !at || p.x !== all[at - 1].x || p.y !== all[at - 1].y);
+  const points = [];
+  for (const next of assembled) {
+    while (points.length > 1) {
+      const a = points[points.length - 2], middle = points[points.length - 1];
+      const straight = a.x === middle.x && middle.x === next.x && middle.y >= Math.min(a.y, next.y) && middle.y <= Math.max(a.y, next.y) || a.y === middle.y && middle.y === next.y && middle.x >= Math.min(a.x, next.x) && middle.x <= Math.max(a.x, next.x);
+      if (!straight) break;
+      points.pop();
+    }
+    points.push(next);
+  }
   let path = `M${source.x},${source.y}`;
   for (let at = 1; at < points.length - 1; at++) {
     const a = points[at - 1], p = points[at], b = points[at + 1];
