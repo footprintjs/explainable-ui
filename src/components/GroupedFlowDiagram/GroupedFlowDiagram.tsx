@@ -1,0 +1,148 @@
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { Background, Controls, MarkerType, ReactFlow, type Edge } from "@xyflow/react";
+import { theme } from "../../theme";
+import { ChartAutoRefit } from "../FlowchartView/_internal/useChartAutoRefit";
+import { diagramNodeTypes, type DiagramReactNode } from "./DiagramNodes";
+import { getFlowDiagramAncestors, projectGroupedFlowDiagram } from "./layout";
+import type { FlowDiagramDefinition, FlowDiagramHighlight, FlowDiagramObservation } from "./types";
+
+export interface GroupedFlowDiagramProps {
+  readonly definition: FlowDiagramDefinition;
+  readonly observation?: FlowDiagramObservation;
+  readonly highlight?: FlowDiagramHighlight;
+  readonly selectedNodeId?: string | null;
+  readonly onSelectNode?: (nodeId: string) => void;
+  readonly expandedGroupIds?: readonly string[];
+  readonly defaultExpandedGroupIds?: readonly string[];
+  readonly onExpandedGroupIdsChange?: (groupIds: readonly string[]) => void;
+  readonly direction?: "LR" | "TB";
+  readonly className?: string;
+  readonly style?: CSSProperties;
+  readonly "aria-label"?: string;
+}
+
+const buttonStyle: CSSProperties = { font: "inherit", fontSize: 12, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "7px 12px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
+
+/** Reusable view of host-supplied structure and facts. It neither executes flows nor discovers causes. */
+export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
+  const [localExpanded, setLocalExpanded] = useState<readonly string[]>(props.defaultExpandedGroupIds ?? []);
+  const [localSelected, setLocalSelected] = useState<string>();
+  const wrapper = useRef<HTMLDivElement>(null);
+  const [narrow, setNarrow] = useState(false);
+  const [focusIds, setFocusIds] = useState<readonly string[]>();
+  const [focusRequest, setFocusRequest] = useState(0);
+  const initiallyFocused = useRef(false);
+  const expanded = props.expandedGroupIds ?? localExpanded;
+  const selected = props.selectedNodeId === undefined ? localSelected : props.selectedNodeId ?? undefined;
+  const canToggle = props.expandedGroupIds === undefined || typeof props.onExpandedGroupIdsChange === "function";
+  const result = useMemo(() => projectGroupedFlowDiagram(props.definition, { expandedGroupIds: expanded,
+    observation: props.observation, highlight: props.highlight, selectedNodeId: selected, direction: props.direction }),
+  [props.definition, expanded, props.observation, props.highlight, selected, props.direction]);
+  const model = result.model;
+  const changeExpanded = (next: readonly string[]) => {
+    if (props.expandedGroupIds === undefined) setLocalExpanded(next);
+    props.onExpandedGroupIdsChange?.(next);
+  };
+  const select = (id: string) => {
+    if (props.selectedNodeId === undefined) setLocalSelected(id);
+    props.onSelectNode?.(id);
+  };
+  const requestFocus = (ids?: readonly string[]) => { setFocusIds(ids); setFocusRequest(value => value + 1); };
+  // Read only the already-admitted definition. IDs remain identity; display labels may repeat.
+  const names = useMemo(() => {
+    if (!model) return new Map<string, string>();
+    const groups = model.definition.nodes.filter(node => node.kind === "group");
+    const groupIndex = new Map(groups.map((node, index) => [node.id, index + 1]));
+    const counts = new Map<string, number>();
+    const siblingCounts = new Map<string, number>();
+    for (const node of model.definition.nodes) {
+      counts.set(node.label, (counts.get(node.label) ?? 0) + 1);
+      const key = JSON.stringify([node.parentId ?? null, node.label]);
+      siblingCounts.set(key, (siblingCounts.get(key) ?? 0) + 1);
+    }
+    return new Map(model.definition.nodes.map((node, index) => {
+      const duplicate = (counts.get(node.label) ?? 0) > 1;
+      if (node.kind === "group" && duplicate) return [node.id, `Group ${groupIndex.get(node.id)}`];
+      const context = node.parentId ? `Group ${groupIndex.get(node.parentId)}` : "";
+      const siblingDuplicate = (siblingCounts.get(JSON.stringify([node.parentId ?? null, node.label])) ?? 0) > 1;
+      return [node.id, [context, siblingDuplicate || (!node.parentId && duplicate) ? `Item ${index + 1}` : ""].filter(Boolean).join(" · ")];
+    }));
+  }, [props.definition, model]);
+  const nodes: DiagramReactNode[] = model?.nodes.map(item => ({ id: item.node.id, type: item.expanded ? "flowDiagramGroup" : "flowDiagramItem",
+    parentId: item.parentId, position: item.position, width: item.width, height: item.height,
+    style: { width: item.width, height: item.height, pointerEvents: "all" }, draggable: false, selectable: false,
+    data: { item, caption: names.get(item.node.id) ?? "", selected: item.node.id === selected,
+      direction: model.direction, canToggle, onToggle: (id: string) => {
+        requestFocus(narrow ? [id] : undefined);
+        changeExpanded(model.expandedGroupIds.includes(id) ? model.expandedGroupIds.filter(value => value !== id) : [...model.expandedGroupIds, id]);
+      }, onSelect: select },
+  })) ?? [];
+  const edges: Edge[] = model?.edges.map(item => {
+    const color = item.highlighted ? theme.tracing : theme.textMuted;
+    return { id: item.edge.id, source: item.source, target: item.target, type: "smoothstep", label: item.edge.label,
+      className: `gfd-edge-${item.state}${item.highlighted ? " gfd-edge-highlighted" : ""}`,
+      ariaLabel: `${item.edge.label ?? "Relationship"}. ${item.state === "observed" ? "Recorded" : item.state === "not-taken" ? "Not taken (recorded)" : "Not verified"}${item.collapsed ? ". Grouped view of the original relationship" : ""}.`,
+      markerEnd: { type: MarkerType.ArrowClosed, color },
+      style: { stroke: color, strokeWidth: item.highlighted ? 4 : 2, ...(item.state !== "observed" ? { strokeDasharray: "6 5" } : {}) },
+      labelStyle: { fill: theme.textPrimary, fontSize: 12, fontWeight: 600 }, labelBgStyle: { fill: theme.bgElevated }, labelBgPadding: [7, 4],
+    };
+  }) ?? [];
+  // Camera targets include a highlighted connection's visible endpoints without
+  // promoting those endpoints to recorded/highlighted evidence. A hidden internal
+  // connection is represented by its collapsed group. Expanded frames are a last
+  // resort so ancestor emphasis does not overwhelm a more precise leaf target.
+  const highlightFocusIds = new Set(model?.nodes.filter(node => node.highlighted && !node.expanded).map(node => node.node.id));
+  for (const edge of model?.edges ?? []) {
+    if (edge.highlighted) { highlightFocusIds.add(edge.source); highlightFocusIds.add(edge.target); }
+  }
+  if (!highlightFocusIds.size) for (const node of model?.nodes ?? []) if (node.highlighted) highlightFocusIds.add(node.node.id);
+  const geometry = model ? JSON.stringify(model.nodes.map(node => [node.node.id, node.parentId, node.position, node.width, node.height])) : "";
+  useEffect(() => {
+    const element = wrapper.current;
+    if (!element) return;
+    const measure = () => setNarrow(element.clientWidth > 0 && element.clientWidth < 600);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [Boolean(model)]);
+  useEffect(() => {
+    if (model && narrow && !initiallyFocused.current && selected && model.nodes.some(node => node.node.id === selected)) {
+      initiallyFocused.current = true;
+      requestFocus([selected]);
+    }
+  }, [model, selected, narrow]);
+
+  if (!model) return <section role="alert" className={props.className} style={{ color: theme.textPrimary, fontFamily: theme.fontSans, ...props.style }}>
+    <p>This diagram cannot be shown yet. Its saved information or grouping needs checking.</p>
+    <details><summary>How to fix this diagram</summary><p>{result.error ?? "Check the supplied diagram and try again."}</p></details>
+    {props.expandedGroupIds === undefined && props.selectedNodeId === undefined && <button type="button" style={buttonStyle} onClick={() => { setLocalExpanded([]); setLocalSelected(undefined); }}>Reset view</button>}
+  </section>;
+
+  return <section className={props.className} aria-label={props["aria-label"] ?? "Grouped flow diagram"}
+    data-camera-focus={focusIds?.join(" ") ?? "overview"} data-narrow={narrow} data-direction={model.direction}
+    style={{ display: "flex", flexDirection: "column", width: "100%", height: 560, minHeight: 320, minWidth: 0, fontFamily: theme.fontSans, color: theme.textPrimary, ...props.style }}>
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, padding: "10px 0" }}>
+      <button type="button" style={buttonStyle} onClick={() => requestFocus()}>Fit diagram</button>
+      <button type="button" style={buttonStyle} disabled={!selected || !canToggle} onClick={() => {
+        if (!selected) return;
+        requestFocus([selected]);
+        const next = [...new Set([...model.expandedGroupIds, ...getFlowDiagramAncestors(model.definition, selected)])];
+        changeExpanded(next);
+      }}>Reveal selection</button>
+      <button type="button" style={buttonStyle} disabled={!highlightFocusIds.size} onClick={() => {
+        if (highlightFocusIds.size) requestFocus([...highlightFocusIds]);
+      }}>Focus highlighted path</button>
+      <span style={{ fontSize: 11, color: theme.textSecondary }}>Open a flow to see its steps. Missing information stays unknown.</span>
+    </div>
+    <div ref={wrapper} style={{ flex: 1, minHeight: 220, minWidth: 0, border: `1px solid ${theme.border}`, borderRadius: 16, overflow: "hidden", background: theme.bg }}>
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={diagramNodeTypes}
+        nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} edgesFocusable={false} minZoom={.1} maxZoom={1.6} preventScrolling={false} proOptions={{ hideAttribution: true }}>
+        <ChartAutoRefit wrapperRef={wrapper} refitKey={geometry} padding={.06} focusNodeIds={focusIds} focusRequestKey={focusRequest} maxAutoZoom={1} />
+        <Background gap={24} color={theme.border} /><Controls showInteractive={false} />
+      </ReactFlow>
+    </div>
+    <p style={{ margin: "8px 0 0", fontSize: 11, color: theme.textSecondary }}>✓ Completed step · × Failed step · ? Unknown · Dashed relationship: not verified or recorded as not taken</p>
+  </section>;
+}

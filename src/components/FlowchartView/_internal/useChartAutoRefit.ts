@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { useReactFlow, useStoreApi } from "@xyflow/react";
-import { chartFitViewport, chartMeasurementKey, positiveFinite } from "./chartFitGeometry";
+import { chartFitViewport, chartMeasurementKey, positiveFinite, type ChartFitNode, type ChartFitState } from "./chartFitGeometry";
 
 export interface ChartAutoRefitProps {
   readonly wrapperRef: RefObject<HTMLElement | null>;
@@ -9,6 +9,10 @@ export interface ChartAutoRefitProps {
   readonly refitKey?: unknown;
   /** Derived measure-then-layout output; does not take ownership from the user. */
   readonly layoutKey?: unknown;
+  /** Explicit host/UI camera intent. Missing targets wait; they never fall back to another node. */
+  readonly focusNodeIds?: readonly string[];
+  readonly focusRequestKey?: unknown;
+  readonly maxAutoZoom?: number;
 }
 
 function hasVisibleArea(element: HTMLElement | null): boolean {
@@ -28,7 +32,7 @@ function hasVisibleArea(element: HTMLElement | null): boolean {
  * point a hidden tab may have a zero extent even though it was visible now.
  * User-driven pan/zoom and its animation controls are untouched.
  */
-export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutKey }: ChartAutoRefitProps): void {
+export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutKey, focusNodeIds, focusRequestKey, maxAutoZoom }: ChartAutoRefitProps): void {
   const store = useStoreApi();
   const { setViewport } = useReactFlow();
   const requestLayoutFit = useRef<(() => void) | null>(null);
@@ -46,6 +50,19 @@ export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutK
     let pendingFit = true;
     let applyingFit = false;
     let lastSuccessfulViewport: string | null = null;
+    const desiredViewport = (state: ChartFitState) => {
+      let nodeLookup = state.nodeLookup;
+      if (focusNodeIds?.length) {
+        const selected = new Map<string, ChartFitNode>();
+        for (const id of focusNodeIds) {
+          const node = nodeLookup.get(id);
+          if (!node || node.hidden) return null;
+          selected.set(id, node);
+        }
+        nodeLookup = selected;
+      }
+      return chartFitViewport({ ...state, nodeLookup, maxZoom: maxAutoZoom === undefined ? state.maxZoom : Math.min(state.maxZoom, maxAutoZoom) }, padding);
+    };
     const readContainerKey = () => {
       const state = store.getState();
       const outer = wrapper.getBoundingClientRect();
@@ -69,7 +86,7 @@ export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutK
         // xyflow can retain positive/fallback store sizes while a tab is hidden.
         // The actual flow pane may also be smaller than its breadcrumb wrapper.
         if (!state.panZoom || !hasVisibleArea(wrapper) || !hasVisibleArea(state.domNode)) return;
-        const viewport = chartFitViewport(state, padding);
+        const viewport = desiredViewport(state);
         if (!viewport) return;
         pendingFit = false;
         lastSuccessfulViewport = JSON.stringify(viewport);
@@ -129,7 +146,7 @@ export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutK
         checkContainer();
         // adoptUserNodes clears measured sizes when overlay node objects change.
         // Losing then recovering the same geometry is readiness, NOT a new intent.
-        const viewport = chartFitViewport(state, padding);
+        const viewport = desiredViewport(state);
         if (autoOwned && viewport && JSON.stringify(viewport) !== lastSuccessfulViewport) pendingFit = true;
         requestFit();
       }
@@ -144,7 +161,7 @@ export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutK
       window.removeEventListener("resize", checkContainer);
       cancelFrame();
     };
-  }, [store, setViewport, wrapperRef, padding, refitKey]);
+  }, [store, setViewport, wrapperRef, padding, refitKey, focusNodeIds, focusRequestKey, maxAutoZoom]);
 
   useEffect(() => { requestLayoutFit.current?.(); }, [layoutKey]);
 }

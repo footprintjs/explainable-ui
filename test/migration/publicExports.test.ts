@@ -3,6 +3,19 @@ import { readFileSync } from "node:fs";
 import { exportSurface } from "./exportSurface";
 import ledger from "./fixtures/public-exports.json";
 
+const groupedFlowExports = [
+  { name: "GroupedFlowDiagram", kind: "value" },
+  { name: "GroupedFlowDiagramProps", kind: "type" },
+  { name: "projectGroupedFlowDiagram", kind: "value" },
+  { name: "getFlowDiagramAncestors", kind: "value" },
+  ...[
+    "FlowDiagramNode", "FlowDiagramEdge", "FlowDiagramDefinition", "FlowDiagramNodeState",
+    "FlowDiagramEdgeState", "FlowDiagramObservation", "FlowDiagramHighlight",
+    "GroupedFlowDiagramModelOptions", "PositionedFlowDiagramNode", "PositionedFlowDiagramEdge",
+    "GroupedFlowDiagramModel", "GroupedFlowDiagramModelResult",
+  ].map(name => ({ name, kind: "type" })),
+];
+
 describe("M1 — preserve every existing public home and value/type kind", () => {
   it("keeps all root and flowchart names, including deprecations and duplicate homes", () => {
     expect(
@@ -22,6 +35,11 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         { name: "TraceInvocationProjection", kind: "type" },
         { name: "TraceWalkOptions", kind: "type" },
         { name: "TraceWalkScope", kind: "type" },
+        ...groupedFlowExports,
+      ].sort((a, b) => a.name.localeCompare(b.name)),
+      "./flowchart": [
+        ...ledger.entries["./flowchart"],
+        ...groupedFlowExports,
       ].sort((a, b) => a.name.localeCompare(b.name)),
     });
     expect(ledger.policy).toBe(

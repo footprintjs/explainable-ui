@@ -1,4 +1,5 @@
 // Types
+export * from "./components/GroupedFlowDiagram";
 export type { StageSnapshot, Size, BaseComponentProps, NarrativeEntry } from "./types";
 
 // Theme

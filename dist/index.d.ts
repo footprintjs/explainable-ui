@@ -2,6 +2,114 @@ import * as React$1 from 'react';
 import { CSSProperties, ReactNode } from 'react';
 import { Node, Edge } from '@xyflow/react';
 
+/** App-approved presentation and structure, independent of recorded execution facts. */
+interface FlowDiagramNode {
+    readonly id: string;
+    readonly label: string;
+    readonly kind?: "step" | "decision" | "group";
+    /** Unique group instance ID, never the reusable flow's name. */
+    readonly parentId?: string;
+    /** A bundled icon key or a short Unicode symbol; never HTML or a remote URL. */
+    readonly icon?: string;
+    readonly description?: string;
+}
+interface FlowDiagramEdge {
+    readonly id: string;
+    readonly source: string;
+    readonly target: string;
+    readonly label?: string;
+}
+interface FlowDiagramDefinition {
+    readonly nodes: readonly FlowDiagramNode[];
+    readonly edges: readonly FlowDiagramEdge[];
+}
+/** Facts supplied by the host's admitted recording. Omission always means unknown. */
+type FlowDiagramNodeState = "unknown" | "running" | "completed" | "failed" | "not-run";
+type FlowDiagramEdgeState = "unknown" | "observed" | "not-taken";
+interface FlowDiagramObservation {
+    readonly nodeStates?: Readonly<Record<string, FlowDiagramNodeState>>;
+    readonly edgeStates?: Readonly<Record<string, FlowDiagramEdgeState>>;
+}
+/** Emphasis is provided by the host. This library does not discover causes by walking design arrows. */
+interface FlowDiagramHighlight {
+    readonly nodeIds?: readonly string[];
+    readonly edgeIds?: readonly string[];
+}
+interface GroupedFlowDiagramModelOptions {
+    readonly expandedGroupIds?: readonly string[];
+    readonly observation?: FlowDiagramObservation;
+    readonly highlight?: FlowDiagramHighlight;
+    readonly selectedNodeId?: string;
+    readonly direction?: "LR" | "TB";
+}
+interface PositionedFlowDiagramNode {
+    readonly node: FlowDiagramNode;
+    readonly parentId?: string;
+    readonly position: {
+        readonly x: number;
+        readonly y: number;
+    };
+    readonly width: number;
+    readonly height: number;
+    readonly state: FlowDiagramNodeState;
+    readonly expanded: boolean;
+    readonly childCount: number;
+    /** Recorded failures inside a group do not assert that the group itself failed. */
+    readonly recordedIssueCount: number;
+    readonly containsSelection: boolean;
+    readonly highlighted: boolean;
+}
+interface PositionedFlowDiagramEdge {
+    readonly edge: FlowDiagramEdge;
+    readonly source: string;
+    readonly target: string;
+    readonly state: FlowDiagramEdgeState;
+    readonly highlighted: boolean;
+    /** A collapsed proxy keeps the exact original edge identity; it adds no new relationship. */
+    readonly collapsed: boolean;
+}
+interface GroupedFlowDiagramModel {
+    /** Validated structural metadata, including descendants hidden by collapsed groups. */
+    readonly definition: FlowDiagramDefinition;
+    readonly nodes: readonly PositionedFlowDiagramNode[];
+    readonly edges: readonly PositionedFlowDiagramEdge[];
+    readonly width: number;
+    readonly height: number;
+    readonly direction: "LR" | "TB";
+    readonly expandedGroupIds: readonly string[];
+}
+interface GroupedFlowDiagramModelResult {
+    readonly model?: GroupedFlowDiagramModel;
+    /** Fixed actionable refusal, never an untrusted ID or label. */
+    readonly error?: string;
+}
+
+interface GroupedFlowDiagramProps {
+    readonly definition: FlowDiagramDefinition;
+    readonly observation?: FlowDiagramObservation;
+    readonly highlight?: FlowDiagramHighlight;
+    readonly selectedNodeId?: string | null;
+    readonly onSelectNode?: (nodeId: string) => void;
+    readonly expandedGroupIds?: readonly string[];
+    readonly defaultExpandedGroupIds?: readonly string[];
+    readonly onExpandedGroupIdsChange?: (groupIds: readonly string[]) => void;
+    readonly direction?: "LR" | "TB";
+    readonly className?: string;
+    readonly style?: CSSProperties;
+    readonly "aria-label"?: string;
+}
+/** Reusable view of host-supplied structure and facts. It neither executes flows nor discovers causes. */
+declare function GroupedFlowDiagram(props: GroupedFlowDiagramProps): React$1.JSX.Element;
+
+/** Returns root-to-parent group instance IDs; invalid input never opens an arbitrary group. */
+declare function getFlowDiagramAncestors(definition: FlowDiagramDefinition, nodeId: string): readonly string[];
+/**
+ * Arrange supplied structure with the repository's dagre engine. Each expanded group
+ * is sized inside out, then participates as one ordinary box in its parent's layout.
+ * Recorded facts and host emphasis never create relationships or execution states.
+ */
+declare function projectGroupedFlowDiagram(definition: FlowDiagramDefinition, options?: GroupedFlowDiagramModelOptions): GroupedFlowDiagramModelResult;
+
 /** Snapshot of a single pipeline stage — the core data shape for all components. */
 interface StageSnapshot {
     /** Internal stage identifier */
@@ -2124,4 +2232,4 @@ interface InvestigationPanelProps {
 /** Bounded presentation over host-selected canonical Foottrace results. Never traverses or loads a graph. */
 declare function InvestigationPanel(props: InvestigationPanelProps): React$1.JSX.Element;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, InvestigationPanel, type InvestigationPanelProps, type InvestigationPort, type InvestigationResult, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceInvocationOptions, type TraceInvocationProjection, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TraceWalkOptions, type TraceWalkScope, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, projectTraceInvocation, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, InvestigationPanel, type InvestigationPanelProps, type InvestigationPort, type InvestigationResult, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceInvocationOptions, type TraceInvocationProjection, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TraceWalkOptions, type TraceWalkScope, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, getFlowDiagramAncestors, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, projectGroupedFlowDiagram, projectTraceInvocation, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };

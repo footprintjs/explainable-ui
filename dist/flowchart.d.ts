@@ -1,6 +1,115 @@
 import * as react from 'react';
+import { CSSProperties, ReactNode } from 'react';
 import * as _xyflow_react from '@xyflow/react';
 import { Node, Edge, NodeTypes, EdgeTypes, NodeProps, EdgeProps } from '@xyflow/react';
+
+/** App-approved presentation and structure, independent of recorded execution facts. */
+interface FlowDiagramNode {
+    readonly id: string;
+    readonly label: string;
+    readonly kind?: "step" | "decision" | "group";
+    /** Unique group instance ID, never the reusable flow's name. */
+    readonly parentId?: string;
+    /** A bundled icon key or a short Unicode symbol; never HTML or a remote URL. */
+    readonly icon?: string;
+    readonly description?: string;
+}
+interface FlowDiagramEdge {
+    readonly id: string;
+    readonly source: string;
+    readonly target: string;
+    readonly label?: string;
+}
+interface FlowDiagramDefinition {
+    readonly nodes: readonly FlowDiagramNode[];
+    readonly edges: readonly FlowDiagramEdge[];
+}
+/** Facts supplied by the host's admitted recording. Omission always means unknown. */
+type FlowDiagramNodeState = "unknown" | "running" | "completed" | "failed" | "not-run";
+type FlowDiagramEdgeState = "unknown" | "observed" | "not-taken";
+interface FlowDiagramObservation {
+    readonly nodeStates?: Readonly<Record<string, FlowDiagramNodeState>>;
+    readonly edgeStates?: Readonly<Record<string, FlowDiagramEdgeState>>;
+}
+/** Emphasis is provided by the host. This library does not discover causes by walking design arrows. */
+interface FlowDiagramHighlight {
+    readonly nodeIds?: readonly string[];
+    readonly edgeIds?: readonly string[];
+}
+interface GroupedFlowDiagramModelOptions {
+    readonly expandedGroupIds?: readonly string[];
+    readonly observation?: FlowDiagramObservation;
+    readonly highlight?: FlowDiagramHighlight;
+    readonly selectedNodeId?: string;
+    readonly direction?: "LR" | "TB";
+}
+interface PositionedFlowDiagramNode {
+    readonly node: FlowDiagramNode;
+    readonly parentId?: string;
+    readonly position: {
+        readonly x: number;
+        readonly y: number;
+    };
+    readonly width: number;
+    readonly height: number;
+    readonly state: FlowDiagramNodeState;
+    readonly expanded: boolean;
+    readonly childCount: number;
+    /** Recorded failures inside a group do not assert that the group itself failed. */
+    readonly recordedIssueCount: number;
+    readonly containsSelection: boolean;
+    readonly highlighted: boolean;
+}
+interface PositionedFlowDiagramEdge {
+    readonly edge: FlowDiagramEdge;
+    readonly source: string;
+    readonly target: string;
+    readonly state: FlowDiagramEdgeState;
+    readonly highlighted: boolean;
+    /** A collapsed proxy keeps the exact original edge identity; it adds no new relationship. */
+    readonly collapsed: boolean;
+}
+interface GroupedFlowDiagramModel {
+    /** Validated structural metadata, including descendants hidden by collapsed groups. */
+    readonly definition: FlowDiagramDefinition;
+    readonly nodes: readonly PositionedFlowDiagramNode[];
+    readonly edges: readonly PositionedFlowDiagramEdge[];
+    readonly width: number;
+    readonly height: number;
+    readonly direction: "LR" | "TB";
+    readonly expandedGroupIds: readonly string[];
+}
+interface GroupedFlowDiagramModelResult {
+    readonly model?: GroupedFlowDiagramModel;
+    /** Fixed actionable refusal, never an untrusted ID or label. */
+    readonly error?: string;
+}
+
+interface GroupedFlowDiagramProps {
+    readonly definition: FlowDiagramDefinition;
+    readonly observation?: FlowDiagramObservation;
+    readonly highlight?: FlowDiagramHighlight;
+    readonly selectedNodeId?: string | null;
+    readonly onSelectNode?: (nodeId: string) => void;
+    readonly expandedGroupIds?: readonly string[];
+    readonly defaultExpandedGroupIds?: readonly string[];
+    readonly onExpandedGroupIdsChange?: (groupIds: readonly string[]) => void;
+    readonly direction?: "LR" | "TB";
+    readonly className?: string;
+    readonly style?: CSSProperties;
+    readonly "aria-label"?: string;
+}
+/** Reusable view of host-supplied structure and facts. It neither executes flows nor discovers causes. */
+declare function GroupedFlowDiagram(props: GroupedFlowDiagramProps): react.JSX.Element;
+
+/** Returns root-to-parent group instance IDs; invalid input never opens an arbitrary group. */
+declare function getFlowDiagramAncestors(definition: FlowDiagramDefinition, nodeId: string): readonly string[];
+/**
+ * Arrange supplied structure with the repository's dagre engine. Each expanded group
+ * is sized inside out, then participates as one ordinary box in its parent's layout.
+ * Recorded facts and host emphasis never create relationships or execution states.
+ */
+declare function projectGroupedFlowDiagram(definition: FlowDiagramDefinition, options?: GroupedFlowDiagramModelOptions): GroupedFlowDiagramModelResult;
 
 interface StageNodeData {
     label: string;
@@ -78,7 +187,7 @@ interface StageNodeData {
  * All colors and fonts come from `--fp-*` CSS variables (via theme).
  * Shows execution state via color, icon, step badge, and pulse animation.
  */
-declare const StageNode: react.NamedExoticComponent<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "id" | "data" | "width" | "height" | "sourcePosition" | "targetPosition" | "dragHandle" | "parentId"> & Required<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "type" | "dragging" | "zIndex" | "selectable" | "deletable" | "selected" | "draggable">> & {
+declare const StageNode: react.NamedExoticComponent<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "width" | "height" | "id" | "data" | "sourcePosition" | "targetPosition" | "dragHandle" | "parentId"> & Required<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "type" | "selected" | "dragging" | "draggable" | "selectable" | "deletable" | "zIndex">> & {
     isConnectable: boolean;
     positionAbsoluteX: number;
     positionAbsoluteY: number;
@@ -1337,6 +1446,16 @@ interface GroupContainerNodeData {
     dimmed?: boolean;
     description?: string;
     icon?: string;
+    /** Opt in before additional header data is rendered; legacy extra metadata stays invisible. */
+    headerMode?: "expandable";
+    /** Trusted host-rendered header content; recorded strings must not be supplied as markup. */
+    iconContent?: ReactNode;
+    headerAction?: ReactNode;
+    statusLabel?: string;
+    statusLabelId?: string;
+    handleDirection?: "LR" | "TB";
+    highlighted?: boolean;
+    compactHeader?: boolean;
     [key: string]: unknown;
 }
 declare function GroupContainerNode({ data }: NodeProps): react.JSX.Element;
@@ -2929,4 +3048,4 @@ interface SerializedStructureNode {
  */
 declare function graphFromStructure(structure: unknown): TraceGraph;
 
-export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, type OverlayFromSnapshotOptions, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, graphFromStructure, overlayFromSnapshot, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };
+export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, type OverlayFromSnapshotOptions, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, getFlowDiagramAncestors, graphFromStructure, overlayFromSnapshot, projectGroupedFlowDiagram, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };

@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Optional `GroupedFlowDiagram` and pure `projectGroupedFlowDiagram` for app-supplied,
+  instance-bound flow definitions: configurable names/icons, nested expandable groups,
+  explicit recorded states and host-provided path emphasis. Missing states remain unknown;
+  collapsed connections preserve original edge identities. The renderer does not discover
+  causes from structural arrows or infer group success from completed children.
+- Offline grouped-flow examples, including repeated nested flows and same-name steps,
+  with keyboard controls, mobile selection framing and a portable browser check.
+
 ## [0.39.0] - 2026-10-26
 
 ### Added

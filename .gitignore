@@ -1,6 +1,7 @@
 node_modules/
 dist/
 demo-dist/
+grouped-flow-example-dist/
 *.tsbuildinfo
 coverage
 
