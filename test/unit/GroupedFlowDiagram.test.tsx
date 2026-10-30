@@ -4,10 +4,13 @@ import { expect, it, vi } from "vitest";
 import { GroupedFlowDiagram } from "../../src/components/GroupedFlowDiagram/GroupedFlowDiagram";
 import { GroupContainerNode } from "../../src/components/GroupContainerNode";
 import type { FlowDiagramDefinition } from "../../src/components/GroupedFlowDiagram/types";
+import { theme } from "../../src/theme";
+import { RecordedFocusContext } from "../../src/components/GroupedFlowDiagram/presentation";
 vi.mock("../../src/components/FlowchartView/_internal/useChartAutoRefit", () => ({ ChartAutoRefit: (props: any) => <output data-testid="camera-targets" data-focus={props.focusNodeIds?.join(" ") ?? "overview"} /> }));
 
 vi.mock("@xyflow/react", async original => ({ ...await original<typeof import("@xyflow/react")>(),
-  ReactFlow: ({ nodes, nodeTypes, children }: any) => <div>{nodes.map((node: any) => {
+  ReactFlow: ({ nodes, edges, nodeTypes, children }: any) => <div data-testid="canvas-model" data-model-nodes={JSON.stringify(nodes.map(({ id, position, width, height, parentId }: any) => ({ id, position, width, height, parentId })))}
+    data-model-edges={JSON.stringify(edges.map(({ id, source, target, sourceHandle, targetHandle, data, className, style, markerEnd, ariaLabel }: any) => ({ id, source, target, sourceHandle, targetHandle, data, className, style, markerEnd, ariaLabel })))}>{nodes.map((node: any) => {
     const Component = nodeTypes[node.type];
     return <div key={node.id}><Component id={node.id} data={node.data} /></div>;
   })}{children}</div>, Handle: () => null, Background: () => null, Controls: () => null,
@@ -114,4 +117,78 @@ it("focuses an explicitly highlighted expanded group when no leaves are emphasiz
   render(<GroupedFlowDiagram definition={definition} defaultExpandedGroupIds={["payment"]} highlight={{ nodeIds: ["payment"] }} />);
   fireEvent.click(screen.getByRole("button", { name: "Focus highlighted path" }));
   expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("payment");
+});
+
+it("keeps the structural geometry and transitions unchanged when recorded dependencies are overlaid", () => {
+  const props = { definition, defaultExpandedGroupIds: ["payment"] };
+  const { rerender } = render(<GroupedFlowDiagram {...props} />);
+  const before = screen.getByTestId("canvas-model").getAttribute("data-model-nodes");
+  const relationships = [{ id: "dep", source: "capture", target: "authorize", kind: "data" as const, attribution: "recorded-read" as const, evidence: ["read:1"], direction: "backward" as const }];
+  rerender(<GroupedFlowDiagram {...props} recordedRelationships={relationships} />);
+  expect(screen.getByTestId("canvas-model").getAttribute("data-model-nodes")).toBe(before);
+  const edges = JSON.parse(screen.getByTestId("canvas-model").getAttribute("data-model-edges")!);
+  expect(edges.find((edge: any) => edge.id === "paid-ship").className).toBe("gfd-edge-unknown");
+  expect(edges.find((edge: any) => edge.id === "dep")).toMatchObject({ source: "capture", target: "authorize", sourceHandle: "recorded-0-source", targetHandle: "recorded-0-target", data: { relationship: relationships[0], route: expect.any(Object) }, style: { strokeWidth: 1.8 }, markerEnd: { width: 14, height: 14 } });
+});
+
+it("applies one explicit camera key without stealing camera ownership on equivalent renders", () => {
+  const key = {};
+  const props = { definition, defaultExpandedGroupIds: ["payment"] };
+  const { rerender } = render(<GroupedFlowDiagram {...props} focusRequest={{ key, nodeIds: ["ship"] }} />);
+  expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("ship");
+  rerender(<GroupedFlowDiagram {...props} focusRequest={{ key, nodeIds: ["capture"] }} />);
+  expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("ship");
+  rerender(<GroupedFlowDiagram {...props} focusRequest={{ key: {}, nodeIds: ["capture"] }} />);
+  expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("capture");
+});
+
+it("refuses malformed camera intent without running its accessors or selecting an arbitrary substitute", () => {
+  let reads = 0;
+  const request = Object.defineProperty({ nodeIds: ["ship"] }, "key", { get() { reads++; return {}; } });
+  const { rerender } = render(<GroupedFlowDiagram definition={definition} focusRequest={request as any} />);
+  expect(reads).toBe(0); expect(screen.getByRole("alert")).toBeTruthy();
+  rerender(<GroupedFlowDiagram definition={definition} focusRequest={{ key: {}, nodeIds: ["PRIVATE_MISSING"] }} />);
+  expect(screen.getByRole("alert").textContent).not.toContain("PRIVATE_MISSING");
+});
+
+it("keeps decision identity and dimensions in a rounded card with a small decision marker and the host icon", () => {
+  const diagram = { nodes: [{ id: "choice", label: "Rates found?", kind: "decision" as const, icon: "🧭" }, { id: "next", label: "Continue" }], edges: [{ id: "yes", source: "choice", target: "next", label: "Yes" }] };
+  render(<GroupedFlowDiagram definition={diagram} />);
+  const card = screen.getByRole("button", { name: "Select Rates found?" });
+  expect(card.style.borderRadius).toBe("16px"); expect(card.style.borderStyle).toBe("solid");
+  expect(card.querySelector("polygon")).toBeNull(); expect(screen.getByText("Decision")).toBeTruthy(); expect(screen.getByText("🧭")).toBeTruthy();
+  const nodes = JSON.parse(screen.getByTestId("canvas-model").getAttribute("data-model-nodes")!);
+  expect(nodes.find((node: any) => node.id === "choice")).toMatchObject({ width: 180, height: 172 });
+});
+
+it("distinguishes the backward source trail from forward impact without recolouring structural paths or completed nodes", () => {
+  const relation = { id: "cause", source: "capture", target: "authorize", kind: "data" as const, attribution: "recorded-read" as const, evidence: ["proof"], direction: "backward" as const };
+  render(<GroupedFlowDiagram definition={definition} defaultExpandedGroupIds={["payment"]} observation={{ nodeStates: { capture: "completed", authorize: "completed" } }}
+    recordedRelationships={[relation, { ...relation, id: "impact", direction: "forward" }]} />);
+  const edges = JSON.parse(screen.getByTestId("canvas-model").getAttribute("data-model-edges")!);
+  expect(edges.find((edge: any) => edge.id === "cause").style.stroke).toBe(theme.error);
+  expect(edges.find((edge: any) => edge.id === "impact").style.stroke).toBe(theme.tracing);
+  expect(edges.find((edge: any) => edge.id === "paid-ship").style.stroke).toBe(theme.textMuted);
+  expect(screen.getByText(/Warm backward links/).textContent).toContain("not failed steps");
+  expect(document.querySelector('[data-node-id="authorize"]')?.getAttribute("data-state")).toBe("completed");
+});
+
+it("keeps a relationship without a direction hint neutral rather than claiming forward impact", () => {
+  render(<GroupedFlowDiagram definition={definition} defaultExpandedGroupIds={["payment"]} recordedRelationships={[
+    { id: "neutral", source: "capture", target: "authorize", kind: "data", attribution: "recorded-read", evidence: ["proof"] },
+  ]} />);
+  const edge = JSON.parse(screen.getByTestId("canvas-model").getAttribute("data-model-edges")!).find((edge: any) => edge.id === "neutral");
+  expect(edge.style.stroke).toBe(theme.textSecondary); expect(edge.ariaLabel).toContain("Recorded dependency.");
+  expect(edge.ariaLabel).not.toMatch(/Forward recorded impact|Backward source trail/);
+});
+
+it.each([{ targets: [] }, { targets: ["outside"] }])("refuses an empty or unknown focused fit batch without falling through to an overview ($targets)", ({ targets }) => {
+  const key = {}, request = { key, nodeIds: ["ship"] };
+  const view = render(<RecordedFocusContext.Provider value={{ focused: true, fitNodeIds: ["ship"] }}><GroupedFlowDiagram definition={definition} focusRequest={request} /></RecordedFocusContext.Provider>);
+  expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("ship");
+  view.rerender(<RecordedFocusContext.Provider value={{ focused: true, fitNodeIds: targets }}><GroupedFlowDiagram definition={definition} focusRequest={request} /></RecordedFocusContext.Provider>);
+  const fit = screen.getByRole("button", { name: "Fit recorded view" }) as HTMLButtonElement;
+  expect(fit.disabled).toBe(true); fireEvent.click(fit);
+  expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("ship");
+  expect(screen.getByText(/The recorded view cannot be fitted yet/)).toBeTruthy();
 });

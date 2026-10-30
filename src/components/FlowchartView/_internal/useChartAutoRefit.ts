@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { useReactFlow, useStoreApi } from "@xyflow/react";
+import type { Rect } from "@xyflow/react";
+import { useIsomorphicLayoutEffect } from "../../../_internal/useIsomorphicLayoutEffect";
 import { chartFitViewport, chartMeasurementKey, positiveFinite, type ChartFitNode, type ChartFitState } from "./chartFitGeometry";
 
 export interface ChartAutoRefitProps {
@@ -13,6 +15,7 @@ export interface ChartAutoRefitProps {
   readonly focusNodeIds?: readonly string[];
   readonly focusRequestKey?: unknown;
   readonly maxAutoZoom?: number;
+  readonly visualBounds?: Rect;
 }
 
 function hasVisibleArea(element: HTMLElement | null): boolean {
@@ -32,10 +35,13 @@ function hasVisibleArea(element: HTMLElement | null): boolean {
  * point a hidden tab may have a zero extent even though it was visible now.
  * User-driven pan/zoom and its animation controls are untouched.
  */
-export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutKey, focusNodeIds, focusRequestKey, maxAutoZoom }: ChartAutoRefitProps): void {
+export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutKey, focusNodeIds, focusRequestKey, maxAutoZoom, visualBounds }: ChartAutoRefitProps): void {
   const store = useStoreApi();
   const { setViewport } = useReactFlow();
   const requestLayoutFit = useRef<(() => void) | null>(null);
+  const visualBoundsKey = JSON.stringify(visualBounds);
+  const committedVisualBounds = useRef(visualBounds);
+  useIsomorphicLayoutEffect(() => { committedVisualBounds.current = visualBounds; }, [visualBoundsKey]);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -61,7 +67,7 @@ export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutK
         }
         nodeLookup = selected;
       }
-      return chartFitViewport({ ...state, nodeLookup, maxZoom: maxAutoZoom === undefined ? state.maxZoom : Math.min(state.maxZoom, maxAutoZoom) }, padding);
+      return chartFitViewport({ ...state, nodeLookup, visualBounds: committedVisualBounds.current, maxZoom: maxAutoZoom === undefined ? state.maxZoom : Math.min(state.maxZoom, maxAutoZoom) }, padding);
     };
     const readContainerKey = () => {
       const state = store.getState();
@@ -164,6 +170,9 @@ export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutK
   }, [store, setViewport, wrapperRef, padding, refitKey, focusNodeIds, focusRequestKey, maxAutoZoom]);
 
   useEffect(() => { requestLayoutFit.current?.(); }, [layoutKey]);
+  // New paint geometry may update an auto-owned fit, but cannot reclaim a camera
+  // the user panned. A new explicit focus intent uses the latest committed bounds.
+  useEffect(() => { requestLayoutFit.current?.(); }, [visualBoundsKey]);
 }
 
 /** Lives UNDER ReactFlow's provider; both public chart doors use this owner. */

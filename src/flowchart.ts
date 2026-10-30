@@ -216,3 +216,6 @@ export type {
 // L8.5 — time-travel cursor slider (ONE-CURSOR model)
 export { RunSlider } from "./components/FlowchartView";
 export type { RunSliderProps } from "./components/FlowchartView";
+
+export { GroupedFlowInvestigation } from "./components/GroupedFlowInvestigation";
+export type { GroupedFlowInvestigationProps } from "./components/GroupedFlowInvestigation";

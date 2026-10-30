@@ -8,6 +8,7 @@ import type {
   MarkedNode,
 } from "foottrace/cause";
 import type { InvestigationResult } from "./types";
+import type { VisualInvestigationResult, VisualInvestigationEdge } from "./visualTypes";
 type Attention = CauseResult["attention"][number];
 
 // Display admission only. Foottrace and the host own graph traversal, storage admission and causal claims.
@@ -117,7 +118,35 @@ class Admission {
         evidence: this.evidence(field(entry, "evidence")),
       };
     });
-  impact(value: unknown): InvestigationResult["impact"] {
+  edges(value: unknown, members: ReadonlySet<string>): VisualInvestigationEdge[] {
+    return this.list(value, 512, entry => {
+      const from = this.text(field(entry, "from")), to = this.text(field(entry, "to"));
+      const kind = field(entry, "kind"), attribution = field(entry, "attribution");
+      if (!members.has(from) || !members.has(to) || (kind !== "data" && kind !== "control")
+        || !["per-write", "stage", "recorded-control", "recorded-read"].includes(attribution as string)) throw new Refused();
+      return { from, to, kind, attribution: attribution as VisualInvestigationEdge["attribution"], evidence: this.evidence(field(entry, "evidence")) };
+    });
+  }
+  backward(value: unknown, selected: string, root: string | undefined, path: readonly string[], alternatives: readonly string[]): NonNullable<VisualInvestigationResult["backward"]> {
+    const nodes = this.list(field(value, "nodes"), MAX_ITEMS, entry => this.text(entry));
+    const members = new Set(nodes);
+    if (members.size !== nodes.length || (nodes.length > 0 && !members.has(selected))) throw new Refused();
+    const confidence = this.confidence(field(value, "confidence")), gaps = this.gaps(field(value, "gaps"));
+    if (root !== undefined && (!members.has(root) || confidence !== "complete" || gaps.length)) throw new Refused();
+    const edges = this.edges(field(value, "edges"), members);
+    if (path.some(id => !members.has(id)) || alternatives.some(id => !members.has(id))
+      || (root !== undefined && edges.some(edge => edge.attribution === "stage"))) throw new Refused();
+    // Check only the supplied path's adjacent pairs. This is consistency admission,
+    // not graph traversal, candidate discovery or another root-cause strategy.
+    const links = new Map<string, Set<string>>();
+    for (const edge of edges) {
+      const targets = links.get(edge.from) ?? new Set<string>();
+      targets.add(edge.to); links.set(edge.from, targets);
+    }
+    for (let index = 1; index < path.length; index++) if (!links.get(path[index - 1]!)?.has(path[index]!)) throw new Refused();
+    return { nodes, edges, confidence, gaps };
+  }
+  impact(value: unknown, selected: string, visual: boolean): VisualInvestigationResult["impact"] {
     const nodes = this.list(field(value, "nodes"), MAX_ITEMS, (entry) =>
       this.text(entry)
     );
@@ -126,6 +155,7 @@ class Admission {
       nodes,
       confidence: this.confidence(field(value, "confidence")),
       gaps: this.gaps(field(value, "gaps")),
+      ...(visual && field(value, "edges") !== undefined ? { edges: this.edges(field(value, "edges"), new Set([selected, ...nodes])) } : {}),
     };
   }
 }
@@ -153,10 +183,7 @@ export function admitAttention(
     return undefined;
   }
 }
-export function admitExplanation(
-  value: unknown,
-  requested: string
-): InvestigationResult | undefined {
+function readExplanation(value: unknown, requested: string, visual: boolean): VisualInvestigationResult | undefined {
   try {
     const reader = new Admission();
     const nodeId = reader.text(field(value, "nodeId"));
@@ -190,13 +217,22 @@ export function admitExplanation(
       ...(rootCause !== undefined && { rootCause }),
       path,
       alternatives,
-      impact: reader.impact(field(value, "impact")),
+      impact: reader.impact(field(value, "impact"), nodeId, visual),
+      ...(visual && field(value, "backward") !== undefined ? { backward: reader.backward(field(value, "backward"), nodeId, rootCause, path, alternatives) } : {}),
       confidence,
       gaps,
     };
   } catch {
     return undefined;
   }
+}
+/** Legacy text projection intentionally leaves optional graph relationships with the host. */
+export function admitExplanation(value: unknown, requested: string): InvestigationResult | undefined {
+  return readExplanation(value, requested, false);
+}
+/** The grouped view admits only explicitly supplied, bounded canonical relationships. */
+export function admitVisualExplanation(value: unknown, requested: string): VisualInvestigationResult | undefined {
+  return readExplanation(value, requested, true);
 }
 export function displayLabel(labels: unknown, nodeId: string): string {
   try {

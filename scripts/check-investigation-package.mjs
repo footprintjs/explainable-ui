@@ -25,6 +25,7 @@ const env = {
   npm_config_offline: "true",
   npm_config_cache: join(scratch, "npm-cache"),
   npm_config_userconfig: join(scratch, "empty-npmrc"),
+  ...(process.env.NODE_OPTIONS ? { NODE_OPTIONS: process.env.NODE_OPTIONS } : {}),
 };
 function run(command, args, cwd = scratch) {
   const result = spawnSync(command, args, { cwd, env, encoding: "utf8" });
@@ -64,6 +65,72 @@ try {
     destination,
   ]);
   const manifest = JSON.parse(readFileSync(join(repo, "package.json"), "utf8"));
+  // Keep this consumer separate from the optional native-reader integration.
+  // A dev dependency in that integration must not repair public declarations.
+  const peerOnly = join(scratch, "peer-only");
+  const peerModules = join(peerOnly, "node_modules");
+  cpSync(destination, join(peerModules, "footprint-explainable-ui"), {
+    recursive: true,
+  });
+  const declared = [
+    ...new Set([
+      ...Object.keys(manifest.peerDependencies),
+      ...Object.keys(manifest.dependencies),
+      "csstype",
+    ]),
+  ];
+  for (const name of declared) {
+    mkdirSync(dirname(join(peerModules, name)), { recursive: true });
+    symlinkSync(join(repo, "node_modules", name), join(peerModules, name), "dir");
+  }
+  for (const name of ["react", "react-dom"]) {
+    cpSync(join(repo, "node_modules/@types", name), join(peerModules, "@types", name), {
+      recursive: true,
+    });
+  }
+  writeFileSync(join(peerOnly, "package.json"), JSON.stringify({ private: true, type: "module" }));
+  assert(!existsSync(join(peerModules, "foottrace")));
+  const peerSource = `import { InvestigationPanel, GroupedFlowInvestigation, type InvestigationPort } from 'footprint-explainable-ui';
+import { GroupedFlowInvestigation as ChartInvestigation, type GroupedFlowInvestigationProps as ChartProps } from 'footprint-explainable-ui/flowchart';
+const port: InvestigationPort = { binding:{}, attention:{nodes:[],confidence:'complete',gaps:[]}, explain:nodeId=>({nodeId,attention:[],path:[nodeId],alternatives:[],confidence:'incomplete',gaps:[],impact:{nodes:[],edges:[],confidence:'complete',gaps:[]}}) };
+const definition = {nodes:[{id:'one',label:'One'}],edges:[]};
+const chartProps: ChartProps = {definition,port};
+InvestigationPanel({port});
+GroupedFlowInvestigation({definition,port}); ChartInvestigation(chartProps);
+`;
+  const noReaderTypeModes = [];
+  for (const [mode, extension] of [["NodeNext", "mts"], ["NodeNext", "cts"], ["Bundler", "tsx"]]) {
+    const file = `consumer.${extension}`;
+    writeFileSync(join(peerOnly, file), peerSource);
+    const listing = run(process.execPath, [
+      join(repo, "node_modules/typescript/bin/tsc"),
+      "--strict", "--skipLibCheck", "false", "--noEmit", "--listFiles",
+      "--module", mode === "Bundler" ? "ESNext" : "NodeNext",
+      "--moduleResolution", mode, "--target", "ES2020", "--types", "react", file,
+    ], peerOnly);
+    assert(!listing.includes("/node_modules/foottrace/"), "reader types must not supply UI declarations");
+    assert(!listing.includes(join(repo, "src")), "packed checks must not import UI source");
+    noReaderTypeModes.push(`${mode} ${extension}`);
+  }
+  for (const door of ["index", "flowchart"]) for (const extension of ["ts", "cts"]) {
+    const declaration = readFileSync(join(destination, `dist/${door}.d.${extension}`), "utf8");
+    assert(!/(?:from\s*|import\s*\()\s*['"](?:foottrace(?:\/|['"])|\.\/lib\/cause)/.test(declaration), `${door} public types must be closed`);
+  }
+  const noReaderRuntime = [];
+  for (const extension of ["mjs", "cjs"]) {
+    const imports = extension === "mjs"
+      ? `import assert from 'node:assert/strict';import{createRequire}from'node:module';import React from'react';import{renderToStaticMarkup}from'react-dom/server';import*as root from'footprint-explainable-ui';import*as chart from'footprint-explainable-ui/flowchart';const require=createRequire(import.meta.url);`
+      : `const assert=require('node:assert/strict'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),root=require('footprint-explainable-ui'),chart=require('footprint-explainable-ui/flowchart');`;
+    const file = `runtime.${extension}`;
+    writeFileSync(join(peerOnly, file), `${imports}
+assert.throws(()=>require.resolve('foottrace/cause'),{code:'MODULE_NOT_FOUND'});
+for(const api of [root,chart]){
+  assert.match(renderToStaticMarkup(React.createElement(api.GroupedFlowInvestigation,{definition:{nodes:[{id:'one',label:'One'}],edges:[]},port:null})),/Fit diagram/);
+}
+assert.match(renderToStaticMarkup(React.createElement(root.InvestigationPanel,{port:null})),/Investigation/);
+console.log(JSON.stringify({format:${JSON.stringify(extension)},doors:['.','./flowchart'],readerAbsent:true}));`);
+    noReaderRuntime.push(JSON.parse(run(process.execPath, [file], peerOnly)));
+  }
   for (const name of [
     ...Object.keys(manifest.peerDependencies),
     ...Object.keys(manifest.dependencies),
@@ -215,6 +282,10 @@ render(<InvestigationPanel port={port}/>);expect(explain).not.toHaveBeenCalled()
       packed: packed[0].integrity,
       runtime: process.version,
       strictTypes: ["NodeNext ESM", "NodeNext CJS"],
+      noReaderTypeModes,
+      noReaderRuntime,
+      publicDoors: [".", "./flowchart"],
+      peerOnlyDependencies: declared,
       undeclaredFoottraceDependency: false,
       candidateReader: readerPackage
         ? createHash("sha256").update(readFileSync(readerPackage)).digest("hex")

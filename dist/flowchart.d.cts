@@ -35,6 +35,24 @@ interface FlowDiagramObservation {
 interface FlowDiagramHighlight {
     readonly nodeIds?: readonly string[];
     readonly edgeIds?: readonly string[];
+    /** Exact host-supported cause. This presentation role never changes recorded execution state. */
+    readonly rootCauseId?: string;
+}
+/** Canonical dependency evidence is an overlay, never an execution/design transition. */
+interface FlowDiagramRecordedRelationship {
+    readonly id: string;
+    readonly source: string;
+    readonly target: string;
+    readonly kind: "data" | "control";
+    readonly attribution: "per-write" | "stage" | "recorded-control" | "recorded-read";
+    readonly evidence: readonly string[];
+    /** Routing hint only. Endpoints and arrow direction are never reversed. */
+    readonly direction?: "backward" | "forward";
+}
+/** A new key expresses one explicit camera intent. Equivalent renders keep the current camera. */
+interface FlowDiagramFocusRequest {
+    readonly key: unknown;
+    readonly nodeIds: readonly string[];
 }
 interface GroupedFlowDiagramModelOptions {
     readonly expandedGroupIds?: readonly string[];
@@ -59,6 +77,9 @@ interface PositionedFlowDiagramNode {
     readonly recordedIssueCount: number;
     readonly containsSelection: boolean;
     readonly highlighted: boolean;
+    /** Only the exact supplied cause is labelled; a containing group is never its replacement. */
+    readonly isRootCause?: boolean;
+    readonly containsRootCause?: boolean;
 }
 interface PositionedFlowDiagramEdge {
     readonly edge: FlowDiagramEdge;
@@ -72,6 +93,8 @@ interface PositionedFlowDiagramEdge {
 interface GroupedFlowDiagramModel {
     /** Validated structural metadata, including descendants hidden by collapsed groups. */
     readonly definition: FlowDiagramDefinition;
+    /** Admitted states for every declared item, including collapsed descendants. */
+    readonly nodeStates?: Readonly<Record<string, FlowDiagramNodeState>>;
     readonly nodes: readonly PositionedFlowDiagramNode[];
     readonly edges: readonly PositionedFlowDiagramEdge[];
     readonly width: number;
@@ -89,6 +112,8 @@ interface GroupedFlowDiagramProps {
     readonly definition: FlowDiagramDefinition;
     readonly observation?: FlowDiagramObservation;
     readonly highlight?: FlowDiagramHighlight;
+    readonly recordedRelationships?: readonly FlowDiagramRecordedRelationship[];
+    readonly focusRequest?: FlowDiagramFocusRequest;
     readonly selectedNodeId?: string | null;
     readonly onSelectNode?: (nodeId: string) => void;
     readonly expandedGroupIds?: readonly string[];
@@ -3048,4 +3073,118 @@ interface SerializedStructureNode {
  */
 declare function graphFromStructure(structure: unknown): TraceGraph;
 
-export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, type OverlayFromSnapshotOptions, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, getFlowDiagramAncestors, graphFromStructure, overlayFromSnapshot, projectGroupedFlowDiagram, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };
+/** One vocabulary; true marks a domain evidence reason, false a trace/admission gap only. */
+declare const GAP_CODES: Readonly<{
+    readonly 'not-collected': true;
+    readonly 'untracked-input': false;
+    readonly redacted: true;
+    readonly conservative: false;
+    readonly 'scope-boundary': false;
+    readonly 'invalid-data': true;
+    readonly unavailable: true;
+    readonly timeout: true;
+    readonly cancelled: false;
+    readonly cycle: false;
+    readonly 'node-limit': false;
+    readonly 'depth-limit': false;
+    readonly 'edge-limit': false;
+    readonly 'call-limit': false;
+    readonly truncated: false;
+    readonly 'strategy-failed': false;
+    readonly 'not-checked': true;
+    readonly 'no-match': true;
+    readonly ambiguous: true;
+    readonly stale: true;
+    readonly incompatible: true;
+    readonly unsupported: true;
+    readonly 'not-permitted': true;
+}>;
+type GapCode = keyof typeof GAP_CODES;
+
+/** Names and evidence references only. No state values, messages, credentials or business payloads. */
+type NodeId = string;
+type AttentionKind = 'error' | 'unknown-effect' | 'gave-up' | 'timeout' | 'retried' | 'quality-drop' | 'not-collected' | 'outlier' | (string & {});
+type AttentionReason = 'ERROR_RECORDED' | 'UNKNOWN_EFFECT_RECORDED' | 'RETRY_STOP_RECORDED' | 'TIMEOUT_RECORDED' | 'RETRY_RECORDED' | 'QUALITY_DROP_RECORDED' | 'EVIDENCE_NOT_COLLECTED' | 'OUTLIER_RECORDED' | 'BUSINESS_RULE_MATCHED';
+interface Attention {
+    readonly kind: AttentionKind;
+    readonly reason: AttentionReason;
+    readonly evidence: readonly string[];
+}
+type Confidence = 'complete' | 'incomplete';
+interface Gap {
+    readonly code: GapCode;
+    readonly nodeId?: NodeId;
+    readonly evidence: readonly string[];
+}
+interface GraphEdge {
+    readonly nodeId: NodeId;
+    readonly kind: 'data' | 'control';
+    readonly attribution: 'per-write' | 'stage' | 'recorded-control';
+    readonly evidence: readonly string[];
+}
+interface GraphContext {
+    readonly signal: AbortSignal;
+}
+interface TraversedEdge extends Omit<GraphEdge, 'nodeId'> {
+    readonly from: NodeId;
+    readonly to: NodeId;
+}
+interface MarkedNode {
+    readonly nodeId: NodeId;
+    readonly attention: readonly Attention[];
+}
+interface ImpactResult {
+    readonly nodes: readonly NodeId[];
+    readonly edges: readonly TraversedEdge[];
+    readonly confidence: Confidence;
+    readonly gaps: readonly Gap[];
+}
+interface CauseResult {
+    readonly nodeId: NodeId;
+    readonly attention: readonly Attention[];
+    /** Present only for one supported candidate and complete backward coverage. Not provider-internal proof. */
+    readonly rootCause?: NodeId;
+    /** Selected node → candidate, following recorded dependency edges. */
+    readonly path: readonly NodeId[];
+    readonly alternatives: readonly NodeId[];
+    readonly impact: ImpactResult;
+    readonly confidence: Confidence;
+    readonly gaps: readonly Gap[];
+}
+interface AttentionListResult {
+    readonly nodes: readonly MarkedNode[];
+    readonly confidence: Confidence;
+    readonly gaps: readonly Gap[];
+}
+
+/** Canonical display projection: unused graph edges stay with the host and may evolve independently. */
+type InvestigationResult = Omit<CauseResult, "impact"> & {
+    readonly impact: Omit<ImpactResult, "edges">;
+};
+/** The host binds authorization, run, tenant, storage, exact invocation/attempt/visit, and query budgets. */
+interface InvestigationPort {
+    /** Replace this identity whenever any bound source or selected execution changes. Never reuse it across runs. */
+    readonly binding: object;
+    /** Bounded canonical attention results, prepared by the host without an eager UI graph query. */
+    readonly attention: AttentionListResult;
+    /** Optional display names only; all selections and requests retain the opaque canonical node ID. */
+    readonly labels?: Readonly<Record<NodeId, string>>;
+    /** Call Foottrace's canonical explain API; honor cancellation and enforce storage/query work limits here. */
+    readonly explain: (nodeId: NodeId, context: GraphContext) => InvestigationResult | Promise<InvestigationResult>;
+}
+
+/** The diagram and bound port use the same exact item IDs; labels never resolve identity. */
+interface GroupedFlowInvestigationProps {
+    readonly definition: FlowDiagramDefinition;
+    readonly observation?: FlowDiagramObservation;
+    readonly port?: InvestigationPort | null;
+    readonly direction?: "LR" | "TB";
+    readonly className?: string;
+    readonly style?: CSSProperties;
+    readonly "aria-label"?: string;
+}
+
+/** User-initiated investigation over one host-bound recording. No graph storage or causal search lives here. */
+declare function GroupedFlowInvestigation(props: GroupedFlowInvestigationProps): react.JSX.Element;
+
+export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, type OverlayFromSnapshotOptions, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, getFlowDiagramAncestors, graphFromStructure, overlayFromSnapshot, projectGroupedFlowDiagram, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };

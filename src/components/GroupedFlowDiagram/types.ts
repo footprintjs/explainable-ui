@@ -34,6 +34,25 @@ export interface FlowDiagramObservation {
 export interface FlowDiagramHighlight {
   readonly nodeIds?: readonly string[];
   readonly edgeIds?: readonly string[];
+  /** Exact host-supported cause. This presentation role never changes recorded execution state. */
+  readonly rootCauseId?: string;
+}
+
+/** Canonical dependency evidence is an overlay, never an execution/design transition. */
+export interface FlowDiagramRecordedRelationship {
+  readonly id: string;
+  readonly source: string;
+  readonly target: string;
+  readonly kind: "data" | "control";
+  readonly attribution: "per-write" | "stage" | "recorded-control" | "recorded-read";
+  readonly evidence: readonly string[];
+  /** Routing hint only. Endpoints and arrow direction are never reversed. */
+  readonly direction?: "backward" | "forward";
+}
+/** A new key expresses one explicit camera intent. Equivalent renders keep the current camera. */
+export interface FlowDiagramFocusRequest {
+  readonly key: unknown;
+  readonly nodeIds: readonly string[];
 }
 
 export interface GroupedFlowDiagramModelOptions {
@@ -57,6 +76,9 @@ export interface PositionedFlowDiagramNode {
   readonly recordedIssueCount: number;
   readonly containsSelection: boolean;
   readonly highlighted: boolean;
+  /** Only the exact supplied cause is labelled; a containing group is never its replacement. */
+  readonly isRootCause?: boolean;
+  readonly containsRootCause?: boolean;
 }
 
 export interface PositionedFlowDiagramEdge {
@@ -72,6 +94,8 @@ export interface PositionedFlowDiagramEdge {
 export interface GroupedFlowDiagramModel {
   /** Validated structural metadata, including descendants hidden by collapsed groups. */
   readonly definition: FlowDiagramDefinition;
+  /** Admitted states for every declared item, including collapsed descendants. */
+  readonly nodeStates?: Readonly<Record<string, FlowDiagramNodeState>>;
   readonly nodes: readonly PositionedFlowDiagramNode[];
   readonly edges: readonly PositionedFlowDiagramEdge[];
   readonly width: number;

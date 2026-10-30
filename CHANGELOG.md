@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Optional `GroupedFlowInvestigation` composes the grouped view with the existing
+  host-bound investigation controller. Failed-item clicks query canonical recorded
+  causes; cause/impact toggles reuse the result, missing references remain unknown,
+  and explicit dependency overlays do not change structural layout or branch states.
+  Includes one-shot camera intent and bounded, separately admitted recorded links.
+  Rounded evidence routes avoid card content and reserve caption space, with
+  distinct cause/impact colours and a display-limit notice that preserves the
+  recorded result. Decision cards retain their branching role inside a rounded
+  rectangle.
+  Cause/impact focus separates recorded links from workflow arrows, with a
+  query-free whole-flow view, directed entry/exit ports and readable focused
+  fitting on narrow screens. Connection details remain accessible while repeated
+  visual captions are shown only on interaction in the focused view.
+  Forks prefer clear, facing ports and rounded branch paths while retaining safe
+  outside detours when the direct approach is obstructed.
+  Compatible branches from one exact recorded source can fan out from a common
+  visual exit, with separate arrowheads and evidence; incompatible, parallel and
+  collapsed-source relationships retain independent exits.
+
 - Optional `GroupedFlowDiagram` and pure `projectGroupedFlowDiagram` for app-supplied,
   instance-bound flow definitions: configurable names/icons, nested expandable groups,
   explicit recorded states and host-provided path emphasis. Missing states remain unknown;
