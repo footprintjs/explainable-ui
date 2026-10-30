@@ -1,5 +1,6 @@
 // Flowchart components (require @xyflow/react peer dependency)
 // Import from "footprint-explainable-ui/flowchart"
+export * from "./components/GroupedFlowDiagram";
 //
 // v6+: recorder-driven only. The legacy spec-walk path was deleted.
 // Drive the chart via `createTraceStructureRecorder` →

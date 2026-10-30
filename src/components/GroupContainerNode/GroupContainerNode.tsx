@@ -16,6 +16,7 @@
 
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
+import type { ReactNode } from "react";
 import { theme } from "../../theme";
 
 export interface GroupContainerNodeData {
@@ -27,13 +28,26 @@ export interface GroupContainerNodeData {
   dimmed?: boolean;
   description?: string;
   icon?: string;
+  /** Opt in before additional header data is rendered; legacy extra metadata stays invisible. */
+  headerMode?: "expandable";
+  /** Trusted host-rendered header content; recorded strings must not be supplied as markup. */
+  iconContent?: ReactNode;
+  headerAction?: ReactNode;
+  statusLabel?: string;
+  statusLabelId?: string;
+  handleDirection?: "LR" | "TB";
+  highlighted?: boolean;
+  compactHeader?: boolean;
   [key: string]: unknown;
 }
 
 export function GroupContainerNode({ data }: NodeProps) {
   const d = data as GroupContainerNodeData;
+  const expandable = d.headerMode === "expandable";
   const borderColor = d.error
     ? theme.error
+    : expandable && d.highlighted
+      ? theme.tracing
     : d.active
       ? theme.primary
       : d.done
@@ -62,19 +76,21 @@ export function GroupContainerNode({ data }: NodeProps) {
           alignItems: "center",
           gap: 6,
           padding: "8px 12px",
-          fontSize: 12,
+          fontSize: expandable && d.compactHeader ? 14 : 12,
           fontWeight: 600,
           color: theme.textMuted,
           letterSpacing: 0.2,
         }}
       >
-        {d.icon ? <span aria-hidden>{d.icon}</span> : null}
-        <span>{d.label}</span>
+        {(expandable ? d.iconContent : undefined) ?? (d.icon ? <span aria-hidden>{d.icon}</span> : null)}
+        <span title={d.label} style={expandable && d.compactHeader ? { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : undefined}>{d.label}</span>
+        {expandable && d.headerAction ? <span style={{ marginLeft: "auto", flexShrink: 0 }}>{d.headerAction}</span> : null}
       </div>
+      {expandable && d.statusLabel ? <div id={d.statusLabelId} title={d.statusLabel} style={{ padding: "0 12px", fontSize: 11, color: theme.textSecondary, ...(d.compactHeader ? { maxHeight: 32, lineHeight: "16px", overflow: "hidden" } : {}) }}>{d.statusLabel}</div> : null}
 
       {/* Edge handles — top target, bottom source (top→bottom flow). */}
-      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+      <Handle type="target" position={expandable && d.handleDirection === "LR" ? Position.Left : Position.Top} style={{ opacity: 0 }} />
+      <Handle type="source" position={expandable && d.handleDirection === "LR" ? Position.Right : Position.Bottom} style={{ opacity: 0 }} />
     </div>
   );
 }

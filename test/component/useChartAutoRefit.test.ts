@@ -256,4 +256,29 @@ describe("measured chart auto-refit", () => {
     act(() => window.dispatchEvent(new Event("resize"))); flush();
     expect(mock.setViewport).toHaveBeenCalledTimes(1);
   });
+
+  it("waits for the exact focus target and its measurement instead of fitting an older graph", () => {
+    const focusNodeIds = ["child"];
+    renderHook(() => useChartAutoRefit({ wrapperRef: { current: wrapper.element }, focusNodeIds, maxAutoZoom: 1 }));
+    flush();
+    expect(mock.setViewport).not.toHaveBeenCalled();
+    nodes.set("child", { ...node(), measured: undefined }); emit(); flush();
+    expect(mock.setViewport).not.toHaveBeenCalled();
+    expect(frames.size).toBe(0);
+    nodes.set("child", node(180, 148, 400, 200)); emit(); flush();
+    expect(mock.setViewport).toHaveBeenCalledTimes(1);
+    const viewport = chartFitViewport({ ...state, maxZoom: 1, nodeLookup: new Map([["child", nodes.get("child")!]]) }, .1);
+    expect(mock.setViewport).toHaveBeenLastCalledWith(viewport, { duration: 0 });
+  });
+
+  it("honors a new explicit focus request after a manual pan without background refits", () => {
+    const wrapperRef = { current: wrapper.element }, focusNodeIds = ["a"];
+    const view = renderHook(({ request }) => useChartAutoRefit({ wrapperRef, focusNodeIds, focusRequestKey: request, maxAutoZoom: 1 }), { initialProps: { request: 0 } });
+    flush(); mock.setViewport.mockClear();
+    emit({ transform: [100, 200, .5] }); resize(); flush();
+    expect(mock.setViewport).not.toHaveBeenCalled();
+    view.rerender({ request: 1 }); flush();
+    expect(mock.setViewport).toHaveBeenCalledTimes(1);
+    expect(mock.setViewport.mock.calls[0][0].zoom).toBeLessThanOrEqual(1);
+  });
 });

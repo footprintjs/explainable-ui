@@ -1082,3 +1082,52 @@ The self-explaining stack — from backend pipelines to AI agents. → **[overvi
 ## License
 
 MIT
+
+## Grouped flow diagrams (unreleased)
+
+`GroupedFlowDiagram` is an optional, data-first view for an owner who wants to open a flow card, inspect its steps, and follow a recorded problem. It reuses the package's group frame, ReactFlow canvas and existing Dagre dependency. Group projection and layout live in one pure module; this does not add another execution engine, storage reader or cause-finding algorithm.
+
+```tsx
+import { GroupedFlowDiagram } from 'footprint-explainable-ui/flowchart';
+import '@xyflow/react/dist/style.css';
+
+const definition = {
+  nodes: [
+    { id: 'payment-instance-1', label: 'Payment', kind: 'group', icon: 'card' },
+    { id: 'authorize-visit-1', label: 'Authorize card', parentId: 'payment-instance-1' },
+    { id: 'capture-visit-1', label: 'Capture payment', parentId: 'payment-instance-1' },
+  ],
+  edges: [{ id: 'authorize-capture', source: 'authorize-visit-1', target: 'capture-visit-1' }],
+} as const;
+
+<GroupedFlowDiagram
+  definition={definition}
+  // These are example facts supplied by an admitted recording, not display settings.
+  observation={{ nodeStates: { 'authorize-visit-1': 'completed' } }}
+  defaultExpandedGroupIds={['payment-instance-1']}
+  onSelectNode={nodeId => inspectThatExactRecordedItem(nodeId)}
+/>;
+```
+
+The same component and types are exported from the root entry. The runnable [grouped-flow example](examples/grouped-flow/README.md) includes configuration, explicit synthetic observations, branch labels and a fixed recorded-path highlight. `/nested.html` demonstrates two instances of Payment and repeated Validate names.
+
+### Structure, facts and emphasis
+
+- `definition` contains app-approved plain labels, descriptions, icon hints, group-instance `parentId` values and possible transitions. It must describe the same definition/version as the recording. IDs identify the exact instance/visit, not a reusable flow's name. Rendered Group/Item captions disambiguate repeated names; their numbers are reading aids, not execution order.
+- `observation.nodeStates` accepts `unknown`, `running`, `completed`, `failed` and `not-run`. `edgeStates` accepts `unknown`, `observed` and `not-taken`. An omitted state stays unknown. Only an explicit recorded state produces a completed badge or a not-run label. A completed step says nothing about external settlement or delivery without the host's appropriate receipts.
+- A group does **not** become completed because its children completed. It can show recorded issues inside while its own outcome remains unknown. Contradictory observations, such as an observed edge touching a not-run step, are refused.
+- `highlight` contains exact node/edge IDs supplied by the host. For cause and impact, use the existing canonical Foottrace result through the host's investigation adapter. Emphasis never walks design predecessors or asserts a root cause. A collapsed group can carry the emphasis of a hidden member; projected edges retain the original edge ID and do not create new relationships.
+
+### Expansion and interaction
+
+Use `defaultExpandedGroupIds` for local expansion state, or `expandedGroupIds` plus `onExpandedGroupIdsChange` for controlled expansion. With controlled IDs and no change callback, expansion controls are read-only. `selectedNodeId` and `onSelectNode` similarly support host-bound selection; `null` clears controlled selection. Callback IDs always identify the original item, never its label or a collapsed proxy.
+
+**Reveal selection** opens known ancestor groups and frames the selected item. **Focus highlighted path** frames host-emphasized visible items and the visible endpoints of emphasized connections, without changing their evidence or state; **Fit diagram** restores an overview. Narrow canvases initially frame a visible selected item for readability. Camera changes have zero duration. Equivalent same-record rerenders preserve expansion and the camera. Hosts should key the component by the exact run/binding when replacing a recording, and clear or update controlled IDs with that binding. A missing selection is refused rather than silently opening another visit.
+
+`direction` selects `LR` (default) or `TB`. The example chooses vertical layout on phones. `className` and `style` configure the wrapper; normal Footprint theme tokens control colors/fonts. Bundled icon hints include `cart`, `card`, `payment`, `shipping`, `label`, `lock`, `alert`, `flow` and `step`; a short Unicode pictograph is also supported. HTML/SVG source and remote asset URLs are not icon inputs. Longer labels remain available in accessible names/tooltips when the compact card truncates them.
+
+### Admission and limits
+
+`projectGroupedFlowDiagram(definition, options)` is pure and returns `{model}` or a fixed actionable `{error}`. The model includes sanitized structural metadata, positioned visible nodes, original edge references, and explicit state/emphasis. `getFlowDiagramAncestors` returns bounded group ancestry for a valid exact node ID. Ordinary data accessors and non-plain inputs are refused; extra input fields are not copied into the admitted definition. Treat JavaScript proxies/code as executable host code, not as a serialized-record format.
+
+Limits are 512 nodes, 1,024 edges and 16 group levels; IDs are at most 256 characters, labels 160, descriptions 320 and icon hints 32. Parent cycles, unknown references and conflicting states are refused. A group's children must be supplied before it can expand; network loading and admission stay with the host. Adapting a flat saved-reference response into an execution hierarchy remains host work. The view must not guess private stage names, branch outcomes, missing child histories, source-code locations or backward adjacency.
