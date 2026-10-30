@@ -33,7 +33,7 @@ const ERROR = {
   selection: "Select a node ID declared in this diagram.",
   observation: "Provide valid recorded states only for node and edge IDs declared in this diagram.",
   contradiction: "Resolve conflicting recorded states: an observed connection cannot touch a step marked not run, and a group marked not run cannot contain recorded activity.",
-  highlight: "Highlight only node and edge IDs declared in this diagram.",
+  highlight: "Highlight only declared node and edge IDs; a cause marker must reference an item not recorded as not run.",
   layout: "Simplify the diagram structure and try arranging it again.",
 } as const;
 
@@ -179,6 +179,7 @@ interface AdmittedOptions {
   edgeStates: Map<string, FlowDiagramEdgeState>;
   highlightedNodes: Set<string>;
   highlightedEdges: Set<string>;
+  rootCauseId?: string;
 }
 
 function admitOptions(value: unknown, definition: AdmittedDefinition): AdmittedOptions {
@@ -214,6 +215,9 @@ function admitOptions(value: unknown, definition: AdmittedDefinition): AdmittedO
   const highlightedEdges = new Set(idList(field(highlight, "edgeIds", ERROR.highlight), MAX_EDGES, ERROR.highlight));
   for (const id of highlightedNodes) if (!definition.byId.has(id)) throw new AdmissionError(ERROR.highlight);
   for (const id of highlightedEdges) if (!definition.edgeIds.has(id)) throw new AdmissionError(ERROR.highlight);
+  const root = field(highlight, "rootCauseId", ERROR.highlight);
+  const rootCauseId = root === undefined ? undefined : text(root, 256, ERROR.highlight);
+  if (rootCauseId !== undefined && (!definition.byId.has(rootCauseId) || notRunAtOrAbove(rootCauseId))) throw new AdmissionError(ERROR.highlight);
   // Container emphasis reflects only supplied emphasis and containment. No arrow traversal.
   for (const id of [...highlightedNodes]) for (const parent of definition.ancestors.get(id)!) highlightedNodes.add(parent);
   for (const edge of definition.edges) {
@@ -223,7 +227,7 @@ function admitOptions(value: unknown, definition: AdmittedDefinition): AdmittedO
       for (const parent of definition.ancestors.get(id)!) highlightedNodes.add(parent);
     }
   }
-  return { expanded, direction, selectedNodeId, nodeStates, edgeStates, highlightedNodes, highlightedEdges };
+  return { expanded, direction, selectedNodeId, nodeStates, edgeStates, highlightedNodes, highlightedEdges, rootCauseId };
 }
 
 /** Returns root-to-parent group instance IDs; invalid input never opens an arbitrary group. */
@@ -332,6 +336,7 @@ export function projectGroupedFlowDiagram(
       if (state === "failed") for (const parent of data.ancestors.get(id)!) issueCounts.set(parent, (issueCounts.get(parent) ?? 0) + 1);
     }
     const selectedAncestors = new Set(config.selectedNodeId ? data.ancestors.get(config.selectedNodeId) : []);
+    const causeAncestors = new Set(config.rootCauseId ? data.ancestors.get(config.rootCauseId) : []);
     const nodes: PositionedFlowDiagramNode[] = [];
     const appendChildren = (parentId?: string) => {
       for (const node of data.children.get(parentId) ?? []) {
@@ -343,6 +348,7 @@ export function projectGroupedFlowDiagram(
           childCount: data.children.get(node.id)?.length ?? 0,
           recordedIssueCount: issueCounts.get(node.id) ?? 0,
           containsSelection: selectedAncestors.has(node.id), highlighted: config.highlightedNodes.has(node.id),
+          ...(config.rootCauseId !== undefined ? { isRootCause: config.rootCauseId === node.id, containsRootCause: causeAncestors.has(node.id) } : {}),
         });
         if (expanded) appendChildren(node.id);
       }
@@ -351,6 +357,7 @@ export function projectGroupedFlowDiagram(
     return {
       model: {
         definition: { nodes: data.nodes, edges: data.edges },
+        nodeStates: Object.fromEntries(data.nodes.map(node => [node.id, config.nodeStates.get(node.id) ?? "unknown"])),
         nodes, edges, direction: config.direction,
         width: canvas.width ? canvas.width + CANVAS_PADDING * 2 : 0,
         height: canvas.height ? canvas.height + CANVAS_PADDING * 2 : 0,

@@ -18,6 +18,22 @@ export type DiagramReactNode = Node<DiagramNodeData>;
 const statusText = { unknown: "Status unknown", running: "Running", completed: "Completed", failed: "Failed", "not-run": "Not run (recorded)" };
 const smallButton: CSSProperties = { font: "inherit", border: `1px solid ${theme.border}`, borderRadius: 8, padding: "5px 10px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
 
+function DependencyHandles({ direction }: { direction: "LR" | "TB" }) {
+  return <>
+    <Handle id="dependency-source" type="source" position={direction === "LR" ? Position.Left : Position.Top} isConnectable={false} style={{ opacity: 0 }} />
+    <Handle id="dependency-target" type="target" position={direction === "LR" ? Position.Right : Position.Bottom} isConnectable={false} style={{ opacity: 0 }} />
+  </>;
+}
+
+function CauseBadge({ item }: { item: PositionedFlowDiagramNode }) {
+  if (!item.isRootCause && !item.containsRootCause) return null;
+  return <span style={{ position: "absolute", zIndex: 2, top: -12, left: 10, padding: "4px 9px", borderRadius: 7,
+    fontSize: 11, lineHeight: "16px", fontWeight: 700, color: item.isRootCause ? theme.bg : theme.textSecondary,
+    background: item.isRootCause ? theme.textPrimary : theme.bgElevated, border: `1px solid ${theme.tracing}`, pointerEvents: "none" }}>
+    {item.isRootCause ? "Supported cause" : "Cause inside"}
+  </span>;
+}
+
 export function DiagramGroupNode(props: NodeProps<DiagramReactNode>) {
   const d = props.data, item = d.item;
   const statusId = useId();
@@ -25,10 +41,12 @@ export function DiagramGroupNode(props: NodeProps<DiagramReactNode>) {
     aria-label={`Collapse ${item.node.label}${d.caption ? ` · ${d.caption}` : ""}`} aria-expanded="true" aria-describedby={statusId}
     onClick={event => { event.stopPropagation(); d.onToggle(item.node.id); }}>Collapse</button>;
   const text = [d.caption, statusText[item.state], item.recordedIssueCount ? `${item.recordedIssueCount} recorded issue${item.recordedIssueCount === 1 ? "" : "s"} inside` : "", item.containsSelection ? "Selection inside" : ""].filter(Boolean).join(" · ");
-  return <div data-node-id={item.node.id} data-state={item.state} data-highlighted={item.highlighted} data-selected={d.selected} data-expanded="true" style={{ width: "100%", height: "100%" }}>
+  return <div data-node-id={item.node.id} data-state={item.state} data-highlighted={item.highlighted} data-selected={d.selected} data-expanded="true" style={{ position: "relative", width: "100%", height: "100%" }}>
     <GroupContainerNode {...props} data={{ label: item.node.label, headerMode: "expandable", iconContent: <DiagramIcon icon={item.node.icon ?? "flow"} style={{ width: 22, height: 22, color: theme.nodeMain }} />,
       headerAction: action, statusLabel: text, statusLabelId: statusId, handleDirection: d.direction, highlighted: item.highlighted, compactHeader: true,
       error: item.state === "failed", done: item.state === "completed", active: item.state === "running" }} />
+    <DependencyHandles direction={d.direction} />
+    <CauseBadge item={item} />
   </div>;
 }
 
@@ -65,6 +83,8 @@ export function DiagramItemNode({ data: d }: NodeProps<DiagramReactNode>) {
     {item.state === "completed" && <span aria-hidden="true" style={{ position: "absolute", top: -9, right: -9, width: 26, height: 26, borderRadius: "50%", background: theme.success, color: "white", textAlign: "center", fontSize: 19 }}>✓</span>}
     {item.state === "failed" && <span aria-hidden="true" style={{ position: "absolute", top: -9, right: -9, width: 26, height: 26, borderRadius: "50%", background: theme.error, color: "white", textAlign: "center", fontSize: 20 }}>×</span>}
     <Handle type="source" position={d.direction === "LR" ? Position.Right : Position.Bottom} isConnectable={false} />
+    <DependencyHandles direction={d.direction} />
+    <CauseBadge item={item} />
   </div>;
 }
 

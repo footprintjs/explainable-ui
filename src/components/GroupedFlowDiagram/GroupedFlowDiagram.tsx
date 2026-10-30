@@ -4,12 +4,16 @@ import { theme } from "../../theme";
 import { ChartAutoRefit } from "../FlowchartView/_internal/useChartAutoRefit";
 import { diagramNodeTypes, type DiagramReactNode } from "./DiagramNodes";
 import { getFlowDiagramAncestors, projectGroupedFlowDiagram } from "./layout";
-import type { FlowDiagramDefinition, FlowDiagramHighlight, FlowDiagramObservation } from "./types";
+import type { FlowDiagramDefinition, FlowDiagramHighlight, FlowDiagramObservation, FlowDiagramFocusRequest, FlowDiagramRecordedRelationship } from "./types";
+import { admitFocusRequest, projectRecordedRelationships } from "./relationships";
+import { recordedRelationshipEdgeTypes } from "./RecordedRelationshipEdge";
 
 export interface GroupedFlowDiagramProps {
   readonly definition: FlowDiagramDefinition;
   readonly observation?: FlowDiagramObservation;
   readonly highlight?: FlowDiagramHighlight;
+  readonly recordedRelationships?: readonly FlowDiagramRecordedRelationship[];
+  readonly focusRequest?: FlowDiagramFocusRequest;
   readonly selectedNodeId?: string | null;
   readonly onSelectNode?: (nodeId: string) => void;
   readonly expandedGroupIds?: readonly string[];
@@ -39,6 +43,9 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
     observation: props.observation, highlight: props.highlight, selectedNodeId: selected, direction: props.direction }),
   [props.definition, expanded, props.observation, props.highlight, selected, props.direction]);
   const model = result.model;
+  const overlay = useMemo(() => !model || props.recordedRelationships === undefined ? [] : projectRecordedRelationships(props.recordedRelationships, model), [model, props.recordedRelationships]);
+  const camera = useMemo(() => !model || props.focusRequest === undefined ? undefined : admitFocusRequest(props.focusRequest, model), [model, props.focusRequest]);
+  const lastCameraKey = useRef<unknown>(Symbol());
   const changeExpanded = (next: readonly string[]) => {
     if (props.expandedGroupIds === undefined) setLocalExpanded(next);
     props.onExpandedGroupIdsChange?.(next);
@@ -96,6 +103,27 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
     if (edge.highlighted) { highlightFocusIds.add(edge.source); highlightFocusIds.add(edge.target); }
   }
   if (!highlightFocusIds.size) for (const node of model?.nodes ?? []) if (node.highlighted) highlightFocusIds.add(node.node.id);
+  const relationshipLabels = { "per-write": "Per-write link", stage: "Step-level link", "recorded-control": "Recorded control", "recorded-read": "Recorded read" };
+  const parallelCounts = new Map<string, number>(), parallelIndices = new Map<string, number>();
+  for (const item of overlay ?? []) { const pair = JSON.stringify([item.source, item.target]); parallelCounts.set(pair, (parallelCounts.get(pair) ?? 0) + 1); }
+  for (const item of overlay ?? []) {
+    const relationship = item.relationship;
+    const pair = JSON.stringify([item.source, item.target]), parallelIndex = parallelIndices.get(pair) ?? 0;
+    parallelIndices.set(pair, parallelIndex + 1);
+    edges.push({ id: relationship.id, source: item.source, target: item.target, type: "recordedRelationship",
+      ...(relationship.direction === "backward" ? { sourceHandle: "dependency-source", targetHandle: "dependency-target" } : {}),
+      label: `${relationshipLabels[relationship.attribution]} · ${relationship.kind}`,
+      ariaLabel: `${relationshipLabels[relationship.attribution]}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
+      data: { relationship, collapsed: item.collapsed, parallelIndex, parallelCount: parallelCounts.get(pair) }, className: "gfd-recorded-relationship",
+      markerEnd: { type: MarkerType.ArrowClosed, color: theme.tracing },
+      style: { stroke: theme.tracing, strokeWidth: 3, ...(relationship.attribution === "stage" ? { strokeDasharray: "6 5" } : {}) },
+      labelStyle: { fill: theme.textPrimary, fontSize: 12 }, labelBgStyle: { fill: theme.bgElevated }, labelBgPadding: [7, 4] });
+  }
+  useEffect(() => {
+    if (!camera || Object.is(lastCameraKey.current, camera.key)) return;
+    lastCameraKey.current = camera.key;
+    requestFocus(camera.nodeIds.length ? camera.nodeIds : undefined);
+  }, [Boolean(camera), camera?.key]);
   const geometry = model ? JSON.stringify(model.nodes.map(node => [node.node.id, node.parentId, node.position, node.width, node.height])) : "";
   useEffect(() => {
     const element = wrapper.current;
@@ -114,9 +142,9 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
     }
   }, [model, selected, narrow]);
 
-  if (!model) return <section role="alert" className={props.className} style={{ color: theme.textPrimary, fontFamily: theme.fontSans, ...props.style }}>
+  if (!model || !overlay || (props.focusRequest !== undefined && !camera)) return <section role="alert" className={props.className} style={{ color: theme.textPrimary, fontFamily: theme.fontSans, ...props.style }}>
     <p>This diagram cannot be shown yet. Its saved information or grouping needs checking.</p>
-    <details><summary>How to fix this diagram</summary><p>{result.error ?? "Check the supplied diagram and try again."}</p></details>
+    <details><summary>How to fix this diagram</summary><p>{result.error ?? (!overlay ? "Provide bounded recorded relationships with unique IDs, declared endpoints and supported attribution." : "Focus only declared diagram items using a bounded plain camera request.")}</p></details>
     {props.expandedGroupIds === undefined && props.selectedNodeId === undefined && <button type="button" style={buttonStyle} onClick={() => { setLocalExpanded([]); setLocalSelected(undefined); }}>Reset view</button>}
   </section>;
 
@@ -137,12 +165,12 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
       <span style={{ fontSize: 11, color: theme.textSecondary }}>Open a flow to see its steps. Missing information stays unknown.</span>
     </div>
     <div ref={wrapper} style={{ flex: 1, minHeight: 220, minWidth: 0, border: `1px solid ${theme.border}`, borderRadius: 16, overflow: "hidden", background: theme.bg }}>
-      <ReactFlow nodes={nodes} edges={edges} nodeTypes={diagramNodeTypes}
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={diagramNodeTypes} edgeTypes={recordedRelationshipEdgeTypes}
         nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} edgesFocusable={false} minZoom={.1} maxZoom={1.6} preventScrolling={false} proOptions={{ hideAttribution: true }}>
         <ChartAutoRefit wrapperRef={wrapper} refitKey={geometry} padding={.06} focusNodeIds={focusIds} focusRequestKey={focusRequest} maxAutoZoom={1} />
         <Background gap={24} color={theme.border} /><Controls showInteractive={false} />
       </ReactFlow>
     </div>
-    <p style={{ margin: "8px 0 0", fontSize: 11, color: theme.textSecondary }}>✓ Completed step · × Failed step · ? Unknown · Dashed relationship: not verified or recorded as not taken</p>
+    <p style={{ margin: "8px 0 0", fontSize: 11, color: theme.textSecondary }}>✓ Completed step · × Failed step · ? Unknown · Dashed relationship: not verified or recorded as not taken{overlay.length > 0 ? " · Highlighted dependency links are recorded evidence, not execution transitions" : ""}</p>
   </section>;
 }

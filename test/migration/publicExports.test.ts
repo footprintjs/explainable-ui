@@ -8,9 +8,11 @@ const groupedFlowExports = [
   { name: "GroupedFlowDiagramProps", kind: "type" },
   { name: "projectGroupedFlowDiagram", kind: "value" },
   { name: "getFlowDiagramAncestors", kind: "value" },
+  { name: "GroupedFlowInvestigation", kind: "value" },
+  { name: "GroupedFlowInvestigationProps", kind: "type" },
   ...[
     "FlowDiagramNode", "FlowDiagramEdge", "FlowDiagramDefinition", "FlowDiagramNodeState",
-    "FlowDiagramEdgeState", "FlowDiagramObservation", "FlowDiagramHighlight",
+    "FlowDiagramEdgeState", "FlowDiagramObservation", "FlowDiagramHighlight", "FlowDiagramFocusRequest", "FlowDiagramRecordedRelationship",
     "GroupedFlowDiagramModelOptions", "PositionedFlowDiagramNode", "PositionedFlowDiagramEdge",
     "GroupedFlowDiagramModel", "GroupedFlowDiagramModelResult",
   ].map(name => ({ name, kind: "type" })),

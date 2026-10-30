@@ -7,7 +7,8 @@ import type { FlowDiagramDefinition } from "../../src/components/GroupedFlowDiag
 vi.mock("../../src/components/FlowchartView/_internal/useChartAutoRefit", () => ({ ChartAutoRefit: (props: any) => <output data-testid="camera-targets" data-focus={props.focusNodeIds?.join(" ") ?? "overview"} /> }));
 
 vi.mock("@xyflow/react", async original => ({ ...await original<typeof import("@xyflow/react")>(),
-  ReactFlow: ({ nodes, nodeTypes, children }: any) => <div>{nodes.map((node: any) => {
+  ReactFlow: ({ nodes, edges, nodeTypes, children }: any) => <div data-testid="canvas-model" data-model-nodes={JSON.stringify(nodes.map(({ id, position, width, height, parentId }: any) => ({ id, position, width, height, parentId })))}
+    data-model-edges={JSON.stringify(edges.map(({ id, source, target, sourceHandle, targetHandle, data, className }: any) => ({ id, source, target, sourceHandle, targetHandle, data, className })))}>{nodes.map((node: any) => {
     const Component = nodeTypes[node.type];
     return <div key={node.id}><Component id={node.id} data={node.data} /></div>;
   })}{children}</div>, Handle: () => null, Background: () => null, Controls: () => null,
@@ -114,4 +115,36 @@ it("focuses an explicitly highlighted expanded group when no leaves are emphasiz
   render(<GroupedFlowDiagram definition={definition} defaultExpandedGroupIds={["payment"]} highlight={{ nodeIds: ["payment"] }} />);
   fireEvent.click(screen.getByRole("button", { name: "Focus highlighted path" }));
   expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("payment");
+});
+
+it("keeps the structural geometry and transitions unchanged when recorded dependencies are overlaid", () => {
+  const props = { definition, defaultExpandedGroupIds: ["payment"] };
+  const { rerender } = render(<GroupedFlowDiagram {...props} />);
+  const before = screen.getByTestId("canvas-model").getAttribute("data-model-nodes");
+  const relationships = [{ id: "dep", source: "capture", target: "authorize", kind: "data" as const, attribution: "recorded-read" as const, evidence: ["read:1"], direction: "backward" as const }];
+  rerender(<GroupedFlowDiagram {...props} recordedRelationships={relationships} />);
+  expect(screen.getByTestId("canvas-model").getAttribute("data-model-nodes")).toBe(before);
+  const edges = JSON.parse(screen.getByTestId("canvas-model").getAttribute("data-model-edges")!);
+  expect(edges.find((edge: any) => edge.id === "paid-ship").className).toBe("gfd-edge-unknown");
+  expect(edges.find((edge: any) => edge.id === "dep")).toMatchObject({ source: "capture", target: "authorize", sourceHandle: "dependency-source", targetHandle: "dependency-target", data: { relationship: relationships[0] } });
+});
+
+it("applies one explicit camera key without stealing camera ownership on equivalent renders", () => {
+  const key = {};
+  const props = { definition, defaultExpandedGroupIds: ["payment"] };
+  const { rerender } = render(<GroupedFlowDiagram {...props} focusRequest={{ key, nodeIds: ["ship"] }} />);
+  expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("ship");
+  rerender(<GroupedFlowDiagram {...props} focusRequest={{ key, nodeIds: ["capture"] }} />);
+  expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("ship");
+  rerender(<GroupedFlowDiagram {...props} focusRequest={{ key: {}, nodeIds: ["capture"] }} />);
+  expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("capture");
+});
+
+it("refuses malformed camera intent without running its accessors or selecting an arbitrary substitute", () => {
+  let reads = 0;
+  const request = Object.defineProperty({ nodeIds: ["ship"] }, "key", { get() { reads++; return {}; } });
+  const { rerender } = render(<GroupedFlowDiagram definition={definition} focusRequest={request as any} />);
+  expect(reads).toBe(0); expect(screen.getByRole("alert")).toBeTruthy();
+  rerender(<GroupedFlowDiagram definition={definition} focusRequest={{ key: {}, nodeIds: ["PRIVATE_MISSING"] }} />);
+  expect(screen.getByRole("alert").textContent).not.toContain("PRIVATE_MISSING");
 });

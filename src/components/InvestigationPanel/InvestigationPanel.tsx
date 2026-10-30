@@ -10,7 +10,8 @@ import {
   displayLabel,
   gapMessages,
 } from "./admission";
-import type { InvestigationPanelProps, InvestigationResult } from "./types";
+import type { InvestigationPanelProps } from "./types";
+import { useInvestigationQuery, type InvestigationController } from "./useInvestigationQuery";
 
 const box: CSSProperties = {
   color: theme.textPrimary,
@@ -80,22 +81,6 @@ function Gaps({ gaps }: { gaps: readonly Gap[] }) {
     </>
   );
 }
-type QueryState =
-  | {
-      [Status in "loading" | "error" | "refused"]: {
-        owner: object;
-        nodeId: string;
-        request: AbortController;
-        status: Status;
-      };
-    }["loading" | "error" | "refused"]
-  | {
-      owner: object;
-      nodeId: string;
-      request: AbortController;
-      status: "ready";
-      result: InvestigationResult;
-    };
 type FocusIntent =
   | { owner: object; kind: "explanation"; request: AbortController }
   | { owner: object; kind: "attention"; nodeId: string };
@@ -115,53 +100,41 @@ export function InvestigationPanel(props: InvestigationPanelProps) {
     );
   return <BoundInvestigationPanel {...props} port={props.port} />;
 }
-function BoundInvestigationPanel({
-  port,
-  className,
-  style,
-}: InvestigationPanelProps & {
-  port: NonNullable<InvestigationPanelProps["port"]>;
+function BoundInvestigationPanel(props: InvestigationPanelProps & { port: NonNullable<InvestigationPanelProps["port"]> }) {
+  const controller = useInvestigationQuery(props.port, admitExplanation);
+  return <InvestigationPanelView {...props} controller={controller} />;
+}
+/** Internal shared presentation; both standalone and grouped views use the same admitted request. */
+export function InvestigationPanelView({ port, className, style, controller, showAttention = true, focusExternalRequests = true }: InvestigationPanelProps & {
+  port: NonNullable<InvestigationPanelProps["port"]>; controller: InvestigationController; showAttention?: boolean; focusExternalRequests?: boolean;
 }) {
   const attention = useMemo(
-    () => admitAttention(port.attention),
-    [port.attention]
+    () => showAttention ? admitAttention(port.attention) : undefined,
+    [port.attention, showAttention]
   );
-  const owner = port.binding;
-  const currentOwner = useRef<object | null>(null);
-  const active = useRef<AbortController | null>(null);
+  const { owner, currentOwner, active, selected } = controller;
   const explanationElement = useRef<HTMLElement | null>(null);
   const attentionElements = useRef(new Map<string, HTMLButtonElement>());
   const returnTo = useRef<{ owner: object; nodeId: string } | null>(null);
   const focusIntent = useRef<FocusIntent | null>(null);
-  const [state, setState] = useState<QueryState | null>(null);
   const [page, setPage] = useState({ owner, count: 20 });
   const visible = page.owner === owner ? page.count : 20;
   const [showPath, setShowPath] = useState(false);
   const [showImpact, setShowImpact] = useState(false);
   const [showAlternatives, setShowAlternatives] = useState(false);
-  // Speculative renders must not change the committed owner. Layout cleanup
-  // invalidates and aborts old work before commit callbacks or promise reactions
-  // can observe a newly committed binding; abandoned renders leave it untouched.
+  const lastRequest = useRef<AbortController | null>(null);
   useIsomorphicLayoutEffect(() => {
-    currentOwner.current = owner;
     if (returnTo.current?.owner !== owner) returnTo.current = null;
-    // Suspense can replay layout setup while retaining this component's state.
-    // A request canceled while hidden must not reappear as orphaned loading.
-    if (!active.current) {
-      setState((previous) =>
-        previous?.owner === owner && previous.status === "loading"
-          ? null
-          : previous
-      );
-    }
-    return () => {
-      currentOwner.current = null;
-      focusIntent.current = null;
-      active.current?.abort();
-      active.current = null;
-    };
+    return () => { focusIntent.current = null; };
   }, [owner]);
-  const selected = state?.owner === owner ? state : null;
+  // External diagram gestures use the same controller. Consume each new request
+  // once after commit, not again when its promise settles or a background rerenders.
+  useIsomorphicLayoutEffect(() => {
+    if (!selected || selected.request === lastRequest.current) return;
+    lastRequest.current = selected.request;
+    setShowPath(false); setShowImpact(false); setShowAlternatives(false);
+    if (focusExternalRequests) focusIntent.current = { owner, kind: "explanation", request: selected.request };
+  });
   // Only explicit user actions request focus. Consume intent after their state
   // and callback refs commit, never during speculative render or settlement.
   useIsomorphicLayoutEffect(() => {
@@ -183,54 +156,16 @@ function BoundInvestigationPanel({
     }
   });
   const close = () => {
-    active.current?.abort();
-    active.current = null;
     const target = returnTo.current;
-    focusIntent.current =
-      target?.owner === owner ? { ...target, kind: "attention" } : null;
-    setState(null);
+    focusIntent.current = target?.owner === owner ? { ...target, kind: "attention" } : null;
+    controller.close();
   };
   const query = (nodeId: string, fromAttention = false) => {
-    active.current?.abort();
-    const controller = new AbortController();
-    active.current = controller;
     if (fromAttention) returnTo.current = { owner, nodeId };
-    focusIntent.current = { owner, kind: "explanation", request: controller };
-    setShowPath(false);
-    setShowImpact(false);
-    setShowAlternatives(false);
-    setState({ owner, nodeId, request: controller, status: "loading" });
-    // Deferring the host call also captures a synchronous refusal without exposing its error details.
-    Promise.resolve()
-      .then(() => {
-        if (controller.signal.aborted || currentOwner.current !== owner)
-          return undefined;
-        return port.explain(nodeId, { signal: controller.signal });
-      })
-      .then(
-        (value) => {
-          if (
-            active.current !== controller ||
-            controller.signal.aborted ||
-            currentOwner.current !== owner
-          )
-            return;
-          const result = admitExplanation(value, nodeId);
-          setState(
-            result
-              ? { owner, nodeId, request: controller, status: "ready", result }
-              : { owner, nodeId, request: controller, status: "refused" }
-          );
-        },
-        () => {
-          if (
-            active.current === controller &&
-            !controller.signal.aborted &&
-            currentOwner.current === owner
-          )
-            setState({ owner, nodeId, request: controller, status: "error" });
-        }
-      );
+    const request = controller.query(nodeId);
+    // A text-panel gesture still hands focus to its own explanation. A grouped
+    // diagram gesture can keep focus at the card and announce its summary instead.
+    focusIntent.current = { owner, kind: "explanation", request };
   };
   const label = (nodeId: string) => displayLabel(port.labels, nodeId);
   const item = (nodeId: string, index: number) => (
@@ -252,11 +187,11 @@ function BoundInvestigationPanel({
       className={className}
       style={{ ...box, ...style }}
     >
-      <h2 style={{ marginBlockStart: 0 }}>Needs attention</h2>
+      <h2 style={{ marginBlockStart: 0 }}>{showAttention ? "Needs attention" : "Understand this step"}</h2>
       <p style={{ color: theme.textSecondary }}>
         Choose an item to inspect its recorded causes and effects.
       </p>
-      {!attention ? (
+      {showAttention && (!attention ? (
         <p role="alert">The attention list could not be verified.</p>
       ) : (
         <>
@@ -308,7 +243,7 @@ function BoundInvestigationPanel({
             </button>
           )}
         </>
-      )}
+      ))}
       {selected && (
         <section
           ref={explanationElement}

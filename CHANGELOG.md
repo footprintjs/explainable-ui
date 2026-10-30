@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Optional `GroupedFlowInvestigation` composes the grouped view with the existing
+  host-bound investigation controller. Failed-item clicks query canonical recorded
+  causes; cause/impact toggles reuse the result, missing references remain unknown,
+  and explicit dependency overlays do not change structural layout or branch states.
+  Includes one-shot camera intent and bounded, separately admitted recorded links.
+
 - Optional `GroupedFlowDiagram` and pure `projectGroupedFlowDiagram` for app-supplied,
   instance-bound flow definitions: configurable names/icons, nested expandable groups,
   explicit recorded states and host-provided path emphasis. Missing states remain unknown;

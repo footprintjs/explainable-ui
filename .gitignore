@@ -2,6 +2,7 @@ node_modules/
 dist/
 demo-dist/
 grouped-flow-example-dist/
+grouped-investigation-example-dist/
 *.tsbuildinfo
 coverage
 

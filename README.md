@@ -670,6 +670,7 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | `DataTracePanel` | The backward causal chain as a stack trace — click a frame to go there |
 | `TraceWalkCard` | The "why this value" stop card for the tracing rail (ingredient chips, itinerary, Copy story) |
 | `InvestigationPanel` | Host-bound, on-demand recorded cause and impact results with unknown evidence states |
+| `GroupedFlowInvestigation` | Grouped run diagram with on-demand recorded cause, backward relationships and impact |
 | `InsightPanel` | Recorder outputs as tabs or a grid — Story, Performance, Quality, Cost |
 | `CompactTimeline` | Collapsed = a row of dots, expanded = the Gantt. The shell's footer |
 
@@ -1131,3 +1132,89 @@ Use `defaultExpandedGroupIds` for local expansion state, or `expandedGroupIds` p
 `projectGroupedFlowDiagram(definition, options)` is pure and returns `{model}` or a fixed actionable `{error}`. The model includes sanitized structural metadata, positioned visible nodes, original edge references, and explicit state/emphasis. `getFlowDiagramAncestors` returns bounded group ancestry for a valid exact node ID. Ordinary data accessors and non-plain inputs are refused; extra input fields are not copied into the admitted definition. Treat JavaScript proxies/code as executable host code, not as a serialized-record format.
 
 Limits are 512 nodes, 1,024 edges and 16 group levels; IDs are at most 256 characters, labels 160, descriptions 320 and icon hints 32. Parent cycles, unknown references and conflicting states are refused. A group's children must be supplied before it can expand; network loading and admission stay with the host. Adapting a flat saved-reference response into an execution hierarchy remains host work. The view must not guess private stage names, branch outcomes, missing child histories, source-code locations or backward adjacency.
+
+### Click an item to investigate its recorded cause (unreleased)
+
+`GroupedFlowInvestigation` composes the grouped diagram and the existing investigation
+panel. It uses the same host-bound query controller as `InvestigationPanel`; it does
+not load records, walk design arrows, rank causes or call a model.
+
+```tsx
+import { GroupedFlowInvestigation } from 'footprint-explainable-ui/flowchart';
+import '@xyflow/react/dist/style.css';
+
+<GroupedFlowInvestigation
+  definition={definitionForThisRecording}
+  observation={admittedRecordedStates}
+  port={boundInvestigationPort}
+  direction="LR"
+/>;
+```
+
+The port is the existing `InvestigationPort`: `binding`, bounded `attention`, optional
+safe display `labels`, and `explain(nodeId, {signal})`. Every diagram item must use the
+exact ID recognized by that bound port. The host owns authorization, storage, query
+allowances and the binding to one run, definition, invocation, attempt and visit.
+Replace `binding` whenever those facts or the ID namespace change. Repeated labels,
+key names and stage-name prefixes never resolve identity. References absent from the
+diagram remain in the explanation with a count of items not shown; another card is
+never silently selected in their place.
+
+Selecting an explicitly recorded `failed` item starts one explanation request.
+Other items are selected without a query until **Investigate selected item** is used.
+**Why it happened** and **What it affected** reuse the accepted result. A new selection,
+changed binding, unmount or committed hidden view cancels outstanding work; a late
+answer cannot repaint a different selection. No explanation query runs during server
+rendering or ordinary mounting.
+
+The accompanying optional Foottrace `includeBackward` result supplies
+`backward: {nodes, edges, confidence, gaps}`. The grouped view admits that data and
+optional `impact.edges` separately from the legacy text projection. A missing field
+means unavailable connections; an explicit empty list is kept distinct. A backward
+relationship points from the dependent item toward its recorded source. An impact
+relationship retains the direction returned by the canonical query. A recorded read
+establishes source usage, not that a later output was derived from it. Alternatives
+remain uncertain; an impact-only limit does not erase an independently supported
+backward root.
+The cause summary appears above the diagram. In cause mode, the exact mapped root
+card carries **Supported cause** while its containing groups say only **Cause
+inside**. That role is separate from recorded Completed/Failed status; a completed
+step can still be the supported cause. Unknown, tied, refused or unmapped results
+do not choose a substitute root card, and impact mode does not label affected items
+as causes. The standalone diagram's optional `highlight.rootCauseId` is the host's
+explicit exact-ID presentation claim; it is refused for an undeclared item or an
+item/ancestor recorded as not run. No diagram traversal discovers that role.
+Diagram gestures keep keyboard focus at the card while the live cause summary
+updates; they do not scroll down to the detailed text. Explicit queries within
+the text panel retain its normal explanation-focus behavior.
+When backward relationships are supplied, every path item and alternative must be
+in that returned membership, and each adjacent path pair must have a matching
+returned dependent-to-source link. A stage-level relationship or incomplete
+backward coverage cannot accompany a definite root. Conflicting claims are refused
+rather than repaired or filled in from the structural chart. These consistency
+checks do not replace the host's recording admission and authorization.
+
+Recorded relationships are a distinct overlay. They preserve kind, attribution and
+evidence references, use different edge IDs and routing handles, and do not influence
+structural layout, execution state or branch outcomes. Parallel relationships stay
+separate and have a folded evidence list. Compact Data/Read/Rule/Step captions use a
+separate curve lane; their full fixed kind and attribution remain in accessible
+names, tooltips and the evidence list. Only declared, exact endpoints are drawn;
+missing mappings, hidden evidence and uncertain links are never replaced by nearby
+design arrows. The standalone grouped diagram also accepts `recordedRelationships`
+(up to 512, within a 65,536-character relationship budget) and refuses links touching
+items or ancestors explicitly marked not run. Its optional `focusRequest: {key,
+nodeIds}` expresses one camera action: changing `key` frames those known items;
+equivalent rerenders do not take the camera back from the user.
+
+After an accepted result, known containing groups open once. Desktop framing includes
+relevant expanded group containers so their headers and controls remain in view. A
+new port binding replaces the inner diagram and discards all prior camera targets;
+equivalent same-binding renders preserve it. On a narrow canvas the camera frames the supported root, or the selected item when no root is mapped, rather
+than shrinking every card to fit the entire graph. **Back to selected item** is an
+explicit camera action. Ordinary expansion remains under the user's control.
+
+The [offline example](examples/grouped-investigation/README.md) uses the canonical
+record adapter and explain function from the accompanying candidate, rather than a
+prewritten root-cause answer. This API remains unreleased; application adoption and
+saved-history transport changes are separate work.
