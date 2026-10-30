@@ -3,6 +3,23 @@ import { readFileSync } from "node:fs";
 import { exportSurface } from "./exportSurface";
 import ledger from "./fixtures/public-exports.json";
 
+function consumerContract(manifest: Record<string, unknown>) {
+  return Object.fromEntries(
+    // Version is release bookkeeping; every frozen consumer field stays exact.
+    Object.keys(ledger.packageContract).filter(key => key !== "version").map(key => [key, manifest[key]])
+  );
+}
+const consumerFields = Object.keys(ledger.packageContract).filter(key => key !== "version");
+function leafPaths(value: unknown, path: string[]): string[][] {
+  return value !== null && typeof value === "object"
+    ? Object.entries(value).flatMap(([key, child]) => leafPaths(child, [...path, key]))
+    : [path];
+}
+const consumerLeaves = consumerFields.flatMap(key =>
+  leafPaths((ledger.packageContract as Record<string, unknown>)[key], [key])
+    .map(path => ({ path, label: path.join(".") }))
+);
+
 const groupedFlowExports = [
   { name: "GroupedFlowDiagram", kind: "value" },
   { name: "GroupedFlowDiagramProps", kind: "type" },
@@ -53,10 +70,29 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
     const manifest = JSON.parse(
       readFileSync(new URL("../../package.json", import.meta.url), "utf8")
     );
-    for (const [key, value] of Object.entries(ledger.packageContract)) {
-      expect(manifest[key], key).toEqual(value);
-    }
+    expect(consumerContract(manifest)).toEqual(consumerContract(ledger.packageContract));
     expect(manifest.exports).not.toHaveProperty("./record");
+  });
+
+  it.each(["0.40.0", "1.0.0"])("allows release bookkeeping version %s without changing the consumer contract", version => {
+    const manifest = { ...structuredClone(ledger.packageContract), version };
+    expect(consumerContract(manifest)).toEqual(consumerContract(ledger.packageContract));
+  });
+
+  it.each(consumerFields)("still detects a changed or missing frozen consumer field: %s", key => {
+    const changed: Record<string, unknown> = structuredClone(ledger.packageContract);
+    changed[key] = "deliberately incompatible";
+    expect(consumerContract(changed)).not.toEqual(consumerContract(ledger.packageContract));
+    delete changed[key];
+    expect(consumerContract(changed)).not.toEqual(consumerContract(ledger.packageContract));
+  });
+
+  it.each(consumerLeaves)("still detects a nested consumer-contract mutation: $label", ({ path }) => {
+    const changed: Record<string, unknown> = structuredClone(ledger.packageContract);
+    let owner = changed;
+    for (const key of path.slice(0, -1)) owner = owner[key] as Record<string, unknown>;
+    owner[path[path.length - 1]!] = "deliberately incompatible";
+    expect(consumerContract(changed)).not.toEqual(consumerContract(ledger.packageContract));
   });
 
   it("distinguishes a real class export from its type-only alias", () => {
