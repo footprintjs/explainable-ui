@@ -7,17 +7,32 @@ vi.mock("@xyflow/react", async original => ({ ...await original<typeof import("@
   BaseEdge: (props: any) => <output data-testid={props.id} data-path={props.path} />,
   EdgeLabelRenderer: ({ children }: any) => children,
 }));
-const props = { id: "link", sourceX: 400, sourceY: 80, targetX: 100, targetY: 80, sourcePosition: Position.Left, targetPosition: Position.Right, label: "Recorded read · data", data: { relationship: { attribution: "recorded-read", kind: "data", direction: "backward" } } } as any;
+const route = { points: [{ x: 400, y: 80 }, { x: 382, y: 80 }, { x: 382, y: 16 }, { x: 118, y: 16 }, { x: 118, y: 80 }, { x: 100, y: 80 }],
+  label: { x: 250, y: 16, width: 48, height: 22 }, sourceSide: "left", targetSide: "right" };
+const props = { id: "link", sourceX: 400, sourceY: 80, targetX: 100, targetY: 80, sourcePosition: Position.Left, targetPosition: Position.Right, label: "Recorded read · data", data: { route, relationship: { attribution: "recorded-read", kind: "data", direction: "backward" } } } as any;
 it("routes from the actual handles rather than assuming execution direction", () => {
   render(<RecordedRelationshipEdge {...props} />);
   const path = screen.getByTestId("link").getAttribute("data-path")!;
-  expect(path).toBe("M400,80 C295,16 205,16 100,80");
+  const firstLeg = path.match(/^M400,80 L([\d.]+),80/);
+  expect(firstLeg).toBeTruthy(); expect(Number(firstLeg![1])).toBeLessThan(400); expect(Number(firstLeg![1])).toBeGreaterThan(382);
+  expect(path.endsWith("100,80")).toBe(true); expect(path).toContain("Q");
   expect(screen.getByText("Read")).toBeTruthy();
   expect(screen.getByLabelText("Recorded read · data").getAttribute("title")).toBe("Recorded read · data");
 });
 it("retains separate curves and labels for parallel kinds and attributions", () => {
-  render(<><RecordedRelationshipEdge {...props} data={{ ...props.data, parallelIndex: 0, parallelCount: 2 }} />
-    <RecordedRelationshipEdge {...props} id="control" label="Recorded control · control" data={{ relationship: { attribution: "recorded-control", kind: "control", direction: "backward" }, parallelIndex: 1, parallelCount: 2 }} /></>);
+  const otherRoute = { ...route, points: route.points.map(p => p.y === 16 ? { ...p, y: -4 } : p), label: { ...route.label, y: -4 } };
+  render(<><RecordedRelationshipEdge {...props} />
+    <RecordedRelationshipEdge {...props} id="control" label="Recorded control · control" data={{ route: otherRoute, relationship: { attribution: "recorded-control", kind: "control", direction: "backward" } }} /></>);
   expect(screen.getByTestId("link").getAttribute("data-path")).not.toBe(screen.getByTestId("control").getAttribute("data-path"));
   expect(screen.getByText("Read").getAttribute("style")).not.toBe(screen.getByText("Rule").getAttribute("style"));
+});
+
+it("honors the obstacle-aware route and the actual handle pixels instead of drawing its old cubic through a card", () => {
+  const route = { points: [{ x: 600, y: 180 }, { x: 584, y: 180 }, { x: 584, y: 40 }, { x: 116, y: 40 }, { x: 116, y: 180 }, { x: 100, y: 180 }],
+    label: { x: 350, y: 40, width: 44, height: 24 }, sourceSide: "left", targetSide: "right" };
+  render(<RecordedRelationshipEdge {...props} sourceX={601} targetX={99} sourceY={180} targetY={180} data={{ ...props.data, route }} />);
+  const path = screen.getByTestId("link").getAttribute("data-path")!;
+  expect(path.startsWith("M601,180")).toBe(true); expect(path.endsWith("99,180")).toBe(true);
+  expect(path).toContain("40"); expect(path).toContain("Q"); expect(path).not.toContain(" C");
+  expect(screen.getByText("Read").style.transform).toContain("350px,40px");
 });

@@ -1197,9 +1197,21 @@ checks do not replace the host's recording admission and authorization.
 Recorded relationships are a distinct overlay. They preserve kind, attribution and
 evidence references, use different edge IDs and routing handles, and do not influence
 structural layout, execution state or branch outcomes. Parallel relationships stay
-separate and have a folded evidence list. Compact Data/Read/Rule/Step captions use a
-separate curve lane; their full fixed kind and attribution remain in accessible
-names, tooltips and the evidence list. Only declared, exact endpoints are drawn;
+separate and have a folded evidence list. A bounded routing layer uses the existing
+card positions to steer rounded connections around card content, group headers,
+badges and branch labels. Shared connections get separate lanes and caption space;
+the card layout and structural arrows stay unchanged. Backward cause arrows use a
+warm red, impact arrows use teal, and ordinary flow arrows stay grey. The cause
+colour identifies recorded sources; it does not say that every linked step failed.
+Recorded status badges retain that distinction. Decision steps use rounded cards
+with a small decision marker and keep their Yes/No branch labels.
+
+Compact Data/Read/Rule/Step captions retain their full fixed kind and attribution
+in accessible names, tooltips and the evidence list. Routing work is bounded. If a
+connection cannot be drawn safely, the diagram reports how many could not be drawn
+and offers ways to inspect them; its recorded evidence, cause and confidence are
+unchanged. Crowded diagrams can still contain crossings, which are not recorded
+junctions. Only declared, exact endpoints are drawn;
 missing mappings, hidden evidence and uncertain links are never replaced by nearby
 design arrows. The standalone grouped diagram also accepts `recordedRelationships`
 (up to 512, within a 65,536-character relationship budget) and refuses links touching
@@ -1208,7 +1220,8 @@ nodeIds}` expresses one camera action: changing `key` frames those known items;
 equivalent rerenders do not take the camera back from the user.
 
 After an accepted result, known containing groups open once. Desktop framing includes
-relevant expanded group containers so their headers and controls remain in view. A
+relevant expanded group containers and connection captions so their headers,
+controls and routed links remain in view. A
 new port binding replaces the inner diagram and discards all prior camera targets;
 equivalent same-binding renders preserve it. On a narrow canvas the camera frames the supported root, or the selected item when no root is mapped, rather
 than shrinking every card to fit the entire graph. **Back to selected item** is an

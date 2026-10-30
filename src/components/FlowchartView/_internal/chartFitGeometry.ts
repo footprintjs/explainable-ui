@@ -14,6 +14,8 @@ export interface ChartFitState {
   readonly minZoom: number;
   readonly maxZoom: number;
   readonly nodeLookup: ReadonlyMap<string, ChartFitNode>;
+  /** Paint-only extents, never synthetic graph nodes or evidence membership. */
+  readonly visualBounds?: Rect;
 }
 
 export const positiveFinite = (value: unknown): value is number =>
@@ -50,8 +52,15 @@ export function chartFitViewport(state: ChartFitState, padding: number): Viewpor
   if (!positiveFinite(state.width) || !positiveFinite(state.height)
     || !positiveFinite(state.minZoom) || !positiveFinite(state.maxZoom)
     || state.maxZoom < state.minZoom || !Number.isFinite(padding) || padding < 0) return null;
-  const bounds = measuredChartBounds(state.nodeLookup);
+  let bounds = measuredChartBounds(state.nodeLookup);
   if (!bounds) return null;
+  if (state.visualBounds) {
+    const extra = state.visualBounds;
+    if (![extra.x, extra.y, extra.width, extra.height].every(Number.isFinite) || !positiveFinite(extra.width) || !positiveFinite(extra.height)) return null;
+    const x = Math.min(bounds.x, extra.x), y = Math.min(bounds.y, extra.y);
+    bounds = { x, y, width: Math.max(bounds.x + bounds.width, extra.x + extra.width) - x, height: Math.max(bounds.y + bounds.height, extra.y + extra.height) - y };
+    if (![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)) return null;
+  }
   const viewport = getViewportForBounds(bounds, state.width, state.height, state.minZoom, state.maxZoom, padding);
   return Number.isFinite(viewport.x) && Number.isFinite(viewport.y) && positiveFinite(viewport.zoom)
     ? viewport : null;

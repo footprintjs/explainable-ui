@@ -78,6 +78,16 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("measured chart auto-refit", () => {
+  it("fits route paint extents on explicit intent without taking a manually panned camera when those extents change", () => {
+    const wrapperRef = { current: wrapper.element }, first = { x: -40, y: -10, width: 500, height: 720 }, second = { ...first, height: 820 };
+    const view = renderHook(({ visualBounds, request }) => useChartAutoRefit({ wrapperRef, visualBounds, focusRequestKey: request } as any), { initialProps: { visualBounds: first, request: 0 } });
+    flush(); expect(mock.setViewport).toHaveBeenLastCalledWith(chartFitViewport({ ...state, nodeLookup: new Map([...nodes, ["paint-reference-only", node(500, 720, -40, -10)]]) }, .1), { duration: 0 });
+    mock.setViewport.mockClear(); emit({ transform: [31, -42, .43] });
+    view.rerender({ visualBounds: second, request: 0 }); flush(); expect(mock.setViewport).not.toHaveBeenCalled();
+    expect(state.transform).toEqual([31, -42, .43]);
+    view.rerender({ visualBounds: second, request: 1 }); flush();
+    expect(mock.setViewport).toHaveBeenLastCalledWith(chartFitViewport({ ...state, nodeLookup: new Map([...nodes, ["paint-reference-only", node(500, 820, -40, -10)]]) }, .1), { duration: 0 });
+  });
   it("does not fit a zero-size hidden chart before it is measurable (REGRESSION)", () => {
     wrapper.area.width = 0;
     mount(); flush();

@@ -11,6 +11,13 @@ const state = (nodeLookup: Map<string, ChartFitNode> = new Map([["a", node()]]))
 });
 
 describe("finite measured fit policy", () => {
+  it("includes non-node route and caption paint bounds without changing measured node ownership", () => {
+    const current = state(), before = [...current.nodeLookup], visualBounds = { x: -40, y: -10, width: 500, height: 720 };
+    const expected = chartFitViewport(state(new Map([...before, ["paint-reference-only", node(-40, -10, 500, 720)]])), .1);
+    expect(chartFitViewport({ ...current, visualBounds } as ChartFitState, .1)).toEqual(expected);
+    expect([...current.nodeLookup]).toEqual(before);
+    expect(chartFitViewport({ ...current, visualBounds: { ...visualBounds, height: Infinity } } as ChartFitState, .1)).toBeNull();
+  });
   it("uses absolute parent/group positions and measured sizes", () => {
     const nodes = new Map([["a", node(10, 20, 40, 60)], ["b", node(-30, 100, 80, 50)]]);
     expect(measuredChartBounds(nodes)).toEqual({ x: -30, y: 20, width: 80, height: 130 });

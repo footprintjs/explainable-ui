@@ -18,11 +18,10 @@ export type DiagramReactNode = Node<DiagramNodeData>;
 const statusText = { unknown: "Status unknown", running: "Running", completed: "Completed", failed: "Failed", "not-run": "Not run (recorded)" };
 const smallButton: CSSProperties = { font: "inherit", border: `1px solid ${theme.border}`, borderRadius: 8, padding: "5px 10px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
 
-function DependencyHandles({ direction }: { direction: "LR" | "TB" }) {
-  return <>
-    <Handle id="dependency-source" type="source" position={direction === "LR" ? Position.Left : Position.Top} isConnectable={false} style={{ opacity: 0 }} />
-    <Handle id="dependency-target" type="target" position={direction === "LR" ? Position.Right : Position.Bottom} isConnectable={false} style={{ opacity: 0 }} />
-  </>;
+function DependencyHandles() {
+  return <>{(["left", "right", "top", "bottom"] as const).flatMap(side => (["source", "target"] as const).map(type =>
+    <Handle key={`${side}-${type}`} id={`recorded-${side}-${type}`} type={type} position={{ left: Position.Left, right: Position.Right, top: Position.Top, bottom: Position.Bottom }[side]}
+      isConnectable={false} style={{ opacity: 0 }} />))}</>;
 }
 
 function CauseBadge({ item }: { item: PositionedFlowDiagramNode }) {
@@ -45,7 +44,7 @@ export function DiagramGroupNode(props: NodeProps<DiagramReactNode>) {
     <GroupContainerNode {...props} data={{ label: item.node.label, headerMode: "expandable", iconContent: <DiagramIcon icon={item.node.icon ?? "flow"} style={{ width: 22, height: 22, color: theme.nodeMain }} />,
       headerAction: action, statusLabel: text, statusLabelId: statusId, handleDirection: d.direction, highlighted: item.highlighted, compactHeader: true,
       error: item.state === "failed", done: item.state === "completed", active: item.state === "running" }} />
-    <DependencyHandles direction={d.direction} />
+    <DependencyHandles />
     <CauseBadge item={item} />
   </div>;
 }
@@ -60,18 +59,16 @@ export function DiagramItemNode({ data: d }: NodeProps<DiagramReactNode>) {
     style={{ position: "relative", width: item.width, height: item.height, color: theme.textPrimary,
       filter: item.highlighted ? "drop-shadow(0 0 9px color-mix(in srgb, var(--fp-tracing, #0d9488) 25%, transparent))" : undefined }}>
     <Handle type="target" position={d.direction === "LR" ? Position.Left : Position.Top} isConnectable={false} />
-    {decision && <svg aria-hidden="true" width={item.width} height={item.height} style={{ position: "absolute", inset: 0 }}>
-      <polygon points={`${item.width / 2},2 ${item.width - 2},${item.height / 2} ${item.width / 2},${item.height - 2} 2,${item.height / 2}`} fill={theme.bgElevated} stroke={border} strokeWidth="2" />
-    </svg>}
-    <button type="button" className="nodrag nopan" aria-label={action} aria-describedby={statusId} aria-expanded={group ? false : undefined} aria-pressed={group ? undefined : d.selected}
+    <button type="button" className="nodrag nopan" aria-label={action} aria-describedby={`${statusId}${decision ? ` ${statusId}-decision` : ""}`} aria-expanded={group ? false : undefined} aria-pressed={group ? undefined : d.selected}
       disabled={group && (!item.childCount || !d.canToggle)} title={node.description ? `${node.label}. ${node.description}` : node.label}
       onClick={event => { event.stopPropagation(); group ? d.onToggle(node.id) : d.onSelect(node.id); }}
       style={{ position: "relative", width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 7,
-        padding: decision ? "18px 42px" : "12px 18px", fontFamily: theme.fontSans, cursor: "pointer", color: "inherit",
-        border: decision ? "none" : `2px ${group || item.state === "not-run" ? "dashed" : "solid"} ${border}`, borderRadius: 16,
-        background: decision ? "transparent" : theme.bgElevated, boxShadow: !decision ? "0 7px 20px rgba(0, 0, 0, 0.03137255)" : undefined,
+        padding: "12px 18px", fontFamily: theme.fontSans, cursor: "pointer", color: "inherit",
+        borderWidth: 2, borderStyle: group || item.state === "not-run" ? "dashed" : "solid", borderColor: border, borderRadius: 16,
+        background: theme.bgElevated, boxShadow: "0 7px 20px rgba(0, 0, 0, 0.03137255)",
         outline: d.selected ? `3px solid ${theme.tracing}` : undefined, outlineOffset: 4 }}>
       <DiagramIcon icon={node.icon ?? (group ? "flow" : "step")} style={{ color: item.state === "not-run" ? theme.textMuted : theme.warning }} />
+      {decision && <span id={`${statusId}-decision`} style={{ fontSize: 10, lineHeight: "12px", color: theme.textSecondary }}><span aria-hidden="true">◇ </span>Decision</span>}
       <strong style={{ fontSize: 18, lineHeight: 1.2, maxWidth: "100%", maxHeight: group ? 22 : 44, overflow: "hidden", overflowWrap: "anywhere", ...(group ? { whiteSpace: "nowrap", textOverflow: "ellipsis" } : {}) }}>{node.label}</strong>
       {d.caption && <span style={{ fontSize: 10, color: theme.textSecondary }}>{d.caption}</span>}
       <span id={statusId} style={{ fontSize: group ? 11 : 12, color: item.state === "failed" ? theme.error : theme.textSecondary }}>{statusText[item.state]}{group ? ` · ${item.childCount ? `${item.childCount} items inside` : "Step information unavailable"}` : ""}</span>
@@ -83,7 +80,7 @@ export function DiagramItemNode({ data: d }: NodeProps<DiagramReactNode>) {
     {item.state === "completed" && <span aria-hidden="true" style={{ position: "absolute", top: -9, right: -9, width: 26, height: 26, borderRadius: "50%", background: theme.success, color: "white", textAlign: "center", fontSize: 19 }}>✓</span>}
     {item.state === "failed" && <span aria-hidden="true" style={{ position: "absolute", top: -9, right: -9, width: 26, height: 26, borderRadius: "50%", background: theme.error, color: "white", textAlign: "center", fontSize: 20 }}>×</span>}
     <Handle type="source" position={d.direction === "LR" ? Position.Right : Position.Bottom} isConnectable={false} />
-    <DependencyHandles direction={d.direction} />
+    <DependencyHandles />
     <CauseBadge item={item} />
   </div>;
 }

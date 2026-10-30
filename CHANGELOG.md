@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   causes; cause/impact toggles reuse the result, missing references remain unknown,
   and explicit dependency overlays do not change structural layout or branch states.
   Includes one-shot camera intent and bounded, separately admitted recorded links.
+  Rounded evidence routes avoid card content and reserve caption space, with
+  distinct cause/impact colours and a display-limit notice that preserves the
+  recorded result. Decision cards retain their branching role inside a rounded
+  rectangle.
 
 - Optional `GroupedFlowDiagram` and pure `projectGroupedFlowDiagram` for app-supplied,
   instance-bound flow definitions: configurable names/icons, nested expandable groups,

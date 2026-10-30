@@ -7,6 +7,7 @@ import { getFlowDiagramAncestors, projectGroupedFlowDiagram } from "./layout";
 import type { FlowDiagramDefinition, FlowDiagramHighlight, FlowDiagramObservation, FlowDiagramFocusRequest, FlowDiagramRecordedRelationship } from "./types";
 import { admitFocusRequest, projectRecordedRelationships } from "./relationships";
 import { recordedRelationshipEdgeTypes } from "./RecordedRelationshipEdge";
+import { recordedVisualBounds, routeRecordedRelationships } from "./recordedRouting";
 
 export interface GroupedFlowDiagramProps {
   readonly definition: FlowDiagramDefinition;
@@ -44,6 +45,8 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
   [props.definition, expanded, props.observation, props.highlight, selected, props.direction]);
   const model = result.model;
   const overlay = useMemo(() => !model || props.recordedRelationships === undefined ? [] : projectRecordedRelationships(props.recordedRelationships, model), [model, props.recordedRelationships]);
+  const routing = useMemo(() => model && overlay ? routeRecordedRelationships(overlay, model) : undefined, [model, overlay]);
+  const visualBounds = useMemo(() => routing && overlay ? recordedVisualBounds(routing, overlay, focusIds) : undefined, [routing, overlay, focusIds]);
   const camera = useMemo(() => !model || props.focusRequest === undefined ? undefined : admitFocusRequest(props.focusRequest, model), [model, props.focusRequest]);
   const lastCameraKey = useRef<unknown>(Symbol());
   const changeExpanded = (next: readonly string[]) => {
@@ -104,19 +107,17 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
   }
   if (!highlightFocusIds.size) for (const node of model?.nodes ?? []) if (node.highlighted) highlightFocusIds.add(node.node.id);
   const relationshipLabels = { "per-write": "Per-write link", stage: "Step-level link", "recorded-control": "Recorded control", "recorded-read": "Recorded read" };
-  const parallelCounts = new Map<string, number>(), parallelIndices = new Map<string, number>();
-  for (const item of overlay ?? []) { const pair = JSON.stringify([item.source, item.target]); parallelCounts.set(pair, (parallelCounts.get(pair) ?? 0) + 1); }
   for (const item of overlay ?? []) {
     const relationship = item.relationship;
-    const pair = JSON.stringify([item.source, item.target]), parallelIndex = parallelIndices.get(pair) ?? 0;
-    parallelIndices.set(pair, parallelIndex + 1);
+    const route = routing?.routes.get(relationship.id); if (!route) continue;
+    const color = relationship.direction === "backward" ? theme.error : relationship.direction === "forward" ? theme.tracing : theme.textSecondary;
     edges.push({ id: relationship.id, source: item.source, target: item.target, type: "recordedRelationship",
-      ...(relationship.direction === "backward" ? { sourceHandle: "dependency-source", targetHandle: "dependency-target" } : {}),
+      sourceHandle: `recorded-${route.sourceSide}-source`, targetHandle: `recorded-${route.targetSide}-target`,
       label: `${relationshipLabels[relationship.attribution]} · ${relationship.kind}`,
-      ariaLabel: `${relationshipLabels[relationship.attribution]}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
-      data: { relationship, collapsed: item.collapsed, parallelIndex, parallelCount: parallelCounts.get(pair) }, className: "gfd-recorded-relationship",
-      markerEnd: { type: MarkerType.ArrowClosed, color: theme.tracing },
-      style: { stroke: theme.tracing, strokeWidth: 3, ...(relationship.attribution === "stage" ? { strokeDasharray: "6 5" } : {}) },
+      ariaLabel: `${relationship.direction === "backward" ? "Backward source trail, not a failed step. " : relationship.direction === "forward" ? "Forward recorded impact. " : "Recorded dependency. "}${relationshipLabels[relationship.attribution]}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
+      data: { relationship, collapsed: item.collapsed, route }, className: "gfd-recorded-relationship",
+      markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
+      style: { stroke: color, strokeWidth: 1.8, ...(relationship.attribution === "stage" ? { strokeDasharray: "6 5" } : {}) },
       labelStyle: { fill: theme.textPrimary, fontSize: 12 }, labelBgStyle: { fill: theme.bgElevated }, labelBgPadding: [7, 4] });
   }
   useEffect(() => {
@@ -167,10 +168,13 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
     <div ref={wrapper} style={{ flex: 1, minHeight: 220, minWidth: 0, border: `1px solid ${theme.border}`, borderRadius: 16, overflow: "hidden", background: theme.bg }}>
       <ReactFlow nodes={nodes} edges={edges} nodeTypes={diagramNodeTypes} edgeTypes={recordedRelationshipEdgeTypes}
         nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} edgesFocusable={false} minZoom={.1} maxZoom={1.6} preventScrolling={false} proOptions={{ hideAttribution: true }}>
-        <ChartAutoRefit wrapperRef={wrapper} refitKey={geometry} padding={.06} focusNodeIds={focusIds} focusRequestKey={focusRequest} maxAutoZoom={1} />
+        <ChartAutoRefit wrapperRef={wrapper} refitKey={geometry} padding={.06} focusNodeIds={focusIds} focusRequestKey={focusRequest} maxAutoZoom={1} visualBounds={visualBounds} />
         <Background gap={24} color={theme.border} /><Controls showInteractive={false} />
       </ReactFlow>
     </div>
-    <p style={{ margin: "8px 0 0", fontSize: 11, color: theme.textSecondary }}>✓ Completed step · × Failed step · ? Unknown · Dashed relationship: not verified or recorded as not taken{overlay.length > 0 ? " · Highlighted dependency links are recorded evidence, not execution transitions" : ""}</p>
+    {!!routing?.undrawn && <p role="status" data-routing-unavailable={routing.undrawn} style={{ margin: "8px 0 0", fontSize: 12 }}>
+      {routing.undrawn} recorded {routing.undrawn === 1 ? "connection could" : "connections could"} not be drawn. Expand the flow or inspect the recorded evidence. The explanation is unchanged.
+    </p>}
+    <p style={{ margin: "8px 0 0", fontSize: 11, color: theme.textSecondary }}>✓ Completed step · × Failed step · ? Unknown · Dashed relationship: not verified or recorded as not taken{overlay.length > 0 ? " · Warm backward links: recorded sources, not failed steps · Teal forward links: recorded impact, not proof of harm" : ""}</p>
   </section>;
 }

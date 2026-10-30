@@ -1,5 +1,5 @@
 // src/components/GroupedFlowDiagram/GroupedFlowDiagram.tsx
-import { useEffect as useEffect3, useMemo, useRef as useRef2, useState as useState2 } from "react";
+import { useEffect as useEffect4, useMemo, useRef as useRef2, useState as useState2 } from "react";
 import { Background, Controls, MarkerType, ReactFlow } from "@xyflow/react";
 
 // src/theme/ThemeProvider.tsx
@@ -239,8 +239,12 @@ function themeModeVars(mode) {
 }
 
 // src/components/FlowchartView/_internal/useChartAutoRefit.ts
-import { useEffect as useEffect2, useRef } from "react";
+import { useEffect as useEffect3, useRef } from "react";
 import { useReactFlow, useStoreApi } from "@xyflow/react";
+
+// src/_internal/useIsomorphicLayoutEffect.ts
+import { useEffect as useEffect2, useLayoutEffect } from "react";
+var useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect2 : useLayoutEffect;
 
 // src/components/FlowchartView/_internal/chartFitGeometry.ts
 import { getViewportForBounds } from "@xyflow/react";
@@ -270,8 +274,15 @@ function measuredChartBounds(nodes) {
 }
 function chartFitViewport(state, padding2) {
   if (!positiveFinite(state.width) || !positiveFinite(state.height) || !positiveFinite(state.minZoom) || !positiveFinite(state.maxZoom) || state.maxZoom < state.minZoom || !Number.isFinite(padding2) || padding2 < 0) return null;
-  const bounds = measuredChartBounds(state.nodeLookup);
+  let bounds = measuredChartBounds(state.nodeLookup);
   if (!bounds) return null;
+  if (state.visualBounds) {
+    const extra = state.visualBounds;
+    if (![extra.x, extra.y, extra.width, extra.height].every(Number.isFinite) || !positiveFinite(extra.width) || !positiveFinite(extra.height)) return null;
+    const x = Math.min(bounds.x, extra.x), y = Math.min(bounds.y, extra.y);
+    bounds = { x, y, width: Math.max(bounds.x + bounds.width, extra.x + extra.width) - x, height: Math.max(bounds.y + bounds.height, extra.y + extra.height) - y };
+    if (![bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)) return null;
+  }
   const viewport = getViewportForBounds(bounds, state.width, state.height, state.minZoom, state.maxZoom, padding2);
   return Number.isFinite(viewport.x) && Number.isFinite(viewport.y) && positiveFinite(viewport.zoom) ? viewport : null;
 }
@@ -307,11 +318,16 @@ function hasVisibleArea(element) {
   const { width, height } = element.getBoundingClientRect();
   return positiveFinite(width) && positiveFinite(height);
 }
-function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey, layoutKey, focusNodeIds, focusRequestKey, maxAutoZoom }) {
+function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey, layoutKey, focusNodeIds, focusRequestKey, maxAutoZoom, visualBounds }) {
   const store = useStoreApi();
   const { setViewport } = useReactFlow();
   const requestLayoutFit = useRef(null);
-  useEffect2(() => {
+  const visualBoundsKey = JSON.stringify(visualBounds);
+  const committedVisualBounds = useRef(visualBounds);
+  useIsomorphicLayoutEffect(() => {
+    committedVisualBounds.current = visualBounds;
+  }, [visualBoundsKey]);
+  useEffect3(() => {
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
     let disposed = false;
@@ -335,7 +351,7 @@ function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey, layo
         }
         nodeLookup = selected;
       }
-      return chartFitViewport({ ...state, nodeLookup, maxZoom: maxAutoZoom === void 0 ? state.maxZoom : Math.min(state.maxZoom, maxAutoZoom) }, padding2);
+      return chartFitViewport({ ...state, nodeLookup, visualBounds: committedVisualBounds.current, maxZoom: maxAutoZoom === void 0 ? state.maxZoom : Math.min(state.maxZoom, maxAutoZoom) }, padding2);
     };
     const readContainerKey = () => {
       const state = store.getState();
@@ -431,9 +447,12 @@ function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey, layo
       cancelFrame();
     };
   }, [store, setViewport, wrapperRef, padding2, refitKey, focusNodeIds, focusRequestKey, maxAutoZoom]);
-  useEffect2(() => {
+  useEffect3(() => {
     requestLayoutFit.current?.();
   }, [layoutKey]);
+  useEffect3(() => {
+    requestLayoutFit.current?.();
+  }, [visualBoundsKey]);
 }
 function ChartAutoRefit(props) {
   useChartAutoRefit(props);
@@ -520,11 +539,18 @@ function DiagramIcon({ icon, style }) {
 import { Fragment, jsx as jsx4, jsxs as jsxs2 } from "react/jsx-runtime";
 var statusText = { unknown: "Status unknown", running: "Running", completed: "Completed", failed: "Failed", "not-run": "Not run (recorded)" };
 var smallButton = { font: "inherit", border: `1px solid ${theme.border}`, borderRadius: 8, padding: "5px 10px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
-function DependencyHandles({ direction }) {
-  return /* @__PURE__ */ jsxs2(Fragment, { children: [
-    /* @__PURE__ */ jsx4(Handle2, { id: "dependency-source", type: "source", position: direction === "LR" ? Position2.Left : Position2.Top, isConnectable: false, style: { opacity: 0 } }),
-    /* @__PURE__ */ jsx4(Handle2, { id: "dependency-target", type: "target", position: direction === "LR" ? Position2.Right : Position2.Bottom, isConnectable: false, style: { opacity: 0 } })
-  ] });
+function DependencyHandles() {
+  return /* @__PURE__ */ jsx4(Fragment, { children: ["left", "right", "top", "bottom"].flatMap((side) => ["source", "target"].map((type) => /* @__PURE__ */ jsx4(
+    Handle2,
+    {
+      id: `recorded-${side}-${type}`,
+      type,
+      position: { left: Position2.Left, right: Position2.Right, top: Position2.Top, bottom: Position2.Bottom }[side],
+      isConnectable: false,
+      style: { opacity: 0 }
+    },
+    `${side}-${type}`
+  ))) });
 }
 function CauseBadge({ item }) {
   if (!item.isRootCause && !item.containsRootCause) return null;
@@ -580,7 +606,7 @@ function DiagramGroupNode(props) {
       done: item.state === "completed",
       active: item.state === "running"
     } }),
-    /* @__PURE__ */ jsx4(DependencyHandles, { direction: d.direction }),
+    /* @__PURE__ */ jsx4(DependencyHandles, {}),
     /* @__PURE__ */ jsx4(CauseBadge, { item })
   ] });
 }
@@ -606,14 +632,13 @@ function DiagramItemNode({ data: d }) {
       },
       children: [
         /* @__PURE__ */ jsx4(Handle2, { type: "target", position: d.direction === "LR" ? Position2.Left : Position2.Top, isConnectable: false }),
-        decision && /* @__PURE__ */ jsx4("svg", { "aria-hidden": "true", width: item.width, height: item.height, style: { position: "absolute", inset: 0 }, children: /* @__PURE__ */ jsx4("polygon", { points: `${item.width / 2},2 ${item.width - 2},${item.height / 2} ${item.width / 2},${item.height - 2} 2,${item.height / 2}`, fill: theme.bgElevated, stroke: border, strokeWidth: "2" }) }),
         /* @__PURE__ */ jsxs2(
           "button",
           {
             type: "button",
             className: "nodrag nopan",
             "aria-label": action2,
-            "aria-describedby": statusId,
+            "aria-describedby": `${statusId}${decision ? ` ${statusId}-decision` : ""}`,
             "aria-expanded": group ? false : void 0,
             "aria-pressed": group ? void 0 : d.selected,
             disabled: group && (!item.childCount || !d.canToggle),
@@ -631,19 +656,25 @@ function DiagramItemNode({ data: d }) {
               alignItems: "center",
               justifyContent: "center",
               gap: 7,
-              padding: decision ? "18px 42px" : "12px 18px",
+              padding: "12px 18px",
               fontFamily: theme.fontSans,
               cursor: "pointer",
               color: "inherit",
-              border: decision ? "none" : `2px ${group || item.state === "not-run" ? "dashed" : "solid"} ${border}`,
+              borderWidth: 2,
+              borderStyle: group || item.state === "not-run" ? "dashed" : "solid",
+              borderColor: border,
               borderRadius: 16,
-              background: decision ? "transparent" : theme.bgElevated,
-              boxShadow: !decision ? "0 7px 20px rgba(0, 0, 0, 0.03137255)" : void 0,
+              background: theme.bgElevated,
+              boxShadow: "0 7px 20px rgba(0, 0, 0, 0.03137255)",
               outline: d.selected ? `3px solid ${theme.tracing}` : void 0,
               outlineOffset: 4
             },
             children: [
               /* @__PURE__ */ jsx4(DiagramIcon, { icon: node.icon ?? (group ? "flow" : "step"), style: { color: item.state === "not-run" ? theme.textMuted : theme.warning } }),
+              decision && /* @__PURE__ */ jsxs2("span", { id: `${statusId}-decision`, style: { fontSize: 10, lineHeight: "12px", color: theme.textSecondary }, children: [
+                /* @__PURE__ */ jsx4("span", { "aria-hidden": "true", children: "\u25C7 " }),
+                "Decision"
+              ] }),
               /* @__PURE__ */ jsx4("strong", { style: { fontSize: 18, lineHeight: 1.2, maxWidth: "100%", maxHeight: group ? 22 : 44, overflow: "hidden", overflowWrap: "anywhere", ...group ? { whiteSpace: "nowrap", textOverflow: "ellipsis" } : {} }, children: node.label }),
               d.caption && /* @__PURE__ */ jsx4("span", { style: { fontSize: 10, color: theme.textSecondary }, children: d.caption }),
               /* @__PURE__ */ jsxs2("span", { id: statusId, style: { fontSize: group ? 11 : 12, color: item.state === "failed" ? theme.error : theme.textSecondary }, children: [
@@ -665,7 +696,7 @@ function DiagramItemNode({ data: d }) {
         item.state === "completed" && /* @__PURE__ */ jsx4("span", { "aria-hidden": "true", style: { position: "absolute", top: -9, right: -9, width: 26, height: 26, borderRadius: "50%", background: theme.success, color: "white", textAlign: "center", fontSize: 19 }, children: "\u2713" }),
         item.state === "failed" && /* @__PURE__ */ jsx4("span", { "aria-hidden": "true", style: { position: "absolute", top: -9, right: -9, width: 26, height: 26, borderRadius: "50%", background: theme.error, color: "white", textAlign: "center", fontSize: 20 }, children: "\xD7" }),
         /* @__PURE__ */ jsx4(Handle2, { type: "source", position: d.direction === "LR" ? Position2.Right : Position2.Bottom, isConnectable: false }),
-        /* @__PURE__ */ jsx4(DependencyHandles, { direction: d.direction }),
+        /* @__PURE__ */ jsx4(DependencyHandles, {}),
         /* @__PURE__ */ jsx4(CauseBadge, { item })
       ]
     }
@@ -1080,26 +1111,264 @@ function admitFocusRequest(value, model) {
 }
 
 // src/components/GroupedFlowDiagram/RecordedRelationshipEdge.tsx
-import { BaseEdge, EdgeLabelRenderer, Position as Position3 } from "@xyflow/react";
+import { BaseEdge, EdgeLabelRenderer } from "@xyflow/react";
+
+// src/components/GroupedFlowDiagram/recordedRouting.ts
+import { getSmoothStepPath, Position as Position3 } from "@xyflow/react";
+var SIDE = { left: Position3.Left, right: Position3.Right, top: Position3.Top, bottom: Position3.Bottom };
+var HALO = 16;
+var STUB = 18;
+var MAX_WORK = 2e6;
+var MAX_VISITS = 1e5;
+var intersects = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+var point = (box2, side) => ({
+  x: side === "left" ? box2.x : side === "right" ? box2.x + box2.width : box2.x + box2.width / 2,
+  y: side === "top" ? box2.y : side === "bottom" ? box2.y + box2.height : box2.y + box2.height / 2
+});
+var escape = (p, side) => ({ x: p.x + (side === "left" ? -STUB : side === "right" ? STUB : 0), y: p.y + (side === "top" ? -STUB : side === "bottom" ? STUB : 0) });
+var crossing = (a, b, box2) => a.x === b.x ? a.x > box2.x && a.x < box2.x + box2.width && Math.max(a.y, b.y) > box2.y && Math.min(a.y, b.y) < box2.y + box2.height : a.y > box2.y && a.y < box2.y + box2.height && Math.max(a.x, b.x) > box2.x && Math.min(a.x, b.x) < box2.x + box2.width;
+var distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+var Queue = class {
+  constructor() {
+    this.items = [];
+  }
+  before(a, b) {
+    return a.score < b.score || a.score === b.score && a.key < b.key;
+  }
+  push(value) {
+    let at = this.items.length;
+    this.items.push(value);
+    while (at) {
+      const parent = at - 1 >> 1;
+      if (!this.before(value, this.items[parent])) break;
+      this.items[at] = this.items[parent];
+      at = parent;
+    }
+    this.items[at] = value;
+  }
+  pop() {
+    const result = this.items[0], last = this.items.pop();
+    if (!this.items.length || !last) return result;
+    let at = 0;
+    while (at * 2 + 1 < this.items.length) {
+      let child = at * 2 + 1;
+      if (child + 1 < this.items.length && this.before(this.items[child + 1], this.items[child])) child++;
+      if (!this.before(this.items[child], last)) break;
+      this.items[at] = this.items[child];
+      at = child;
+    }
+    this.items[at] = last;
+    return result;
+  }
+};
+function routeRecordedRelationships(links, model) {
+  const routes = /* @__PURE__ */ new Map(), decorations = /* @__PURE__ */ new Map();
+  let work = 0, visits = 0;
+  const outcome = () => ({ routes, decorations, undrawn: links.length - routes.size, work });
+  if (model.nodes.length > 512 || model.edges.length > 1024 || links.length > 512) return outcome();
+  const byId = new Map(model.nodes.map((item) => [item.node.id, item])), boxes = /* @__PURE__ */ new Map();
+  const absolute = (item, depth = 0) => {
+    if (depth > 16) throw new Error();
+    const cached = boxes.get(item.node.id);
+    if (cached) return cached;
+    const parent = item.parentId ? byId.get(item.parentId) : void 0;
+    if (item.parentId && !parent) throw new Error();
+    const origin = parent ? absolute(parent, depth + 1) : { x: 0, y: 0 };
+    const box2 = { x: item.position.x + origin.x, y: item.position.y + origin.y, width: item.width, height: item.height, owner: item.node.id };
+    if (![box2.x, box2.y, box2.width, box2.height].every(Number.isFinite) || Math.max(Math.abs(box2.x), Math.abs(box2.y), box2.width, box2.height) > 1e6 || box2.width <= 0 || box2.height <= 0) throw new Error();
+    boxes.set(item.node.id, box2);
+    return box2;
+  };
+  try {
+    for (const item of model.nodes) absolute(item);
+  } catch {
+    return outcome();
+  }
+  for (const item of model.nodes) if (item.isRootCause || item.containsRootCause) {
+    const box2 = boxes.get(item.node.id);
+    decorations.set(item.node.id, { x: box2.x, y: box2.y - 16, width: box2.width + 18, height: box2.height + 16 });
+  }
+  const obstacles = model.nodes.map((item) => {
+    const box2 = boxes.get(item.node.id);
+    return {
+      x: box2.x - HALO,
+      y: box2.y - (item.isRootCause || item.containsRootCause ? 28 : HALO),
+      width: box2.width + HALO * 2,
+      height: (item.expanded ? 72 : box2.height) + HALO + (item.isRootCause || item.containsRootCause ? 28 : HALO),
+      owner: box2.owner
+    };
+  });
+  for (const edge of model.edges) {
+    if (!edge.edge.label) continue;
+    const a = boxes.get(edge.source), b = boxes.get(edge.target);
+    if (!a || !b) continue;
+    const horizontal = model.direction === "LR", source = point(a, horizontal ? "right" : "bottom"), target = point(b, horizontal ? "left" : "top");
+    const [, x, y] = getSmoothStepPath({
+      sourceX: source.x,
+      sourceY: source.y,
+      targetX: target.x,
+      targetY: target.y,
+      sourcePosition: horizontal ? Position3.Right : Position3.Bottom,
+      targetPosition: horizontal ? Position3.Left : Position3.Top
+    });
+    const width2 = Math.min(180, edge.edge.label.length * 8 + 24);
+    obstacles.push({ x: x - width2 / 2, y: y - 20, width: width2, height: 40 });
+  }
+  const ordered = [...links].sort((a, b) => a.relationship.id < b.relationship.id ? -1 : a.relationship.id > b.relationship.id ? 1 : 0);
+  const candidates = /* @__PURE__ */ new Map();
+  const xs = /* @__PURE__ */ new Set(), ys = /* @__PURE__ */ new Set();
+  for (const box2 of obstacles) for (const offset of [-18, 0, 18]) {
+    xs.add(box2.x + offset);
+    xs.add(box2.x + box2.width + offset);
+    ys.add(box2.y + offset);
+    ys.add(box2.y + box2.height + offset);
+  }
+  for (const link of ordered) {
+    const a = boxes.get(link.source), b = boxes.get(link.target);
+    if (!a || !b) continue;
+    const backward = link.relationship.direction === "backward";
+    const pairs = link.source === link.target ? [["bottom", "right"], ["right", "top"], ["left", "bottom"]] : model.direction === "LR" ? backward ? [["bottom", "bottom"], ["top", "top"], ["left", "right"]] : [["top", "top"], ["bottom", "bottom"], ["right", "left"]] : backward ? [["right", "right"], ["left", "left"], ["top", "bottom"]] : [["left", "left"], ["right", "right"], ["bottom", "top"]];
+    const options = pairs.filter(([sourceSide, targetSide]) => !(sourceSide === "top" && (byId.get(link.source)?.isRootCause || byId.get(link.source)?.containsRootCause)) && !(targetSide === "top" && (byId.get(link.target)?.isRootCause || byId.get(link.target)?.containsRootCause))).map(([sourceSide, targetSide]) => {
+      const source = point(a, sourceSide), target = point(b, targetSide), start = escape(source, sourceSide), end = escape(target, targetSide);
+      for (const p of [start, end]) {
+        xs.add(p.x);
+        ys.add(p.y);
+      }
+      return { sourceSide, targetSide, source, target, start, end };
+    });
+    candidates.set(link.relationship.id, options);
+  }
+  const columns = [...xs].sort((a, b) => a - b), rows = [...ys].sort((a, b) => a - b), width = columns.length;
+  if (!width || !rows.length) return outcome();
+  const position = (at) => ({ x: columns[at % width], y: rows[Math.floor(at / width)] });
+  const index = (p) => rows.indexOf(p.y) * width + columns.indexOf(p.x);
+  const occupied = /* @__PURE__ */ new Map(), checked = /* @__PURE__ */ new Map(), labels = [];
+  const segmentKey = (a, b) => a < b ? `${a}:${b}` : `${b}:${a}`;
+  const clear = (a, b, boxes2, ignore) => {
+    for (const box2 of boxes2) {
+      if (work >= MAX_WORK) return false;
+      work++;
+      if ((ignore === void 0 || box2.owner !== ignore) && crossing(a, b, box2)) return false;
+    }
+    return true;
+  };
+  const search = (start, end) => {
+    const from = index(start), to = index(end);
+    if (from === to) return void 0;
+    const queue = new Queue(), costs = /* @__PURE__ */ new Map(), parents = /* @__PURE__ */ new Map();
+    queue.push({ at: from, direction: 0, cost: 0, score: distance(start, end), key: from * 3 });
+    costs.set(from * 3, 0);
+    let local = 0, current;
+    while ((current = queue.pop()) && ++local <= 12e3 && ++visits <= MAX_VISITS && work < MAX_WORK) {
+      if (costs.get(current.key) !== current.cost) continue;
+      if (current.at === to) {
+        const points = [], segments = [];
+        let key = current.key;
+        while (key !== void 0) {
+          const at = Math.floor(key / 3), previous = parents.get(key);
+          points.push(position(at));
+          if (previous !== void 0) segments.push(segmentKey(at, Math.floor(previous / 3)));
+          key = previous;
+        }
+        return { points: points.reverse(), segments };
+      }
+      const x = current.at % width, y = Math.floor(current.at / width), a = position(current.at);
+      for (const next of [x > 0 ? current.at - 1 : -1, x + 1 < width ? current.at + 1 : -1, y > 0 ? current.at - width : -1, y + 1 < rows.length ? current.at + width : -1]) {
+        if (next < 0) continue;
+        const b = position(next), edge = segmentKey(current.at, next);
+        let free = checked.get(edge);
+        if (free === void 0) {
+          free = clear(a, b, obstacles);
+          checked.set(edge, free);
+        }
+        if (!free || !clear(a, b, labels)) continue;
+        const direction = a.y === b.y ? 1 : 2, cost = current.cost + distance(a, b) + (current.direction && current.direction !== direction ? 20 : 0) + (occupied.get(edge) ?? 0) * (100 + distance(a, b) * 4);
+        const key = next * 3 + direction;
+        if (cost >= (costs.get(key) ?? Infinity)) continue;
+        costs.set(key, cost);
+        parents.set(key, current.key);
+        queue.push({ at: next, direction, cost, score: cost + distance(b, end), key });
+      }
+    }
+    return void 0;
+  };
+  const labelFor = (points) => {
+    const segments = points.slice(1).map((b, at) => ({ a: points[at], b, length: distance(points[at], b) })).sort((a, b) => b.length - a.length);
+    for (const { a, b, length } of segments) {
+      if (length < 28) continue;
+      for (const fraction of [0.5, 0.25, 0.75]) for (const offset of [0, 20, -20, 38, -38]) {
+        const horizontal = a.y === b.y, x = a.x + (b.x - a.x) * fraction + (horizontal ? 0 : offset), y = a.y + (b.y - a.y) * fraction + (horizontal ? offset : 0);
+        const box2 = { x: x - 28, y: y - 15, width: 56, height: 30 };
+        if ([...obstacles, ...labels].every((other) => {
+          if (work >= MAX_WORK) return false;
+          work++;
+          return !intersects(box2, other);
+        })) return { x, y, width: 48, height: 22, box: box2 };
+      }
+    }
+    return void 0;
+  };
+  for (const link of ordered) {
+    if (work >= MAX_WORK || visits > MAX_VISITS) break;
+    for (const option of candidates.get(link.relationship.id) ?? []) {
+      if (!clear(option.source, option.start, obstacles, link.source) || !clear(option.end, option.target, obstacles, link.target) || !clear(option.source, option.start, labels) || !clear(option.end, option.target, labels)) continue;
+      const found = search(option.start, option.end);
+      if (!found) continue;
+      const corners = found.points.filter((p, at, all) => !at || at === all.length - 1 || all[at - 1].x === p.x !== (p.x === all[at + 1].x));
+      const points = [option.source, ...corners, option.target], label = labelFor(points);
+      if (!label) continue;
+      labels.push(label.box);
+      for (const segment of found.segments) occupied.set(segment, (occupied.get(segment) ?? 0) + 1);
+      routes.set(link.relationship.id, { points, sourceSide: option.sourceSide, targetSide: option.targetSide, label: { x: label.x, y: label.y, width: label.width, height: label.height } });
+      break;
+    }
+  }
+  return outcome();
+}
+function recordedRoutePath(route, source, target) {
+  const interior = route.points.slice(1, -1), start = interior[0], end = interior[interior.length - 1];
+  const bridge = (p, actual, side) => side === "left" || side === "right" ? { x: p.x, y: actual.y } : { x: actual.x, y: p.y };
+  const points = [source, bridge(start, source, route.sourceSide), ...interior, bridge(end, target, route.targetSide), target].filter((p, at, all) => !at || p.x !== all[at - 1].x || p.y !== all[at - 1].y);
+  let path = `M${source.x},${source.y}`;
+  for (let at = 1; at < points.length - 1; at++) {
+    const a = points[at - 1], p = points[at], b = points[at + 1];
+    const radius = Math.min(16, distance(a, p) / 2, distance(p, b) / 2);
+    const before = { x: p.x + Math.sign(a.x - p.x) * radius, y: p.y + Math.sign(a.y - p.y) * radius }, after = { x: p.x + Math.sign(b.x - p.x) * radius, y: p.y + Math.sign(b.y - p.y) * radius };
+    path += ` L${before.x},${before.y} Q${p.x},${p.y} ${after.x},${after.y}`;
+  }
+  return `${path} L${target.x},${target.y}`;
+}
+function recordedVisualBounds(plan, links, focus) {
+  const selected = focus?.length ? new Set(focus) : void 0;
+  let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+  const include = (box2) => {
+    left = Math.min(left, box2.x);
+    top = Math.min(top, box2.y);
+    right = Math.max(right, box2.x + box2.width);
+    bottom = Math.max(bottom, box2.y + box2.height);
+  };
+  for (const [id, box2] of plan.decorations) if (!selected || selected.has(id)) include(box2);
+  for (const link of links) {
+    if (selected && (selected.size < 2 || !selected.has(link.source) || !selected.has(link.target))) continue;
+    const route = plan.routes.get(link.relationship.id);
+    if (!route) continue;
+    for (const p of route.points) include({ x: p.x - 2, y: p.y - 2, width: 4, height: 4 });
+    include({ x: route.label.x - route.label.width / 2 - 6, y: route.label.y - route.label.height / 2 - 6, width: route.label.width + 12, height: route.label.height + 12 });
+  }
+  return Number.isFinite(left) ? { x: left, y: top, width: right - left, height: bottom - top } : void 0;
+}
+
+// src/components/GroupedFlowDiagram/RecordedRelationshipEdge.tsx
 import { Fragment as Fragment2, jsx as jsx5, jsxs as jsxs3 } from "react/jsx-runtime";
 function RecordedRelationshipEdge(props) {
   const data = props.data;
   const relationship = data?.relationship;
-  const lane = relationship?.direction === "backward" ? -64 : 64;
-  const spread = lane + ((data?.parallelIndex ?? 0) - ((data?.parallelCount ?? 1) - 1) / 2) * 36;
+  const route = data?.route;
+  if (!route) return null;
   const caption = relationship?.attribution === "stage" ? "Step" : relationship?.attribution === "recorded-read" ? "Read" : relationship?.kind === "control" ? "Rule" : relationship?.kind === "data" ? "Data" : "Link";
   const fullLabel = typeof props.label === "string" ? props.label : "Recorded dependency";
-  const horizontal = props.sourcePosition === Position3.Left || props.sourcePosition === Position3.Right;
-  const delta = horizontal ? props.targetX - props.sourceX : props.targetY - props.sourceY;
-  const bend = Math.max(32, Math.abs(delta) * 0.35);
-  const control = (x2, y2, position) => [
-    x2 + (position === Position3.Left ? -bend : position === Position3.Right ? bend : 0) + (horizontal ? 0 : spread),
-    y2 + (position === Position3.Top ? -bend : position === Position3.Bottom ? bend : 0) + (horizontal ? spread : 0)
-  ];
-  const one = control(props.sourceX, props.sourceY, props.sourcePosition), two = control(props.targetX, props.targetY, props.targetPosition);
-  const path = `M${props.sourceX},${props.sourceY} C${one[0]},${one[1]} ${two[0]},${two[1]} ${props.targetX},${props.targetY}`;
-  const x = (props.sourceX + props.targetX) / 2 + (horizontal ? 0 : spread * 0.75);
-  const y = (props.sourceY + props.targetY) / 2 + (horizontal ? spread * 0.75 : 0);
+  const path = recordedRoutePath(route, { x: props.sourceX, y: props.sourceY }, { x: props.targetX, y: props.targetY });
+  const { x, y } = route.label;
   return /* @__PURE__ */ jsxs3(Fragment2, { children: [
     /* @__PURE__ */ jsx5(BaseEdge, { id: props.id, path, markerEnd: props.markerEnd, style: props.style }),
     /* @__PURE__ */ jsx5(EdgeLabelRenderer, { children: /* @__PURE__ */ jsx5(
@@ -1114,12 +1383,16 @@ function RecordedRelationshipEdge(props) {
           transform: `translate(-50%, -50%) translate(${x}px,${y}px)`,
           fontFamily: theme.fontSans,
           fontSize: 11,
-          maxWidth: 180,
+          width: route.label.width,
+          height: route.label.height,
+          boxSizing: "border-box",
+          textAlign: "center",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           borderRadius: 4,
-          padding: "3px 6px",
+          padding: "2px 5px",
+          border: `1px solid ${relationship?.direction === "backward" ? theme.error : relationship?.direction === "forward" ? theme.tracing : theme.textSecondary}`,
           color: theme.textPrimary,
           background: theme.bgElevated,
           pointerEvents: "none"
@@ -1157,6 +1430,8 @@ function GroupedFlowDiagram(props) {
   );
   const model = result.model;
   const overlay = useMemo(() => !model || props.recordedRelationships === void 0 ? [] : projectRecordedRelationships(props.recordedRelationships, model), [model, props.recordedRelationships]);
+  const routing = useMemo(() => model && overlay ? routeRecordedRelationships(overlay, model) : void 0, [model, overlay]);
+  const visualBounds = useMemo(() => routing && overlay ? recordedVisualBounds(routing, overlay, focusIds) : void 0, [routing, overlay, focusIds]);
   const camera = useMemo(() => !model || props.focusRequest === void 0 ? void 0 : admitFocusRequest(props.focusRequest, model), [model, props.focusRequest]);
   const lastCameraKey = useRef2(/* @__PURE__ */ Symbol());
   const changeExpanded = (next) => {
@@ -1241,39 +1516,36 @@ function GroupedFlowDiagram(props) {
     for (const node of model?.nodes ?? []) if (node.highlighted) highlightFocusIds.add(node.node.id);
   }
   const relationshipLabels = { "per-write": "Per-write link", stage: "Step-level link", "recorded-control": "Recorded control", "recorded-read": "Recorded read" };
-  const parallelCounts = /* @__PURE__ */ new Map(), parallelIndices = /* @__PURE__ */ new Map();
-  for (const item of overlay ?? []) {
-    const pair = JSON.stringify([item.source, item.target]);
-    parallelCounts.set(pair, (parallelCounts.get(pair) ?? 0) + 1);
-  }
   for (const item of overlay ?? []) {
     const relationship = item.relationship;
-    const pair = JSON.stringify([item.source, item.target]), parallelIndex = parallelIndices.get(pair) ?? 0;
-    parallelIndices.set(pair, parallelIndex + 1);
+    const route = routing?.routes.get(relationship.id);
+    if (!route) continue;
+    const color = relationship.direction === "backward" ? theme.error : relationship.direction === "forward" ? theme.tracing : theme.textSecondary;
     edges.push({
       id: relationship.id,
       source: item.source,
       target: item.target,
       type: "recordedRelationship",
-      ...relationship.direction === "backward" ? { sourceHandle: "dependency-source", targetHandle: "dependency-target" } : {},
+      sourceHandle: `recorded-${route.sourceSide}-source`,
+      targetHandle: `recorded-${route.targetSide}-target`,
       label: `${relationshipLabels[relationship.attribution]} \xB7 ${relationship.kind}`,
-      ariaLabel: `${relationshipLabels[relationship.attribution]}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
-      data: { relationship, collapsed: item.collapsed, parallelIndex, parallelCount: parallelCounts.get(pair) },
+      ariaLabel: `${relationship.direction === "backward" ? "Backward source trail, not a failed step. " : relationship.direction === "forward" ? "Forward recorded impact. " : "Recorded dependency. "}${relationshipLabels[relationship.attribution]}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
+      data: { relationship, collapsed: item.collapsed, route },
       className: "gfd-recorded-relationship",
-      markerEnd: { type: MarkerType.ArrowClosed, color: theme.tracing },
-      style: { stroke: theme.tracing, strokeWidth: 3, ...relationship.attribution === "stage" ? { strokeDasharray: "6 5" } : {} },
+      markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
+      style: { stroke: color, strokeWidth: 1.8, ...relationship.attribution === "stage" ? { strokeDasharray: "6 5" } : {} },
       labelStyle: { fill: theme.textPrimary, fontSize: 12 },
       labelBgStyle: { fill: theme.bgElevated },
       labelBgPadding: [7, 4]
     });
   }
-  useEffect3(() => {
+  useEffect4(() => {
     if (!camera || Object.is(lastCameraKey.current, camera.key)) return;
     lastCameraKey.current = camera.key;
     requestFocus(camera.nodeIds.length ? camera.nodeIds : void 0);
   }, [Boolean(camera), camera?.key]);
   const geometry = model ? JSON.stringify(model.nodes.map((node) => [node.node.id, node.parentId, node.position, node.width, node.height])) : "";
-  useEffect3(() => {
+  useEffect4(() => {
     const element = wrapper.current;
     if (!element) return;
     const measure = () => setNarrow(element.clientWidth > 0 && element.clientWidth < 600);
@@ -1283,7 +1555,7 @@ function GroupedFlowDiagram(props) {
     observer.observe(element);
     return () => observer.disconnect();
   }, [Boolean(model)]);
-  useEffect3(() => {
+  useEffect4(() => {
     if (model && narrow && !initiallyFocused.current && selected && model.nodes.some((node) => node.node.id === selected)) {
       initiallyFocused.current = true;
       requestFocus([selected]);
@@ -1339,15 +1611,21 @@ function GroupedFlowDiagram(props) {
             preventScrolling: false,
             proOptions: { hideAttribution: true },
             children: [
-              /* @__PURE__ */ jsx6(ChartAutoRefit, { wrapperRef: wrapper, refitKey: geometry, padding: 0.06, focusNodeIds: focusIds, focusRequestKey: focusRequest, maxAutoZoom: 1 }),
+              /* @__PURE__ */ jsx6(ChartAutoRefit, { wrapperRef: wrapper, refitKey: geometry, padding: 0.06, focusNodeIds: focusIds, focusRequestKey: focusRequest, maxAutoZoom: 1, visualBounds }),
               /* @__PURE__ */ jsx6(Background, { gap: 24, color: theme.border }),
               /* @__PURE__ */ jsx6(Controls, { showInteractive: false })
             ]
           }
         ) }),
+        !!routing?.undrawn && /* @__PURE__ */ jsxs4("p", { role: "status", "data-routing-unavailable": routing.undrawn, style: { margin: "8px 0 0", fontSize: 12 }, children: [
+          routing.undrawn,
+          " recorded ",
+          routing.undrawn === 1 ? "connection could" : "connections could",
+          " not be drawn. Expand the flow or inspect the recorded evidence. The explanation is unchanged."
+        ] }),
         /* @__PURE__ */ jsxs4("p", { style: { margin: "8px 0 0", fontSize: 11, color: theme.textSecondary }, children: [
           "\u2713 Completed step \xB7 \xD7 Failed step \xB7 ? Unknown \xB7 Dashed relationship: not verified or recorded as not taken",
-          overlay.length > 0 ? " \xB7 Highlighted dependency links are recorded evidence, not execution transitions" : ""
+          overlay.length > 0 ? " \xB7 Warm backward links: recorded sources, not failed steps \xB7 Teal forward links: recorded impact, not proof of harm" : ""
         ] })
       ]
     }
@@ -1355,7 +1633,7 @@ function GroupedFlowDiagram(props) {
 }
 
 // src/components/StageNode/StageNode.tsx
-import { memo, useEffect as useEffect4, useRef as useRef3 } from "react";
+import { memo, useEffect as useEffect5, useRef as useRef3 } from "react";
 import { Handle as Handle3, Position as Position4 } from "@xyflow/react";
 import { Fragment as Fragment3, jsx as jsx7, jsxs as jsxs5 } from "react/jsx-runtime";
 var KEYFRAMES_ID = "fp-stage-node-keyframes";
@@ -1532,7 +1810,7 @@ var StageNode = memo(function StageNode2({
   const effectiveIcon = icon || (isLazy ? "lazy" : void 0);
   const isLazyUnresolved = isLazy && !done && !active;
   const injectedRef = useRef3(false);
-  useEffect4(() => {
+  useEffect5(() => {
     if (injectedRef.current) return;
     if (typeof document !== "undefined" && !document.getElementById(KEYFRAMES_ID)) {
       const styleEl = document.createElement("style");
@@ -2220,7 +2498,7 @@ function NarrativeLog({
 }
 
 // src/components/GanttTimeline/GanttTimeline.tsx
-import { useState as useState3, useMemo as useMemo4, useRef as useRef4, useEffect as useEffect5 } from "react";
+import { useState as useState3, useMemo as useMemo4, useRef as useRef4, useEffect as useEffect6 } from "react";
 import { jsx as jsx10, jsxs as jsxs8 } from "react/jsx-runtime";
 var NO_TIMING_NOTE = "No timing recorded \u2014 bars show the order stages ran, not how long they took.";
 var NO_TIMING_HINT = "Durations come from footprintjs's metrics recorder; this run was recorded without one.";
@@ -2260,7 +2538,7 @@ function GanttTimeline({
   const rowHeight = size === "compact" ? 18 : 22;
   const collapsible = maxVisibleRows > 0 && snapshots.length > maxVisibleRows;
   const showAll = expanded || !collapsible;
-  useEffect5(() => {
+  useEffect6(() => {
     if (!showAll && activeRowRef.current && scrollContainerRef.current) {
       activeRowRef.current.scrollIntoView({
         block: "nearest",
@@ -2788,7 +3066,7 @@ function LoopBackEdge({ id, source, target, markerEnd, style }) {
 }
 
 // src/components/SmartStepEdge/SmartStepEdge.tsx
-import { BaseEdge as BaseEdge3, getSmoothStepPath, useStore as useStore2 } from "@xyflow/react";
+import { BaseEdge as BaseEdge3, getSmoothStepPath as getSmoothStepPath2, useStore as useStore2 } from "@xyflow/react";
 import { Position as Position5 } from "@xyflow/react";
 
 // src/components/FlowchartView/_internal/stepRouting.ts
@@ -2853,7 +3131,7 @@ function SmartStepEdge({
     const staggered = staggeredBendY(sourceBottom, targetTop, others);
     return resolveStepBendY(fan, staggered);
   });
-  const [path] = getSmoothStepPath({
+  const [path] = getSmoothStepPath2({
     sourceX,
     sourceY,
     sourcePosition: sourcePosition ?? Position5.Bottom,
@@ -3222,7 +3500,7 @@ function TraceFlow(props) {
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-import { useCallback as useCallback3, useEffect as useEffect8, useMemo as useMemo6, useRef as useRef7, useState as useState5 } from "react";
+import { useCallback as useCallback3, useEffect as useEffect9, useMemo as useMemo6, useRef as useRef7, useState as useState5 } from "react";
 import {
   ReactFlow as ReactFlow3,
   Background as Background3,
@@ -3789,7 +4067,7 @@ function edgeCarriesCursor(via, standIns) {
 }
 
 // src/components/FlowchartView/_internal/useSubflowDrill.ts
-import { useCallback as useCallback2, useEffect as useEffect6, useRef as useRef6, useState as useState4 } from "react";
+import { useCallback as useCallback2, useEffect as useEffect7, useRef as useRef6, useState as useState4 } from "react";
 function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
   const isControlled = controlledSubflowId !== void 0;
   const [ownSubflowId, setOwnSubflowId] = useState4(null);
@@ -3802,7 +4080,7 @@ function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
     }
   }
   const lastNotifiedRef = useRef6(void 0);
-  useEffect6(() => {
+  useEffect7(() => {
     if (isControlled) return;
     if (lastNotifiedRef.current === currentSubflowId) return;
     lastNotifiedRef.current = currentSubflowId;
@@ -3878,7 +4156,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
 }
 
 // src/components/FlowchartView/_internal/MeasuredNodeSizes.tsx
-import { useEffect as useEffect7 } from "react";
+import { useEffect as useEffect8 } from "react";
 import { useNodesInitialized, useStore as useStore3 } from "@xyflow/react";
 
 // src/components/FlowchartView/_internal/measuredFootprints.ts
@@ -3913,7 +4191,7 @@ function MeasuredNodeSizes({
     (s) => extractMeasuredFootprints(s.nodeLookup),
     sameFootprints
   );
-  useEffect7(() => {
+  useEffect8(() => {
     if (!initialized || sizes.size === 0) return;
     onSizes(sizes);
   }, [initialized, sizes, onSizes]);
@@ -4073,7 +4351,7 @@ function TracedFlow({
   style
 }) {
   const layout = layoutProp ?? dagreTraceLayout;
-  useEffect8(() => {
+  useEffect9(() => {
     if (layoutProp === dagreTraceLayout) {
       devWarn(
         () => "[footprint-explainable-ui] <TracedFlow layout={dagreTraceLayout}> bypasses the built-in measure-then-layout pipeline (content-exact sizing, fork/merge centering, straight spines). OMIT the `layout` prop to use it \u2014 passing the raw dagreTraceLayout silently forfeits every layout improvement eui ships."
@@ -4177,7 +4455,7 @@ function TracedFlow({
     [positioned.edges, slice, colors, cursorStandIns]
   );
   const [coneRevealed, setConeRevealed] = useState5(false);
-  useEffect8(() => {
+  useEffect9(() => {
     if (!sliceCone) return;
     setConeRevealed(false);
     const raf = requestAnimationFrame(() => setConeRevealed(true));
@@ -7338,10 +7616,6 @@ function graphFromStructure(structure) {
 
 // src/components/GroupedFlowInvestigation/GroupedFlowInvestigation.tsx
 import { useEffect as useEffect10, useMemo as useMemo15, useRef as useRef10, useState as useState12 } from "react";
-
-// src/_internal/useIsomorphicLayoutEffect.ts
-import { useEffect as useEffect9, useLayoutEffect } from "react";
-var useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect9 : useLayoutEffect;
 
 // src/components/InvestigationPanel/InvestigationPanel.tsx
 import { useMemo as useMemo14, useRef as useRef9, useState as useState11 } from "react";
