@@ -19,11 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   recorded result. Decision cards retain their branching role inside a rounded
   rectangle.
   Cause/impact focus separates recorded links from workflow arrows, with a
-  query-free whole-flow view, per-connection entry/exit ports and readable focused
+  query-free whole-flow view, directed entry/exit ports and readable focused
   fitting on narrow screens. Connection details remain accessible while repeated
   visual captions are shown only on interaction in the focused view.
   Forks prefer clear, facing ports and rounded branch paths while retaining safe
   outside detours when the direct approach is obstructed.
+  Compatible branches from one exact recorded source can fan out from a common
+  visual exit, with separate arrowheads and evidence; incompatible, parallel and
+  collapsed-source relationships retain independent exits.
 
 - Optional `GroupedFlowDiagram` and pure `projectGroupedFlowDiagram` for app-supplied,
   instance-bound flow definitions: configurable names/icons, nested expandable groups,

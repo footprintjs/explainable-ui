@@ -137,7 +137,8 @@ const relationshipsMatch = async (result, ids=result.backward.edges.map((_,index
     };
     const point = distance => { if (!path || !matrix) return null; const p = path.getPointAtLength(distance); return new DOMPoint(p.x,p.y).matrixTransform(matrix).toJSON(); };
     const length=path?.getTotalLength()??0,start=point(0),end=point(length),first=path?.getPointAtLength(4),last=path?.getPointAtLength(length-4),localStart=path?.getPointAtLength(0),localEnd=path?.getPointAtLength(length);
-    return { from: edge.from, to: edge.to, attribution:edge.attribution,start, end,worldStart:localStart&&{x:localStart.x,y:localStart.y},worldEnd:localEnd&&{x:localEnd.x,y:localEnd.y},source: endpoint(edge.from,'source',start), target: endpoint(edge.to,'target',end), sourceDelta:first&&{x:first.x-localStart.x,y:first.y-localStart.y},targetDelta:last&&{x:localEnd.x-last.x,y:localEnd.y-last.y},label: rendered?.getAttribute('aria-label') };
+    const label=rendered?.getAttribute('aria-label'),paint=path&&getComputedStyle(path);
+    return { from: edge.from, to: edge.to, attribution:edge.attribution,canonical:edge.collapsed!==true,direction:label?.startsWith('Backward ')?'backward':label?.startsWith('Forward ')?'forward':undefined,stroke:paint?.stroke,dash:paint?.strokeDasharray,start, end,worldStart:localStart&&{x:localStart.x,y:localStart.y},worldEnd:localEnd&&{x:localEnd.x,y:localEnd.y},source: endpoint(edge.from,'source',start), target: endpoint(edge.to,'target',end), sourceDelta:first&&{x:first.x-localStart.x,y:first.y-localStart.y},targetDelta:last&&{x:localEnd.x-last.x,y:localEnd.y-last.y},label };
   }), {edges:result.backward.edges,ids});
   evidence.currentRelationshipPoints = points;
   const touches = (point,handle) => point.x>=handle.left-2 && point.x<=handle.right+2 && point.y>=handle.top-2 && point.y<=handle.bottom+2;
@@ -155,9 +156,13 @@ const relationshipsMatch = async (result, ids=result.backward.edges.map((_,index
     assert.match(edge.label, /data dependency/);
     if(edge.attribution==='per-write')assert.match(edge.label,/Per-write link[.] data dependency/);
   }
-  const endpoints=points.flatMap(edge=>[{node:edge.from,point:edge.worldStart,port:edge.source.port},{node:edge.to,point:edge.worldEnd,port:edge.target.port}]);
+  const endpoints=points.flatMap(edge=>[{node:edge.from,point:edge.worldStart,port:edge.source.port,role:'source',edge},{node:edge.to,point:edge.worldEnd,port:edge.target.port,role:'target',edge}]);
   assert.equal(new Set(endpoints.map(endpoint=>endpoint.port)).size,endpoints.length,'Each recorded endpoint needs its own stable port.');
-  for(let a=0;a<endpoints.length;a++)for(let b=a+1;b<endpoints.length;b++)if(endpoints[a].node===endpoints[b].node)assert(Math.hypot(endpoints[a].point.x-endpoints[b].point.x,endpoints[a].point.y-endpoints[b].point.y)>=24-.001,'Recorded endpoints on the same card must be at least24 diagram pixels apart.');
+  for(let a=0;a<endpoints.length;a++)for(let b=a+1;b<endpoints.length;b++)if(endpoints[a].node===endpoints[b].node){
+    const one=endpoints[a],two=endpoints[b],distance=Math.hypot(one.point.x-two.point.x,one.point.y-two.point.y),samePaint=edge=>edge.canonical&&edge.from===one.edge.from&&edge.direction!==undefined&&edge.direction===one.edge.direction&&edge.stroke===one.edge.stroke&&edge.dash===one.edge.dash&&edge.source.side===one.edge.source.side;
+    const cohort=points.filter(samePaint),safeFork=one.role==='source'&&two.role==='source'&&samePaint(one.edge)&&samePaint(two.edge)&&cohort.length>=2&&new Set(cohort.map(edge=>edge.to)).size===cohort.length;
+    if(distance<24-.001)assert(safeFork&&distance<=.001,'Only an exact canonical-source fork with matching direction/paint and entirely distinct targets may share one origin.');
+  }
   return points;
 };
 const routingReadability = async ({visible=false}={}) => {
@@ -207,9 +212,9 @@ const canonicalFacingFork = async (expected, points, checkCurvature) => {
     for(const[type,handle]of[['source',point.source],['target',point.target]]){const actual=type==='source'?point.start:point.end,face={x:type==='source'?handle.left:handle.right,y:(handle.top+handle.bottom)/2},drift=Math.hypot(actual.x-face.x,actual.y-face.y)/handle.scale;assert(drift<=.001,'The native SVG anchor must remain on its actual handle outer face within serialization precision.');anchors.push({port:handle.port,faceDrift:drift});}
   }
   const fork=points.map((point,index)=>({...point,id:`recorded-dependency:${index}`})).filter(point=>point.from===expected.ids.decision).sort((a,b)=>a.worldEnd.y-b.worldEnd.y);
-  assert.equal(fork.length,2);assert(fork[0].worldStart.y<fork[1].worldStart.y,'Decision LEFT exits must follow the upper/lower target order.');
-  if(checkCurvature)for(const branch of fork){const curves=paths.find(path=>path.id===branch.id).curves;assert.equal(curves.length,2,'Each canonical fork branch must retain two visible rounded bends.');assert(curves.every(curve=>curve.radius>=7.4&&curve.radius<=16+.001),'This canonical gap must keep its measured rounded bends; smaller legitimate gaps have no universal radius promise.');}
-  return{naturalLeftExitRightEntry:true,upperLowerForkOrder:true,anchors,paths,curvatureChecked:checkCurvature};
+  assert.equal(fork.length,2);assert(Math.hypot(fork[0].worldStart.x-fork[1].worldStart.x,fork[0].worldStart.y-fork[1].worldStart.y)<=.001,'The safe canonical Decision fork must begin at one shared geometric origin.');assert.notEqual(fork[0].source.port,fork[1].source.port,'Shared geometry must retain unique per-edge source handle IDs.');
+  if(checkCurvature)for(const branch of fork){const curves=paths.find(path=>path.id===branch.id).curves;assert(curves.length>=2,'Each canonical fork branch must retain visible rounded bends.');assert(curves.every(curve=>curve.radius>=7.4&&curve.radius<=16+.001),'This canonical gap must keep its measured rounded bends; smaller legitimate gaps have no universal radius promise.');}
+  return{naturalLeftExitRightEntry:true,sharedCanonicalOrigin:true,sourcePorts:fork.map(point=>point.source.port),anchors,paths,curvatureChecked:checkCurvature};
 };
 const scopeState = () => page.evaluate(()=>({focus:document.querySelector('[data-investigation-focus]')?.getAttribute('data-investigation-focus'),captions:[...document.querySelectorAll('[data-relationship-id]')].map(node=>({id:node.getAttribute('data-relationship-id'),opacity:Number(getComputedStyle(node).opacity),visible:node.getAttribute('data-caption-visible'),title:node.getAttribute('title'),aria:node.getAttribute('aria-label')})),ports:[...document.querySelectorAll('[data-recorded-port]')].map(node=>({id:node.getAttribute('data-recorded-port'),left:node.style.left,top:node.style.top})).sort((a,b)=>a.id.localeCompare(b.id))}));
 const scopeRestoration = async () => {
@@ -317,7 +322,7 @@ const denseRoutingCases = async () => {
     results[direction].manualPanPreserved=true;await page.getByRole('button',{name:'Fit diagram',exact:true}).click();await settle();
     await page.getByRole('button',{name:'Collapse Inner flow · Group 1',exact:true}).focus();await page.keyboard.press('Enter');await page.getByRole('button',{name:'Expand Inner flow · Group 1',exact:true}).waitFor();await settle();
     const collapsedBaseline=await snapshot();await page.getByRole('button',{name:'Toggle recorded overlay',exact:true}).click();
-    const collapsed={backward:{edges:[{from:'out',to:'inner',attribution:'recorded-read'}]}};
+    const collapsed={backward:{edges:[{from:'out',to:'inner',attribution:'recorded-read',collapsed:true}]}};
     const collapsedEndpoints=await relationshipsMatch(collapsed,['nested:0']),collapsedReadability=await routingReadability(),collapsedView=await snapshot();
     results[`${direction}Collapsed`]={baseline:collapsedBaseline,withOverlay:collapsedView,endpoints:collapsedEndpoints,readability:collapsedReadability};
     assert.deepEqual(collapsedView.geometry,collapsedBaseline.geometry);unchangedDesign(collapsedView.design,collapsedBaseline.design);
@@ -326,6 +331,29 @@ const denseRoutingCases = async () => {
     await page.getByRole('button',{name:'Toggle recorded overlay',exact:true}).click();await edgeCount(0);await page.getByRole('button',{name:'Expand Inner flow · Group 1',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-node-id="a"]'));
   }
   return results;
+};
+const collapsedSourceOrigins = async () => {
+  await page.setViewportSize({width:1440,height:1200});await page.goto(base.origin,{waitUntil:'networkidle'});
+  await page.evaluate(async entry=>{
+    const urls=performance.getEntriesByType('resource').map(item=>item.name),r=await import(urls.find(url=>/\/react[.]js(?:[?]|$)/.test(url))),d=await import(urls.find(url=>/\/react-dom_client[.]js(?:[?]|$)/.test(url))),React=r.default??r,{createRoot}=d.default??d,{GroupedFlowDiagram}=await import('/@fs/'+entry);
+    const definition={nodes:[{id:'g',label:'Hidden sources',kind:'group'},{id:'x',label:'First recorded source',parentId:'g'},{id:'y',label:'Second recorded source',parentId:'g'},{id:'a',label:'First destination'},{id:'b',label:'Second destination'}],edges:[{id:'design:g-a',source:'g',target:'a'},{id:'design:g-b',source:'g',target:'b'}]};
+    function Host(){const[distinct,setDistinct]=React.useState(false),[direction,setDirection]=React.useState('LR');return React.createElement(React.Fragment,null,React.createElement('button',{onClick:()=>setDistinct(value=>!value)},'Change hidden source ownership'),React.createElement('button',{onClick:()=>setDirection(value=>value==='LR'?'TB':'LR')},'Change collapsed direction'),React.createElement(GroupedFlowDiagram,{definition,direction,observation:{nodeStates:{g:'unknown',x:'completed',y:'completed',a:'completed',b:'completed'}},recordedRelationships:[{id:'collapsed:0',source:'x',target:'a'},{id:'collapsed:1',source:distinct?'y':'x',target:'b'}].map(link=>({...link,kind:'data',attribution:'per-write',direction:'backward',evidence:['fixture:collapsed-source']})),style:{height:700}}));}
+    const host=document.createElement('main');host.style.padding='20px';document.body.replaceChildren(host);createRoot(host).render(React.createElement(Host));
+  },fileURLToPath(new URL('../../src/flowchart.ts',import.meta.url)));
+  const result={};
+  for(const direction of['LR','TB']){
+    if(direction==='TB')await page.getByRole('button',{name:'Change collapsed direction',exact:true}).click();
+    await page.waitForFunction(value=>document.querySelector('[data-direction]')?.getAttribute('data-direction')===value,direction);
+    for(const ownership of['same-hidden-source','different-hidden-sources']){
+      if(ownership==='different-hidden-sources')await page.getByRole('button',{name:'Change hidden source ownership',exact:true}).click();
+      const projected={backward:{edges:[{from:'g',to:'a',attribution:'per-write',collapsed:true},{from:'g',to:'b',attribution:'per-write',collapsed:true}]}},points=await relationshipsMatch(projected,['collapsed:0','collapsed:1']);
+      const separation=Math.hypot(points[0].worldStart.x-points[1].worldStart.x,points[0].worldStart.y-points[1].worldStart.y);assert(separation>=24-.001,'Collapsed source proxies must retain separate origins, even when the hidden canonical source is the same.');
+      const view=await snapshot();assert(!view.nodes.some(node=>['x','y'].includes(node.id)));assert.equal(view.nodes.find(node=>node.id==='g').state,'unknown');assert.equal(await page.getByRole('button',{name:'Expand Hidden sources',exact:true}).count(),1);assert.equal(await page.getByText('Supported cause',{exact:true}).count(),0);
+      result[`${direction}:${ownership}`]={separation,points,readability:await routingReadability(),ownerCollapsePreserved:true};
+    }
+    await page.getByRole('button',{name:'Change hidden source ownership',exact:true}).click();
+  }
+  return result;
 };
 try {
   await page.goto(base.origin, { waitUntil: 'networkidle' });
@@ -399,6 +427,7 @@ try {
   for(const width of[390,320,1440])evidence.checks.collapsedRecordedFit.push(await collapsedRecordedFit(width,cases.complete));
   evidence.checks.requestOwnership=await requestOwnership();
   evidence.checks.denseRouting=await denseRoutingCases();
+  evidence.checks.collapsedSourceOrigins=await collapsedSourceOrigins();
   assert.deepEqual(evidence.blockedRequests,[]); assert.deepEqual(evidence.pageErrors,[]); assert.deepEqual(evidence.consoleErrors,[]);
   evidence.passed=true;
 } catch(error) { evidence.error=error.stack; evidence.failureSnapshot=await snapshot().catch(()=>null); await capture('failure').catch(()=>{}); throw error; }

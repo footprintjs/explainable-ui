@@ -1220,9 +1220,12 @@ warm red, impact arrows use teal, and ordinary flow arrows stay grey. The cause
 colour identifies recorded sources; it does not say that every linked step failed.
 Recorded status badges retain that distinction. Decision steps use rounded cards
 with a small decision marker and keep their Yes/No branch labels.
-Each recorded connection has its own entry and exit ports. Their placement follows
-the neighbouring cards, so an incoming arrowhead does not share a centre point with
-outgoing stems. Crowded ports use another clear side or the drawing-limit notice.
+Each recorded connection keeps its own handle, arrowhead and evidence identity.
+Compatible branches from the same exact recorded source can share one visual exit
+and fan toward distinct destinations; this adds no recorded junction or causal claim.
+Incoming arrowheads, parallel links to the same destination, and incompatible or
+collapsed sources stay separately placed. Crowded ports use another clear side or
+the drawing-limit notice.
 Where space permits, branches use the sides facing their destination cards before
 trying checked outside detours. Rounded elbows keep short forks readable.
 

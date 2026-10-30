@@ -1217,6 +1217,7 @@ function routeRecordedRelationships(links, model) {
   }
   const ordered = [...links].sort((a, b) => a.relationship.id < b.relationship.id ? -1 : a.relationship.id > b.relationship.id ? 1 : 0);
   const candidates = /* @__PURE__ */ new Map();
+  const facingSources = /* @__PURE__ */ new Map();
   const slots = (id, side, type, remote, remotePort) => {
     const box2 = boxes.get(id), item = byId.get(id), length = side === "top" || side === "bottom" ? box2.width : box2.height;
     const count = Math.min(6, Math.floor((length - 56) / 24) + 1), offsets = Array.from({ length: Math.max(0, count) }, (_, index2) => 28 + (length - 56) * index2 / Math.max(1, count - 1)).filter((offset) => Math.abs(offset - length / 2) >= 20 && !(item.expanded && (side === "left" || side === "right") && offset < 96));
@@ -1236,6 +1237,7 @@ function routeRecordedRelationships(links, model) {
     const backward = link.relationship.direction === "backward";
     const fallback = link.source === link.target ? [["bottom", "right"], ["right", "top"], ["left", "bottom"]] : model.direction === "LR" ? backward ? [["bottom", "bottom"], ["top", "top"], ["left", "right"]] : [["top", "top"], ["bottom", "bottom"], ["right", "left"]] : backward ? [["right", "right"], ["left", "left"], ["top", "bottom"]] : [["left", "left"], ["right", "right"], ["bottom", "top"]];
     const facing = link.source === link.target ? void 0 : model.direction === "LR" ? b.x + b.width + STUB * 2 <= a.x ? ["left", "right"] : a.x + a.width + STUB * 2 <= b.x ? ["right", "left"] : void 0 : b.y + b.height + STUB * 2 <= a.y ? ["top", "bottom"] : a.y + a.height + STUB * 2 <= b.y ? ["bottom", "top"] : void 0;
+    if (facing) facingSources.set(link.relationship.id, facing[0]);
     const pairs = facing ? [facing, ...fallback.filter((pair) => pair[0] !== facing[0] || pair[1] !== facing[1])] : fallback;
     const options = pairs.filter(([sourceSide, targetSide]) => !(sourceSide === "top" && (byId.get(link.source)?.expanded || byId.get(link.source)?.isRootCause || byId.get(link.source)?.containsRootCause)) && !(targetSide === "top" && (byId.get(link.target)?.expanded || byId.get(link.target)?.isRootCause || byId.get(link.target)?.containsRootCause))).flatMap(([sourceSide, targetSide]) => slots(link.source, sourceSide, "source", b).flatMap((sourceOffset) => slots(link.target, targetSide, "target", a, point(a, sourceSide, sourceOffset)).map((targetOffset) => {
       const source = point(a, sourceSide, sourceOffset), target = point(b, targetSide, targetOffset), start = escape(source, sourceSide), end = escape(target, targetSide);
@@ -1256,11 +1258,31 @@ function routeRecordedRelationships(links, model) {
     })));
     candidates.set(link.relationship.id, options);
   }
+  const fanGroups = /* @__PURE__ */ new Map(), fans = /* @__PURE__ */ new Map();
+  for (const link of ordered) {
+    const side = facingSources.get(link.relationship.id), relationship = link.relationship;
+    if (!side || link.collapsed || link.source !== relationship.source || link.target !== relationship.target || !relationship.direction) continue;
+    const key = JSON.stringify([relationship.source, relationship.direction, side, relationship.attribution === "stage"]);
+    const group = fanGroups.get(key) ?? [];
+    group.push(link);
+    fanGroups.set(key, group);
+  }
+  for (const [key, group] of fanGroups) {
+    if (group.length < 2 || new Set(group.map((link) => link.target)).size !== group.length) continue;
+    const side = facingSources.get(group[0].relationship.id), box2 = boxes.get(group[0].source), length = side === "left" || side === "right" ? box2.height : box2.width;
+    let common;
+    for (const link of group) {
+      const offsets = new Set((candidates.get(link.relationship.id) ?? []).filter((option) => option.sourceSide === side).map((option) => option.sourcePort.offset));
+      common = common ? new Set([...common].filter((offset2) => offsets.has(offset2))) : offsets;
+    }
+    const offset = [...common].sort((a, b) => Math.abs(a - length / 2) - Math.abs(b - length / 2) || a - b)[0];
+    if (offset !== void 0) for (const link of group) fans.set(link.relationship.id, { key, side, offset });
+  }
   const columns = [...xs].sort((a, b) => a - b), rows = [...ys].sort((a, b) => a - b), width = columns.length;
   if (!width || !rows.length) return outcome();
   const position = (at) => ({ x: columns[at % width], y: rows[Math.floor(at / width)] });
   const index = (p) => rows.indexOf(p.y) * width + columns.indexOf(p.x);
-  const occupied = /* @__PURE__ */ new Map(), occupiedVertices = /* @__PURE__ */ new Map(), checked = /* @__PURE__ */ new Map(), labels = [], usedPorts = /* @__PURE__ */ new Set();
+  const occupied = /* @__PURE__ */ new Map(), occupiedVertices = /* @__PURE__ */ new Map(), checked = /* @__PURE__ */ new Map(), labels = [], usedPorts = /* @__PURE__ */ new Map();
   const portKey = (id, port) => JSON.stringify([id, port.side, port.offset]);
   const segmentKey = (a, b) => a < b ? `${a}:${b}` : `${b}:${a}`;
   const clear = (a, b, boxes2, ignore) => {
@@ -1315,7 +1337,7 @@ function routeRecordedRelationships(links, model) {
     const segments = points.slice(1).map((b, at) => ({ a: points[at], b, length: distance(points[at], b) })).sort((a, b) => b.length - a.length);
     for (const { a, b, length } of segments) {
       if (length < 28) continue;
-      for (const fraction of [0.5, 0.25, 0.75]) for (const offset of [0, 20, -20, 38, -38]) {
+      for (const fraction of [0.5, 0.25, 0.75, 0.125, 0.875]) for (const offset of [0, 20, -20, 38, -38]) {
         const horizontal = a.y === b.y, x = a.x + (b.x - a.x) * fraction + (horizontal ? 0 : offset), y = a.y + (b.y - a.y) * fraction + (horizontal ? offset : 0);
         const box2 = { x: x - 28, y: y - 15, width: 56, height: 30 };
         if ([...obstacles, ...labels].every((other) => {
@@ -1329,9 +1351,13 @@ function routeRecordedRelationships(links, model) {
   };
   for (const link of ordered) {
     if (work >= MAX_WORK || visits > MAX_VISITS) break;
-    for (const option of candidates.get(link.relationship.id) ?? []) {
+    const fan = fans.get(link.relationship.id), options = candidates.get(link.relationship.id) ?? [];
+    const shared = (option) => fan !== void 0 && option.sourceSide === fan.side && option.sourcePort.offset === fan.offset;
+    const preferred = fan ? [...options.filter(shared), ...options.filter((option) => !shared(option))] : options;
+    for (const option of preferred) {
       const sourceKey = portKey(link.source, option.sourcePort), targetKey = portKey(link.target, option.targetPort);
-      if (usedPorts.has(sourceKey) || usedPorts.has(targetKey) || sourceKey === targetKey) continue;
+      const sourceOwner = usedPorts.get(sourceKey);
+      if (sourceOwner !== void 0 && (!shared(option) || sourceOwner !== fan?.key) || usedPorts.has(targetKey) || sourceKey === targetKey) continue;
       if (!clear(option.source, option.start, obstacles, link.source) || !clear(option.end, option.target, obstacles, link.target) || !clear(option.source, option.start, labels) || !clear(option.end, option.target, labels)) continue;
       const found = search(option.start, option.end);
       if (!found) continue;
@@ -1344,8 +1370,8 @@ function routeRecordedRelationships(links, model) {
         const at = index(p);
         occupiedVertices.set(at, (occupiedVertices.get(at) ?? 0) + 1);
       }
-      usedPorts.add(sourceKey);
-      usedPorts.add(targetKey);
+      usedPorts.set(sourceKey, shared(option) ? fan.key : "");
+      usedPorts.set(targetKey, "");
       routes.set(link.relationship.id, {
         points,
         sourceSide: option.sourceSide,

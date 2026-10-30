@@ -3,6 +3,7 @@ import { recordedRoutePath, recordedVisualBounds, routeRecordedRelationships } f
 import { projectGroupedFlowDiagram } from "../../src/components/GroupedFlowDiagram/layout";
 import { projectRecordedRelationships } from "../../src/components/GroupedFlowDiagram/relationships";
 import type { GroupedFlowDiagramModel, PositionedFlowDiagramNode } from "../../src/components/GroupedFlowDiagram/types";
+import type { ProjectedRecordedRelationship } from "../../src/components/GroupedFlowDiagram/relationships";
 
 const item = (id: string, x: number, y: number, width = 180, height = 148, extra: Partial<PositionedFlowDiagramNode> = {}): PositionedFlowDiagramNode => ({
   node: { id, label: id }, position: { x, y }, width, height, state: "completed", expanded: false, childCount: 0,
@@ -144,7 +145,7 @@ it("separates incoming arrowheads and parallel outgoing stubs on one decision in
 });
 const distanceBetween = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 
-it.each(["LR", "TB"] as const)("uses clear geometry-facing %s ports for a fork before trying outside bracket lanes", direction => {
+it.each(["LR", "TB"] as const)("shares one clear geometry-facing %s fork exit while keeping distinct recorded branches", direction => {
   const nodes = [item("root", 20, 40, 180, 148, { isRootCause: true }), item("healthy", 20, 320),
     item("decision", 320, 160, 180, 172), item("failure", 620, 160)];
   if (direction === "TB") for (const node of nodes) Object.assign(node, { position: { x: node.position.y, y: node.position.x }, width: node.height, height: node.width });
@@ -156,9 +157,46 @@ it.each(["LR", "TB"] as const)("uses clear geometry-facing %s ports for a fork b
     expect(route.targetSide).toBe(direction === "LR" ? "right" : "bottom");
     assertClear(route, nodes.map(node => ({ ...node.position, width: node.width, height: node.height })));
   }
-  const upper = planned.routes.get("1-rates")!.sourcePort.offset, lower = planned.routes.get("2-area")!.sourcePort.offset;
-  expect(lower - upper).toBeGreaterThanOrEqual(24);
+  const upper = planned.routes.get("1-rates")!, lower = planned.routes.get("2-area")!, incoming = planned.routes.get("0-failure")!;
+  expect(upper.points[0]).toEqual(lower.points[0]); expect(upper.sourcePort.id).not.toBe(lower.sourcePort.id);
+  expect(upper.targetPort.id).not.toBe(lower.targetPort.id); expect(upper.points.at(-1)).not.toEqual(lower.points.at(-1));
+  const length = direction === "LR" ? nodes[2]!.height : nodes[2]!.width;
+  expect(Math.abs(upper.sourcePort.offset - length / 2)).toBeGreaterThanOrEqual(20);
+  expect(distanceBetween(upper.points[0]!, incoming.points.at(-1)!)).toBeGreaterThanOrEqual(24);
+  expect([...planned.routes.keys()]).toEqual(links.map(item => item.relationship.id));
+  expect(links.map(item => item.relationship.evidence)).toEqual([["proof"], ["proof"], ["proof"]]);
   expect([...planned.routes]).toEqual([...routeRecordedRelationships([...links].reverse(), source).routes]);
+});
+
+it.each(["parallel", "direction", "stroke", "neutral", "proxy", "collapsed"] as const)("does not share a %s fork as if it were one canonical outgoing junction", mismatch => {
+  const links: ProjectedRecordedRelationship[] = [link("1-rates", "decision", "root"), link("2-area", "decision", "healthy")];
+  if (mismatch === "parallel") links[1] = link("2-area", "decision", "root");
+  if (mismatch === "direction") links[1] = { ...links[1]!, relationship: { ...links[1]!.relationship, direction: "forward" } };
+  if (mismatch === "stroke") links[1] = { ...links[1]!, relationship: { ...links[1]!.relationship, attribution: "stage" } };
+  if (mismatch === "neutral") for (let at = 0; at < links.length; at++) links[at] = { ...links[at]!, relationship: { ...links[at]!.relationship, direction: undefined } };
+  if (mismatch === "proxy") for (let at = 0; at < links.length; at++) links[at] = { ...links[at]!, collapsed: true, relationship: { ...links[at]!.relationship, source: `hidden-${at}` } };
+  if (mismatch === "collapsed") links[0] = { ...links[0]!, collapsed: true };
+  const before = JSON.stringify(links), planned = routeRecordedRelationships(links, model([item("root", 20, 40), item("healthy", 20, 320), item("decision", 320, 160, 180, 172)]));
+  expect(planned.undrawn).toBe(0); expect(JSON.stringify(links)).toBe(before);
+  const one = planned.routes.get("1-rates")!, two = planned.routes.get("2-area")!;
+  expect(distanceBetween(one.points[0]!, two.points[0]!)).toBeGreaterThanOrEqual(24);
+  expect(one.sourcePort.id).not.toBe(two.sourcePort.id);
+});
+
+it("falls back to independent safe exits when the shared fork corridor is obstructed", () => {
+  const nodes = [item("root", 20, 40), item("healthy", 20, 320), item("decision", 320, 160, 180, 172), item("blocker", 290, 200, 18, 30)];
+  const links = [link("1-rates", "decision", "root"), link("2-area", "decision", "healthy")], planned = routeRecordedRelationships(links, model(nodes));
+  expect(planned.undrawn).toBe(0);
+  expect(planned.routes.get("1-rates")!.points[0]).not.toEqual(planned.routes.get("2-area")!.points[0]);
+  for (const route of planned.routes.values()) assertClear(route, nodes.map(node => ({ ...node.position, width: node.width, height: node.height })));
+});
+
+it("finds a bounded caption pocket for a shared fork in the real narrow node gutter", () => {
+  const nodes = [item("root", 528, 120, 180, 148, { isRootCause: true }), item("healthy", 528, 312), item("decision", 748, 204, 180, 172), item("failure", 1212, 276)];
+  const links = [link("0-failure", "failure", "decision"), link("1-rates", "decision", "root"), link("2-area", "decision", "healthy")];
+  const planned = routeRecordedRelationships(links, model(nodes)); expect(planned.undrawn).toBe(0);
+  expect(planned.routes.get("1-rates")!.points[0]).toEqual(planned.routes.get("2-area")!.points[0]);
+  for (const route of planned.routes.values()) assertClear(route, nodes.map(node => ({ ...node.position, width: node.width, height: node.height })));
 });
 
 it("rounds a short facing fork elbow without a redundant arrival waypoint making the corner almost square", () => {

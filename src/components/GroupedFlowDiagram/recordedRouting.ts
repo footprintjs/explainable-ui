@@ -67,6 +67,7 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
   }
   const ordered = [...links].sort((a, b) => a.relationship.id < b.relationship.id ? -1 : a.relationship.id > b.relationship.id ? 1 : 0);
   const candidates = new Map<string, { sourceSide: RecordedSide; targetSide: RecordedSide; sourcePort: RecordedPort; targetPort: RecordedPort; source: Point; target: Point; start: Point; end: Point }[]>();
+  const facingSources = new Map<string, RecordedSide>();
   const slots = (id: string, side: RecordedSide, type: "source" | "target", remote: Box, remotePort?: Point) => {
     const box = boxes.get(id)!, item = byId.get(id)!, length = side === "top" || side === "bottom" ? box.width : box.height;
     const count = Math.min(6, Math.floor((length - 56) / 24) + 1), offsets = Array.from({ length: Math.max(0, count) }, (_, index) => 28 + (length - 56) * index / Math.max(1, count - 1))
@@ -87,6 +88,7 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
     const facing: [RecordedSide, RecordedSide] | undefined = link.source === link.target ? undefined
       : model.direction === "LR" ? b.x + b.width + STUB * 2 <= a.x ? ["left", "right"] : a.x + a.width + STUB * 2 <= b.x ? ["right", "left"] : undefined
       : b.y + b.height + STUB * 2 <= a.y ? ["top", "bottom"] : a.y + a.height + STUB * 2 <= b.y ? ["bottom", "top"] : undefined;
+    if (facing) facingSources.set(link.relationship.id, facing[0]);
     const pairs = facing ? [facing, ...fallback.filter(pair => pair[0] !== facing[0] || pair[1] !== facing[1])] : fallback;
     const options = pairs.filter(([sourceSide, targetSide]) => !(sourceSide === "top" && (byId.get(link.source)?.expanded || byId.get(link.source)?.isRootCause || byId.get(link.source)?.containsRootCause))
       && !(targetSide === "top" && (byId.get(link.target)?.expanded || byId.get(link.target)?.isRootCause || byId.get(link.target)?.containsRootCause)))
@@ -98,11 +100,29 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
           targetPort: { id: `recorded-${ordinal}-target`, type: "target" as const, side: targetSide, offset: targetOffset } };
       }))); candidates.set(link.relationship.id, options);
   }
+  const fanGroups = new Map<string, ProjectedRecordedRelationship[]>(), fans = new Map<string, { key: string; side: RecordedSide; offset: number }>();
+  for (const link of ordered) {
+    const side = facingSources.get(link.relationship.id), relationship = link.relationship;
+    if (!side || link.collapsed || link.source !== relationship.source || link.target !== relationship.target || !relationship.direction) continue;
+    const key = JSON.stringify([relationship.source, relationship.direction, side, relationship.attribution === "stage"]);
+    const group = fanGroups.get(key) ?? []; group.push(link); fanGroups.set(key, group);
+  }
+  for (const [key, group] of fanGroups) {
+    if (group.length < 2 || new Set(group.map(link => link.target)).size !== group.length) continue;
+    const side = facingSources.get(group[0]!.relationship.id)!, box = boxes.get(group[0]!.source)!, length = side === "left" || side === "right" ? box.height : box.width;
+    let common: Set<number> | undefined;
+    for (const link of group) {
+      const offsets = new Set((candidates.get(link.relationship.id) ?? []).filter(option => option.sourceSide === side).map(option => option.sourcePort.offset));
+      common = common ? new Set([...common].filter(offset => offsets.has(offset))) : offsets;
+    }
+    const offset = [...common!].sort((a, b) => Math.abs(a - length / 2) - Math.abs(b - length / 2) || a - b)[0];
+    if (offset !== undefined) for (const link of group) fans.set(link.relationship.id, { key, side, offset });
+  }
   const columns = [...xs].sort((a, b) => a - b), rows = [...ys].sort((a, b) => a - b), width = columns.length;
   if (!width || !rows.length) return outcome();
   const position = (at: number): Point => ({ x: columns[at % width]!, y: rows[Math.floor(at / width)]! });
   const index = (p: Point) => rows.indexOf(p.y) * width + columns.indexOf(p.x);
-  const occupied = new Map<string, number>(), occupiedVertices = new Map<number, number>(), checked = new Map<string, boolean>(), labels: Box[] = [], usedPorts = new Set<string>();
+  const occupied = new Map<string, number>(), occupiedVertices = new Map<number, number>(), checked = new Map<string, boolean>(), labels: Box[] = [], usedPorts = new Map<string, string>();
   const portKey = (id: string, port: RecordedPort) => JSON.stringify([id, port.side, port.offset]);
   const segmentKey = (a: number, b: number) => a < b ? `${a}:${b}` : `${b}:${a}`;
   const clear = (a: Point, b: Point, boxes: readonly Box[], ignore?: string) => {
@@ -137,7 +157,7 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
     const segments = points.slice(1).map((b, at) => ({ a: points[at]!, b, length: distance(points[at]!, b) })).sort((a, b) => b.length - a.length);
     for (const { a, b, length } of segments) {
       if (length < 28) continue;
-      for (const fraction of [.5, .25, .75]) for (const offset of [0, 20, -20, 38, -38]) {
+      for (const fraction of [.5, .25, .75, .125, .875]) for (const offset of [0, 20, -20, 38, -38]) {
         const horizontal = a.y === b.y, x = a.x + (b.x - a.x) * fraction + (horizontal ? 0 : offset), y = a.y + (b.y - a.y) * fraction + (horizontal ? offset : 0);
         const box = { x: x - 28, y: y - 15, width: 56, height: 30 };
         if ([...obstacles, ...labels].every(other => { if (work >= MAX_WORK) return false; work++; return !intersects(box, other); })) return { x, y, width: 48, height: 22, box };
@@ -147,9 +167,15 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
   };
   for (const link of ordered) {
     if (work >= MAX_WORK || visits > MAX_VISITS) break;
-    for (const option of candidates.get(link.relationship.id) ?? []) {
+    const fan = fans.get(link.relationship.id), options = candidates.get(link.relationship.id) ?? [];
+    const shared = (option: typeof options[number]) => fan !== undefined && option.sourceSide === fan.side && option.sourcePort.offset === fan.offset;
+    // A common exit is presentation only: separate edges/handles retain their
+    // evidence. No junction or ownership is inferred from a collapsed proxy.
+    const preferred = fan ? [...options.filter(shared), ...options.filter(option => !shared(option))] : options;
+    for (const option of preferred) {
       const sourceKey = portKey(link.source, option.sourcePort), targetKey = portKey(link.target, option.targetPort);
-      if (usedPorts.has(sourceKey) || usedPorts.has(targetKey) || sourceKey === targetKey) continue;
+      const sourceOwner = usedPorts.get(sourceKey);
+      if (sourceOwner !== undefined && (!shared(option) || sourceOwner !== fan?.key) || usedPorts.has(targetKey) || sourceKey === targetKey) continue;
       if (!clear(option.source, option.start, obstacles, link.source) || !clear(option.end, option.target, obstacles, link.target)
         || !clear(option.source, option.start, labels) || !clear(option.end, option.target, labels)) continue;
       const found = search(option.start, option.end); if (!found) continue;
@@ -157,7 +183,7 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
       const points = [option.source, ...corners, option.target], label = labelFor(points); if (!label) continue;
       labels.push(label.box); for (const segment of found.segments) occupied.set(segment, (occupied.get(segment) ?? 0) + 1);
       for (const p of found.points) { const at = index(p); occupiedVertices.set(at, (occupiedVertices.get(at) ?? 0) + 1); }
-      usedPorts.add(sourceKey); usedPorts.add(targetKey);
+      usedPorts.set(sourceKey, shared(option) ? fan!.key : ""); usedPorts.set(targetKey, "");
       routes.set(link.relationship.id, { points, sourceSide: option.sourceSide, targetSide: option.targetSide, sourcePort: option.sourcePort, targetPort: option.targetPort,
         label: { x: label.x, y: label.y, width: label.width, height: label.height } }); break;
     }
