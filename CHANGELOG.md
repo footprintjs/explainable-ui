@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `TraceViewer`, `ExplainableShell` and `TimeTravelControls` take an optional
+  `autoPlay` prop: a saved run plays from its first stage to its last, once per
+  recording, unless the reader asks for reduced motion. Anything the reader does
+  stops it for good.
+
 ## [0.40.0] - 2026-10-30
 
 ### Added

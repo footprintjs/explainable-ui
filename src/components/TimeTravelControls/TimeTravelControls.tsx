@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { theme, fontSize } from "../../theme";
+import { prefersReducedMotion } from "./prefersReducedMotion";
 
 /**
  * Same-Rail Rewind (tracing mode) — the rail's AXIS never changes, only its
@@ -53,7 +54,23 @@ export interface TimeTravelControlsProps extends BaseComponentProps {
   autoPlayable?: boolean;
   /** Same-Rail Rewind session — when set, the rail is in tracing mode. */
   tracing?: TracingRail | null;
+  /**
+   * Play the recording by itself, once: the cursor goes to the first stage and
+   * walks to the last on the Play loop, then stops. Pause, scrubbing, arrow
+   * keys, space, or any other move of the cursor stop it for good. It does not
+   * start under `prefers-reduced-motion: reduce`, with `autoPlayable={false}`,
+   * in tracing mode, or with fewer than two stages. Default false.
+   */
+  autoPlay?: boolean;
+  /**
+   * What counts as a new recording for `autoPlay`. Default: the `snapshots`
+   * array itself, so keep it stable across renders or pass a run id here.
+   */
+  autoPlayKey?: unknown;
 }
+
+/** No recording has been offered to `autoPlay` yet. */
+const NO_RECORDING = Symbol("no recording");
 
 export function TimeTravelControls({
   snapshots,
@@ -61,6 +78,8 @@ export function TimeTravelControls({
   onIndexChange,
   autoPlayable = true,
   tracing = null,
+  autoPlay = false,
+  autoPlayKey,
   size = "default",
   unstyled = false,
   className,
@@ -69,6 +88,17 @@ export function TimeTravelControls({
   const [playing, setPlaying] = useState(false);
   const playRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const total = snapshots.length;
+  // Set only while a run that autoPlay started is going. `asked` is the index
+  // it last requested and `seen` the last one it saw, so any other move of the
+  // ONE cursor (the timeline, the chart, a trace) reads as a person's.
+  const autoRun = useRef<{ asked: number; seen: number } | null>(null);
+  const lastRecording = useRef<unknown>(NO_RECORDING);
+  const recording = autoPlayKey ?? snapshots;
+
+  const stopPlaying = useCallback(() => {
+    autoRun.current = null;
+    setPlaying(false);
+  }, []);
 
   const isTracing = !!tracing;
   const stopSet = useMemo(
@@ -112,7 +142,7 @@ export function TimeTravelControls({
   const canNext = isTracing ? laterStop !== null : selectedIndex < total - 1;
 
   const goPrev = useCallback(() => {
-    setPlaying(false);
+    stopPlaying();
     if (isTracing) {
       if (forkPrompt) {
         tracing!.onForkPrompt!();
@@ -120,19 +150,29 @@ export function TimeTravelControls({
       }
       if (earlierStop !== null) onIndexChange(earlierStop);
     } else if (selectedIndex > 0) onIndexChange(selectedIndex - 1);
-  }, [isTracing, forkPrompt, tracing, earlierStop, selectedIndex, onIndexChange]);
+  }, [stopPlaying, isTracing, forkPrompt, tracing, earlierStop, selectedIndex, onIndexChange]);
   const goNext = useCallback(() => {
-    setPlaying(false);
+    stopPlaying();
     if (isTracing) {
       if (laterStop !== null) onIndexChange(laterStop);
     } else if (selectedIndex < total - 1) onIndexChange(selectedIndex + 1);
-  }, [isTracing, laterStop, selectedIndex, total, onIndexChange]);
+  }, [stopPlaying, isTracing, laterStop, selectedIndex, total, onIndexChange]);
+
+  // A run autoPlay started ends for good when anything else takes the cursor.
+  // The Play loop alone would only pause for tracing and then carry on.
+  useEffect(() => {
+    const run = autoRun.current;
+    if (!run) return;
+    const movedElsewhere = selectedIndex !== run.seen && selectedIndex !== run.asked;
+    if (!autoPlay || !autoPlayable || isTracing || movedElsewhere) stopPlaying();
+    else run.seen = selectedIndex;
+  }, [selectedIndex, autoPlay, autoPlayable, isTracing, stopPlaying]);
 
   // Auto-advance with proportional timing
   useEffect(() => {
     if (!playing || !autoPlayable || isTracing) return;
     if (selectedIndex >= total - 1) {
-      setPlaying(false);
+      stopPlaying();
       return;
     }
     const stageDur = snapshots[selectedIndex]?.durationMs ?? 1;
@@ -142,29 +182,47 @@ export function TimeTravelControls({
     const delay = Math.max(200, Math.min(fraction * baseMs, 2000));
 
     playRef.current = setTimeout(() => {
+      if (autoRun.current) autoRun.current.asked = selectedIndex + 1;
       onIndexChange(selectedIndex + 1);
     }, delay);
 
     return () => {
       if (playRef.current) clearTimeout(playRef.current);
     };
-  }, [playing, selectedIndex, snapshots, total, onIndexChange, autoPlayable, isTracing]);
+  }, [playing, selectedIndex, snapshots, total, onIndexChange, autoPlayable, isTracing, stopPlaying]);
+
+  // autoPlay's one shot: each recording is offered once, playable or not, so a
+  // re-render, a finished trace or a later `autoPlay` never starts it.
+  useEffect(() => {
+    if (lastRecording.current === recording) return;
+    lastRecording.current = recording;
+    if (autoRun.current) stopPlaying(); // That run was playing the last recording.
+    if (!autoPlay || !autoPlayable || isTracing || total < 2 || prefersReducedMotion()) return;
+    autoRun.current = { asked: 0, seen: selectedIndex };
+    if (selectedIndex !== 0) onIndexChange(0);
+    setPlaying(true);
+  }, [recording, autoPlay, autoPlayable, isTracing, total, selectedIndex, onIndexChange, stopPlaying]);
 
   const togglePlay = useCallback(() => {
     if (playing) {
-      setPlaying(false);
+      stopPlaying();
     } else {
       if (selectedIndex >= total - 1) onIndexChange(0);
       setPlaying(true);
     }
-  }, [playing, selectedIndex, total, onIndexChange]);
+  }, [playing, selectedIndex, total, onIndexChange, stopPlaying]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === "ArrowLeft" && canPrev && !playing) {
+      // Manual Play makes the arrows wait for Pause. A recording playing by
+      // itself yields to them, even where there is no stage to step to.
+      const yields = autoRun.current !== null && (e.key === "ArrowLeft" || e.key === "ArrowRight");
+      if (yields) stopPlaying();
+      const free = !playing || yields;
+      if (e.key === "ArrowLeft" && canPrev && free) {
         e.preventDefault();
         goPrev();
-      } else if (e.key === "ArrowRight" && canNext && !playing) {
+      } else if (e.key === "ArrowRight" && canNext && free) {
         e.preventDefault();
         goNext();
       } else if (e.key === "Escape" && isTracing) {
@@ -175,7 +233,7 @@ export function TimeTravelControls({
         togglePlay();
       }
     },
-    [canPrev, canNext, playing, goPrev, goNext, autoPlayable, togglePlay, isTracing, tracing]
+    [canPrev, canNext, playing, goPrev, goNext, autoPlayable, togglePlay, isTracing, tracing, stopPlaying]
   );
 
   const fs = fontSize[size];
@@ -241,7 +299,7 @@ export function TimeTravelControls({
                 data-done={i < selectedIndex}
                 data-stop={isTracing ? isStop : undefined}
                 disabled={isTracing && !isStop}
-                onClick={() => { setPlaying(false); onIndexChange(i); }}
+                onClick={() => { stopPlaying(); onIndexChange(i); }}
                 title={snap.stageLabel}
               />
             );
@@ -415,7 +473,7 @@ export function TimeTravelControls({
           return (
             <button
               key={i}
-              onClick={() => { setPlaying(false); onIndexChange(i); }}
+              onClick={() => { stopPlaying(); onIndexChange(i); }}
               disabled={unlandable}
               title={unlandable ? `${snap.stageLabel} (not part of this trace)` : snap.stageLabel}
               data-fp="tt-tick"

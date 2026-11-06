@@ -267,6 +267,24 @@ Runnable, with a generator that records a real run:
 Already have the file? `<TraceViewer recording={run} onError={...} />` is the
 same composition in one component.
 
+**Let it play by itself.** A page that opens a saved run, such as a "See this
+run" button, should not make the reader press Play first:
+
+```tsx
+<TraceViewer recording={raw} autoPlay onError={...} />
+```
+
+The cursor goes to the first stage, walks to the last at the usual Play timing,
+and stops there. It plays once per recording: a re-render does not restart it,
+and a new recording plays again. "New" means a new `runId`, or a new snapshot
+object when the recording has none, so pass the raw string or parse once rather
+than writing `recording={JSON.parse(raw)}` inline. Whatever the reader does
+wins: Pause, scrubbing, an arrow key, space, a drill, a trace or a click on
+another stage stops it for good. It does not start under
+`prefers-reduced-motion: reduce`, while tracing, or on a run with fewer than two
+stages. `ExplainableShell` takes the same prop, and so does `TimeTravelControls`,
+where a new `snapshots` array is a new recording unless you pass `autoPlayKey`.
+
 **What a recording honestly cannot show** — each is stated on screen, never
 faked: per-stage durations without footprintjs's `metrics()` recorder (the Gantt
 shows execution ORDER and says so), error messages (the commit log has no error
@@ -341,6 +359,7 @@ what it wanted instead of rendering empty chrome.
 | `defaultExpanded` | `DefaultExpanded` | `{ details: true }` | Which panels start open |
 | `renderFlowchart` | `(props) => ReactNode` | `<TracedFlow>` | Replace the chart renderer. Still requires `traceGraph` |
 | `showStageId` | `boolean` | `false` | Print each node's stable `stageId` under its label (teaching aid) |
+| `autoPlay` | `boolean` | `false` | Play the run by itself when it opens, once per recording. Anything the reader does stops it |
 | `size` | `"compact" \| "default" \| "detailed"` | `"default"` | Size variant |
 | `unstyled` | `boolean` | `false` | Strip styles, render `data-fp` attributes |
 

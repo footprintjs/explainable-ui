@@ -326,6 +326,7 @@ export function useSubflowNavigation({
   }, [onScopeReset, clearTransient]);
   return {
     sourceChanged,
+    isDrilled: drillDownStack.length > 0,
     selectedStack,
     navigationNotice,
     visitChoice,

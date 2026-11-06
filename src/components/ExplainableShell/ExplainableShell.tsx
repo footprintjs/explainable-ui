@@ -35,6 +35,7 @@ import { devWarn } from "../FlowchartView/_internal/devWarn";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
 import { TimeTravelControls } from "../TimeTravelControls";
+import { prefersReducedMotion } from "../TimeTravelControls/prefersReducedMotion";
 import { MemoryPanel } from "../MemoryPanel";
 import { NarrativePanel } from "../NarrativePanel";
 import { SubflowTree } from "../FlowchartView/SubflowTree";
@@ -295,6 +296,16 @@ export interface ExplainableShellProps extends BaseComponentProps {
    * Default false.
    */
   showStageId?: boolean;
+  /**
+   * Play the run by itself when it opens, once: the cursor goes to the first
+   * stage and walks to the last on the Play loop, then stops. A new run (a new
+   * `runId`, or a new snapshot object when it has none) plays again and leaves
+   * any subflow a person drilled into; a re-render does not. Pause, scrubbing,
+   * arrow keys, space, a drill, a trace or any other move of the cursor stop it
+   * for good. It does not start under `prefers-reduced-motion: reduce`, while
+   * tracing, or with fewer than two stages. Default false.
+   */
+  autoPlay?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -989,6 +1000,7 @@ export function ExplainableShell({
   recorderViews,
   renderFlowchart,
   showStageId = false,
+  autoPlay = false,
   traceGraph,
   runtimeOverlay: runtimeOverlayProp,
   traceTheme,
@@ -1335,6 +1347,19 @@ export function ExplainableShell({
     handleChartSubflowChange, handleNodeClick,
   } = navigation;
   const isInSubflow = selectedStack.length > 0;
+  // autoPlay's one shot belongs to the RUN, not to the rail's array: a drill
+  // swaps that array, and `runtimeSnapshot={executor.getSnapshot()}` makes a
+  // fresh one per render.
+  const autoPlayRun = sourceRunId ?? snapshots;
+  // A new run plays from its own first stage, so it leaves the drill. During
+  // render, so the rail never sees the new run from inside the old subflow.
+  if (autoPlay && navigation.sourceChanged && navigation.isDrilled && !prefersReducedMotion()) {
+    navigation.resetRoot();
+  }
+  // The unstyled shell drops the rail with its tab, and the rail's memory of
+  // this run with it, so the shell has to remember that the run was shown.
+  const [railLeftRun, setRailLeftRun] = useState<unknown>(undefined);
+  const railAutoPlay = autoPlay && !isInSubflow && railLeftRun !== autoPlayRun;
   const currentLevel = useMemo(() => {
     const top = selectedStack.at(-1);
     return (
@@ -1504,9 +1529,12 @@ export function ExplainableShell({
 
   // ── Handlers ──
   const handleTabChange = useCallback((tab: ShellTab) => {
+    if (autoPlay && unstyled && isExplainableTab(activeTab) && !isExplainableTab(tab)) {
+      setRailLeftRun(() => autoPlayRun);
+    }
     setActiveTab(tab);
     navigation.resetRoot();
-  }, [navigation.resetRoot]);
+  }, [navigation.resetRoot, autoPlay, unstyled, activeTab, autoPlayRun]);
 
   const handleSnapshotChange = useCallback((idx: number | string) => {
     if (typeof idx === "number") setSnapshotIdx(idx);
@@ -1970,7 +1998,7 @@ export function ExplainableShell({
         <div data-fp="shell-content" data-tab={activeTab}>
           {isExplainableTab(activeTab) ? (
             <>
-              <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} />
+              <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} />
               {navigationStatus}
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
               {(traceGraph || renderFlowchart) && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...(sliceCone && { sliceCone }) })}
@@ -2074,6 +2102,8 @@ export function ExplainableShell({
         onIndexChange={handleSnapshotChange}
         size={size}
         tracing={tracingRail}
+        autoPlay={railAutoPlay}
+        autoPlayKey={autoPlayRun}
       />
 
       {navigationStatus}
