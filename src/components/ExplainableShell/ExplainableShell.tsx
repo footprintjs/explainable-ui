@@ -34,7 +34,8 @@ import { overlayFromSnapshot } from "../../adapters/overlayFromSnapshot";
 import { devWarn } from "../FlowchartView/_internal/devWarn";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
-import { TimeTravelControls } from "../TimeTravelControls";
+import { TimeTravelRail } from "../TimeTravelControls/TimeTravelControls";
+import { prefersReducedMotion } from "../TimeTravelControls/prefersReducedMotion";
 import { MemoryPanel } from "../MemoryPanel";
 import { NarrativePanel } from "../NarrativePanel";
 import { SubflowTree } from "../FlowchartView/SubflowTree";
@@ -295,6 +296,16 @@ export interface ExplainableShellProps extends BaseComponentProps {
    * Default false.
    */
   showStageId?: boolean;
+  /**
+   * Play the run by itself when it opens, once: the cursor goes to the first
+   * stage and walks to the last on the Play loop, then stops. A new run (a new
+   * `runId`, or a new snapshot object when it has none) plays again and leaves
+   * any subflow a person drilled into; a re-render does not. Pause, scrubbing,
+   * arrow keys, space, a drill, a trace or any other move of the cursor stop it
+   * for good. It does not start under `prefers-reduced-motion: reduce`, while
+   * tracing, or with fewer than two stages. Default false.
+   */
+  autoPlay?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -989,6 +1000,7 @@ export function ExplainableShell({
   recorderViews,
   renderFlowchart,
   showStageId = false,
+  autoPlay = false,
   traceGraph,
   runtimeOverlay: runtimeOverlayProp,
   traceTheme,
@@ -1335,6 +1347,20 @@ export function ExplainableShell({
     handleChartSubflowChange, handleNodeClick,
   } = navigation;
   const isInSubflow = selectedStack.length > 0;
+  // autoPlay's one shot belongs to the RUN, not to the rail's array: a drill
+  // swaps that array, and `runtimeSnapshot={executor.getSnapshot()}` makes a
+  // fresh one per render.
+  const autoPlayRun = sourceRunId ?? snapshots;
+  // A new run plays from its own first stage, so it leaves the drill. During
+  // render, so the rail never sees the new run from inside the old subflow.
+  if (autoPlay && navigation.sourceChanged && navigation.isDrilled && !prefersReducedMotion()) {
+    navigation.resetRoot();
+  }
+  // Each run is offered to autoPlay once. The shell holds that memory because
+  // the rail does not last: a tab change, a styling flip or an empty state
+  // remounts it, and a fresh rail must not rewind over a person's Pause.
+  const offeredRun = useRef<unknown>(undefined);
+  const railAutoPlay = autoPlay && !isInSubflow;
   const currentLevel = useMemo(() => {
     const top = selectedStack.at(-1);
     return (
@@ -1970,7 +1996,7 @@ export function ExplainableShell({
         <div data-fp="shell-content" data-tab={activeTab}>
           {isExplainableTab(activeTab) ? (
             <>
-              <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} />
+              <TimeTravelRail snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} />
               {navigationStatus}
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
               {(traceGraph || renderFlowchart) && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...(sliceCone && { sliceCone }) })}
@@ -2068,12 +2094,15 @@ export function ExplainableShell({
       data-fp="explainable-shell"
     >
       {/* Time-travel slider — the SAME rail hosts the tracing walk */}
-      <TimeTravelControls
+      <TimeTravelRail
         snapshots={activeSnapshots}
         selectedIndex={safeIdx}
         onIndexChange={handleSnapshotChange}
         size={size}
         tracing={tracingRail}
+        autoPlay={railAutoPlay}
+        autoPlayKey={autoPlayRun}
+        offered={offeredRun}
       />
 
       {navigationStatus}
