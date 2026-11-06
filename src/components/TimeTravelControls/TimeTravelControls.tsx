@@ -69,10 +69,17 @@ export interface TimeTravelControlsProps extends BaseComponentProps {
   autoPlayKey?: unknown;
 }
 
-/** No recording has been offered to `autoPlay` yet. */
-const NO_RECORDING = Symbol("no recording");
+export function TimeTravelControls(props: TimeTravelControlsProps) {
+  const offered = useRef<unknown>(undefined);
+  return <TimeTravelRail {...props} offered={offered} />;
+}
 
-export function TimeTravelControls({
+/**
+ * The rail. Internal, not a package export. `offered` is the last recording
+ * autoPlay was offered, held by whoever outlives this rail: a shell can remount
+ * its rail at any time, so the shell holds it.
+ */
+export function TimeTravelRail({
   snapshots,
   selectedIndex,
   onIndexChange,
@@ -84,7 +91,8 @@ export function TimeTravelControls({
   unstyled = false,
   className,
   style,
-}: TimeTravelControlsProps) {
+  offered,
+}: TimeTravelControlsProps & { offered: { current: unknown } }) {
   const [playing, setPlaying] = useState(false);
   const playRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const total = snapshots.length;
@@ -92,7 +100,6 @@ export function TimeTravelControls({
   // it last requested and `seen` the last one it saw, so any other move of the
   // ONE cursor (the timeline, the chart, a trace) reads as a person's.
   const autoRun = useRef<{ asked: number; seen: number } | null>(null);
-  const lastRecording = useRef<unknown>(NO_RECORDING);
   const recording = autoPlayKey ?? snapshots;
 
   const stopPlaying = useCallback(() => {
@@ -194,14 +201,14 @@ export function TimeTravelControls({
   // autoPlay's one shot: each recording is offered once, playable or not, so a
   // re-render, a finished trace or a later `autoPlay` never starts it.
   useEffect(() => {
-    if (lastRecording.current === recording) return;
-    lastRecording.current = recording;
+    if (Object.is(offered.current, recording)) return;
+    offered.current = recording;
     if (autoRun.current) stopPlaying(); // That run was playing the last recording.
     if (!autoPlay || !autoPlayable || isTracing || total < 2 || prefersReducedMotion()) return;
     autoRun.current = { asked: 0, seen: selectedIndex };
     if (selectedIndex !== 0) onIndexChange(0);
     setPlaying(true);
-  }, [recording, autoPlay, autoPlayable, isTracing, total, selectedIndex, onIndexChange, stopPlaying]);
+  }, [recording, offered, autoPlay, autoPlayable, isTracing, total, selectedIndex, onIndexChange, stopPlaying]);
 
   const togglePlay = useCallback(() => {
     if (playing) {

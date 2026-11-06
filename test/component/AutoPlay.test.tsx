@@ -256,6 +256,16 @@ describe('TimeTravelControls autoPlay: plays once', () => {
     expect(asked).toEqual([0, 1, 2, 3, 4]);
   });
 
+  it('a NaN key is still one recording: it finishes instead of rewinding forever', () => {
+    const { Rail, asked } = railHarness();
+    const { rerender } = render(<Rail autoPlay autoPlayKey={NaN} />);
+    playOut();
+    rerender(<Rail autoPlay autoPlayKey={NaN} />);
+    playOut();
+    expect(asked).toEqual([1, 2, 3, 4]);
+    expect(cursor()).toBe(LAST);
+  });
+
   it('plays once under StrictMode, whose double effects replay the mount', () => {
     const { Rail, asked } = railHarness();
     render(
@@ -490,6 +500,10 @@ describe('TraceViewer autoPlay', () => {
 });
 
 // ── The shell: the run, not the rail's array, is the recording ─────────────
+const FIRST_TAB = 'Result';
+const shellTab = (name: string) =>
+  [...document.querySelectorAll<HTMLElement>('[data-fp="shell-tab"]')].find((t) => t.textContent === name)!;
+
 describe('ExplainableShell autoPlay', () => {
   it('the same runId in a fresh snapshot object is the same run: no restart', () => {
     const { rerender } = render(
@@ -574,18 +588,80 @@ describe('ExplainableShell autoPlay', () => {
 
   it('unstyled: the rail leaves with its tab, and coming back does not restart the run', () => {
     render(<ExplainableShell unstyled runtimeSnapshot={runSnapshot(['a', 'b', 'c', 'd']) as never} autoPlay />);
-    const tab = (name: string) =>
-      [...document.querySelectorAll<HTMLElement>('[data-fp="shell-tab"]')].find((t) => t.textContent === name)!;
-    const other = [...document.querySelectorAll<HTMLElement>('[data-fp="shell-tab"]')][0].textContent!;
     // The unstyled shell opens on a tab with no rail: it plays when first shown.
-    fireEvent.click(tab('Explainable'));
+    fireEvent.click(shellTab('Explainable'));
     expect(screen.getByLabelText('Pause')).toBeTruthy();
     advance(1);
-    fireEvent.click(tab(other));
-    fireEvent.click(tab('Explainable'));
+    fireEvent.click(shellTab(FIRST_TAB));
+    fireEvent.click(shellTab('Explainable'));
     expect(cursor()).toBe(1);
     expect(screen.getByLabelText('Play')).toBeTruthy();
     playOut();
     expect(cursor()).toBe(1);
+  });
+
+  describe('the shell owns "already offered", so no rail remount replays a run', () => {
+    const RUN = runSnapshot(['a', 'b', 'c', 'd']);
+    const shell = (props: Partial<React.ComponentProps<typeof ExplainableShell>> = {}) => (
+      <ExplainableShell runtimeSnapshot={RUN as never} autoPlay {...props} />
+    );
+    function openUnstyled() {
+      const view = render(shell({ unstyled: true }));
+      fireEvent.click(shellTab('Explainable'));
+      return view;
+    }
+
+    it('a styling flip after Pause holds the Pause: no rewind, no resume', () => {
+      const { rerender } = openUnstyled();
+      advance(1);
+      fireEvent.click(screen.getByLabelText('Pause'));
+      const before = screen.getByRole('toolbar');
+      rerender(shell());
+      expect(screen.getByRole('toolbar')).not.toBe(before); // It really is a fresh rail.
+      expect(cursor()).toBe(1);
+      expect(screen.getByLabelText('Play')).toBeTruthy();
+      playOut();
+      expect(cursor()).toBe(1);
+    });
+
+    it('a styling flip mid-run ends the run where it stands', () => {
+      const { rerender } = openUnstyled();
+      advance(2);
+      rerender(shell());
+      expect(cursor()).toBe(2);
+      expect(screen.getByLabelText('Play')).toBeTruthy();
+      playOut();
+      expect(cursor()).toBe(2);
+    });
+
+    it('a flip the other way, then back to the rail tab, does not replay either', () => {
+      const { rerender } = render(shell());
+      advance(1);
+      rerender(shell({ unstyled: true }));
+      fireEvent.click(shellTab('Explainable'));
+      expect(cursor()).toBe(1);
+      expect(screen.getByLabelText('Play')).toBeTruthy();
+    });
+
+    it('the memory is per run: after a flip, a new run still plays', () => {
+      const { rerender } = openUnstyled();
+      playOut();
+      rerender(shell());
+      rerender(shell({ runtimeSnapshot: runSnapshot(['p', 'q', 'r']) as never }));
+      expect(cursor()).toBe(0);
+      expect(screen.getByLabelText('Pause')).toBeTruthy();
+      playOut();
+      expect(cursor()).toBe(2);
+    });
+
+    it('a fresh shell is a fresh mount: the same run plays again', () => {
+      const { unmount } = render(shell());
+      playOut();
+      unmount();
+      render(shell());
+      expect(screen.getByLabelText('Pause')).toBeTruthy();
+      playOut();
+      expect(cursor()).toBe(3);
+    });
   });
 });

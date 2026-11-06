@@ -34,7 +34,7 @@ import { overlayFromSnapshot } from "../../adapters/overlayFromSnapshot";
 import { devWarn } from "../FlowchartView/_internal/devWarn";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
-import { TimeTravelControls } from "../TimeTravelControls";
+import { TimeTravelRail } from "../TimeTravelControls/TimeTravelControls";
 import { prefersReducedMotion } from "../TimeTravelControls/prefersReducedMotion";
 import { MemoryPanel } from "../MemoryPanel";
 import { NarrativePanel } from "../NarrativePanel";
@@ -1356,10 +1356,11 @@ export function ExplainableShell({
   if (autoPlay && navigation.sourceChanged && navigation.isDrilled && !prefersReducedMotion()) {
     navigation.resetRoot();
   }
-  // The unstyled shell drops the rail with its tab, and the rail's memory of
-  // this run with it, so the shell has to remember that the run was shown.
-  const [railLeftRun, setRailLeftRun] = useState<unknown>(undefined);
-  const railAutoPlay = autoPlay && !isInSubflow && railLeftRun !== autoPlayRun;
+  // Each run is offered to autoPlay once. The shell holds that memory because
+  // the rail does not last: a tab change, a styling flip or an empty state
+  // remounts it, and a fresh rail must not rewind over a person's Pause.
+  const offeredRun = useRef<unknown>(undefined);
+  const railAutoPlay = autoPlay && !isInSubflow;
   const currentLevel = useMemo(() => {
     const top = selectedStack.at(-1);
     return (
@@ -1529,12 +1530,9 @@ export function ExplainableShell({
 
   // ── Handlers ──
   const handleTabChange = useCallback((tab: ShellTab) => {
-    if (autoPlay && unstyled && isExplainableTab(activeTab) && !isExplainableTab(tab)) {
-      setRailLeftRun(() => autoPlayRun);
-    }
     setActiveTab(tab);
     navigation.resetRoot();
-  }, [navigation.resetRoot, autoPlay, unstyled, activeTab, autoPlayRun]);
+  }, [navigation.resetRoot]);
 
   const handleSnapshotChange = useCallback((idx: number | string) => {
     if (typeof idx === "number") setSnapshotIdx(idx);
@@ -1998,7 +1996,7 @@ export function ExplainableShell({
         <div data-fp="shell-content" data-tab={activeTab}>
           {isExplainableTab(activeTab) ? (
             <>
-              <TimeTravelControls snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} />
+              <TimeTravelRail snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} />
               {navigationStatus}
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
               {(traceGraph || renderFlowchart) && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...(sliceCone && { sliceCone }) })}
@@ -2096,7 +2094,7 @@ export function ExplainableShell({
       data-fp="explainable-shell"
     >
       {/* Time-travel slider — the SAME rail hosts the tracing walk */}
-      <TimeTravelControls
+      <TimeTravelRail
         snapshots={activeSnapshots}
         selectedIndex={safeIdx}
         onIndexChange={handleSnapshotChange}
@@ -2104,6 +2102,7 @@ export function ExplainableShell({
         tracing={tracingRail}
         autoPlay={railAutoPlay}
         autoPlayKey={autoPlayRun}
+        offered={offeredRun}
       />
 
       {navigationStatus}
