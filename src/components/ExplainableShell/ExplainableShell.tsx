@@ -20,15 +20,13 @@ import type { RuntimeSnapshotInput } from "../../model/recording";
 import { runHasRecordedReads, sourceRunKey, rootMountLabels, type TraceScope } from "./_internal/traceScope";
 import { exactSubflowResults } from "./_internal/subflowRecord";
 import { useSubflowNavigation } from "./_internal/useSubflowNavigation";
+import { useTraceSessionState, useTraceSessionController } from "./_internal/useTraceSession";
 import { SubflowNavigationStatus } from "./_internal/SubflowNavigationStatus";
 import { TraceUnavailableNote, StoryUnavailableNote } from "./_internal/TraceUnavailableNote";
 import { useRunCompanions } from "./_internal/useRunCompanions";
 import { ownDataField, isPlainRecord } from "./_internal/safeRecordRead";
-import { buildDataTrace } from "./_internal/dataTrace";
-import { buildTraceWalk, type TraceIngredient, type TraceWalk } from "./_internal/traceWalk";
 import { TraceWalkCard } from "../DataTracePanel/TraceWalkCard";
 import { DataTracePanel } from "../DataTracePanel/DataTracePanel";
-import type { TracingRail } from "../TimeTravelControls/TimeTravelControls";
 import {
   narrativeRecorderFromSnapshot,
 } from "../../adapters/fromRuntimeSnapshot";
@@ -1241,29 +1239,7 @@ export function ExplainableShell({
   // CONE exactly while the Data Trace tab is open (Inspector mode).
   const [inspectorTab, setInspectorTab] = useState<"state" | "trace">("state");
 
-  // ── Same-Rail Rewind (tracing) session ──
-  // The traced key + a stack of followed ingredients ({key, beforeCommitIdx}
-  // scopes — following = RE-ANCHORING, see traceWalk.ts). This is a LENS
-  // ({what are we asking about}), NOT a cursor: the one position stays
-  // `snapshotIdx`. Changing the selected record exits the previous lens.
-  const [tracing, setTracing] = useState<null | {
-    scope: string | null;
-    key: string;
-    beforeCommitIdx?: number;
-    via: Array<{ key: string; beforeCommitIdx: number }>;
-  }>(null);
-  // F2: is the fork chooser open? Pure UI flag on top of the tracing lens —
-  // NOT a cursor, NOT part of the walk question. Any cursor move closes it
-  // (the chooser asked about the OLD stop).
-  const [forkChooserOpen, setForkChooserOpen] = useState(false);
-  // F1: filter text for the "Trace any variable" entry block.
-  const [traceSearch, setTraceSearch] = useState("");
-
-  // Any cursor move invalidates the chooser — it asked about the stop the
-  // cursor was on, and the ONE cursor just left it.
-  useEffect(() => {
-    setForkChooserOpen(false);
-  }, [snapshotIdx]);
+  const traceSessionState = useTraceSessionState(snapshotIdx);
 
   // `tabs` never did anything. Say so out loud rather than let a consumer go
   // on believing a list they pass is being honoured.
@@ -1311,14 +1287,11 @@ export function ExplainableShell({
       ),
     [runtimeSnapshot, snapshots],
   );
-  const onScopeReset = useCallback(() => {
-    setTracing(null); setForkChooserOpen(false); setTraceSearch("");
-  }, []);
   const navigation = useSubflowNavigation({
     snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries,
     traceGraph, snapshotIdx, setSnapshotIdxRaw,
     activeTab: JSON.stringify([activeTab, rightPanelMode, inspectorTab]),
-    onScopeReset,
+    onScopeReset: traceSessionState.reset,
   });
   const {
     selectedStack, setSnapshotIdx, handleDrillDown, handleBreadcrumbNavigate,
@@ -1371,91 +1344,24 @@ export function ExplainableShell({
     ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1))
     : 0;
 
-  // ONE backward slice, THREE consumers: the Data Trace tab (frames), its
-  // honesty note, and the chart's dependency cone. Computed once per
-  // (snapshot, cursor) so the panel and the chart can never disagree.
-  const shellDataTrace = useMemo(() => {
-    const trace = activeTraceScope.availability.ok && (isInSubflow || runtimeSnapshot?.commitLog)
-      ? buildDataTrace(activeTraceScope.commitLog, activeTraceScope.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "")
-      : {frames: [] as import("./_internal/dataTrace").DataTraceFrame[], readsAvailable: false};
-    return {...trace, readsAvailable: activeTraceScope.readsAvailable};
-  }, [activeTraceScope, isInSubflow, runtimeSnapshot, activeSnapshots, safeIdx]);
-
-  // F1: every key the SELECTED RECORD wrote, in first-write order — so the user can
-  // ask "why is X this value?" from anywhere, not only at X's writer stage.
-  // handleStartTracing already answers honestly for keys not yet written at
-  // the cursor (the 'not-yet-written' card), so no special-casing here.
-  const allTracedKeys = useMemo<string[]>(() => {
-    const log = activeTraceScope.commitLog as
-      | Array<{ trace?: Array<{ path: string }> }>
-      | undefined;
-    if (!log?.length) return [];
-    const seen = new Set<string>();
-    const keys: string[] = [];
-    for (const c of log) {
-      for (const t of c.trace ?? []) {
-        if (!seen.has(t.path)) {
-          seen.add(t.path);
-          keys.push(t.path);
-        }
-      }
-    }
-    return keys;
-  }, [activeTraceScope]);
-
-  // The active tracing walk — recomputed only when the SESSION changes
-  // (entry / follow / show-all), never on scrub: the anchor is frozen in
-  // the session state, so walking the rail cannot shift the question.
-  const traceWalk = useMemo<TraceWalk | null>(() => {
-    if (navigation.sourceChanged || !tracing || tracing.scope !== activeTraceKey || !activeTraceScope.availability.ok) return null;
-    const scope = tracing.via.length > 0 ? tracing.via[tracing.via.length - 1] : tracing;
-    return buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
-      beforeCommitIdx: scope.beforeCommitIdx,
-      scope: {
-        invocationPath: activeTraceScope.invocationPath,
-        mountLabels: Object.fromEntries(activeTraceScope.mountLabels),
-        readsAvailable: activeTraceScope.readsAvailable,
-        startKeys: activeTraceScope.startKeys,
-      },
-    });
-  }, [tracing, activeTraceScope, activeTraceKey, navigation.sourceChanged]);
-
-  // Rail stops use exact runtime IDs from the selected record. Display names
-  // and stripped chart prefixes never identify a mount invocation.
-  const traceStopIndices = useMemo<number[]>(() => {
-    if (!traceWalk || traceWalk.missing) return [];
-    const idxByRsid = new Map(activeSnapshots.map((sn, i) => [sn.runtimeStageId, i]));
-    return traceWalk.stops
-      .map((stop) => idxByRsid.get(stop.runtimeStageId))
-      .filter((i): i is number => i !== undefined)
-      .sort((a, b) => a - b);
-  }, [traceWalk, activeSnapshots]);
-
-  // The cone: chart node id (stage part — strip the '#N' execution index) →
-  // BFS depth. Painted while TRACING (from the walk, so a via-filter narrows
-  // it) or while the Inspector's Data Trace tab is open (stage-anchored).
-  const sliceCone = useMemo<ReadonlyMap<string, number> | undefined>(() => {
-    if (traceWalk && !traceWalk.missing && traceWalk.stops.length >= 2) {
-      const cone = new Map<string, number>();
-      for (const stop of traceWalk.stops) {
-        const stagePart = stop.runtimeStageId.split("#")[0];
-        const prev = cone.get(stagePart);
-        if (prev === undefined || stop.depth < prev) cone.set(stagePart, stop.depth);
-      }
-      return cone;
-    }
-    // Gate: the Inspector panel's INTERNAL mode name is 'what' (its button
-    // label is "Inspector"); 'insights' is the Story/narrative side.
-    if (rightPanelMode !== "what" || inspectorTab !== "trace") return undefined;
-    if (shellDataTrace.frames.length < 2) return undefined; // an anchor alone is not a cone
-    const cone = new Map<string, number>();
-    for (const f of shellDataTrace.frames) {
-      const stagePart = f.runtimeStageId.split("#")[0];
-      const prev = cone.get(stagePart);
-      if (prev === undefined || f.depth < prev) cone.set(stagePart, f.depth);
-    }
-    return cone;
-  }, [traceWalk, rightPanelMode, inspectorTab, shellDataTrace]);
+  const onStartInspector = useCallback(() => {
+    setRightPanelMode("what");
+    setInspectorTab("trace");
+  }, []);
+  const traceSession = useTraceSessionController({
+    session: traceSessionState, activeTraceScope, activeTraceKey, activeSnapshots,
+    safeIdx, sourceChanged: navigation.sourceChanged,
+    traceHistoryAvailable: isInSubflow || !!runtimeSnapshot?.commitLog,
+    showDataTraceCone: rightPanelMode === "what" && inspectorTab === "trace",
+    setSnapshotIdx, onStartInspector,
+  });
+  const {
+    tracing, forkChooserOpen, traceSearch, setTraceSearch, shellDataTrace,
+    allTracedKeys, traceWalk, traceStopIndices, sliceCone, navigateToStage,
+    activeViaKey, stepNumberOf, tracingRail, handleStartTracing,
+    handleFollowIngredient, handleShowAllIngredients, handleExitTracing,
+    handleContinueTimeOrder,
+  } = traceSession;
 
   // While drilled in, feed the Story the subflow-scoped, subflow-renumbered
   // narrative (Bug 3) so it reveals to the subflow-local cursor — not the
@@ -1516,90 +1422,6 @@ export function ExplainableShell({
     if (typeof idx === "number") setSnapshotIdx(idx);
   }, [setSnapshotIdx]);
 
-  // ── Tracing handlers ──
-  // Entry FREEZES the question at the cursor's moment ("why is it this value
-  // as I see it here") and does the design's ONE visible jump: cursor → the
-  // anchor stop. buildTraceWalk is pure/cheap, so handlers derive the jump
-  // target synchronously instead of racing an effect.
-  const jumpToAnchor = useCallback(
-    (walk: TraceWalk) => {
-      const anchor = walk.stops[0];
-      if (!anchor) return; // honest absence — the card explains, the cursor stays
-      const idx = activeSnapshots.findIndex((sn) => sn.runtimeStageId === anchor.runtimeStageId);
-      if (idx >= 0) setSnapshotIdx(idx);
-    },
-    [activeSnapshots],
-  );
-
-  const handleStartTracing = useCallback(
-    (key: string) => {
-      if (!activeTraceScope.availability.ok) return;
-      const log = activeTraceScope.commitLog as Array<{ runtimeStageId?: string }>;
-      const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
-      const cursorCommitIdx = log.findIndex((c) => c.runtimeStageId === cursorRsid);
-      // -1 only when a consumer pairs a HAND-BUILT `snapshots` prop (ids the
-      // log doesn't know) with `runtimeSnapshot`; we then trace the whole log
-      // and the entry jump may land after the cursor — defined, not a bug.
-      const beforeCommitIdx = cursorCommitIdx >= 0 ? cursorCommitIdx + 1 : undefined;
-      setTracing({ scope: activeTraceKey, key, beforeCommitIdx, via: [] });
-      setForkChooserOpen(false); // a fresh question — no stale chooser
-      setTraceSearch(""); // and no stale filter greeting the next visit (review fix)
-      setRightPanelMode("what");
-      setInspectorTab("trace");
-      jumpToAnchor(
-        buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, key, { beforeCommitIdx }),
-      );
-    },
-    [activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, jumpToAnchor],
-  );
-
-  const handleFollowIngredient = useCallback(
-    (ing: TraceIngredient) => {
-      if (!tracing || !activeTraceScope.availability.ok || ing.writerCommitIdx === null) return;
-      const scope = { key: ing.key, beforeCommitIdx: ing.writerCommitIdx + 1 };
-      setTracing({ ...tracing, via: [...tracing.via, scope] });
-      setForkChooserOpen(false); // following IS the answer to the chooser
-      jumpToAnchor(
-        buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
-          beforeCommitIdx: scope.beforeCommitIdx,
-        }),
-      );
-    },
-    [tracing, activeTraceScope, jumpToAnchor],
-  );
-
-  const handleShowAllIngredients = useCallback(() => {
-    if (!tracing || !activeTraceScope.availability.ok) return;
-    setTracing({ ...tracing, via: [] });
-    setForkChooserOpen(false);
-    jumpToAnchor(
-      buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, tracing.key, {
-        beforeCommitIdx: tracing.beforeCommitIdx,
-      }),
-    );
-  }, [tracing, activeTraceScope, jumpToAnchor]);
-
-  // Exit keeps the cursor exactly where the walk left it — you land in
-  // normal time-travel at the cause you found.
-  const handleExitTracing = useCallback(() => {
-    setTracing(null);
-    setForkChooserOpen(false);
-  }, []);
-
-  // ── Fork chooser (F2) ──
-  // The rail's walk-back control fires this INSTEAD of moving when the
-  // current stop has 2+ ingredients: the user chooses which cause to follow.
-  const handleForkPrompt = useCallback(() => setForkChooserOpen(true), []);
-
-  // The chooser's neutral option = today's behavior: the nearest earlier
-  // stop in time. Same computation as the rail's "earlier cause" (largest
-  // stop index < safeIdx); the shell owns it so the card stays dumb.
-  const handleContinueTimeOrder = useCallback(() => {
-    const earlier = traceStopIndices.filter((i) => i < safeIdx);
-    if (earlier.length > 0) setSnapshotIdx(earlier[earlier.length - 1]);
-    setForkChooserOpen(false);
-  }, [traceStopIndices, safeIdx]);
-
   // ── The ONE drill ───────────────────────────────────────────────────
   // `drillDownStack` is the shell's single source of truth for "where are
   // we?", and its top entry's `subflowId` (a mount NODE id) is handed to the
@@ -1622,48 +1444,6 @@ export function ExplainableShell({
     },
     [snapshots, handleDrillDown, navigation.resetRoot, setSnapshotIdx]
   );
-
-  const navigateToStage = useCallback(
-    (id: string) => {
-      const idx = activeSnapshots.findIndex((sn) => sn.runtimeStageId === id);
-      if (idx >= 0) setSnapshotIdx(idx);
-    },
-    [activeSnapshots],
-  );
-
-  // ── Tracing render props ──
-  const activeViaKey = tracing && tracing.via.length > 0 ? tracing.via[tracing.via.length - 1].key : null;
-
-  const stepNumberOf = useCallback(
-    (rsid: string) => {
-      const i = activeSnapshots.findIndex((sn) => sn.runtimeStageId === rsid);
-      return i >= 0 ? i + 1 : null;
-    },
-    [activeSnapshots],
-  );
-
-  const tracingRail = useMemo<TracingRail | null>(() => {
-    if (!tracing || !traceWalk || traceWalk.missing || traceStopIndices.length === 0) return null;
-    const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
-    const walkIdx = traceWalk.stops.findIndex((st) => st.runtimeStageId === cursorRsid);
-    // The card falls back to the ANCHOR when the cursor is off-walk, so the
-    // rail's forkCount uses the same fallback — the prompt and the chooser
-    // must always talk about the same stop.
-    const currentStop = traceWalk.stops[walkIdx >= 0 ? walkIdx : 0];
-    return {
-      tracedKey: tracing.key,
-      viaKey: activeViaKey,
-      stopIndices: traceStopIndices,
-      stopOrdinal: walkIdx >= 0 ? walkIdx + 1 : 1,
-      totalStops: traceWalk.stops.length,
-      onExit: handleExitTracing,
-      onShowAll: activeViaKey ? handleShowAllIngredients : undefined,
-      // Followable ingredients only — termini can't be chosen, so a stop of
-      // run-inputs must not prompt (matches the card's chooser gate).
-      forkCount: currentStop?.ingredients.filter((ing) => ing.writerRuntimeStageId !== null).length ?? 0,
-      onForkPrompt: handleForkPrompt,
-    };
-  }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients, handleForkPrompt]);
 
   // Data Trace tab body: the stop card while tracing; otherwise the classic
   // frames list with TWO entry blocks — the cursor stage's writes ("This
