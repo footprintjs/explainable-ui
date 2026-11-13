@@ -15,6 +15,8 @@ import type { ReactNode } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme, themeModeVars } from "../../theme";
 import { useContainerBreakpoints } from "../../_internal/useContainerBreakpoints";
+import { projectRuntimeSnapshot } from "../../model/recording";
+import type { RuntimeSnapshotInput } from "../../model/recording";
 import { runHasRecordedReads, sourceRunKey, rootMountLabels, type TraceScope } from "./_internal/traceScope";
 import { exactSubflowResults } from "./_internal/subflowRecord";
 import { useSubflowNavigation } from "./_internal/useSubflowNavigation";
@@ -28,7 +30,6 @@ import { TraceWalkCard } from "../DataTracePanel/TraceWalkCard";
 import { DataTracePanel } from "../DataTracePanel/DataTracePanel";
 import type { TracingRail } from "../TimeTravelControls/TimeTravelControls";
 import {
-  toVisualizationSnapshots,
   narrativeRecorderFromSnapshot,
 } from "../../adapters/fromRuntimeSnapshot";
 import { overlayFromSnapshot } from "../../adapters/overlayFromSnapshot";
@@ -105,20 +106,7 @@ export interface DefaultExpanded {
  * Raw runtime snapshot from FlowChartExecutor.getSnapshot().
  * When provided, ExplainableShell converts it internally — zero boilerplate.
  */
-export interface RuntimeSnapshotInput {
-  sharedState: Record<string, unknown>;
-  executionTree: unknown;
-  commitLog: unknown[];
-  subflowResults?: Record<string, unknown>;
-  /** Recorder snapshots from toSnapshot() — auto-generates detail tabs. */
-  recorders?: Array<{
-    id: string;
-    name: string;
-    description?: string;
-    preferredOperation?: 'translate' | 'accumulate' | 'aggregate';
-    data: unknown;
-  }>;
-}
+export type { RuntimeSnapshotInput } from "../../model/recording";
 
 /**
  * A recorder view that appears as a tab in the details panel.
@@ -1050,8 +1038,10 @@ export function ExplainableShell({
         subflowResults: exactResults,
         recorders: ownDataField(runtimeSnapshot,"recorders"),
       };
-      const snaps = toVisualizationSnapshots(input as any, narrativeEntries as any);
-      return { snapshots: snaps, resultData: input.sharedState, error: null as string | null };
+      const projection = projectRuntimeSnapshot(input, narrativeEntries);
+      return projection.kind === "unreadable"
+        ? { snapshots: projection.snapshots, resultData: null, error: projection.detail }
+        : { snapshots: projection.snapshots, resultData: input.sharedState, error: null };
     } catch (err) {
       return {
         snapshots: [] as StageSnapshot[],
