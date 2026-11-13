@@ -267,14 +267,15 @@ export function TimeTravelRail({
             {tracing!.viaKey && (
               <>
                 {" "}▸ via {tracing!.viaKey}{" "}
-                <button data-fp="tt-show-all" onClick={tracing!.onShowAll}>show all</button>
+                <button type="button" data-fp="tt-show-all" onClick={tracing!.onShowAll}>show all</button>
               </>
             )}
             {" · "}stop {tracing!.stopOrdinal} of {tracing!.totalStops}
-            <button data-fp="tt-exit-tracing" onClick={tracing!.onExit} aria-label="Exit tracing">Done</button>
+            <button type="button" data-fp="tt-exit-tracing" onClick={tracing!.onExit} aria-label="Exit tracing">Done</button>
           </span>
         )}
         <button
+          type="button"
           data-fp="tt-prev"
           disabled={!canPrev || playing}
           onClick={goPrev}
@@ -283,11 +284,12 @@ export function TimeTravelRail({
           {isTracing ? (forkPrompt ? "Choose cause…" : "Earlier cause") : "Prev"}
         </button>
         {autoPlayable && !isTracing && (
-          <button data-fp="tt-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
+          <button type="button" data-fp="tt-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
             {playing ? "Pause" : "Play"}
           </button>
         )}
         <button
+          type="button"
           data-fp="tt-next"
           disabled={!canNext || playing}
           onClick={goNext}
@@ -300,6 +302,7 @@ export function TimeTravelRail({
             const isStop = !stopSet || stopSet.has(i);
             return (
               <button
+                type="button"
                 key={i}
                 data-fp="tt-tick"
                 data-active={i === selectedIndex}
@@ -387,6 +390,7 @@ export function TimeTravelRail({
                 {tracing!.viaKey}
               </span>{" "}
               <button
+                type="button"
                 data-fp="tt-show-all"
                 onClick={tracing!.onShowAll}
                 style={{
@@ -410,6 +414,7 @@ export function TimeTravelRail({
       )}
 
       <button
+        type="button"
         style={btnStyle(!canPrev || playing)}
         disabled={!canPrev || playing}
         onClick={goPrev}
@@ -428,6 +433,7 @@ export function TimeTravelRail({
 
       {autoPlayable && !isTracing && (
         <button
+          type="button"
           onClick={togglePlay}
           style={{
             background: playing ? theme.primary : theme.bgTertiary,
@@ -451,6 +457,7 @@ export function TimeTravelRail({
       )}
 
       <button
+        type="button"
         style={btnStyle(!canNext || playing)}
         disabled={!canNext || playing}
         onClick={goNext}
@@ -479,6 +486,7 @@ export function TimeTravelRail({
           const unlandable = isTracing && !isStop;
           return (
             <button
+              type="button"
               key={i}
               onClick={() => { stopPlaying(); onIndexChange(i); }}
               disabled={unlandable}
@@ -513,6 +521,7 @@ export function TimeTravelRail({
 
       {isTracing && (
         <button
+          type="button"
           data-fp="tt-exit-tracing"
           onClick={tracing!.onExit}
           aria-label="Exit tracing"

@@ -2,6 +2,7 @@ import * as React from "react";
 
 import type { BaseComponentProps } from "../../types";
 import { theme } from "../../theme";
+import { useContainerBreakpoints } from "../../_internal/useContainerBreakpoints";
 import {
   ExplainableProvider,
   useExplainableRun,
@@ -184,8 +185,7 @@ function ViewContents({
 > & { readonly layout: ExplainableViewLayout }) {
   const context = useExplainableRun();
   const resolved = resolveLayout(layout);
-  const rootRef = React.useRef<HTMLDivElement>(null);
-  const [isNarrow, setIsNarrow] = React.useState(false);
+  const { ref: rootRef, isNarrow } = useContainerBreakpoints<HTMLDivElement>();
   const [uncontrolledDetailsExpanded, setUncontrolledDetailsExpanded] =
     React.useState(defaultDetailsExpanded);
   const detailsExpanded =
@@ -197,15 +197,6 @@ function ViewContents({
     }
     onDetailsExpandedChange?.(nextExpanded);
   };
-  React.useEffect(() => {
-    const element = rootRef.current;
-    if (!element || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(([entry]) => {
-      setIsNarrow(entry.contentRect.width < 640);
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
   const responsiveDefinition = resolved.definition;
   const responsiveTemplateAreas = responsiveDefinition.areas
     .map((row) => `"${row.join(" ")}"`)

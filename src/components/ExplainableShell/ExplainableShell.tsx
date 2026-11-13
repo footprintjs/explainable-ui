@@ -14,6 +14,7 @@ import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme, themeModeVars } from "../../theme";
+import { useContainerBreakpoints } from "../../_internal/useContainerBreakpoints";
 import { runHasRecordedReads, sourceRunKey, rootMountLabels, type TraceScope } from "./_internal/traceScope";
 import { exactSubflowResults } from "./_internal/subflowRecord";
 import { useSubflowNavigation } from "./_internal/useSubflowNavigation";
@@ -1184,22 +1185,9 @@ export function ExplainableShell({
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
 
   // Responsive: detect narrow container + notify children of size changes
-  const shellRef = useRef<HTMLDivElement>(null);
-  const [isNarrow, setIsNarrow] = useState(false);
-  const [isMedium, setIsMedium] = useState(false);
-  useEffect(() => {
-    const el = shellRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const w = entry.contentRect.width;
-      setIsNarrow(w < 640);
-      setIsMedium(w >= 640 && w < 960);
-      // Notify ReactFlow (and other layout-sensitive children) that our container resized
-      window.dispatchEvent(new Event("resize"));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const { ref: shellRef, isNarrow, isMedium } = useContainerBreakpoints<HTMLDivElement>({
+    notifyWindowResize: true,
+  });
 
   // Auto-detect recorder views from runtimeSnapshot.recorders
   const autoRecorderViews = useMemo(() => {

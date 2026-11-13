@@ -50,16 +50,13 @@ export function CommentaryPanel({
       : 0,
     [narrativeEntries, snapshots, selectedIndex, rangeIndex],
   );
-  const dedupedEntries = useMemo(() => {
-    const revealed = narrativeEntries.slice(0, revealedCount);
-    return revealed.filter(
-      (entry, index) => index === 0 || entry.text !== revealed[index - 1]?.text,
-    );
-  }, [narrativeEntries, revealedCount]);
-  const visibleEntries = dedupedEntries.slice(
-    Math.max(0, dedupedEntries.length - maxLines),
+  // Identical text can describe distinct recorded visits or events. Keep every
+  // revealed entry; only the explicit line limit may hide earlier entries.
+  const visibleEntries = narrativeEntries.slice(
+    Math.max(0, revealedCount - maxLines),
+    revealedCount,
   );
-  const hiddenCount = Math.max(0, dedupedEntries.length - visibleEntries.length);
+  const hiddenCount = Math.max(0, revealedCount - visibleEntries.length);
 
   useEffect(() => {
     currentRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });

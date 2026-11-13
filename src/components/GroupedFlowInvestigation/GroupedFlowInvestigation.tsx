@@ -32,6 +32,13 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
   const controller = useInvestigationQuery(port, admitVisualExplanation);
   const { owner, selected } = controller;
   const ready = selected?.status === "ready" ? selected : undefined;
+  const committedResult = useRef<{ owner: object; request: AbortController } | undefined>(undefined);
+  useIsomorphicLayoutEffect(() => {
+    // Accepted evidence survives a Suspense reveal even though its transport
+    // controller was aborted. View actions belong to the committed result.
+    committedResult.current = ready ? { owner, request: ready.request } : undefined;
+    return () => { committedResult.current = undefined; };
+  }, [owner, ready]);
   const wrapper = useRef<HTMLElement>(null);
   const [narrow, setNarrow] = useState(false);
   const [expansion, setExpansion] = useState<{ owner: object; ids: readonly string[] }>({ owner, ids: [] });
@@ -97,7 +104,7 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
   const recordedFitIds = narrow && ready ? phase === "cause" && mappedRoot ? [mappedRoot] : selectedId ? [selectedId] : []
     : [...new Set([...(projected?.groupIds ?? []), ...(projected?.nodeIds ?? [])])];
   const changeView = () => {
-    if (!ready || controller.currentOwner.current !== owner || controller.active.current !== ready.request || ready.request.signal.aborted) return;
+    if (!ready || controller.currentOwner.current !== owner || committedResult.current?.owner !== owner || committedResult.current.request !== ready.request) return;
     setView({ request: ready.request, whole: !whole });
   };
   return <section ref={wrapper} className={props.className} aria-label={props["aria-label"] ?? "Grouped flow investigation"}
