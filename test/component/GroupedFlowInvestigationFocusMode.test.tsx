@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { Suspense, useState, type Dispatch, type SetStateAction } from "react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import { GroupedFlowInvestigation } from "../../src/components/GroupedFlowInvestigation/GroupedFlowInvestigation";
 vi.mock("@xyflow/react", async original => ({ ...await original<typeof import("@xyflow/react")>(),
@@ -50,4 +51,32 @@ it("does not carry a whole-flow choice or old focus intent into another committe
   expect(screen.queryByText("Whole flow")).toBeNull(); expect(screen.queryByText("Supported cause")).toBeNull(); expect(second.explain).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "Select Failure" })); await screen.findByText("Cause focus");
   expect(edges().find((edge: any) => edge.id === "design").hidden).toBe(true); expect(second.explain).toHaveBeenCalledTimes(1); expect(first.explain).toHaveBeenCalledTimes(1);
+});
+
+it("keeps accepted evidence view controls usable after a committed Suspense hide and reveal", async () => {
+  const source = port(), never = new Promise<never>(() => {});
+  let setHidden!: Dispatch<SetStateAction<boolean>>;
+  function Block(): never { throw never; }
+  function Host() {
+    const [hidden, updateHidden] = useState(false);
+    setHidden = updateHidden;
+    return <Suspense fallback={<p>Investigation temporarily hidden</p>}>
+      <GroupedFlowInvestigation definition={definition} observation={observation} port={source} />
+      {hidden && <Block />}
+    </Suspense>;
+  }
+  render(<Host />);
+  fireEvent.click(screen.getByRole("button", { name: "Select Failure" }));
+  await screen.findByText("Cause focus");
+  await act(async () => setHidden(true));
+  expect(screen.getByText("Investigation temporarily hidden")).toBeTruthy();
+  await act(async () => setHidden(false));
+  expect(screen.getByText("Supported cause")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Show whole flow" }));
+  expect(screen.getByText("Whole flow")).toBeTruthy();
+  expect(edges().find((edge: any) => edge.id === "design").hidden).not.toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Focus on recorded links" }));
+  expect(screen.getByText("Cause focus")).toBeTruthy();
+  expect(edges().find((edge: any) => edge.id === "design").hidden).toBe(true);
+  expect(source.explain).toHaveBeenCalledTimes(1);
 });
