@@ -1,16 +1,11 @@
 /**
- * ExplainableShell — Pure orchestrator for explainable pipeline visualization.
- *
- * Collapsible sections use the **line + centered pill** pattern:
- * - Collapsed = thin divider line with a pill button sitting on it
- * - Expanded = full content with a pill at the closing edge
- *
- * Sub-components are memo'd to minimize re-renders when scrubbing the
- * time-travel slider. Only components that depend on snapshotIdx re-render.
+ * Coordinates one selected run, cursor and subflow scope. Focused controllers
+ * own tracing and playback; internal presentation components render the model
+ * and navigation commands in styled or unstyled layouts.
  *
  * Consumer controls theme via --fp-* CSS custom properties.
  */
-import { memo, useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme, themeModeVars } from "../../theme";
@@ -21,12 +16,15 @@ import { runHasRecordedReads, sourceRunKey, rootMountLabels, type TraceScope } f
 import { exactSubflowResults } from "./_internal/subflowRecord";
 import { useSubflowNavigation } from "./_internal/useSubflowNavigation";
 import { useTraceSessionState, useTraceSessionController } from "./_internal/useTraceSession";
+import { EmptyShell, MissingChartNote } from "./_internal/ShellChrome";
+import { KeyedRecorderView } from "./_internal/KeyedRecorderView";
+import { RightPanel, type RightPanelMode } from "./_internal/RightPanel";
+import { ShellLayout, ShellDetailTabs, UnstyledShellLayout } from "./_internal/ShellLayout";
+import { TraceSessionPanel } from "./_internal/TraceSessionPanel";
 import { SubflowNavigationStatus } from "./_internal/SubflowNavigationStatus";
-import { TraceUnavailableNote, StoryUnavailableNote } from "./_internal/TraceUnavailableNote";
+import { StoryUnavailableNote } from "./_internal/TraceUnavailableNote";
 import { useRunCompanions } from "./_internal/useRunCompanions";
 import { ownDataField, isPlainRecord } from "./_internal/safeRecordRead";
-import { TraceWalkCard } from "../DataTracePanel/TraceWalkCard";
-import { DataTracePanel } from "../DataTracePanel/DataTracePanel";
 import {
   narrativeRecorderFromSnapshot,
 } from "../../adapters/fromRuntimeSnapshot";
@@ -62,8 +60,6 @@ export interface SpecNode {
   subflowName?: string;
   subflowStructure?: SpecNode;
 }
-import { InspectorPanel } from "../InspectorPanel/InspectorPanel";
-import { InsightPanel } from "../InsightPanel/InsightPanel";
 import { CompactTimeline } from "../CompactTimeline/CompactTimeline";
 
 // ---------------------------------------------------------------------------
@@ -295,682 +291,6 @@ export interface ExplainableShellProps extends BaseComponentProps {
   autoPlay?: boolean;
 }
 
-// ---------------------------------------------------------------------------
-// Line + Pill — collapsed state is just a line with a pill centered on it
-// ---------------------------------------------------------------------------
-
-/** Horizontal line with centered pill (for top/bottom edges) */
-const HLinePill = memo(function HLinePill({
-  label,
-  detail,
-  expanded,
-  onClick,
-}: {
-  label: string;
-  detail?: string;
-  expanded: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <div style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 0,
-      padding: "0",
-    }}>
-      <div style={{ flex: 1, height: 1, background: theme.border }} />
-      <button
-        onClick={onClick}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 5,
-          padding: "3px 12px",
-          margin: "4px 0",
-          fontSize: 10,
-          fontWeight: 600,
-          fontFamily: "inherit",
-          color: theme.textMuted,
-          background: theme.bgSecondary,
-          border: `1px solid ${theme.border}`,
-          borderRadius: 10,
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          transition: "color 0.15s ease",
-        }}
-      >
-        <span style={{ fontSize: 7 }}>{expanded ? "▼" : "▶"}</span>
-        {label}
-        {detail && <span style={{ fontWeight: 400, opacity: 0.5, fontSize: 9 }}>{detail}</span>}
-      </button>
-      <div style={{ flex: 1, height: 1, background: theme.border }} />
-    </div>
-  );
-});
-
-/** Vertical line with centered pill (for left/right edges).
- *  `side` controls arrow direction:
- *  - "right": expanded=▶ collapsed=◀ (panel is on right, collapses right)
- *  - "left":  expanded=◀ collapsed=▶ (panel is on left, collapses left)
- */
-const VLinePill = memo(function VLinePill({
-  label,
-  expanded,
-  side = "right",
-  onClick,
-}: {
-  label: string;
-  expanded: boolean;
-  side?: "left" | "right";
-  onClick: () => void;
-}) {
-  const arrow = side === "right"
-    ? (expanded ? "▶" : "◀")
-    : (expanded ? "◀" : "▶");
-  return (
-    <div style={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      gap: 0,
-      padding: "0",
-    }}>
-      <div style={{ flex: 1, width: 1, background: theme.border }} />
-      <button
-        onClick={onClick}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "10px 4px",
-          margin: "0 3px",
-          fontSize: 10,
-          fontWeight: 600,
-          fontFamily: "inherit",
-          color: theme.textMuted,
-          background: theme.bgSecondary,
-          border: `1px solid ${theme.border}`,
-          borderRadius: 10,
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          writingMode: "vertical-lr",
-          transition: "color 0.15s ease",
-        }}
-      >
-        <span style={{ fontSize: 7, writingMode: "horizontal-tb" }}>{arrow}</span>
-        {label}
-      </button>
-      <div style={{ flex: 1, width: 1, background: theme.border }} />
-    </div>
-  );
-});
-
-// ---------------------------------------------------------------------------
-// Diagnosis panels — what to do when an ingredient is missing
-// ---------------------------------------------------------------------------
-//
-// Both of these exist because the shell used to fail by rendering LESS: no
-// chart region, or full chrome with zero rows. Silence reads as "the library
-// is broken"; naming the missing ingredient reads as "add this line".
-
-/** Shown in the chart's place when there is a run to draw but no graph. */
-const MissingChartNote = memo(function MissingChartNote({ unstyled }: { unstyled?: boolean }) {
-  const body = (
-    <>
-      <strong>No chart — `traceGraph` was not provided.</strong>
-      <div>
-        A snapshot holds the memory, the story and the timeline. Only the chart's own
-        structure can draw the chart. Two ways to get one:
-      </div>
-      <pre style={unstyled ? undefined : { margin: 0, whiteSpace: "pre-wrap", fontFamily: theme.fontMono, fontSize: 11 }}>
-{`// live build
-const trace = createTraceStructureRecorder();
-flowChart(..., { structureRecorders: [trace.recorder] });
-<ExplainableShell traceGraph={trace.getGraph()} />
-
-// saved run — save chart.buildTimeStructure with your snapshot
-<ExplainableShell traceGraph={graphFromStructure(saved.structure)} />`}
-      </pre>
-    </>
-  );
-  if (unstyled) return <div data-fp="shell-missing-chart">{body}</div>;
-  return (
-    <div
-      data-fp="shell-missing-chart"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        justifyContent: "center",
-        alignItems: "flex-start",
-        height: "100%",
-        padding: 20,
-        color: theme.textMuted,
-        fontSize: 12,
-        lineHeight: 1.5,
-        maxWidth: 520,
-        margin: "0 auto",
-      }}
-    >
-      {body}
-    </div>
-  );
-});
-
-/** Shown instead of empty chrome when there are no stages to show at all. */
-const EmptyShell = memo(function EmptyShell({
-  reason,
-  detail,
-  unstyled,
-  className,
-  style,
-}: {
-  reason: string;
-  detail: React.ReactNode;
-  unstyled?: boolean;
-  className?: string;
-  style?: React.CSSProperties;
-}) {
-  const body = (
-    <>
-      <div style={unstyled ? undefined : { fontWeight: 700, color: theme.textPrimary, fontSize: 13 }}>
-        {reason}
-      </div>
-      <div data-fp="shell-empty-detail">{detail}</div>
-    </>
-  );
-  if (unstyled) {
-    return (
-      <div className={className} style={style} data-fp="shell-empty">
-        {body}
-      </div>
-    );
-  }
-  return (
-    <div
-      className={className}
-      data-fp="shell-empty"
-      style={{
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        justifyContent: "center",
-        alignItems: "center",
-        textAlign: "center",
-        padding: 24,
-        background: theme.bgPrimary,
-        color: theme.textMuted,
-        fontFamily: theme.fontSans,
-        fontSize: 12,
-        lineHeight: 1.6,
-        ...style,
-      }}
-    >
-      {body}
-    </div>
-  );
-});
-
-// ---------------------------------------------------------------------------
-// KeyedRecorderView — Time-travel aware renderer for auto-detected recorders
-// ---------------------------------------------------------------------------
-
-/**
- * Detects if data has a keyed-recorder shape: an object property whose values
- * are objects with at least one numeric field. Returns { steps, keyType }.
- * keyType: 'runtimeStageId' (keys contain '#') or 'stageName' (plain names).
- */
-function detectKeyedSteps(data: unknown): { steps: Record<string, Record<string, unknown>>; keyType: "runtimeStageId" | "stageName" } | null {
-  if (!data || typeof data !== "object") return null;
-  const obj = data as Record<string, unknown>;
-  for (const val of Object.values(obj)) {
-    if (val && typeof val === "object" && !Array.isArray(val)) {
-      const entries = Object.entries(val as Record<string, unknown>);
-      if (entries.length === 0) continue;
-      // Check: values must be objects with at least one numeric field
-      const allObjectsWithNumbers = entries.every(([, v]) => {
-        if (!v || typeof v !== "object" || Array.isArray(v)) return false;
-        return Object.values(v as Record<string, unknown>).some((f) => typeof f === "number");
-      });
-      if (allObjectsWithNumbers) {
-        const keyType = entries.some(([k]) => k.includes("#")) ? "runtimeStageId" : "stageName";
-        return { steps: val as Record<string, Record<string, unknown>>, keyType };
-      }
-    }
-  }
-  return null;
-}
-
-/** Extract render hints from recorder data: numericField name + grandTotal. */
-function extractRenderHints(data: unknown): { numericField: string; grandTotal: number } | null {
-  if (!data || typeof data !== "object") return null;
-  const obj = data as Record<string, unknown>;
-  if (typeof obj.numericField === "string" && typeof obj.grandTotal === "number") {
-    return { numericField: obj.numericField, grandTotal: obj.grandTotal };
-  }
-  return null;
-}
-
-function KeyedRecorderView({
-  data,
-  description,
-  preferredOperation = "accumulate",
-  snapshots,
-  selectedIndex,
-}: {
-  data: unknown;
-  description?: string;
-  preferredOperation?: "translate" | "accumulate" | "aggregate";
-  snapshots: StageSnapshot[];
-  selectedIndex: number;
-}) {
-  const [showAggregate, setShowAggregate] = useState(false);
-
-  const detected = useMemo(() => detectKeyedSteps(data), [data]);
-
-  // Visible keys up to slider position — match by runtimeStageId or stageName
-  const visibleKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
-      const snap = snapshots[i];
-      if (detected?.keyType === "runtimeStageId") {
-        if (snap.runtimeStageId) keys.add(snap.runtimeStageId);
-      } else {
-        // Match by stageName or stageLabel
-        if (snap.stageName) keys.add(snap.stageName);
-        if (snap.stageLabel) keys.add(snap.stageLabel);
-      }
-    }
-    return keys;
-  }, [snapshots, selectedIndex, detected?.keyType]);
-
-  const isAtEnd = selectedIndex >= snapshots.length - 1;
-
-  if (!detected) {
-    // Fallback: raw JSON for non-keyed data
-    return (
-      <div style={{ padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }}>
-        {typeof data === "string" ? data : JSON.stringify(data, null, 2)}
-      </div>
-    );
-  }
-
-  const steps = detected.steps;
-  const hints = extractRenderHints(data);
-  const numFieldKey = hints?.numericField ?? "";
-
-  // Progressive entries (accumulate)
-  const allKeys = Object.keys(steps);
-  const visibleEntries = allKeys.filter((k) => visibleKeys.has(k));
-
-  // Running total — computed from visible entries using the declared numeric field
-  let runningTotal = 0;
-  if (numFieldKey) {
-    for (const k of visibleEntries) {
-      runningTotal += (steps[k][numFieldKey] as number) ?? 0;
-    }
-  }
-
-  // Grand total — provided by the recorder, not recomputed
-  const grandTotal = hints?.grandTotal ?? 0;
-
-  return (
-    <div style={{ overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }}>
-      {description && (
-        <div style={{ padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }}>
-          {description}
-        </div>
-      )}
-
-      <div style={{ padding: 12, flex: 1, overflow: "auto" }}>
-        {/* ── Primary: depends on preferredOperation ── */}
-
-        {preferredOperation === "aggregate" ? (
-          /* AGGREGATE: collect silently during scrub, button at end to reveal total */
-          <>
-            {isAtEnd ? (
-              <div style={{ marginBottom: 16 }}>
-                {!showAggregate ? (
-                  <button
-                    onClick={() => setShowAggregate(true)}
-                    style={{
-                      background: theme.primary, color: "#fff", border: "none", borderRadius: 8,
-                      padding: "12px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                      fontFamily: "inherit", width: "100%",
-                    }}
-                  >
-                    Aggregate — Show Grand Total
-                  </button>
-                ) : (
-                  <div style={{ padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }}>
-                    <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
-                      Aggregate — grand total
-                    </div>
-                    {numFieldKey && (
-                      <div style={{ fontSize: 26, fontWeight: 700, color: theme.success }}>
-                        {grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1)}
-                        <span style={{ fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }}>{numFieldKey} &middot; {allKeys.length} steps</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }}>
-                <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }}>
-                  Collecting data...
-                </div>
-                <div style={{ fontSize: 11, color: theme.textMuted, marginTop: 4 }}>
-                  {visibleEntries.length} of {allKeys.length} steps collected. Scrub to end to aggregate.
-                </div>
-              </div>
-            )}
-            <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
-              Per-step detail
-            </div>
-          </>
-        ) : preferredOperation === "accumulate" ? (
-          /* ACCUMULATE: running total grows with slider — IS the total at end, no button */
-          <>
-            {numFieldKey && visibleEntries.length > 0 && (
-              <div style={{ padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }}>
-                <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }}>
-                  Accumulate — running total up to this step
-                </div>
-                <span style={{ fontWeight: 700, fontSize: 18, color: theme.primary }}>
-                  {runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1)}
-                </span>
-                <span style={{ color: theme.textMuted, marginLeft: 8, fontSize: 10 }}>
-                  {numFieldKey} &middot; {visibleEntries.length} of {allKeys.length} steps
-                </span>
-              </div>
-            )}
-            <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
-              Per-step detail
-            </div>
-          </>
-        ) : (
-          /* TRANSLATE: per-step entries prominent, no totals */
-          <div style={{ fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }}>
-            Translate — per-step detail
-          </div>
-        )}
-
-        {/* ── Per-step entries (always shown) ── */}
-        {visibleEntries.map((key) => {
-          const entry = steps[key];
-          const label = (entry.stageName as string) ?? key;
-          const numVal = numFieldKey ? (entry[numFieldKey] as number) : undefined;
-          return (
-            <div key={key} style={{ display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }}>
-              <span style={{ color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }}>{key}</span>
-              <span style={{ fontWeight: 600, flex: 1 }}>{label}</span>
-              {numVal !== undefined && (
-                <span style={{ color: theme.primary, fontWeight: 700, marginLeft: 8 }}>
-                  {numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1)}
-                </span>
-              )}
-            </div>
-          );
-        })}
-
-        {visibleEntries.length === 0 && (
-          <div style={{ color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }}>
-            Scrub the slider to reveal entries...
-          </div>
-        )}
-
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// DetailsContent — Recorder-driven tab switcher (Memory + Narrative are defaults)
-// ---------------------------------------------------------------------------
-
-const DetailsContent = memo(function DetailsContent({
-  snapshots,
-  selectedIndex,
-  narrativeEntries,
-  size,
-  fillHeight,
-  extraViews,
-}: {
-  snapshots: StageSnapshot[];
-  selectedIndex: number;
-  narrativeEntries?: NarrativeEntry[];
-  size: "compact" | "default" | "detailed";
-  fillHeight?: boolean;
-  extraViews?: RecorderView[];
-}) {
-  // Built-in views (always available)
-  const builtInViews: RecorderView[] = [
-    {
-      id: "memory",
-      name: "Memory",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => (
-        <MemoryPanel snapshots={snaps} selectedIndex={idx} size={size} style={fillHeight ? { height: "100%" } : undefined} />
-      ),
-    },
-    {
-      id: "narrative",
-      name: "Narrative",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => (
-        <NarrativePanel snapshots={snaps} selectedIndex={idx} narrativeEntries={narrativeEntries} size={size} style={fillHeight ? { height: "100%" } : undefined} />
-      ),
-    },
-  ];
-
-  const allViews = [...builtInViews, ...(extraViews ?? [])];
-  const [activeViewId, setActiveViewId] = useState(allViews[0]?.id ?? "memory");
-
-  // Reset tab when available views change (e.g., recorder toggled on/off)
-  const viewIds = allViews.map((v) => v.id).join(",");
-  useEffect(() => {
-    if (!allViews.find((v) => v.id === activeViewId)) {
-      setActiveViewId(allViews[0]?.id ?? "memory");
-    }
-  }, [viewIds]); // eslint-disable-line react-hooks/exhaustive-deps
-  const activeView = allViews.find((v) => v.id === activeViewId) ?? allViews[0];
-
-  return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      {/* Tab switcher — one per recorder view */}
-      <div style={{ display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }}>
-        {allViews.map((view) => {
-          const active = view.id === activeViewId;
-          return (
-            <button
-              key={view.id}
-              onClick={() => setActiveViewId(view.id)}
-              style={{
-                flex: allViews.length <= 3 ? 1 : undefined,
-                padding: "6px 8px", fontSize: 11,
-                fontWeight: active ? 600 : 400,
-                color: active ? theme.primary : theme.textMuted,
-                background: active ? `color-mix(in srgb, ${theme.primary} 8%, transparent)` : "transparent",
-                border: "none",
-                borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
-                cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em", fontFamily: "inherit",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {view.name}
-            </button>
-          );
-        })}
-      </div>
-      <div style={{ flex: 1, overflow: "auto" }}>
-        {activeView?.render({ snapshots, selectedIndex })}
-      </div>
-    </div>
-  );
-});
-
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// RightPanel — two-mode panel: Insights vs Inspector
-// ---------------------------------------------------------------------------
-
-/**
- * The right column's three modes.
- *
- * `result` is the home the Result view never had on desktop: the tabbed
- * details panel only renders below 640px, and the Insights list deliberately
- * holds Result back (an Insight is recorder-derived; the Result is the run's
- * output) — so `resultData`, `logs` and `hideConsole` did nothing at all on
- * any shell wider than that. A third segment on the toggle that already
- * exists is the smallest place to put it that does not disturb which Insight
- * opens first, nor the "no recorders were attached" guidance the Insights
- * list shows when it is empty.
- */
-type RightPanelMode = "insights" | "what" | "result";
-
-const RIGHT_PANEL_MODE_LABELS: Record<RightPanelMode, string> = {
-  insights: "Insights",
-  what: "Inspector",
-  result: "Result",
-};
-
-const RightPanel = memo(function RightPanel({
-  mode,
-  onModeChange,
-  snapshots,
-  selectedIndex,
-  activeTab,
-  allTabs,
-  renderTabBody,
-  size,
-  onNavigateToStage,
-  dataTrace,
-  onInspectorTabChange,
-  inspectorTab,
-  traceContent,
-}: {
-  mode: RightPanelMode;
-  onModeChange: (mode: RightPanelMode) => void;
-  snapshots: StageSnapshot[];
-  selectedIndex: number;
-  activeTab: string;
-  allTabs: Array<{ id: string; name: string; description?: string }>;
-  /** Renders ONE tab's body. The shell owns the single implementation and
-   *  hands it down, which is what makes the Result tab reachable here: this
-   *  is the only tabbed surface on a desktop-width shell, so a tab it cannot
-   *  render is a tab — and the `resultData` / `logs` / `hideConsole` props
-   *  behind it — that does nothing. */
-  renderTabBody: (tabId: string, plain: boolean) => ReactNode;
-  size: "compact" | "default" | "detailed";
-  onNavigateToStage: (id: string) => void;
-  /** Precomputed backward slice for the Data Trace tab (lifted to the shell
-   *  root so the chart's dependency cone shares the SAME frames). */
-  dataTrace: { frames: import("./_internal/dataTrace").DataTraceFrame[]; readsAvailable: boolean };
-  onInspectorTabChange?: (tab: "state" | "trace") => void;
-  /** Controlled Inspector tab — the shell forces Data Trace open on tracing entry. */
-  inspectorTab?: "state" | "trace";
-  /** The Data Trace tab body (stop card while tracing / entry chips + frames list). */
-  traceContent?: ReactNode;
-}) {
-  // The Result segment appears only when a Result tab exists, so
-  // `hideTabs={["result"]}` still removes it everywhere.
-  const modes = useMemo<readonly RightPanelMode[]>(
-    () =>
-      allTabs.some((t) => t.id === "result")
-        ? (["insights", "what", "result"] as const)
-        : (["insights", "what"] as const),
-    [allTabs],
-  );
-
-  return (
-    <>
-      {/* Mode toggle */}
-      <div style={{
-        display: "flex",
-        borderBottom: `1px solid ${theme.border}`,
-        flexShrink: 0,
-        background: theme.bgSecondary,
-      }}>
-        {modes.map((m) => (
-          <button
-            key={m}
-            onClick={() => onModeChange(m)}
-            style={{
-              flex: 1,
-              padding: "7px 12px",
-              fontSize: 11,
-              fontWeight: mode === m ? 700 : 500,
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
-              color: mode === m ? theme.primary : theme.textMuted,
-              background: "transparent",
-              border: "none",
-              borderBottom: mode === m ? `2px solid ${theme.primary}` : "2px solid transparent",
-              cursor: "pointer",
-              fontFamily: "inherit",
-            }}
-          >
-            {RIGHT_PANEL_MODE_LABELS[m]}
-          </button>
-        ))}
-      </div>
-
-      {/* Content */}
-      <div style={{ flex: 1, overflow: "hidden" }}>
-        {mode === "result" ? (
-          <div style={{ height: "100%", overflow: "auto" }}>{renderTabBody("result", false)}</div>
-        ) : mode === "insights" ? (
-          <InsightPanel
-            mode="tabs"
-            expandedId={activeTab}
-            // Two tabs are held back, each with its own home: Memory (the
-            // Inspector's State tab beside it is the same data) and Result
-            // (its own mode on the toggle above — an Insight is recorder-
-            // derived, the Result is the run's output).
-            insights={allTabs.filter((t) => t.id !== "result" && t.id !== "memory").map((tab) => ({
-              id: tab.id,
-              name: insightName(tab.name),
-              render: () => renderTabBody(tab.id, false),
-            }))}
-          />
-        ) : (
-          <InspectorPanel
-            snapshots={snapshots}
-            selectedIndex={selectedIndex}
-            dataTraceFrames={dataTrace.frames}
-            dataTraceNote={dataTrace.readsAvailable ? undefined : '⚠ reads were not recorded (readTracking off) — dependencies are unknowable, not absent.'}
-            onTabChange={onInspectorTabChange}
-            tab={inspectorTab}
-            traceContent={traceContent}
-            selectedStageId={snapshots[selectedIndex]?.runtimeStageId}
-            onNavigateToStage={onNavigateToStage}
-          />
-        )}
-      </div>
-    </>
-  );
-});
-
-/** Map internal recorder names to user-facing Insight names. */
-function insightName(name: string): string {
-  const map: Record<string, string> = {
-    "Narrative": "Story",
-    "Memory": "State",
-    "Metrics": "Performance",
-    "Quality": "Quality",
-    "Cost": "Cost",
-  };
-  return map[name] ?? name;
-}
-
 export function ExplainableShell({
   snapshots: snapshotsProp,
   runtimeSnapshot,
@@ -1173,7 +493,7 @@ export function ExplainableShell({
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
 
   // Responsive: detect narrow container + notify children of size changes
-  const { ref: shellRef, isNarrow, isMedium } = useContainerBreakpoints<HTMLDivElement>({
+  const { ref: shellRef, isNarrow } = useContainerBreakpoints<HTMLDivElement>({
     notifyWindowResize: true,
   });
 
@@ -1355,13 +675,7 @@ export function ExplainableShell({
     showDataTraceCone: rightPanelMode === "what" && inspectorTab === "trace",
     setSnapshotIdx, onStartInspector,
   });
-  const {
-    tracing, forkChooserOpen, traceSearch, setTraceSearch, shellDataTrace,
-    allTracedKeys, traceWalk, traceStopIndices, sliceCone, navigateToStage,
-    activeViaKey, stepNumberOf, tracingRail, handleStartTracing,
-    handleFollowIngredient, handleShowAllIngredients, handleExitTracing,
-    handleContinueTimeOrder,
-  } = traceSession;
+  const { shellDataTrace, sliceCone, navigateToStage, tracingRail } = traceSession;
 
   // While drilled in, feed the Story the subflow-scoped, subflow-renumbered
   // narrative (Bug 3) so it reveals to the subflow-local cursor — not the
@@ -1445,122 +759,13 @@ export function ExplainableShell({
     [snapshots, handleDrillDown, navigation.resetRoot, setSnapshotIdx]
   );
 
-  // Data Trace tab body: the stop card while tracing; otherwise the classic
-  // frames list with TWO entry blocks — the cursor stage's writes ("This
-  // step wrote:") and, below it, a search over EVERY key the run ever wrote
-  // ("Trace any variable:", F1). Both roads lead to handleStartTracing.
-  const traceTabContent: ReactNode = useMemo(() => {
-    if (!activeTraceScope.availability.ok) {
-      return <TraceUnavailableNote availability={activeTraceScope.availability} scopeLabel={isInSubflow ? "Child" : "Root"} />;
-    }
-    if (tracing && traceWalk) {
-      return (
-        <>
-          <TraceWalkCard
-          walk={traceWalk}
-          cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null}
-          viaKey={activeViaKey}
-          stepNumberOf={stepNumberOf}
-          previewValueOf={(k) => activeSnapshots[safeIdx]?.memory?.[k]}
-          onFollowIngredient={handleFollowIngredient}
-          onJumpToStop={navigateToStage}
-          onShowAll={activeViaKey ? handleShowAllIngredients : undefined}
-          onExit={handleExitTracing}
-          forkChooserOpen={forkChooserOpen}
-          onContinueTimeOrder={handleContinueTimeOrder}
-          canContinueTimeOrder={traceStopIndices.some((i) => i < safeIdx)}
-        />
-        </>
-      );
-    }
-    // Same chip look for both entry blocks — one affordance, one meaning.
-    const chipStyle: React.CSSProperties = {
-      border: "1px solid var(--fp-accent, #6366f1)",
-      background: "transparent",
-      color: "var(--fp-accent, #6366f1)",
-      borderRadius: 12,
-      padding: "2px 10px",
-      margin: "0 6px 6px 0",
-      fontSize: 11,
-      fontWeight: 600,
-      fontFamily: "monospace",
-      cursor: "pointer",
-    };
-    // F1 filter: case-insensitive substring; empty filter previews the first
-    // 12 keys (first-write order) with a "+N more" nudge to type.
-    const query = traceSearch.trim().toLowerCase();
-    const matchedKeys = query
-      ? allTracedKeys.filter((k) => k.toLowerCase().includes(query))
-      : allTracedKeys;
-    const shownKeys = matchedKeys.slice(0, 12);
-    return (
-      <>
-        {(shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && (
-          <div data-fp="trace-entry" style={{ padding: "10px 14px 0", fontSize: 12 }}>
-            <span style={{ color: theme.textMuted, marginRight: 6 }}>This step wrote:</span>
-            {shellDataTrace.frames[0].keysWritten.map((k) => (
-              <button
-                key={k}
-                data-fp="trace-entry-chip"
-                onClick={() => handleStartTracing(k)}
-                title={"Where did " + k + " come from? Walk its causes on the timeline."}
-                style={chipStyle}
-              >
-                {k}
-              </button>
-            ))}
-          </div>
-        )}
-        {allTracedKeys.length > 0 && (
-          <div data-fp="trace-any" style={{ padding: "6px 14px 0", fontSize: 12 }}>
-            <div style={{ color: theme.textMuted, marginBottom: 4 }}>Trace any variable:</div>
-            <input
-              data-fp="trace-search"
-              value={traceSearch}
-              onChange={(e) => setTraceSearch(e.target.value)}
-              placeholder="search any variable..."
-              style={{
-                display: "block",
-                width: "100%",
-                boxSizing: "border-box",
-                background: theme.bgTertiary,
-                border: `1px solid ${theme.border}`,
-                borderRadius: 6,
-                color: theme.textPrimary,
-                fontSize: 11,
-                fontFamily: "monospace",
-                padding: "4px 8px",
-                marginBottom: 6,
-              }}
-            />
-            {shownKeys.map((k) => (
-              <button
-                key={k}
-                data-fp="trace-any-chip"
-                onClick={() => handleStartTracing(k)}
-                title={"Where did " + k + " come from? Walk its causes on the timeline."}
-                style={chipStyle}
-              >
-                {k}
-              </button>
-            ))}
-            {query === "" && matchedKeys.length > shownKeys.length && (
-              <span style={{ color: theme.textMuted, fontSize: 11 }}>
-                +{matchedKeys.length - shownKeys.length} more — type to search
-              </span>
-            )}
-          </div>
-        )}
-        <DataTracePanel
-          frames={shellDataTrace.frames}
-          note={shellDataTrace.readsAvailable ? undefined : "⚠ reads were not recorded (readTracking off) — dependencies are unknowable, not absent."}
-          selectedStageId={activeSnapshots[safeIdx]?.runtimeStageId}
-          onFrameClick={navigateToStage}
-          fromStageName={activeSnapshots[safeIdx]?.stageName}
-        />
-      </>
-    );
-  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, activeTraceScope, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
+  const traceTabContent = <TraceSessionPanel
+    availability={activeTraceScope.availability}
+    scopeLabel={isInSubflow ? "Child" : "Root"}
+    snapshot={activeSnapshots[safeIdx]}
+    selectedIndex={safeIdx}
+    view={traceSession}
+  />;
 
   const navigationStatus = <SubflowNavigationStatus
     staleInputs={companions.staleKeys.length > 0}
@@ -1744,14 +949,10 @@ export function ExplainableShell({
   // ── Unstyled mode ──
   if (unstyled) {
     if (snapshots.length === 0) return renderEmptyState({});
-    return (
-      <div className={className} style={style} data-fp="explainable-shell">
-        <div data-fp="shell-tabs">
-          {unstyledTabs.map((tab) => (
-            <button key={tab.id} data-fp="shell-tab" data-active={tab.id === activeTab} onClick={() => handleTabChange(tab.id)}>{tab.name}</button>
-          ))}
-        </div>
-        <div data-fp="shell-content" data-tab={activeTab}>
+    return <UnstyledShellLayout
+      tabs={unstyledTabs} activeTab={activeTab} onTabChange={handleTabChange}
+      className={className} style={style}
+    >
           {isExplainableTab(activeTab) ? (
             <>
               <TimeTravelRail snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} />
@@ -1766,9 +967,7 @@ export function ExplainableShell({
           ) : (
             renderTabBody(activeTab, true)
           )}
-        </div>
-      </div>
-    );
+    </UnstyledShellLayout>;
   }
 
   // ── Styled mode ──
@@ -1781,232 +980,43 @@ export function ExplainableShell({
   // test/component/ExplainableShellDrill.test.tsx.
   const showTopology = !!effectiveRenderFlowchart && (!!renderFlowchart || !!traceGraph);
 
-  // Render the active details tab content
-  const detailsContent = renderTabBody(activeTab, false);
-
-  // Details panel with internal tabs
-  const detailsPanel = (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      {/* Tab bar inside details panel */}
-      <div style={{
-        display: "flex",
-        borderBottom: `1px solid ${theme.border}`,
-        background: theme.bgSecondary,
-        flexShrink: 0,
-        overflowX: "auto",
-      }}>
-        {allTabs.map((tab) => {
-          const active = tab.id === activeTab;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => handleTabChange(tab.id as ShellTab)}
-              title={tab.description}
-              style={{
-                padding: "6px 14px",
-                fontSize: 11,
-                fontWeight: active ? 700 : 500,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                color: active ? theme.primary : theme.textMuted,
-                background: "transparent",
-                border: "none",
-                borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
-                cursor: "pointer",
-                fontFamily: "inherit",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {tab.name}
-            </button>
-          );
-        })}
-      </div>
-      {/* Tab content */}
-      <div style={{ flex: 1, overflow: "auto" }}>
-        {detailsContent}
-      </div>
-    </div>
-  );
+  const detailsPanel = <ShellDetailTabs tabs={allTabs} activeTab={activeTab} onTabChange={handleTabChange}>
+    {renderTabBody(activeTab, false)}
+  </ShellDetailTabs>;
 
   // Safe to hand back the diagnosis instead of chrome wrapped around nothing
   // (every hook ran above the unstyled return already).
   if (snapshots.length === 0) return renderEmptyState(shellThemeVars);
 
-  return (
-    <div
-      ref={shellRef}
-      className={className}
-      style={{
-        ...shellThemeVars,
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        background: theme.bgPrimary,
-        color: theme.textPrimary,
-        fontFamily: theme.fontSans,
-        fontSize: 12,
-        ...style,
-      }}
-      data-fp="explainable-shell"
-    >
-      {/* Time-travel slider — the SAME rail hosts the tracing walk */}
-      <TimeTravelRail
-        snapshots={activeSnapshots}
-        selectedIndex={safeIdx}
-        onIndexChange={handleSnapshotChange}
-        size={size}
-        tracing={tracingRail}
-        autoPlay={railAutoPlay}
-        autoPlayKey={autoPlayRun}
-        offered={offeredRun}
-      />
-
-      {navigationStatus}
-      {/* Breadcrumb */}
-      {isInSubflow && (
-        <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />
-      )}
-
-      {/* Content */}
-      <div style={{ flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }}>
-        {isNarrow ? (
-          /* ── Mobile: stacked vertical ── */
-          <>
-            {/* Flowchart — only when topology is relevant */}
-            {showTopology && (
-              <div style={{ height: 350, flexShrink: 0, overflow: "hidden" }}>
-                {effectiveRenderFlowchart!({
-                  spec: null,
-                  snapshots: activeSnapshots,
-                  selectedIndex: safeIdx,
-                  onNodeClick: handleNodeClick,
-                  showStageId,
-                  currentSubflowId: chartDrillKey,
-                  onSubflowChange: handleChartSubflowChange,
-                  ...(sliceCone && { sliceCone }),
-                })}
-              </div>
-            )}
-            {missingChart && <MissingChartNote />}
-
-            {/* Topology (subflow tree) — collapsible */}
-            {showTreeSidebar && (
-              <>
-                <HLinePill label={leftLabel} expanded={leftExpanded} onClick={() => toggleLeft(!leftExpanded)} />
-                {leftExpanded && (
-                  <div style={{ maxHeight: 180, overflow: "auto", flexShrink: 0 }}>
-                    <SubflowTree
-                      graph={traceGraph ?? { nodes: [], edges: [] }}
-                      activeStage={rootOverlay.activeStage}
-                      doneStages={rootOverlay.doneStages}
-                      onNodeSelect={handleTreeNodeSelect}
-                    />
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* Details panel with tabs */}
-            <HLinePill label={rightLabel} expanded={rightExpanded} onClick={() => toggleRight(!rightExpanded)} />
-            {rightExpanded && (
-              <div style={{ maxHeight: 350, flexShrink: 0, overflow: "hidden" }}>
-                {detailsPanel}
-              </div>
-            )}
-
-            {/* Timeline */}
-            <HLinePill label={bottomLabel} detail={`${activeSnapshots.length} stages`} expanded={timelineExpanded} onClick={toggleTimeline} />
-            {timelineExpanded && (
-              <div style={{ flexShrink: 0, overflow: "hidden" }}>
-                <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />
-              </div>
-            )}
-          </>
-        ) : (
-          /* ── Desktop: two-column — Flowchart | Right Panel ── */
-          <>
-            <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-
-              {/* SubflowTree sidebar (only when subflows exist) */}
-              {showTreeSidebar && (
-                leftExpanded ? (
-                  <div style={{ width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }}>
-                    <div style={{ flex: 1, overflow: "auto" }}>
-                      <SubflowTree
-                        graph={traceGraph ?? { nodes: [], edges: [] }}
-                        activeStage={rootOverlay.activeStage}
-                        doneStages={rootOverlay.doneStages}
-                        onNodeSelect={handleTreeNodeSelect}
-                      />
-                    </div>
-                    <VLinePill label={leftLabel} expanded={true} side="left" onClick={() => toggleLeft(false)} />
-                  </div>
-                ) : (
-                  <VLinePill label={leftLabel} expanded={false} side="left" onClick={() => toggleLeft(true)} />
-                )
-              )}
-
-              {/* Center: Flowchart — flex:1, shares horizontal space with
-                  the Details panel sibling when expanded. The chart's
-                  TracedFlow refits itself via ResizeObserver whenever
-                  this container's size changes (so opening/closing
-                  Details re-runs xyflow's fitView automatically). */}
-              {showTopology ? (
-                <div style={{ flex: 1, overflow: "hidden", minWidth: 0 }}>
-                  {effectiveRenderFlowchart!({
-                    spec: null,
-                    snapshots: activeSnapshots,
-                    selectedIndex: safeIdx,
-                    onNodeClick: handleNodeClick,
-                    showStageId,
-                    currentSubflowId: chartDrillKey,
-                    onSubflowChange: handleChartSubflowChange,
-                    ...(sliceCone && { sliceCone }),
-                  })}
-                </div>
-              ) : (
-                <div style={{ flex: 1, minWidth: 0, overflow: "auto" }}>
-                  {missingChart && <MissingChartNote />}
-                </div>
-              )}
-
-              {/* VLinePill divider between flowchart and right panel */}
-              <VLinePill label={rightLabel} expanded={rightExpanded} onClick={() => toggleRight(!rightExpanded)} />
-
-              {/* Right: Two-mode panel — Insights vs Inspector */}
-              {rightExpanded && (
-              <div style={{ width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-                <RightPanel
-                  mode={rightPanelMode}
-                  onModeChange={setRightPanelMode}
-                  dataTrace={shellDataTrace}
-                  onInspectorTabChange={setInspectorTab}
-                  inspectorTab={inspectorTab}
-                  traceContent={traceTabContent}
-                  snapshots={activeSnapshots}
-                  selectedIndex={safeIdx}
-                  activeTab={activeTab}
-                  allTabs={allTabs}
-                  renderTabBody={renderTabBody}
-                  size={size}
-                  onNavigateToStage={navigateToStage}
-                />
-              </div>
-              )}
-            </div>
-
-            {/* Bottom: Compact Timeline */}
-            <CompactTimeline
-              snapshots={activeSnapshots}
-              selectedIndex={safeIdx}
-              defaultExpanded={timelineExpanded}
-              label={bottomLabel}
-            />
-          </>
-        )}
-      </div>
-    </div>
-  );
+  return <ShellLayout
+    containerRef={shellRef} className={className} style={style}
+    themeStyle={shellThemeVars} isNarrow={isNarrow} stageCount={activeSnapshots.length}
+    showTopology={showTopology} showTreeSidebar={showTreeSidebar}
+    topology={{ label: leftLabel, expanded: leftExpanded, onChange: toggleLeft }}
+    details={{ label: rightLabel, expanded: rightExpanded, onChange: toggleRight }}
+    timeline={{ label: bottomLabel, expanded: timelineExpanded, onChange: toggleTimeline }}
+    slots={{
+      rail: <TimeTravelRail snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange}
+        size={size} tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} />,
+      navigation: navigationStatus,
+      breadcrumb: isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />,
+      chart: showTopology ? effectiveRenderFlowchart!({
+        spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick,
+        showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange,
+        ...(sliceCone && { sliceCone }),
+      }) : null,
+      missingChart: missingChart && <MissingChartNote />,
+      tree: <SubflowTree graph={traceGraph ?? { nodes: [], edges: [] }} activeStage={rootOverlay.activeStage}
+        doneStages={rootOverlay.doneStages} onNodeSelect={handleTreeNodeSelect} />,
+      mobileDetails: detailsPanel,
+      desktopDetails: <RightPanel mode={rightPanelMode} onModeChange={setRightPanelMode}
+        dataTrace={shellDataTrace} onInspectorTabChange={setInspectorTab} inspectorTab={inspectorTab}
+        traceContent={traceTabContent} snapshots={activeSnapshots} selectedIndex={safeIdx}
+        activeTab={activeTab} allTabs={allTabs} renderTabBody={renderTabBody} size={size}
+        onNavigateToStage={navigateToStage} />,
+      gantt: <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />,
+      compactTimeline: <CompactTimeline snapshots={activeSnapshots} selectedIndex={safeIdx}
+        defaultExpanded={timelineExpanded} label={bottomLabel} />,
+    }}
+  />;
 }
