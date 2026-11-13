@@ -2,14 +2,12 @@ import * as React from "react";
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 
 import { graphFromStructure } from "../../adapters/graphFromStructure";
-import {
-  narrativeFromSnapshot,
-  toVisualizationSnapshots,
-} from "../../adapters/fromRuntimeSnapshot";
+import { narrativeFromSnapshot } from "../../adapters/fromRuntimeSnapshot";
+import { parseRecordingInput, projectRuntimeSnapshot } from "../../model/recording";
+import type { RuntimeSnapshotInput } from "../../model/recording";
 import { overlayFromSnapshot } from "../../adapters/overlayFromSnapshot";
 import type { TraceGraph } from "../FlowchartView/traceStructureRecorder";
 import type { RuntimeOverlay } from "../FlowchartView/createTraceRuntimeOverlay";
-import type { RuntimeSnapshotInput } from "../ExplainableShell";
 import type { NarrativeEntry, StageSnapshot } from "../../types";
 import {
   FootprintTheme,
@@ -77,17 +75,14 @@ function parseRecording(input: ExplainableRecordingInput): {
     return { recording: null, error: "No recording provided." };
   }
 
-  let candidate: unknown = input;
-  if (typeof input === "string") {
-    try {
-      candidate = JSON.parse(input);
-    } catch (error) {
-      return {
-        recording: null,
-        error: `Could not parse recording JSON: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
+  const parsed = parseRecordingInput(input);
+  if (!parsed.ok) {
+    return {
+      recording: null,
+      error: `Could not parse recording JSON: ${parsed.detail}`,
+    };
   }
+  const candidate = parsed.value;
 
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
     return { recording: null, error: "A recording must be a JSON object." };
@@ -128,33 +123,30 @@ export function ExplainableProvider({
       };
     }
 
+    const recording = parsed.recording;
     const narrativeEntries =
-      parsed.recording.narrativeEntries ??
-      narrativeFromSnapshot(parsed.recording.snapshot) ??
+      recording.narrativeEntries ??
+      narrativeFromSnapshot(recording.snapshot) ??
       [];
-    const runtimeSnapshot = parsed.recording.snapshot as Parameters<
-      typeof toVisualizationSnapshots
-    >[0];
+    const runtimeSnapshot = recording.snapshot;
+    const projection = projectRuntimeSnapshot(runtimeSnapshot, narrativeEntries);
+    const prepareSurfaces = (snapshots: StageSnapshot[], error: string | null) => ({
+      snapshots,
+      narrativeEntries,
+      traceGraph: graphFromStructure(
+        recording.structure ?? recording.blueprint,
+      ),
+      runtimeOverlay: overlayFromSnapshot(recording.snapshot, { narrativeEntries }),
+      error,
+    });
+    if (projection.kind === "unreadable") {
+      return prepareSurfaces([], `Could not read recording snapshot: ${projection.detail}`);
+    }
+    // Graph/overlay preparation stays inside its existing facade boundary.
     try {
-      return {
-        snapshots: toVisualizationSnapshots(runtimeSnapshot, narrativeEntries),
-        narrativeEntries,
-        traceGraph: graphFromStructure(
-          parsed.recording.structure ?? parsed.recording.blueprint,
-        ),
-        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot, { narrativeEntries }),
-        error: null,
-      };
+      return prepareSurfaces(projection.snapshots, null);
     } catch (error) {
-      return {
-        snapshots: [] as StageSnapshot[],
-        narrativeEntries,
-        traceGraph: graphFromStructure(
-          parsed.recording.structure ?? parsed.recording.blueprint,
-        ),
-        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot, { narrativeEntries }),
-        error: `Could not read recording snapshot: ${error instanceof Error ? error.message : String(error)}`,
-      };
+      return prepareSurfaces([], `Could not read recording snapshot: ${error instanceof Error ? error.message : String(error)}`);
     }
   }, [parsed]);
 

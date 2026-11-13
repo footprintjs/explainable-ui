@@ -33,7 +33,8 @@
 import * as React from 'react';
 import { useMemo } from 'react';
 import { ExplainableShell, type ExplainableShellProps, type ShellTab } from '../ExplainableShell';
-import { toVisualizationSnapshots } from '../../adapters/fromRuntimeSnapshot';
+import { parseRecordingInput, projectRuntimeSnapshot } from '../../model/recording';
+import type { NarrativeEntry } from '../../types';
 import { graphFromStructure } from '../../adapters/graphFromStructure';
 import { overlayFromSnapshot } from '../../adapters/overlayFromSnapshot';
 import type { ThemeModeProps } from '../../theme';
@@ -109,17 +110,16 @@ function parseRecording(input: TraceViewerProps['recording']): ParseResult {
     return { ok: false, error: { kind: 'invalid-json', message: 'No recording provided.' } };
   }
 
-  let candidate: unknown = input;
   if (typeof input === 'string') {
     if (!input.trim()) {
       return { ok: false, error: { kind: 'invalid-json', message: 'Empty input.' } };
     }
-    try {
-      candidate = JSON.parse(input);
-    } catch (err) {
-      return { ok: false, error: { kind: 'invalid-json', message: (err as Error).message } };
-    }
   }
+  const parsed = parseRecordingInput(input);
+  if (!parsed.ok) {
+    return { ok: false, error: { kind: 'invalid-json', message: parsed.detail } };
+  }
+  const candidate = parsed.value;
 
   if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
     return {
@@ -154,7 +154,7 @@ function parseRecording(input: TraceViewerProps['recording']): ParseResult {
 
 /** Everything the shell needs, or the reason we cannot build it. */
 type Prepared =
-  | { ok: true; recording: Recording; snapshotCount: number }
+  | { ok: true; recording: Recording }
   | { ok: false; error: TraceParseError };
 
 function prepare(input: TraceViewerProps['recording']): Prepared {
@@ -164,11 +164,21 @@ function prepare(input: TraceViewerProps['recording']): Prepared {
   // Read the snapshot HERE so a failure is reported instead of swallowed —
   // an empty render used to be indistinguishable from "no data yet".
   try {
-    const snapshots = toVisualizationSnapshots(
-      parsed.recording.snapshot as Parameters<typeof toVisualizationSnapshots>[0],
-      (parsed.recording.narrativeEntries as Parameters<typeof toVisualizationSnapshots>[1]) ?? undefined,
+    // Keep argument reads inside the facade's original error boundary too.
+    const projection = projectRuntimeSnapshot(
+      parsed.recording.snapshot,
+      (parsed.recording.narrativeEntries as NarrativeEntry[] | undefined) ?? undefined,
     );
-    if (snapshots.length === 0) {
+    if (projection.kind === 'unreadable') {
+      return {
+        ok: false,
+        error: {
+          kind: 'unreadable-snapshot',
+          message: `Could not read this snapshot: ${projection.detail}`,
+        },
+      };
+    }
+    if (projection.kind === 'empty') {
       return {
         ok: false,
         error: {
@@ -178,13 +188,13 @@ function prepare(input: TraceViewerProps['recording']): Prepared {
         },
       };
     }
-    return { ok: true, recording: parsed.recording, snapshotCount: snapshots.length };
-  } catch (err) {
+    return { ok: true, recording: parsed.recording };
+  } catch (error) {
     return {
       ok: false,
       error: {
         kind: 'unreadable-snapshot',
-        message: `Could not read this snapshot: ${err instanceof Error ? err.message : String(err)}`,
+        message: `Could not read this snapshot: ${error instanceof Error ? error.message : String(error)}`,
       },
     };
   }
