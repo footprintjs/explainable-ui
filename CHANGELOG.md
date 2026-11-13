@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [0.42.0] - 2026-11-13
+
+### Added
+
+- `ExplainableShell` can follow recorded output-mapping reads into the exact
+  child invocation, including repeated and nested visits. Each scope retains
+  its own timeline and recorded cutoff. Source links and copied stories name
+  the conservative observed-read prefix; absent, partial or invalid handoffs
+  retain the existing unknown boundary. Requires FootPrint recordings made
+  with `captureOutputHandoff: true`; `writeProvenance: 'reads-prefix'` adds
+  per-write attribution inside each child scope.
+
+### Fixed
+
+- Preserve measured card sizes and chart alignment during layout, replay and
+  dependency dimming, including controlled React Flow embeddings (#28).
+- Keep playback buttons safe inside forms, react to container resizing,
+  deduplicate commentary events and preserve grouped investigation rendering
+  across Suspense transitions (#24).
+
+### Changed
+
+- Share recording preparation across React views and separate tracing,
+  playback and shell presentation into focused hooks and components (#25–#27).
+
 ## [0.41.0] - 2026-11-06
 
 ### Added

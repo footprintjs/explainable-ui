@@ -13,6 +13,7 @@
  * human's board and an LLM's backtrack answer are the same text.
  */
 import { scopeSentence, START_SENTENCE, inputSentence, isInvocationStart, mountLabel } from "../../trace/tracePresentation";
+import { handoffSentence, type SubflowHandoffSource } from "../../trace/subflowHandoff";
 import { memo, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { fontSize, theme, v } from "../../theme";
@@ -64,6 +65,8 @@ export interface TraceWalkCardProps extends BaseComponentProps {
   previewValueOf?: (key: string) => unknown;
   /** Follow an ingredient: re-anchor the walk on ing.key before this stop. */
   onFollowIngredient?: (ing: TraceIngredient) => void;
+  /** Open an exact child invocation and trace its recorded source on that scope's rail. */
+  onFollowHandoff?: (source: SubflowHandoffSource) => void;
   /** Jump the cursor to a stop (itinerary row click). */
   onJumpToStop?: (runtimeStageId: string) => void;
   onShowAll?: () => void;
@@ -88,6 +91,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   stepNumberOf,
   previewValueOf,
   onFollowIngredient,
+  onFollowHandoff,
   onJumpToStop,
   onShowAll,
   onExit,
@@ -318,6 +322,18 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           </div>
         )}
       </div>
+
+      {!!current.handoffSources?.length && <div data-fp="twc-handoff" style={sx({ marginTop: 10 })}>
+        <div style={sx({ fontSize: fs.label, color: theme.textMuted })}>{handoffSentence(current.handoffSources)}</div>
+        {onFollowHandoff && current.handoffSources.map(source => <button
+          key={source.key}
+          type="button"
+          data-fp="twc-handoff-source"
+          aria-label={`Follow child source ${source.key} in ${source.mountRuntimeStageId}`}
+          onClick={() => onFollowHandoff(source)}
+          style={sx({ marginTop: 6, marginRight: 6, border: `1px solid ${accent}`, borderRadius: 12, background: "transparent", color: accent, padding: "3px 10px", cursor: "pointer", fontSize: fs.label })}
+        >Follow child source <code>{source.key}</code></button>)}
+      </div>}
 
       {/* ── Itinerary (the whole walk; current row highlighted) ── */}
       <div style={sx({ marginTop: 14 })}>
