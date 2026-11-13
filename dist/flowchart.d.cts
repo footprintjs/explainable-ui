@@ -3,6 +3,31 @@ import { CSSProperties, ReactNode } from 'react';
 import * as _xyflow_react from '@xyflow/react';
 import { Node, Edge, NodeTypes, EdgeTypes, NodeProps, EdgeProps } from '@xyflow/react';
 
+/** One display contract shared by the two independent relationship admission boundaries. */
+declare const attributions: Readonly<{
+    "per-write": Readonly<{
+        label: "Per-write link";
+        caption: undefined;
+    }>;
+    stage: Readonly<{
+        label: "Step-level link";
+        caption: "Step";
+    }>;
+    "recorded-control": Readonly<{
+        label: "Recorded control";
+        caption: undefined;
+    }>;
+    "recorded-read": Readonly<{
+        label: "Recorded read";
+        caption: "Read";
+    }>;
+    "recorded-write": Readonly<{
+        label: "Recorded write (retained value)";
+        caption: "Kept";
+    }>;
+}>;
+type RecordedAttribution = keyof typeof attributions;
+
 /** App-approved presentation and structure, independent of recorded execution facts. */
 interface FlowDiagramNode {
     readonly id: string;
@@ -44,7 +69,7 @@ interface FlowDiagramRecordedRelationship {
     readonly source: string;
     readonly target: string;
     readonly kind: "data" | "control";
-    readonly attribution: "per-write" | "stage" | "recorded-control" | "recorded-read";
+    readonly attribution: RecordedAttribution;
     readonly evidence: readonly string[];
     /** Routing hint only. Endpoints and arrow direction are never reversed. */
     readonly direction?: "backward" | "forward";
