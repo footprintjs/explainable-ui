@@ -29,6 +29,7 @@ import { rootMountLabels } from "./traceScope";
 import { ownDataField, readOwnArray, readName, WorkBudget } from "./safeRecordRead";
 import { snapshotWalkScope } from "./walkScope";
 import { buildDataTrace } from "./dataTrace";
+import { handoffSentence, type SubflowHandoffSource } from "./subflowHandoff";
 import {
   scopeSentence,
   START_SENTENCE,
@@ -79,6 +80,8 @@ export interface TraceStop {
   /** 1-based pass number when the same stage appears more than once in
    *  the walk (loop iterations); 0 = appears once. */
   loopPass: number;
+  /** Admitted child targets; their histories remain on their own cursor rail. */
+  handoffSources?: readonly SubflowHandoffSource[];
 }
 
 export interface TraceWalkMissing {
@@ -404,6 +407,7 @@ export function formatTraceWalk(
         stop.stageName
       }${pass} wrote \`${stop.contributedKeys.join("`, `")}\`${made}`
     );
+    if (stop.handoffSources?.length) lines.push(handoffSentence(stop.handoffSources));
   });
   if (walk.inputTermini.length > 0) {
     lines.push(`No local writer: ${walk.inputTermini.map(key => `${key} (${inputSentence(presentation, key)})`).join(", ")}`);

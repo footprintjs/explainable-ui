@@ -32,6 +32,7 @@ export function TraceSessionPanel({ availability, scopeLabel, snapshot, selected
       stepNumberOf={view.stepNumberOf}
       previewValueOf={key => snapshot?.memory?.[key]}
       onFollowIngredient={view.handleFollowIngredient}
+      onFollowHandoff={view.handleFollowHandoff}
       onJumpToStop={view.navigateToStage}
       onShowAll={view.activeViaKey ? view.handleShowAllIngredients : undefined}
       onExit={view.handleExitTracing}

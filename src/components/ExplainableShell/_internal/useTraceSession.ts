@@ -4,6 +4,8 @@ import type { TracingRail } from "../../TimeTravelControls/TimeTravelControls";
 import { buildDataTrace, type DataTraceResult } from "./dataTrace";
 import type { TraceScope } from "./traceScope";
 import { buildTraceWalk, type TraceIngredient, type TraceWalk } from "./traceWalk";
+import { subflowHandoffSources, type SubflowHandoffSource } from "../../../trace/subflowHandoff";
+import { projectTraceInvocation } from "../../../trace/projectTraceInvocation";
 
 interface TraceAnchor {
   key: string;
@@ -88,6 +90,8 @@ interface TraceSessionControllerOptions {
   showDataTraceCone: boolean;
   setSnapshotIdx: (index: number) => void;
   onStartInspector: () => void;
+  runtimeSnapshot?: unknown;
+  openTraceSource?: (mountRuntimeStageId: string, invocationPath: readonly string[], targetRuntimeStageId?: string) => boolean;
 }
 
 function dependencyCone(frames: readonly { runtimeStageId: string; depth: number }[]): ReadonlyMap<string, number> {
@@ -112,6 +116,8 @@ export function useTraceSessionController({
   showDataTraceCone,
   setSnapshotIdx,
   onStartInspector,
+  runtimeSnapshot,
+  openTraceSource,
 }: TraceSessionControllerOptions) {
   const { tracing, forkChooserOpen, traceSearch, setTraceSearch, dispatch } = session;
   const shellDataTrace = useMemo<DataTraceResult>(() => {
@@ -139,7 +145,7 @@ export function useTraceSessionController({
   const traceWalk = useMemo<TraceWalk | null>(() => {
     if (sourceChanged || !tracing || tracing.scope !== activeTraceKey || !activeTraceScope.availability.ok) return null;
     const anchor = tracing.via.at(-1) ?? tracing;
-    return buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, anchor.key, {
+    const walk = buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, anchor.key, {
       beforeCommitIdx: anchor.beforeCommitIdx,
       scope: {
         invocationPath: activeTraceScope.invocationPath,
@@ -148,7 +154,18 @@ export function useTraceSessionController({
         startKeys: activeTraceScope.startKeys,
       },
     });
-  }, [tracing, activeTraceScope, activeTraceKey, sourceChanged]);
+    return {
+      ...walk,
+      stops: walk.stops.map(stop => {
+        const sources = subflowHandoffSources({
+          snapshot: runtimeSnapshot, invocationPath: activeTraceScope.invocationPath,
+          mountRuntimeStageId: stop.runtimeStageId, writtenKeys: stop.contributedKeys,
+          beforeCommitIdx: Math.min(stop.commitIdx + 1, anchor.beforeCommitIdx ?? activeTraceScope.commitLog.length),
+        });
+        return sources.length ? { ...stop, handoffSources: sources } : stop;
+      }),
+    };
+  }, [tracing, activeTraceScope, activeTraceKey, sourceChanged, runtimeSnapshot]);
 
   const traceStopIndices = useMemo(() => {
     if (!traceWalk || traceWalk.missing) return [];
@@ -194,6 +211,21 @@ export function useTraceSessionController({
     }));
   }, [tracing, activeTraceScope, dispatch, jumpToAnchor]);
 
+  const handleFollowHandoff = useCallback((source: SubflowHandoffSource) => {
+    if (sourceChanged || !openTraceSource || !traceWalk?.stops.some(stop => stop.handoffSources?.includes(source))) return;
+    const child = projectTraceInvocation(runtimeSnapshot, source.mountRuntimeStageId, { invocationPath: source.invocationPath });
+    if (!child.availability.ok || source.beforeCommitIdx > child.commitLog.length) return;
+    const walk = buildTraceWalk(child.commitLog, child.executionTree, source.key, {
+      beforeCommitIdx: source.beforeCommitIdx, scope: child.scope,
+    });
+    if (!openTraceSource(source.mountRuntimeStageId, source.invocationPath, walk.stops[0]?.runtimeStageId)) return;
+    dispatch({ type: "start", question: {
+      scope: JSON.stringify(source.invocationPath), key: source.key,
+      beforeCommitIdx: source.beforeCommitIdx, via: [],
+    } });
+    onStartInspector();
+  }, [sourceChanged, openTraceSource, traceWalk, runtimeSnapshot, dispatch, onStartInspector]);
+
   const handleShowAllIngredients = useCallback(() => {
     if (!tracing || !activeTraceScope.availability.ok) return;
     dispatch({ type: "show-all" });
@@ -238,6 +270,7 @@ export function useTraceSessionController({
     shellDataTrace, allTracedKeys, traceWalk, traceStopIndices, sliceCone,
     navigateToStage, activeViaKey, stepNumberOf, tracingRail,
     handleStartTracing, handleFollowIngredient, handleShowAllIngredients,
+    handleFollowHandoff,
     handleExitTracing, handleForkPrompt, handleContinueTimeOrder,
   };
 }

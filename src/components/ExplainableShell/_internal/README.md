@@ -16,6 +16,19 @@ that the dial was on. No recorded reads stays unknowable; this is evidence of
 coverage, not a capture-completeness certificate or exact read attribution.
 A mount has its own inner computation and never becomes a no-read origin.
 
+For recordings with `captureOutputHandoff: true` and
+`writeProvenance: 'reads-prefix'`, `src/trace/subflowHandoff.ts` admits optional
+engine-owned `outputHandoff` metadata. It checks exact parent/child log
+addresses, invocation ancestry, actual parent write rows and bounded child
+cutoffs. Only captured handoffs without limitations expose source links.
+Their observed-read prefix is conservative, not a claim of per-output
+derivation. Missing, partial or invalid evidence leaves the boundary unknown.
+Following a source resolves the direct exact child, changes the one selected
+scope and re-anchors the question there. Raw cutoffs account for the child's
+excluded seed bookend. No child key or commit is inserted into the parent's
+rail. The card and copied story format the same admitted source names;
+standalone `buildTraceWalk` continues to walk only its supplied scope.
+
 The exact first bundle belongs to invocation-start state. Current records
 stamp it with the mount runtime ID; engines through 9.33 may use an empty
 stamp. Both are excluded from the child's step rail. Card text, tooltips and

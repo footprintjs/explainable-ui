@@ -384,7 +384,7 @@ have. One cursor, no new axis.
 - **Honest absence**: a value nobody wrote gets a truthful card ("no recorded write; value unknown"), and a value not
   written *yet* at the cursor's moment says exactly that, naming where its
   first write happens. Reads-off runs say "unknowable, not absent".
-- **[Copy story]** uses `formatTraceWalk`. A tool using the same selected record, scope and
+- **[Copy story]** uses `formatTraceWalk`. A tool formatting the same walk and
   step numbering receives the identical text; arbitrary external tools need
   not use that formatter. Root mount labels are derived from the recorded tree.
 - **Trace inside a subflow**: drill into a recorded child, then open
@@ -396,6 +396,14 @@ have. One cursor, no new axis.
   path-only alias is not proof of a visit, even if a partial record shows just
   one. Custom snapshot hosts can provide the exact result map or attach the
   matching result to the selected `StageSnapshot`.
+- **Follow a recorded child source**: recordings made with FootPrint's
+  `captureOutputHandoff: true` and `writeProvenance: 'reads-prefix'` can show
+  source buttons at an output-mapping boundary. A button opens that exact
+  child visit and traces the selected key at its recorded cutoff. Parent
+  and child timelines remain separate. The label describes a conservative
+  observed-read prefix, which may include reads used by other outputs;
+  it does not claim an exact mapping between each output and its inputs.
+  Missing, partial or invalid handoffs retain the ordinary unknown boundary.
 - Values already present when a child starts may come from input mapping or
   state restored after a pause. Cards and copied stories check the selected
   invocation's own starting data for each key. A recorded non-undefined

@@ -674,6 +674,7 @@ export function ExplainableShell({
     traceHistoryAvailable: isInSubflow || !!runtimeSnapshot?.commitLog,
     showDataTraceCone: rightPanelMode === "what" && inspectorTab === "trace",
     setSnapshotIdx, onStartInspector,
+    runtimeSnapshot, openTraceSource: navigation.openTraceSource,
   });
   const { shellDataTrace, sliceCone, navigateToStage, tracingRail } = traceSession;
 

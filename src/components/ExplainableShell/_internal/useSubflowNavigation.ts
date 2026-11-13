@@ -220,6 +220,35 @@ export function useSubflowNavigation({
     [buildDrillStack, onScopeReset, setSnapshotIdxRaw]
   );
   const handleDrillDown = applyDrill;
+  /** Follow only the direct recorded child of the current scope, never a path/label guess. */
+  const openTraceSource = useCallback((
+    mountRuntimeStageId: string,
+    invocationPath: readonly string[],
+    targetRuntimeStageId?: string,
+  ): boolean => {
+    const parentPath = selectedStack.at(-1)?.traceScope.invocationPath ?? [];
+    if (invocationPath.length !== parentPath.length + 1 ||
+      !parentPath.every((part, index) => invocationPath[index] === part) ||
+      invocationPath.at(-1) !== mountRuntimeStageId) return false;
+    const parent = selectedStack.at(-1)?.snapshots ?? snapshots;
+    const mount = parent.find(stage => stage.runtimeStageId === mountRuntimeStageId);
+    if (!mount) return false;
+    const found = resolveSubflowLevel({
+      parent, key: mount.subflowId ?? mountRuntimeStageId.split("#")[0],
+      requestedId: mountRuntimeStageId, parentPath, sourceRunId,
+      readsAvailable, results: exactResults, narrative: narrativeEntries,
+    });
+    if (found.kind !== "found" || !found.entry.traceScope.availability.ok) return false;
+    const index = targetRuntimeStageId
+      ? found.entry.snapshots.findIndex(stage => stage.runtimeStageId === targetRuntimeStageId)
+      : 0;
+    if (index < 0) return false;
+    onScopeReset();
+    clearTransient();
+    setDrillDownStack([...selectedStack, found.entry]);
+    setSnapshotIdxRaw(index);
+    return true;
+  }, [selectedStack, snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
   const handleBreadcrumbNavigate = useCallback(
     (level: number) => {
       onScopeReset();
@@ -334,6 +363,7 @@ export function useSubflowNavigation({
     setSnapshotIdx,
     resetRoot,
     handleDrillDown,
+    openTraceSource,
     handleBreadcrumbNavigate,
     handleChartSubflowChange,
     handleNodeClick,

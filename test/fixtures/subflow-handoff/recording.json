@@ -1,0 +1,1587 @@
+{
+  "runtimeSnapshot": {
+    "sharedState": {
+      "count": 2,
+      "renamed": 4,
+      "final": 5
+    },
+    "executionTree": {
+      "id": "start",
+      "runtimeStageId": "start#0",
+      "name": "Start",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageWrites": {
+        "count": 0
+      },
+      "flowMessages": [
+        {
+          "type": "next",
+          "description": "Moving to Tick stage",
+          "timestamp": 1794603457301,
+          "targetStage": "Tick"
+        }
+      ],
+      "next": {
+        "id": "tick",
+        "runtimeStageId": "tick#1",
+        "name": "Tick",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "count": 1
+        },
+        "stageReads": {
+          "count": 0
+        },
+        "flowMessages": [
+          {
+            "type": "next",
+            "description": "Moving to Child stage",
+            "timestamp": 1794603457301,
+            "targetStage": "Child"
+          }
+        ],
+        "next": {
+          "id": "child",
+          "runtimeStageId": "child#2",
+          "name": "Child",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageReads": {
+            "count": 1
+          },
+          "subflowId": "child",
+          "flowMessages": [
+            {
+              "type": "subflow",
+              "description": "Entering Child subflow",
+              "timestamp": 1794603457301,
+              "targetStage": "child"
+            },
+            {
+              "type": "subflow",
+              "description": "Exiting Child subflow",
+              "timestamp": 1794603457303,
+              "targetStage": "child"
+            }
+          ],
+          "next": {
+            "id": "use",
+            "runtimeStageId": "use#6",
+            "name": "Use",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "final": 3
+            },
+            "stageReads": {
+              "renamed": 2
+            },
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to Gate stage",
+                "timestamp": 1794603457303,
+                "targetStage": "Gate"
+              }
+            ],
+            "next": {
+              "id": "gate",
+              "runtimeStageId": "gate#7",
+              "name": "Gate",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {
+                "dynamicNextTarget": "tick",
+                "dynamicNextIteration": 0
+              },
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageReads": {
+                "count": 1
+              },
+              "flowMessages": [
+                {
+                  "type": "loop",
+                  "description": "Looping back to Tick (iteration 1)",
+                  "timestamp": 1794603457303,
+                  "targetStage": "Tick",
+                  "iteration": 1
+                }
+              ],
+              "next": {
+                "id": "tick",
+                "runtimeStageId": "tick#8",
+                "name": "Tick",
+                "isDecider": false,
+                "isFork": false,
+                "logs": {},
+                "errors": {},
+                "metrics": {},
+                "evals": {},
+                "stageWrites": {
+                  "count": 2
+                },
+                "stageReads": {
+                  "count": 1
+                },
+                "flowMessages": [
+                  {
+                    "type": "next",
+                    "description": "Moving to Child stage",
+                    "timestamp": 1794603457303,
+                    "targetStage": "Child"
+                  }
+                ],
+                "next": {
+                  "id": "child",
+                  "runtimeStageId": "child#9",
+                  "name": "Child",
+                  "isDecider": false,
+                  "isFork": false,
+                  "logs": {},
+                  "errors": {},
+                  "metrics": {},
+                  "evals": {},
+                  "stageReads": {
+                    "count": 2
+                  },
+                  "subflowId": "child",
+                  "flowMessages": [
+                    {
+                      "type": "subflow",
+                      "description": "Entering Child subflow",
+                      "timestamp": 1794603457303,
+                      "targetStage": "child"
+                    },
+                    {
+                      "type": "subflow",
+                      "description": "Exiting Child subflow",
+                      "timestamp": 1794603457304,
+                      "targetStage": "child"
+                    }
+                  ],
+                  "next": {
+                    "id": "use",
+                    "runtimeStageId": "use#13",
+                    "name": "Use",
+                    "isDecider": false,
+                    "isFork": false,
+                    "logs": {},
+                    "errors": {},
+                    "metrics": {},
+                    "evals": {},
+                    "stageWrites": {
+                      "final": 5
+                    },
+                    "stageReads": {
+                      "renamed": 4
+                    },
+                    "flowMessages": [
+                      {
+                        "type": "next",
+                        "description": "Moving to Gate stage",
+                        "timestamp": 1794603457304,
+                        "targetStage": "Gate"
+                      }
+                    ],
+                    "next": {
+                      "id": "gate",
+                      "runtimeStageId": "gate#14",
+                      "name": "Gate",
+                      "isDecider": false,
+                      "isFork": false,
+                      "logs": {},
+                      "errors": {},
+                      "metrics": {},
+                      "evals": {},
+                      "stageReads": {
+                        "count": 2
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "initialState": {},
+    "commitLog": [
+      {
+        "overwrite": {
+          "count": 0
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "count",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Start",
+        "stageId": "start",
+        "runtimeStageId": "start#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "count": 1
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "count",
+            "verb": "set",
+            "readKeys": [
+              "count"
+            ]
+          }
+        ],
+        "stage": "Tick",
+        "stageId": "tick",
+        "runtimeStageId": "tick#1",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "renamed": 2
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "renamed",
+            "verb": "set",
+            "readKeys": [
+              "count"
+            ]
+          }
+        ],
+        "stage": "Child",
+        "stageId": "child",
+        "runtimeStageId": "child#2",
+        "idx": 2
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Child",
+        "stageId": "child",
+        "runtimeStageId": "child#2",
+        "phase": "exit",
+        "idx": 3
+      },
+      {
+        "overwrite": {
+          "final": 3
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "final",
+            "verb": "set",
+            "readKeys": [
+              "renamed"
+            ]
+          }
+        ],
+        "stage": "Use",
+        "stageId": "use",
+        "runtimeStageId": "use#6",
+        "idx": 4
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Gate",
+        "stageId": "gate",
+        "runtimeStageId": "gate#7",
+        "idx": 5
+      },
+      {
+        "overwrite": {
+          "count": 2
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "count",
+            "verb": "set",
+            "readKeys": [
+              "count"
+            ]
+          }
+        ],
+        "stage": "Tick",
+        "stageId": "tick",
+        "runtimeStageId": "tick#8",
+        "idx": 6
+      },
+      {
+        "overwrite": {
+          "renamed": 4
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "renamed",
+            "verb": "set",
+            "readKeys": [
+              "count"
+            ]
+          }
+        ],
+        "stage": "Child",
+        "stageId": "child",
+        "runtimeStageId": "child#9",
+        "idx": 7
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Child",
+        "stageId": "child",
+        "runtimeStageId": "child#9",
+        "phase": "exit",
+        "idx": 8
+      },
+      {
+        "overwrite": {
+          "final": 5
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "final",
+            "verb": "set",
+            "readKeys": [
+              "renamed"
+            ]
+          }
+        ],
+        "stage": "Use",
+        "stageId": "use",
+        "runtimeStageId": "use#13",
+        "idx": 9
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Gate",
+        "stageId": "gate",
+        "runtimeStageId": "gate#14",
+        "idx": 10
+      }
+    ],
+    "logAddress": {
+      "logRunId": "1794603457298-0000000001",
+      "drillPath": []
+    },
+    "commitValues": "full",
+    "writeProvenance": "reads-prefix",
+    "captureOutputHandoff": true,
+    "runId": "1794603457298-0000000001",
+    "subflowResults": {
+      "child/inner": {
+        "subflowId": "child/inner",
+        "subflowName": "Inner",
+        "treeContext": {
+          "globalContext": {
+            "source": 2,
+            "localOutput": 4
+          },
+          "stageContexts": {
+            "id": "child/inner/compute",
+            "runtimeStageId": "child/inner/compute#12",
+            "name": "child/inner/Child compute",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "localOutput": 4
+            },
+            "stageReads": {
+              "source": 2
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "source": 2
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "source",
+                  "verb": "set",
+                  "readKeys": []
+                }
+              ],
+              "stage": "child/Inner",
+              "stageId": "child/inner",
+              "runtimeStageId": "child/inner#11",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "localOutput": 4
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "localOutput",
+                  "verb": "set",
+                  "readKeys": [
+                    "source"
+                  ]
+                }
+              ],
+              "stage": "child/inner/Child compute",
+              "stageId": "child/inner/compute",
+              "runtimeStageId": "child/inner/compute#12",
+              "idx": 1
+            }
+          ],
+          "logAddress": {
+            "logRunId": "1794603457298-0000000001",
+            "drillPath": [
+              "child#9",
+              "child/inner#11"
+            ]
+          },
+          "initialState": {}
+        },
+        "parentStageId": "child/Inner",
+        "outputHandoff": {
+          "version": 1,
+          "attribution": "observed-read-prefix",
+          "parent": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": [
+                "child#9"
+              ]
+            },
+            "runtimeStageId": "child/inner#11",
+            "commitIdx": 2
+          },
+          "child": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": [
+                "child#9",
+                "child/inner#11"
+              ]
+            },
+            "beforeCommitIdx": 2
+          },
+          "writes": [
+            {
+              "path": "middleOutput",
+              "reads": [
+                "localOutput"
+              ]
+            }
+          ],
+          "status": "captured",
+          "limitations": []
+        }
+      },
+      "child/inner#4": {
+        "subflowId": "child/inner",
+        "subflowName": "Inner",
+        "treeContext": {
+          "globalContext": {
+            "source": 1,
+            "localOutput": 2
+          },
+          "stageContexts": {
+            "id": "child/inner/compute",
+            "runtimeStageId": "child/inner/compute#5",
+            "name": "child/inner/Child compute",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "localOutput": 2
+            },
+            "stageReads": {
+              "source": 1
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "source": 1
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "source",
+                  "verb": "set",
+                  "readKeys": []
+                }
+              ],
+              "stage": "child/Inner",
+              "stageId": "child/inner",
+              "runtimeStageId": "child/inner#4",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "localOutput": 2
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "localOutput",
+                  "verb": "set",
+                  "readKeys": [
+                    "source"
+                  ]
+                }
+              ],
+              "stage": "child/inner/Child compute",
+              "stageId": "child/inner/compute",
+              "runtimeStageId": "child/inner/compute#5",
+              "idx": 1
+            }
+          ],
+          "logAddress": {
+            "logRunId": "1794603457298-0000000001",
+            "drillPath": [
+              "child#2",
+              "child/inner#4"
+            ]
+          },
+          "initialState": {}
+        },
+        "parentStageId": "child/Inner",
+        "outputHandoff": {
+          "version": 1,
+          "attribution": "observed-read-prefix",
+          "parent": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": [
+                "child#2"
+              ]
+            },
+            "runtimeStageId": "child/inner#4",
+            "commitIdx": 2
+          },
+          "child": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": [
+                "child#2",
+                "child/inner#4"
+              ]
+            },
+            "beforeCommitIdx": 2
+          },
+          "writes": [
+            {
+              "path": "middleOutput",
+              "reads": [
+                "localOutput"
+              ]
+            }
+          ],
+          "status": "captured",
+          "limitations": []
+        }
+      },
+      "child": {
+        "subflowId": "child",
+        "subflowName": "Child",
+        "treeContext": {
+          "globalContext": {
+            "iteration": 2,
+            "middleBase": 2,
+            "middleOutput": 4
+          },
+          "stageContexts": {
+            "id": "child/prepare",
+            "runtimeStageId": "child/prepare#10",
+            "name": "child/Middle prepare",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "middleBase": 2
+            },
+            "stageReads": {
+              "iteration": 2
+            },
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to child/Inner stage",
+                "timestamp": 1794603457304,
+                "targetStage": "child/Inner"
+              }
+            ],
+            "next": {
+              "id": "child/inner",
+              "runtimeStageId": "child/inner#11",
+              "name": "child/Inner",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageReads": {
+                "middleBase": 2
+              },
+              "subflowId": "child/inner",
+              "flowMessages": [
+                {
+                  "type": "subflow",
+                  "description": "Entering Inner subflow",
+                  "timestamp": 1794603457304,
+                  "targetStage": "child/inner"
+                },
+                {
+                  "type": "subflow",
+                  "description": "Exiting Inner subflow",
+                  "timestamp": 1794603457304,
+                  "targetStage": "child/inner"
+                }
+              ]
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "iteration": 2
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "iteration",
+                  "verb": "set",
+                  "readKeys": []
+                }
+              ],
+              "stage": "Child",
+              "stageId": "child",
+              "runtimeStageId": "child#9",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "middleBase": 2
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "middleBase",
+                  "verb": "set",
+                  "readKeys": [
+                    "iteration"
+                  ]
+                }
+              ],
+              "stage": "child/Middle prepare",
+              "stageId": "child/prepare",
+              "runtimeStageId": "child/prepare#10",
+              "idx": 1
+            },
+            {
+              "overwrite": {
+                "middleOutput": 4
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "middleOutput",
+                  "verb": "set",
+                  "readKeys": [
+                    "middleBase"
+                  ]
+                }
+              ],
+              "stage": "child/Inner",
+              "stageId": "child/inner",
+              "runtimeStageId": "child/inner#11",
+              "idx": 2
+            },
+            {
+              "overwrite": {},
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [],
+              "stage": "child/Inner",
+              "stageId": "child/inner",
+              "runtimeStageId": "child/inner#11",
+              "phase": "exit",
+              "idx": 3
+            }
+          ],
+          "logAddress": {
+            "logRunId": "1794603457298-0000000001",
+            "drillPath": [
+              "child#9"
+            ]
+          },
+          "initialState": {}
+        },
+        "parentStageId": "Child",
+        "outputHandoff": {
+          "version": 1,
+          "attribution": "observed-read-prefix",
+          "parent": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": []
+            },
+            "runtimeStageId": "child#9",
+            "commitIdx": 7
+          },
+          "child": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": [
+                "child#9"
+              ]
+            },
+            "beforeCommitIdx": 4
+          },
+          "writes": [
+            {
+              "path": "renamed",
+              "reads": [
+                "middleOutput"
+              ]
+            }
+          ],
+          "status": "captured",
+          "limitations": []
+        }
+      },
+      "child#2": {
+        "subflowId": "child",
+        "subflowName": "Child",
+        "treeContext": {
+          "globalContext": {
+            "iteration": 1,
+            "middleBase": 1,
+            "middleOutput": 2
+          },
+          "stageContexts": {
+            "id": "child/prepare",
+            "runtimeStageId": "child/prepare#3",
+            "name": "child/Middle prepare",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "middleBase": 1
+            },
+            "stageReads": {
+              "iteration": 1
+            },
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to child/Inner stage",
+                "timestamp": 1794603457302,
+                "targetStage": "child/Inner"
+              }
+            ],
+            "next": {
+              "id": "child/inner",
+              "runtimeStageId": "child/inner#4",
+              "name": "child/Inner",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageReads": {
+                "middleBase": 1
+              },
+              "subflowId": "child/inner",
+              "flowMessages": [
+                {
+                  "type": "subflow",
+                  "description": "Entering Inner subflow",
+                  "timestamp": 1794603457302,
+                  "targetStage": "child/inner"
+                },
+                {
+                  "type": "subflow",
+                  "description": "Exiting Inner subflow",
+                  "timestamp": 1794603457303,
+                  "targetStage": "child/inner"
+                }
+              ]
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "iteration": 1
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "iteration",
+                  "verb": "set",
+                  "readKeys": []
+                }
+              ],
+              "stage": "Child",
+              "stageId": "child",
+              "runtimeStageId": "child#2",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "middleBase": 1
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "middleBase",
+                  "verb": "set",
+                  "readKeys": [
+                    "iteration"
+                  ]
+                }
+              ],
+              "stage": "child/Middle prepare",
+              "stageId": "child/prepare",
+              "runtimeStageId": "child/prepare#3",
+              "idx": 1
+            },
+            {
+              "overwrite": {
+                "middleOutput": 2
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "middleOutput",
+                  "verb": "set",
+                  "readKeys": [
+                    "middleBase"
+                  ]
+                }
+              ],
+              "stage": "child/Inner",
+              "stageId": "child/inner",
+              "runtimeStageId": "child/inner#4",
+              "idx": 2
+            },
+            {
+              "overwrite": {},
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [],
+              "stage": "child/Inner",
+              "stageId": "child/inner",
+              "runtimeStageId": "child/inner#4",
+              "phase": "exit",
+              "idx": 3
+            }
+          ],
+          "logAddress": {
+            "logRunId": "1794603457298-0000000001",
+            "drillPath": [
+              "child#2"
+            ]
+          },
+          "initialState": {}
+        },
+        "parentStageId": "Child",
+        "outputHandoff": {
+          "version": 1,
+          "attribution": "observed-read-prefix",
+          "parent": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": []
+            },
+            "runtimeStageId": "child#2",
+            "commitIdx": 2
+          },
+          "child": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": [
+                "child#2"
+              ]
+            },
+            "beforeCommitIdx": 4
+          },
+          "writes": [
+            {
+              "path": "renamed",
+              "reads": [
+                "middleOutput"
+              ]
+            }
+          ],
+          "status": "captured",
+          "limitations": []
+        }
+      },
+      "child/inner#11": {
+        "subflowId": "child/inner",
+        "subflowName": "Inner",
+        "treeContext": {
+          "globalContext": {
+            "source": 2,
+            "localOutput": 4
+          },
+          "stageContexts": {
+            "id": "child/inner/compute",
+            "runtimeStageId": "child/inner/compute#12",
+            "name": "child/inner/Child compute",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "localOutput": 4
+            },
+            "stageReads": {
+              "source": 2
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "source": 2
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "source",
+                  "verb": "set",
+                  "readKeys": []
+                }
+              ],
+              "stage": "child/Inner",
+              "stageId": "child/inner",
+              "runtimeStageId": "child/inner#11",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "localOutput": 4
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "localOutput",
+                  "verb": "set",
+                  "readKeys": [
+                    "source"
+                  ]
+                }
+              ],
+              "stage": "child/inner/Child compute",
+              "stageId": "child/inner/compute",
+              "runtimeStageId": "child/inner/compute#12",
+              "idx": 1
+            }
+          ],
+          "logAddress": {
+            "logRunId": "1794603457298-0000000001",
+            "drillPath": [
+              "child#9",
+              "child/inner#11"
+            ]
+          },
+          "initialState": {}
+        },
+        "parentStageId": "child/Inner",
+        "outputHandoff": {
+          "version": 1,
+          "attribution": "observed-read-prefix",
+          "parent": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": [
+                "child#9"
+              ]
+            },
+            "runtimeStageId": "child/inner#11",
+            "commitIdx": 2
+          },
+          "child": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": [
+                "child#9",
+                "child/inner#11"
+              ]
+            },
+            "beforeCommitIdx": 2
+          },
+          "writes": [
+            {
+              "path": "middleOutput",
+              "reads": [
+                "localOutput"
+              ]
+            }
+          ],
+          "status": "captured",
+          "limitations": []
+        }
+      },
+      "child#9": {
+        "subflowId": "child",
+        "subflowName": "Child",
+        "treeContext": {
+          "globalContext": {
+            "iteration": 2,
+            "middleBase": 2,
+            "middleOutput": 4
+          },
+          "stageContexts": {
+            "id": "child/prepare",
+            "runtimeStageId": "child/prepare#10",
+            "name": "child/Middle prepare",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "middleBase": 2
+            },
+            "stageReads": {
+              "iteration": 2
+            },
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to child/Inner stage",
+                "timestamp": 1794603457304,
+                "targetStage": "child/Inner"
+              }
+            ],
+            "next": {
+              "id": "child/inner",
+              "runtimeStageId": "child/inner#11",
+              "name": "child/Inner",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageReads": {
+                "middleBase": 2
+              },
+              "subflowId": "child/inner",
+              "flowMessages": [
+                {
+                  "type": "subflow",
+                  "description": "Entering Inner subflow",
+                  "timestamp": 1794603457304,
+                  "targetStage": "child/inner"
+                },
+                {
+                  "type": "subflow",
+                  "description": "Exiting Inner subflow",
+                  "timestamp": 1794603457304,
+                  "targetStage": "child/inner"
+                }
+              ]
+            }
+          },
+          "history": [
+            {
+              "overwrite": {
+                "iteration": 2
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "iteration",
+                  "verb": "set",
+                  "readKeys": []
+                }
+              ],
+              "stage": "Child",
+              "stageId": "child",
+              "runtimeStageId": "child#9",
+              "idx": 0
+            },
+            {
+              "overwrite": {
+                "middleBase": 2
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "middleBase",
+                  "verb": "set",
+                  "readKeys": [
+                    "iteration"
+                  ]
+                }
+              ],
+              "stage": "child/Middle prepare",
+              "stageId": "child/prepare",
+              "runtimeStageId": "child/prepare#10",
+              "idx": 1
+            },
+            {
+              "overwrite": {
+                "middleOutput": 4
+              },
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [
+                {
+                  "path": "middleOutput",
+                  "verb": "set",
+                  "readKeys": [
+                    "middleBase"
+                  ]
+                }
+              ],
+              "stage": "child/Inner",
+              "stageId": "child/inner",
+              "runtimeStageId": "child/inner#11",
+              "idx": 2
+            },
+            {
+              "overwrite": {},
+              "updates": {},
+              "redactedPaths": [],
+              "trace": [],
+              "stage": "child/Inner",
+              "stageId": "child/inner",
+              "runtimeStageId": "child/inner#11",
+              "phase": "exit",
+              "idx": 3
+            }
+          ],
+          "logAddress": {
+            "logRunId": "1794603457298-0000000001",
+            "drillPath": [
+              "child#9"
+            ]
+          },
+          "initialState": {}
+        },
+        "parentStageId": "Child",
+        "outputHandoff": {
+          "version": 1,
+          "attribution": "observed-read-prefix",
+          "parent": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": []
+            },
+            "runtimeStageId": "child#9",
+            "commitIdx": 7
+          },
+          "child": {
+            "address": {
+              "logRunId": "1794603457298-0000000001",
+              "drillPath": [
+                "child#9"
+              ]
+            },
+            "beforeCommitIdx": 4
+          },
+          "writes": [
+            {
+              "path": "renamed",
+              "reads": [
+                "middleOutput"
+              ]
+            }
+          ],
+          "status": "captured",
+          "limitations": []
+        }
+      }
+    }
+  },
+  "traceGraph": {
+    "nodes": [
+      {
+        "id": "start",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Start",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [],
+          "nextIds": [
+            "tick"
+          ]
+        }
+      },
+      {
+        "id": "tick",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Tick",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "start"
+          ],
+          "nextIds": [
+            "child"
+          ]
+        }
+      },
+      {
+        "id": "child",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Child",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": true,
+          "prevIds": [
+            "tick"
+          ],
+          "nextIds": [
+            "use"
+          ],
+          "subflowId": "child"
+        }
+      },
+      {
+        "id": "child/prepare",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Middle prepare",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "child",
+          "prevIds": [],
+          "nextIds": [
+            "child/inner"
+          ]
+        }
+      },
+      {
+        "id": "child/inner/compute",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Child compute",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "child/inner",
+          "prevIds": [],
+          "nextIds": []
+        }
+      },
+      {
+        "id": "child/inner",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Inner",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": true,
+          "subflowOf": "child",
+          "prevIds": [],
+          "nextIds": [],
+          "subflowId": "inner"
+        }
+      },
+      {
+        "id": "use",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Use",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "child"
+          ],
+          "nextIds": [
+            "gate"
+          ]
+        }
+      },
+      {
+        "id": "gate",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Gate",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "use"
+          ],
+          "nextIds": []
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "start->tick:next",
+        "source": "start",
+        "target": "tick",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "tick->child:next",
+        "source": "tick",
+        "target": "child",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "child/prepare->child/inner:next",
+        "source": "child/prepare",
+        "target": "child/inner",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "child->use:next",
+        "source": "child",
+        "target": "use",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "use->gate:next",
+        "source": "use",
+        "target": "gate",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "gate->tick:loop",
+        "source": "gate",
+        "target": "tick",
+        "data": {
+          "kind": "loop"
+        }
+      }
+    ]
+  },
+  "runtimeOverlay": {
+    "executionOrder": [
+      {
+        "runtimeStageId": "start#0",
+        "stageId": "start",
+        "stageName": "Start",
+        "timestampMs": 4.3753329999999835
+      },
+      {
+        "runtimeStageId": "tick#1",
+        "stageId": "tick",
+        "stageName": "Tick",
+        "timestampMs": 4.821665999999993
+      },
+      {
+        "runtimeStageId": "child#2",
+        "stageId": "child",
+        "stageName": "child/Middle prepare",
+        "timestampMs": 5.377165999999988
+      },
+      {
+        "runtimeStageId": "child/prepare#3",
+        "stageId": "child/prepare",
+        "stageName": "child/Middle prepare",
+        "timestampMs": 5.743832999999995
+      },
+      {
+        "runtimeStageId": "child/inner#4",
+        "stageId": "child/inner",
+        "stageName": "child/inner/Child compute",
+        "timestampMs": 5.811165999999986
+      },
+      {
+        "runtimeStageId": "child/inner/compute#5",
+        "stageId": "child/inner/compute",
+        "stageName": "child/inner/Child compute",
+        "timestampMs": 6.020916
+      },
+      {
+        "runtimeStageId": "use#6",
+        "stageId": "use",
+        "stageName": "Use",
+        "timestampMs": 6.735208
+      },
+      {
+        "runtimeStageId": "gate#7",
+        "stageId": "gate",
+        "stageName": "Gate",
+        "timestampMs": 6.812958000000009
+      },
+      {
+        "runtimeStageId": "tick#8",
+        "stageId": "tick",
+        "stageName": "Tick",
+        "timestampMs": 7.132040999999987
+      },
+      {
+        "runtimeStageId": "child#9",
+        "stageId": "child",
+        "stageName": "child/Middle prepare",
+        "timestampMs": 7.204874999999987
+      },
+      {
+        "runtimeStageId": "child/prepare#10",
+        "stageId": "child/prepare",
+        "stageName": "child/Middle prepare",
+        "timestampMs": 7.364541000000003
+      },
+      {
+        "runtimeStageId": "child/inner#11",
+        "stageId": "child/inner",
+        "stageName": "child/inner/Child compute",
+        "timestampMs": 7.441374999999994
+      },
+      {
+        "runtimeStageId": "child/inner/compute#12",
+        "stageId": "child/inner/compute",
+        "stageName": "child/inner/Child compute",
+        "timestampMs": 7.588415999999995
+      },
+      {
+        "runtimeStageId": "use#13",
+        "stageId": "use",
+        "stageName": "Use",
+        "timestampMs": 7.81254100000001
+      },
+      {
+        "runtimeStageId": "gate#14",
+        "stageId": "gate",
+        "stageName": "Gate",
+        "timestampMs": 7.891083000000009
+      }
+    ],
+    "errors": [],
+    "running": false,
+    "retryAttempts": []
+  }
+}
