@@ -9,6 +9,7 @@ import type {
 } from "foottrace/cause";
 import type { InvestigationResult } from "./types";
 import type { VisualInvestigationResult, VisualInvestigationEdge } from "./visualTypes";
+import { admitsRecordedAttribution } from "../../recordedRelationships/attribution";
 type Attention = CauseResult["attention"][number];
 
 // Display admission only. Foottrace and the host own graph traversal, storage admission and causal claims.
@@ -123,7 +124,7 @@ class Admission {
       const from = this.text(field(entry, "from")), to = this.text(field(entry, "to"));
       const kind = field(entry, "kind"), attribution = field(entry, "attribution");
       if (!members.has(from) || !members.has(to) || (kind !== "data" && kind !== "control")
-        || !["per-write", "stage", "recorded-control", "recorded-read"].includes(attribution as string)) throw new Refused();
+        || !admitsRecordedAttribution(attribution, kind)) throw new Refused();
       return { from, to, kind, attribution: attribution as VisualInvestigationEdge["attribution"], evidence: this.evidence(field(entry, "evidence")) };
     });
   }

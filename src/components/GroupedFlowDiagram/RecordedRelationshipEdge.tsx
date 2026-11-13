@@ -3,6 +3,7 @@ import { theme } from "../../theme";
 import { recordedRoutePath, type RecordedRoute } from "./recordedRouting";
 import { useContext, useState } from "react";
 import { RecordedFocusContext } from "./presentation";
+import { recordedAttributionCaption } from "../../recordedRelationships/attribution";
 
 /** Parallel relationships retain separate labels and curves without influencing the structural layout. */
 export function RecordedRelationshipEdge(props: EdgeProps) {
@@ -12,8 +13,7 @@ export function RecordedRelationshipEdge(props: EdgeProps) {
   const route = data?.route;
   // The owner reports undrawn relationships rather than substituting an unsafe curve.
   if (!route) return null;
-  const caption = relationship?.attribution === "stage" ? "Step" : relationship?.attribution === "recorded-read" ? "Read"
-    : relationship?.kind === "control" ? "Rule" : relationship?.kind === "data" ? "Data" : "Link";
+  const caption = recordedAttributionCaption(relationship?.attribution, relationship?.kind);
   const fullLabel = typeof props.label === "string" ? props.label : "Recorded dependency";
   const path = recordedRoutePath(route, { x: props.sourceX, y: props.sourceY }, { x: props.targetX, y: props.targetY });
   const { x, y } = route.label;

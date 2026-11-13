@@ -1,4 +1,5 @@
 import type { FlowDiagramFocusRequest, FlowDiagramRecordedRelationship, GroupedFlowDiagramModel } from "./types";
+import { admitsRecordedAttribution } from "../../recordedRelationships/attribution";
 
 function field(value: unknown, key: string): unknown {
   if (!value || typeof value !== "object") throw new Error();
@@ -59,7 +60,7 @@ export function projectRecordedRelationships(value: unknown, model: GroupedFlowD
       const id = readText(field(entry, "id"), 256), source = readText(field(entry, "source"), 256), target = readText(field(entry, "target"), 256);
       const kind = field(entry, "kind"), attribution = field(entry, "attribution"), direction = field(entry, "direction");
       if (used.has(id) || !nodes.has(source) || !nodes.has(target) || notRun(source) || notRun(target) || (kind !== "data" && kind !== "control")
-        || !["per-write", "stage", "recorded-control", "recorded-read"].includes(attribution as string)
+        || !admitsRecordedAttribution(attribution, kind)
         || (direction !== undefined && direction !== "backward" && direction !== "forward")) throw new Error();
       used.add(id);
       return { id, source, target, kind, attribution: attribution as FlowDiagramRecordedRelationship["attribution"],

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Grouped investigation and standalone diagrams display admitted `recorded-write`
+  data links as retained values, separately from recorded reads, while preserving
+  each link's evidence, direction and uncertainty. Missing links remain unknown.
+
+### Changed
+
+- `FlowDiagramRecordedRelationship.attribution` also accepts `"recorded-write"`.
+  Consumers handling every attribution explicitly must add this value. It means
+  an earlier value retained by a partial write, not proven expression derivation.
+
 ## [0.42.0] - 2026-11-13
 
 ### Added

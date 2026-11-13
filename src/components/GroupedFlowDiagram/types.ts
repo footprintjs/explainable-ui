@@ -1,3 +1,5 @@
+import type { RecordedAttribution } from "../../recordedRelationships/attribution";
+
 /** App-approved presentation and structure, independent of recorded execution facts. */
 export interface FlowDiagramNode {
   readonly id: string;
@@ -44,7 +46,7 @@ export interface FlowDiagramRecordedRelationship {
   readonly source: string;
   readonly target: string;
   readonly kind: "data" | "control";
-  readonly attribution: "per-write" | "stage" | "recorded-control" | "recorded-read";
+  readonly attribution: RecordedAttribution;
   readonly evidence: readonly string[];
   /** Routing hint only. Endpoints and arrow direction are never reversed. */
   readonly direction?: "backward" | "forward";

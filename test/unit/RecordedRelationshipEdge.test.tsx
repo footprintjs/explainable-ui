@@ -11,6 +11,15 @@ vi.mock("@xyflow/react", async original => ({ ...await original<typeof import("@
 const route = { points: [{ x: 400, y: 80 }, { x: 382, y: 80 }, { x: 382, y: 16 }, { x: 118, y: 16 }, { x: 118, y: 80 }, { x: 100, y: 80 }],
   label: { x: 250, y: 16, width: 48, height: 22 }, sourceSide: "left", targetSide: "right" };
 const props = { id: "link", sourceX: 400, sourceY: 80, targetX: 100, targetY: 80, sourcePosition: Position.Left, targetPosition: Position.Right, label: "Recorded read · data", data: { route, relationship: { attribution: "recorded-read", kind: "data", direction: "backward" } } } as any;
+it("labels a retained-value write distinctly from a read without changing its route or evidence role", () => {
+  const label = "Recorded write (retained value) · data";
+  render(<RecordedFocusContext.Provider value={{ focused: true }}><RecordedRelationshipEdge {...props} label={label}
+    data={{ ...props.data, relationship: { ...props.data.relationship, attribution: "recorded-write" } }} /></RecordedFocusContext.Provider>);
+  expect(screen.getByText("Kept").style.opacity).toBe("1");
+  expect(screen.queryByText("Read")).toBeNull();
+  expect(screen.getByLabelText(label).getAttribute("title")).toBe(label);
+  expect(screen.getByTestId("link").getAttribute("data-path")?.endsWith("100,80")).toBe(true);
+});
 it("routes from the actual handles rather than assuming execution direction", () => {
   render(<RecordedRelationshipEdge {...props} />);
   const path = screen.getByTestId("link").getAttribute("data-path")!;

@@ -1203,6 +1203,11 @@ relationship retains the direction returned by the canonical query. A recorded r
 establishes source usage, not that a later output was derived from it. Alternatives
 remain uncertain; an impact-only limit does not erase an independently supported
 backward root.
+`recorded-write` is a separate data relationship: a partial write kept an earlier
+recorded value. Its full label is **Recorded write (retained value)** and its compact
+caption is **Kept**, distinct from **Read**. It neither proves expression derivation
+nor asserts an external effect. The public attribution union includes this value;
+consumers with exhaustive attribution handlers must handle it explicitly.
 The cause summary appears above the diagram. In cause mode, the exact mapped root
 card carries **Supported cause** while its containing groups say only **Cause
 inside**. That role is separate from recorded Completed/Failed status; a completed
@@ -1256,7 +1261,7 @@ the drawing-limit notice.
 Where space permits, branches use the sides facing their destination cards before
 trying checked outside detours. Rounded elbows keep short forks readable.
 
-Compact Data/Read/Rule/Step captions retain their full fixed kind and attribution
+Compact Data/Read/Kept/Rule/Step captions retain their full fixed kind and attribution
 in accessible names, tooltips and the evidence list. Routing work is bounded. If a
 connection cannot be drawn safely, the diagram reports how many could not be drawn
 and offers ways to inspect them; its recorded evidence, cause and confidence are
