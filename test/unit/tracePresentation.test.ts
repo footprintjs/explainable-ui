@@ -3,6 +3,7 @@ import {
   buildTraceWalk,
   formatTraceWalk,
 } from "../../src/components/ExplainableShell/_internal/traceWalk";
+import { scopeSentence } from "../../src/trace/tracePresentation";
 const log = [
   {
     stage: "Seed",
@@ -16,6 +17,15 @@ function scope(path: string) {
   return { invocationPath: [path], readsAvailable: true, mountLabels: {} };
 }
 describe("explicit scoped copy metadata", () => {
+  it("keeps known invocation containment separate from earlier input-source evidence", () => {
+    const sentence = scopeSentence({ invocationPath: ["parent#1", "parent/child#3"] });
+    expect(sentence).toContain("parent#1 → parent/child#3");
+    expect(sentence).toContain("This is the child's local record");
+    expect(sentence).toContain("earlier input sources need separate evidence");
+    expect(sentence).not.toContain("Parent ancestry is unknown");
+    expect(scopeSentence({ invocationPath: [] })).toBeUndefined();
+  });
+
   it("keeps identical IDs and separate walks from sharing scope or boundary metadata", () => {
     const root = buildTraceWalk(log, tree, "total");
     const first = buildTraceWalk(log, tree, "total", { scope: scope("first#2") });

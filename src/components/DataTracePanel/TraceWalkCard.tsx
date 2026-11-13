@@ -14,6 +14,7 @@
  */
 import { scopeSentence, START_SENTENCE, inputSentence, isInvocationStart, mountLabel } from "../../trace/tracePresentation";
 import { handoffSentence, type SubflowHandoffSource } from "../../trace/subflowHandoff";
+import { recordedPathLabel, recordedValuePreview } from "../../trace/recordedValuePreview";
 import { memo, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { fontSize, theme, v } from "../../theme";
@@ -58,6 +59,10 @@ export interface TraceWalkCardProps extends BaseComponentProps {
   cursorRuntimeStageId: string | null;
   /** Active ingredient filter (breadcrumb "▸ via key"). */
   viaKey?: string | null;
+  /** Original question followed by exact variable/invocation hops, including the current question. */
+  questionTrail?: readonly { key: string; invocationPath: readonly string[] }[];
+  /** Restore a saved question and its original cutoff/cursor. */
+  onReturnToQuestion?: (index: number) => void;
   /** Map a stop to its 1-based rail step number (null = not on this rail). */
   stepNumberOf: (runtimeStageId: string) => number | null;
   /** Value preview for a contributed key at the current stop (the shell
@@ -88,6 +93,8 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   walk,
   cursorRuntimeStageId,
   viaKey,
+  questionTrail,
+  onReturnToQuestion,
   stepNumberOf,
   previewValueOf,
   onFollowIngredient,
@@ -146,6 +153,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         style={{ ...sx({ padding: "14px", fontSize: fs.body + 1, lineHeight: 1.55 }), ...style }}
       >
         <CardHeader label={`Why this value — \`${walk.key}\``} onExit={onExit} sx={sx} fs={fs} />
+        <QuestionTrail entries={questionTrail} onReturn={onReturnToQuestion} sx={sx} fs={fs} />
         {scopeSentence(presentation) && <div data-fp="trace-scope-note">{scopeSentence(presentation)}</div>}
         <div style={sx({ color: theme.textPrimary, marginTop: 8 })}>
           {walk.missing.reason === "evidence-unavailable" ? (
@@ -176,7 +184,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   if (!current) return null;
 
   const step = stepNumberOf(current.runtimeStageId);
-  const preview = previewValueOf ? previewValue(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
+  const preview = previewValueOf ? recordedValuePreview(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
 
   return (
     <div
@@ -185,15 +193,20 @@ export const TraceWalkCard = memo(function TraceWalkCard({
       style={{ ...sx({ padding: "10px 14px 14px", fontSize: fs.body + 1, lineHeight: 1.5 }), ...style }}
     >
       <CardHeader
-        label={`Why this value — stop ${currentIdx + 1} of ${walk.stops.length}`}
+        label={`Why ${recordedPathLabel(walk.key)}?`}
         onExit={onExit}
         sx={sx}
         fs={fs}
       />
 
-      {viaKey && (
+      <QuestionTrail entries={questionTrail} onReturn={onReturnToQuestion} sx={sx} fs={fs} />
+      <div style={sx({ marginTop: 7, fontSize: fs.label, color: theme.textSecondary })}>
+        Recorded stop {currentIdx + 1} of {walk.stops.length}
+      </div>
+
+      {viaKey && !questionTrail?.length && (
         <div data-fp="twc-breadcrumb" style={sx({ fontSize: fs.label, color: theme.textMuted, marginTop: 4 })}>
-          <code style={sx({ color: accent })}>{walk.key}</code> ▸ via <code>{viaKey}</code>
+              <code style={sx({ color: accent })}>{walk.key}</code> ▸ via <code>{viaKey}</code>
           {onShowAll && (
             <>
               {" · "}
@@ -211,7 +224,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
       {scopeSentence(presentation) && <div data-fp="trace-scope-note">{scopeSentence(presentation)}</div>}
       {/* ── THIS STOP ── */}
       <div data-fp="twc-stop-headline" style={sx({ marginTop: 10, fontWeight: 600, color: theme.textPrimary })}>
-        {step && <span style={sx({ color: theme.textMuted, fontWeight: 500 })}>Step {step} · </span>}
+        {step && <span style={sx({ color: theme.textSecondary, fontWeight: 500 })}>Execution step {step} · </span>}
         {current.stageName}
         {current.loopPass > 0 && (
           <span style={sx({ color: theme.textMuted, fontWeight: 500 })}> (pass {current.loopPass})</span>
@@ -222,11 +235,11 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         {current.contributedKeys.map((k, i) => (
           <code key={k} style={sx({ color: accent })}>
             {i > 0 && ", "}
-            {k}
+            {recordedPathLabel(k)}
           </code>
         ))}
         {preview !== null && (
-          <span style={sx({ color: theme.textMuted })}> = {preview}</span>
+          <span style={sx({ color: theme.textPrimary, fontWeight: 600 })}> = {preview}</span>
         )}
       </div>
 
@@ -246,7 +259,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           })}
         >
           <div style={sx({ fontWeight: 600, fontSize: fs.body, color: theme.textPrimary })}>
-            This value was made from {current.ingredients.length} ingredients — which one should
+            This step has {current.ingredients.length} recorded state reads. Which source should
             the walk follow?
           </div>
           <div style={sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 })}>
@@ -282,7 +295,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
               cursor: "pointer",
             })}
           >
-            visit all, oldest cause last (time order)
+            visit all recorded steps (newest first)
           </button>
         </div>
       )}
@@ -292,11 +305,12 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           question; rendering both would be noise (implementer's own note,
           promoted to a fix). ── */}
       <div style={sx({ marginTop: 10 })}>
-        {atInvocationStart ? <div data-fp="twc-boundary">{START_SENTENCE}.</div> : boundary ? <div data-fp="twc-boundary">computed inside {boundary}; drill in to trace it.</div> : chooserVisible ? null : current.ingredients.length > 0 ? (
+        {atInvocationStart ? <div data-fp="twc-boundary">{START_SENTENCE}.</div> : boundary ? <div data-fp="twc-boundary">subflow boundary: {boundary}; drill in to inspect its local record.</div> : chooserVisible ? null : current.ingredients.length > 0 ? (
           <>
-            <div style={sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 })}>
-              Made from {current.ingredients.length} ingredient{current.ingredients.length > 1 ? "s" : ""}
+            <div style={sx({ fontSize: fs.label, color: theme.textSecondary, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 })}>
+              Recorded state reads ({current.ingredients.length})
             </div>
+            {followableCount > 1 && <div style={sx({ marginTop: 4, fontSize: fs.label, color: theme.textSecondary })}>Choose a recorded input to follow; these inputs may be independent.</div>}
             <div style={sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 })}>
               {current.ingredients.map((ing, i) => (
                 <IngredientChip
@@ -314,11 +328,11 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           </>
         ) : walk.readsAvailable ? (
           <div data-fp="twc-origin" style={sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" })}>
-            reads nothing — this is an origin.
+            No recorded state reads.
           </div>
         ) : (
           <div data-fp="twc-unknowable" style={sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" })}>
-            ⚠ reads were not recorded — ingredients are unknowable, not absent.
+            ⚠ reads were not recorded — dependencies are unknowable, not absent.
           </div>
         )}
       </div>
@@ -338,7 +352,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
       {/* ── Itinerary (the whole walk; current row highlighted) ── */}
       <div style={sx({ marginTop: 14 })}>
         <div style={sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, marginBottom: 4 })}>
-          The story, newest first
+          Recorded steps, newest first
         </div>
         {walk.stops.map((s, i) => {
           const isCurrent = i === currentIdx;
@@ -362,7 +376,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
               })}
             >
               <span style={sx({ color: theme.textMuted })}>{i + 1}.</span>{" "}
-              <code style={sx({ color: accent })}>{s.contributedKeys.join(", ")}</code>
+              <code style={sx({ color: accent })}>{s.contributedKeys.map(recordedPathLabel).join(", ")}</code>
               <span style={sx({ color: theme.textMuted })}> ← </span>
               {s.stageName}
               {s.loopPass > 0 && <span style={sx({ color: theme.textMuted })}> (pass {s.loopPass})</span>}
@@ -388,7 +402,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         )}
         {walk.truncated && (
           <div data-fp="twc-truncated" style={sx({ fontSize: fs.label, color: theme.warning })}>
-            ⚠ walk truncated at its frame budget — the earliest stop may not be the true origin.
+            ⚠ trace limited by its frame or depth budget — earlier recorded state reads may be missing.
           </div>
         )}
         <button
@@ -427,7 +441,7 @@ function CardHeader({
 }) {
   return (
     <div style={sx({ display: "flex", alignItems: "center", justifyContent: "space-between" })}>
-      <div style={sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 })}>
+      <div style={sx({ fontSize: fs.body + 3, color: theme.textPrimary, fontWeight: 700 })}>
         {label}
       </div>
       {onExit && (
@@ -442,6 +456,34 @@ function CardHeader({
       )}
     </div>
   );
+}
+
+function QuestionTrail({ entries, onReturn, sx, fs }: {
+  entries: TraceWalkCardProps["questionTrail"];
+  onReturn: TraceWalkCardProps["onReturnToQuestion"];
+  sx: Sx;
+  fs: Fs;
+}) {
+  if (!entries || entries.length < 2) return null;
+  const previous = entries[entries.length - 2];
+  return <nav aria-label="Investigation trail" data-fp="twc-question-trail" style={sx({ marginTop: 10, padding: "9px 10px", border: `1px solid ${theme.border}`, borderRadius: 7, background: theme.bgSecondary })}>
+    <div style={sx({ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5, fontSize: fs.label })}>
+      {entries.map((entry, index) => <span key={`${index}:${entry.key}`} style={sx({ display: "inline-flex", alignItems: "center", gap: 5 })}>
+        {index > 0 && <span aria-hidden="true">›</span>}
+        {index === entries.length - 1 ? <span aria-current="step"><code>{recordedPathLabel(entry.key)}</code></span> : <button type="button" onClick={() => onReturn?.(index)} disabled={!onReturn}
+          aria-label={`Return to ${entry.key} in ${entry.invocationPath.join(" → ") || "root"}`}
+          title={`${entry.invocationPath.length ? entry.invocationPath.join(" → ") : "Root"}: ${entry.key}`}
+          style={sx({ padding: 0, border: "none", background: "transparent", color: theme.accent, cursor: "pointer", textDecoration: "underline", fontSize: fs.label })}>
+          <code>{recordedPathLabel(entry.key)}</code>
+        </button>}
+      </span>)}
+    </div>
+    <button type="button" onClick={() => onReturn?.(entries.length - 2)} disabled={!onReturn}
+      style={sx({ display: "block", marginTop: 7, border: "none", background: "transparent", color: theme.textPrimary, fontSize: fs.body, cursor: "pointer", padding: 0, fontWeight: 600 })}>
+      ← Back to <code>{recordedPathLabel(previous.key)}</code>
+      {previous.invocationPath.length !== entries[entries.length - 1].invocationPath.length ? " in parent" : ""}
+    </button>
+  </nav>;
 }
 
 function IngredientChip({
@@ -487,7 +529,7 @@ function IngredientChip({
         cursor: terminus || !onFollow ? "default" : "pointer",
       })}
     >
-      <code>{ing.key}</code>
+      <code>{recordedPathLabel(ing.key)}</code>
       {terminus ? (
         <span style={sx({ fontWeight: 400 })}>— {inputLabel} ⚑</span>
       ) : (
@@ -498,16 +540,4 @@ function IngredientChip({
       )}
     </button>
   );
-}
-
-/** Bounded, JSON-ish preview — a hint, never the full payload. */
-function previewValue(v: unknown): string | null {
-  if (v === undefined) return null;
-  try {
-    const s = typeof v === "string" ? JSON.stringify(v) : JSON.stringify(v);
-    if (s === undefined) return null;
-    return s.length > 60 ? `${s.slice(0, 57)}…` : s;
-  } catch {
-    return null;
-  }
 }

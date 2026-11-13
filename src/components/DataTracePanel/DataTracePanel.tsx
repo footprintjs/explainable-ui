@@ -1,5 +1,5 @@
 /**
- * DataTracePanel — Backward causal chain visualization.
+ * DataTracePanel — Backward recorded state-read visualization.
  *
  * Shows the data dependency chain from the selected stage backward:
  * "Format read processed from Process, which read input from Seed."
@@ -87,15 +87,14 @@ export const DataTracePanel = memo(function DataTracePanel({
             marginBottom: 6,
           })}
         >
-          Backward causal chain
+          Backward state-read trace
         </div>
         <div style={sx({ color: theme.textSecondary, marginBottom: 10 })}>
-          Trace any value back to the stage that created it — and everything upstream that
-          influenced it.
+          Inspect recorded state reads and their earlier local writers.
         </div>
         {noteLine}
         <div style={sx({ color: theme.textMuted, fontSize: fs.body })}>
-          Select a stage above to see its dependency chain.
+          Select a stage above to inspect its recorded state reads.
         </div>
       </div>
     );
@@ -129,7 +128,7 @@ export const DataTracePanel = memo(function DataTracePanel({
               marginTop: 3,
             })}
           >
-            Every value here was derived from the stages below.
+            Recorded state reads link to earlier local writes; output derivation is not established.
           </div>
         </div>
       )}
@@ -216,7 +215,7 @@ const DataTraceFrame = memo(function DataTraceFrame({
               fontStyle: "italic",
             })}
           >
-            (origin)
+            (end of shown trace)
           </span>
         )}
       </div>
@@ -248,7 +247,7 @@ const DataTraceFrame = memo(function DataTraceFrame({
             marginTop: 1,
           })}
         >
-          ← via {frame.linkedBy}
+          ← state read: {frame.linkedBy}
         </div>
       )}
     </button>

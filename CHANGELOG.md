@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Variable-centered backtracking in `ExplainableShell`: a bounded dependency
+  graph shows recorded stage reads, writer-stage labels and writer-snapshot
+  values, with the execution chart available through the Execution toggle.
+- A persistent investigation trail returns to earlier variable questions
+  across local and child scopes, restoring the exact invocation, cutoff and
+  cursor after validating the current recording.
+
+### Fixed
+
+- Show nested commit-path values using inert own-property reads, preserving
+  literal dots in keys and refusing inherited fields and accessors.
+- Describe recorded read evidence without claiming exact value derivation or
+  a proven origin; distinguish trace-stop order from execution position.
+
 ## [0.42.0] - 2026-11-13
 
 ### Added
