@@ -108,6 +108,9 @@ describe("extractMeasuredFootprints", () => {
       entries({
         neg: { measured: { width: -10, height: 40 } },
         nan: { measured: { width: NaN, height: 40 } },
+        infiniteWidth: { measured: { width: Infinity, height: 40 } },
+        infiniteHeight: { measured: { width: 100, height: Infinity } },
+        roundsToZero: { measured: { width: 0.1, height: 40 } },
         // a hostile shape with non-number dims must not crash or leak through
         bad: { measured: { width: "100" as unknown as number, height: 40 } },
         good: { measured: { width: 10, height: 10 } },

@@ -103,6 +103,16 @@ it.each([
     });
 
     measure();
+    // The default probe now publishes these first real footprints. Its measured
+    // layout replaces the controlled nodes, so xyflow needs the browser's next
+    // ResizeObserver pass before that layout is ready to fit.
+    if (layout === undefined) {
+      expect(store.getState().nodeLookup.get("a")!.measured.width).toBeUndefined();
+    }
+    measure();
+    for (const node of store.getState().nodeLookup.values()) {
+      expect(node.measured).toEqual({ width: 120, height: 40 });
+    }
     flushFrame();
     expect(setViewport).toHaveBeenCalled();
     setViewport.mockClear();
@@ -117,6 +127,16 @@ it.each([
     // Both identical geometry and an active badge changing card width preserve
     // the viewer's camera. The markup can change without taking ownership.
     measure(remeasuredWidth);
+    flushFrame();
+    expect(setViewport).not.toHaveBeenCalled();
+    expect(store.getState().transform).toEqual([31, -42, 0.43]);
+
+    // A changed footprint also triggers measured layout and re-adoption. Model
+    // its second observer pass, then check the settled chart keeps the camera.
+    measure(remeasuredWidth);
+    for (const node of store.getState().nodeLookup.values()) {
+      expect(node.measured).toEqual({ width: remeasuredWidth, height: 40 });
+    }
     flushFrame();
     expect(setViewport).not.toHaveBeenCalled();
     expect(store.getState().transform).toEqual([31, -42, 0.43]);

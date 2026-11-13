@@ -30,6 +30,7 @@ import type { NodeFootprint } from "./dagreTraceLayout";
 /** The shape this helper needs from an xyflow internal node. */
 export interface MeasuredLike {
   readonly measured?: { readonly width?: number; readonly height?: number };
+  readonly hidden?: boolean;
 }
 
 /**
@@ -44,11 +45,40 @@ export function extractMeasuredFootprints(
   for (const [id, node] of entries) {
     const width = node.measured?.width;
     const height = node.measured?.height;
-    if (typeof width === "number" && typeof height === "number" && width > 0 && height > 0) {
-      sizes.set(id, { width: Math.round(width), height: Math.round(height) });
+    if (typeof width === "number" && typeof height === "number"
+      && Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      const roundedWidth = Math.round(width), roundedHeight = Math.round(height);
+      if (roundedWidth > 0 && roundedHeight > 0) {
+        sizes.set(id, { width: roundedWidth, height: roundedHeight });
+      }
     }
   }
   return sizes;
+}
+
+export interface MeasuredFootprintState {
+  readonly sizes: Map<string, NodeFootprint>;
+  readonly ready: boolean;
+}
+
+/**
+ * Read actual internal dimensions and their readiness together. Controlled
+ * ReactFlow nodes can have measured internals while the user-node-based
+ * `nodesInitialized` flag remains false. Hidden nodes are optional constraints,
+ * but an empty or entirely hidden view never supplies a drawable measurement.
+ */
+export function readMeasuredFootprints(
+  entries: Iterable<readonly [string, MeasuredLike]>,
+  includeHiddenNodes = false,
+): MeasuredFootprintState {
+  const relevant: Array<readonly [string, MeasuredLike]> = [];
+  let visibleCount = 0;
+  for (const entry of entries) {
+    if (!entry[1].hidden) visibleCount++;
+    if (includeHiddenNodes || !entry[1].hidden) relevant.push(entry);
+  }
+  const sizes = extractMeasuredFootprints(relevant);
+  return { sizes, ready: visibleCount > 0 && sizes.size === relevant.length };
 }
 
 /**
