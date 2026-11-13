@@ -254,7 +254,7 @@ function toStageNodeWithOverlay(
     ...node,
     type: "stageNode",
     data: stageData as unknown as Record<string, unknown>,
-    ...(dimmed && { style: { opacity: 0.35 } }),
+    ...(dimmed && { style: { ...(node.style ?? {}), opacity: 0.35 } }),
   };
 }
 

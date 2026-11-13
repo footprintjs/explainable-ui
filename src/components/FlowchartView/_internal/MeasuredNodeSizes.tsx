@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import { useNodesInitialized, useStore } from "@xyflow/react";
+import { useEffect, useRef } from "react";
+import { useStore } from "@xyflow/react";
 import type { ReactFlowState } from "@xyflow/react";
-import { extractMeasuredFootprints, sameFootprints } from "./measuredFootprints";
+import { readMeasuredFootprints, sameFootprints, type MeasuredFootprintState } from "./measuredFootprints";
 
 /**
  * MeasuredNodeSizes — the "measure, then lay out" probe (xyflow's recommended
@@ -24,8 +24,7 @@ import { extractMeasuredFootprints, sameFootprints } from "./measuredFootprints"
  * NOT on the user nodes from `getNodes()` (those read `measured: {0,0}`). And
  * `nodeLookup` is a single Map xyflow mutates IN PLACE — its reference never
  * changes — so `useStore(s => s.nodeLookup)` would be Object.is-equal forever
- * and the effect would fire only once, on the initial `nodesInitialized` flip,
- * never on a later resize (async font/icon load, dynamic label). Instead we
+ * and miss a later resize (async font/icon load, dynamic label). Instead we
  * select the DERIVED footprint map and dedupe with `sameFootprints`: the
  * selected value is stable across ticks that change no footprint, and changes
  * exactly when some node re-measures — so the relayout re-runs when, and only
@@ -48,22 +47,30 @@ export function MeasuredNodeSizes({
   onSizes,
   includeHiddenNodes = false,
 }: MeasuredNodeSizesProps): null {
-  const initialized = useNodesInitialized({ includeHiddenNodes });
   // Subscribe to the DERIVED, deduped footprint map (see header for why not the
   // raw nodeLookup). `sameFootprints` keeps the reference stable until a real
   // re-measure, so the effect below re-runs precisely on size changes.
-  const sizes = useStore(
-    (s: ReactFlowState) => extractMeasuredFootprints(s.nodeLookup),
-    sameFootprints,
+  const measurement = useStore(
+    (s: ReactFlowState) => readMeasuredFootprints(s.nodeLookup, includeHiddenNodes),
+    (previous: MeasuredFootprintState, next: MeasuredFootprintState) =>
+      previous.ready === next.ready && sameFootprints(previous.sizes, next.sizes),
   );
+  const lastPublished = useRef<{
+    onSizes: MeasuredNodeSizesProps["onSizes"];
+    sizes: MeasuredFootprintState["sizes"];
+  } | null>(null);
 
   useEffect(() => {
-    // Gate on `initialized` so we never relayout from a half-measured first
-    // paint (some nodes 0×0): wait until every node has a real footprint, then
-    // (and on every subsequent footprint change) feed content-exact sizes in.
-    if (!initialized || sizes.size === 0) return;
-    onSizes(sizes);
-  }, [initialized, sizes, onSizes]);
+    // Controlled nodes need not copy measured dimensions onto their user-node
+    // props. Read readiness from the same internal measurements as the sizes.
+    if (!measurement.ready) return;
+    const previous = lastPublished.current;
+    // Re-adopting controlled nodes can temporarily clear their measurements.
+    // Publishing an identical map on every recovery would relayout forever.
+    if (previous?.onSizes === onSizes && sameFootprints(previous.sizes, measurement.sizes)) return;
+    lastPublished.current = { onSizes, sizes: measurement.sizes };
+    onSizes(measurement.sizes);
+  }, [measurement, onSizes]);
 
   return null;
 }
