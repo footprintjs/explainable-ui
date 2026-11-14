@@ -14983,7 +14983,7 @@ var titles = ["Problem", "Recorded cause", "Suggested next step"];
 function FailureExplanationView(props) {
   const id = useId3();
   const model = admitFailureExplanation(props.explanation);
-  if (!model) return /* @__PURE__ */ jsx55("section", { "aria-label": "Recorded failure explanation", className: props.className, style: { ...box2, ...props.style }, children: /* @__PURE__ */ jsx55("p", { role: "status", children: "Explanation is unavailable. The cause and outcome remain unknown. Check the selected recording and provide an admitted explanation." }) });
+  if (!model) return /* @__PURE__ */ jsx55("section", { "aria-label": "Recorded failure explanation", className: props.className, style: { ...box2, ...props.style }, children: /* @__PURE__ */ jsx55("p", { role: "status", children: "Explanation is unavailable. The cause and outcome remain unknown. Reload the recording or ask an administrator to check it." }) });
   const sections = [model.problem, model.recordedCause, model.suggestedNextStep];
   return /* @__PURE__ */ jsxs46("section", { "aria-label": "Recorded failure explanation", className: props.className, style: { ...box2, ...props.style }, children: [
     /* @__PURE__ */ jsx55("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 16rem), 1fr))", gap: 12 }, children: sections.map((section, index2) => /* @__PURE__ */ jsxs46("section", { "aria-labelledby": `${id}-${index2}`, style: card, children: [
