@@ -11,6 +11,7 @@ import { recordedVisualBounds, routeRecordedRelationships } from "./recordedRout
 import { RecordedFocusContext, visibleRecordedFitTargets } from "./presentation";
 import type { RecordedPort } from "./recordedRouting";
 import { recordedAttributionLabel } from "../../recordedRelationships/attribution";
+import { initialCameraDecision, NARROW_DIAGRAM_WIDTH } from "./cameraInitialization";
 
 export interface GroupedFlowDiagramProps {
   readonly definition: FlowDiagramDefinition;
@@ -68,7 +69,7 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
     if (props.selectedNodeId === undefined) setLocalSelected(id);
     props.onSelectNode?.(id);
   };
-  const requestFocus = (ids?: readonly string[]) => { setFocusIds(ids); setFocusRequest(value => value + 1); };
+  const requestFocus = (ids?: readonly string[]) => { initiallyFocused.current = true; setFocusIds(ids); setFocusRequest(value => value + 1); };
   // Read only the already-admitted definition. IDs remain identity; display labels may repeat.
   const names = useMemo(() => {
     if (!model) return new Map<string, string>();
@@ -144,19 +145,22 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
   useEffect(() => {
     const element = wrapper.current;
     if (!element) return;
-    const measure = () => setNarrow(element.clientWidth > 0 && element.clientWidth < 600);
+    let active = true;
+    const measure = () => {
+      if (!active) return;
+      const width = element.clientWidth;
+      setNarrow(width > 0 && width < NARROW_DIAGRAM_WIDTH);
+      const decision = initialCameraDecision({ width, alreadyInitialized: initiallyFocused.current,
+        cameraOwned: camera !== undefined || recordedFocus,
+        hasVisibleSelection: !!selected && !!model?.nodes.some(node => node.node.id === selected) });
+      if (decision !== "wait") initiallyFocused.current = true;
+      if (decision === "selection" && selected) requestFocus([selected]);
+    };
     measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [Boolean(model)]);
-  useEffect(() => {
-    if (model && narrow && !initiallyFocused.current && selected && model.nodes.some(node => node.node.id === selected)) {
-      initiallyFocused.current = true;
-      requestFocus([selected]);
-    }
-  }, [model, selected, narrow]);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    return () => { active = false; observer?.disconnect(); };
+  }, [model, selected, Boolean(camera), camera?.key, recordedFocus]);
 
   if (!model || !overlay || (props.focusRequest !== undefined && !camera)) return <section role="alert" className={props.className} style={{ color: theme.textPrimary, fontFamily: theme.fontSans, ...props.style }}>
     <p>This diagram cannot be shown yet. Its saved information or grouping needs checking.</p>
@@ -187,7 +191,7 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
     <div ref={wrapper} style={{ flex: 1, minHeight: 220, minWidth: 0, border: `1px solid ${theme.border}`, borderRadius: 16, overflow: "hidden", background: theme.bg }}>
       <ReactFlow nodes={nodes} edges={edges} nodeTypes={diagramNodeTypes} edgeTypes={recordedRelationshipEdgeTypes}
         nodesDraggable={false} nodesConnectable={false} nodesFocusable={false} edgesFocusable={false} minZoom={.1} maxZoom={1.6} preventScrolling={false} proOptions={{ hideAttribution: true }}>
-        <ChartAutoRefit wrapperRef={wrapper} refitKey={geometry} padding={.06} focusNodeIds={focusIds} focusRequestKey={focusRequest} maxAutoZoom={1} visualBounds={visualBounds} />
+        <ChartAutoRefit wrapperRef={wrapper} refitKey={geometry} padding={.06} focusNodeIds={focusIds} focusRequestKey={focusRequest} maxAutoZoom={1} visualBounds={visualBounds} preserveViewport />
         <Background gap={24} color={theme.border} /><Controls showInteractive={false} />
       </ReactFlow>
     </div>
