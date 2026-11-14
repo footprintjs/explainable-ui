@@ -21,6 +21,7 @@ import { KeyedRecorderView } from "./_internal/KeyedRecorderView";
 import { RightPanel, type RightPanelMode } from "./_internal/RightPanel";
 import { ShellLayout, ShellDetailTabs, UnstyledShellLayout } from "./_internal/ShellLayout";
 import { TraceSessionPanel } from "./_internal/TraceSessionPanel";
+import { TraceDependencyView } from "../DataTracePanel/TraceDependencyView";
 import { SubflowNavigationStatus } from "./_internal/SubflowNavigationStatus";
 import { StoryUnavailableNote } from "./_internal/TraceUnavailableNote";
 import { useRunCompanions } from "./_internal/useRunCompanions";
@@ -29,6 +30,7 @@ import {
   narrativeRecorderFromSnapshot,
 } from "../../adapters/fromRuntimeSnapshot";
 import { overlayFromSnapshot } from "../../adapters/overlayFromSnapshot";
+import { buildTraceWorkflowOverlay, type TraceWorkflowOverlay } from "../../trace/traceWorkflowOverlay";
 import { devWarn } from "../FlowchartView/_internal/devWarn";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
@@ -261,6 +263,8 @@ export interface ExplainableShellProps extends BaseComponentProps {
     /** Dependency-cone overlay (chart node id → BFS depth) — painted while
      *  the Inspector's Data Trace tab is open. Custom renderers may ignore it. */
     sliceCone?: ReadonlyMap<string, number>;
+    /** Recorded values and state-read links for the active variable investigation. */
+    traceWorkflow?: TraceWorkflowOverlay | null;
     /** The shell's CURRENT drill scope — the mount node's id, or `null` at the
      *  top level. The shell owns the one drill state, so a chart that keeps
      *  its own must follow this or it will show a different level than the
@@ -422,11 +426,12 @@ export function ExplainableShell({
   // the single source of truth.
   const tracedFlowRenderer = useMemo(() => {
     if (!traceGraph) return undefined;
-    return ({ selectedIndex, snapshots, onNodeClick, sliceCone, currentSubflowId, onSubflowChange }: {
+    return ({ selectedIndex, snapshots, onNodeClick, sliceCone, traceWorkflow, currentSubflowId, onSubflowChange }: {
       spec: SpecNode | null; snapshots: StageSnapshot[]; selectedIndex: number;
       onNodeClick?: (indexOrId: number | string) => void;
       showStageId?: boolean;
       sliceCone?: ReadonlyMap<string, number>;
+      traceWorkflow?: TraceWorkflowOverlay | null;
       currentSubflowId?: string | null;
       onSubflowChange?: (mountStageId: string | null) => void;
     }) => {
@@ -474,6 +479,7 @@ export function ExplainableShell({
           graph={traceGraph}
           overlay={runtimeOverlay ?? undefined}
           sliceCone={sliceCone ?? undefined}
+          traceWorkflow={traceWorkflow}
           colors={traceColors || undefined}
           scrubIndex={overlayIdx}
           onNodeClick={(stageId) => onNodeClick?.(stageId)}
@@ -488,6 +494,7 @@ export function ExplainableShell({
     };
   }, [traceGraph, runtimeOverlay, traceTheme]);
   const effectiveRenderFlowchart = renderFlowchart ?? tracedFlowRenderer;
+  const showExecutionChart = !!effectiveRenderFlowchart && (!!renderFlowchart || !!traceGraph);
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
@@ -675,8 +682,13 @@ export function ExplainableShell({
     showDataTraceCone: rightPanelMode === "what" && inspectorTab === "trace",
     setSnapshotIdx, onStartInspector,
     runtimeSnapshot, openTraceSource: navigation.openTraceSource,
+    restoreTraceQuestion: navigation.restoreTraceQuestion,
   });
   const { shellDataTrace, sliceCone, navigateToStage, tracingRail } = traceSession;
+  const traceCursorRuntimeStageId = activeSnapshots[safeIdx]?.runtimeStageId ?? null;
+  const traceWorkflow = useMemo(() => buildTraceWorkflowOverlay(
+    traceSession.traceWalk, activeSnapshots, traceCursorRuntimeStageId,
+  ), [traceSession.traceWalk, activeSnapshots, traceCursorRuntimeStageId]);
 
   // While drilled in, feed the Story the subflow-scoped, subflow-renumbered
   // narrative (Bug 3) so it reveals to the subflow-local cursor — not the
@@ -959,7 +971,13 @@ export function ExplainableShell({
               <TimeTravelRail snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} />
               {navigationStatus}
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />}
-              {(traceGraph || renderFlowchart) && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...(sliceCone && { sliceCone }) })}
+              <TraceDependencyView unstyled walk={traceSession.traceWalk} hasWorkflow={showExecutionChart}
+                cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null} snapshots={activeSnapshots}
+                onJumpToStop={traceSession.navigateToStage} onFollowIngredient={traceSession.handleFollowIngredient}
+                onFollowHandoff={traceSession.handleFollowHandoff}
+                questionTrail={traceSession.questionTrail} onReturnToQuestion={traceSession.handleReturnToQuestion}>
+                {(traceGraph || renderFlowchart) && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, traceWorkflow, ...(sliceCone && { sliceCone }) })}
+              </TraceDependencyView>
               {missingChart && <MissingChartNote unstyled />}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
               {companionNarrativeMissing ? <StoryUnavailableNote /> : <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} scopeSubflowId={narrativeScopeSubflowId} unstyled />}
@@ -979,7 +997,7 @@ export function ExplainableShell({
   // was drilled via the runtime path (`resolveSubflowFromRuntime` returns
   // spec: null), while the slider/story/breadcrumb kept working. See
   // test/component/ExplainableShellDrill.test.tsx.
-  const showTopology = !!effectiveRenderFlowchart && (!!renderFlowchart || !!traceGraph);
+  const showTopology = !!traceSession.traceWalk || showExecutionChart;
 
   const detailsPanel = <ShellDetailTabs tabs={allTabs} activeTab={activeTab} onTabChange={handleTabChange}>
     {renderTabBody(activeTab, false)}
@@ -992,7 +1010,7 @@ export function ExplainableShell({
   return <ShellLayout
     containerRef={shellRef} className={className} style={style}
     themeStyle={shellThemeVars} isNarrow={isNarrow} stageCount={activeSnapshots.length}
-    showTopology={showTopology} showTreeSidebar={showTreeSidebar}
+    showTopology={showTopology} showTreeSidebar={showTreeSidebar && !traceSession.traceWalk}
     topology={{ label: leftLabel, expanded: leftExpanded, onChange: toggleLeft }}
     details={{ label: rightLabel, expanded: rightExpanded, onChange: toggleRight }}
     timeline={{ label: bottomLabel, expanded: timelineExpanded, onChange: toggleTimeline }}
@@ -1001,11 +1019,18 @@ export function ExplainableShell({
         size={size} tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} />,
       navigation: navigationStatus,
       breadcrumb: isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} />,
-      chart: showTopology ? effectiveRenderFlowchart!({
-        spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick,
-        showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange,
-        ...(sliceCone && { sliceCone }),
-      }) : null,
+      chart: <TraceDependencyView walk={traceSession.traceWalk} hasWorkflow={showExecutionChart}
+        cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null} snapshots={activeSnapshots}
+        onJumpToStop={traceSession.navigateToStage} onFollowIngredient={traceSession.handleFollowIngredient}
+        onFollowHandoff={traceSession.handleFollowHandoff}
+        questionTrail={traceSession.questionTrail} onReturnToQuestion={traceSession.handleReturnToQuestion}>
+        {showExecutionChart ? effectiveRenderFlowchart!({
+          spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick,
+          showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange,
+          traceWorkflow,
+          ...(sliceCone && { sliceCone }),
+        }) : null}
+      </TraceDependencyView>,
       missingChart: missingChart && <MissingChartNote />,
       tree: <SubflowTree graph={traceGraph ?? { nodes: [], edges: [] }} activeStage={rootOverlay.activeStage}
         doneStages={rootOverlay.doneStages} onNodeSelect={handleTreeNodeSelect} />,

@@ -96,7 +96,7 @@ describe("recorded subflow review regressions", () => {
     ui.inspector();
     move(1);
     trace("total");
-    expect(card().textContent).toContain("computed inside");
+    expect(card().textContent).toContain("subflow boundary:");
     expect(card().textContent).not.toContain("this is an origin");
   });
   it("keeps a trace through an equal fresh snapshot of the same run", () => {
@@ -249,7 +249,7 @@ describe("recorded subflow review regressions", () => {
     move(2);
     trace("total");
     expect(card().textContent).toContain("= 6");
-    fireEvent.click(screen.getByLabelText("Earlier cause"));
+    fireEvent.click(screen.getByLabelText("Earlier recorded step"));
     expect(card().textContent).toContain("Child Sum");
   });
   it("uses the same reads-off explanation in a child as at the root", () => {
@@ -275,7 +275,7 @@ describe("recorded subflow review regressions", () => {
       move(1);
       trace("total");
       expect(card().textContent).toContain(`= ${total}`);
-      expect(card().textContent).toContain("computed inside");
+      expect(card().textContent).toContain("subflow boundary:");
       ui.drill("pipeline/prepare");
       move(3);
       trace("total");

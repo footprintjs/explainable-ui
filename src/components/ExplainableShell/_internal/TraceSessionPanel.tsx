@@ -6,6 +6,7 @@ import { TraceWalkCard } from "../../DataTracePanel/TraceWalkCard";
 import { TraceUnavailableNote } from "./TraceUnavailableNote";
 import type { TraceScope } from "./traceScope";
 import type { useTraceSessionController } from "./useTraceSession";
+import { recordedValueAtPath } from "../../../trace/recordedValuePreview";
 
 interface TraceSessionPanelProps {
   availability: TraceScope["availability"];
@@ -30,9 +31,11 @@ export function TraceSessionPanel({ availability, scopeLabel, snapshot, selected
       cursorRuntimeStageId={snapshot?.runtimeStageId ?? null}
       viaKey={view.activeViaKey}
       stepNumberOf={view.stepNumberOf}
-      previewValueOf={key => snapshot?.memory?.[key]}
+      previewValueOf={key => recordedValueAtPath(snapshot?.memory, key)}
       onFollowIngredient={view.handleFollowIngredient}
       onFollowHandoff={view.handleFollowHandoff}
+      questionTrail={view.questionTrail}
+      onReturnToQuestion={view.handleReturnToQuestion}
       onJumpToStop={view.navigateToStage}
       onShowAll={view.activeViaKey ? view.handleShowAllIngredients : undefined}
       onExit={view.handleExitTracing}

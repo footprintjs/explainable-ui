@@ -70,7 +70,7 @@ describe("TraceWalkCard", () => {
       />,
     );
     expect(screen.getByText(/stop 2 of 4/i)).toBeTruthy();
-    expect(screen.getByText(/Made from 2 ingredients/)).toBeTruthy();
+    expect(screen.getByText(/Recorded state reads \(2\)/)).toBeTruthy();
     const chips = screen.getAllByTitle(/Follow /);
     expect(chips).toHaveLength(2);
     fireEvent.click(chips.find((c) => c.textContent?.includes("subtotal"))!);
@@ -176,6 +176,32 @@ describe("TraceWalkCard", () => {
     );
     expect(screen.getByText(/= 109.45/)).toBeTruthy();
   });
+
+  it("keeps variable and child hops visible and can restore either earlier question", () => {
+    const onReturn = vi.fn();
+    render(<TraceWalkCard walk={WALK} cursorRuntimeStageId="computeTotal#4" stepNumberOf={stepOf}
+      questionTrail={[
+        { key: "parentTotal", invocationPath: [] },
+        { key: "childTotal", invocationPath: ["child#2"] },
+        { key: "total", invocationPath: ["child#2"] },
+      ]} onReturnToQuestion={onReturn} />);
+    const trail = screen.getByRole("navigation", { name: "Investigation trail" });
+    expect(trail.textContent).toContain("parentTotal");
+    expect(trail.textContent).toContain("childTotal");
+    fireEvent.click(within(trail).getByRole("button", { name: "Return to parentTotal in root" }));
+    expect(onReturn).toHaveBeenLastCalledWith(0);
+    fireEvent.click(within(trail).getByRole("button", { name: /Back to childTotal/ }));
+    expect(onReturn).toHaveBeenLastCalledWith(1);
+    expect(trail.querySelector('[aria-current="step"]')?.textContent).toBe("total");
+  });
+
+  it("does not promote a stage without recorded state reads into a proven origin", () => {
+    const origin = buildTraceWalk([commit("Write", "write#0", ["answer"])], { runtimeStageId: "write#0", stageReads: {} }, "answer", { scope: { invocationPath: [], readsAvailable: true } });
+    const { container } = render(<TraceWalkCard walk={origin} cursorRuntimeStageId="write#0" stepNumberOf={() => 1} />);
+    expect(container.querySelector('[data-fp="twc-origin"]')?.textContent).toContain("No recorded state reads");
+    expect(container.textContent).not.toContain("this is an origin");
+    expect(container.textContent).not.toContain("Made from");
+  });
 });
 
 describe("TraceWalkCard — fork chooser (F2)", () => {
@@ -194,7 +220,7 @@ describe("TraceWalkCard — fork chooser (F2)", () => {
     const chooser = container.querySelector('[data-fp="twc-fork-chooser"]') as HTMLElement;
     expect(chooser).toBeTruthy();
     expect(chooser.textContent).toContain(
-      "This value was made from 2 ingredients — which one should the walk follow?",
+      "This step has 2 recorded state reads. Which source should the walk follow?",
     );
     // The SAME ingredient chips (both followable) live inside the chooser.
     const chips = within(chooser).getAllByTitle(/Follow /);
@@ -218,7 +244,7 @@ describe("TraceWalkCard — fork chooser (F2)", () => {
     );
     fireEvent.click(
       within(container.querySelector('[data-fp="twc-fork-chooser"]') as HTMLElement).getByText(
-        "visit all, oldest cause last (time order)",
+        "visit all recorded steps (newest first)",
       ),
     );
     expect(onContinue).toHaveBeenCalledOnce();

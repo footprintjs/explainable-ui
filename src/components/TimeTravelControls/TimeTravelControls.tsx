@@ -8,7 +8,7 @@ import { useTimeTravelPlayback } from "./useTimeTravelPlayback";
  * stops do: every dependency was committed earlier than the value it fed, so
  * a backward slice is a sub-sequence of this same timeline. When `tracing`
  * is set, slice members stay landable ("stops"), everything else fades to
- * unlandable ticks, and prev/next walk stop-to-stop ("◀ earlier cause").
+ * unlandable ticks, and prev/next walk stop-to-stop ("◀ earlier recorded step").
  * The cursor stays the ONE `selectedIndex` — no second position exists.
  *
  * THEMING: tracing mode recolors its chrome with ONE token, `--fp-tracing`
@@ -33,13 +33,13 @@ export interface TracingRail {
   onExit: () => void;
   /** Clear the via filter back to the full walk (breadcrumb's "show all"). */
   onShowAll?: () => void;
-  /** Ingredient count at the CURRENT stop. Together with `onForkPrompt`,
-   *  >= 2 turns the walk-back control into "choose cause…": it PROMPTS
-   *  instead of moving, so a silent default never hides one parent of a
-   *  fork. 0/undefined = not a fork — classic earlier-cause behavior. */
+  /** Ingredient count at the CURRENT stop. At the earliest landable stop,
+   *  >= 2 together with `onForkPrompt` offers "choose cause…" instead of a
+   *  disabled button. Earlier recorded steps otherwise remain reachable in
+   *  time order; following a particular input is a separate action. */
   forkCount?: number;
-  /** Open the fork chooser — fired INSTEAD of a cursor move when
-   *  `forkCount >= 2` (click or ArrowLeft on the walk-back control). */
+  /** Open the fork chooser at the earliest landable stop when `forkCount >= 2`
+   *  (click or ArrowLeft on the walk-back control). */
   onForkPrompt?: () => void;
 }
 
@@ -137,9 +137,9 @@ export function TimeTravelRail({
           data-fp="tt-prev"
           disabled={!canPrev || playing}
           onClick={goPrev}
-          aria-label={isTracing ? (forkPrompt ? "Choose cause" : "Earlier cause") : "Previous stage"}
+          aria-label={isTracing ? (forkPrompt ? "Choose cause" : "Earlier recorded step") : "Previous stage"}
         >
-          {isTracing ? (forkPrompt ? "Choose cause…" : "Earlier cause") : "Prev"}
+          {isTracing ? (forkPrompt ? "Choose cause…" : "Earlier recorded step") : "Prev"}
         </button>
         {autoPlayable && !isTracing && (
           <button type="button" data-fp="tt-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
@@ -151,9 +151,9 @@ export function TimeTravelRail({
           data-fp="tt-next"
           disabled={!canNext || playing}
           onClick={goNext}
-          aria-label={isTracing ? "Toward result" : "Next stage"}
+          aria-label={isTracing ? "Later recorded step" : "Next stage"}
         >
-          {isTracing ? "Toward result" : "Next"}
+          {isTracing ? "Later recorded step" : "Next"}
         </button>
         <div data-fp="tt-ticks">
           {snapshots.map((snap, i) => {
@@ -276,17 +276,17 @@ export function TimeTravelRail({
         style={btnStyle(!canPrev || playing)}
         disabled={!canPrev || playing}
         onClick={goPrev}
-        aria-label={isTracing ? (forkPrompt ? "Choose cause" : "Earlier cause") : "Previous stage"}
+        aria-label={isTracing ? (forkPrompt ? "Choose cause" : "Earlier recorded step") : "Previous stage"}
         title={
           isTracing
             ? forkPrompt
               ? "This stop is a fork — choose which cause to follow"
-              : "Earlier cause"
+              : "Earlier recorded step"
             : "Previous stage"
         }
         data-fp="tt-prev"
       >
-        {isTracing ? (forkPrompt ? "⑂ choose cause…" : "◀ earlier cause") : "◀"}
+        {isTracing ? (forkPrompt ? "⑂ choose cause…" : "◀ earlier recorded step") : "◀"}
       </button>
 
       {autoPlayable && !isTracing && (
@@ -319,11 +319,11 @@ export function TimeTravelRail({
         style={btnStyle(!canNext || playing)}
         disabled={!canNext || playing}
         onClick={goNext}
-        aria-label={isTracing ? "Toward result" : "Next stage"}
-        title={isTracing ? "Toward result" : "Next stage"}
+        aria-label={isTracing ? "Later recorded step" : "Next stage"}
+        title={isTracing ? "Later recorded step" : "Next stage"}
         data-fp="tt-next"
       >
-        {isTracing ? "toward result ▶" : "▶"}
+        {isTracing ? "later recorded step ▶" : "▶"}
       </button>
 
       {/* Tick-mark timeline — in tracing mode non-stops fade to unlandable

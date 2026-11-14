@@ -35,6 +35,12 @@ const groupedFlowExports = [
   ].map(name => ({ name, kind: "type" })),
 ];
 
+const traceWorkflowExports = [
+  { name: "TraceWorkflowOverlay", kind: "type" },
+  { name: "TraceWorkflowStage", kind: "type" },
+  { name: "TraceWorkflowRead", kind: "type" },
+];
+
 describe("M1 — preserve every existing public home and value/type kind", () => {
   it("keeps all root and flowchart names, including deprecations and duplicate homes", () => {
     expect(
@@ -55,10 +61,12 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         { name: "TraceWalkOptions", kind: "type" },
         { name: "TraceWalkScope", kind: "type" },
         ...groupedFlowExports,
+        ...traceWorkflowExports,
       ].sort((a, b) => a.name.localeCompare(b.name)),
       "./flowchart": [
         ...ledger.entries["./flowchart"],
         ...groupedFlowExports,
+        ...traceWorkflowExports,
       ].sort((a, b) => a.name.localeCompare(b.name)),
     });
     expect(ledger.policy).toBe(

@@ -30,7 +30,7 @@ describe("fourth subflow review regressions",()=>{
   });
   it("public root text recognises a child mount without UI-only scope",()=>{
     const text=formatTraceWalk(buildTraceWalk([{...step,runtimeStageId:"child#1"}],{runtimeStageId:"child#1",subflowId:"child",name:"Outer"},"total"),()=>1);
-    expect(text).toContain("computed inside Outer");
+    expect(text).toContain("subflow boundary: Outer");
     expect(text).not.toContain("reads nothing — origin");
   });
   it("a missing trace is unavailable evidence, never a crash or a claim of no writes",()=>{

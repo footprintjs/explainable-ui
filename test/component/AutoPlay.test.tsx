@@ -354,7 +354,7 @@ describe('TimeTravelControls autoPlay: a person wins, for good', () => {
     const { rerender } = render(<Rail autoPlay />);
     advance(2);
     rerender(<Rail autoPlay tracing={TRACING} />);
-    expect((screen.getByLabelText('Earlier cause') as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByLabelText('Earlier recorded step') as HTMLButtonElement).disabled).toBe(false);
     rerender(<Rail autoPlay />);
     expectStoppedForGood(() => rerender(<Rail autoPlay />), 2);
   });

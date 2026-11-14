@@ -4,6 +4,7 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useTraceSessionController, useTraceSessionState } from "../../src/components/ExplainableShell/_internal/useTraceSession";
 import type { TraceScope } from "../../src/trace/traceScope";
+import { childTraceScope } from "../../src/trace/traceScope";
 import type { StageSnapshot } from "../../src/types";
 
 const stages = [
@@ -117,6 +118,98 @@ describe("trace session controller", () => {
     expect(result.current.traceWalk?.missing?.reason).toBe("not-yet-written");
     act(() => result.current.handleStartTracing("total"));
     expect(result.current.traceWalk?.missing).toBeNull();
+  });
+
+  it("returns through followed variables with each question's exact cutoff and prior cursor", () => {
+    const { result } = renderSession();
+    act(() => result.current.handleStartTracing("total"));
+    act(() => result.current.setCursor(3));
+    const subtotal = result.current.traceWalk!.stops.find(stop => stop.runtimeStageId === "tax#3")!.ingredients.find(input => input.key === "subtotal")!;
+    // The dependency view supplies an equivalent names-only reference, not the card's object.
+    act(() => result.current.handleFollowIngredient({ ...subtotal }));
+    const items = result.current.traceWalk!.stops[0].ingredients[0];
+    act(() => result.current.handleFollowIngredient(items));
+    expect(result.current.questionTrail.map(question => question.key)).toEqual(["total", "subtotal", "items"]);
+    expect(result.current.cursor).toBe(0);
+
+    act(() => result.current.handleReturnToQuestion(1));
+    expect(result.current.cursor).toBe(1);
+    expect(result.current.activeViaKey).toBe("subtotal");
+    expect(result.current.questionTrail.map(question => question.key)).toEqual(["total", "subtotal"]);
+    act(() => result.current.handleReturnToQuestion(0));
+    expect(result.current.cursor).toBe(3);
+    expect(result.current.tracing?.beforeCommitIdx).toBe(5);
+    expect(result.current.traceWalk!.stops[0].runtimeStageId).toBe("total#4");
+    expect(result.current.activeViaKey).toBeNull();
+    expect(result.current.questionTrail.map(question => question.key)).toEqual(["total"]);
+  });
+
+  it("a refreshed source cannot restore a saved stale question even through an older callback", () => {
+    const { result, rerender, options } = renderSession();
+    act(() => result.current.handleStartTracing("total"));
+    const subtotal = result.current.traceWalk!.stops[0].ingredients.find(input => input.key === "subtotal")!;
+    act(() => result.current.handleFollowIngredient(subtotal));
+    const oldReturn = result.current.handleReturnToQuestion;
+    const changedScope = scopeWithReads();
+    (changedScope.commitLog[4] as { trace: unknown[] }).trace = [];
+    rerender({ ...options, scope: changedScope });
+    expect(result.current.questionTrail).toEqual([]);
+    act(() => oldReturn(0));
+    expect(result.current.cursor).toBe(1);
+    expect(result.current.activeViaKey).toBe("subtotal");
+    rerender({ ...options, sourceChanged: true });
+    expect(result.current.tracing).toBeNull();
+    expect(result.current.questionTrail).toEqual([]);
+  });
+
+  it("restores root read coverage from the root record when the selected child has no local reads", () => {
+    const address = (drillPath: string[] = []) => ({ logRunId: "coverage-run", drillPath });
+    const commit = (id: string, path?: string) => ({ stage: id, stageId: id.split("#")[0], runtimeStageId: id,
+      overwrite: {}, trace: path ? [{ path }] : [] });
+    const childResult = {
+      treeContext: { logAddress: address(["worker#1"]),
+        history: [commit("worker#1"), commit("worker/constant#2", "value")],
+        stageContexts: { runtimeStageId: "worker/constant#2" } },
+      outputHandoff: { version: 1, attribution: "observed-read-prefix", status: "captured", limitations: [],
+        parent: { address: address(), runtimeStageId: "worker#1", commitIdx: 1 },
+        child: { address: address(["worker#1"]), beforeCommitIdx: 2 },
+        writes: [{ path: "answer", reads: ["value"] }] },
+    };
+    const rootScope: TraceScope = { invocationPath: [], availability: { ok: true }, readsAvailable: true,
+      mountLabels: new Map([["worker#1", "Worker"]]),
+      commitLog: [commit("seed#0", "source"), commit("worker#1", "answer")],
+      executionTree: { runtimeStageId: "seed#0", stageReads: { source: true },
+        next: { runtimeStageId: "worker#1", subflowId: "worker" } } };
+    // A custom scope host can distinguish this child's own empty read record from the root's coverage.
+    const childScope = childTraceScope(childResult, ["worker#1"]);
+    expect(childScope.readsAvailable).toBe(false);
+    const runtimeSnapshot = { runId: "coverage-run", logAddress: address(), commitLog: rootScope.commitLog,
+      executionTree: rootScope.executionTree, subflowResults: { "worker#1": childResult } };
+    const rootSnapshots = snapshots.slice(0, 2).map((snapshot, index) => ({ ...snapshot, runtimeStageId: index ? "worker#1" : "seed#0" }));
+    const childSnapshots = [{ ...snapshots[0], runtimeStageId: "worker/constant#2" }];
+    const restore = vi.fn();
+    const { result } = renderHook(() => {
+      const [inside, setInside] = useState(false);
+      const [cursor, setCursor] = useState(1);
+      const session = useTraceSessionState(cursor);
+      return useTraceSessionController({ session, activeTraceScope: inside ? childScope : rootScope,
+        activeTraceKey: inside ? '["worker#1"]' : null, activeSnapshots: inside ? childSnapshots : rootSnapshots,
+        safeIdx: cursor, sourceChanged: false, traceHistoryAvailable: true, showDataTraceCone: false,
+        runtimeSnapshot, setSnapshotIdx: setCursor, onStartInspector: () => {},
+        openTraceSource: () => { setInside(true); setCursor(0); return true; },
+        restoreTraceQuestion: (path, id) => { restore(path, id); setInside(false); setCursor(1); return true; },
+      });
+    });
+    act(() => result.current.handleStartTracing("answer"));
+    const source = result.current.traceWalk!.stops[0].handoffSources![0];
+    act(() => result.current.handleFollowHandoff(source));
+    expect(result.current.traceWalk?.readsAvailable).toBe(false);
+    expect(result.current.questionTrail.map(question => question.key)).toEqual(["answer", "value"]);
+    act(() => result.current.handleReturnToQuestion(0));
+    expect(restore).toHaveBeenCalledWith([], "worker#1");
+    expect(result.current.tracing?.beforeCommitIdx).toBe(2);
+    expect(result.current.traceWalk?.key).toBe("answer");
+    expect(result.current.traceWalk?.readsAvailable).toBe(true);
   });
 
   it("withholds old questions on source or scope replacement and exposes a stable navigation reset", () => {

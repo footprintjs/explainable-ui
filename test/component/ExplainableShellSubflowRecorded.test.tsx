@@ -92,7 +92,7 @@ describe('scoped tracing against recorded FootprintJS 10.3.0 runs', () => {
     const card = traceTotal();
     expect(card.textContent).toContain(`= ${expected}`);
     expect(card.textContent).not.toContain(`= ${expected === 24 ? 44 : 24}`);
-    fireEvent.click(screen.getByLabelText('Earlier cause'));
+    fireEvent.click(screen.getByLabelText('Earlier recorded step'));
     expect(card.querySelector('[data-fp="twc-stop-headline"]')?.textContent).toMatch(/Child Sum/);
     ui.drill(null);
     expect(screen.getByRole('toolbar').getAttribute('data-tracing')).toBeNull();
