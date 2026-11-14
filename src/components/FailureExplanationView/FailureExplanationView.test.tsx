@@ -95,4 +95,9 @@ describe('optional plain-language explanation display', () => {
     const model = explanation(); delete model.unknowns[0];
     render(<FailureExplanationView explanation={model} />); unavailable();
   });
+  it('gives a nontechnical recovery step for the recording, without suggesting a repeat business action', () => {
+    render(<FailureExplanationView explanation={null} />);
+    expect(screen.getByRole('status').textContent).toContain('Reload the recording or ask an administrator to check it.');
+    expect(screen.getByRole('status').textContent).not.toContain('admitted');
+  });
 });

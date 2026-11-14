@@ -21,7 +21,7 @@ export function FailureExplanationView(props: FailureExplanationViewProps) {
   const model = admitFailureExplanation(props.explanation);
   if (!model) return (
     <section aria-label="Recorded failure explanation" className={props.className} style={{ ...box, ...props.style }}>
-      <p role="status">Explanation is unavailable. The cause and outcome remain unknown. Check the selected recording and provide an admitted explanation.</p>
+      <p role="status">Explanation is unavailable. The cause and outcome remain unknown. Reload the recording or ask an administrator to check it.</p>
     </section>
   );
   const sections = [model.problem, model.recordedCause, model.suggestedNextStep];
