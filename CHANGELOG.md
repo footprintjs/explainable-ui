@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-11-14
+
 ### Added
 
 - Variable backtracking in `ExplainableShell` keeps Execution as the default
