@@ -21,7 +21,7 @@ import { gzipSync } from "node:zlib";
 import { build as bundle } from "esbuild";
 import { build as buildPackage } from "tsup";
 import ts from "typescript";
-import { assertNoFoottraceRuntime } from "./shipping-boundary.mjs";
+import { assertNoFoottraceRuntime, assertNoPilotSource } from "./shipping-boundary.mjs";
 
 const repo = fileURLToPath(new URL("../../", import.meta.url));
 const require = createRequire(join(repo, "package.json"));
@@ -288,10 +288,7 @@ function verifyNormalPackage() {
       `Pilot path shipped: ${rel}`
     );
     if (rel.startsWith("dist/")) {
-      assert(
-        !/src\/record|record-lens/i.test(readFileSync(path, "utf8")),
-        `Normal shipped output contains pilot source: ${rel}`
-      );
+      assertNoPilotSource(readFileSync(path, "utf8"), rel);
       // Canonical cause TYPES are bundled for the optional panel; no Foottrace
       // runtime import is allowed. Source-map admission below also rejects any
       // bundled runtime input outside src/, including node_modules/foottrace.

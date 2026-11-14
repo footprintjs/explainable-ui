@@ -2,6 +2,31 @@ import * as react from 'react';
 import { CSSProperties, ReactNode } from 'react';
 import { Node, Edge } from '@xyflow/react';
 
+/** One display contract shared by the two independent relationship admission boundaries. */
+declare const attributions: Readonly<{
+    "per-write": Readonly<{
+        label: "Per-write link";
+        caption: undefined;
+    }>;
+    stage: Readonly<{
+        label: "Step-level link";
+        caption: "Step";
+    }>;
+    "recorded-control": Readonly<{
+        label: "Recorded control";
+        caption: undefined;
+    }>;
+    "recorded-read": Readonly<{
+        label: "Recorded read";
+        caption: "Read";
+    }>;
+    "recorded-write": Readonly<{
+        label: "Recorded write (retained value)";
+        caption: "Kept";
+    }>;
+}>;
+type RecordedAttribution = keyof typeof attributions;
+
 /** App-approved presentation and structure, independent of recorded execution facts. */
 interface FlowDiagramNode {
     readonly id: string;
@@ -43,7 +68,7 @@ interface FlowDiagramRecordedRelationship {
     readonly source: string;
     readonly target: string;
     readonly kind: "data" | "control";
-    readonly attribution: "per-write" | "stage" | "recorded-control" | "recorded-read";
+    readonly attribution: RecordedAttribution;
     readonly evidence: readonly string[];
     /** Routing hint only. Endpoints and arrow direction are never reversed. */
     readonly direction?: "backward" | "forward";
@@ -669,8 +694,21 @@ interface TimeTravelControlsProps extends BaseComponentProps {
     autoPlayable?: boolean;
     /** Same-Rail Rewind session — when set, the rail is in tracing mode. */
     tracing?: TracingRail | null;
+    /**
+     * Play the recording by itself, once: the cursor goes to the first stage and
+     * walks to the last on the Play loop, then stops. Pause, scrubbing, arrow
+     * keys, space, or any other move of the cursor stop it for good. It does not
+     * start under `prefers-reduced-motion: reduce`, with `autoPlayable={false}`,
+     * in tracing mode, or with fewer than two stages. Default false.
+     */
+    autoPlay?: boolean;
+    /**
+     * What counts as a new recording for `autoPlay`. Default: the `snapshots`
+     * array itself, so keep it stable across renders or pass a run id here.
+     */
+    autoPlayKey?: unknown;
 }
-declare function TimeTravelControls({ snapshots, selectedIndex, onIndexChange, autoPlayable, tracing, size, unstyled, className, style, }: TimeTravelControlsProps): react.JSX.Element;
+declare function TimeTravelControls(props: TimeTravelControlsProps): react.JSX.Element;
 
 /**
  * One entry in the execution timeline. `<TracedFlow>` keys time-travel
@@ -913,6 +951,22 @@ interface TraceGraph {
     edges: TraceEdge[];
 }
 
+/** Raw runtime snapshot consumed by the recording views, without an engine dependency. */
+interface RuntimeSnapshotInput {
+    sharedState: Record<string, unknown>;
+    executionTree: unknown;
+    commitLog: unknown[];
+    subflowResults?: Record<string, unknown>;
+    /** Recorder snapshots from toSnapshot() — auto-generates detail tabs. */
+    recorders?: Array<{
+        id: string;
+        name: string;
+        description?: string;
+        preferredOperation?: "translate" | "accumulate" | "aggregate";
+        data: unknown;
+    }>;
+}
+
 /**
  * Minimal subflow-walking spec shape. Used INTERNALLY by drill-down
  * resolution (which navigates `subflowStructure` to find a child chart
@@ -949,24 +1003,7 @@ interface DefaultExpanded {
     details?: boolean;
     timeline?: boolean;
 }
-/**
- * Raw runtime snapshot from FlowChartExecutor.getSnapshot().
- * When provided, ExplainableShell converts it internally — zero boilerplate.
- */
-interface RuntimeSnapshotInput {
-    sharedState: Record<string, unknown>;
-    executionTree: unknown;
-    commitLog: unknown[];
-    subflowResults?: Record<string, unknown>;
-    /** Recorder snapshots from toSnapshot() — auto-generates detail tabs. */
-    recorders?: Array<{
-        id: string;
-        name: string;
-        description?: string;
-        preferredOperation?: 'translate' | 'accumulate' | 'aggregate';
-        data: unknown;
-    }>;
-}
+
 /**
  * A recorder view that appears as a tab in the details panel.
  * Each recorder provides its own per-stage rendering.
@@ -1145,8 +1182,18 @@ interface ExplainableShellProps extends BaseComponentProps {
      * Default false.
      */
     showStageId?: boolean;
+    /**
+     * Play the run by itself when it opens, once: the cursor goes to the first
+     * stage and walks to the last on the Play loop, then stops. A new run (a new
+     * `runId`, or a new snapshot object when it has none) plays again and leaves
+     * any subflow a person drilled into; a re-render does not. Pause, scrubbing,
+     * arrow keys, space, a drill, a trace or any other move of the cursor stop it
+     * for good. It does not start under `prefers-reduced-motion: reduce`, while
+     * tracing, or with fewer than two stages. Default false.
+     */
+    autoPlay?: boolean;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs: deprecatedTabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
+declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs: deprecatedTabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, autoPlay, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
 
 /**
  * TraceViewer — renders a saved recording. No live executor, no re-run.
@@ -1231,7 +1278,7 @@ type TraceParseError = {
     kind: 'no-stages';
     message: string;
 };
-interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'traceTheme'>, ThemeModeProps {
+interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'traceTheme' | 'autoPlay'>, ThemeModeProps {
     /**
      * The recording to render — a parsed object or a raw JSON string.
      * `null` / `undefined` / empty-string render the `fallback`.
@@ -1248,7 +1295,7 @@ interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'default
     /** Element rendered when no valid recording is available. */
     readonly fallback?: react.ReactNode;
 }
-declare function TraceViewer({ recording, trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, traceTheme, theme: themeMode, }: TraceViewerProps): react.ReactElement | null;
+declare function TraceViewer({ recording, trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, traceTheme, autoPlay, theme: themeMode, }: TraceViewerProps): react.ReactElement | null;
 
 interface MemoryPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
@@ -1770,6 +1817,15 @@ interface InspectorPanelProps extends BaseComponentProps {
 }
 declare const InspectorPanel: react.NamedExoticComponent<InspectorPanelProps>;
 
+/** A navigation target, never a foreign key inserted into the parent's read set. */
+interface SubflowHandoffSource {
+    readonly key: string;
+    readonly mountRuntimeStageId: string;
+    readonly invocationPath: readonly string[];
+    /** Exclusive position on the child's displayed history, without its seed bookend. */
+    readonly beforeCommitIdx: number;
+}
+
 /**
  * traceWalk — the SAME-RAIL REWIND walk: a variable-anchored backward slice,
  * linearized in REVERSE COMMIT ORDER so it can be driven by the existing
@@ -1796,6 +1852,7 @@ declare const InspectorPanel: react.NamedExoticComponent<InspectorPanelProps>;
  * Shares the read→write BFS with dataTrace.ts (the causalChain mirror);
  * eui still never imports footprintjs — snapshot SHAPES only.
  */
+
 /** Explicit, serializable presentation and recording scope. Child ancestry stays unknown. */
 interface TraceWalkScope {
     readonly invocationPath: readonly string[];
@@ -1837,6 +1894,8 @@ interface TraceStop {
     /** 1-based pass number when the same stage appears more than once in
      *  the walk (loop iterations); 0 = appears once. */
     loopPass: number;
+    /** Admitted child targets; their histories remain on their own cursor rail. */
+    handoffSources?: readonly SubflowHandoffSource[];
 }
 interface TraceWalkMissing {
     reason: "never-written" | "not-yet-written" | "evidence-unavailable";
@@ -1899,6 +1958,8 @@ interface TraceWalkCardProps extends BaseComponentProps {
     previewValueOf?: (key: string) => unknown;
     /** Follow an ingredient: re-anchor the walk on ing.key before this stop. */
     onFollowIngredient?: (ing: TraceIngredient) => void;
+    /** Open an exact child invocation and trace its recorded source on that scope's rail. */
+    onFollowHandoff?: (source: SubflowHandoffSource) => void;
     /** Jump the cursor to a stop (itinerary row click). */
     onJumpToStop?: (runtimeStageId: string) => void;
     onShowAll?: () => void;
