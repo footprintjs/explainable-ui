@@ -13,10 +13,12 @@ and non-UI callers. No hidden WeakMap or in-place walk mutation is involved.
 ## Variables and execution
 
 During an active admitted walk, `TraceDependencyView` opens the central pane in
-**Variables**. Its bounded `buildTraceDependencyGraph` projection identifies
-each variable by its key and exact recorded writer visit, with unresolved reads and writers
-outside the view represented explicitly. Arrows describe **recorded stage
-reads**. The existing walk considers all of a stage's reads, so these edges
+**Execution**, retaining the workflow context. The built-in renderer overlays
+the admitted question's recorded writers and reads; **Variables** is an optional
+view of the same question. Its bounded `buildTraceDependencyGraph` projection
+identifies each variable by its key and exact recorded writer visit, with
+unresolved reads and writers outside the view represented explicitly. Arrows
+describe **recorded stage reads**. The existing walk considers all of a stage's reads, so these edges
 are conservative evidence rather than exact per-write or expression-level
 derivation. This projection does not add another causal walker.
 
@@ -24,9 +26,18 @@ Value previews come from the `StageSnapshot.memory` associated with the named
 writer visit, not from whichever cursor moment is currently selected.
 `recordedValuePreview` keeps previews bounded and reads inert own data;
 missing or unavailable values remain labelled rather than inferred.
-**Execution** keeps the ordinary or consumer-supplied chart available without
-changing the question or cursor. Without a usable walk, that chart and the
-existing missing-evidence presentation remain in place.
+The ordinary or consumer-supplied execution chart stays mounted when the reader
+switches views, preserving its local state without changing the question or
+cursor. Without a usable walk, that chart and the existing missing-evidence
+presentation remain in place.
+
+One question-local palette identifies exact variable/writer visits consistently
+across the variable map, workflow overlay and read chips. Colors are reading
+aids, not additional evidence or a claim that the same key has one writer across
+visits. Position and emphasis changes use short 240 ms transitions while
+retaining the selected context. `useTraceMotion` observes the live reduced-motion
+preference through modern or legacy media-query listeners, with cleanup on
+unmount. Motion stays off during server rendering and in unsupported hosts.
 
 The rail uses **Earlier recorded step** and **Later recorded step** for its
 one-cursor movement. The walk remains newest-first; moving earlier visits
@@ -49,7 +60,9 @@ Local source follows and admitted child-source hops append the prior question.
 Choosing an earlier trail entry restores its question and cursor after checking
 the current record still supports them. A changed source, unavailable visit or
 withdrawn handoff cannot be revived through an old return callback. This trail
-does not create another live cursor or combine the logs.
+does not create another live cursor or combine the logs. Child-source questions
+keep a parent-context pill and **Back** action in the header, so the originating
+question remains visible while the child scope is selected.
 
 For recordings with `captureOutputHandoff: true`, `src/trace/subflowHandoff.ts`
 admits optional engine-owned `outputHandoff` metadata. The independent

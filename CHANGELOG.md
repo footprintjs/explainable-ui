@@ -9,19 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Variable-centered backtracking in `ExplainableShell`: a bounded dependency
-  graph shows recorded stage reads, writer-stage labels and writer-snapshot
-  values, with the execution chart available through the Execution toggle.
+- Variable backtracking in `ExplainableShell` keeps Execution as the default
+  view, highlighting recorded writers and reads in the built-in workflow.
+  The optional Variables map shows recorded stage reads, writer-stage labels
+  and writer-snapshot values. Both views and read chips share colors within
+  each question; those reads remain conservative evidence, not exact derivation.
 - A persistent investigation trail returns to earlier variable questions
   across local and child scopes, restoring the exact invocation, cutoff and
   cursor after validating the current recording.
 
 ### Fixed
 
+- Grouped investigation and standalone diagrams display admitted `recorded-write`
+  data links as retained values, separately from recorded reads, while preserving
+  each link's evidence, direction and uncertainty. Missing links remain unknown.
 - Show nested commit-path values using inert own-property reads, preserving
   literal dots in keys and refusing inherited fields and accessors.
 - Describe recorded read evidence without claiming exact value derivation or
   a proven origin; distinguish trace-stop order from execution position.
+
+### Changed
+
+- `FlowDiagramRecordedRelationship.attribution` also accepts `"recorded-write"`.
+  Consumers handling every attribution explicitly must add this value. It means
+  an earlier value retained by a partial write, not proven expression derivation.
+- Keep the execution renderer mounted across trace view changes and retain
+  parent-question context with a Back action when following a child source.
+  Short 240 ms position and emphasis transitions respect live reduced-motion
+  preferences; unsupported hosts keep motion off.
 
 ## [0.42.0] - 2026-11-13
 

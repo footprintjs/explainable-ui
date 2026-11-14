@@ -63,7 +63,7 @@ import { filterGraphForDrill, buildSubflowBreadcrumb } from "./_internal/subflow
 import { collapseTraceGraph } from "./_internal/collapseGraph";
 import { aggregateMountStatus, cursorStandInIds, edgeCarriesCursor } from "./_internal/overlayProjection";
 import { useSubflowDrill } from "./_internal/useSubflowDrill";
-import { ChartAutoRefit } from "./_internal/useChartAutoRefit";
+import { TraceWorkflowAutoRefit } from "./_internal/TraceWorkflowAutoRefit";
 import { chartLayoutKey, chartTopologyKey } from "./_internal/chartFitGeometry";
 import { SubflowBreadcrumbBar } from "./SubflowBreadcrumbBar";
 import { GroupContainerNode } from "../GroupContainerNode";
@@ -71,6 +71,10 @@ import { LoopBackEdge } from "../LoopBackEdge";
 import { SmartStepEdge } from "../SmartStepEdge";
 import { applyGroupLayout, wrapInMainChartBox } from "./_internal/groupLayout";
 import { MeasuredNodeSizes } from "./_internal/MeasuredNodeSizes";
+import type { TraceWorkflowOverlay } from "../../trace/traceWorkflowOverlay";
+import { projectTraceWorkflow } from "./_internal/traceWorkflowProjection";
+import { RecordedReadEdge } from "./RecordedReadEdge";
+import { TRACE_MOTION_MS, useTraceMotion } from "../../_internal/useTraceMotion";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Theming
@@ -264,6 +268,7 @@ function styleEdgeWithOverlay(
   activeStageId: string | null,
   colors: TracedFlowColors,
   cursorStandIns: ReadonlySet<string>,
+  suppressMotion = false,
 ): Edge {
   const kind = edge.data?.kind ?? "next";
   const sourceExecuted = doneStageIds.has(edge.source) || activeStageId === edge.source;
@@ -292,7 +297,7 @@ function styleEdgeWithOverlay(
     // Every other edge uses `smartStep`: a smoothstep superset that routes a
     // RANK-SKIPPING edge around the node it skips (else identical to smoothstep).
     type: kind === "loop" ? "loopBack" : "smartStep",
-    animated: isLeadingEdge,
+    animated: !suppressMotion && isLeadingEdge,
     style: { stroke: color, strokeWidth: traversed || carriesCursor ? 2 : 1.5 },
     markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16 },
   };
@@ -378,6 +383,8 @@ export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
    * `#N` before passing).
    */
   sliceCone?: ReadonlyMap<string, number> | null;
+  /** Static, scope-qualified recorded reads drawn separately from workflow execution edges. */
+  traceWorkflow?: TraceWorkflowOverlay | null;
   /**
    * Hide the nodes this predicate matches (a hidden subflow card takes its
    * drill-internals with it); edges re-connect THROUGH hidden nodes so every
@@ -422,7 +429,7 @@ const DEFAULT_NODE_TYPES: NodeTypes = {
 // (see LoopBackEdge); `smartStep` routes rank-skipping edges around the node
 // they skip (see SmartStepEdge). Always registered; merged UNDER consumer
 // `edgeTypes` (consumer keys win).
-const DEFAULT_EDGE_TYPES: EdgeTypes = { loopBack: LoopBackEdge, smartStep: SmartStepEdge };
+const DEFAULT_EDGE_TYPES: EdgeTypes = { loopBack: LoopBackEdge, smartStep: SmartStepEdge, recordedRead: RecordedReadEdge };
 
 export function TracedFlow({
   graph,
@@ -440,11 +447,17 @@ export function TracedFlow({
   edgeTypes: userEdgeTypes,
   coActiveStageIds,
   sliceCone,
+  traceWorkflow,
   theme: themeMode,
   children,
   className,
   style,
 }: TracedFlowProps) {
+  const motionEnabled = useTraceMotion();
+  const suppressMotion = !!traceWorkflow || !motionEnabled;
+  // Investigation chrome changes size on entry and exit; neither is permission to reclaim a user's camera.
+  const investigationSeen = useRef(false);
+  if (traceWorkflow) investigationSeen.current = true;
   // Dagre is the default (structure-derived spacing); override via `layout`.
   const layout = layoutProp ?? dagreTraceLayout;
 
@@ -589,8 +602,8 @@ export function TracedFlow({
   // ── xyflow nodes + edges (re-run per scrub tick) ──────────────────
   const reactFlowNodes = useMemo<Node[]>(
     () =>
-      positioned.nodes.map((n) =>
-        toStageNodeWithOverlay(
+      positioned.nodes.map((n) => {
+        const node = toStageNodeWithOverlay(
           n,
           slice.doneStageIds,
           slice.activeStageId,
@@ -598,9 +611,10 @@ export function TracedFlow({
           slice.executedOrderIds,
           coActiveStageIds ?? EMPTY_SET,
           slice.retryAttempts?.get(n.id),
-        ),
-      ),
-    [positioned.nodes, slice, coActiveStageIds],
+        );
+        return { ...node, data: { ...node.data, suppressMotion: suppressMotion || node.data.suppressMotion === true } };
+      }),
+    [positioned.nodes, slice, coActiveStageIds, suppressMotion],
   );
   // The ids that stand for the cursor on this chart: the active id plus its
   // path ancestors — what a contracted edge's `via` list is checked against.
@@ -608,10 +622,38 @@ export function TracedFlow({
   const reactFlowEdges = useMemo<Edge[]>(
     () =>
       positioned.edges.map((e) =>
-        styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns),
+        styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns, suppressMotion),
       ),
-    [positioned.edges, slice, colors, cursorStandIns],
+    [positioned.edges, slice, colors, cursorStandIns, suppressMotion],
   );
+
+  const workflowProjection = useMemo(() => projectTraceWorkflow(traceWorkflow, positioned.nodes), [traceWorkflow, positioned.nodes]);
+  const workflowNodes = useMemo<Node[]>(() => {
+    if (!traceWorkflow) return reactFlowNodes;
+    return reactFlowNodes.map(node => {
+      const stage = workflowProjection.stages.get(node.id);
+      return { ...node,
+        data: { ...node.data, ...(stage ? { traceWorkflow: stage } : {}) },
+        // Group frames must not compound opacity onto their relevant children.
+        style: { ...node.style, opacity: node.type === "groupContainer" || stage ? 1 : 0.4,
+          transition: motionEnabled ? `opacity ${TRACE_MOTION_MS}ms ease` : "none", animation: "none" },
+      };
+    });
+  }, [traceWorkflow, reactFlowNodes, workflowProjection, motionEnabled]);
+  const workflowEdges = useMemo<Edge[]>(() => {
+    if (!traceWorkflow) return reactFlowEdges;
+    const execution = reactFlowEdges.map(edge => ({ ...edge, animated: false,
+      style: { ...edge.style, animation: "none", transition: motionEnabled ? `opacity ${TRACE_MOTION_MS}ms ease` : "none", opacity: 0.4 } }));
+    const reads: Edge[] = workflowProjection.reads.map((read, lane) => ({
+      id: `recorded-read:${JSON.stringify([traceWorkflow.scopeKey, read.key, read.sourceRuntimeStageId, read.targetRuntimeStageId])}`,
+      source: read.source, target: read.target, type: "recordedRead", animated: false, selectable: false,
+      zIndex: 2,
+      data: { kind: "recorded-read", ...read, lane, scopeKey: traceWorkflow.scopeKey },
+      style: { stroke: read.color, strokeWidth: 2, strokeDasharray: "6 4", animation: "none", transition: "none" },
+      markerEnd: { type: MarkerType.ArrowClosed, color: read.color, width: 14, height: 14 },
+    }));
+    return [...execution, ...reads];
+  }, [traceWorkflow, reactFlowEdges, workflowProjection, motionEnabled]);
 
   // ── Dependency-cone overlay (sliceCone) ────────────────────────────
   // Two-phase reveal: when the cone changes, everything renders at the
@@ -621,13 +663,14 @@ export function TracedFlow({
   // node renderers. No cone → the original arrays pass through untouched.
   const [coneRevealed, setConeRevealed] = useState(false);
   useEffect(() => {
-    if (!sliceCone) return;
+    if (!sliceCone || traceWorkflow) return;
     setConeRevealed(false);
     const raf = requestAnimationFrame(() => setConeRevealed(true));
     return () => cancelAnimationFrame(raf);
-  }, [sliceCone]);
+  }, [sliceCone, traceWorkflow]);
 
   const conedNodes = useMemo<Node[]>(() => {
+    if (traceWorkflow) return workflowNodes;
     if (!sliceCone || sliceCone.size === 0) return reactFlowNodes;
     return reactFlowNodes.map((n) => {
       const depth = sliceCone.get(n.id);
@@ -644,9 +687,10 @@ export function TracedFlow({
         },
       };
     });
-  }, [reactFlowNodes, sliceCone, coneRevealed]);
+  }, [traceWorkflow, workflowNodes, reactFlowNodes, sliceCone, coneRevealed]);
 
   const conedEdges = useMemo<Edge[]>(() => {
+    if (traceWorkflow) return workflowEdges;
     if (!sliceCone || sliceCone.size === 0) return reactFlowEdges;
     return reactFlowEdges.map((e) => {
       const inCone = sliceCone.has(e.source) && sliceCone.has(e.target);
@@ -654,7 +698,7 @@ export function TracedFlow({
         ? e
         : { ...e, style: { ...e.style, opacity: 0.12, transition: "opacity 260ms ease" } };
     });
-  }, [reactFlowEdges, sliceCone]);
+  }, [traceWorkflow, workflowEdges, reactFlowEdges, sliceCone]);
 
   // ── Click handling: drill on subflow mount click, propagate click ─
   const handleNodeClick = useCallback(
@@ -718,7 +762,8 @@ export function TracedFlow({
           minZoom={0.1}
           proOptions={{ hideAttribution: true }}
         >
-          <ChartAutoRefit wrapperRef={wrapperRef} refitKey={refitKey} layoutKey={layoutKey} padding={0.18} />
+          <TraceWorkflowAutoRefit wrapperRef={wrapperRef} refitKey={refitKey} layoutKey={layoutKey} padding={0.18}
+            preserveViewport={investigationSeen.current} stages={workflowProjection.stages} />
           <MeasuredNodeSizes onSizes={setMeasuredSizes} />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
           {children}

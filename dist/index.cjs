@@ -624,7 +624,7 @@ function useChartAutoRefit({ wrapperRef, padding: padding2 = 0.1, refitKey, layo
     };
     observePane();
     const unsubscribe = store.subscribe((state) => {
-      const cameraChanged = state.transform.some((value, index) => value !== lastTransform[index]);
+      const cameraChanged = state.transform.some((value, index2) => value !== lastTransform[index2]);
       lastTransform = [...state.transform];
       if (cameraChanged && !applyingFit) {
         autoOwned = false;
@@ -1137,7 +1137,7 @@ function projectGroupedFlowDiagram(definition, options) {
       graph.setGraph({ rankdir: config.direction, ranksep: 40, nodesep: 44, edgesep: 20, ranker: "longest-path" });
       graph.setDefaultEdgeLabel(() => ({}));
       const internalIds = /* @__PURE__ */ new Map();
-      children.forEach((child, index) => {
+      children.forEach((child, index2) => {
         let size;
         if (child.kind === "group" && config.expanded.has(child.id)) {
           const contents = arrangeChildren(child.id);
@@ -1147,17 +1147,17 @@ function projectGroupedFlowDiagram(definition, options) {
           };
         } else size = child.kind === "group" ? { width: GROUP_MIN_WIDTH, height: GROUP_MIN_HEIGHT } : { width: STEP_WIDTH, height: child.kind === "decision" ? DECISION_HEIGHT : STEP_HEIGHT };
         sizes.set(child.id, size);
-        const internalId = `n${index}`;
+        const internalId = `n${index2}`;
         internalIds.set(child.id, internalId);
         graph.setNode(internalId, size);
       });
-      edges.forEach((edge, index) => {
+      edges.forEach((edge, index2) => {
         const source = childAtLevel(edge.source, parentId);
         const target = childAtLevel(edge.target, parentId);
         if (source === void 0 || target === void 0 || source === target) return;
         const internalSource = internalIds.get(source);
         const internalTarget = internalIds.get(target);
-        if (internalSource !== void 0 && internalTarget !== void 0) graph.setEdge(internalSource, internalTarget, {}, `e${index}`);
+        if (internalSource !== void 0 && internalTarget !== void 0) graph.setEdge(internalSource, internalTarget, {}, `e${index2}`);
       });
       import_dagre.default.layout(graph);
       const raw = children.map((child) => {
@@ -1227,6 +1227,31 @@ function projectGroupedFlowDiagram(definition, options) {
   }
 }
 
+// src/recordedRelationships/attribution.ts
+var attributions = Object.freeze({
+  "per-write": Object.freeze({ label: "Per-write link", caption: void 0 }),
+  stage: Object.freeze({ label: "Step-level link", caption: "Step" }),
+  "recorded-control": Object.freeze({ label: "Recorded control", caption: void 0 }),
+  "recorded-read": Object.freeze({ label: "Recorded read", caption: "Read" }),
+  "recorded-write": Object.freeze({ label: "Recorded write (retained value)", caption: "Kept" })
+});
+function isRecordedAttribution(value) {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(attributions, value);
+}
+function admitsRecordedAttribution(value, kind) {
+  return isRecordedAttribution(value) && (value !== "recorded-write" || kind === "data");
+}
+function recordedAttributionLabel(value) {
+  return attributions[value].label;
+}
+function recordedAttributionCaption(value, kind) {
+  if (isRecordedAttribution(value)) {
+    const caption = attributions[value].caption;
+    if (caption !== void 0) return caption;
+  }
+  return kind === "control" ? "Rule" : kind === "data" ? "Data" : "Link";
+}
+
 // src/components/GroupedFlowDiagram/relationships.ts
 function field2(value, key) {
   if (!value || typeof value !== "object") throw new Error();
@@ -1242,8 +1267,8 @@ function list(value, max) {
   if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) throw new Error();
   const length = field2(value, "length");
   if (typeof length !== "number" || !Number.isInteger(length) || length < 0 || length > max) throw new Error();
-  return Array.from({ length }, (_, index) => {
-    const item = Object.getOwnPropertyDescriptor(value, String(index));
+  return Array.from({ length }, (_, index2) => {
+    const item = Object.getOwnPropertyDescriptor(value, String(index2));
     if (!item || !("value" in item)) throw new Error();
     return item.value;
   });
@@ -1287,7 +1312,7 @@ function projectRecordedRelationships(value, model) {
       plain(entry);
       const id = readText(field2(entry, "id"), 256), source = readText(field2(entry, "source"), 256), target = readText(field2(entry, "target"), 256);
       const kind = field2(entry, "kind"), attribution = field2(entry, "attribution"), direction = field2(entry, "direction");
-      if (used.has(id) || !nodes.has(source) || !nodes.has(target) || notRun(source) || notRun(target) || kind !== "data" && kind !== "control" || !["per-write", "stage", "recorded-control", "recorded-read"].includes(attribution) || direction !== void 0 && direction !== "backward" && direction !== "forward") throw new Error();
+      if (used.has(id) || !nodes.has(source) || !nodes.has(target) || notRun(source) || notRun(target) || kind !== "data" && kind !== "control" || !admitsRecordedAttribution(attribution, kind) || direction !== void 0 && direction !== "backward" && direction !== "forward") throw new Error();
       used.add(id);
       return {
         id,
@@ -1429,7 +1454,7 @@ function routeRecordedRelationships(links, model) {
   const facingSources = /* @__PURE__ */ new Map();
   const slots = (id, side, type, remote, remotePort) => {
     const box2 = boxes.get(id), item = byId.get(id), length = side === "top" || side === "bottom" ? box2.width : box2.height;
-    const count = Math.min(6, Math.floor((length - 56) / 24) + 1), offsets = Array.from({ length: Math.max(0, count) }, (_, index2) => 28 + (length - 56) * index2 / Math.max(1, count - 1)).filter((offset) => Math.abs(offset - length / 2) >= 20 && !(item.expanded && (side === "left" || side === "right") && offset < 96));
+    const count = Math.min(6, Math.floor((length - 56) / 24) + 1), offsets = Array.from({ length: Math.max(0, count) }, (_, index3) => 28 + (length - 56) * index3 / Math.max(1, count - 1)).filter((offset) => Math.abs(offset - length / 2) >= 20 && !(item.expanded && (side === "left" || side === "right") && offset < 96));
     const neighbour = side === "top" || side === "bottom" ? (remotePort?.x ?? remote.x + remote.width / 2) - box2.x : (remotePort?.y ?? remote.y + remote.height / 2) - box2.y;
     return offsets.sort((a, b) => Math.abs(a - neighbour) - Math.abs(b - neighbour) || (type === "source" ? a - b : b - a));
   };
@@ -1490,7 +1515,7 @@ function routeRecordedRelationships(links, model) {
   const columns = [...xs].sort((a, b) => a - b), rows = [...ys].sort((a, b) => a - b), width = columns.length;
   if (!width || !rows.length) return outcome();
   const position = (at) => ({ x: columns[at % width], y: rows[Math.floor(at / width)] });
-  const index = (p) => rows.indexOf(p.y) * width + columns.indexOf(p.x);
+  const index2 = (p) => rows.indexOf(p.y) * width + columns.indexOf(p.x);
   const occupied = /* @__PURE__ */ new Map(), occupiedVertices = /* @__PURE__ */ new Map(), checked = /* @__PURE__ */ new Map(), labels = [], usedPorts = /* @__PURE__ */ new Map();
   const portKey = (id, port) => JSON.stringify([id, port.side, port.offset]);
   const segmentKey = (a, b) => a < b ? `${a}:${b}` : `${b}:${a}`;
@@ -1503,7 +1528,7 @@ function routeRecordedRelationships(links, model) {
     return true;
   };
   const search = (start, end) => {
-    const from = index(start), to = index(end);
+    const from = index2(start), to = index2(end);
     if (from === to) return void 0;
     const queue = new Queue(), costs = /* @__PURE__ */ new Map(), parents = /* @__PURE__ */ new Map();
     queue.push({ at: from, direction: 0, cost: 0, score: distance(start, end), key: from * 3 });
@@ -1576,7 +1601,7 @@ function routeRecordedRelationships(links, model) {
       labels.push(label.box);
       for (const segment of found.segments) occupied.set(segment, (occupied.get(segment) ?? 0) + 1);
       for (const p of found.points) {
-        const at = index(p);
+        const at = index2(p);
         occupiedVertices.set(at, (occupiedVertices.get(at) ?? 0) + 1);
       }
       usedPorts.set(sourceKey, shared(option) ? fan.key : "");
@@ -1677,7 +1702,7 @@ function RecordedRelationshipEdge(props) {
   const relationship = data?.relationship;
   const route = data?.route;
   if (!route) return null;
-  const caption = relationship?.attribution === "stage" ? "Step" : relationship?.attribution === "recorded-read" ? "Read" : relationship?.kind === "control" ? "Rule" : relationship?.kind === "data" ? "Data" : "Link";
+  const caption = recordedAttributionCaption(relationship?.attribution, relationship?.kind);
   const fullLabel = typeof props.label === "string" ? props.label : "Recorded dependency";
   const path = recordedRoutePath(route, { x: props.sourceX, y: props.sourceY }, { x: props.targetX, y: props.targetY });
   const { x, y } = route.label;
@@ -1772,10 +1797,10 @@ function GroupedFlowDiagram(props) {
     setFocusIds(ids);
     setFocusRequest((value) => value + 1);
   };
-  const names = (0, import_react14.useMemo)(() => {
+  const names2 = (0, import_react14.useMemo)(() => {
     if (!model) return /* @__PURE__ */ new Map();
     const groups = model.definition.nodes.filter((node) => node.kind === "group");
-    const groupIndex = new Map(groups.map((node, index) => [node.id, index + 1]));
+    const groupIndex = new Map(groups.map((node, index2) => [node.id, index2 + 1]));
     const counts = /* @__PURE__ */ new Map();
     const siblingCounts = /* @__PURE__ */ new Map();
     for (const node of model.definition.nodes) {
@@ -1783,12 +1808,12 @@ function GroupedFlowDiagram(props) {
       const key = JSON.stringify([node.parentId ?? null, node.label]);
       siblingCounts.set(key, (siblingCounts.get(key) ?? 0) + 1);
     }
-    return new Map(model.definition.nodes.map((node, index) => {
+    return new Map(model.definition.nodes.map((node, index2) => {
       const duplicate = (counts.get(node.label) ?? 0) > 1;
       if (node.kind === "group" && duplicate) return [node.id, `Group ${groupIndex.get(node.id)}`];
       const context = node.parentId ? `Group ${groupIndex.get(node.parentId)}` : "";
       const siblingDuplicate = (siblingCounts.get(JSON.stringify([node.parentId ?? null, node.label])) ?? 0) > 1;
-      return [node.id, [context, siblingDuplicate || !node.parentId && duplicate ? `Item ${index + 1}` : ""].filter(Boolean).join(" \xB7 ")];
+      return [node.id, [context, siblingDuplicate || !node.parentId && duplicate ? `Item ${index2 + 1}` : ""].filter(Boolean).join(" \xB7 ")];
     }));
   }, [props.definition, model]);
   const ports = /* @__PURE__ */ new Map();
@@ -1810,7 +1835,7 @@ function GroupedFlowDiagram(props) {
     selectable: false,
     data: {
       item,
-      caption: names.get(item.node.id) ?? "",
+      caption: names2.get(item.node.id) ?? "",
       selected: item.node.id === selected,
       direction: model.direction,
       canToggle,
@@ -1850,7 +1875,6 @@ function GroupedFlowDiagram(props) {
   if (!highlightFocusIds.size) {
     for (const node of model?.nodes ?? []) if (node.highlighted) highlightFocusIds.add(node.node.id);
   }
-  const relationshipLabels = { "per-write": "Per-write link", stage: "Step-level link", "recorded-control": "Recorded control", "recorded-read": "Recorded read" };
   for (const item of overlay ?? []) {
     const relationship = item.relationship;
     const route = routing?.routes.get(relationship.id);
@@ -1863,8 +1887,8 @@ function GroupedFlowDiagram(props) {
       type: "recordedRelationship",
       sourceHandle: route.sourcePort.id,
       targetHandle: route.targetPort.id,
-      label: `${relationshipLabels[relationship.attribution]} \xB7 ${relationship.kind}`,
-      ariaLabel: `${relationship.direction === "backward" ? "Backward source trail, not a failed step. " : relationship.direction === "forward" ? "Forward recorded impact. " : "Recorded dependency. "}${relationshipLabels[relationship.attribution]}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
+      label: `${recordedAttributionLabel(relationship.attribution)} \xB7 ${relationship.kind}`,
+      ariaLabel: `${relationship.direction === "backward" ? "Backward source trail, not a failed step. " : relationship.direction === "forward" ? "Forward recorded impact. " : "Recorded dependency. "}${recordedAttributionLabel(relationship.attribution)}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
       data: { relationship, collapsed: item.collapsed, route },
       className: "gfd-recorded-relationship",
       markerEnd: { type: import_react15.MarkerType.ArrowClosed, color, width: 14, height: 14 },
@@ -3759,22 +3783,36 @@ function StageDetailPanel({
 }
 
 // src/components/TimeTravelControls/TimeTravelControls.tsx
+var import_react24 = require("react");
+
+// src/components/TimeTravelControls/useTimeTravelPlayback.ts
 var import_react23 = require("react");
-var import_jsx_runtime15 = require("react/jsx-runtime");
-function TimeTravelControls({
+
+// src/components/TimeTravelControls/prefersReducedMotion.ts
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches === true;
+}
+
+// src/components/TimeTravelControls/useTimeTravelPlayback.ts
+function useTimeTravelPlayback({
   snapshots,
   selectedIndex,
   onIndexChange,
   autoPlayable = true,
   tracing = null,
-  size = "default",
-  unstyled = false,
-  className,
-  style
+  autoPlay = false,
+  autoPlayKey,
+  offered
 }) {
   const [playing, setPlaying] = (0, import_react23.useState)(false);
   const playRef = (0, import_react23.useRef)(null);
   const total = snapshots.length;
+  const autoRun = (0, import_react23.useRef)(null);
+  const recording = autoPlayKey ?? snapshots;
+  const stopPlaying = (0, import_react23.useCallback)(() => {
+    autoRun.current = null;
+    setPlaying(false);
+  }, []);
   const isTracing = !!tracing;
   const stopSet = (0, import_react23.useMemo)(
     () => tracing ? new Set(tracing.stopIndices) : null,
@@ -3793,7 +3831,7 @@ function TimeTravelControls({
   const canPrev = isTracing ? forkPrompt || earlierStop !== null : selectedIndex > 0;
   const canNext = isTracing ? laterStop !== null : selectedIndex < total - 1;
   const goPrev = (0, import_react23.useCallback)(() => {
-    setPlaying(false);
+    stopPlaying();
     if (isTracing) {
       if (forkPrompt) {
         tracing.onForkPrompt();
@@ -3801,17 +3839,24 @@ function TimeTravelControls({
       }
       if (earlierStop !== null) onIndexChange(earlierStop);
     } else if (selectedIndex > 0) onIndexChange(selectedIndex - 1);
-  }, [isTracing, forkPrompt, tracing, earlierStop, selectedIndex, onIndexChange]);
+  }, [stopPlaying, isTracing, forkPrompt, tracing, earlierStop, selectedIndex, onIndexChange]);
   const goNext = (0, import_react23.useCallback)(() => {
-    setPlaying(false);
+    stopPlaying();
     if (isTracing) {
       if (laterStop !== null) onIndexChange(laterStop);
     } else if (selectedIndex < total - 1) onIndexChange(selectedIndex + 1);
-  }, [isTracing, laterStop, selectedIndex, total, onIndexChange]);
+  }, [stopPlaying, isTracing, laterStop, selectedIndex, total, onIndexChange]);
+  (0, import_react23.useEffect)(() => {
+    const run = autoRun.current;
+    if (!run) return;
+    const movedElsewhere = selectedIndex !== run.seen && selectedIndex !== run.asked;
+    if (!autoPlay || !autoPlayable || isTracing || movedElsewhere) stopPlaying();
+    else run.seen = selectedIndex;
+  }, [selectedIndex, autoPlay, autoPlayable, isTracing, stopPlaying]);
   (0, import_react23.useEffect)(() => {
     if (!playing || !autoPlayable || isTracing) return;
     if (selectedIndex >= total - 1) {
-      setPlaying(false);
+      stopPlaying();
       return;
     }
     const stageDur = snapshots[selectedIndex]?.durationMs ?? 1;
@@ -3820,26 +3865,39 @@ function TimeTravelControls({
     const baseMs = 3e3;
     const delay = Math.max(200, Math.min(fraction * baseMs, 2e3));
     playRef.current = setTimeout(() => {
+      if (autoRun.current) autoRun.current.asked = selectedIndex + 1;
       onIndexChange(selectedIndex + 1);
     }, delay);
     return () => {
       if (playRef.current) clearTimeout(playRef.current);
     };
-  }, [playing, selectedIndex, snapshots, total, onIndexChange, autoPlayable, isTracing]);
+  }, [playing, selectedIndex, snapshots, total, onIndexChange, autoPlayable, isTracing, stopPlaying]);
+  (0, import_react23.useEffect)(() => {
+    if (Object.is(offered.current, recording)) return;
+    offered.current = recording;
+    if (autoRun.current) stopPlaying();
+    if (!autoPlay || !autoPlayable || isTracing || total < 2 || prefersReducedMotion()) return;
+    autoRun.current = { asked: 0, seen: selectedIndex };
+    if (selectedIndex !== 0) onIndexChange(0);
+    setPlaying(true);
+  }, [recording, offered, autoPlay, autoPlayable, isTracing, total, selectedIndex, onIndexChange, stopPlaying]);
   const togglePlay = (0, import_react23.useCallback)(() => {
     if (playing) {
-      setPlaying(false);
+      stopPlaying();
     } else {
       if (selectedIndex >= total - 1) onIndexChange(0);
       setPlaying(true);
     }
-  }, [playing, selectedIndex, total, onIndexChange]);
+  }, [playing, selectedIndex, total, onIndexChange, stopPlaying]);
   const handleKeyDown = (0, import_react23.useCallback)(
     (e) => {
-      if (e.key === "ArrowLeft" && canPrev && !playing) {
+      const yields = autoRun.current !== null && (e.key === "ArrowLeft" || e.key === "ArrowRight");
+      if (yields) stopPlaying();
+      const free = !playing || yields;
+      if (e.key === "ArrowLeft" && canPrev && free) {
         e.preventDefault();
         goPrev();
-      } else if (e.key === "ArrowRight" && canNext && !playing) {
+      } else if (e.key === "ArrowRight" && canNext && free) {
         e.preventDefault();
         goNext();
       } else if (e.key === "Escape" && isTracing) {
@@ -3850,8 +3908,69 @@ function TimeTravelControls({
         togglePlay();
       }
     },
-    [canPrev, canNext, playing, goPrev, goNext, autoPlayable, togglePlay, isTracing, tracing]
+    [canPrev, canNext, playing, goPrev, goNext, autoPlayable, togglePlay, isTracing, tracing, stopPlaying]
   );
+  const selectIndex = (0, import_react23.useCallback)((index2) => {
+    stopPlaying();
+    onIndexChange(index2);
+  }, [stopPlaying, onIndexChange]);
+  return {
+    playing,
+    isTracing,
+    stopSet,
+    forkPrompt,
+    canPrev,
+    canNext,
+    goPrev,
+    goNext,
+    selectIndex,
+    togglePlay,
+    handleKeyDown
+  };
+}
+
+// src/components/TimeTravelControls/TimeTravelControls.tsx
+var import_jsx_runtime15 = require("react/jsx-runtime");
+function TimeTravelControls(props) {
+  const offered = (0, import_react24.useRef)(void 0);
+  return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(TimeTravelRail, { ...props, offered });
+}
+function TimeTravelRail({
+  snapshots,
+  selectedIndex,
+  onIndexChange,
+  autoPlayable = true,
+  tracing = null,
+  autoPlay = false,
+  autoPlayKey,
+  size = "default",
+  unstyled = false,
+  className,
+  style,
+  offered
+}) {
+  const {
+    playing,
+    isTracing,
+    stopSet,
+    forkPrompt,
+    canPrev,
+    canNext,
+    goPrev,
+    goNext,
+    selectIndex,
+    togglePlay,
+    handleKeyDown
+  } = useTimeTravelPlayback({
+    snapshots,
+    selectedIndex,
+    onIndexChange,
+    autoPlayable,
+    tracing,
+    autoPlay,
+    autoPlayKey,
+    offered
+  });
   const fs = fontSize[size];
   const tracingColor = "var(--fp-tracing, #0d9488)";
   if (unstyled) {
@@ -3875,18 +3994,19 @@ function TimeTravelControls({
               "\u25B8 via ",
               tracing.viaKey,
               " ",
-              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { "data-fp": "tt-show-all", onClick: tracing.onShowAll, children: "show all" })
+              /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { type: "button", "data-fp": "tt-show-all", onClick: tracing.onShowAll, children: "show all" })
             ] }),
             " \xB7 ",
             "stop ",
             tracing.stopOrdinal,
             " of ",
             tracing.totalStops,
-            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { "data-fp": "tt-exit-tracing", onClick: tracing.onExit, "aria-label": "Exit tracing", children: "Done" })
+            /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { type: "button", "data-fp": "tt-exit-tracing", onClick: tracing.onExit, "aria-label": "Exit tracing", children: "Done" })
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
             "button",
             {
+              type: "button",
               "data-fp": "tt-prev",
               disabled: !canPrev || playing,
               onClick: goPrev,
@@ -3894,10 +4014,11 @@ function TimeTravelControls({
               children: isTracing ? forkPrompt ? "Choose cause\u2026" : "Earlier cause" : "Prev"
             }
           ),
-          autoPlayable && !isTracing && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { "data-fp": "tt-play", onClick: togglePlay, "aria-label": playing ? "Pause" : "Play", children: playing ? "Pause" : "Play" }),
+          autoPlayable && !isTracing && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)("button", { type: "button", "data-fp": "tt-play", onClick: togglePlay, "aria-label": playing ? "Pause" : "Play", children: playing ? "Pause" : "Play" }),
           /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
             "button",
             {
+              type: "button",
               "data-fp": "tt-next",
               disabled: !canNext || playing,
               onClick: goNext,
@@ -3910,15 +4031,13 @@ function TimeTravelControls({
             return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
               "button",
               {
+                type: "button",
                 "data-fp": "tt-tick",
                 "data-active": i === selectedIndex,
                 "data-done": i < selectedIndex,
                 "data-stop": isTracing ? isStop : void 0,
                 disabled: isTracing && !isStop,
-                onClick: () => {
-                  setPlaying(false);
-                  onIndexChange(i);
-                },
+                onClick: () => selectIndex(i),
                 title: snap.stageLabel
               },
               i
@@ -3998,6 +4117,7 @@ function TimeTravelControls({
                 /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
                   "button",
                   {
+                    type: "button",
                     "data-fp": "tt-show-all",
                     onClick: tracing.onShowAll,
                     style: {
@@ -4025,6 +4145,7 @@ function TimeTravelControls({
         /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           "button",
           {
+            type: "button",
             style: btnStyle(!canPrev || playing),
             disabled: !canPrev || playing,
             onClick: goPrev,
@@ -4037,6 +4158,7 @@ function TimeTravelControls({
         autoPlayable && !isTracing && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           "button",
           {
+            type: "button",
             onClick: togglePlay,
             style: {
               background: playing ? theme.primary : theme.bgTertiary,
@@ -4060,6 +4182,7 @@ function TimeTravelControls({
         /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           "button",
           {
+            type: "button",
             style: btnStyle(!canNext || playing),
             disabled: !canNext || playing,
             onClick: goNext,
@@ -4087,10 +4210,8 @@ function TimeTravelControls({
               return /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
                 "button",
                 {
-                  onClick: () => {
-                    setPlaying(false);
-                    onIndexChange(i);
-                  },
+                  type: "button",
+                  onClick: () => selectIndex(i),
                   disabled: unlandable,
                   title: unlandable ? `${snap.stageLabel} (not part of this trace)` : snap.stageLabel,
                   "data-fp": "tt-tick",
@@ -4115,6 +4236,7 @@ function TimeTravelControls({
         isTracing && /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(
           "button",
           {
+            type: "button",
             "data-fp": "tt-exit-tracing",
             onClick: tracing.onExit,
             "aria-label": "Exit tracing",
@@ -4128,297 +4250,38 @@ function TimeTravelControls({
 }
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-var import_react45 = require("react");
+var import_react51 = require("react");
 
-// src/trace/safeRecordRead.ts
-function ownDataField(value, key) {
-  if (!value || typeof value !== "object") return void 0;
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  return descriptor && "value" in descriptor ? descriptor.value : void 0;
-}
-function optionalOwnDataField(value, key) {
-  if (!value || typeof value !== "object") return void 0;
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  if (descriptor && !("value" in descriptor))
-    throw new TraceAdmissionError("malformed");
-  return descriptor?.value;
-}
-function isPlainRecord(value) {
-  if (!value || typeof value !== "object") return false;
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-}
-var TRACE_WORK_LIMIT = 1e5;
-var TraceAdmissionError = class extends Error {
-  constructor(reason, items) {
-    super(reason);
-    this.reason = reason;
-    this.items = items;
-  }
-};
-var WorkBudget = class {
-  constructor(limit = TRACE_WORK_LIMIT) {
-    this.limit = limit;
-    this.items = 0;
-  }
-  spend(count) {
-    this.items += count;
-    if (this.items > this.limit)
-      throw new TraceAdmissionError("too-large", this.items);
-  }
-};
-function readOwnArray(value, budget) {
-  const length = ownDataField(value, "length");
-  if (!Array.isArray(value) || typeof length !== "number" || !Number.isInteger(length) || length < 0)
-    throw new TraceAdmissionError("malformed");
-  budget.spend(length);
-  const result = [];
-  for (let index = 0; index < length; index++) {
-    const descriptor = Object.getOwnPropertyDescriptor(value, index);
-    if (!descriptor || !("value" in descriptor))
-      throw new TraceAdmissionError("malformed");
-    result.push(descriptor.value);
-  }
-  return result;
-}
-function readName(value) {
-  if (typeof value !== "string" || value.length === 0 || value.length > 4096)
-    throw new TraceAdmissionError("malformed");
-  return value;
-}
-function classifyAdmissionFailure(error) {
-  try {
-    const reason = ownDataField(error, "reason");
-    if (reason !== "too-large" && reason !== "malformed")
-      return { reason: "malformed" };
-    const items = ownDataField(error, "items");
-    if (reason === "too-large" && typeof items === "number" && Number.isSafeInteger(items) && items > 0)
-      return { reason, items };
-    return { reason: "malformed" };
-  } catch {
-    return { reason: "malformed" };
-  }
-}
-
-// src/trace/traceScope.ts
-function runHasRecordedReads(snapshot, additionalResults = []) {
-  try {
-    const budget = new WorkBudget();
-    const seen = /* @__PURE__ */ new Set();
-    const queue = [ownDataField(snapshot, "executionTree")];
-    for (const result of additionalResults)
-      queue.push(
-        ownDataField(ownDataField(result, "treeContext"), "stageContexts")
-      );
-    const results = ownDataField(snapshot, "subflowResults");
-    if (isPlainRecord(results))
-      for (const key of Object.keys(results)) {
-        budget.spend(1);
-        queue.push(
-          ownDataField(
-            ownDataField(ownDataField(results, key), "treeContext"),
-            "stageContexts"
-          )
-        );
-      }
-    for (let index = 0; index < queue.length; index++) {
-      budget.spend(1);
-      const node = queue[index];
-      if (!isPlainRecord(node) || seen.has(node)) continue;
-      seen.add(node);
-      const reads = ownDataField(node, "stageReads");
-      if (isPlainRecord(reads) && Object.keys(reads).length > 0) return true;
-      const next = ownDataField(node, "next");
-      if (next) queue.push(next);
-      const children = ownDataField(node, "children");
-      if (children !== void 0) queue.push(...readOwnArray(children, budget));
-    }
-  } catch {
-  }
-  return false;
-}
-function sourceRunKey(snapshot) {
-  try {
-    const id = ownDataField(snapshot, "runId");
-    return typeof id === "string" && id.length > 0 ? id : snapshot;
-  } catch {
-    return snapshot;
-  }
-}
-function childTraceScope(result, invocationPath, readsAvailable) {
-  const unavailable = (reason, items) => ({
-    invocationPath,
-    commitLog: [],
-    executionTree: void 0,
-    availability: {
-      ok: false,
-      reason,
-      ...items === void 0 ? {} : { items }
-    },
-    readsAvailable: readsAvailable ?? false,
-    mountLabels: /* @__PURE__ */ new Map()
-  });
-  try {
-    const budget = new WorkBudget();
-    if (invocationPath.length === 0 || invocationPath.length > 128 || invocationPath.some(
-      (part) => typeof part !== "string" || part.length === 0 || part.length > 4096
-    ) || invocationPath.join("").length > 8192)
-      return unavailable("malformed");
-    const context = ownDataField(result, "treeContext");
-    const rawHistory = ownDataField(context, "history");
-    if (rawHistory === void 0) return unavailable("no-history");
-    const history = readOwnArray(rawHistory, budget);
-    if (history.length === 0) return unavailable("no-history");
-    const mountInvocation = invocationPath[invocationPath.length - 1];
-    const firstId = ownDataField(history[0], "runtimeStageId");
-    const start = firstId === "" || firstId === mountInvocation ? ownDataField(history[0], "overwrite") : void 0;
-    const startKeys = [];
-    if (isPlainRecord(start)) {
-      const keys = Object.keys(start);
-      budget.spend(keys.length);
-      for (const key of keys) {
-        const descriptor = Object.getOwnPropertyDescriptor(start, key);
-        if (descriptor && "value" in descriptor && descriptor.value !== void 0)
-          startKeys.push(readName(key));
-      }
-    }
-    const recordedCommits = history.map((entry, index) => {
-      const runtimeStageId = ownDataField(entry, "runtimeStageId");
-      if (index === 0 && (runtimeStageId === "" || runtimeStageId === mountInvocation))
-        return null;
-      return {
-        stage: readName(ownDataField(entry, "stage")),
-        stageId: readName(ownDataField(entry, "stageId")),
-        runtimeStageId: readName(runtimeStageId),
-        trace: readOwnArray(ownDataField(entry, "trace"), budget).map(
-          (write) => ({ path: readName(ownDataField(write, "path")) })
-        )
-      };
+// src/_internal/useContainerBreakpoints.ts
+var import_react25 = require("react");
+function useContainerBreakpoints({
+  notifyWindowResize = false
+} = {}) {
+  const [element, setElement] = (0, import_react25.useState)(null);
+  const [measurement, setMeasurement] = (0, import_react25.useState)(null);
+  const ref = (0, import_react25.useCallback)((node) => {
+    setElement(node);
+  }, []);
+  useIsomorphicLayoutEffect(() => {
+    if (!element || typeof ResizeObserver === "undefined") return;
+    let disposed = false;
+    const observer = new ResizeObserver(([entry]) => {
+      if (disposed || !entry) return;
+      setMeasurement({ element, width: entry.contentRect.width });
+      if (notifyWindowResize) window.dispatchEvent(new Event("resize"));
     });
-    const executionTree = {};
-    const queue = [
-      [ownDataField(context, "stageContexts"), executionTree]
-    ];
-    const seen = /* @__PURE__ */ new Set();
-    const runtimeIds = /* @__PURE__ */ new Set();
-    const mountLabels = /* @__PURE__ */ new Map();
-    let ownReads = false;
-    for (let index = 0; index < queue.length; index++) {
-      budget.spend(1);
-      const [node, target] = queue[index];
-      if (!isPlainRecord(node) || seen.has(node))
-        return unavailable("malformed");
-      seen.add(node);
-      target.runtimeStageId = readName(ownDataField(node, "runtimeStageId"));
-      if (runtimeIds.has(target.runtimeStageId))
-        return unavailable("malformed");
-      runtimeIds.add(target.runtimeStageId);
-      const readDescriptor = Object.getOwnPropertyDescriptor(
-        node,
-        "stageReads"
-      );
-      if (readDescriptor && !("value" in readDescriptor))
-        return unavailable("malformed");
-      const reads = ownDataField(node, "stageReads");
-      if (reads !== void 0 && !isPlainRecord(reads))
-        return unavailable("malformed");
-      if (isPlainRecord(reads)) {
-        const keys = Object.keys(reads);
-        budget.spend(keys.length);
-        if (keys.some((key) => key.length > 4096))
-          return unavailable("malformed");
-        target.stageReads = Object.fromEntries(keys.map((key) => [key, true]));
-        ownReads || (ownReads = keys.length > 0);
-      }
-      const subflowId = ownDataField(node, "subflowId");
-      if (typeof subflowId === "string" && subflowId.length > 0) {
-        const name = optionalOwnDataField(node, "name");
-        mountLabels.set(
-          target.runtimeStageId,
-          readName(
-            typeof name === "string" && name.length > 0 ? name : subflowId
-          )
-        );
-      }
-      const next = ownDataField(node, "next");
-      if (next !== void 0 && next !== null) {
-        target.next = {};
-        queue.push([next, target.next]);
-      }
-      const children = ownDataField(node, "children");
-      if (children !== void 0)
-        target.children = readOwnArray(children, budget).map((child) => {
-          const projected = {};
-          queue.push([child, projected]);
-          return projected;
-        });
-    }
-    const commitLog = recordedCommits.filter(
-      (entry) => entry !== null
-    );
-    if (commitLog.some((entry) => !runtimeIds.has(entry.runtimeStageId)))
-      return unavailable("malformed");
-    return {
-      invocationPath,
-      commitLog,
-      executionTree,
-      availability: { ok: true },
-      readsAvailable: readsAvailable ?? ownReads,
-      mountLabels,
-      startKeys: Object.freeze(startKeys)
+    observer.observe(element);
+    return () => {
+      disposed = true;
+      observer.disconnect();
     };
-  } catch (error) {
-    const failure = classifyAdmissionFailure(error);
-    return unavailable(failure.reason, failure.items);
-  }
-}
-function rootMountLabels(tree, commitLog) {
-  const labels = /* @__PURE__ */ new Map();
-  const budget = new WorkBudget();
-  const seen = /* @__PURE__ */ new Set();
-  const queue = tree === void 0 || tree === null ? [] : [tree];
-  const runtimeIds = /* @__PURE__ */ new Set();
-  try {
-    for (let i = 0; i < queue.length; i++) {
-      budget.spend(1);
-      const node = queue[i];
-      if (!isPlainRecord(node)) throw new TraceAdmissionError("malformed");
-      if (seen.has(node)) throw new TraceAdmissionError("malformed");
-      seen.add(node);
-      const id = optionalOwnDataField(node, "runtimeStageId");
-      if (typeof id === "string" && id.length > 0) {
-        if (runtimeIds.has(id)) throw new TraceAdmissionError("malformed");
-        runtimeIds.add(id);
-      }
-      const mount = optionalOwnDataField(node, "subflowId");
-      const name = optionalOwnDataField(node, "name");
-      if (typeof id === "string" && typeof mount === "string" && mount.length > 0)
-        labels.set(
-          readName(id),
-          readName(typeof name === "string" && name.length > 0 ? name : mount)
-        );
-      const next = optionalOwnDataField(node, "next");
-      if (next !== void 0 && next !== null) queue.push(next);
-      const children = optionalOwnDataField(node, "children");
-      if (children !== void 0)
-        for (const child of readOwnArray(children, budget)) queue.push(child);
-    }
-    if (commitLog !== void 0) {
-      for (const [index, entry] of readOwnArray(commitLog, budget).entries()) {
-        const id = optionalOwnDataField(entry, "runtimeStageId");
-        if (index === 0 && id === "") continue;
-        if (typeof id !== "string" || !runtimeIds.has(id))
-          throw new TraceAdmissionError("malformed");
-      }
-    }
-    return { labels, availability: { ok: true }, hasTree: runtimeIds.size > 0 };
-  } catch (error) {
-    return {
-      labels: /* @__PURE__ */ new Map(),
-      hasTree: false,
-      availability: { ok: false, ...classifyAdmissionFailure(error) }
-    };
-  }
+  }, [element, notifyWindowResize]);
+  const width = measurement?.element === element ? measurement.width : null;
+  return {
+    ref,
+    isNarrow: width !== null && width < 640,
+    isMedium: width !== null && width >= 640 && width < 960
+  };
 }
 
 // src/adapters/fromRuntimeSnapshot.ts
@@ -4428,16 +4291,16 @@ function looksLikeNarrativeEntry(value) {
   return typeof e.type === "string" && typeof e.text === "string" && typeof e.depth === "number";
 }
 function readEntries(data) {
-  const candidate = Array.isArray(data) ? data : isPlainRecord2(data) && Array.isArray(data.entries) ? data.entries : void 0;
+  const candidate = Array.isArray(data) ? data : isPlainRecord(data) && Array.isArray(data.entries) ? data.entries : void 0;
   if (!candidate || candidate.length === 0) return void 0;
   return looksLikeNarrativeEntry(candidate[0]) ? candidate : void 0;
 }
 function narrativeRecorderFromSnapshot(runtime) {
-  const recorders = isPlainRecord2(runtime) ? runtime.recorders : void 0;
+  const recorders = isPlainRecord(runtime) ? runtime.recorders : void 0;
   if (!Array.isArray(recorders)) return void 0;
   let firstMatch;
   for (const rec of recorders) {
-    if (!isPlainRecord2(rec)) continue;
+    if (!isPlainRecord(rec)) continue;
     const entries = readEntries(rec.data);
     if (!entries) continue;
     const match = { id: typeof rec.id === "string" ? rec.id : "", entries };
@@ -4455,14 +4318,14 @@ var UNSAFE_KEYS = /* @__PURE__ */ new Set(["__proto__", "constructor", "prototyp
 function isSummaryMarker(value) {
   return value !== null && typeof value === "object" && (value.__writeSummary === true || value.__readSummary === true);
 }
-function isPlainRecord2(value) {
+function isPlainRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function mergeWritePatch(base, patch) {
   if (isSummaryMarker(patch)) return patch;
   if (patch === null || typeof patch !== "object") return patch;
   if (Array.isArray(patch)) return patch;
-  if (isSummaryMarker(base) || !isPlainRecord2(base)) {
+  if (isSummaryMarker(base) || !isPlainRecord(base)) {
     base = {};
   }
   const out = { ...base };
@@ -4475,7 +4338,7 @@ function mergeWritePatch(base, patch) {
 function getPath(root, segs) {
   let cur = root;
   for (const seg of segs) {
-    if (!isPlainRecord2(cur) && !Array.isArray(cur)) return void 0;
+    if (!isPlainRecord(cur) && !Array.isArray(cur)) return void 0;
     cur = cur[seg];
   }
   return cur;
@@ -4485,7 +4348,7 @@ function setPath(memory, segs, value) {
   let obj = memory;
   for (let i = 0; i < segs.length - 1; i++) {
     const cur = obj[segs[i]];
-    const next = Array.isArray(cur) ? cur.slice() : isPlainRecord2(cur) && !isSummaryMarker(cur) ? { ...cur } : {};
+    const next = Array.isArray(cur) ? cur.slice() : isPlainRecord(cur) && !isSummaryMarker(cur) ? { ...cur } : {};
     obj[segs[i]] = next;
     obj = next;
   }
@@ -4516,30 +4379,30 @@ function applyCommitBundle(memory, bundle) {
     }
     return;
   }
-  if (isPlainRecord2(bundle.overwrite)) {
+  if (isPlainRecord(bundle.overwrite)) {
     for (const [key, value] of Object.entries(bundle.overwrite)) setPath(memory, [key], value);
   }
-  if (isPlainRecord2(bundle.updates)) {
+  if (isPlainRecord(bundle.updates)) {
     for (const [key, value] of Object.entries(bundle.updates)) {
       setPath(memory, [key], mergeWritePatch(memory[key], value));
     }
   }
 }
 function indexCommitLog(commitLog) {
-  const index = /* @__PURE__ */ new Map();
-  if (!Array.isArray(commitLog)) return index;
+  const index2 = /* @__PURE__ */ new Map();
+  if (!Array.isArray(commitLog)) return index2;
   for (const entry of commitLog) {
-    if (!isPlainRecord2(entry)) continue;
+    if (!isPlainRecord(entry)) continue;
     const bundle = entry;
     if (typeof bundle.runtimeStageId !== "string" || bundle.runtimeStageId.length === 0) continue;
-    if (!isPlainRecord2(bundle.overwrite) && !isPlainRecord2(bundle.updates) && !Array.isArray(bundle.trace)) {
+    if (!isPlainRecord(bundle.overwrite) && !isPlainRecord(bundle.updates) && !Array.isArray(bundle.trace)) {
       continue;
     }
-    const list2 = index.get(bundle.runtimeStageId);
+    const list2 = index2.get(bundle.runtimeStageId);
     if (list2) list2.push(bundle);
-    else index.set(bundle.runtimeStageId, [bundle]);
+    else index2.set(bundle.runtimeStageId, [bundle]);
   }
-  return index;
+  return index2;
 }
 function toVisualizationSnapshots(runtime, narrativeEntries) {
   const entries = narrativeEntries?.length ? narrativeEntries : narrativeFromSnapshot(runtime);
@@ -4552,19 +4415,19 @@ function toVisualizationSnapshots(runtime, narrativeEntries) {
   return snapshots;
 }
 function readStepDurations(data) {
-  if (!isPlainRecord2(data)) return void 0;
+  if (!isPlainRecord(data)) return void 0;
   const steps = data.steps;
-  if (!isPlainRecord2(steps)) return void 0;
+  if (!isPlainRecord(steps)) return void 0;
   const first = Object.values(steps)[0];
-  if (!isPlainRecord2(first) || typeof first.duration !== "number") return void 0;
+  if (!isPlainRecord(first) || typeof first.duration !== "number") return void 0;
   return steps;
 }
 function readAggregateDurations(data) {
-  if (!isPlainRecord2(data)) return void 0;
+  if (!isPlainRecord(data)) return void 0;
   const stages = data.stages;
-  if (!isPlainRecord2(stages)) return void 0;
+  if (!isPlainRecord(stages)) return void 0;
   const first = Object.values(stages)[0];
-  if (!isPlainRecord2(first) || typeof first.totalDuration !== "number") return void 0;
+  if (!isPlainRecord(first) || typeof first.totalDuration !== "number") return void 0;
   return stages;
 }
 function extractStageTimings(recorders) {
@@ -4767,9 +4630,328 @@ function createSnapshots(stages) {
   });
 }
 
+// src/model/recording.ts
+function parseRecordingInput(input) {
+  if (typeof input !== "string") return { ok: true, value: input };
+  try {
+    return { ok: true, value: JSON.parse(input) };
+  } catch (error) {
+    return {
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+function projectRuntimeSnapshot(snapshot, narrativeEntries) {
+  try {
+    const snapshots = toVisualizationSnapshots(
+      snapshot,
+      narrativeEntries
+    );
+    return { kind: snapshots.length > 0 ? "ready" : "empty", snapshots };
+  } catch (error) {
+    return {
+      kind: "unreadable",
+      snapshots: [],
+      detail: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+// src/trace/safeRecordRead.ts
+function ownDataField(value, key) {
+  if (!value || typeof value !== "object") return void 0;
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor && "value" in descriptor ? descriptor.value : void 0;
+}
+function optionalOwnDataField(value, key) {
+  if (!value || typeof value !== "object") return void 0;
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (descriptor && !("value" in descriptor))
+    throw new TraceAdmissionError("malformed");
+  return descriptor?.value;
+}
+function isPlainRecord2(value) {
+  if (!value || typeof value !== "object") return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+var TRACE_WORK_LIMIT = 1e5;
+var TraceAdmissionError = class extends Error {
+  constructor(reason, items) {
+    super(reason);
+    this.reason = reason;
+    this.items = items;
+  }
+};
+var WorkBudget = class {
+  constructor(limit = TRACE_WORK_LIMIT) {
+    this.limit = limit;
+    this.items = 0;
+  }
+  spend(count) {
+    this.items += count;
+    if (this.items > this.limit)
+      throw new TraceAdmissionError("too-large", this.items);
+  }
+};
+function readOwnArray(value, budget) {
+  const length = ownDataField(value, "length");
+  if (!Array.isArray(value) || typeof length !== "number" || !Number.isInteger(length) || length < 0)
+    throw new TraceAdmissionError("malformed");
+  budget.spend(length);
+  const result = [];
+  for (let index2 = 0; index2 < length; index2++) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, index2);
+    if (!descriptor || !("value" in descriptor))
+      throw new TraceAdmissionError("malformed");
+    result.push(descriptor.value);
+  }
+  return result;
+}
+function readName(value) {
+  if (typeof value !== "string" || value.length === 0 || value.length > 4096)
+    throw new TraceAdmissionError("malformed");
+  return value;
+}
+function classifyAdmissionFailure(error) {
+  try {
+    const reason = ownDataField(error, "reason");
+    if (reason !== "too-large" && reason !== "malformed")
+      return { reason: "malformed" };
+    const items = ownDataField(error, "items");
+    if (reason === "too-large" && typeof items === "number" && Number.isSafeInteger(items) && items > 0)
+      return { reason, items };
+    return { reason: "malformed" };
+  } catch {
+    return { reason: "malformed" };
+  }
+}
+
+// src/trace/traceScope.ts
+function runHasRecordedReads(snapshot, additionalResults = []) {
+  try {
+    const budget = new WorkBudget();
+    const seen = /* @__PURE__ */ new Set();
+    const queue = [ownDataField(snapshot, "executionTree")];
+    for (const result of additionalResults)
+      queue.push(
+        ownDataField(ownDataField(result, "treeContext"), "stageContexts")
+      );
+    const results = ownDataField(snapshot, "subflowResults");
+    if (isPlainRecord2(results))
+      for (const key of Object.keys(results)) {
+        budget.spend(1);
+        queue.push(
+          ownDataField(
+            ownDataField(ownDataField(results, key), "treeContext"),
+            "stageContexts"
+          )
+        );
+      }
+    for (let index2 = 0; index2 < queue.length; index2++) {
+      budget.spend(1);
+      const node = queue[index2];
+      if (!isPlainRecord2(node) || seen.has(node)) continue;
+      seen.add(node);
+      const reads = ownDataField(node, "stageReads");
+      if (isPlainRecord2(reads) && Object.keys(reads).length > 0) return true;
+      const next = ownDataField(node, "next");
+      if (next) queue.push(next);
+      const children = ownDataField(node, "children");
+      if (children !== void 0) queue.push(...readOwnArray(children, budget));
+    }
+  } catch {
+  }
+  return false;
+}
+function sourceRunKey(snapshot) {
+  try {
+    const id = ownDataField(snapshot, "runId");
+    return typeof id === "string" && id.length > 0 ? id : snapshot;
+  } catch {
+    return snapshot;
+  }
+}
+function childTraceScope(result, invocationPath, readsAvailable) {
+  const unavailable = (reason, items) => ({
+    invocationPath,
+    commitLog: [],
+    executionTree: void 0,
+    availability: {
+      ok: false,
+      reason,
+      ...items === void 0 ? {} : { items }
+    },
+    readsAvailable: readsAvailable ?? false,
+    mountLabels: /* @__PURE__ */ new Map()
+  });
+  try {
+    const budget = new WorkBudget();
+    if (invocationPath.length === 0 || invocationPath.length > 128 || invocationPath.some(
+      (part) => typeof part !== "string" || part.length === 0 || part.length > 4096
+    ) || invocationPath.join("").length > 8192)
+      return unavailable("malformed");
+    const context = ownDataField(result, "treeContext");
+    const rawHistory = ownDataField(context, "history");
+    if (rawHistory === void 0) return unavailable("no-history");
+    const history = readOwnArray(rawHistory, budget);
+    if (history.length === 0) return unavailable("no-history");
+    const mountInvocation = invocationPath[invocationPath.length - 1];
+    const firstId = ownDataField(history[0], "runtimeStageId");
+    const start = firstId === "" || firstId === mountInvocation ? ownDataField(history[0], "overwrite") : void 0;
+    const startKeys = [];
+    if (isPlainRecord2(start)) {
+      const keys = Object.keys(start);
+      budget.spend(keys.length);
+      for (const key of keys) {
+        const descriptor = Object.getOwnPropertyDescriptor(start, key);
+        if (descriptor && "value" in descriptor && descriptor.value !== void 0)
+          startKeys.push(readName(key));
+      }
+    }
+    const recordedCommits = history.map((entry, index2) => {
+      const runtimeStageId = ownDataField(entry, "runtimeStageId");
+      if (index2 === 0 && (runtimeStageId === "" || runtimeStageId === mountInvocation))
+        return null;
+      return {
+        stage: readName(ownDataField(entry, "stage")),
+        stageId: readName(ownDataField(entry, "stageId")),
+        runtimeStageId: readName(runtimeStageId),
+        trace: readOwnArray(ownDataField(entry, "trace"), budget).map(
+          (write) => ({ path: readName(ownDataField(write, "path")) })
+        )
+      };
+    });
+    const executionTree = {};
+    const queue = [
+      [ownDataField(context, "stageContexts"), executionTree]
+    ];
+    const seen = /* @__PURE__ */ new Set();
+    const runtimeIds = /* @__PURE__ */ new Set();
+    const mountLabels = /* @__PURE__ */ new Map();
+    let ownReads = false;
+    for (let index2 = 0; index2 < queue.length; index2++) {
+      budget.spend(1);
+      const [node, target] = queue[index2];
+      if (!isPlainRecord2(node) || seen.has(node))
+        return unavailable("malformed");
+      seen.add(node);
+      target.runtimeStageId = readName(ownDataField(node, "runtimeStageId"));
+      if (runtimeIds.has(target.runtimeStageId))
+        return unavailable("malformed");
+      runtimeIds.add(target.runtimeStageId);
+      const readDescriptor = Object.getOwnPropertyDescriptor(
+        node,
+        "stageReads"
+      );
+      if (readDescriptor && !("value" in readDescriptor))
+        return unavailable("malformed");
+      const reads = ownDataField(node, "stageReads");
+      if (reads !== void 0 && !isPlainRecord2(reads))
+        return unavailable("malformed");
+      if (isPlainRecord2(reads)) {
+        const keys = Object.keys(reads);
+        budget.spend(keys.length);
+        if (keys.some((key) => key.length > 4096))
+          return unavailable("malformed");
+        target.stageReads = Object.fromEntries(keys.map((key) => [key, true]));
+        ownReads || (ownReads = keys.length > 0);
+      }
+      const subflowId = ownDataField(node, "subflowId");
+      if (typeof subflowId === "string" && subflowId.length > 0) {
+        const name = optionalOwnDataField(node, "name");
+        mountLabels.set(
+          target.runtimeStageId,
+          readName(
+            typeof name === "string" && name.length > 0 ? name : subflowId
+          )
+        );
+      }
+      const next = ownDataField(node, "next");
+      if (next !== void 0 && next !== null) {
+        target.next = {};
+        queue.push([next, target.next]);
+      }
+      const children = ownDataField(node, "children");
+      if (children !== void 0)
+        target.children = readOwnArray(children, budget).map((child) => {
+          const projected = {};
+          queue.push([child, projected]);
+          return projected;
+        });
+    }
+    const commitLog = recordedCommits.filter(
+      (entry) => entry !== null
+    );
+    if (commitLog.some((entry) => !runtimeIds.has(entry.runtimeStageId)))
+      return unavailable("malformed");
+    return {
+      invocationPath,
+      commitLog,
+      executionTree,
+      availability: { ok: true },
+      readsAvailable: readsAvailable ?? ownReads,
+      mountLabels,
+      startKeys: Object.freeze(startKeys)
+    };
+  } catch (error) {
+    const failure = classifyAdmissionFailure(error);
+    return unavailable(failure.reason, failure.items);
+  }
+}
+function rootMountLabels(tree, commitLog) {
+  const labels = /* @__PURE__ */ new Map();
+  const budget = new WorkBudget();
+  const seen = /* @__PURE__ */ new Set();
+  const queue = tree === void 0 || tree === null ? [] : [tree];
+  const runtimeIds = /* @__PURE__ */ new Set();
+  try {
+    for (let i = 0; i < queue.length; i++) {
+      budget.spend(1);
+      const node = queue[i];
+      if (!isPlainRecord2(node)) throw new TraceAdmissionError("malformed");
+      if (seen.has(node)) throw new TraceAdmissionError("malformed");
+      seen.add(node);
+      const id = optionalOwnDataField(node, "runtimeStageId");
+      if (typeof id === "string" && id.length > 0) {
+        if (runtimeIds.has(id)) throw new TraceAdmissionError("malformed");
+        runtimeIds.add(id);
+      }
+      const mount = optionalOwnDataField(node, "subflowId");
+      const name = optionalOwnDataField(node, "name");
+      if (typeof id === "string" && typeof mount === "string" && mount.length > 0)
+        labels.set(
+          readName(id),
+          readName(typeof name === "string" && name.length > 0 ? name : mount)
+        );
+      const next = optionalOwnDataField(node, "next");
+      if (next !== void 0 && next !== null) queue.push(next);
+      const children = optionalOwnDataField(node, "children");
+      if (children !== void 0)
+        for (const child of readOwnArray(children, budget)) queue.push(child);
+    }
+    if (commitLog !== void 0) {
+      for (const [index2, entry] of readOwnArray(commitLog, budget).entries()) {
+        const id = optionalOwnDataField(entry, "runtimeStageId");
+        if (index2 === 0 && id === "") continue;
+        if (typeof id !== "string" || !runtimeIds.has(id))
+          throw new TraceAdmissionError("malformed");
+      }
+    }
+    return { labels, availability: { ok: true }, hasTree: runtimeIds.size > 0 };
+  } catch (error) {
+    return {
+      labels: /* @__PURE__ */ new Map(),
+      hasTree: false,
+      availability: { ok: false, ...classifyAdmissionFailure(error) }
+    };
+  }
+}
+
 // src/components/ExplainableShell/_internal/subflowInvocation.ts
 function resolveSubflowInvocation(snapshots, mountKey, cursorId, requestedId) {
-  const candidates = snapshots.map((snapshot, index) => ({ snapshot, index })).filter(
+  const candidates = snapshots.map((snapshot, index2) => ({ snapshot, index: index2 })).filter(
     ({ snapshot }) => snapshot.subflowId === mountKey || snapshot.runtimeStageId?.split("#")[0] === mountKey
   );
   const ids = candidates.flatMap(
@@ -4791,10 +4973,10 @@ function resolveSubflowInvocation(snapshots, mountKey, cursorId, requestedId) {
     return {
       kind: "ambiguous",
       visits: candidates.flatMap(
-        ({ snapshot, index }, visit) => snapshot.runtimeStageId ? [
+        ({ snapshot, index: index2 }, visit) => snapshot.runtimeStageId ? [
           {
             runtimeStageId: snapshot.runtimeStageId,
-            step: index + 1,
+            step: index2 + 1,
             visit: visit + 1,
             total: candidates.length
           }
@@ -4804,12 +4986,12 @@ function resolveSubflowInvocation(snapshots, mountKey, cursorId, requestedId) {
   return { kind: "missing" };
 }
 function pathMountChain(path) {
-  return path.split("/").map((_, index, parts) => parts.slice(0, index + 1).join("/"));
+  return path.split("/").map((_, index2, parts) => parts.slice(0, index2 + 1).join("/"));
 }
 
 // src/components/ExplainableShell/_internal/subflowRecord.ts
 function exactSubflowResults(results) {
-  if (!isPlainRecord(results)) return void 0;
+  if (!isPlainRecord2(results)) return void 0;
   return Object.assign(
     /* @__PURE__ */ Object.create(null),
     Object.fromEntries(
@@ -4887,7 +5069,7 @@ function resolveSubflowLevel({
 }
 
 // src/components/ExplainableShell/_internal/useSubflowNavigation.ts
-var import_react24 = require("react");
+var import_react26 = require("react");
 
 // src/components/FlowchartView/_internal/subflowDrill.ts
 function findMountNode(graph, drillKey) {
@@ -4957,21 +5139,21 @@ function useSubflowNavigation({
   activeTab,
   onScopeReset
 }) {
-  const [drillDownStack, setDrillDownStack] = (0, import_react24.useState)([]);
-  const [navigationNotice, setNavigationNotice] = (0, import_react24.useState)("");
-  const [visitChoice, setVisitChoice] = (0, import_react24.useState)(null);
-  const clearTransient = (0, import_react24.useCallback)(() => {
+  const [drillDownStack, setDrillDownStack] = (0, import_react26.useState)([]);
+  const [navigationNotice, setNavigationNotice] = (0, import_react26.useState)("");
+  const [visitChoice, setVisitChoice] = (0, import_react26.useState)(null);
+  const clearTransient = (0, import_react26.useCallback)(() => {
     setNavigationNotice("");
     setVisitChoice(null);
   }, []);
-  const setSnapshotIdx = (0, import_react24.useCallback)(
+  const setSnapshotIdx = (0, import_react26.useCallback)(
     (value) => {
       clearTransient();
       setSnapshotIdxRaw(value);
     },
     [clearTransient, setSnapshotIdxRaw]
   );
-  const selectedStack = (0, import_react24.useMemo)(() => {
+  const selectedStack = (0, import_react26.useMemo)(() => {
     if (drillDownStack.length === 0) return drillDownStack;
     const resolved = [];
     let parent = snapshots;
@@ -4999,9 +5181,9 @@ function useSubflowNavigation({
     exactResults,
     narrativeEntries
   ]);
-  const priorRun = (0, import_react24.useRef)(sourceRunId);
+  const priorRun = (0, import_react26.useRef)(sourceRunId);
   const sourceChanged = priorRun.current !== sourceRunId && (typeof sourceRunId === "string" || drillDownStack.length > 0);
-  (0, import_react24.useEffect)(() => {
+  (0, import_react26.useEffect)(() => {
     if (priorRun.current === sourceRunId) return;
     priorRun.current = sourceRunId;
     if (!drillDownStack.length && typeof sourceRunId !== "string") return;
@@ -5024,10 +5206,10 @@ function useSubflowNavigation({
     clearTransient,
     setSnapshotIdxRaw
   ]);
-  (0, import_react24.useEffect)(() => {
+  (0, import_react26.useEffect)(() => {
     clearTransient();
   }, [activeTab, clearTransient]);
-  const buildDrillStack = (0, import_react24.useCallback)(
+  const buildDrillStack = (0, import_react26.useCallback)(
     (mountKey, selectedInvocations = /* @__PURE__ */ new Map()) => {
       const graphChain = traceGraph ? buildSubflowBreadcrumb(traceGraph, mountKey).slice(1).flatMap((entry) => entry.subflowId ? [entry.subflowId] : []) : [];
       const keys = graphChain.length > 1 ? graphChain : pathMountChain(mountKey);
@@ -5038,7 +5220,7 @@ function useSubflowNavigation({
         const requestedId = selectedInvocations.get(key);
         const parentPath = stack.at(-1)?.traceScope.invocationPath ?? [];
         const existingPath = existing?.traceScope.invocationPath;
-        const sameParent = existingPath !== void 0 && existingPath.length === parentPath.length + 1 && parentPath.every((part, index) => existingPath[index] === part);
+        const sameParent = existingPath !== void 0 && existingPath.length === parentPath.length + 1 && parentPath.every((part, index2) => existingPath[index2] === part);
         if (existing?.subflowId === key && existing.sourceRunId === sourceRunId && sameParent && (!requestedId || requestedId === existing.mountRuntimeStageId)) {
           stack.push(existing);
           parent = existing.snapshots;
@@ -5074,7 +5256,7 @@ function useSubflowNavigation({
       narrativeEntries
     ]
   );
-  const applyDrill = (0, import_react24.useCallback)(
+  const applyDrill = (0, import_react26.useCallback)(
     (mountKey, selectedInvocations = /* @__PURE__ */ new Map()) => {
       const resolution = buildDrillStack(mountKey, selectedInvocations);
       if (resolution.kind === "ambiguous") {
@@ -5102,7 +5284,32 @@ function useSubflowNavigation({
     [buildDrillStack, onScopeReset, setSnapshotIdxRaw]
   );
   const handleDrillDown = applyDrill;
-  const handleBreadcrumbNavigate = (0, import_react24.useCallback)(
+  const openTraceSource = (0, import_react26.useCallback)((mountRuntimeStageId, invocationPath, targetRuntimeStageId) => {
+    const parentPath = selectedStack.at(-1)?.traceScope.invocationPath ?? [];
+    if (invocationPath.length !== parentPath.length + 1 || !parentPath.every((part, index3) => invocationPath[index3] === part) || invocationPath.at(-1) !== mountRuntimeStageId) return false;
+    const parent = selectedStack.at(-1)?.snapshots ?? snapshots;
+    const mount = parent.find((stage) => stage.runtimeStageId === mountRuntimeStageId);
+    if (!mount) return false;
+    const found = resolveSubflowLevel({
+      parent,
+      key: mount.subflowId ?? mountRuntimeStageId.split("#")[0],
+      requestedId: mountRuntimeStageId,
+      parentPath,
+      sourceRunId,
+      readsAvailable,
+      results: exactResults,
+      narrative: narrativeEntries
+    });
+    if (found.kind !== "found" || !found.entry.traceScope.availability.ok) return false;
+    const index2 = targetRuntimeStageId ? found.entry.snapshots.findIndex((stage) => stage.runtimeStageId === targetRuntimeStageId) : 0;
+    if (index2 < 0) return false;
+    onScopeReset();
+    clearTransient();
+    setDrillDownStack([...selectedStack, found.entry]);
+    setSnapshotIdxRaw(index2);
+    return true;
+  }, [selectedStack, snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
+  const handleBreadcrumbNavigate = (0, import_react26.useCallback)(
     (level) => {
       onScopeReset();
       setVisitChoice(null);
@@ -5113,8 +5320,8 @@ function useSubflowNavigation({
     },
     [selectedStack, onScopeReset, setSnapshotIdxRaw]
   );
-  const chartHandledMount = (0, import_react24.useRef)(null);
-  const handleChartSubflowChange = (0, import_react24.useCallback)(
+  const chartHandledMount = (0, import_react26.useRef)(null);
+  const handleChartSubflowChange = (0, import_react26.useCallback)(
     (mountKey) => {
       chartHandledMount.current = mountKey;
       queueMicrotask(() => {
@@ -5137,7 +5344,7 @@ function useSubflowNavigation({
     [selectedStack, handleBreadcrumbNavigate, applyDrill]
   );
   const activeSnapshots = selectedStack.at(-1)?.snapshots ?? snapshots;
-  const handleNodeClick = (0, import_react24.useCallback)(
+  const handleNodeClick = (0, import_react26.useCallback)(
     (indexOrId) => {
       if (typeof indexOrId === "number") {
         setSnapshotIdx(indexOrId);
@@ -5158,7 +5365,7 @@ function useSubflowNavigation({
         return;
       }
       clearTransient();
-      const rows = activeSnapshots.map((stage, index) => ({ stage, index }));
+      const rows = activeSnapshots.map((stage, index2) => ({ stage, index: index2 }));
       let matches = rows.filter(
         ({ stage }) => stage.runtimeStageId === indexOrId || stage.runtimeStageId?.split("#")[0] === indexOrId
       );
@@ -5166,7 +5373,7 @@ function useSubflowNavigation({
         matches = rows.filter(
           ({ stage }) => stage.stageLabel === indexOrId || stage.stageName === indexOrId
         );
-      const selected = matches.filter(({ index }) => index <= snapshotIdx).at(-1) ?? matches[0];
+      const selected = matches.filter(({ index: index2 }) => index2 <= snapshotIdx).at(-1) ?? matches[0];
       if (selected) setSnapshotIdxRaw(selected.index);
     },
     [
@@ -5180,13 +5387,14 @@ function useSubflowNavigation({
       setSnapshotIdxRaw
     ]
   );
-  const resetRoot = (0, import_react24.useCallback)(() => {
+  const resetRoot = (0, import_react26.useCallback)(() => {
     onScopeReset();
     clearTransient();
     setDrillDownStack([]);
   }, [onScopeReset, clearTransient]);
   return {
     sourceChanged,
+    isDrilled: drillDownStack.length > 0,
     selectedStack,
     navigationNotice,
     visitChoice,
@@ -5194,6 +5402,7 @@ function useSubflowNavigation({
     setSnapshotIdx,
     resetRoot,
     handleDrillDown,
+    openTraceSource,
     handleBreadcrumbNavigate,
     handleChartSubflowChange,
     handleNodeClick,
@@ -5201,125 +5410,8 @@ function useSubflowNavigation({
   };
 }
 
-// src/components/ExplainableShell/_internal/SubflowNavigationStatus.tsx
-var import_jsx_runtime16 = require("react/jsx-runtime");
-function SubflowNavigationStatus({
-  staleInputs,
-  notice,
-  choice,
-  onChoose,
-  onDismiss
-}) {
-  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(import_jsx_runtime16.Fragment, { children: [
-    staleInputs && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
-      "div",
-      {
-        "data-fp": "companion-source-note",
-        role: "status",
-        style: { padding: 10 },
-        children: "Some details from the previous run were withheld. Their evidence for this run is unknown."
-      }
-    ),
-    notice && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { "data-fp": "source-change-note", role: "status", style: { padding: 10 }, children: [
-      notice,
-      " ",
-      /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("button", { type: "button", onClick: onDismiss, children: "Dismiss" })
-    ] }),
-    choice && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
-      "div",
-      {
-        "data-fp": "subflow-visit-choice",
-        role: "group",
-        "aria-label": "Choose subflow visit",
-        style: { padding: 10 },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { children: [
-            "This step ran ",
-            choice.visits.length,
-            " times. Choose a visit:"
-          ] }),
-          choice.visits.map((visit) => /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
-            "button",
-            {
-              type: "button",
-              onClick: () => onChoose(
-                choice.mountKey,
-                new Map([
-                  ...choice.selectedInvocations,
-                  [choice.choiceKey, visit.runtimeStageId]
-                ])
-              ),
-              children: [
-                "step ",
-                visit.step,
-                " \xB7 visit ",
-                visit.visit,
-                " of ",
-                visit.total
-              ]
-            },
-            visit.runtimeStageId
-          )),
-          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("button", { type: "button", onClick: onDismiss, children: "Cancel" })
-        ]
-      }
-    )
-  ] });
-}
-
-// src/components/ExplainableShell/_internal/TraceUnavailableNote.tsx
-var import_jsx_runtime17 = require("react/jsx-runtime");
-function TraceUnavailableNote({
-  availability,
-  scopeLabel = "Child"
-}) {
-  if (availability.ok) return null;
-  const reason = availability.reason === "too-large" ? `${scopeLabel} trace is too large to trace here (more than ${TRACE_WORK_LIMIT.toLocaleString(
-    "en-US"
-  )} inspected items).` : availability.reason === "no-history" ? `${scopeLabel} trace history was not recorded.` : `${scopeLabel} trace evidence is unavailable or malformed.`;
-  return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { "data-fp": "trace-unavailable", role: "status", style: { padding: 14 }, children: [
-    reason,
-    " Dependencies are unknown.",
-    scopeLabel === "Child" && " No parent record was substituted."
-  ] });
-}
-function StoryUnavailableNote() {
-  return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { "data-fp": "story-narrative", children: /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { "data-fp": "story-unavailable", role: "status", children: "Story for this source run is unknown until paired narrative is supplied." }) });
-}
-
-// src/components/ExplainableShell/_internal/useRunCompanions.ts
-var import_react25 = require("react");
-function hasPayload(value) {
-  return value !== null && typeof value === "object" && (!Array.isArray(value) || value.length > 0);
-}
-function useRunCompanions(source, inputs) {
-  const sourceKey = sourceRunKey(source);
-  const runId = typeof sourceKey === "string" ? sourceKey : void 0;
-  const [cohort, setCohort] = (0, import_react25.useState)(() => ({
-    runId,
-    refs: inputs,
-    quarantined: {}
-  }));
-  let current = cohort;
-  const keys = Object.keys(inputs);
-  if (cohort.runId !== runId) {
-    const quarantined = {};
-    for (const key of keys)
-      if (hasPayload(inputs[key]) && inputs[key] === cohort.refs[key])
-        quarantined[key] = inputs[key];
-    current = { runId, refs: inputs, quarantined };
-  } else if (keys.some((key) => inputs[key] !== cohort.refs[key]))
-    current = { ...cohort, refs: inputs };
-  if (current !== cohort) setCohort(current);
-  const values = {};
-  const staleKeys = [];
-  for (const key of keys) {
-    if (hasPayload(inputs[key]) && inputs[key] === current.quarantined[key])
-      staleKeys.push(key);
-    else values[key] = inputs[key];
-  }
-  return { values, staleKeys };
-}
+// src/components/ExplainableShell/_internal/useTraceSession.ts
+var import_react27 = require("react");
 
 // src/trace/dataTrace.ts
 function readsByStep(tree) {
@@ -5387,7 +5479,7 @@ function buildDataTrace(commitLog, executionTree, targetRuntimeStageId, maxDepth
 function snapshotWalkScope(value) {
   try {
     const budget = new WorkBudget();
-    if (!isPlainRecord(value)) throw new Error();
+    if (!isPlainRecord2(value)) throw new Error();
     const invocationPath = readOwnArray(
       optionalOwnDataField(value, "invocationPath"),
       budget
@@ -5397,12 +5489,12 @@ function snapshotWalkScope(value) {
     const sourceLabels = optionalOwnDataField(value, "mountLabels");
     let mountLabels;
     if (sourceLabels !== void 0) {
-      if (!isPlainRecord(sourceLabels)) throw new Error();
-      const names = Object.keys(sourceLabels);
-      budget.spend(names.length);
+      if (!isPlainRecord2(sourceLabels)) throw new Error();
+      const names2 = Object.keys(sourceLabels);
+      budget.spend(names2.length);
       mountLabels = Object.freeze(
         Object.fromEntries(
-          names.map((name) => [
+          names2.map((name) => [
             readName(name),
             readName(optionalOwnDataField(sourceLabels, name))
           ])
@@ -5425,6 +5517,166 @@ function snapshotWalkScope(value) {
       "Trace scope must contain only bounded recorded names and flags."
     );
   }
+}
+
+// src/trace/projectTraceInvocation.ts
+function projectTraceInvocation(snapshot, exactMountId, options) {
+  const unavailable = (availability) => ({
+    availability,
+    commitLog: [],
+    executionTree: void 0,
+    scope: Object.freeze({
+      invocationPath: Object.freeze([]),
+      readsAvailable: false
+    })
+  });
+  try {
+    const targetId = readName(exactMountId);
+    if (!targetId.includes("#"))
+      return unavailable({ ok: false, reason: "invocation-not-recorded" });
+    const budget = new WorkBudget();
+    const pathValue = ownDataField(options, "invocationPath");
+    const path = pathValue === void 0 ? [targetId] : readOwnArray(pathValue, budget).map(readName);
+    if (path.length === 0 || path.length > 128 || path.join("").length > 8192 || path[path.length - 1] !== targetId)
+      return unavailable({ ok: false, reason: "ancestor-not-recorded" });
+    const results = ownDataField(snapshot, "subflowResults");
+    if (!isPlainRecord2(results))
+      return unavailable({ ok: false, reason: "invocation-not-recorded" });
+    const root = rootMountLabels(
+      ownDataField(snapshot, "executionTree"),
+      ownDataField(snapshot, "commitLog")
+    );
+    if (!root.availability.ok) return unavailable(root.availability);
+    const readsAvailable = root.hasTree && runHasRecordedReads(snapshot);
+    let parents = root.labels;
+    for (let index2 = 0; index2 < path.length; index2++) {
+      if (path.length > 1 && !parents.has(path[index2]))
+        return unavailable({ ok: false, reason: "ancestor-not-recorded" });
+      const result = ownDataField(results, path[index2]);
+      if (result === void 0)
+        return unavailable({
+          ok: false,
+          reason: index2 === path.length - 1 ? "invocation-not-recorded" : "ancestor-not-recorded"
+        });
+      const selected = childTraceScope(
+        result,
+        path.slice(0, index2 + 1),
+        readsAvailable
+      );
+      if (!selected.availability.ok) return unavailable(selected.availability);
+      parents = selected.mountLabels;
+      if (index2 === path.length - 1) {
+        return {
+          availability: selected.availability,
+          commitLog: selected.commitLog,
+          executionTree: selected.executionTree,
+          scope: Object.freeze({
+            invocationPath: Object.freeze([...path]),
+            mountLabels: Object.freeze(
+              Object.fromEntries(selected.mountLabels)
+            ),
+            readsAvailable: selected.readsAvailable,
+            startKeys: selected.startKeys
+          })
+        };
+      }
+    }
+    return unavailable({ ok: false, reason: "invocation-not-recorded" });
+  } catch (error) {
+    return unavailable({ ok: false, ...classifyAdmissionFailure(error) });
+  }
+}
+
+// src/trace/subflowHandoff.ts
+var LIMIT = 4096;
+function record2(value) {
+  if (!isPlainRecord2(value)) throw new Error();
+  return value;
+}
+var field3 = (value, key) => optionalOwnDataField(record2(value), key);
+function index(value) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new Error();
+  return value;
+}
+function names(value, budget, limit = LIMIT) {
+  const result = readOwnArray(value, budget).map(readName);
+  if (result.length > limit || new Set(result).size !== result.length) throw new Error();
+  return result;
+}
+function address(value, budget) {
+  const logRunId = readName(field3(value, "logRunId"));
+  const drillPath = names(field3(value, "drillPath"), budget, 128);
+  if (drillPath.join("").length > 8192) throw new Error();
+  return { logRunId, drillPath };
+}
+var samePath = (left, right) => left.length === right.length && left.every((part, at) => part === right[at]);
+var sameAddress = (left, right) => left.logRunId === right.logRunId && samePath(left.drillPath, right.drillPath);
+function seedOffset(log, mount) {
+  if (!mount || !log.length) return 0;
+  const id = field3(log[0], "runtimeStageId");
+  return id === "" || id === mount ? 1 : 0;
+}
+function paths2(bundle, budget) {
+  return readOwnArray(field3(bundle, "trace"), budget).map((row2) => readName(field3(row2, "path")));
+}
+function subflowHandoffSources(options) {
+  try {
+    const budget = new WorkBudget();
+    const { snapshot, invocationPath, mountRuntimeStageId, writtenKeys } = options;
+    const mount = readName(mountRuntimeStageId);
+    const results = field3(snapshot, "subflowResults");
+    const result = field3(results, mount);
+    const handoff = field3(result, "outputHandoff");
+    if (field3(handoff, "version") !== 1 || field3(handoff, "attribution") !== "observed-read-prefix" || field3(handoff, "status") !== "captured" || readOwnArray(field3(handoff, "limitations"), budget).length !== 0) return [];
+    const context = invocationPath.length ? field3(field3(results, invocationPath[invocationPath.length - 1]), "treeContext") : snapshot;
+    const parentAddress = address(field3(context, "logAddress"), budget);
+    if (!samePath(parentAddress.drillPath, invocationPath)) return [];
+    const parentLog = readOwnArray(field3(context, invocationPath.length ? "history" : "commitLog"), budget);
+    const parent = field3(handoff, "parent");
+    const parentIdx = index(field3(parent, "commitIdx"));
+    const parentCutoff = index(options.beforeCommitIdx) + seedOffset(parentLog, invocationPath.at(-1));
+    if (!sameAddress(address(field3(parent, "address"), budget), parentAddress) || field3(parent, "runtimeStageId") !== mount || parentIdx >= parentCutoff || parentIdx >= parentLog.length || parentCutoff > parentLog.length || field3(parentLog[parentIdx], "runtimeStageId") !== mount) return [];
+    const actualWrites = new Set(paths2(parentLog[parentIdx], budget));
+    const child = field3(handoff, "child");
+    const childAddress = address(field3(child, "address"), budget);
+    const childPath = [...invocationPath, mount];
+    if (childAddress.logRunId !== parentAddress.logRunId || !samePath(childAddress.drillPath, childPath)) return [];
+    const childContext = field3(result, "treeContext");
+    if (!sameAddress(address(field3(childContext, "logAddress"), budget), childAddress)) return [];
+    const childHistory = readOwnArray(field3(childContext, "history"), budget);
+    const rawCutoff = index(field3(child, "beforeCommitIdx"));
+    if (rawCutoff > childHistory.length) return [];
+    const projected = projectTraceInvocation(snapshot, mount, { invocationPath: childPath });
+    if (!projected.availability.ok) return [];
+    const beforeCommitIdx = Math.max(0, rawCutoff - seedOffset(childHistory, mount));
+    if (beforeCommitIdx > projected.commitLog.length) return [];
+    const writes = readOwnArray(field3(handoff, "writes"), budget);
+    if (writes.length > LIMIT) return [];
+    const selected = new Set(writtenKeys), seenWrites = /* @__PURE__ */ new Set(), reads = /* @__PURE__ */ new Set();
+    for (const write of writes) {
+      const path = readName(field3(write, "path"));
+      if (seenWrites.has(path) || !actualWrites.has(path)) return [];
+      seenWrites.add(path);
+      const keys = names(field3(write, "reads"), budget);
+      if (!selected.has(path)) continue;
+      for (let at = parentIdx + 1; at < parentCutoff; at++)
+        if (paths2(parentLog[at], budget).includes(path)) return [];
+      for (const key of keys) reads.add(key);
+      if (reads.size > LIMIT) return [];
+    }
+    const detachedPath = Object.freeze(childPath);
+    return Object.freeze([...reads].map((key) => Object.freeze({
+      key,
+      mountRuntimeStageId: mount,
+      invocationPath: detachedPath,
+      beforeCommitIdx
+    })));
+  } catch {
+    return [];
+  }
+}
+function handoffSentence(sources) {
+  return `Output mapping observed child reads: ${sources.map((source) => `\`${source.key}\` in ${source.mountRuntimeStageId}`).join(", ")}. This conservative prefix may include reads used by other outputs.`;
 }
 
 // src/trace/tracePresentation.ts
@@ -5637,6 +5889,7 @@ function formatTraceWalk(walk, stepNumberOf, options) {
     lines.push(
       `stop ${i + 1}/${walk.stops.length} \xB7 ${step ? `step ${step} \xB7 ` : ""}${stop.stageName}${pass} wrote \`${stop.contributedKeys.join("`, `")}\`${made}`
     );
+    if (stop.handoffSources?.length) lines.push(handoffSentence(stop.handoffSources));
   });
   if (walk.inputTermini.length > 0) {
     lines.push(`No local writer: ${walk.inputTermini.map((key) => `${key} (${inputSentence(presentation, key)})`).join(", ")}`);
@@ -5654,411 +5907,619 @@ function formatTraceWalk(walk, stepNumberOf, options) {
   return lines.join("\n");
 }
 
-// src/components/DataTracePanel/TraceWalkCard.tsx
-var import_react26 = require("react");
+// src/components/ExplainableShell/_internal/useTraceSession.ts
+var emptySession = {
+  tracing: null,
+  forkChooserOpen: false,
+  traceSearch: ""
+};
+function traceSessionReducer(state, action2) {
+  switch (action2.type) {
+    case "reset":
+      return emptySession;
+    case "start":
+      return { tracing: action2.question, forkChooserOpen: false, traceSearch: "" };
+    case "follow":
+      return state.tracing ? {
+        ...state,
+        tracing: { ...state.tracing, via: [...state.tracing.via, action2.anchor] },
+        forkChooserOpen: false
+      } : state;
+    case "show-all":
+      return state.tracing ? {
+        ...state,
+        tracing: { ...state.tracing, via: [] },
+        forkChooserOpen: false
+      } : state;
+    case "exit":
+      return { ...state, tracing: null, forkChooserOpen: false };
+    case "open-chooser":
+      return state.forkChooserOpen ? state : { ...state, forkChooserOpen: true };
+    case "close-chooser":
+      return state.forkChooserOpen ? { ...state, forkChooserOpen: false } : state;
+    case "search":
+      return { ...state, traceSearch: action2.value };
+  }
+}
+function useTraceSessionState(snapshotIdx) {
+  const [state, dispatch] = (0, import_react27.useReducer)(traceSessionReducer, emptySession);
+  const reset = (0, import_react27.useCallback)(() => dispatch({ type: "reset" }), []);
+  const setTraceSearch = (0, import_react27.useCallback)((value) => dispatch({ type: "search", value }), []);
+  (0, import_react27.useEffect)(() => {
+    dispatch({ type: "close-chooser" });
+  }, [snapshotIdx]);
+  return { ...state, dispatch, reset, setTraceSearch };
+}
+function dependencyCone(frames) {
+  const cone = /* @__PURE__ */ new Map();
+  for (const frame of frames) {
+    const stagePart = frame.runtimeStageId.split("#")[0];
+    const previous = cone.get(stagePart);
+    if (previous === void 0 || frame.depth < previous) cone.set(stagePart, frame.depth);
+  }
+  return cone;
+}
+function useTraceSessionController({
+  session,
+  activeTraceScope,
+  activeTraceKey,
+  activeSnapshots,
+  safeIdx,
+  sourceChanged,
+  traceHistoryAvailable,
+  showDataTraceCone,
+  setSnapshotIdx,
+  onStartInspector,
+  runtimeSnapshot,
+  openTraceSource
+}) {
+  const { tracing, forkChooserOpen, traceSearch, setTraceSearch, dispatch } = session;
+  const shellDataTrace = (0, import_react27.useMemo)(() => {
+    const trace = activeTraceScope.availability.ok && traceHistoryAvailable ? buildDataTrace(activeTraceScope.commitLog, activeTraceScope.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "") : { frames: [], readsAvailable: false };
+    return { ...trace, readsAvailable: activeTraceScope.readsAvailable };
+  }, [activeTraceScope, traceHistoryAvailable, activeSnapshots, safeIdx]);
+  const allTracedKeys = (0, import_react27.useMemo)(() => {
+    const log = activeTraceScope.commitLog;
+    const seen = /* @__PURE__ */ new Set();
+    const keys = [];
+    for (const commit of log) {
+      for (const write of commit.trace ?? []) {
+        if (!seen.has(write.path)) {
+          seen.add(write.path);
+          keys.push(write.path);
+        }
+      }
+    }
+    return keys;
+  }, [activeTraceScope]);
+  const traceWalk = (0, import_react27.useMemo)(() => {
+    if (sourceChanged || !tracing || tracing.scope !== activeTraceKey || !activeTraceScope.availability.ok) return null;
+    const anchor = tracing.via.at(-1) ?? tracing;
+    const walk = buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, anchor.key, {
+      beforeCommitIdx: anchor.beforeCommitIdx,
+      scope: {
+        invocationPath: activeTraceScope.invocationPath,
+        mountLabels: Object.fromEntries(activeTraceScope.mountLabels),
+        readsAvailable: activeTraceScope.readsAvailable,
+        startKeys: activeTraceScope.startKeys
+      }
+    });
+    return {
+      ...walk,
+      stops: walk.stops.map((stop) => {
+        const sources = subflowHandoffSources({
+          snapshot: runtimeSnapshot,
+          invocationPath: activeTraceScope.invocationPath,
+          mountRuntimeStageId: stop.runtimeStageId,
+          writtenKeys: stop.contributedKeys,
+          beforeCommitIdx: Math.min(stop.commitIdx + 1, anchor.beforeCommitIdx ?? activeTraceScope.commitLog.length)
+        });
+        return sources.length ? { ...stop, handoffSources: sources } : stop;
+      })
+    };
+  }, [tracing, activeTraceScope, activeTraceKey, sourceChanged, runtimeSnapshot]);
+  const traceStopIndices = (0, import_react27.useMemo)(() => {
+    if (!traceWalk || traceWalk.missing) return [];
+    const indexById = new Map(activeSnapshots.map((snapshot, index2) => [snapshot.runtimeStageId, index2]));
+    return traceWalk.stops.map((stop) => indexById.get(stop.runtimeStageId)).filter((index2) => index2 !== void 0).sort((a, b) => a - b);
+  }, [traceWalk, activeSnapshots]);
+  const sliceCone = (0, import_react27.useMemo)(() => {
+    if (traceWalk && !traceWalk.missing && traceWalk.stops.length >= 2) return dependencyCone(traceWalk.stops);
+    if (!showDataTraceCone || shellDataTrace.frames.length < 2) return void 0;
+    return dependencyCone(shellDataTrace.frames);
+  }, [traceWalk, showDataTraceCone, shellDataTrace]);
+  const navigateToStage = (0, import_react27.useCallback)((id) => {
+    const index2 = activeSnapshots.findIndex((snapshot) => snapshot.runtimeStageId === id);
+    if (index2 >= 0) setSnapshotIdx(index2);
+  }, [activeSnapshots, setSnapshotIdx]);
+  const jumpToAnchor = (0, import_react27.useCallback)((walk) => {
+    const anchor = walk.stops[0];
+    if (anchor) navigateToStage(anchor.runtimeStageId);
+  }, [navigateToStage]);
+  const handleStartTracing = (0, import_react27.useCallback)((key) => {
+    if (!activeTraceScope.availability.ok) return;
+    const log = activeTraceScope.commitLog;
+    const cursorId = activeSnapshots[safeIdx]?.runtimeStageId;
+    const cursorCommitIndex = log.findIndex((commit) => commit.runtimeStageId === cursorId);
+    const beforeCommitIdx = cursorCommitIndex >= 0 ? cursorCommitIndex + 1 : void 0;
+    dispatch({ type: "start", question: { scope: activeTraceKey, key, beforeCommitIdx, via: [] } });
+    onStartInspector();
+    jumpToAnchor(buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, key, { beforeCommitIdx }));
+  }, [activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, dispatch, onStartInspector, jumpToAnchor]);
+  const handleFollowIngredient = (0, import_react27.useCallback)((ingredient) => {
+    if (!tracing || !activeTraceScope.availability.ok || ingredient.writerCommitIdx === null) return;
+    const anchor = { key: ingredient.key, beforeCommitIdx: ingredient.writerCommitIdx + 1 };
+    dispatch({ type: "follow", anchor });
+    jumpToAnchor(buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, anchor.key, {
+      beforeCommitIdx: anchor.beforeCommitIdx
+    }));
+  }, [tracing, activeTraceScope, dispatch, jumpToAnchor]);
+  const handleFollowHandoff = (0, import_react27.useCallback)((source) => {
+    if (sourceChanged || !openTraceSource || !traceWalk?.stops.some((stop) => stop.handoffSources?.includes(source))) return;
+    const child = projectTraceInvocation(runtimeSnapshot, source.mountRuntimeStageId, { invocationPath: source.invocationPath });
+    if (!child.availability.ok || source.beforeCommitIdx > child.commitLog.length) return;
+    const walk = buildTraceWalk(child.commitLog, child.executionTree, source.key, {
+      beforeCommitIdx: source.beforeCommitIdx,
+      scope: child.scope
+    });
+    if (!openTraceSource(source.mountRuntimeStageId, source.invocationPath, walk.stops[0]?.runtimeStageId)) return;
+    dispatch({ type: "start", question: {
+      scope: JSON.stringify(source.invocationPath),
+      key: source.key,
+      beforeCommitIdx: source.beforeCommitIdx,
+      via: []
+    } });
+    onStartInspector();
+  }, [sourceChanged, openTraceSource, traceWalk, runtimeSnapshot, dispatch, onStartInspector]);
+  const handleShowAllIngredients = (0, import_react27.useCallback)(() => {
+    if (!tracing || !activeTraceScope.availability.ok) return;
+    dispatch({ type: "show-all" });
+    jumpToAnchor(buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, tracing.key, {
+      beforeCommitIdx: tracing.beforeCommitIdx
+    }));
+  }, [tracing, activeTraceScope, dispatch, jumpToAnchor]);
+  const handleExitTracing = (0, import_react27.useCallback)(() => dispatch({ type: "exit" }), [dispatch]);
+  const handleForkPrompt = (0, import_react27.useCallback)(() => dispatch({ type: "open-chooser" }), [dispatch]);
+  const handleContinueTimeOrder = (0, import_react27.useCallback)(() => {
+    const earlier = traceStopIndices.filter((index2) => index2 < safeIdx);
+    if (earlier.length > 0) setSnapshotIdx(earlier[earlier.length - 1]);
+    dispatch({ type: "close-chooser" });
+  }, [traceStopIndices, safeIdx, setSnapshotIdx, dispatch]);
+  const activeViaKey = tracing?.via.at(-1)?.key ?? null;
+  const stepNumberOf = (0, import_react27.useCallback)((id) => {
+    const index2 = activeSnapshots.findIndex((snapshot) => snapshot.runtimeStageId === id);
+    return index2 >= 0 ? index2 + 1 : null;
+  }, [activeSnapshots]);
+  const tracingRail = (0, import_react27.useMemo)(() => {
+    if (!tracing || !traceWalk || traceWalk.missing || traceStopIndices.length === 0) return null;
+    const cursorId = activeSnapshots[safeIdx]?.runtimeStageId;
+    const walkIndex = traceWalk.stops.findIndex((stop) => stop.runtimeStageId === cursorId);
+    const currentStop = traceWalk.stops[walkIndex >= 0 ? walkIndex : 0];
+    return {
+      tracedKey: tracing.key,
+      viaKey: activeViaKey,
+      stopIndices: traceStopIndices,
+      stopOrdinal: walkIndex >= 0 ? walkIndex + 1 : 1,
+      totalStops: traceWalk.stops.length,
+      onExit: handleExitTracing,
+      onShowAll: activeViaKey ? handleShowAllIngredients : void 0,
+      forkCount: currentStop?.ingredients.filter((ingredient) => ingredient.writerRuntimeStageId !== null).length ?? 0,
+      onForkPrompt: handleForkPrompt
+    };
+  }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients, handleForkPrompt]);
+  return {
+    tracing,
+    forkChooserOpen,
+    traceSearch,
+    setTraceSearch,
+    shellDataTrace,
+    allTracedKeys,
+    traceWalk,
+    traceStopIndices,
+    sliceCone,
+    navigateToStage,
+    activeViaKey,
+    stepNumberOf,
+    tracingRail,
+    handleStartTracing,
+    handleFollowIngredient,
+    handleShowAllIngredients,
+    handleFollowHandoff,
+    handleExitTracing,
+    handleForkPrompt,
+    handleContinueTimeOrder
+  };
+}
+
+// src/components/ExplainableShell/_internal/ShellChrome.tsx
+var import_react28 = require("react");
+var import_jsx_runtime16 = require("react/jsx-runtime");
+var HLinePill = (0, import_react28.memo)(function HLinePill2({
+  label,
+  detail,
+  expanded,
+  onClick
+}) {
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { style: {
+    display: "flex",
+    alignItems: "center",
+    gap: 0,
+    padding: "0"
+  }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } }),
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+      "button",
+      {
+        onClick,
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          padding: "3px 12px",
+          margin: "4px 0",
+          fontSize: 10,
+          fontWeight: 600,
+          fontFamily: "inherit",
+          color: theme.textMuted,
+          background: theme.bgSecondary,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 10,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          transition: "color 0.15s ease"
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
+          label,
+          detail && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } })
+  ] });
+});
+var VLinePill = (0, import_react28.memo)(function VLinePill2({
+  label,
+  expanded,
+  side = "right",
+  onClick
+}) {
+  const arrow = side === "right" ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25C0" : "\u25B6";
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { style: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 0,
+    padding: "0"
+  }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } }),
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+      "button",
+      {
+        onClick,
+        style: {
+          display: "flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "10px 4px",
+          margin: "0 3px",
+          fontSize: 10,
+          fontWeight: 600,
+          fontFamily: "inherit",
+          color: theme.textMuted,
+          background: theme.bgSecondary,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 10,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          writingMode: "vertical-lr",
+          transition: "color 0.15s ease"
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
+          label
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } })
+  ] });
+});
+var MissingChartNote = (0, import_react28.memo)(function MissingChartNote2({ unstyled }) {
+  const body = /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(import_jsx_runtime16.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("strong", { children: "No chart \u2014 `traceGraph` was not provided." }),
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { children: "A snapshot holds the memory, the story and the timeline. Only the chart's own structure can draw the chart. Two ways to get one:" }),
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("pre", { style: unstyled ? void 0 : { margin: 0, whiteSpace: "pre-wrap", fontFamily: theme.fontMono, fontSize: 11 }, children: `// live build
+const trace = createTraceStructureRecorder();
+flowChart(..., { structureRecorders: [trace.recorder] });
+<ExplainableShell traceGraph={trace.getGraph()} />
+
+// saved run \u2014 save chart.buildTimeStructure with your snapshot
+<ExplainableShell traceGraph={graphFromStructure(saved.structure)} />` })
+  ] });
+  if (unstyled) return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { "data-fp": "shell-missing-chart", children: body });
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+    "div",
+    {
+      "data-fp": "shell-missing-chart",
+      style: {
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        justifyContent: "center",
+        alignItems: "flex-start",
+        height: "100%",
+        padding: 20,
+        color: theme.textMuted,
+        fontSize: 12,
+        lineHeight: 1.5,
+        maxWidth: 520,
+        margin: "0 auto"
+      },
+      children: body
+    }
+  );
+});
+var EmptyShell = (0, import_react28.memo)(function EmptyShell2({
+  reason,
+  detail,
+  unstyled,
+  className,
+  style
+}) {
+  const body = /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(import_jsx_runtime16.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { style: unstyled ? void 0 : { fontWeight: 700, color: theme.textPrimary, fontSize: 13 }, children: reason }),
+    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { "data-fp": "shell-empty-detail", children: detail })
+  ] });
+  if (unstyled) {
+    return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("div", { className, style, "data-fp": "shell-empty", children: body });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(
+    "div",
+    {
+      className,
+      "data-fp": "shell-empty",
+      style: {
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        justifyContent: "center",
+        alignItems: "center",
+        textAlign: "center",
+        padding: 24,
+        background: theme.bgPrimary,
+        color: theme.textMuted,
+        fontFamily: theme.fontSans,
+        fontSize: 12,
+        lineHeight: 1.6,
+        ...style
+      },
+      children: body
+    }
+  );
+});
+
+// src/components/ExplainableShell/_internal/KeyedRecorderView.tsx
+var import_react29 = require("react");
+
+// src/model/recorderView.ts
+function detectKeyedSteps(data) {
+  if (!data || typeof data !== "object") return null;
+  const obj = data;
+  for (const val of Object.values(obj)) {
+    if (val && typeof val === "object" && !Array.isArray(val)) {
+      const entries = Object.entries(val);
+      if (entries.length === 0) continue;
+      const allObjectsWithNumbers = entries.every(([, v2]) => {
+        if (!v2 || typeof v2 !== "object" || Array.isArray(v2)) return false;
+        return Object.values(v2).some((f) => typeof f === "number");
+      });
+      if (allObjectsWithNumbers) {
+        const keyType = entries.some(([k]) => k.includes("#")) ? "runtimeStageId" : "stageName";
+        return { steps: val, keyType };
+      }
+    }
+  }
+  return null;
+}
+function extractRenderHints(data) {
+  if (!data || typeof data !== "object") return null;
+  const obj = data;
+  if (typeof obj.numericField === "string" && typeof obj.grandTotal === "number") {
+    return { numericField: obj.numericField, grandTotal: obj.grandTotal };
+  }
+  return null;
+}
+function insightName(name) {
+  const map = {
+    "Narrative": "Story",
+    "Memory": "State",
+    "Metrics": "Performance",
+    "Quality": "Quality",
+    "Cost": "Cost"
+  };
+  return map[name] ?? name;
+}
+function projectKeyedRecorder(data, detected, snapshots, selectedIndex) {
+  if (!detected) return null;
+  const visibleKeys = /* @__PURE__ */ new Set();
+  for (let index2 = 0; index2 <= selectedIndex && index2 < snapshots.length; index2++) {
+    const snapshot = snapshots[index2];
+    if (detected.keyType === "runtimeStageId") {
+      if (snapshot.runtimeStageId) visibleKeys.add(snapshot.runtimeStageId);
+    } else {
+      if (snapshot.stageName) visibleKeys.add(snapshot.stageName);
+      if (snapshot.stageLabel) visibleKeys.add(snapshot.stageLabel);
+    }
+  }
+  const hints = extractRenderHints(data);
+  const numFieldKey = hints?.numericField ?? "";
+  const allKeys = Object.keys(detected.steps);
+  const visibleEntries = allKeys.filter((key) => visibleKeys.has(key));
+  let runningTotal = 0;
+  if (numFieldKey) {
+    for (const key of visibleEntries) runningTotal += detected.steps[key][numFieldKey] ?? 0;
+  }
+  return {
+    steps: detected.steps,
+    numFieldKey,
+    allKeys,
+    visibleEntries,
+    runningTotal,
+    grandTotal: hints?.grandTotal ?? 0,
+    isAtEnd: selectedIndex >= snapshots.length - 1
+  };
+}
+
+// src/components/ExplainableShell/_internal/KeyedRecorderView.tsx
+var import_jsx_runtime17 = require("react/jsx-runtime");
+function KeyedRecorderView({
+  data,
+  description,
+  preferredOperation = "accumulate",
+  snapshots,
+  selectedIndex
+}) {
+  const [showAggregate, setShowAggregate] = (0, import_react29.useState)(false);
+  const detected = (0, import_react29.useMemo)(() => detectKeyedSteps(data), [data]);
+  const projected = (0, import_react29.useMemo)(() => projectKeyedRecorder(data, detected, snapshots, selectedIndex), [data, detected, snapshots, selectedIndex]);
+  if (!projected) {
+    return /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
+  }
+  const { steps, numFieldKey, allKeys, visibleEntries, runningTotal, grandTotal, isAtEnd } = projected;
+  return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
+    description && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
+    /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
+      preferredOperation === "aggregate" ? (
+        /* AGGREGATE: collect silently during scrub, button at end to reveal total */
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(import_jsx_runtime17.Fragment, { children: [
+          isAtEnd ? /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ (0, import_jsx_runtime17.jsx)(
+            "button",
+            {
+              onClick: () => setShowAggregate(true),
+              style: {
+                background: theme.primary,
+                color: "#fff",
+                border: "none",
+                borderRadius: 8,
+                padding: "12px 20px",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                width: "100%"
+              },
+              children: "Aggregate \u2014 Show Grand Total"
+            }
+          ) : /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
+            numFieldKey && /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
+              grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1),
+              /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
+                numFieldKey,
+                " \xB7 ",
+                allKeys.length,
+                " steps"
+              ] })
+            ] })
+          ] }) }) : /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
+              visibleEntries.length,
+              " of ",
+              allKeys.length,
+              " steps collected. Scrub to end to aggregate."
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+        ] })
+      ) : preferredOperation === "accumulate" ? (
+        /* ACCUMULATE: running total grows with slider — IS the total at end, no button */
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)(import_jsx_runtime17.Fragment, { children: [
+          numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
+            /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
+              numFieldKey,
+              " \xB7 ",
+              visibleEntries.length,
+              " of ",
+              allKeys.length,
+              " steps"
+            ] })
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
+        ] })
+      ) : (
+        /* TRANSLATE: per-step entries prominent, no totals */
+        /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
+      ),
+      visibleEntries.map((key) => {
+        const entry = steps[key];
+        const label = entry.stageName ?? key;
+        const numVal = numFieldKey ? entry[numFieldKey] : void 0;
+        return /* @__PURE__ */ (0, import_jsx_runtime17.jsxs)("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
+          /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
+          numVal !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
+        ] }, key);
+      }),
+      visibleEntries.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime17.jsx)("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." })
+    ] })
+  ] });
+}
+
+// src/components/ExplainableShell/_internal/RightPanel.tsx
+var import_react33 = require("react");
+
+// src/components/InspectorPanel/InspectorPanel.tsx
+var import_react31 = require("react");
+
+// src/components/MemoryPanel/MemoryPanel.tsx
 var import_jsx_runtime18 = require("react/jsx-runtime");
-var CHIP_COLORS = [
-  v("--fp-chip-1", "#0d9488"),
-  v("--fp-chip-2", "#d97706"),
-  v("--fp-chip-3", "#7c3aed"),
-  v("--fp-chip-4", "#e11d48")
-];
-var PAINT = (s) => s;
-var BARE = () => void 0;
-var TraceWalkCard = (0, import_react26.memo)(function TraceWalkCard2({
-  walk,
-  cursorRuntimeStageId,
-  viaKey,
-  stepNumberOf,
-  previewValueOf,
-  onFollowIngredient,
-  onJumpToStop,
-  onShowAll,
-  onExit,
-  forkChooserOpen,
-  onContinueTimeOrder,
-  canContinueTimeOrder = true,
+function MemoryPanel({
+  snapshots,
+  selectedIndex,
   size = "default",
   unstyled = false,
   className,
   style
 }) {
-  const presentation = walk.scope;
-  const fs = fontSize[size];
-  const sx = unstyled ? BARE : PAINT;
-  const [copied, setCopied] = (0, import_react26.useState)(false);
-  const accent = "var(--fp-accent, #6366f1)";
-  const tracingColor = "var(--fp-tracing, #0d9488)";
-  const currentIdx = (0, import_react26.useMemo)(() => {
-    if (!cursorRuntimeStageId) return 0;
-    const i = walk.stops.findIndex((s) => s.runtimeStageId === cursorRuntimeStageId);
-    return i >= 0 ? i : 0;
-  }, [walk, cursorRuntimeStageId]);
-  const current = walk.stops[currentIdx];
-  const boundary = mountLabel(presentation, current?.runtimeStageId ?? "");
-  const atInvocationStart = isInvocationStart(presentation, current?.runtimeStageId ?? "");
-  const followableCount = current ? current.ingredients.filter((ing) => ing.writerRuntimeStageId !== null).length : 0;
-  const chooserVisible = !!forkChooserOpen && followableCount >= 2;
-  const inputLabel = inputSentence(presentation, walk.key);
-  const copyStory = () => {
-    const text3 = formatTraceWalk(walk, stepNumberOf);
-    void navigator.clipboard?.writeText(text3).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
-    });
-  };
-  if (walk.missing) {
-    return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
-      "div",
-      {
-        className,
-        "data-fp": "trace-walk-card",
-        "data-missing": walk.missing.reason,
-        style: { ...sx({ padding: "14px", fontSize: fs.body + 1, lineHeight: 1.55 }), ...style },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(CardHeader, { label: `Why this value \u2014 \`${walk.key}\``, onExit, sx, fs }),
-          scopeSentence(presentation) && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { "data-fp": "trace-scope-note", children: scopeSentence(presentation) }),
-          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: sx({ color: theme.textPrimary, marginTop: 8 }), children: walk.missing.reason === "evidence-unavailable" ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("code", { children: walk.key }),
-            ": write evidence is unavailable; value origin unknown."
-          ] }) : walk.missing.reason === "never-written" ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
-            ": ",
-            inputLabel,
-            "."
-          ] }) : /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
-            " has ",
-            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("b", { children: "not been written yet at this moment" }),
-            " \u2014 its first write happens later",
-            walk.missing.firstWriterStageName && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
-              ", at ",
-              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("b", { children: walk.missing.firstWriterStageName }),
-              walk.missing.firstWriterRuntimeStageId && stepNumberOf(walk.missing.firstWriterRuntimeStageId) && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
-                " (step ",
-                stepNumberOf(walk.missing.firstWriterRuntimeStageId),
-                ")"
-              ] })
-            ] }),
-            "."
-          ] }) })
-        ]
-      }
-    );
+  const prevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
+  const currMemory = snapshots[selectedIndex]?.memory ?? {};
+  if (unstyled) {
+    return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { className, style, "data-fp": "memory-panel", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(MemoryInspector, { snapshots, selectedIndex, unstyled: true }),
+      /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ScopeDiff, { previous: prevMemory, current: currMemory, unstyled: true })
+    ] });
   }
-  if (!current) return null;
-  const step = stepNumberOf(current.runtimeStageId);
-  const preview = previewValueOf ? previewValue(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
   return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
     "div",
     {
       className,
-      "data-fp": "trace-walk-card",
-      style: { ...sx({ padding: "10px 14px 14px", fontSize: fs.body + 1, lineHeight: 1.5 }), ...style },
+      style: {
+        overflow: "auto",
+        display: "flex",
+        flexDirection: "column",
+        ...style
+      },
+      "data-fp": "memory-panel",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
-          CardHeader,
-          {
-            label: `Why this value \u2014 stop ${currentIdx + 1} of ${walk.stops.length}`,
-            onExit,
-            sx,
-            fs
-          }
-        ),
-        viaKey && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { "data-fp": "twc-breadcrumb", style: sx({ fontSize: fs.label, color: theme.textMuted, marginTop: 4 }), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
-          " \u25B8 via ",
-          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("code", { children: viaKey }),
-          onShowAll && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
-            " \xB7 ",
-            /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
-              "button",
-              {
-                onClick: onShowAll,
-                style: sx({ border: "none", background: "transparent", color: accent, cursor: "pointer", fontSize: fs.label, textDecoration: "underline", padding: 0 }),
-                children: "show all ingredients"
-              }
-            )
-          ] })
-        ] }),
-        scopeSentence(presentation) && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { "data-fp": "trace-scope-note", children: scopeSentence(presentation) }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { "data-fp": "twc-stop-headline", style: sx({ marginTop: 10, fontWeight: 600, color: theme.textPrimary }), children: [
-          step && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: sx({ color: theme.textMuted, fontWeight: 500 }), children: [
-            "Step ",
-            step,
-            " \xB7 "
-          ] }),
-          current.stageName,
-          current.loopPass > 0 && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: sx({ color: theme.textMuted, fontWeight: 500 }), children: [
-            " (pass ",
-            current.loopPass,
-            ")"
-          ] })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: sx({ marginTop: 2, color: theme.textSecondary }), children: [
-          "wrote",
-          " ",
-          current.contributedKeys.map((k, i) => /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("code", { style: sx({ color: accent }), children: [
-            i > 0 && ", ",
-            k
-          ] }, k)),
-          preview !== null && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
-            " = ",
-            preview
-          ] })
-        ] }),
-        chooserVisible && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
-          "div",
-          {
-            "data-fp": "twc-fork-chooser",
-            style: sx({
-              marginTop: 10,
-              padding: "10px 12px",
-              border: `1.5px solid ${tracingColor}`,
-              borderRadius: 8,
-              background: `color-mix(in srgb, ${tracingColor} 8%, transparent)`
-            }),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: sx({ fontWeight: 600, fontSize: fs.body, color: theme.textPrimary }), children: [
-                "This value was made from ",
-                current.ingredients.length,
-                " ingredients \u2014 which one should the walk follow?"
-              ] }),
-              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
-                IngredientChip,
-                {
-                  ing,
-                  color: i < CHIP_COLORS.length ? CHIP_COLORS[i] : theme.textMuted,
-                  step: ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null,
-                  onFollow: onFollowIngredient,
-                  sx,
-                  fs,
-                  inputLabel: inputSentence(presentation, ing.key)
-                },
-                ing.key
-              )) }),
-              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
-                "button",
-                {
-                  "data-fp": "twc-continue-time",
-                  onClick: canContinueTimeOrder ? onContinueTimeOrder : void 0,
-                  disabled: !canContinueTimeOrder,
-                  title: canContinueTimeOrder ? void 0 : "This is the walk's earliest stop \u2014 there is nothing earlier to visit",
-                  style: sx({
-                    display: "block",
-                    width: "100%",
-                    marginTop: 8,
-                    border: `1px solid ${theme.border}`,
-                    background: theme.bgTertiary,
-                    color: theme.textPrimary,
-                    borderRadius: 6,
-                    padding: "5px 10px",
-                    fontSize: fs.label,
-                    fontWeight: 600,
-                    cursor: "pointer"
-                  }),
-                  children: "visit all, oldest cause last (time order)"
-                }
-              )
-            ]
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: sx({ marginTop: 10 }), children: atInvocationStart ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { "data-fp": "twc-boundary", children: [
-          START_SENTENCE,
-          "."
-        ] }) : boundary ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { "data-fp": "twc-boundary", children: [
-          "computed inside ",
-          boundary,
-          "; drill in to trace it."
-        ] }) : chooserVisible ? null : current.ingredients.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(import_jsx_runtime18.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: [
-            "Made from ",
-            current.ingredients.length,
-            " ingredient",
-            current.ingredients.length > 1 ? "s" : ""
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
-            IngredientChip,
-            {
-              ing,
-              color: i < CHIP_COLORS.length ? CHIP_COLORS[i] : theme.textMuted,
-              step: ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null,
-              onFollow: onFollowIngredient,
-              sx,
-              fs,
-              inputLabel: inputSentence(presentation, ing.key)
-            },
-            ing.key
-          )) })
-        ] }) : walk.readsAvailable ? /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { "data-fp": "twc-origin", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "reads nothing \u2014 this is an origin." }) : /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { "data-fp": "twc-unknowable", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "\u26A0 reads were not recorded \u2014 ingredients are unknowable, not absent." }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: sx({ marginTop: 14 }), children: [
-          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, marginBottom: 4 }), children: "The story, newest first" }),
-          walk.stops.map((s, i) => {
-            const isCurrent = i === currentIdx;
-            return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
-              "button",
-              {
-                "data-fp": "twc-itinerary-row",
-                "data-current": isCurrent || void 0,
-                onClick: () => onJumpToStop?.(s.runtimeStageId),
-                style: sx({
-                  display: "block",
-                  width: "100%",
-                  textAlign: "left",
-                  border: "none",
-                  borderLeft: isCurrent ? `3px solid ${accent}` : "3px solid transparent",
-                  background: isCurrent ? "var(--fp-accent-bg, rgba(99,102,241,0.12))" : "transparent",
-                  padding: "4px 8px",
-                  cursor: onJumpToStop ? "pointer" : "default",
-                  color: "inherit",
-                  fontSize: fs.body
-                }),
-                children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
-                    i + 1,
-                    "."
-                  ] }),
-                  " ",
-                  /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("code", { style: sx({ color: accent }), children: s.contributedKeys.join(", ") }),
-                  /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("span", { style: sx({ color: theme.textMuted }), children: " \u2190 " }),
-                  s.stageName,
-                  s.loopPass > 0 && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
-                    " (pass ",
-                    s.loopPass,
-                    ")"
-                  ] }),
-                  stepNumberOf(s.runtimeStageId) && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
-                    " \xB7 step ",
-                    stepNumberOf(s.runtimeStageId)
-                  ] }),
-                  s.ingredients.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: sx({ color: theme.warning, fontWeight: 600 }), children: [
-                    " \u2442 ",
-                    s.ingredients.length
-                  ] })
-                ]
-              },
-              s.runtimeStageId
-            );
-          })
-        ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: sx({ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 }), children: [
-          walk.inputTermini.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { "data-fp": "twc-run-inputs", style: sx({ fontSize: fs.label, color: theme.textMuted }), children: [
-            "\u2691 No local writer: ",
-            walk.inputTermini.map((k, i) => /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { children: [
-              i > 0 && ", ",
-              /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("code", { children: k }),
-              " (",
-              inputSentence(presentation, k),
-              ")"
-            ] }, k))
-          ] }),
-          walk.truncated && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { "data-fp": "twc-truncated", style: sx({ fontSize: fs.label, color: theme.warning }), children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
-          /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
-            "button",
-            {
-              "data-fp": "twc-copy-story",
-              onClick: copyStory,
-              style: sx({
-                alignSelf: "flex-start",
-                marginTop: 4,
-                border: `1px solid ${theme.border}`,
-                background: theme.bgTertiary,
-                color: theme.textPrimary,
-                borderRadius: 6,
-                padding: "4px 10px",
-                fontSize: fs.label,
-                fontWeight: 600,
-                cursor: "pointer"
-              }),
-              children: copied ? "Copied \u2713" : "Copy story"
-            }
-          )
-        ] })
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(MemoryInspector, { snapshots, selectedIndex, size }),
+        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: { borderTop: `1px solid ${theme.border}` }, children: /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(ScopeDiff, { previous: prevMemory, current: currMemory, hideUnchanged: true, size }) })
       ]
     }
   );
-});
-function CardHeader({
-  label,
-  onExit,
-  sx,
-  fs
-}) {
-  return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("div", { style: sx({ display: "flex", alignItems: "center", justifyContent: "space-between" }), children: [
-    /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: label }),
-    onExit && /* @__PURE__ */ (0, import_jsx_runtime18.jsx)(
-      "button",
-      {
-        "data-fp": "twc-exit",
-        onClick: onExit,
-        "aria-label": "Exit tracing",
-        style: sx({ border: "none", background: "transparent", color: theme.textMuted, cursor: "pointer", fontSize: fs.body }),
-        children: "Done \u2715"
-      }
-    )
-  ] });
-}
-function IngredientChip({
-  ing,
-  color,
-  step,
-  onFollow,
-  sx,
-  fs,
-  inputLabel
-}) {
-  const terminus = !ing.writerRuntimeStageId;
-  return /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)(
-    "button",
-    {
-      "data-fp": "twc-ingredient",
-      "data-terminus": terminus || void 0,
-      disabled: terminus || !onFollow,
-      onClick: () => onFollow?.(ing),
-      title: terminus ? `${ing.key}: ${inputLabel}` : `Follow ${ing.key} \u2014 re-anchor the walk on its writer`,
-      style: sx({
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 4,
-        border: `1px solid ${terminus ? theme.border : color}`,
-        background: "transparent",
-        color: terminus ? theme.textMuted : color,
-        borderRadius: 12,
-        padding: "3px 10px",
-        fontSize: fs.label,
-        fontWeight: 600,
-        cursor: terminus || !onFollow ? "default" : "pointer"
-      }),
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime18.jsx)("code", { children: ing.key }),
-        terminus ? /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: sx({ fontWeight: 400 }), children: [
-          "\u2014 ",
-          inputLabel,
-          " \u2691"
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime18.jsxs)("span", { style: sx({ fontWeight: 400 }), children: [
-          "\u2190 ",
-          ing.writerStageName,
-          step && ` \xB7 step ${step}`
-        ] })
-      ]
-    }
-  );
-}
-function previewValue(v2) {
-  if (v2 === void 0) return null;
-  try {
-    const s = typeof v2 === "string" ? JSON.stringify(v2) : JSON.stringify(v2);
-    if (s === void 0) return null;
-    return s.length > 60 ? `${s.slice(0, 57)}\u2026` : s;
-  } catch {
-    return null;
-  }
 }
 
 // src/components/DataTracePanel/DataTracePanel.tsx
-var import_react27 = require("react");
+var import_react30 = require("react");
 var import_jsx_runtime19 = require("react/jsx-runtime");
-var DataTracePanel = (0, import_react27.memo)(function DataTracePanel2({
+var DataTracePanel = (0, import_react30.memo)(function DataTracePanel2({
   frames,
   selectedStageId,
   onFrameClick,
@@ -6158,7 +6619,7 @@ var DataTracePanel = (0, import_react27.memo)(function DataTracePanel2({
     }
   );
 });
-var DataTraceFrame = (0, import_react27.memo)(function DataTraceFrame2({
+var DataTraceFrame = (0, import_react30.memo)(function DataTraceFrame2({
   frame,
   isFirst,
   isLast,
@@ -6248,6 +6709,1162 @@ var DataTraceFrame = (0, import_react27.memo)(function DataTraceFrame2({
   );
 });
 
+// src/components/InspectorPanel/InspectorPanel.tsx
+var import_jsx_runtime20 = require("react/jsx-runtime");
+var InspectorPanel = (0, import_react31.memo)(function InspectorPanel2({
+  snapshots,
+  selectedIndex,
+  dataTraceFrames,
+  dataTraceNote,
+  selectedStageId,
+  onNavigateToStage,
+  onTabChange,
+  tab: controlledTab,
+  traceContent,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const [internalTab, setTabState] = (0, import_react31.useState)("state");
+  const tab = controlledTab ?? internalTab;
+  const setTab = (t) => {
+    setTabState(t);
+    onTabChange?.(t);
+  };
+  const currentSnapshot = snapshots[selectedIndex];
+  const sx = (s) => unstyled ? void 0 : s;
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+    "div",
+    {
+      className,
+      "data-fp": "inspector-panel",
+      style: {
+        ...sx({
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          overflow: "hidden"
+        }),
+        ...style
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+          "div",
+          {
+            "data-fp": "inspector-tabs",
+            style: sx({
+              display: "flex",
+              borderBottom: `1px solid ${theme.border}`,
+              flexShrink: 0
+            }),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+                TabButton,
+                {
+                  active: tab === "state",
+                  onClick: () => setTab("state"),
+                  label: "State",
+                  size,
+                  unstyled
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+                TabButton,
+                {
+                  active: tab === "trace",
+                  onClick: () => setTab("trace"),
+                  label: "Data Trace",
+                  badge: dataTraceFrames.length > 0 ? String(dataTraceFrames.length) : void 0,
+                  size,
+                  unstyled
+                }
+              )
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { "data-fp": "inspector-body", style: sx({ flex: 1, overflow: "auto" }), children: [
+          tab === "state" && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+            MemoryPanel,
+            {
+              snapshots,
+              selectedIndex,
+              size,
+              unstyled
+            }
+          ),
+          tab === "trace" && (traceContent ?? /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+            DataTracePanel,
+            {
+              frames: dataTraceFrames,
+              note: dataTraceNote,
+              selectedStageId,
+              onFrameClick: onNavigateToStage,
+              fromStageName: currentSnapshot?.stageName,
+              size,
+              unstyled
+            }
+          ))
+        ] })
+      ]
+    }
+  );
+});
+function TabButton({
+  active,
+  onClick,
+  label,
+  badge,
+  size = "default",
+  unstyled = false
+}) {
+  const fs = fontSize[size];
+  const sx = (s) => unstyled ? void 0 : s;
+  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
+    "button",
+    {
+      onClick,
+      "data-fp": "inspector-tab",
+      "data-active": active || void 0,
+      style: sx({
+        padding: "8px 14px",
+        border: "none",
+        borderBottom: active ? "2px solid var(--fp-accent, #6366f1)" : "2px solid transparent",
+        background: "transparent",
+        color: active ? "var(--fp-accent, #6366f1)" : theme.textMuted,
+        fontWeight: active ? 600 : 400,
+        fontSize: fs.body,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: 4
+      }),
+      children: [
+        label,
+        badge && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
+          "span",
+          {
+            style: sx({
+              fontSize: fs.small,
+              background: active ? "var(--fp-accent, #6366f1)" : theme.textMuted,
+              color: "#fff",
+              borderRadius: 8,
+              padding: "1px 5px",
+              fontWeight: 600
+            }),
+            children: badge
+          }
+        )
+      ]
+    }
+  );
+}
+
+// src/components/InsightPanel/InsightPanel.tsx
+var import_react32 = require("react");
+var import_jsx_runtime21 = require("react/jsx-runtime");
+var InsightPanel = (0, import_react32.memo)(function InsightPanel2({
+  insights,
+  expandedId,
+  mode,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const chrome = { size, unstyled, className, style };
+  if (insights.length === 0) {
+    return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(NoInsights, { ...chrome });
+  }
+  if (mode === "grid") {
+    return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(InsightGrid, { insights, ...chrome });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(InsightTabs, { insights, defaultId: expandedId, ...chrome });
+});
+var styler = (unstyled) => (s) => unstyled ? void 0 : s;
+var INGREDIENTS = [
+  { panel: "Story", call: "narrative()", from: "footprintjs/recorders" },
+  { panel: "Performance", call: "metrics()", from: "footprintjs/recorders" },
+  { panel: "Quality", call: "new QualityRecorder(scoreFn)", from: "footprintjs/trace" },
+  { panel: "Cost", call: "costRecorder()", from: "agentfootprint/observe" }
+];
+var NoInsights = (0, import_react32.memo)(function NoInsights2({
+  size,
+  unstyled,
+  className,
+  style
+}) {
+  const fs = fontSize[size];
+  const sx = styler(unstyled);
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+    "div",
+    {
+      className,
+      "data-fp": "insights-empty",
+      style: {
+        ...sx({ padding: padding[size], color: theme.textMuted, fontSize: fs.body, lineHeight: 1.6 }),
+        ...style
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { style: sx({ marginBottom: 8 }), children: "Nothing to show \u2014 this run was recorded without any of these. Each one lights one panel:" }),
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("table", { style: sx({ borderCollapse: "collapse" }), children: /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("tbody", { children: INGREDIENTS.map(({ panel, call, from }) => /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("tr", { "data-fp": "insights-empty-row", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("td", { style: sx({ paddingRight: 10, color: theme.textSecondary, whiteSpace: "nowrap" }), children: panel }),
+          /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("td", { style: sx({ fontFamily: theme.fontMono, fontSize: fs.label, whiteSpace: "nowrap" }), children: [
+            call,
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("span", { style: sx({ opacity: 0.7 }), children: [
+              " \u2014 from ",
+              from
+            ] })
+          ] })
+        ] }, panel)) }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { style: sx({ marginTop: 8 }), children: [
+          "Attach with ",
+          /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("code", { children: "executor.attachScopeRecorder(...)" }),
+          " before the run, then pass the snapshot here \u2014 each recorder's data rides along inside it."
+        ] })
+      ]
+    }
+  );
+});
+var InsightTabs = (0, import_react32.memo)(function InsightTabs2({
+  insights,
+  defaultId,
+  size,
+  unstyled,
+  className,
+  style
+}) {
+  const [activeId, setActiveId] = (0, import_react32.useState)(defaultId ?? insights[0]?.id);
+  const active = insights.find((i) => i.id === activeId) ?? insights[0];
+  const fs = fontSize[size];
+  const sx = styler(unstyled);
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+    "div",
+    {
+      className,
+      "data-fp": "insight-panel",
+      "data-mode": "tabs",
+      style: {
+        ...sx({
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          overflow: "hidden"
+        }),
+        ...style
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+          "div",
+          {
+            "data-fp": "insight-tabs",
+            style: sx({
+              display: "flex",
+              borderBottom: `1px solid ${theme.border}`,
+              flexShrink: 0,
+              overflowX: "auto"
+            }),
+            children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+              "button",
+              {
+                onClick: () => setActiveId(insight.id),
+                "data-fp": "insight-tab",
+                "data-active": activeId === insight.id || void 0,
+                style: sx({
+                  padding: "8px 12px",
+                  border: "none",
+                  borderBottom: activeId === insight.id ? "2px solid var(--fp-accent, #6366f1)" : "2px solid transparent",
+                  background: "transparent",
+                  color: activeId === insight.id ? "var(--fp-accent, #6366f1)" : theme.textMuted,
+                  fontWeight: activeId === insight.id ? 600 : 400,
+                  fontSize: fs.body,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap"
+                }),
+                children: insight.name
+              },
+              insight.id
+            ))
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { "data-fp": "insight-body", style: sx({ flex: 1, overflow: "auto" }), children: active?.render() })
+      ]
+    }
+  );
+});
+var InsightGrid = (0, import_react32.memo)(function InsightGrid2({
+  insights,
+  size,
+  unstyled,
+  className,
+  style
+}) {
+  const cols = insights.length <= 2 ? 1 : 2;
+  const fs = fontSize[size];
+  const sx = styler(unstyled);
+  return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+    "div",
+    {
+      className,
+      "data-fp": "insight-panel",
+      "data-mode": "grid",
+      style: {
+        ...sx({
+          display: "grid",
+          gridTemplateColumns: `repeat(${cols}, 1fr)`,
+          height: "100%",
+          overflow: "auto",
+          gap: 1,
+          background: theme.border
+        }),
+        ...style
+      },
+      children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+        "div",
+        {
+          "data-fp": "insight-cell",
+          style: sx({
+            background: "var(--fp-bg, #1a1b26)",
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden"
+          }),
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+              "div",
+              {
+                style: sx({
+                  padding: "6px 10px",
+                  fontSize: fs.label,
+                  fontWeight: 600,
+                  color: theme.textMuted,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                  borderBottom: `1px solid ${theme.border}`,
+                  flexShrink: 0
+                }),
+                children: [
+                  insight.name,
+                  insight.summary && /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                    "span",
+                    {
+                      style: sx({
+                        marginLeft: 8,
+                        fontWeight: 400,
+                        fontSize: fs.small,
+                        color: theme.textMuted
+                      }),
+                      children: insight.summary
+                    }
+                  )
+                ]
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { "data-fp": "insight-cell-body", style: sx({ flex: 1, overflow: "auto" }), children: insight.render() })
+          ]
+        },
+        insight.id
+      ))
+    }
+  );
+});
+
+// src/components/ExplainableShell/_internal/RightPanel.tsx
+var import_jsx_runtime22 = require("react/jsx-runtime");
+var RIGHT_PANEL_MODE_LABELS = {
+  insights: "Insights",
+  what: "Inspector",
+  result: "Result"
+};
+var RightPanel = (0, import_react33.memo)(function RightPanel2({
+  mode,
+  onModeChange,
+  snapshots,
+  selectedIndex,
+  activeTab,
+  allTabs,
+  renderTabBody,
+  size,
+  onNavigateToStage,
+  dataTrace,
+  onInspectorTabChange,
+  inspectorTab,
+  traceContent
+}) {
+  const modes = (0, import_react33.useMemo)(
+    () => allTabs.some((t) => t.id === "result") ? ["insights", "what", "result"] : ["insights", "what"],
+    [allTabs]
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(import_jsx_runtime22.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: {
+      display: "flex",
+      borderBottom: `1px solid ${theme.border}`,
+      flexShrink: 0,
+      background: theme.bgSecondary
+    }, children: modes.map((m) => /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      "button",
+      {
+        onClick: () => onModeChange(m),
+        style: {
+          flex: 1,
+          padding: "7px 12px",
+          fontSize: 11,
+          fontWeight: mode === m ? 700 : 500,
+          textTransform: "uppercase",
+          letterSpacing: "0.06em",
+          color: mode === m ? theme.primary : theme.textMuted,
+          background: "transparent",
+          border: "none",
+          borderBottom: mode === m ? `2px solid ${theme.primary}` : "2px solid transparent",
+          cursor: "pointer",
+          fontFamily: "inherit"
+        },
+        children: RIGHT_PANEL_MODE_LABELS[m]
+      },
+      m
+    )) }),
+    /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "result" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { style: { height: "100%", overflow: "auto" }, children: renderTabBody("result", false) }) : mode === "insights" ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      InsightPanel,
+      {
+        mode: "tabs",
+        expandedId: activeTab,
+        insights: allTabs.filter((t) => t.id !== "result" && t.id !== "memory").map((tab) => ({
+          id: tab.id,
+          name: insightName(tab.name),
+          render: () => renderTabBody(tab.id, false)
+        }))
+      }
+    ) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+      InspectorPanel,
+      {
+        snapshots,
+        selectedIndex,
+        dataTraceFrames: dataTrace.frames,
+        dataTraceNote: dataTrace.readsAvailable ? void 0 : "\u26A0 reads were not recorded (readTracking off) \u2014 dependencies are unknowable, not absent.",
+        onTabChange: onInspectorTabChange,
+        tab: inspectorTab,
+        traceContent,
+        selectedStageId: snapshots[selectedIndex]?.runtimeStageId,
+        onNavigateToStage
+      }
+    ) })
+  ] });
+});
+
+// src/components/ExplainableShell/_internal/ShellLayout.tsx
+var import_jsx_runtime23 = require("react/jsx-runtime");
+function ShellLayout({
+  containerRef,
+  className,
+  style,
+  themeStyle,
+  isNarrow,
+  stageCount,
+  showTopology,
+  showTreeSidebar,
+  topology,
+  details,
+  timeline,
+  slots
+}) {
+  return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { ref: containerRef, className, "data-fp": "explainable-shell", style: {
+    ...themeStyle,
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    background: theme.bgPrimary,
+    color: theme.textPrimary,
+    fontFamily: theme.fontSans,
+    fontSize: 12,
+    ...style
+  }, children: [
+    slots.rail,
+    slots.navigation,
+    slots.breadcrumb,
+    /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(import_jsx_runtime23.Fragment, { children: [
+      showTopology && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: slots.chart }),
+      slots.missingChart,
+      showTreeSidebar && /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(import_jsx_runtime23.Fragment, { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(HLinePill, { label: topology.label, expanded: topology.expanded, onClick: () => topology.onChange(!topology.expanded) }),
+        topology.expanded && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: slots.tree })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(HLinePill, { label: details.label, expanded: details.expanded, onClick: () => details.onChange(!details.expanded) }),
+      details.expanded && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { maxHeight: 350, flexShrink: 0, overflow: "hidden" }, children: slots.mobileDetails }),
+      /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(HLinePill, { label: timeline.label, detail: `${stageCount} stages`, expanded: timeline.expanded, onClick: () => timeline.onChange(!timeline.expanded) }),
+      timeline.expanded && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { flexShrink: 0, overflow: "hidden" }, children: slots.gantt })
+    ] }) : /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(import_jsx_runtime23.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
+        showTreeSidebar && (topology.expanded ? /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { style: { width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: slots.tree }),
+          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(VLinePill, { label: topology.label, expanded: true, side: "left", onClick: () => topology.onChange(false) })
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(VLinePill, { label: topology.label, expanded: false, side: "left", onClick: () => topology.onChange(true) })),
+        showTopology ? /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: slots.chart }) : /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { flex: 1, minWidth: 0, overflow: "auto" }, children: slots.missingChart }),
+        /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(VLinePill, { label: details.label, expanded: details.expanded, onClick: () => details.onChange(!details.expanded) }),
+        details.expanded && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: slots.desktopDetails })
+      ] }),
+      slots.compactTimeline
+    ] }) })
+  ] });
+}
+function UnstyledShellLayout({ tabs, activeTab, onTabChange, children, className, style }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { className, style, "data-fp": "explainable-shell", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { "data-fp": "shell-tabs", children: tabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => onTabChange(tab.id), children: tab.name }, tab.id)) }),
+    /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { "data-fp": "shell-content", "data-tab": activeTab, children })
+  ] });
+}
+function ShellDetailTabs({ tabs, activeTab, onTabChange, children }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, background: theme.bgSecondary, flexShrink: 0, overflowX: "auto" }, children: tabs.map((tab) => {
+      const active = tab.id === activeTab;
+      return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("button", { onClick: () => onTabChange(tab.id), title: tab.description, style: {
+        padding: "6px 14px",
+        fontSize: 11,
+        fontWeight: active ? 700 : 500,
+        textTransform: "uppercase",
+        letterSpacing: "0.08em",
+        color: active ? theme.primary : theme.textMuted,
+        background: "transparent",
+        border: "none",
+        borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        whiteSpace: "nowrap"
+      }, children: tab.name }, tab.id);
+    }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { style: { flex: 1, overflow: "auto" }, children })
+  ] });
+}
+
+// src/components/DataTracePanel/TraceWalkCard.tsx
+var import_react34 = require("react");
+var import_jsx_runtime24 = require("react/jsx-runtime");
+var CHIP_COLORS = [
+  v("--fp-chip-1", "#0d9488"),
+  v("--fp-chip-2", "#d97706"),
+  v("--fp-chip-3", "#7c3aed"),
+  v("--fp-chip-4", "#e11d48")
+];
+var PAINT = (s) => s;
+var BARE = () => void 0;
+var TraceWalkCard = (0, import_react34.memo)(function TraceWalkCard2({
+  walk,
+  cursorRuntimeStageId,
+  viaKey,
+  stepNumberOf,
+  previewValueOf,
+  onFollowIngredient,
+  onFollowHandoff,
+  onJumpToStop,
+  onShowAll,
+  onExit,
+  forkChooserOpen,
+  onContinueTimeOrder,
+  canContinueTimeOrder = true,
+  size = "default",
+  unstyled = false,
+  className,
+  style
+}) {
+  const presentation = walk.scope;
+  const fs = fontSize[size];
+  const sx = unstyled ? BARE : PAINT;
+  const [copied, setCopied] = (0, import_react34.useState)(false);
+  const accent = "var(--fp-accent, #6366f1)";
+  const tracingColor = "var(--fp-tracing, #0d9488)";
+  const currentIdx = (0, import_react34.useMemo)(() => {
+    if (!cursorRuntimeStageId) return 0;
+    const i = walk.stops.findIndex((s) => s.runtimeStageId === cursorRuntimeStageId);
+    return i >= 0 ? i : 0;
+  }, [walk, cursorRuntimeStageId]);
+  const current = walk.stops[currentIdx];
+  const boundary = mountLabel(presentation, current?.runtimeStageId ?? "");
+  const atInvocationStart = isInvocationStart(presentation, current?.runtimeStageId ?? "");
+  const followableCount = current ? current.ingredients.filter((ing) => ing.writerRuntimeStageId !== null).length : 0;
+  const chooserVisible = !!forkChooserOpen && followableCount >= 2;
+  const inputLabel = inputSentence(presentation, walk.key);
+  const copyStory = () => {
+    const text3 = formatTraceWalk(walk, stepNumberOf);
+    void navigator.clipboard?.writeText(text3).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    });
+  };
+  if (walk.missing) {
+    return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+      "div",
+      {
+        className,
+        "data-fp": "trace-walk-card",
+        "data-missing": walk.missing.reason,
+        style: { ...sx({ padding: "14px", fontSize: fs.body + 1, lineHeight: 1.55 }), ...style },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(CardHeader, { label: `Why this value \u2014 \`${walk.key}\``, onExit, sx, fs }),
+          scopeSentence(presentation) && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { "data-fp": "trace-scope-note", children: scopeSentence(presentation) }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: sx({ color: theme.textPrimary, marginTop: 8 }), children: walk.missing.reason === "evidence-unavailable" ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("code", { children: walk.key }),
+            ": write evidence is unavailable; value origin unknown."
+          ] }) : walk.missing.reason === "never-written" ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
+            ": ",
+            inputLabel,
+            "."
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
+            " has ",
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("b", { children: "not been written yet at this moment" }),
+            " \u2014 its first write happens later",
+            walk.missing.firstWriterStageName && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+              ", at ",
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("b", { children: walk.missing.firstWriterStageName }),
+              walk.missing.firstWriterRuntimeStageId && stepNumberOf(walk.missing.firstWriterRuntimeStageId) && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+                " (step ",
+                stepNumberOf(walk.missing.firstWriterRuntimeStageId),
+                ")"
+              ] })
+            ] }),
+            "."
+          ] }) })
+        ]
+      }
+    );
+  }
+  if (!current) return null;
+  const step = stepNumberOf(current.runtimeStageId);
+  const preview = previewValueOf ? previewValue(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+    "div",
+    {
+      className,
+      "data-fp": "trace-walk-card",
+      style: { ...sx({ padding: "10px 14px 14px", fontSize: fs.body + 1, lineHeight: 1.5 }), ...style },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+          CardHeader,
+          {
+            label: `Why this value \u2014 stop ${currentIdx + 1} of ${walk.stops.length}`,
+            onExit,
+            sx,
+            fs
+          }
+        ),
+        viaKey && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { "data-fp": "twc-breadcrumb", style: sx({ fontSize: fs.label, color: theme.textMuted, marginTop: 4 }), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("code", { style: sx({ color: accent }), children: walk.key }),
+          " \u25B8 via ",
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("code", { children: viaKey }),
+          onShowAll && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+            " \xB7 ",
+            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+              "button",
+              {
+                onClick: onShowAll,
+                style: sx({ border: "none", background: "transparent", color: accent, cursor: "pointer", fontSize: fs.label, textDecoration: "underline", padding: 0 }),
+                children: "show all ingredients"
+              }
+            )
+          ] })
+        ] }),
+        scopeSentence(presentation) && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { "data-fp": "trace-scope-note", children: scopeSentence(presentation) }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { "data-fp": "twc-stop-headline", style: sx({ marginTop: 10, fontWeight: 600, color: theme.textPrimary }), children: [
+          step && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: sx({ color: theme.textMuted, fontWeight: 500 }), children: [
+            "Step ",
+            step,
+            " \xB7 "
+          ] }),
+          current.stageName,
+          current.loopPass > 0 && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: sx({ color: theme.textMuted, fontWeight: 500 }), children: [
+            " (pass ",
+            current.loopPass,
+            ")"
+          ] })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: sx({ marginTop: 2, color: theme.textSecondary }), children: [
+          "wrote",
+          " ",
+          current.contributedKeys.map((k, i) => /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("code", { style: sx({ color: accent }), children: [
+            i > 0 && ", ",
+            k
+          ] }, k)),
+          preview !== null && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
+            " = ",
+            preview
+          ] })
+        ] }),
+        chooserVisible && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+          "div",
+          {
+            "data-fp": "twc-fork-chooser",
+            style: sx({
+              marginTop: 10,
+              padding: "10px 12px",
+              border: `1.5px solid ${tracingColor}`,
+              borderRadius: 8,
+              background: `color-mix(in srgb, ${tracingColor} 8%, transparent)`
+            }),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: sx({ fontWeight: 600, fontSize: fs.body, color: theme.textPrimary }), children: [
+                "This value was made from ",
+                current.ingredients.length,
+                " ingredients \u2014 which one should the walk follow?"
+              ] }),
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+                IngredientChip,
+                {
+                  ing,
+                  color: i < CHIP_COLORS.length ? CHIP_COLORS[i] : theme.textMuted,
+                  step: ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null,
+                  onFollow: onFollowIngredient,
+                  sx,
+                  fs,
+                  inputLabel: inputSentence(presentation, ing.key)
+                },
+                ing.key
+              )) }),
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+                "button",
+                {
+                  "data-fp": "twc-continue-time",
+                  onClick: canContinueTimeOrder ? onContinueTimeOrder : void 0,
+                  disabled: !canContinueTimeOrder,
+                  title: canContinueTimeOrder ? void 0 : "This is the walk's earliest stop \u2014 there is nothing earlier to visit",
+                  style: sx({
+                    display: "block",
+                    width: "100%",
+                    marginTop: 8,
+                    border: `1px solid ${theme.border}`,
+                    background: theme.bgTertiary,
+                    color: theme.textPrimary,
+                    borderRadius: 6,
+                    padding: "5px 10px",
+                    fontSize: fs.label,
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }),
+                  children: "visit all, oldest cause last (time order)"
+                }
+              )
+            ]
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: sx({ marginTop: 10 }), children: atInvocationStart ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { "data-fp": "twc-boundary", children: [
+          START_SENTENCE,
+          "."
+        ] }) : boundary ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { "data-fp": "twc-boundary", children: [
+          "computed inside ",
+          boundary,
+          "; drill in to trace it."
+        ] }) : chooserVisible ? null : current.ingredients.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(import_jsx_runtime24.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: [
+            "Made from ",
+            current.ingredients.length,
+            " ingredient",
+            current.ingredients.length > 1 ? "s" : ""
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }), children: current.ingredients.map((ing, i) => /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+            IngredientChip,
+            {
+              ing,
+              color: i < CHIP_COLORS.length ? CHIP_COLORS[i] : theme.textMuted,
+              step: ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null,
+              onFollow: onFollowIngredient,
+              sx,
+              fs,
+              inputLabel: inputSentence(presentation, ing.key)
+            },
+            ing.key
+          )) })
+        ] }) : walk.readsAvailable ? /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { "data-fp": "twc-origin", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "reads nothing \u2014 this is an origin." }) : /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { "data-fp": "twc-unknowable", style: sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }), children: "\u26A0 reads were not recorded \u2014 ingredients are unknowable, not absent." }) }),
+        !!current.handoffSources?.length && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { "data-fp": "twc-handoff", style: sx({ marginTop: 10 }), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted }), children: handoffSentence(current.handoffSources) }),
+          onFollowHandoff && current.handoffSources.map((source) => /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+            "button",
+            {
+              type: "button",
+              "data-fp": "twc-handoff-source",
+              "aria-label": `Follow child source ${source.key} in ${source.mountRuntimeStageId}`,
+              onClick: () => onFollowHandoff(source),
+              style: sx({ marginTop: 6, marginRight: 6, border: `1px solid ${accent}`, borderRadius: 12, background: "transparent", color: accent, padding: "3px 10px", cursor: "pointer", fontSize: fs.label }),
+              children: [
+                "Follow child source ",
+                /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("code", { children: source.key })
+              ]
+            },
+            source.key
+          ))
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: sx({ marginTop: 14 }), children: [
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, marginBottom: 4 }), children: "The story, newest first" }),
+          walk.stops.map((s, i) => {
+            const isCurrent = i === currentIdx;
+            return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+              "button",
+              {
+                "data-fp": "twc-itinerary-row",
+                "data-current": isCurrent || void 0,
+                onClick: () => onJumpToStop?.(s.runtimeStageId),
+                style: sx({
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  border: "none",
+                  borderLeft: isCurrent ? `3px solid ${accent}` : "3px solid transparent",
+                  background: isCurrent ? "var(--fp-accent-bg, rgba(99,102,241,0.12))" : "transparent",
+                  padding: "4px 8px",
+                  cursor: onJumpToStop ? "pointer" : "default",
+                  color: "inherit",
+                  fontSize: fs.body
+                }),
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
+                    i + 1,
+                    "."
+                  ] }),
+                  " ",
+                  /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("code", { style: sx({ color: accent }), children: s.contributedKeys.join(", ") }),
+                  /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { style: sx({ color: theme.textMuted }), children: " \u2190 " }),
+                  s.stageName,
+                  s.loopPass > 0 && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
+                    " (pass ",
+                    s.loopPass,
+                    ")"
+                  ] }),
+                  stepNumberOf(s.runtimeStageId) && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: sx({ color: theme.textMuted }), children: [
+                    " \xB7 step ",
+                    stepNumberOf(s.runtimeStageId)
+                  ] }),
+                  s.ingredients.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: sx({ color: theme.warning, fontWeight: 600 }), children: [
+                    " \u2442 ",
+                    s.ingredients.length
+                  ] })
+                ]
+              },
+              s.runtimeStageId
+            );
+          })
+        ] }),
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: sx({ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 }), children: [
+          walk.inputTermini.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { "data-fp": "twc-run-inputs", style: sx({ fontSize: fs.label, color: theme.textMuted }), children: [
+            "\u2691 No local writer: ",
+            walk.inputTermini.map((k, i) => /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { children: [
+              i > 0 && ", ",
+              /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("code", { children: k }),
+              " (",
+              inputSentence(presentation, k),
+              ")"
+            ] }, k))
+          ] }),
+          walk.truncated && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { "data-fp": "twc-truncated", style: sx({ fontSize: fs.label, color: theme.warning }), children: "\u26A0 walk truncated at its frame budget \u2014 the earliest stop may not be the true origin." }),
+          /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+            "button",
+            {
+              "data-fp": "twc-copy-story",
+              onClick: copyStory,
+              style: sx({
+                alignSelf: "flex-start",
+                marginTop: 4,
+                border: `1px solid ${theme.border}`,
+                background: theme.bgTertiary,
+                color: theme.textPrimary,
+                borderRadius: 6,
+                padding: "4px 10px",
+                fontSize: fs.label,
+                fontWeight: 600,
+                cursor: "pointer"
+              }),
+              children: copied ? "Copied \u2713" : "Copy story"
+            }
+          )
+        ] })
+      ]
+    }
+  );
+});
+function CardHeader({
+  label,
+  onExit,
+  sx,
+  fs
+}) {
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("div", { style: sx({ display: "flex", alignItems: "center", justifyContent: "space-between" }), children: [
+    /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("div", { style: sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 }), children: label }),
+    onExit && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+      "button",
+      {
+        "data-fp": "twc-exit",
+        onClick: onExit,
+        "aria-label": "Exit tracing",
+        style: sx({ border: "none", background: "transparent", color: theme.textMuted, cursor: "pointer", fontSize: fs.body }),
+        children: "Done \u2715"
+      }
+    )
+  ] });
+}
+function IngredientChip({
+  ing,
+  color,
+  step,
+  onFollow,
+  sx,
+  fs,
+  inputLabel
+}) {
+  const terminus = !ing.writerRuntimeStageId;
+  return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+    "button",
+    {
+      "data-fp": "twc-ingredient",
+      "data-terminus": terminus || void 0,
+      disabled: terminus || !onFollow,
+      onClick: () => onFollow?.(ing),
+      title: terminus ? `${ing.key}: ${inputLabel}` : `Follow ${ing.key} \u2014 re-anchor the walk on its writer`,
+      style: sx({
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        border: `1px solid ${terminus ? theme.border : color}`,
+        background: "transparent",
+        color: terminus ? theme.textMuted : color,
+        borderRadius: 12,
+        padding: "3px 10px",
+        fontSize: fs.label,
+        fontWeight: 600,
+        cursor: terminus || !onFollow ? "default" : "pointer"
+      }),
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("code", { children: ing.key }),
+        terminus ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: sx({ fontWeight: 400 }), children: [
+          "\u2014 ",
+          inputLabel,
+          " \u2691"
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: sx({ fontWeight: 400 }), children: [
+          "\u2190 ",
+          ing.writerStageName,
+          step && ` \xB7 step ${step}`
+        ] })
+      ]
+    }
+  );
+}
+function previewValue(v2) {
+  if (v2 === void 0) return null;
+  try {
+    const s = typeof v2 === "string" ? JSON.stringify(v2) : JSON.stringify(v2);
+    if (s === void 0) return null;
+    return s.length > 60 ? `${s.slice(0, 57)}\u2026` : s;
+  } catch {
+    return null;
+  }
+}
+
+// src/components/ExplainableShell/_internal/TraceUnavailableNote.tsx
+var import_jsx_runtime25 = require("react/jsx-runtime");
+function TraceUnavailableNote({
+  availability,
+  scopeLabel = "Child"
+}) {
+  if (availability.ok) return null;
+  const reason = availability.reason === "too-large" ? `${scopeLabel} trace is too large to trace here (more than ${TRACE_WORK_LIMIT.toLocaleString(
+    "en-US"
+  )} inspected items).` : availability.reason === "no-history" ? `${scopeLabel} trace history was not recorded.` : `${scopeLabel} trace evidence is unavailable or malformed.`;
+  return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { "data-fp": "trace-unavailable", role: "status", style: { padding: 14 }, children: [
+    reason,
+    " Dependencies are unknown.",
+    scopeLabel === "Child" && " No parent record was substituted."
+  ] });
+}
+function StoryUnavailableNote() {
+  return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { "data-fp": "story-narrative", children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { "data-fp": "story-unavailable", role: "status", children: "Story for this source run is unknown until paired narrative is supplied." }) });
+}
+
+// src/components/ExplainableShell/_internal/TraceSessionPanel.tsx
+var import_jsx_runtime26 = require("react/jsx-runtime");
+var chipStyle = {
+  border: "1px solid var(--fp-accent, #6366f1)",
+  background: "transparent",
+  color: "var(--fp-accent, #6366f1)",
+  borderRadius: 12,
+  padding: "2px 10px",
+  margin: "0 6px 6px 0",
+  fontSize: 11,
+  fontWeight: 600,
+  fontFamily: "monospace",
+  cursor: "pointer"
+};
+function TraceSessionPanel({ availability, scopeLabel, snapshot, selectedIndex, view }) {
+  if (!availability.ok) return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(TraceUnavailableNote, { availability, scopeLabel });
+  if (view.tracing && view.traceWalk) {
+    return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+      TraceWalkCard,
+      {
+        walk: view.traceWalk,
+        cursorRuntimeStageId: snapshot?.runtimeStageId ?? null,
+        viaKey: view.activeViaKey,
+        stepNumberOf: view.stepNumberOf,
+        previewValueOf: (key) => snapshot?.memory?.[key],
+        onFollowIngredient: view.handleFollowIngredient,
+        onFollowHandoff: view.handleFollowHandoff,
+        onJumpToStop: view.navigateToStage,
+        onShowAll: view.activeViaKey ? view.handleShowAllIngredients : void 0,
+        onExit: view.handleExitTracing,
+        forkChooserOpen: view.forkChooserOpen,
+        onContinueTimeOrder: view.handleContinueTimeOrder,
+        canContinueTimeOrder: view.traceStopIndices.some((index2) => index2 < selectedIndex)
+      }
+    );
+  }
+  const query = view.traceSearch.trim().toLowerCase();
+  const matchedKeys = query ? view.allTracedKeys.filter((key) => key.toLowerCase().includes(query)) : view.allTracedKeys;
+  const shownKeys = matchedKeys.slice(0, 12);
+  return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(import_jsx_runtime26.Fragment, { children: [
+    (view.shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { "data-fp": "trace-entry", style: { padding: "10px 14px 0", fontSize: 12 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { style: { color: theme.textMuted, marginRight: 6 }, children: "This step wrote:" }),
+      view.shellDataTrace.frames[0].keysWritten.map((key) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+        "button",
+        {
+          "data-fp": "trace-entry-chip",
+          onClick: () => view.handleStartTracing(key),
+          title: `Where did ${key} come from? Walk its causes on the timeline.`,
+          style: chipStyle,
+          children: key
+        },
+        key
+      ))
+    ] }),
+    view.allTracedKeys.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { "data-fp": "trace-any", style: { padding: "6px 14px 0", fontSize: 12 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("div", { style: { color: theme.textMuted, marginBottom: 4 }, children: "Trace any variable:" }),
+      /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("input", { "data-fp": "trace-search", value: view.traceSearch, onChange: (event) => view.setTraceSearch(event.target.value), placeholder: "search any variable...", style: {
+        display: "block",
+        width: "100%",
+        boxSizing: "border-box",
+        background: theme.bgTertiary,
+        border: `1px solid ${theme.border}`,
+        borderRadius: 6,
+        color: theme.textPrimary,
+        fontSize: 11,
+        fontFamily: "monospace",
+        padding: "4px 8px",
+        marginBottom: 6
+      } }),
+      shownKeys.map((key) => /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("button", { "data-fp": "trace-any-chip", onClick: () => view.handleStartTracing(key), title: `Where did ${key} come from? Walk its causes on the timeline.`, style: chipStyle, children: key }, key)),
+      query === "" && matchedKeys.length > shownKeys.length && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("span", { style: { color: theme.textMuted, fontSize: 11 }, children: [
+        "+",
+        matchedKeys.length - shownKeys.length,
+        " more \u2014 type to search"
+      ] })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+      DataTracePanel,
+      {
+        frames: view.shellDataTrace.frames,
+        note: view.shellDataTrace.readsAvailable ? void 0 : "\u26A0 reads were not recorded (readTracking off) \u2014 dependencies are unknowable, not absent.",
+        selectedStageId: snapshot?.runtimeStageId,
+        onFrameClick: view.navigateToStage,
+        fromStageName: snapshot?.stageName
+      }
+    )
+  ] });
+}
+
+// src/components/ExplainableShell/_internal/SubflowNavigationStatus.tsx
+var import_jsx_runtime27 = require("react/jsx-runtime");
+function SubflowNavigationStatus({
+  staleInputs,
+  notice,
+  choice,
+  onChoose,
+  onDismiss
+}) {
+  return /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(import_jsx_runtime27.Fragment, { children: [
+    staleInputs && /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
+      "div",
+      {
+        "data-fp": "companion-source-note",
+        role: "status",
+        style: { padding: 10 },
+        children: "Some details from the previous run were withheld. Their evidence for this run is unknown."
+      }
+    ),
+    notice && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { "data-fp": "source-change-note", role: "status", style: { padding: 10 }, children: [
+      notice,
+      " ",
+      /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("button", { type: "button", onClick: onDismiss, children: "Dismiss" })
+    ] }),
+    choice && /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
+      "div",
+      {
+        "data-fp": "subflow-visit-choice",
+        role: "group",
+        "aria-label": "Choose subflow visit",
+        style: { padding: 10 },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)("div", { children: [
+            "This step ran ",
+            choice.visits.length,
+            " times. Choose a visit:"
+          ] }),
+          choice.visits.map((visit) => /* @__PURE__ */ (0, import_jsx_runtime27.jsxs)(
+            "button",
+            {
+              type: "button",
+              onClick: () => onChoose(
+                choice.mountKey,
+                new Map([
+                  ...choice.selectedInvocations,
+                  [choice.choiceKey, visit.runtimeStageId]
+                ])
+              ),
+              children: [
+                "step ",
+                visit.step,
+                " \xB7 visit ",
+                visit.visit,
+                " of ",
+                visit.total
+              ]
+            },
+            visit.runtimeStageId
+          )),
+          /* @__PURE__ */ (0, import_jsx_runtime27.jsx)("button", { type: "button", onClick: onDismiss, children: "Cancel" })
+        ]
+      }
+    )
+  ] });
+}
+
+// src/components/ExplainableShell/_internal/useRunCompanions.ts
+var import_react35 = require("react");
+function hasPayload(value) {
+  return value !== null && typeof value === "object" && (!Array.isArray(value) || value.length > 0);
+}
+function useRunCompanions(source, inputs) {
+  const sourceKey = sourceRunKey(source);
+  const runId = typeof sourceKey === "string" ? sourceKey : void 0;
+  const [cohort, setCohort] = (0, import_react35.useState)(() => ({
+    runId,
+    refs: inputs,
+    quarantined: {}
+  }));
+  let current = cohort;
+  const keys = Object.keys(inputs);
+  if (cohort.runId !== runId) {
+    const quarantined = {};
+    for (const key of keys)
+      if (hasPayload(inputs[key]) && inputs[key] === cohort.refs[key])
+        quarantined[key] = inputs[key];
+    current = { runId, refs: inputs, quarantined };
+  } else if (keys.some((key) => inputs[key] !== cohort.refs[key]))
+    current = { ...cohort, refs: inputs };
+  if (current !== cohort) setCohort(current);
+  const values = {};
+  const staleKeys = [];
+  for (const key of keys) {
+    if (hasPayload(inputs[key]) && inputs[key] === current.quarantined[key])
+      staleKeys.push(key);
+    else values[key] = inputs[key];
+  }
+  return { values, staleKeys };
+}
+
 // src/adapters/overlayFromSnapshot.ts
 function baseStageIdOf(runtimeStageId) {
   const hashIdx = runtimeStageId.indexOf("#");
@@ -6296,8 +7913,8 @@ function compareExecutionIndex(a, b) {
 }
 function executionIndexOf(runtimeStageId) {
   const hashIdx = runtimeStageId.lastIndexOf("#");
-  const index = hashIdx >= 0 ? Number(runtimeStageId.slice(hashIdx + 1)) : Number.NaN;
-  return Number.isFinite(index) ? index : Number.POSITIVE_INFINITY;
+  const index2 = hashIdx >= 0 ? Number(runtimeStageId.slice(hashIdx + 1)) : Number.NaN;
+  return Number.isFinite(index2) ? index2 : Number.POSITIVE_INFINITY;
 }
 function attemptsFromTrees(snapshot) {
   const counts = /* @__PURE__ */ new Map();
@@ -6353,45 +7970,8 @@ function devWarn(messageFn, ...extras) {
   console.warn(messageFn(), ...extras);
 }
 
-// src/components/MemoryPanel/MemoryPanel.tsx
-var import_jsx_runtime20 = require("react/jsx-runtime");
-function MemoryPanel({
-  snapshots,
-  selectedIndex,
-  size = "default",
-  unstyled = false,
-  className,
-  style
-}) {
-  const prevMemory = selectedIndex > 0 ? snapshots[selectedIndex - 1]?.memory ?? null : null;
-  const currMemory = snapshots[selectedIndex]?.memory ?? {};
-  if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { className, style, "data-fp": "memory-panel", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(MemoryInspector, { snapshots, selectedIndex, unstyled: true }),
-      /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ScopeDiff, { previous: prevMemory, current: currMemory, unstyled: true })
-    ] });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
-    "div",
-    {
-      className,
-      style: {
-        overflow: "auto",
-        display: "flex",
-        flexDirection: "column",
-        ...style
-      },
-      "data-fp": "memory-panel",
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(MemoryInspector, { snapshots, selectedIndex, size }),
-        /* @__PURE__ */ (0, import_jsx_runtime20.jsx)("div", { style: { borderTop: `1px solid ${theme.border}` }, children: /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(ScopeDiff, { previous: prevMemory, current: currMemory, hideUnchanged: true, size }) })
-      ]
-    }
-  );
-}
-
 // src/components/NarrativePanel/NarrativePanel.tsx
-var import_react29 = require("react");
+var import_react37 = require("react");
 
 // src/utils/narrativeSync.ts
 function buildEntryRangeIndex(entries) {
@@ -6469,8 +8049,8 @@ function extractSubflowNarrative(entries, subflowId, subflowName) {
 }
 
 // src/components/StoryNarrative/StoryNarrative.tsx
-var import_react28 = require("react");
-var import_jsx_runtime21 = require("react/jsx-runtime");
+var import_react36 = require("react");
+var import_jsx_runtime28 = require("react/jsx-runtime");
 var ENTRY_ICONS = {
   stage: { icon: "\u25B8", color: theme.primary, label: "Stage" },
   step: { icon: "\xB7", color: theme.textMuted, label: "Data operation" },
@@ -6522,7 +8102,7 @@ function StoryNarrative({
   const fs = fontSize[size];
   const pad = padding[size];
   const revealedCount = revealedEntryCount;
-  const isOwnLevel = (0, import_react28.useMemo)(() => {
+  const isOwnLevel = (0, import_react36.useMemo)(() => {
     return (e) => {
       const sfId = e.subflowId;
       if (!sfId) return scopeSubflowId === void 0;
@@ -6530,22 +8110,22 @@ function StoryNarrative({
       return sfId === scopeSubflowId;
     };
   }, [scopeSubflowId]);
-  const revealed = (0, import_react28.useMemo)(
+  const revealed = (0, import_react36.useMemo)(
     () => entries.slice(0, revealedCount).filter(isOwnLevel),
     [entries, revealedCount, isOwnLevel]
   );
-  const futureCount = (0, import_react28.useMemo)(() => {
+  const futureCount = (0, import_react36.useMemo)(() => {
     let count = 0;
     for (let i = revealedCount; i < entries.length; i++) {
       if (isOwnLevel(entries[i])) count++;
     }
     return count;
   }, [entries, revealedCount, isOwnLevel]);
-  const latestRef = (0, import_react28.useRef)(null);
-  (0, import_react28.useEffect)(() => {
+  const latestRef = (0, import_react36.useRef)(null);
+  (0, import_react36.useEffect)(() => {
     latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [revealed.length]);
-  const numberedEntries = (0, import_react28.useMemo)(() => {
+  const numberedEntries = (0, import_react36.useMemo)(() => {
     let counter = 0;
     const subflowSeen = /* @__PURE__ */ new Set();
     let prevType = "";
@@ -6594,13 +8174,13 @@ function StoryNarrative({
     });
   }, [revealed]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => {
+    return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { className, style: outerStyle, "data-fp": "story-narrative", role: "log", children: numberedEntries.map((entry, i) => {
       if (entry.isSubflowExit) return null;
       const ht = entry.headingType;
-      return /* @__PURE__ */ (0, import_jsx_runtime21.jsx)("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? entry.text.startsWith("[") ? `${entry.heading}. ${entry.text}` : `${entry.heading}. [${ht}: ${entry.stageName ?? ""}] ${entry.text}` : entry.text }, i);
+      return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)("div", { "data-fp": "narrative-entry", "data-type": entry.type, children: entry.heading ? entry.text.startsWith("[") ? `${entry.heading}. ${entry.text}` : `${entry.heading}. [${ht}: ${entry.stageName ?? ""}] ${entry.text}` : entry.text }, i);
     }) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(
     "div",
     {
       className,
@@ -6626,7 +8206,7 @@ function StoryNarrative({
           const isSubflow = entry.isSubflow;
           const isLast = i === numberedEntries.length - 1;
           const headingType = entry.headingType;
-          return /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(
+          return /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(
             "div",
             {
               ref: isLast ? latestRef : void 0,
@@ -6639,7 +8219,7 @@ function StoryNarrative({
                 marginTop: isHeading && i > 0 ? 8 : 0
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
                   "span",
                   {
                     style: {
@@ -6655,7 +8235,7 @@ function StoryNarrative({
                     children: meta.icon
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime21.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(
                   "span",
                   {
                     style: {
@@ -6665,15 +8245,15 @@ function StoryNarrative({
                       lineHeight: 1.6,
                       fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans
                     },
-                    children: entry.heading && headingType ? entry.text.startsWith("[") ? /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("strong", { children: [
+                    children: entry.heading && headingType ? entry.text.startsWith("[") ? /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("strong", { children: [
                         entry.heading,
                         "."
                       ] }),
                       " ",
                       entry.text
-                    ] }) : /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)(import_jsx_runtime21.Fragment, { children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("strong", { children: [
+                    ] }) : /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)(import_jsx_runtime28.Fragment, { children: [
+                      /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("strong", { children: [
                         entry.heading,
                         ". [",
                         headingType,
@@ -6690,7 +8270,7 @@ function StoryNarrative({
             i
           );
         }),
-        futureCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime21.jsxs)("div", { style: {
+        futureCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime28.jsxs)("div", { style: {
           opacity: 0.3,
           fontSize: fs.small,
           color: theme.textMuted,
@@ -6708,7 +8288,7 @@ function StoryNarrative({
 }
 
 // src/components/NarrativePanel/NarrativePanel.tsx
-var import_jsx_runtime22 = require("react/jsx-runtime");
+var import_jsx_runtime29 = require("react/jsx-runtime");
 function safeJsonStringify(value) {
   const seen = /* @__PURE__ */ new WeakSet();
   const MAX_CHARS = 5e5;
@@ -6747,7 +8327,7 @@ function NarrativePanel({
 }) {
   const fs = fontSize[size];
   const pad = padding[size];
-  const narrative = (0, import_react29.useMemo)(() => {
+  const narrative = (0, import_react37.useMemo)(() => {
     const lines = [];
     for (const snap of snapshots) {
       const stageLines = (snap.narrative ?? "").split("\n").filter(Boolean);
@@ -6755,7 +8335,7 @@ function NarrativePanel({
     }
     return lines;
   }, [snapshots]);
-  const revealedCount = (0, import_react29.useMemo)(() => {
+  const revealedCount = (0, import_react37.useMemo)(() => {
     if (snapshots.length === 0 || narrative.length === 0) return narrative.length;
     const stageBoundaries = [];
     for (let i = 0; i < narrative.length; i++) {
@@ -6772,17 +8352,17 @@ function NarrativePanel({
     const endIdx = groupsToShow < stageBoundaries.length ? stageBoundaries[groupsToShow] : narrative.length;
     return Math.max(1, endIdx);
   }, [snapshots.length, selectedIndex, narrative]);
-  const rangeIndex = (0, import_react29.useMemo)(
+  const rangeIndex = (0, import_react37.useMemo)(
     () => narrativeEntries?.length ? buildEntryRangeIndex(narrativeEntries) : void 0,
     [narrativeEntries]
   );
-  const revealedEntryCount = (0, import_react29.useMemo)(
+  const revealedEntryCount = (0, import_react37.useMemo)(
     () => narrativeEntries?.length ? computeRevealedEntryCount(narrativeEntries, snapshots, selectedIndex, rangeIndex) : 0,
     [narrativeEntries, snapshots, selectedIndex, rangeIndex]
   );
   const hasStructured = narrativeEntries && narrativeEntries.length > 0;
-  const [copied, setCopied] = (0, import_react29.useState)(false);
-  const buildLLMNarrative = (0, import_react29.useCallback)(() => {
+  const [copied, setCopied] = (0, import_react37.useState)(false);
+  const buildLLMNarrative = (0, import_react37.useCallback)(() => {
     if (!narrativeEntries?.length) {
       return narrative.join("\n");
     }
@@ -6894,16 +8474,16 @@ function NarrativePanel({
     }
     return sections.join("\n");
   }, [narrativeEntries, narrative, runtimeSnapshot, spec]);
-  const handleCopy = (0, import_react29.useCallback)(async () => {
+  const handleCopy = (0, import_react37.useCallback)(async () => {
     const text3 = buildLLMNarrative();
     await navigator.clipboard.writeText(text3);
     setCopied(true);
     setTimeout(() => setCopied(false), 2e3);
   }, [buildLLMNarrative]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, scopeSubflowId, unstyled: true }) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
+    return /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("div", { className, style, "data-fp": "narrative-panel", children: hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(StoryNarrative, { entries: narrativeEntries, revealedEntryCount, scopeSubflowId, unstyled: true }) : /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(NarrativeTrace, { narrative, revealedCount, unstyled: true }) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)(
     "div",
     {
       className,
@@ -6915,7 +8495,7 @@ function NarrativePanel({
       },
       "data-fp": "narrative-panel",
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime22.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)(
           "div",
           {
             style: {
@@ -6929,8 +8509,8 @@ function NarrativePanel({
               alignItems: "center"
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)("span", { style: { fontStyle: "italic" }, children: "What happened at each stage, what data flowed, what decisions were made, and why." }),
-              /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("span", { style: { fontStyle: "italic" }, children: "What happened at each stage, what data flowed, what decisions were made, and why." }),
+              /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(
                 "button",
                 {
                   onClick: handleCopy,
@@ -6953,7 +8533,7 @@ function NarrativePanel({
             ]
           }
         ),
-        hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        hasStructured ? /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(
           StoryNarrative,
           {
             entries: narrativeEntries,
@@ -6962,7 +8542,7 @@ function NarrativePanel({
             size,
             style: { flex: 1 }
           }
-        ) : /* @__PURE__ */ (0, import_jsx_runtime22.jsx)(
+        ) : /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(
           NarrativeTrace,
           {
             narrative,
@@ -6977,8 +8557,8 @@ function NarrativePanel({
 }
 
 // src/components/FlowchartView/SubflowTree.tsx
-var import_react30 = require("react");
-var import_jsx_runtime23 = require("react/jsx-runtime");
+var import_react38 = require("react");
+var import_jsx_runtime30 = require("react/jsx-runtime");
 function graphToSubflowEntries(graph) {
   if (!graph?.nodes?.length) return [];
   const entries = [];
@@ -6995,25 +8575,25 @@ function graphToSubflowEntries(graph) {
   }
   return entries;
 }
-var TreeNode = (0, import_react30.memo)(function TreeNode2({
+var TreeNode = (0, import_react38.memo)(function TreeNode2({
   entry,
   depth,
   activeStage,
   doneStages,
   onNodeSelect
 }) {
-  const [expanded, setExpanded] = (0, import_react30.useState)(true);
+  const [expanded, setExpanded] = (0, import_react38.useState)(true);
   const hasChildren = entry.children && entry.children.length > 0;
   const isActive = activeStage === entry.name;
   const isDone = doneStages?.has(entry.name);
-  const handleClick = (0, import_react30.useCallback)(() => {
+  const handleClick = (0, import_react38.useCallback)(() => {
     if (hasChildren) {
       setExpanded((prev) => !prev);
     }
     onNodeSelect?.(entry.name, !!entry.isSubflow, entry.nodeId);
   }, [hasChildren, onNodeSelect, entry.name, entry.isSubflow, entry.nodeId]);
-  return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(import_jsx_runtime23.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(import_jsx_runtime30.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
       "button",
       {
         onClick: handleClick,
@@ -7044,7 +8624,7 @@ var TreeNode = (0, import_react30.memo)(function TreeNode2({
           }
         },
         children: [
-          hasChildren ? /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+          hasChildren ? /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
             "span",
             {
               style: {
@@ -7059,8 +8639,8 @@ var TreeNode = (0, import_react30.memo)(function TreeNode2({
               },
               children: "\u25B6"
             }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("span", { style: { width: 12, flexShrink: 0 } }),
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+          ) : /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { style: { width: 12, flexShrink: 0 } }),
+          /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
             "span",
             {
               style: {
@@ -7072,8 +8652,8 @@ var TreeNode = (0, import_react30.memo)(function TreeNode2({
               }
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)("span", { style: { display: "flex", flexDirection: "column", minWidth: 0 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("span", { style: { display: "flex", flexDirection: "column", minWidth: 0 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
               "span",
               {
                 style: {
@@ -7085,11 +8665,11 @@ var TreeNode = (0, import_react30.memo)(function TreeNode2({
                 },
                 children: [
                   entry.name,
-                  entry.isSubflow && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("span", { style: { opacity: 0.5, marginLeft: 4, fontSize: 10 }, children: "\u229E" })
+                  entry.isSubflow && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { style: { opacity: 0.5, marginLeft: 4, fontSize: 10 }, children: "\u229E" })
                 ]
               }
             ),
-            entry.description && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+            entry.description && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
               "span",
               {
                 style: {
@@ -7106,7 +8686,7 @@ var TreeNode = (0, import_react30.memo)(function TreeNode2({
         ]
       }
     ),
-    hasChildren && expanded && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)("div", { children: entry.children.map((child, i) => /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+    hasChildren && expanded && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("div", { children: entry.children.map((child, i) => /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
       TreeNode2,
       {
         entry: child,
@@ -7119,8 +8699,8 @@ var TreeNode = (0, import_react30.memo)(function TreeNode2({
     )) })
   ] });
 });
-var SectionLabel = (0, import_react30.memo)(function SectionLabel2({ children }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+var SectionLabel = (0, import_react38.memo)(function SectionLabel2({ children }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
     "div",
     {
       style: {
@@ -7135,7 +8715,7 @@ var SectionLabel = (0, import_react30.memo)(function SectionLabel2({ children })
     }
   );
 });
-var SubflowTree = (0, import_react30.memo)(function SubflowTree2({
+var SubflowTree = (0, import_react38.memo)(function SubflowTree2({
   graph,
   activeStage,
   doneStages,
@@ -7144,9 +8724,9 @@ var SubflowTree = (0, import_react30.memo)(function SubflowTree2({
   className,
   style
 }) {
-  const subflowStages = (0, import_react30.useMemo)(() => graphToSubflowEntries(graph), [graph]);
+  const subflowStages = (0, import_react38.useMemo)(() => graphToSubflowEntries(graph), [graph]);
   if (subflowStages.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime23.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
     "div",
     {
       className,
@@ -7164,8 +8744,8 @@ var SubflowTree = (0, import_react30.memo)(function SubflowTree2({
         ...style
       },
       children: [
-        !unstyled && /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(SectionLabel, { children: "Subflows" }),
-        subflowStages.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime23.jsx)(
+        !unstyled && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(SectionLabel, { children: "Subflows" }),
+        subflowStages.map((entry, i) => /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
           TreeNode,
           {
             entry,
@@ -7182,7 +8762,7 @@ var SubflowTree = (0, import_react30.memo)(function SubflowTree2({
 });
 
 // src/components/FlowchartView/SubflowBreadcrumb.tsx
-var import_react31 = require("react");
+var import_react39 = require("react");
 
 // src/_internal/deprecate.ts
 var announced = /* @__PURE__ */ new Set();
@@ -7195,8 +8775,8 @@ function warnDeprecated(what, useInstead) {
 }
 
 // src/components/FlowchartView/SubflowBreadcrumb.tsx
-var import_jsx_runtime24 = require("react/jsx-runtime");
-var SubflowBreadcrumb = (0, import_react31.memo)(function SubflowBreadcrumb2({
+var import_jsx_runtime31 = require("react/jsx-runtime");
+var SubflowBreadcrumb = (0, import_react39.memo)(function SubflowBreadcrumb2({
   breadcrumbs,
   onNavigate
 }) {
@@ -7205,7 +8785,7 @@ var SubflowBreadcrumb = (0, import_react31.memo)(function SubflowBreadcrumb2({
     "It renders the legacy useSubflowNavigation stack. Use <TracedFlow> (which draws its own trail), or buildSubflowBreadcrumb(graph, mountNodeId)."
   );
   if (breadcrumbs.length <= 1) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
     "div",
     {
       style: {
@@ -7222,10 +8802,10 @@ var SubflowBreadcrumb = (0, import_react31.memo)(function SubflowBreadcrumb2({
       },
       children: breadcrumbs.map((crumb, i) => {
         const isLast = i === breadcrumbs.length - 1;
-        return /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
-          i > 0 && /* @__PURE__ */ (0, import_jsx_runtime24.jsx)("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" }),
-          isLast ? /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
+          i > 0 && /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { style: { color: theme.textMuted, fontSize: 10 }, children: "\u203A" }),
+          isLast ? /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("span", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
               "span",
               {
                 style: {
@@ -7235,7 +8815,7 @@ var SubflowBreadcrumb = (0, import_react31.memo)(function SubflowBreadcrumb2({
                 children: crumb.label
               }
             ),
-            crumb.description && /* @__PURE__ */ (0, import_jsx_runtime24.jsxs)(
+            crumb.description && /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
               "span",
               {
                 style: {
@@ -7249,7 +8829,7 @@ var SubflowBreadcrumb = (0, import_react31.memo)(function SubflowBreadcrumb2({
                 ]
               }
             )
-          ] }) : /* @__PURE__ */ (0, import_jsx_runtime24.jsx)(
+          ] }) : /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
             "button",
             {
               onClick: () => onNavigate(i),
@@ -7281,8 +8861,8 @@ var SubflowBreadcrumb = (0, import_react31.memo)(function SubflowBreadcrumb2({
 });
 
 // src/components/FlowchartView/TracedFlow.tsx
-var import_react40 = require("react");
-var import_react41 = require("@xyflow/react");
+var import_react48 = require("react");
+var import_react49 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/dagreTraceLayout.ts
 var import_dagre2 = __toESM(require("dagre"), 1);
@@ -7628,7 +9208,7 @@ function parseStageIdFromRuntimeStageId(runtimeStageId) {
   const hashIdx = runtimeStageId.indexOf("#");
   return hashIdx >= 0 ? runtimeStageId.slice(0, hashIdx) : runtimeStageId;
 }
-function sliceOverlay(overlay, index) {
+function sliceOverlay(overlay, index2) {
   const order = overlay.executionOrder;
   if (order.length === 0) {
     return {
@@ -7640,7 +9220,7 @@ function sliceOverlay(overlay, index) {
       retryAttempts: projectRetryAttempts(overlay, -1)
     };
   }
-  if (index >= order.length) {
+  if (index2 >= order.length) {
     const allDone = new Set(order.map((s) => s.stageId));
     return {
       doneStageIds: allDone,
@@ -7651,7 +9231,7 @@ function sliceOverlay(overlay, index) {
       retryAttempts: projectRetryAttempts(overlay, order.length - 1)
     };
   }
-  const clampedIndex = Math.max(0, Math.min(index, order.length - 1));
+  const clampedIndex = Math.max(0, Math.min(index2, order.length - 1));
   const doneStageIds = /* @__PURE__ */ new Set();
   for (let i = 0; i < clampedIndex; i++) {
     doneStageIds.add(order[i].stageId);
@@ -7691,9 +9271,9 @@ function projectRetryAttempts(overlay, upToIndex) {
 }
 
 // src/components/StageNode/StageNode.tsx
-var import_react32 = require("react");
-var import_react33 = require("@xyflow/react");
-var import_jsx_runtime25 = require("react/jsx-runtime");
+var import_react40 = require("react");
+var import_react41 = require("@xyflow/react");
+var import_jsx_runtime32 = require("react/jsx-runtime");
 var KEYFRAMES_ID = "fp-stage-node-keyframes";
 var KEYFRAMES_CSS = `
 @media (prefers-reduced-motion: no-preference) {
@@ -7719,128 +9299,128 @@ function StageIcon({ type, color }) {
     // LLM / AI call — brain/sparkle
     case "llm":
     case "ai":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("circle", { cx: "8", cy: "8", r: "6", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("path", { d: "M5.5 8C5.5 6.5 6.5 5 8 5S10.5 6.5 10.5 8", stroke: color, strokeWidth: "1.2", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("circle", { cx: "8", cy: "9.5", r: "1", fill: color }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "8", y1: "2", x2: "8", y2: "3.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "12.5", y1: "4", x2: "11.2", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "3.5", y1: "4", x2: "4.8", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("circle", { cx: "8", cy: "8", r: "6", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M5.5 8C5.5 6.5 6.5 5 8 5S10.5 6.5 10.5 8", stroke: color, strokeWidth: "1.2", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("circle", { cx: "8", cy: "9.5", r: "1", fill: color }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "8", y1: "2", x2: "8", y2: "3.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "12.5", y1: "4", x2: "11.2", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "3.5", y1: "4", x2: "4.8", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Tool / function call — gear
     case "tool":
     case "function":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("circle", { cx: "8", cy: "8", r: "3", stroke: color, strokeWidth: "1.5" }),
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("circle", { cx: "8", cy: "8", r: "3", stroke: color, strokeWidth: "1.5" }),
         [0, 45, 90, 135, 180, 225, 270, 315].map((angle) => {
           const rad = angle * Math.PI / 180;
           const x1 = 8 + Math.cos(rad) * 4.5;
           const y1 = 8 + Math.sin(rad) * 4.5;
           const x2 = 8 + Math.cos(rad) * 6;
           const y2 = 8 + Math.sin(rad) * 6;
-          return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1, y1, x2, y2, stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }, angle);
+          return /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1, y1, x2, y2, stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }, angle);
         })
       ] });
     // RAG / retrieval — magnifying glass + doc
     case "rag":
     case "search":
     case "retrieval":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("circle", { cx: "7", cy: "7", r: "4", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "10", y1: "10", x2: "13.5", y2: "13.5", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "5.5", y1: "6", x2: "8.5", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "5.5", y1: "8", x2: "7.5", y2: "8", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("circle", { cx: "7", cy: "7", r: "4", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "10", y1: "10", x2: "13.5", y2: "13.5", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "5.5", y1: "6", x2: "8.5", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "5.5", y1: "8", x2: "7.5", y2: "8", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Parse / process — diamond with arrows
     case "parse":
     case "process":
     case "transform":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", stroke: color, strokeWidth: "1.5", transform: "rotate(45 8 8)" }) });
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", stroke: color, strokeWidth: "1.5", transform: "rotate(45 8 8)" }) });
     // Start / seed — play triangle
     case "start":
     case "seed":
     case "init":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("path", { d: "M5 3.5L12.5 8L5 12.5V3.5Z", fill: color, opacity: "0.8" }) });
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M5 3.5L12.5 8L5 12.5V3.5Z", fill: color, opacity: "0.8" }) });
     // End / finalize — stop square
     case "end":
     case "finalize":
     case "output":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", fill: color, opacity: "0.8" }) });
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("rect", { x: "4", y: "4", width: "8", height: "8", rx: "1.5", fill: color, opacity: "0.8" }) });
     // Agent — person silhouette
     case "agent":
     case "orchestrator":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("circle", { cx: "8", cy: "5", r: "2.5", stroke: color, strokeWidth: "1.5" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("path", { d: "M3.5 14C3.5 11 5.5 9 8 9S12.5 11 12.5 14", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("circle", { cx: "8", cy: "5", r: "2.5", stroke: color, strokeWidth: "1.5" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M3.5 14C3.5 11 5.5 9 8 9S12.5 11 12.5 14", stroke: color, strokeWidth: "1.5", strokeLinecap: "round" })
       ] });
     // Swarm — multi-agent
     case "swarm":
     case "multi-agent":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("circle", { cx: "5", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("circle", { cx: "11", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("circle", { cx: "8", cy: "11", r: "2", stroke: color, strokeWidth: "1.2" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "5", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "11", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" })
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("circle", { cx: "5", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("circle", { cx: "11", cy: "5", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("circle", { cx: "8", cy: "11", r: "2", stroke: color, strokeWidth: "1.2" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "5", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "11", y1: "7", x2: "8", y2: "9", stroke: color, strokeWidth: "1", opacity: "0.5" })
       ] });
     // Guard / guardrail — shield
     case "guard":
     case "guardrail":
     case "validate":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("path", { d: "M8 2L3 5V9C3 11.5 5 13.5 8 14.5C11 13.5 13 11.5 13 9V5L8 2Z", stroke: color, strokeWidth: "1.5", strokeLinejoin: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("path", { d: "M6 8L7.5 9.5L10 6.5", stroke: color, strokeWidth: "1.2", strokeLinecap: "round", strokeLinejoin: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M8 2L3 5V9C3 11.5 5 13.5 8 14.5C11 13.5 13 11.5 13 9V5L8 2Z", stroke: color, strokeWidth: "1.5", strokeLinejoin: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M6 8L7.5 9.5L10 6.5", stroke: color, strokeWidth: "1.2", strokeLinecap: "round", strokeLinejoin: "round" })
       ] });
     // Stream — wave
     case "stream":
     case "streaming":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("path", { d: "M2 8C4 5 6 11 8 8S12 5 14 8", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("path", { d: "M2 11C4 8 6 14 8 11S12 8 14 11", stroke: color, strokeWidth: "1", strokeLinecap: "round", fill: "none", opacity: "0.5" })
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M2 8C4 5 6 11 8 8S12 5 14 8", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M2 11C4 8 6 14 8 11S12 8 14 11", stroke: color, strokeWidth: "1", strokeLinecap: "round", fill: "none", opacity: "0.5" })
       ] });
     // Memory / state — database cylinder
     case "memory":
     case "state":
     case "db":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("ellipse", { cx: "8", cy: "4.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "3", y1: "4.5", x2: "3", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "13", y1: "4.5", x2: "13", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("ellipse", { cx: "8", cy: "11.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" })
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("ellipse", { cx: "8", cy: "4.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "3", y1: "4.5", x2: "3", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "13", y1: "4.5", x2: "13", y2: "11.5", stroke: color, strokeWidth: "1.3" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("ellipse", { cx: "8", cy: "11.5", rx: "5", ry: "2", stroke: color, strokeWidth: "1.3" })
       ] });
     // System prompt — document with lines
     case "system-prompt":
     case "prompt":
     case "instructions":
     case "document":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("rect", { x: "3.5", y: "2", width: "9", height: "12", rx: "1.5", stroke: color, strokeWidth: "1.3", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "5.5", y1: "5", x2: "10.5", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "5.5", y1: "7.5", x2: "10.5", y2: "7.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "5.5", y1: "10", x2: "8.5", y2: "10", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("rect", { x: "3.5", y: "2", width: "9", height: "12", rx: "1.5", stroke: color, strokeWidth: "1.3", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "5.5", y1: "5", x2: "10.5", y2: "5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "5.5", y1: "7.5", x2: "10.5", y2: "7.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "5.5", y1: "10", x2: "8.5", y2: "10", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Messages / conversation — chat bubble
     case "messages":
     case "chat":
     case "conversation":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("rect", { x: "2.5", y: "3", width: "11", height: "8", rx: "2", stroke: color, strokeWidth: "1.3", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("path", { d: "M5.5 11L5.5 13.5L8.5 11", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "5", y1: "6", x2: "11", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("line", { x1: "5", y1: "8.5", x2: "9", y2: "8.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("rect", { x: "2.5", y: "3", width: "11", height: "8", rx: "2", stroke: color, strokeWidth: "1.3", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M5.5 11L5.5 13.5L8.5 11", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "5", y1: "6", x2: "11", y2: "6", stroke: color, strokeWidth: "1", strokeLinecap: "round" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("line", { x1: "5", y1: "8.5", x2: "9", y2: "8.5", stroke: color, strokeWidth: "1", strokeLinecap: "round" })
       ] });
     // Loop — circular arrow
     case "loop":
     case "retry":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("path", { d: "M12 8A4 4 0 1 1 8 4", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("path", { d: "M8 1.5L10.5 4L8 6.5", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" })
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M12 8A4 4 0 1 1 8 4", stroke: color, strokeWidth: "1.5", strokeLinecap: "round", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M8 1.5L10.5 4L8 6.5", stroke: color, strokeWidth: "1.3", strokeLinecap: "round", strokeLinejoin: "round", fill: "none" })
       ] });
     // Lazy / service — cloud (deferred resolution, loaded on demand)
     case "lazy":
     case "service":
     case "cloud":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("svg", { ...props, children: /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
         "path",
         {
           d: "M4.5 12C2.8 12 1.5 10.7 1.5 9C1.5 7.5 2.5 6.3 3.8 6C4 4 5.8 2.5 8 2.5C9.8 2.5 11.3 3.5 11.9 5C13.9 5.2 15.5 6.8 15.5 8.8C15.5 10.8 13.9 12.5 11.8 12.5H4.5",
@@ -7853,22 +9433,22 @@ function StageIcon({ type, color }) {
     // Decision — diamond (already handled by isDecider shape)
     case "decision":
     case "router":
-      return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("svg", { ...props, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("path", { d: "M8 2L14 8L8 14L2 8Z", stroke: color, strokeWidth: "1.5", fill: "none" }),
-        /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("circle", { cx: "8", cy: "8", r: "1.5", fill: color })
+      return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("svg", { ...props, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("path", { d: "M8 2L14 8L8 14L2 8Z", stroke: color, strokeWidth: "1.5", fill: "none" }),
+        /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("circle", { cx: "8", cy: "8", r: "1.5", fill: color })
       ] });
     default:
       return null;
   }
 }
-var StageNode = (0, import_react32.memo)(function StageNode2({
+var StageNode = (0, import_react40.memo)(function StageNode2({
   data
 }) {
   const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts } = data;
   const effectiveIcon = icon || (isLazy ? "lazy" : void 0);
   const isLazyUnresolved = isLazy && !done && !active;
-  const injectedRef = (0, import_react32.useRef)(false);
-  (0, import_react32.useEffect)(() => {
+  const injectedRef = (0, import_react40.useRef)(false);
+  (0, import_react40.useEffect)(() => {
     if (injectedRef.current) return;
     if (typeof document !== "undefined" && !document.getElementById(KEYFRAMES_ID)) {
       const styleEl = document.createElement("style");
@@ -7891,9 +9471,9 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
   const borderColor = active ? theme.nodeCursor : isHero && done ? theme.nodeMain : done ? theme.nodeVisited : error ? theme.error : restingBorder;
   const shadow = active ? `0 0 22px color-mix(in srgb, ${theme.nodeCursor} 55%, transparent)` : isHero && done ? `0 0 12px color-mix(in srgb, ${theme.nodeMain} 30%, transparent)` : done ? `0 0 8px color-mix(in srgb, ${theme.nodeVisited} 20%, transparent)` : error ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)` : restingShadow;
   const textColor = active ? "#1a1a1a" : done || error ? "#fff" : theme.textPrimary;
-  return /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(import_jsx_runtime25.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(import_react33.Handle, { type: "target", position: import_react33.Position.Top, style: { opacity: 0 } }),
-    /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("div", { style: { width: "100%", display: "flex", justifyContent: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(import_jsx_runtime32.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(import_react41.Handle, { type: "target", position: import_react41.Position.Top, style: { opacity: 0 } }),
+    /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { style: { width: "100%", display: "flex", justifyContent: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
       "div",
       {
         style: {
@@ -7906,7 +9486,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
           opacity: isMuted ? 0.5 : void 0
         },
         children: [
-          stepNumbers && stepNumbers.length > 0 && isOnPath && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          stepNumbers && stepNumbers.length > 0 && isOnPath && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
             "div",
             {
               style: {
@@ -7921,7 +9501,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                 const isLatest = i === stepNumbers.length - 1;
                 const badgeBg = isLatest && active ? theme.nodeCursor : theme.nodeVisited;
                 const glow = isLatest && active ? `color-mix(in srgb, ${theme.nodeCursor} 50%, transparent)` : `color-mix(in srgb, ${theme.nodeVisited} 40%, transparent)`;
-                return /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+                return /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
                   "div",
                   {
                     style: {
@@ -7944,7 +9524,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
               })
             }
           ),
-          linked && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          linked && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
             "div",
             {
               style: {
@@ -7958,7 +9538,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
               }
             }
           ),
-          active && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          active && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
             "div",
             {
               style: {
@@ -7972,7 +9552,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
               }
             }
           ),
-          active && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          active && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
             "div",
             {
               style: {
@@ -7992,7 +9572,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
               children: "NOW"
             }
           ),
-          showRetryBadge && /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+          showRetryBadge && /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
             "div",
             {
               role: "img",
@@ -8019,16 +9599,16 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                 whiteSpace: "nowrap"
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("span", { "aria-hidden": "true", children: "\u21BA" }),
-                /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("span", { "aria-hidden": "true", children: [
+                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { "aria-hidden": "true", children: "\u21BA" }),
+                /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("span", { "aria-hidden": "true", children: [
                   "\xD7",
                   retryAttempts
                 ] })
               ]
             }
           ),
-          isDecider ? /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { style: { position: "relative", width: 120, height: 72 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+          isDecider ? /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", { style: { position: "relative", width: 120, height: 72 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
               "div",
               {
                 style: {
@@ -8042,7 +9622,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                 }
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
               "div",
               {
                 style: {
@@ -8058,7 +9638,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                 }
               }
             ),
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
               "div",
               {
                 style: {
@@ -8073,10 +9653,10 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                   zIndex: 1
                 },
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
-                    effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(StageIcon, { type: effectiveIcon, color: textColor }),
-                    !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("span", { style: { fontSize: 9, color: textColor }, children: "\u25C7" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 4 }, children: [
+                    effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(StageIcon, { type: effectiveIcon, color: textColor }),
+                    !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { style: { fontSize: 9, color: textColor }, children: "\u25C7" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
                       "span",
                       {
                         style: {
@@ -8089,7 +9669,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                       }
                     )
                   ] }),
-                  description && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+                  description && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
                     "span",
                     {
                       style: {
@@ -8105,7 +9685,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                       children: description
                     }
                   ),
-                  showStageId && stageId && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+                  showStageId && stageId && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
                     "span",
                     {
                       style: {
@@ -8127,7 +9707,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
             )
           ] }) : (
             /* Standard rectangular node */
-            /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)(
+            /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
               "div",
               {
                 style: {
@@ -8146,10 +9726,10 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                   justifyContent: "center"
                 },
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime25.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
-                    effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(StageIcon, { type: effectiveIcon, color: textColor }),
-                    done && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("span", { style: { fontSize: 10, color: textColor }, children: "\u2713" }),
-                    active && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+                    effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(StageIcon, { type: effectiveIcon, color: textColor }),
+                    done && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { style: { fontSize: 10, color: textColor }, children: "\u2713" }),
+                    active && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
                       "span",
                       {
                         style: {
@@ -8162,8 +9742,8 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                         }
                       }
                     ),
-                    error && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)("span", { style: { fontSize: 10, color: textColor }, children: "\u2717" }),
-                    /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+                    error && !effectiveIcon && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { style: { fontSize: 10, color: textColor }, children: "\u2717" }),
+                    /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
                       "span",
                       {
                         style: {
@@ -8175,7 +9755,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                         children: label
                       }
                     ),
-                    isSubflow && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+                    isSubflow && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
                       "span",
                       {
                         style: {
@@ -8190,7 +9770,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                           opacity: 0.7,
                           flexShrink: 0
                         },
-                        children: /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+                        children: /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
                           "span",
                           {
                             style: {
@@ -8204,7 +9784,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                       }
                     )
                   ] }),
-                  description && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+                  description && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
                     "span",
                     {
                       style: {
@@ -8220,7 +9800,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
                       children: description
                     }
                   ),
-                  showStageId && stageId && /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(
+                  showStageId && stageId && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
                     "span",
                     {
                       style: {
@@ -8244,7 +9824,7 @@ var StageNode = (0, import_react32.memo)(function StageNode2({
         ]
       }
     ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime25.jsx)(import_react33.Handle, { type: "source", position: import_react33.Position.Bottom, style: { opacity: 0 } })
+    /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(import_react41.Handle, { type: "source", position: import_react41.Position.Bottom, style: { opacity: 0 } })
   ] });
 });
 
@@ -8373,44 +9953,44 @@ function edgeCarriesCursor(via, standIns) {
 }
 
 // src/components/FlowchartView/_internal/useSubflowDrill.ts
-var import_react34 = require("react");
+var import_react42 = require("react");
 function useSubflowDrill(graph, onSubflowChange, controlledSubflowId) {
   const isControlled = controlledSubflowId !== void 0;
-  const [ownSubflowId, setOwnSubflowId] = (0, import_react34.useState)(null);
+  const [ownSubflowId, setOwnSubflowId] = (0, import_react42.useState)(null);
   const currentSubflowId = isControlled ? controlledSubflowId : ownSubflowId;
-  const lastGraphRef = (0, import_react34.useRef)(null);
+  const lastGraphRef = (0, import_react42.useRef)(null);
   if (!isControlled && lastGraphRef.current !== graph) {
     lastGraphRef.current = graph;
     if (ownSubflowId !== null && findMountNode(graph, ownSubflowId) === void 0) {
       queueMicrotask(() => setOwnSubflowId(null));
     }
   }
-  const lastNotifiedRef = (0, import_react34.useRef)(void 0);
-  (0, import_react34.useEffect)(() => {
+  const lastNotifiedRef = (0, import_react42.useRef)(void 0);
+  (0, import_react42.useEffect)(() => {
     if (isControlled) return;
     if (lastNotifiedRef.current === currentSubflowId) return;
     lastNotifiedRef.current = currentSubflowId;
     onSubflowChange?.(currentSubflowId);
   }, [isControlled, currentSubflowId, onSubflowChange]);
-  const setCurrentSubflowId = (0, import_react34.useCallback)(
+  const setCurrentSubflowId = (0, import_react42.useCallback)(
     (id) => {
       if (isControlled) onSubflowChange?.(id);
       else setOwnSubflowId(id);
     },
     [isControlled, onSubflowChange]
   );
-  const drillInto = (0, import_react34.useCallback)(
+  const drillInto = (0, import_react42.useCallback)(
     (mountNodeId) => setCurrentSubflowId(mountNodeId),
     [setCurrentSubflowId]
   );
-  const drillUp = (0, import_react34.useCallback)(() => setCurrentSubflowId(null), [setCurrentSubflowId]);
+  const drillUp = (0, import_react42.useCallback)(() => setCurrentSubflowId(null), [setCurrentSubflowId]);
   return { currentSubflowId, drillInto, drillUp, setCurrentSubflowId };
 }
 
 // src/components/FlowchartView/SubflowBreadcrumbBar.tsx
-var import_jsx_runtime26 = require("react/jsx-runtime");
+var import_jsx_runtime33 = require("react/jsx-runtime");
 function SubflowBreadcrumbBar({ entries, onNavigate }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
     "div",
     {
       style: {
@@ -8426,12 +10006,12 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
       "aria-label": "Subflow breadcrumb",
       children: entries.map((entry, i) => {
         const isLast = i === entries.length - 1;
-        return /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
+        return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
           "span",
           {
             style: { display: "inline-flex", alignItems: "center", gap: 6 },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime26.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
                 "button",
                 {
                   type: "button",
@@ -8451,7 +10031,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
                   children: entry.label
                 }
               ),
-              !isLast && /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { style: { color: theme.textMuted }, children: "\u203A" })
+              !isLast && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { style: { color: theme.textMuted }, children: "\u203A" })
             ]
           },
           entry.subflowId ?? "__top__"
@@ -8462,7 +10042,7 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
 }
 
 // src/components/LoopBackEdge/LoopBackEdge.tsx
-var import_react35 = require("@xyflow/react");
+var import_react43 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/loopRouting.ts
 var LOOP_LANE_GAP = 56;
@@ -8681,7 +10261,7 @@ function wrapInMainChartBox(graph, opts) {
 }
 
 // src/components/LoopBackEdge/LoopBackEdge.tsx
-var import_jsx_runtime27 = require("react/jsx-runtime");
+var import_jsx_runtime34 = require("react/jsx-runtime");
 var LOOP_DASH = "5 5";
 var LOOP_STROKE_OPACITY_CAP = 0.55;
 var LOOP_STROKE_WIDTH = 1.5;
@@ -8702,7 +10282,7 @@ function centerY(node) {
   return node.internals.positionAbsolute.y + (node.measured.height ?? 0) / 2;
 }
 function LoopBackEdge({ id, source, target, markerEnd, style }) {
-  const path = (0, import_react35.useStore)((s) => {
+  const path = (0, import_react43.useStore)((s) => {
     const src = s.nodeLookup.get(source);
     const tgt = s.nodeLookup.get(target);
     if (!src || !tgt) return "";
@@ -8720,8 +10300,8 @@ function LoopBackEdge({ id, source, target, markerEnd, style }) {
     );
   });
   if (!path) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime27.jsx)(
-    import_react35.BaseEdge,
+  return /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(
+    import_react43.BaseEdge,
     {
       id,
       path,
@@ -8733,8 +10313,8 @@ function LoopBackEdge({ id, source, target, markerEnd, style }) {
 }
 
 // src/components/SmartStepEdge/SmartStepEdge.tsx
-var import_react36 = require("@xyflow/react");
-var import_react37 = require("@xyflow/react");
+var import_react44 = require("@xyflow/react");
+var import_react45 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/stepRouting.ts
 function staggeredBendY(sourceBottom, targetTop, others, minGapFromTarget = 8) {
@@ -8758,7 +10338,7 @@ function resolveStepBendY(forkBend, staggeredBend) {
 }
 
 // src/components/SmartStepEdge/SmartStepEdge.tsx
-var import_jsx_runtime28 = require("react/jsx-runtime");
+var import_jsx_runtime35 = require("react/jsx-runtime");
 function SmartStepEdge({
   id,
   source,
@@ -8772,7 +10352,7 @@ function SmartStepEdge({
   markerEnd,
   style
 }) {
-  const bendY = (0, import_react36.useStore)((s) => {
+  const bendY = (0, import_react44.useStore)((s) => {
     const src = s.nodeLookup.get(source);
     const tgt = s.nodeLookup.get(target);
     if (!src || !tgt) return null;
@@ -8798,23 +10378,23 @@ function SmartStepEdge({
     const staggered = staggeredBendY(sourceBottom, targetTop, others);
     return resolveStepBendY(fan, staggered);
   });
-  const [path] = (0, import_react36.getSmoothStepPath)({
+  const [path] = (0, import_react44.getSmoothStepPath)({
     sourceX,
     sourceY,
-    sourcePosition: sourcePosition ?? import_react37.Position.Bottom,
+    sourcePosition: sourcePosition ?? import_react45.Position.Bottom,
     targetX,
     targetY,
-    targetPosition: targetPosition ?? import_react37.Position.Top,
+    targetPosition: targetPosition ?? import_react45.Position.Top,
     // Override the bend only for a staggered edge; otherwise let getSmoothStepPath
     // use its default centerY (== the built-in `smoothstep` path, byte-for-byte).
     ...bendY !== null ? { centerY: bendY } : {}
   });
-  return /* @__PURE__ */ (0, import_jsx_runtime28.jsx)(import_react36.BaseEdge, { id, path, markerEnd, style });
+  return /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(import_react44.BaseEdge, { id, path, markerEnd, style });
 }
 
 // src/components/FlowchartView/_internal/MeasuredNodeSizes.tsx
-var import_react38 = require("react");
-var import_react39 = require("@xyflow/react");
+var import_react46 = require("react");
+var import_react47 = require("@xyflow/react");
 
 // src/components/FlowchartView/_internal/measuredFootprints.ts
 function extractMeasuredFootprints(entries) {
@@ -8822,11 +10402,24 @@ function extractMeasuredFootprints(entries) {
   for (const [id, node] of entries) {
     const width = node.measured?.width;
     const height = node.measured?.height;
-    if (typeof width === "number" && typeof height === "number" && width > 0 && height > 0) {
-      sizes.set(id, { width: Math.round(width), height: Math.round(height) });
+    if (typeof width === "number" && typeof height === "number" && Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      const roundedWidth = Math.round(width), roundedHeight = Math.round(height);
+      if (roundedWidth > 0 && roundedHeight > 0) {
+        sizes.set(id, { width: roundedWidth, height: roundedHeight });
+      }
     }
   }
   return sizes;
+}
+function readMeasuredFootprints(entries, includeHiddenNodes = false) {
+  const relevant = [];
+  let visibleCount = 0;
+  for (const entry of entries) {
+    if (!entry[1].hidden) visibleCount++;
+    if (includeHiddenNodes || !entry[1].hidden) relevant.push(entry);
+  }
+  const sizes = extractMeasuredFootprints(relevant);
+  return { sizes, ready: visibleCount > 0 && sizes.size === relevant.length };
 }
 function sameFootprints(a, b) {
   if (a === b) return true;
@@ -8843,20 +10436,23 @@ function MeasuredNodeSizes({
   onSizes,
   includeHiddenNodes = false
 }) {
-  const initialized = (0, import_react39.useNodesInitialized)({ includeHiddenNodes });
-  const sizes = (0, import_react39.useStore)(
-    (s) => extractMeasuredFootprints(s.nodeLookup),
-    sameFootprints
+  const measurement = (0, import_react47.useStore)(
+    (s) => readMeasuredFootprints(s.nodeLookup, includeHiddenNodes),
+    (previous, next) => previous.ready === next.ready && sameFootprints(previous.sizes, next.sizes)
   );
-  (0, import_react38.useEffect)(() => {
-    if (!initialized || sizes.size === 0) return;
-    onSizes(sizes);
-  }, [initialized, sizes, onSizes]);
+  const lastPublished = (0, import_react46.useRef)(null);
+  (0, import_react46.useEffect)(() => {
+    if (!measurement.ready) return;
+    const previous = lastPublished.current;
+    if (previous?.onSizes === onSizes && sameFootprints(previous.sizes, measurement.sizes)) return;
+    lastPublished.current = { onSizes, sizes: measurement.sizes };
+    onSizes(measurement.sizes);
+  }, [measurement, onSizes]);
   return null;
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-var import_jsx_runtime29 = require("react/jsx-runtime");
+var import_jsx_runtime36 = require("react/jsx-runtime");
 var DEFAULT_COLORS = {
   default: rawDefaults.colors.textMuted,
   done: rawDefaults.colors.success,
@@ -8948,7 +10544,7 @@ function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage,
     ...node,
     type: "stageNode",
     data: stageData,
-    ...dimmed && { style: { opacity: 0.35 } }
+    ...dimmed && { style: { ...node.style ?? {}, opacity: 0.35 } }
   };
 }
 function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors, cursorStandIns) {
@@ -8974,7 +10570,7 @@ function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors, cursorS
     type: kind === "loop" ? "loopBack" : "smartStep",
     animated: isLeadingEdge,
     style: { stroke: color, strokeWidth: traversed || carriesCursor ? 2 : 1.5 },
-    markerEnd: { type: import_react41.MarkerType.ArrowClosed, color, width: 16, height: 16 }
+    markerEnd: { type: import_react49.MarkerType.ArrowClosed, color, width: 16, height: 16 }
   };
   if (kind === "loop") {
     styled.style = { ...styled.style, strokeDasharray: "4 3" };
@@ -9008,32 +10604,32 @@ function TracedFlow({
   style
 }) {
   const layout = layoutProp ?? dagreTraceLayout;
-  (0, import_react40.useEffect)(() => {
+  (0, import_react48.useEffect)(() => {
     if (layoutProp === dagreTraceLayout) {
       devWarn(
         () => "[footprint-explainable-ui] <TracedFlow layout={dagreTraceLayout}> bypasses the built-in measure-then-layout pipeline (content-exact sizing, fork/merge centering, straight spines). OMIT the `layout` prop to use it \u2014 passing the raw dagreTraceLayout silently forfeits every layout improvement eui ships."
       );
     }
   }, [layoutProp]);
-  const colors = (0, import_react40.useMemo)(
+  const colors = (0, import_react48.useMemo)(
     () => ({ ...DEFAULT_COLORS, ...colorOverrides ?? {} }),
     [colorOverrides]
   );
-  const mergedNodeTypes = (0, import_react40.useMemo)(
+  const mergedNodeTypes = (0, import_react48.useMemo)(
     () => userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES,
     [userNodeTypes]
   );
-  const mergedEdgeTypes = (0, import_react40.useMemo)(
+  const mergedEdgeTypes = (0, import_react48.useMemo)(
     () => userEdgeTypes ? { ...DEFAULT_EDGE_TYPES, ...userEdgeTypes } : DEFAULT_EDGE_TYPES,
     [userEdgeTypes]
   );
-  const effectiveGraph = (0, import_react40.useMemo)(
+  const effectiveGraph = (0, import_react48.useMemo)(
     () => collapseNode ? collapseTraceGraph(graph, collapseNode).graph : graph,
     [graph, collapseNode]
   );
   const drill = useSubflowDrill(effectiveGraph, onSubflowChange, controlledSubflowId);
-  const groupedSet = (0, import_react40.useMemo)(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
-  const filteredGraph = (0, import_react40.useMemo)(() => {
+  const groupedSet = (0, import_react48.useMemo)(() => new Set(groupedSubflows ?? []), [groupedSubflows]);
+  const filteredGraph = (0, import_react48.useMemo)(() => {
     const base = filterGraphForDrill(effectiveGraph, drill.currentSubflowId);
     if (groupedSet.size === 0) return base;
     const baseIds = new Set(base.nodes.map((n) => n.id));
@@ -9048,12 +10644,12 @@ function TracedFlow({
     );
     return { nodes: [...base.nodes, ...extraNodes], edges: [...base.edges, ...extraEdges] };
   }, [effectiveGraph, drill.currentSubflowId, groupedSet]);
-  const breadcrumb = (0, import_react40.useMemo)(
+  const breadcrumb = (0, import_react48.useMemo)(
     () => buildSubflowBreadcrumb(effectiveGraph, drill.currentSubflowId),
     [effectiveGraph, drill.currentSubflowId]
   );
-  const [measuredSizes, setMeasuredSizes] = (0, import_react40.useState)(null);
-  const positioned = (0, import_react40.useMemo)(() => {
+  const [measuredSizes, setMeasuredSizes] = (0, import_react48.useState)(null);
+  const positioned = (0, import_react48.useMemo)(() => {
     const nodeSize = measuredSizes ? (n) => measuredSizes.get(n.id) : void 0;
     const sizeOpts = nodeSize ? { nodeSize } : {};
     const dagreBase = withForkCentering(
@@ -9077,7 +10673,7 @@ function TracedFlow({
     }
     return realBase(filteredGraph);
   }, [filteredGraph, layout, layoutProp, groupedSet, mainChartBox, measuredSizes]);
-  const slice = (0, import_react40.useMemo)(() => {
+  const slice = (0, import_react48.useMemo)(() => {
     const empty = {
       doneStageIds: /* @__PURE__ */ new Set(),
       activeStageId: null,
@@ -9090,7 +10686,7 @@ function TracedFlow({
     const idx = scrubIndex ?? Math.max(0, overlay.executionOrder.length - 1);
     return aggregateMountStatus(sliceOverlay(overlay, idx), effectiveGraph, drill.currentSubflowId);
   }, [overlay, scrubIndex, effectiveGraph, drill.currentSubflowId]);
-  const reactFlowNodes = (0, import_react40.useMemo)(
+  const reactFlowNodes = (0, import_react48.useMemo)(
     () => positioned.nodes.map(
       (n) => toStageNodeWithOverlay(
         n,
@@ -9104,21 +10700,21 @@ function TracedFlow({
     ),
     [positioned.nodes, slice, coActiveStageIds]
   );
-  const cursorStandIns = (0, import_react40.useMemo)(() => cursorStandInIds(slice.activeStageId), [slice.activeStageId]);
-  const reactFlowEdges = (0, import_react40.useMemo)(
+  const cursorStandIns = (0, import_react48.useMemo)(() => cursorStandInIds(slice.activeStageId), [slice.activeStageId]);
+  const reactFlowEdges = (0, import_react48.useMemo)(
     () => positioned.edges.map(
       (e) => styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns)
     ),
     [positioned.edges, slice, colors, cursorStandIns]
   );
-  const [coneRevealed, setConeRevealed] = (0, import_react40.useState)(false);
-  (0, import_react40.useEffect)(() => {
+  const [coneRevealed, setConeRevealed] = (0, import_react48.useState)(false);
+  (0, import_react48.useEffect)(() => {
     if (!sliceCone) return;
     setConeRevealed(false);
     const raf = requestAnimationFrame(() => setConeRevealed(true));
     return () => cancelAnimationFrame(raf);
   }, [sliceCone]);
-  const conedNodes = (0, import_react40.useMemo)(() => {
+  const conedNodes = (0, import_react48.useMemo)(() => {
     if (!sliceCone || sliceCone.size === 0) return reactFlowNodes;
     return reactFlowNodes.map((n) => {
       const depth = sliceCone.get(n.id);
@@ -9136,14 +10732,14 @@ function TracedFlow({
       };
     });
   }, [reactFlowNodes, sliceCone, coneRevealed]);
-  const conedEdges = (0, import_react40.useMemo)(() => {
+  const conedEdges = (0, import_react48.useMemo)(() => {
     if (!sliceCone || sliceCone.size === 0) return reactFlowEdges;
     return reactFlowEdges.map((e) => {
       const inCone = sliceCone.has(e.source) && sliceCone.has(e.target);
       return inCone ? e : { ...e, style: { ...e.style, opacity: 0.12, transition: "opacity 260ms ease" } };
     });
   }, [reactFlowEdges, sliceCone]);
-  const handleNodeClick = (0, import_react40.useCallback)(
+  const handleNodeClick = (0, import_react48.useCallback)(
     (_, node) => {
       const data = node.data ?? {};
       const isGrouped = groupedSet.has(node.id) || !!data.subflowId && groupedSet.has(data.subflowId);
@@ -9154,7 +10750,7 @@ function TracedFlow({
     },
     [drill, onNodeClick, groupedSet]
   );
-  const wrapperRef = (0, import_react40.useRef)(null);
+  const wrapperRef = (0, import_react48.useRef)(null);
   const layoutKey = chartLayoutKey(positioned.nodes);
   const refitKey = JSON.stringify([
     chartLayoutKey(filteredGraph.nodes),
@@ -9163,7 +10759,7 @@ function TracedFlow({
     // must not take camera ownership back after a manual pan/zoom.
     layoutProp !== void 0 ? layoutKey : null
   ]);
-  return /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)(
     "div",
     {
       ref: wrapperRef,
@@ -9180,15 +10776,15 @@ function TracedFlow({
         ...style
       },
       children: [
-        breadcrumb.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(
+        breadcrumb.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(
           SubflowBreadcrumbBar,
           {
             entries: breadcrumb,
             onNavigate: drill.setCurrentSubflowId
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime29.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime29.jsxs)(
-          import_react41.ReactFlow,
+        /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("div", { style: { flex: 1, minHeight: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)(
+          import_react49.ReactFlow,
           {
             nodes: conedNodes,
             edges: conedEdges,
@@ -9198,9 +10794,9 @@ function TracedFlow({
             minZoom: 0.1,
             proOptions: { hideAttribution: true },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(ChartAutoRefit, { wrapperRef, refitKey, layoutKey, padding: 0.18 }),
-              /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
-              /* @__PURE__ */ (0, import_jsx_runtime29.jsx)(import_react41.Background, { variant: import_react41.BackgroundVariant.Dots, gap: 20, size: 1 }),
+              /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(ChartAutoRefit, { wrapperRef, refitKey, layoutKey, padding: 0.18 }),
+              /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(MeasuredNodeSizes, { onSizes: setMeasuredSizes }),
+              /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(import_react49.Background, { variant: import_react49.BackgroundVariant.Dots, gap: 20, size: 1 }),
               children
             ]
           }
@@ -9210,381 +10806,20 @@ function TracedFlow({
   );
 }
 
-// src/components/InspectorPanel/InspectorPanel.tsx
-var import_react42 = require("react");
-var import_jsx_runtime30 = require("react/jsx-runtime");
-var InspectorPanel = (0, import_react42.memo)(function InspectorPanel2({
-  snapshots,
-  selectedIndex,
-  dataTraceFrames,
-  dataTraceNote,
-  selectedStageId,
-  onNavigateToStage,
-  onTabChange,
-  tab: controlledTab,
-  traceContent,
-  size = "default",
-  unstyled = false,
-  className,
-  style
-}) {
-  const [internalTab, setTabState] = (0, import_react42.useState)("state");
-  const tab = controlledTab ?? internalTab;
-  const setTab = (t) => {
-    setTabState(t);
-    onTabChange?.(t);
-  };
-  const currentSnapshot = snapshots[selectedIndex];
-  const sx = (s) => unstyled ? void 0 : s;
-  return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
-    "div",
-    {
-      className,
-      "data-fp": "inspector-panel",
-      style: {
-        ...sx({
-          display: "flex",
-          flexDirection: "column",
-          height: "100%",
-          overflow: "hidden"
-        }),
-        ...style
-      },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
-          "div",
-          {
-            "data-fp": "inspector-tabs",
-            style: sx({
-              display: "flex",
-              borderBottom: `1px solid ${theme.border}`,
-              flexShrink: 0
-            }),
-            children: [
-              /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
-                TabButton,
-                {
-                  active: tab === "state",
-                  onClick: () => setTab("state"),
-                  label: "State",
-                  size,
-                  unstyled
-                }
-              ),
-              /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
-                TabButton,
-                {
-                  active: tab === "trace",
-                  onClick: () => setTab("trace"),
-                  label: "Data Trace",
-                  badge: dataTraceFrames.length > 0 ? String(dataTraceFrames.length) : void 0,
-                  size,
-                  unstyled
-                }
-              )
-            ]
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { "data-fp": "inspector-body", style: sx({ flex: 1, overflow: "auto" }), children: [
-          tab === "state" && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
-            MemoryPanel,
-            {
-              snapshots,
-              selectedIndex,
-              size,
-              unstyled
-            }
-          ),
-          tab === "trace" && (traceContent ?? /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
-            DataTracePanel,
-            {
-              frames: dataTraceFrames,
-              note: dataTraceNote,
-              selectedStageId,
-              onFrameClick: onNavigateToStage,
-              fromStageName: currentSnapshot?.stageName,
-              size,
-              unstyled
-            }
-          ))
-        ] })
-      ]
-    }
-  );
-});
-function TabButton({
-  active,
-  onClick,
-  label,
-  badge,
-  size = "default",
-  unstyled = false
-}) {
-  const fs = fontSize[size];
-  const sx = (s) => unstyled ? void 0 : s;
-  return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
-    "button",
-    {
-      onClick,
-      "data-fp": "inspector-tab",
-      "data-active": active || void 0,
-      style: sx({
-        padding: "8px 14px",
-        border: "none",
-        borderBottom: active ? "2px solid var(--fp-accent, #6366f1)" : "2px solid transparent",
-        background: "transparent",
-        color: active ? "var(--fp-accent, #6366f1)" : theme.textMuted,
-        fontWeight: active ? 600 : 400,
-        fontSize: fs.body,
-        cursor: "pointer",
-        display: "flex",
-        alignItems: "center",
-        gap: 4
-      }),
-      children: [
-        label,
-        badge && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
-          "span",
-          {
-            style: sx({
-              fontSize: fs.small,
-              background: active ? "var(--fp-accent, #6366f1)" : theme.textMuted,
-              color: "#fff",
-              borderRadius: 8,
-              padding: "1px 5px",
-              fontWeight: 600
-            }),
-            children: badge
-          }
-        )
-      ]
-    }
-  );
-}
-
-// src/components/InsightPanel/InsightPanel.tsx
-var import_react43 = require("react");
-var import_jsx_runtime31 = require("react/jsx-runtime");
-var InsightPanel = (0, import_react43.memo)(function InsightPanel2({
-  insights,
-  expandedId,
-  mode,
-  size = "default",
-  unstyled = false,
-  className,
-  style
-}) {
-  const chrome = { size, unstyled, className, style };
-  if (insights.length === 0) {
-    return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(NoInsights, { ...chrome });
-  }
-  if (mode === "grid") {
-    return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(InsightGrid, { insights, ...chrome });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(InsightTabs, { insights, defaultId: expandedId, ...chrome });
-});
-var styler = (unstyled) => (s) => unstyled ? void 0 : s;
-var INGREDIENTS = [
-  { panel: "Story", call: "narrative()", from: "footprintjs/recorders" },
-  { panel: "Performance", call: "metrics()", from: "footprintjs/recorders" },
-  { panel: "Quality", call: "new QualityRecorder(scoreFn)", from: "footprintjs/trace" },
-  { panel: "Cost", call: "costRecorder()", from: "agentfootprint/observe" }
-];
-var NoInsights = (0, import_react43.memo)(function NoInsights2({
-  size,
-  unstyled,
-  className,
-  style
-}) {
-  const fs = fontSize[size];
-  const sx = styler(unstyled);
-  return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
-    "div",
-    {
-      className,
-      "data-fp": "insights-empty",
-      style: {
-        ...sx({ padding: padding[size], color: theme.textMuted, fontSize: fs.body, lineHeight: 1.6 }),
-        ...style
-      },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { style: sx({ marginBottom: 8 }), children: "Nothing to show \u2014 this run was recorded without any of these. Each one lights one panel:" }),
-        /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("table", { style: sx({ borderCollapse: "collapse" }), children: /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("tbody", { children: INGREDIENTS.map(({ panel, call, from }) => /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("tr", { "data-fp": "insights-empty-row", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("td", { style: sx({ paddingRight: 10, color: theme.textSecondary, whiteSpace: "nowrap" }), children: panel }),
-          /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("td", { style: sx({ fontFamily: theme.fontMono, fontSize: fs.label, whiteSpace: "nowrap" }), children: [
-            call,
-            /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("span", { style: sx({ opacity: 0.7 }), children: [
-              " \u2014 from ",
-              from
-            ] })
-          ] })
-        ] }, panel)) }) }),
-        /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { style: sx({ marginTop: 8 }), children: [
-          "Attach with ",
-          /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("code", { children: "executor.attachScopeRecorder(...)" }),
-          " before the run, then pass the snapshot here \u2014 each recorder's data rides along inside it."
-        ] })
-      ]
-    }
-  );
-});
-var InsightTabs = (0, import_react43.memo)(function InsightTabs2({
-  insights,
-  defaultId,
-  size,
-  unstyled,
-  className,
-  style
-}) {
-  const [activeId, setActiveId] = (0, import_react43.useState)(defaultId ?? insights[0]?.id);
-  const active = insights.find((i) => i.id === activeId) ?? insights[0];
-  const fs = fontSize[size];
-  const sx = styler(unstyled);
-  return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
-    "div",
-    {
-      className,
-      "data-fp": "insight-panel",
-      "data-mode": "tabs",
-      style: {
-        ...sx({
-          display: "flex",
-          flexDirection: "column",
-          height: "100%",
-          overflow: "hidden"
-        }),
-        ...style
-      },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
-          "div",
-          {
-            "data-fp": "insight-tabs",
-            style: sx({
-              display: "flex",
-              borderBottom: `1px solid ${theme.border}`,
-              flexShrink: 0,
-              overflowX: "auto"
-            }),
-            children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
-              "button",
-              {
-                onClick: () => setActiveId(insight.id),
-                "data-fp": "insight-tab",
-                "data-active": activeId === insight.id || void 0,
-                style: sx({
-                  padding: "8px 12px",
-                  border: "none",
-                  borderBottom: activeId === insight.id ? "2px solid var(--fp-accent, #6366f1)" : "2px solid transparent",
-                  background: "transparent",
-                  color: activeId === insight.id ? "var(--fp-accent, #6366f1)" : theme.textMuted,
-                  fontWeight: activeId === insight.id ? 600 : 400,
-                  fontSize: fs.body,
-                  cursor: "pointer",
-                  whiteSpace: "nowrap"
-                }),
-                children: insight.name
-              },
-              insight.id
-            ))
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { "data-fp": "insight-body", style: sx({ flex: 1, overflow: "auto" }), children: active?.render() })
-      ]
-    }
-  );
-});
-var InsightGrid = (0, import_react43.memo)(function InsightGrid2({
-  insights,
-  size,
-  unstyled,
-  className,
-  style
-}) {
-  const cols = insights.length <= 2 ? 1 : 2;
-  const fs = fontSize[size];
-  const sx = styler(unstyled);
-  return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
-    "div",
-    {
-      className,
-      "data-fp": "insight-panel",
-      "data-mode": "grid",
-      style: {
-        ...sx({
-          display: "grid",
-          gridTemplateColumns: `repeat(${cols}, 1fr)`,
-          height: "100%",
-          overflow: "auto",
-          gap: 1,
-          background: theme.border
-        }),
-        ...style
-      },
-      children: insights.map((insight) => /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
-        "div",
-        {
-          "data-fp": "insight-cell",
-          style: sx({
-            background: "var(--fp-bg, #1a1b26)",
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden"
-          }),
-          children: [
-            /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
-              "div",
-              {
-                style: sx({
-                  padding: "6px 10px",
-                  fontSize: fs.label,
-                  fontWeight: 600,
-                  color: theme.textMuted,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                  borderBottom: `1px solid ${theme.border}`,
-                  flexShrink: 0
-                }),
-                children: [
-                  insight.name,
-                  insight.summary && /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
-                    "span",
-                    {
-                      style: sx({
-                        marginLeft: 8,
-                        fontWeight: 400,
-                        fontSize: fs.small,
-                        color: theme.textMuted
-                      }),
-                      children: insight.summary
-                    }
-                  )
-                ]
-              }
-            ),
-            /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { "data-fp": "insight-cell-body", style: sx({ flex: 1, overflow: "auto" }), children: insight.render() })
-          ]
-        },
-        insight.id
-      ))
-    }
-  );
-});
-
 // src/components/CompactTimeline/CompactTimeline.tsx
-var import_react44 = require("react");
-var import_jsx_runtime32 = require("react/jsx-runtime");
+var import_react50 = require("react");
+var import_jsx_runtime37 = require("react/jsx-runtime");
 var tint = (color, percent) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
-var CompactTimeline = (0, import_react44.memo)(function CompactTimeline2({
+var CompactTimeline = (0, import_react50.memo)(function CompactTimeline2({
   snapshots,
   selectedIndex,
   defaultExpanded = false,
   label = "Timeline"
 }) {
-  const [expanded, setExpanded] = (0, import_react44.useState)(defaultExpanded);
+  const [expanded, setExpanded] = (0, import_react50.useState)(defaultExpanded);
   if (snapshots.length === 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("div", { style: { borderTop: `1px solid ${theme.border}` }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("div", { style: { borderTop: `1px solid ${theme.border}` }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
       "button",
       {
         onClick: () => setExpanded((e) => !e),
@@ -9604,13 +10839,13 @@ var CompactTimeline = (0, import_react44.memo)(function CompactTimeline2({
           letterSpacing: "0.5px"
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
+          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("span", { style: { fontSize: 10 }, children: expanded ? "\u25BC" : "\u25B8" }),
           label,
-          /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("span", { style: { fontWeight: 400, fontSize: 10 }, children: [
             snapshots.length,
             " stages"
           ] }),
-          !expanded && /* @__PURE__ */ (0, import_jsx_runtime32.jsxs)(
+          !expanded && /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
             "div",
             {
               style: {
@@ -9621,7 +10856,7 @@ var CompactTimeline = (0, import_react44.memo)(function CompactTimeline2({
                 marginLeft: 8
               },
               children: [
-                snapshots.map((snap, i) => /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
+                snapshots.map((snap, i) => /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
                   "div",
                   {
                     style: {
@@ -9636,7 +10871,7 @@ var CompactTimeline = (0, import_react44.memo)(function CompactTimeline2({
                   },
                   i
                 )),
-                /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
                   "div",
                   {
                     style: {
@@ -9654,7 +10889,7 @@ var CompactTimeline = (0, import_react44.memo)(function CompactTimeline2({
         ]
       }
     ),
-    expanded && /* @__PURE__ */ (0, import_jsx_runtime32.jsx)("div", { style: { padding: "0 12px 8px" }, children: /* @__PURE__ */ (0, import_jsx_runtime32.jsx)(
+    expanded && /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("div", { style: { padding: "0 12px 8px" }, children: /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
       GanttTimeline,
       {
         snapshots,
@@ -9665,472 +10900,10 @@ var CompactTimeline = (0, import_react44.memo)(function CompactTimeline2({
 });
 
 // src/components/ExplainableShell/ExplainableShell.tsx
-var import_jsx_runtime33 = require("react/jsx-runtime");
+var import_jsx_runtime38 = require("react/jsx-runtime");
 var EXPLAINABLE_TAB_ID = "explainable";
 function isExplainableTab(tabId) {
   return tabId === EXPLAINABLE_TAB_ID || tabId === "ai-compatible";
-}
-var HLinePill = (0, import_react45.memo)(function HLinePill2({
-  label,
-  detail,
-  expanded,
-  onClick
-}) {
-  return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: {
-    display: "flex",
-    alignItems: "center",
-    gap: 0,
-    padding: "0"
-  }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } }),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
-      "button",
-      {
-        onClick,
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 5,
-          padding: "3px 12px",
-          margin: "4px 0",
-          fontSize: 10,
-          fontWeight: 600,
-          fontFamily: "inherit",
-          color: theme.textMuted,
-          background: theme.bgSecondary,
-          border: `1px solid ${theme.border}`,
-          borderRadius: 10,
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          transition: "color 0.15s ease"
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { style: { fontSize: 7 }, children: expanded ? "\u25BC" : "\u25B6" }),
-          label,
-          detail && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { style: { fontWeight: 400, opacity: 0.5, fontSize: 9 }, children: detail })
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, height: 1, background: theme.border } })
-  ] });
-});
-var VLinePill = (0, import_react45.memo)(function VLinePill2({
-  label,
-  expanded,
-  side = "right",
-  onClick
-}) {
-  const arrow = side === "right" ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25C0" : "\u25B6";
-  return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 0,
-    padding: "0"
-  }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } }),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
-      "button",
-      {
-        onClick,
-        style: {
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "10px 4px",
-          margin: "0 3px",
-          fontSize: 10,
-          fontWeight: 600,
-          fontFamily: "inherit",
-          color: theme.textMuted,
-          background: theme.bgSecondary,
-          border: `1px solid ${theme.border}`,
-          borderRadius: 10,
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          writingMode: "vertical-lr",
-          transition: "color 0.15s ease"
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: arrow }),
-          label
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, width: 1, background: theme.border } })
-  ] });
-});
-var MissingChartNote = (0, import_react45.memo)(function MissingChartNote2({ unstyled }) {
-  const body = /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("strong", { children: "No chart \u2014 `traceGraph` was not provided." }),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { children: "A snapshot holds the memory, the story and the timeline. Only the chart's own structure can draw the chart. Two ways to get one:" }),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("pre", { style: unstyled ? void 0 : { margin: 0, whiteSpace: "pre-wrap", fontFamily: theme.fontMono, fontSize: 11 }, children: `// live build
-const trace = createTraceStructureRecorder();
-flowChart(..., { structureRecorders: [trace.recorder] });
-<ExplainableShell traceGraph={trace.getGraph()} />
-
-// saved run \u2014 save chart.buildTimeStructure with your snapshot
-<ExplainableShell traceGraph={graphFromStructure(saved.structure)} />` })
-  ] });
-  if (unstyled) return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { "data-fp": "shell-missing-chart", children: body });
-  return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-    "div",
-    {
-      "data-fp": "shell-missing-chart",
-      style: {
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        justifyContent: "center",
-        alignItems: "flex-start",
-        height: "100%",
-        padding: 20,
-        color: theme.textMuted,
-        fontSize: 12,
-        lineHeight: 1.5,
-        maxWidth: 520,
-        margin: "0 auto"
-      },
-      children: body
-    }
-  );
-});
-var EmptyShell = (0, import_react45.memo)(function EmptyShell2({
-  reason,
-  detail,
-  unstyled,
-  className,
-  style
-}) {
-  const body = /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: unstyled ? void 0 : { fontWeight: 700, color: theme.textPrimary, fontSize: 13 }, children: reason }),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { "data-fp": "shell-empty-detail", children: detail })
-  ] });
-  if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { className, style, "data-fp": "shell-empty", children: body });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-    "div",
-    {
-      className,
-      "data-fp": "shell-empty",
-      style: {
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        gap: 10,
-        justifyContent: "center",
-        alignItems: "center",
-        textAlign: "center",
-        padding: 24,
-        background: theme.bgPrimary,
-        color: theme.textMuted,
-        fontFamily: theme.fontSans,
-        fontSize: 12,
-        lineHeight: 1.6,
-        ...style
-      },
-      children: body
-    }
-  );
-});
-function detectKeyedSteps(data) {
-  if (!data || typeof data !== "object") return null;
-  const obj = data;
-  for (const val of Object.values(obj)) {
-    if (val && typeof val === "object" && !Array.isArray(val)) {
-      const entries = Object.entries(val);
-      if (entries.length === 0) continue;
-      const allObjectsWithNumbers = entries.every(([, v2]) => {
-        if (!v2 || typeof v2 !== "object" || Array.isArray(v2)) return false;
-        return Object.values(v2).some((f) => typeof f === "number");
-      });
-      if (allObjectsWithNumbers) {
-        const keyType = entries.some(([k]) => k.includes("#")) ? "runtimeStageId" : "stageName";
-        return { steps: val, keyType };
-      }
-    }
-  }
-  return null;
-}
-function extractRenderHints(data) {
-  if (!data || typeof data !== "object") return null;
-  const obj = data;
-  if (typeof obj.numericField === "string" && typeof obj.grandTotal === "number") {
-    return { numericField: obj.numericField, grandTotal: obj.grandTotal };
-  }
-  return null;
-}
-function KeyedRecorderView({
-  data,
-  description,
-  preferredOperation = "accumulate",
-  snapshots,
-  selectedIndex
-}) {
-  const [showAggregate, setShowAggregate] = (0, import_react45.useState)(false);
-  const detected = (0, import_react45.useMemo)(() => detectKeyedSteps(data), [data]);
-  const visibleKeys = (0, import_react45.useMemo)(() => {
-    const keys = /* @__PURE__ */ new Set();
-    for (let i = 0; i <= selectedIndex && i < snapshots.length; i++) {
-      const snap = snapshots[i];
-      if (detected?.keyType === "runtimeStageId") {
-        if (snap.runtimeStageId) keys.add(snap.runtimeStageId);
-      } else {
-        if (snap.stageName) keys.add(snap.stageName);
-        if (snap.stageLabel) keys.add(snap.stageLabel);
-      }
-    }
-    return keys;
-  }, [snapshots, selectedIndex, detected?.keyType]);
-  const isAtEnd = selectedIndex >= snapshots.length - 1;
-  if (!detected) {
-    return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { padding: 12, fontFamily: theme.fontMono, fontSize: 11, whiteSpace: "pre-wrap", overflow: "auto", height: "100%" }, children: typeof data === "string" ? data : JSON.stringify(data, null, 2) });
-  }
-  const steps = detected.steps;
-  const hints = extractRenderHints(data);
-  const numFieldKey = hints?.numericField ?? "";
-  const allKeys = Object.keys(steps);
-  const visibleEntries = allKeys.filter((k) => visibleKeys.has(k));
-  let runningTotal = 0;
-  if (numFieldKey) {
-    for (const k of visibleEntries) {
-      runningTotal += steps[k][numFieldKey] ?? 0;
-    }
-  }
-  const grandTotal = hints?.grandTotal ?? 0;
-  return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { overflow: "auto", height: "100%", display: "flex", flexDirection: "column" }, children: [
-    description && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { padding: "6px 12px", fontSize: 11, color: theme.textMuted, fontStyle: "italic", borderBottom: `1px solid ${theme.border}`, flexShrink: 0 }, children: description }),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { padding: 12, flex: 1, overflow: "auto" }, children: [
-      preferredOperation === "aggregate" ? (
-        /* AGGREGATE: collect silently during scrub, button at end to reveal total */
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-          isAtEnd ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { marginBottom: 16 }, children: !showAggregate ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-            "button",
-            {
-              onClick: () => setShowAggregate(true),
-              style: {
-                background: theme.primary,
-                color: "#fff",
-                border: "none",
-                borderRadius: 8,
-                padding: "12px 20px",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                width: "100%"
-              },
-              children: "Aggregate \u2014 Show Grand Total"
-            }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { padding: "14px 16px", background: `color-mix(in srgb, ${theme.success} 12%, transparent)`, borderRadius: 8, border: `1px solid ${theme.success}44` }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Aggregate \u2014 grand total" }),
-            numFieldKey && /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { fontSize: 26, fontWeight: 700, color: theme.success }, children: [
-              grandTotal < 1 ? grandTotal.toFixed(3) : grandTotal.toFixed(1),
-              /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("span", { style: { fontSize: 11, color: theme.textMuted, fontWeight: 400, marginLeft: 8 }, children: [
-                numFieldKey,
-                " \xB7 ",
-                allKeys.length,
-                " steps"
-              ] })
-            ] })
-          ] }) }) : /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.textMuted} 6%, transparent)`, borderRadius: 6, marginBottom: 16, border: `1px dashed ${theme.border}` }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600 }, children: "Collecting data..." }),
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { fontSize: 11, color: theme.textMuted, marginTop: 4 }, children: [
-              visibleEntries.length,
-              " of ",
-              allKeys.length,
-              " steps collected. Scrub to end to aggregate."
-            ] })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
-        ] })
-      ) : preferredOperation === "accumulate" ? (
-        /* ACCUMULATE: running total grows with slider — IS the total at end, no button */
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-          numFieldKey && visibleEntries.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { padding: "10px 14px", background: `color-mix(in srgb, ${theme.primary} 8%, transparent)`, borderRadius: 6, marginBottom: 16 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4, fontWeight: 600 }, children: "Accumulate \u2014 running total up to this step" }),
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { style: { fontWeight: 700, fontSize: 18, color: theme.primary }, children: runningTotal < 1 ? runningTotal.toFixed(3) : runningTotal.toFixed(1) }),
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("span", { style: { color: theme.textMuted, marginLeft: 8, fontSize: 10 }, children: [
-              numFieldKey,
-              " \xB7 ",
-              visibleEntries.length,
-              " of ",
-              allKeys.length,
-              " steps"
-            ] })
-          ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Per-step detail" })
-        ] })
-      ) : (
-        /* TRANSLATE: per-step entries prominent, no totals */
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { fontSize: 10, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, fontWeight: 600 }, children: "Translate \u2014 per-step detail" })
-      ),
-      visibleEntries.map((key) => {
-        const entry = steps[key];
-        const label = entry.stageName ?? key;
-        const numVal = numFieldKey ? entry[numFieldKey] : void 0;
-        return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { display: "flex", alignItems: "center", padding: "4px 0", fontSize: 12, fontFamily: theme.fontMono, borderBottom: `1px solid ${theme.border}22` }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { style: { color: theme.textMuted, width: 140, flexShrink: 0, fontSize: 10 }, children: key }),
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { style: { fontWeight: 600, flex: 1 }, children: label }),
-          numVal !== void 0 && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { style: { color: theme.primary, fontWeight: 700, marginLeft: 8 }, children: numVal < 1 ? numVal.toFixed(3) : numVal.toFixed(1) })
-        ] }, key);
-      }),
-      visibleEntries.length === 0 && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic", padding: "8px 0" }, children: "Scrub the slider to reveal entries..." })
-    ] })
-  ] });
-}
-var DetailsContent = (0, import_react45.memo)(function DetailsContent2({
-  snapshots,
-  selectedIndex,
-  narrativeEntries,
-  size,
-  fillHeight,
-  extraViews
-}) {
-  const builtInViews = [
-    {
-      id: "memory",
-      name: "Memory",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(MemoryPanel, { snapshots: snaps, selectedIndex: idx, size, style: fillHeight ? { height: "100%" } : void 0 })
-    },
-    {
-      id: "narrative",
-      name: "Narrative",
-      render: ({ snapshots: snaps, selectedIndex: idx }) => /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(NarrativePanel, { snapshots: snaps, selectedIndex: idx, narrativeEntries, size, style: fillHeight ? { height: "100%" } : void 0 })
-    }
-  ];
-  const allViews = [...builtInViews, ...extraViews ?? []];
-  const [activeViewId, setActiveViewId] = (0, import_react45.useState)(allViews[0]?.id ?? "memory");
-  const viewIds = allViews.map((v2) => v2.id).join(",");
-  (0, import_react45.useEffect)(() => {
-    if (!allViews.find((v2) => v2.id === activeViewId)) {
-      setActiveViewId(allViews[0]?.id ?? "memory");
-    }
-  }, [viewIds]);
-  const activeView = allViews.find((v2) => v2.id === activeViewId) ?? allViews[0];
-  return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { display: "flex", borderBottom: `1px solid ${theme.border}`, flexShrink: 0, overflowX: "auto" }, children: allViews.map((view) => {
-      const active = view.id === activeViewId;
-      return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-        "button",
-        {
-          onClick: () => setActiveViewId(view.id),
-          style: {
-            flex: allViews.length <= 3 ? 1 : void 0,
-            padding: "6px 8px",
-            fontSize: 11,
-            fontWeight: active ? 600 : 400,
-            color: active ? theme.primary : theme.textMuted,
-            background: active ? `color-mix(in srgb, ${theme.primary} 8%, transparent)` : "transparent",
-            border: "none",
-            borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
-            cursor: "pointer",
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-            fontFamily: "inherit",
-            whiteSpace: "nowrap"
-          },
-          children: view.name
-        },
-        view.id
-      );
-    }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: activeView?.render({ snapshots, selectedIndex }) })
-  ] });
-});
-var RIGHT_PANEL_MODE_LABELS = {
-  insights: "Insights",
-  what: "Inspector",
-  result: "Result"
-};
-var RightPanel = (0, import_react45.memo)(function RightPanel2({
-  mode,
-  onModeChange,
-  snapshots,
-  selectedIndex,
-  activeTab,
-  allTabs,
-  renderTabBody,
-  size,
-  onNavigateToStage,
-  dataTrace,
-  onInspectorTabChange,
-  inspectorTab,
-  traceContent
-}) {
-  const modes = (0, import_react45.useMemo)(
-    () => allTabs.some((t) => t.id === "result") ? ["insights", "what", "result"] : ["insights", "what"],
-    [allTabs]
-  );
-  return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: {
-      display: "flex",
-      borderBottom: `1px solid ${theme.border}`,
-      flexShrink: 0,
-      background: theme.bgSecondary
-    }, children: modes.map((m) => /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-      "button",
-      {
-        onClick: () => onModeChange(m),
-        style: {
-          flex: 1,
-          padding: "7px 12px",
-          fontSize: 11,
-          fontWeight: mode === m ? 700 : 500,
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-          color: mode === m ? theme.primary : theme.textMuted,
-          background: "transparent",
-          border: "none",
-          borderBottom: mode === m ? `2px solid ${theme.primary}` : "2px solid transparent",
-          cursor: "pointer",
-          fontFamily: "inherit"
-        },
-        children: RIGHT_PANEL_MODE_LABELS[m]
-      },
-      m
-    )) }),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, overflow: "hidden" }, children: mode === "result" ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { height: "100%", overflow: "auto" }, children: renderTabBody("result", false) }) : mode === "insights" ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-      InsightPanel,
-      {
-        mode: "tabs",
-        expandedId: activeTab,
-        insights: allTabs.filter((t) => t.id !== "result" && t.id !== "memory").map((tab) => ({
-          id: tab.id,
-          name: insightName(tab.name),
-          render: () => renderTabBody(tab.id, false)
-        }))
-      }
-    ) : /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-      InspectorPanel,
-      {
-        snapshots,
-        selectedIndex,
-        dataTraceFrames: dataTrace.frames,
-        dataTraceNote: dataTrace.readsAvailable ? void 0 : "\u26A0 reads were not recorded (readTracking off) \u2014 dependencies are unknowable, not absent.",
-        onTabChange: onInspectorTabChange,
-        tab: inspectorTab,
-        traceContent,
-        selectedStageId: snapshots[selectedIndex]?.runtimeStageId,
-        onNavigateToStage
-      }
-    ) })
-  ] });
-});
-function insightName(name) {
-  const map = {
-    "Narrative": "Story",
-    "Memory": "State",
-    "Metrics": "Performance",
-    "Quality": "Quality",
-    "Cost": "Cost"
-  };
-  return map[name] ?? name;
 }
 function ExplainableShell({
   snapshots: snapshotsProp,
@@ -10148,6 +10921,7 @@ function ExplainableShell({
   recorderViews,
   renderFlowchart,
   showStageId = false,
+  autoPlay = false,
   traceGraph,
   runtimeOverlay: runtimeOverlayProp,
   traceTheme,
@@ -10156,7 +10930,7 @@ function ExplainableShell({
   className,
   style
 }) {
-  const snapshotNarrative = (0, import_react45.useMemo)(
+  const snapshotNarrative = (0, import_react51.useMemo)(
     () => narrativeRecorderFromSnapshot(runtimeSnapshot),
     [runtimeSnapshot]
   );
@@ -10168,15 +10942,15 @@ function ExplainableShell({
   });
   const companionNarrativeMissing = companions.staleKeys.includes("narrativeEntries") && !snapshotNarrative;
   const narrativeEntries = companions.values.narrativeEntries ?? snapshotNarrative?.entries;
-  const exactResults = (0, import_react45.useMemo)(
+  const exactResults = (0, import_react51.useMemo)(
     () => exactSubflowResults(ownDataField(runtimeSnapshot, "subflowResults")),
     [runtimeSnapshot]
   );
-  const derivedFromRuntime = (0, import_react45.useMemo)(() => {
+  const derivedFromRuntime = (0, import_react51.useMemo)(() => {
     if (!runtimeSnapshot) return null;
     try {
       const sharedState = ownDataField(runtimeSnapshot, "sharedState");
-      if (!isPlainRecord(sharedState)) throw new Error("sharedState is not a plain object");
+      if (!isPlainRecord2(sharedState)) throw new Error("sharedState is not a plain object");
       const input = {
         sharedState,
         executionTree: ownDataField(runtimeSnapshot, "executionTree"),
@@ -10184,8 +10958,8 @@ function ExplainableShell({
         subflowResults: exactResults,
         recorders: ownDataField(runtimeSnapshot, "recorders")
       };
-      const snaps = toVisualizationSnapshots(input, narrativeEntries);
-      return { snapshots: snaps, resultData: input.sharedState, error: null };
+      const projection = projectRuntimeSnapshot(input, narrativeEntries);
+      return projection.kind === "unreadable" ? { snapshots: projection.snapshots, resultData: null, error: projection.detail } : { snapshots: projection.snapshots, resultData: input.sharedState, error: null };
     } catch (err) {
       return {
         snapshots: [],
@@ -10196,7 +10970,7 @@ function ExplainableShell({
   }, [runtimeSnapshot, narrativeEntries, exactResults]);
   const snapshots = companions.values.snapshots ?? derivedFromRuntime?.snapshots ?? [];
   const resultData = companions.values.resultData ?? derivedFromRuntime?.resultData ?? null;
-  const runtimeOverlay = (0, import_react45.useMemo)(
+  const runtimeOverlay = (0, import_react51.useMemo)(
     () => companions.values.runtimeOverlay ?? // Retries leave no mark on the commit log (a failed attempt discards its
     // writes): the snapshot's tree carries their counts (footprintjs >= 10.1),
     // and for an older recording the narrative's `retry` entries do.
@@ -10204,13 +10978,13 @@ function ExplainableShell({
     [companions.values.runtimeOverlay, runtimeSnapshot, narrativeEntries]
   );
   const missingChart = snapshots.length > 0 && !traceGraph?.nodes.length && !renderFlowchart;
-  (0, import_react45.useEffect)(() => {
+  (0, import_react51.useEffect)(() => {
     if (!missingChart) return;
     devWarn(
       () => "[ExplainableShell] No chart: `traceGraph` is missing, so the flowchart region is not rendered. A snapshot cannot draw the chart \u2014 only the chart's own structure can. Two ways to get one:\n  live build \u2014 const trace = createTraceStructureRecorder();\n               flowChart(..., { structureRecorders: [trace.recorder] });\n               <ExplainableShell traceGraph={trace.getGraph()} />\n  saved run  \u2014 save `chart.buildTimeStructure` next to your snapshot, then\n               <ExplainableShell traceGraph={graphFromStructure(saved.structure)} />"
     );
   }, [missingChart]);
-  const tracedFlowRenderer = (0, import_react45.useMemo)(() => {
+  const tracedFlowRenderer = (0, import_react51.useMemo)(() => {
     if (!traceGraph) return void 0;
     return ({ selectedIndex, snapshots: snapshots2, onNodeClick, sliceCone: sliceCone2, currentSubflowId, onSubflowChange }) => {
       const activeRsid = snapshots2[selectedIndex]?.runtimeStageId;
@@ -10231,7 +11005,7 @@ function ExplainableShell({
         ...traceTheme.current !== void 0 && { active: traceTheme.current },
         ...traceTheme.mode !== void 0 && { default: traceTheme.mode === "dark" ? "#94a3b8" : "#64748b" }
       };
-      return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
         TracedFlow,
         {
           graph: traceGraph,
@@ -10250,22 +11024,10 @@ function ExplainableShell({
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
-  const shellRef = (0, import_react45.useRef)(null);
-  const [isNarrow, setIsNarrow] = (0, import_react45.useState)(false);
-  const [isMedium, setIsMedium] = (0, import_react45.useState)(false);
-  (0, import_react45.useEffect)(() => {
-    const el = shellRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      const w = entry.contentRect.width;
-      setIsNarrow(w < 640);
-      setIsMedium(w >= 640 && w < 960);
-      window.dispatchEvent(new Event("resize"));
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  const autoRecorderViews = (0, import_react45.useMemo)(() => {
+  const { ref: shellRef, isNarrow } = useContainerBreakpoints({
+    notifyWindowResize: true
+  });
+  const autoRecorderViews = (0, import_react51.useMemo)(() => {
     const recorders = runtimeSnapshot?.recorders;
     if (!recorders?.length) return [];
     const explicitIds = new Set((recorderViews ?? []).map((v2) => v2.id));
@@ -10273,7 +11035,7 @@ function ExplainableShell({
     return recorders.filter((r) => !explicitIds.has(r.id)).map((r) => ({ id: r.id, name: r.name, description: r.description, preferredOperation: r.preferredOperation, data: r.data }));
   }, [runtimeSnapshot, recorderViews, snapshotNarrative]);
   const hasNarrative = !!narrativeEntries?.length || companionNarrativeMissing;
-  const allTabs = (0, import_react45.useMemo)(() => {
+  const allTabs = (0, import_react51.useMemo)(() => {
     const tabs = [
       { id: "result", name: "Result", description: "Final output and console logs" },
       { id: "memory", name: "Memory", description: "Accumulator \u2014 progressive shared state at each stage" }
@@ -10290,7 +11052,7 @@ function ExplainableShell({
     const hideSet = new Set(hideTabsProp ?? []);
     return hideSet.size > 0 ? tabs.filter((t) => !hideSet.has(t.id)) : tabs;
   }, [hasNarrative, recorderViews, autoRecorderViews, hideTabsProp]);
-  const unstyledTabs = (0, import_react45.useMemo)(
+  const unstyledTabs = (0, import_react51.useMemo)(
     () => [
       ...allTabs,
       {
@@ -10303,50 +11065,45 @@ function ExplainableShell({
   );
   const validTabIds = new Set(allTabs.map((t) => t.id));
   const resolvedDefault = defaultTab && validTabIds.has(defaultTab) ? defaultTab : allTabs[0]?.id ?? "result";
-  const [activeTab, setActiveTab] = (0, import_react45.useState)(resolvedDefault);
-  const [snapshotIdx, setSnapshotIdxRaw] = (0, import_react45.useState)(0);
-  const [rightExpanded, setRightExpanded] = (0, import_react45.useState)(defaultExpanded?.details ?? true);
-  const [rightPanelMode, setRightPanelMode] = (0, import_react45.useState)("insights");
-  const [inspectorTab, setInspectorTab] = (0, import_react45.useState)("state");
-  const [tracing, setTracing] = (0, import_react45.useState)(null);
-  const [forkChooserOpen, setForkChooserOpen] = (0, import_react45.useState)(false);
-  const [traceSearch, setTraceSearch] = (0, import_react45.useState)("");
-  (0, import_react45.useEffect)(() => {
-    setForkChooserOpen(false);
-  }, [snapshotIdx]);
-  (0, import_react45.useEffect)(() => {
+  const [activeTab, setActiveTab] = (0, import_react51.useState)(resolvedDefault);
+  const [snapshotIdx, setSnapshotIdxRaw] = (0, import_react51.useState)(0);
+  const [rightExpanded, setRightExpanded] = (0, import_react51.useState)(defaultExpanded?.details ?? true);
+  const [rightPanelMode, setRightPanelMode] = (0, import_react51.useState)("insights");
+  const [inspectorTab, setInspectorTab] = (0, import_react51.useState)("state");
+  const traceSessionState = useTraceSessionState(snapshotIdx);
+  (0, import_react51.useEffect)(() => {
     if (deprecatedTabs === void 0) return;
     devWarn(
       () => "[ExplainableShell] the `tabs` prop is deprecated and has no effect. Use `hideTabs` to drop tabs by id, and `defaultTab` to choose which tab opens first."
     );
   }, [deprecatedTabs]);
-  const [leftExpanded, setLeftExpanded] = (0, import_react45.useState)(defaultExpanded?.topology ?? false);
-  const [timelineExpanded, setTimelineExpanded] = (0, import_react45.useState)(defaultExpanded?.timeline ?? false);
-  (0, import_react45.useEffect)(() => {
+  const [leftExpanded, setLeftExpanded] = (0, import_react51.useState)(defaultExpanded?.topology ?? false);
+  const [timelineExpanded, setTimelineExpanded] = (0, import_react51.useState)(defaultExpanded?.timeline ?? false);
+  (0, import_react51.useEffect)(() => {
     if (isNarrow) {
       setLeftExpanded(false);
       setRightExpanded(false);
       setTimelineExpanded(false);
     }
   }, [isNarrow]);
-  const triggerReflow = (0, import_react45.useCallback)(() => {
+  const triggerReflow = (0, import_react51.useCallback)(() => {
     requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
     setTimeout(() => window.dispatchEvent(new Event("resize")), 320);
   }, []);
-  const toggleLeft = (0, import_react45.useCallback)((v2) => {
+  const toggleLeft = (0, import_react51.useCallback)((v2) => {
     setLeftExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleRight = (0, import_react45.useCallback)((v2) => {
+  const toggleRight = (0, import_react51.useCallback)((v2) => {
     setRightExpanded(v2);
     triggerReflow();
   }, [triggerReflow]);
-  const toggleTimeline = (0, import_react45.useCallback)(() => {
+  const toggleTimeline = (0, import_react51.useCallback)(() => {
     setTimelineExpanded((p) => !p);
     triggerReflow();
   }, [triggerReflow]);
   const sourceRunId = sourceRunKey(runtimeSnapshot);
-  const readsAvailable = (0, import_react45.useMemo)(
+  const readsAvailable = (0, import_react51.useMemo)(
     () => runHasRecordedReads(
       runtimeSnapshot,
       snapshots.flatMap(
@@ -10355,11 +11112,6 @@ function ExplainableShell({
     ),
     [runtimeSnapshot, snapshots]
   );
-  const onScopeReset = (0, import_react45.useCallback)(() => {
-    setTracing(null);
-    setForkChooserOpen(false);
-    setTraceSearch("");
-  }, []);
   const navigation = useSubflowNavigation({
     snapshots,
     sourceRunId,
@@ -10370,7 +11122,7 @@ function ExplainableShell({
     snapshotIdx,
     setSnapshotIdxRaw,
     activeTab: JSON.stringify([activeTab, rightPanelMode, inspectorTab]),
-    onScopeReset
+    onScopeReset: traceSessionState.reset
   });
   const {
     selectedStack,
@@ -10381,7 +11133,13 @@ function ExplainableShell({
     handleNodeClick
   } = navigation;
   const isInSubflow = selectedStack.length > 0;
-  const currentLevel = (0, import_react45.useMemo)(() => {
+  const autoPlayRun = sourceRunId ?? snapshots;
+  if (autoPlay && navigation.sourceChanged && navigation.isDrilled && !prefersReducedMotion()) {
+    navigation.resetRoot();
+  }
+  const offeredRun = (0, import_react51.useRef)(void 0);
+  const railAutoPlay = autoPlay && !isInSubflow;
+  const currentLevel = (0, import_react51.useMemo)(() => {
     const top = selectedStack.at(-1);
     return top ?? {
       spec: null,
@@ -10391,7 +11149,7 @@ function ExplainableShell({
       traceScope: void 0
     };
   }, [selectedStack, snapshots]);
-  const activeTraceScope = (0, import_react45.useMemo)(() => {
+  const activeTraceScope = (0, import_react51.useMemo)(() => {
     if (currentLevel.traceScope) return currentLevel.traceScope;
     const metadata = rootMountLabels(runtimeSnapshot?.executionTree, runtimeSnapshot?.commitLog);
     return {
@@ -10406,65 +11164,27 @@ function ExplainableShell({
   const activeTraceKey = isInSubflow ? JSON.stringify(activeTraceScope.invocationPath) : null;
   const activeSnapshots = currentLevel.snapshots;
   const safeIdx = activeSnapshots.length > 0 ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1)) : 0;
-  const shellDataTrace = (0, import_react45.useMemo)(() => {
-    const trace = activeTraceScope.availability.ok && (isInSubflow || runtimeSnapshot?.commitLog) ? buildDataTrace(activeTraceScope.commitLog, activeTraceScope.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "") : { frames: [], readsAvailable: false };
-    return { ...trace, readsAvailable: activeTraceScope.readsAvailable };
-  }, [activeTraceScope, isInSubflow, runtimeSnapshot, activeSnapshots, safeIdx]);
-  const allTracedKeys = (0, import_react45.useMemo)(() => {
-    const log = activeTraceScope.commitLog;
-    if (!log?.length) return [];
-    const seen = /* @__PURE__ */ new Set();
-    const keys = [];
-    for (const c of log) {
-      for (const t of c.trace ?? []) {
-        if (!seen.has(t.path)) {
-          seen.add(t.path);
-          keys.push(t.path);
-        }
-      }
-    }
-    return keys;
-  }, [activeTraceScope]);
-  const traceWalk = (0, import_react45.useMemo)(() => {
-    if (navigation.sourceChanged || !tracing || tracing.scope !== activeTraceKey || !activeTraceScope.availability.ok) return null;
-    const scope = tracing.via.length > 0 ? tracing.via[tracing.via.length - 1] : tracing;
-    return buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
-      beforeCommitIdx: scope.beforeCommitIdx,
-      scope: {
-        invocationPath: activeTraceScope.invocationPath,
-        mountLabels: Object.fromEntries(activeTraceScope.mountLabels),
-        readsAvailable: activeTraceScope.readsAvailable,
-        startKeys: activeTraceScope.startKeys
-      }
-    });
-  }, [tracing, activeTraceScope, activeTraceKey, navigation.sourceChanged]);
-  const traceStopIndices = (0, import_react45.useMemo)(() => {
-    if (!traceWalk || traceWalk.missing) return [];
-    const idxByRsid = new Map(activeSnapshots.map((sn, i) => [sn.runtimeStageId, i]));
-    return traceWalk.stops.map((stop) => idxByRsid.get(stop.runtimeStageId)).filter((i) => i !== void 0).sort((a, b) => a - b);
-  }, [traceWalk, activeSnapshots]);
-  const sliceCone = (0, import_react45.useMemo)(() => {
-    if (traceWalk && !traceWalk.missing && traceWalk.stops.length >= 2) {
-      const cone2 = /* @__PURE__ */ new Map();
-      for (const stop of traceWalk.stops) {
-        const stagePart = stop.runtimeStageId.split("#")[0];
-        const prev = cone2.get(stagePart);
-        if (prev === void 0 || stop.depth < prev) cone2.set(stagePart, stop.depth);
-      }
-      return cone2;
-    }
-    if (rightPanelMode !== "what" || inspectorTab !== "trace") return void 0;
-    if (shellDataTrace.frames.length < 2) return void 0;
-    const cone = /* @__PURE__ */ new Map();
-    for (const f of shellDataTrace.frames) {
-      const stagePart = f.runtimeStageId.split("#")[0];
-      const prev = cone.get(stagePart);
-      if (prev === void 0 || f.depth < prev) cone.set(stagePart, f.depth);
-    }
-    return cone;
-  }, [traceWalk, rightPanelMode, inspectorTab, shellDataTrace]);
+  const onStartInspector = (0, import_react51.useCallback)(() => {
+    setRightPanelMode("what");
+    setInspectorTab("trace");
+  }, []);
+  const traceSession = useTraceSessionController({
+    session: traceSessionState,
+    activeTraceScope,
+    activeTraceKey,
+    activeSnapshots,
+    safeIdx,
+    sourceChanged: navigation.sourceChanged,
+    traceHistoryAvailable: isInSubflow || !!runtimeSnapshot?.commitLog,
+    showDataTraceCone: rightPanelMode === "what" && inspectorTab === "trace",
+    setSnapshotIdx,
+    onStartInspector,
+    runtimeSnapshot,
+    openTraceSource: navigation.openTraceSource
+  });
+  const { shellDataTrace, sliceCone, navigateToStage, tracingRail } = traceSession;
   const activeNarrativeEntries = isInSubflow ? currentLevel.narrative : narrativeEntries;
-  const narrativeScopeSubflowId = (0, import_react45.useMemo)(() => {
+  const narrativeScopeSubflowId = (0, import_react51.useMemo)(() => {
     if (!isInSubflow) return void 0;
     const key = currentLevel.subflowId;
     const entries = currentLevel.narrative ?? [];
@@ -10477,92 +11197,31 @@ function ExplainableShell({
     }
     return shallowest ?? key;
   }, [isInSubflow, currentLevel]);
-  const breadcrumbs = (0, import_react45.useMemo)(() => {
+  const breadcrumbs = (0, import_react51.useMemo)(() => {
     const root = { label: title || "Flowchart", spec: null, description: void 0 };
     return [root, ...selectedStack.map((e) => ({ label: e.label, spec: e.spec, description: void 0 }))];
   }, [title, selectedStack]);
-  const showTreeSidebar = (0, import_react45.useMemo)(() => {
+  const showTreeSidebar = (0, import_react51.useMemo)(() => {
     if (traceGraph?.nodes?.length) {
       return traceGraph.nodes.some((n) => n.data?.isSubflow === true);
     }
     return false;
   }, [traceGraph]);
-  const rootOverlay = (0, import_react45.useMemo)(() => {
+  const rootOverlay = (0, import_react51.useMemo)(() => {
     if (isInSubflow || !snapshots.length) return { activeStage: void 0, doneStages: void 0 };
     const doneStages = new Set(snapshots.slice(0, safeIdx).map((s) => s.stageLabel));
     const activeStage = snapshots[safeIdx]?.stageLabel ?? null;
     return { activeStage, doneStages };
   }, [isInSubflow, snapshots, safeIdx]);
-  const handleTabChange = (0, import_react45.useCallback)((tab) => {
+  const handleTabChange = (0, import_react51.useCallback)((tab) => {
     setActiveTab(tab);
     navigation.resetRoot();
   }, [navigation.resetRoot]);
-  const handleSnapshotChange = (0, import_react45.useCallback)((idx) => {
+  const handleSnapshotChange = (0, import_react51.useCallback)((idx) => {
     if (typeof idx === "number") setSnapshotIdx(idx);
   }, [setSnapshotIdx]);
-  const jumpToAnchor = (0, import_react45.useCallback)(
-    (walk) => {
-      const anchor = walk.stops[0];
-      if (!anchor) return;
-      const idx = activeSnapshots.findIndex((sn) => sn.runtimeStageId === anchor.runtimeStageId);
-      if (idx >= 0) setSnapshotIdx(idx);
-    },
-    [activeSnapshots]
-  );
-  const handleStartTracing = (0, import_react45.useCallback)(
-    (key) => {
-      if (!activeTraceScope.availability.ok) return;
-      const log = activeTraceScope.commitLog;
-      const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
-      const cursorCommitIdx = log.findIndex((c) => c.runtimeStageId === cursorRsid);
-      const beforeCommitIdx = cursorCommitIdx >= 0 ? cursorCommitIdx + 1 : void 0;
-      setTracing({ scope: activeTraceKey, key, beforeCommitIdx, via: [] });
-      setForkChooserOpen(false);
-      setTraceSearch("");
-      setRightPanelMode("what");
-      setInspectorTab("trace");
-      jumpToAnchor(
-        buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, key, { beforeCommitIdx })
-      );
-    },
-    [activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, jumpToAnchor]
-  );
-  const handleFollowIngredient = (0, import_react45.useCallback)(
-    (ing) => {
-      if (!tracing || !activeTraceScope.availability.ok || ing.writerCommitIdx === null) return;
-      const scope = { key: ing.key, beforeCommitIdx: ing.writerCommitIdx + 1 };
-      setTracing({ ...tracing, via: [...tracing.via, scope] });
-      setForkChooserOpen(false);
-      jumpToAnchor(
-        buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, scope.key, {
-          beforeCommitIdx: scope.beforeCommitIdx
-        })
-      );
-    },
-    [tracing, activeTraceScope, jumpToAnchor]
-  );
-  const handleShowAllIngredients = (0, import_react45.useCallback)(() => {
-    if (!tracing || !activeTraceScope.availability.ok) return;
-    setTracing({ ...tracing, via: [] });
-    setForkChooserOpen(false);
-    jumpToAnchor(
-      buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, tracing.key, {
-        beforeCommitIdx: tracing.beforeCommitIdx
-      })
-    );
-  }, [tracing, activeTraceScope, jumpToAnchor]);
-  const handleExitTracing = (0, import_react45.useCallback)(() => {
-    setTracing(null);
-    setForkChooserOpen(false);
-  }, []);
-  const handleForkPrompt = (0, import_react45.useCallback)(() => setForkChooserOpen(true), []);
-  const handleContinueTimeOrder = (0, import_react45.useCallback)(() => {
-    const earlier = traceStopIndices.filter((i) => i < safeIdx);
-    if (earlier.length > 0) setSnapshotIdx(earlier[earlier.length - 1]);
-    setForkChooserOpen(false);
-  }, [traceStopIndices, safeIdx]);
   const chartDrillKey = selectedStack.at(-1)?.subflowId ?? null;
-  const handleTreeNodeSelect = (0, import_react45.useCallback)(
+  const handleTreeNodeSelect = (0, import_react51.useCallback)(
     (name, isSubflow, nodeId) => {
       if (isSubflow) {
         handleDrillDown(nodeId ?? name);
@@ -10574,147 +11233,17 @@ function ExplainableShell({
     },
     [snapshots, handleDrillDown, navigation.resetRoot, setSnapshotIdx]
   );
-  const navigateToStage = (0, import_react45.useCallback)(
-    (id) => {
-      const idx = activeSnapshots.findIndex((sn) => sn.runtimeStageId === id);
-      if (idx >= 0) setSnapshotIdx(idx);
-    },
-    [activeSnapshots]
-  );
-  const activeViaKey = tracing && tracing.via.length > 0 ? tracing.via[tracing.via.length - 1].key : null;
-  const stepNumberOf = (0, import_react45.useCallback)(
-    (rsid) => {
-      const i = activeSnapshots.findIndex((sn) => sn.runtimeStageId === rsid);
-      return i >= 0 ? i + 1 : null;
-    },
-    [activeSnapshots]
-  );
-  const tracingRail = (0, import_react45.useMemo)(() => {
-    if (!tracing || !traceWalk || traceWalk.missing || traceStopIndices.length === 0) return null;
-    const cursorRsid = activeSnapshots[safeIdx]?.runtimeStageId;
-    const walkIdx = traceWalk.stops.findIndex((st) => st.runtimeStageId === cursorRsid);
-    const currentStop = traceWalk.stops[walkIdx >= 0 ? walkIdx : 0];
-    return {
-      tracedKey: tracing.key,
-      viaKey: activeViaKey,
-      stopIndices: traceStopIndices,
-      stopOrdinal: walkIdx >= 0 ? walkIdx + 1 : 1,
-      totalStops: traceWalk.stops.length,
-      onExit: handleExitTracing,
-      onShowAll: activeViaKey ? handleShowAllIngredients : void 0,
-      // Followable ingredients only — termini can't be chosen, so a stop of
-      // run-inputs must not prompt (matches the card's chooser gate).
-      forkCount: currentStop?.ingredients.filter((ing) => ing.writerRuntimeStageId !== null).length ?? 0,
-      onForkPrompt: handleForkPrompt
-    };
-  }, [tracing, traceWalk, traceStopIndices, activeSnapshots, safeIdx, activeViaKey, handleExitTracing, handleShowAllIngredients, handleForkPrompt]);
-  const traceTabContent = (0, import_react45.useMemo)(() => {
-    if (!activeTraceScope.availability.ok) {
-      return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(TraceUnavailableNote, { availability: activeTraceScope.availability, scopeLabel: isInSubflow ? "Child" : "Root" });
+  const traceTabContent = /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    TraceSessionPanel,
+    {
+      availability: activeTraceScope.availability,
+      scopeLabel: isInSubflow ? "Child" : "Root",
+      snapshot: activeSnapshots[safeIdx],
+      selectedIndex: safeIdx,
+      view: traceSession
     }
-    if (tracing && traceWalk) {
-      return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(import_jsx_runtime33.Fragment, { children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-        TraceWalkCard,
-        {
-          walk: traceWalk,
-          cursorRuntimeStageId: activeSnapshots[safeIdx]?.runtimeStageId ?? null,
-          viaKey: activeViaKey,
-          stepNumberOf,
-          previewValueOf: (k) => activeSnapshots[safeIdx]?.memory?.[k],
-          onFollowIngredient: handleFollowIngredient,
-          onJumpToStop: navigateToStage,
-          onShowAll: activeViaKey ? handleShowAllIngredients : void 0,
-          onExit: handleExitTracing,
-          forkChooserOpen,
-          onContinueTimeOrder: handleContinueTimeOrder,
-          canContinueTimeOrder: traceStopIndices.some((i) => i < safeIdx)
-        }
-      ) });
-    }
-    const chipStyle = {
-      border: "1px solid var(--fp-accent, #6366f1)",
-      background: "transparent",
-      color: "var(--fp-accent, #6366f1)",
-      borderRadius: 12,
-      padding: "2px 10px",
-      margin: "0 6px 6px 0",
-      fontSize: 11,
-      fontWeight: 600,
-      fontFamily: "monospace",
-      cursor: "pointer"
-    };
-    const query = traceSearch.trim().toLowerCase();
-    const matchedKeys = query ? allTracedKeys.filter((k) => k.toLowerCase().includes(query)) : allTracedKeys;
-    const shownKeys = matchedKeys.slice(0, 12);
-    return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-      (shellDataTrace.frames[0]?.keysWritten?.length ?? 0) > 0 && /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { "data-fp": "trace-entry", style: { padding: "10px 14px 0", fontSize: 12 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("span", { style: { color: theme.textMuted, marginRight: 6 }, children: "This step wrote:" }),
-        shellDataTrace.frames[0].keysWritten.map((k) => /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-          "button",
-          {
-            "data-fp": "trace-entry-chip",
-            onClick: () => handleStartTracing(k),
-            title: "Where did " + k + " come from? Walk its causes on the timeline.",
-            style: chipStyle,
-            children: k
-          },
-          k
-        ))
-      ] }),
-      allTracedKeys.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { "data-fp": "trace-any", style: { padding: "6px 14px 0", fontSize: 12 }, children: [
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { color: theme.textMuted, marginBottom: 4 }, children: "Trace any variable:" }),
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-          "input",
-          {
-            "data-fp": "trace-search",
-            value: traceSearch,
-            onChange: (e) => setTraceSearch(e.target.value),
-            placeholder: "search any variable...",
-            style: {
-              display: "block",
-              width: "100%",
-              boxSizing: "border-box",
-              background: theme.bgTertiary,
-              border: `1px solid ${theme.border}`,
-              borderRadius: 6,
-              color: theme.textPrimary,
-              fontSize: 11,
-              fontFamily: "monospace",
-              padding: "4px 8px",
-              marginBottom: 6
-            }
-          }
-        ),
-        shownKeys.map((k) => /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-          "button",
-          {
-            "data-fp": "trace-any-chip",
-            onClick: () => handleStartTracing(k),
-            title: "Where did " + k + " come from? Walk its causes on the timeline.",
-            style: chipStyle,
-            children: k
-          },
-          k
-        )),
-        query === "" && matchedKeys.length > shownKeys.length && /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("span", { style: { color: theme.textMuted, fontSize: 11 }, children: [
-          "+",
-          matchedKeys.length - shownKeys.length,
-          " more \u2014 type to search"
-        ] })
-      ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-        DataTracePanel,
-        {
-          frames: shellDataTrace.frames,
-          note: shellDataTrace.readsAvailable ? void 0 : "\u26A0 reads were not recorded (readTracking off) \u2014 dependencies are unknowable, not absent.",
-          selectedStageId: activeSnapshots[safeIdx]?.runtimeStageId,
-          onFrameClick: navigateToStage,
-          fromStageName: activeSnapshots[safeIdx]?.stageName
-        }
-      )
-    ] });
-  }, [tracing, traceWalk, activeSnapshots, safeIdx, activeViaKey, stepNumberOf, handleFollowIngredient, navigateToStage, handleShowAllIngredients, handleExitTracing, handleStartTracing, activeTraceScope, isInSubflow, shellDataTrace, forkChooserOpen, handleContinueTimeOrder, traceStopIndices, traceSearch, allTracedKeys]);
-  const navigationStatus = /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+  );
+  const navigationStatus = /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
     SubflowNavigationStatus,
     {
       staleInputs: companions.staleKeys.length > 0,
@@ -10725,10 +11254,10 @@ function ExplainableShell({
     }
   );
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
-  const renderTabBody = (0, import_react45.useCallback)(
+  const renderTabBody = (0, import_react51.useCallback)(
     (tabId, plain2) => {
       if (tabId === "result") {
-        return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
           ResultPanel,
           {
             data: resultData ?? null,
@@ -10740,7 +11269,7 @@ function ExplainableShell({
         );
       }
       if (tabId === "memory") {
-        return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
           MemoryPanel,
           {
             snapshots: activeSnapshots,
@@ -10752,8 +11281,8 @@ function ExplainableShell({
         );
       }
       if (tabId === "narrative") {
-        if (companionNarrativeMissing) return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(StoryUnavailableNote, {});
-        return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+        if (companionNarrativeMissing) return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(StoryUnavailableNote, {});
+        return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
           NarrativePanel,
           {
             snapshots: activeSnapshots,
@@ -10773,7 +11302,7 @@ function ExplainableShell({
       }
       const autoView = autoRecorderViews.find((v2) => v2.id === tabId);
       if (autoView) {
-        return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+        return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
           KeyedRecorderView,
           {
             data: autoView.data,
@@ -10801,7 +11330,7 @@ function ExplainableShell({
       autoRecorderViews
     ]
   );
-  const shellThemeVars = (0, import_react45.useMemo)(() => {
+  const shellThemeVars = (0, import_react51.useMemo)(() => {
     if (!traceTheme) return {};
     return {
       // ONE mapping from mode → palette, shared with the standalone
@@ -10814,59 +11343,59 @@ function ExplainableShell({
   const renderEmptyState = (themeVars) => {
     const shellStyle = { ...themeVars, ...style };
     if (derivedFromRuntime?.error) {
-      return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
         EmptyShell,
         {
           unstyled,
           className,
           style: shellStyle,
           reason: "That snapshot could not be read.",
-          detail: /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { children: [
+          detail: /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(import_jsx_runtime38.Fragment, { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", { children: [
               "Expected a footprintjs ",
-              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("code", { children: "executor.getSnapshot()" }),
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("code", { children: "executor.getSnapshot()" }),
               " \u2014",
               " ",
-              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("code", { children: "{ sharedState, executionTree, commitLog }" }),
+              /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("code", { children: "{ sharedState, executionTree, commitLog }" }),
               "."
             ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: unstyled ? void 0 : { fontFamily: theme.fontMono, fontSize: 11, marginTop: 6 }, children: derivedFromRuntime.error })
+            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("div", { style: unstyled ? void 0 : { fontFamily: theme.fontMono, fontSize: 11, marginTop: 6 }, children: derivedFromRuntime.error })
           ] })
         }
       );
     }
     const gotRunData = !!runtimeSnapshot || !!snapshotsProp;
-    return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
       EmptyShell,
       {
         unstyled,
         className,
         style: shellStyle,
         reason: gotRunData ? "That run has no stages to show." : "No run to show yet.",
-        detail: gotRunData ? /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { children: [
+        detail: gotRunData ? /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", { children: [
           "The snapshot was read fine but its ",
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("code", { children: "executionTree" }),
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("code", { children: "executionTree" }),
           " is empty \u2014 a run that was never executed, or a snapshot taken before ",
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("code", { children: "run()" }),
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("code", { children: "run()" }),
           " finished."
-        ] }) : /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { children: [
+        ] }) : /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(import_jsx_runtime38.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", { children: [
             "Pass a recorded run: ",
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("code", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("code", { children: [
               "runtimeSnapshot=",
               "{executor.getSnapshot()}"
             ] }),
             " (the shell converts it), or pre-converted",
             " ",
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("code", { children: [
+            /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("code", { children: [
               "snapshots=",
               "{toVisualizationSnapshots(...)}"
             ] }),
             "."
           ] }),
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", { children: [
             "Add ",
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("code", { children: "traceGraph" }),
+            /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("code", { children: "traceGraph" }),
             " for the chart \u2014 it comes from the chart's structure, not the snapshot."
           ] })
         ] })
@@ -10875,185 +11404,117 @@ function ExplainableShell({
   };
   if (unstyled) {
     if (snapshots.length === 0) return renderEmptyState({});
-    return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { className, style, "data-fp": "explainable-shell", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { "data-fp": "shell-tabs", children: unstyledTabs.map((tab) => /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("button", { "data-fp": "shell-tab", "data-active": tab.id === activeTab, onClick: () => handleTabChange(tab.id), children: tab.name }, tab.id)) }),
-      /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { "data-fp": "shell-content", "data-tab": activeTab, children: isExplainableTab(activeTab) ? /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(TimeTravelControls, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail }),
-        navigationStatus,
-        isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-        (traceGraph || renderFlowchart) && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...sliceCone && { sliceCone } }),
-        missingChart && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(MissingChartNote, { unstyled: true }),
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
-        companionNarrativeMissing ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(StoryUnavailableNote, {}) : /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, unstyled: true }),
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
-      ] }) : renderTabBody(activeTab, true) })
-    ] });
+    return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+      UnstyledShellLayout,
+      {
+        tabs: unstyledTabs,
+        activeTab,
+        onTabChange: handleTabChange,
+        className,
+        style,
+        children: isExplainableTab(activeTab) ? /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(import_jsx_runtime38.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(TimeTravelRail, { snapshots: activeSnapshots, selectedIndex: safeIdx, onIndexChange: handleSnapshotChange, unstyled: true, tracing: tracingRail, autoPlay: railAutoPlay, autoPlayKey: autoPlayRun, offered: offeredRun }),
+          navigationStatus,
+          isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+          (traceGraph || renderFlowchart) && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, ...sliceCone && { sliceCone } }),
+          missingChart && /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(MissingChartNote, { unstyled: true }),
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(MemoryPanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, unstyled: true }),
+          companionNarrativeMissing ? /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(StoryUnavailableNote, {}) : /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(NarrativePanel, { snapshots: activeSnapshots, selectedIndex: safeIdx, narrativeEntries: activeNarrativeEntries, scopeSubflowId: narrativeScopeSubflowId, unstyled: true }),
+          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, unstyled: true })
+        ] }) : renderTabBody(activeTab, true)
+      }
+    );
   }
   const showTopology = !!effectiveRenderFlowchart && (!!renderFlowchart || !!traceGraph);
-  const detailsContent = renderTabBody(activeTab, false);
-  const detailsPanel = /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: {
-      display: "flex",
-      borderBottom: `1px solid ${theme.border}`,
-      background: theme.bgSecondary,
-      flexShrink: 0,
-      overflowX: "auto"
-    }, children: allTabs.map((tab) => {
-      const active = tab.id === activeTab;
-      return /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-        "button",
-        {
-          onClick: () => handleTabChange(tab.id),
-          title: tab.description,
-          style: {
-            padding: "6px 14px",
-            fontSize: 11,
-            fontWeight: active ? 700 : 500,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            color: active ? theme.primary : theme.textMuted,
-            background: "transparent",
-            border: "none",
-            borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
-            cursor: "pointer",
-            fontFamily: "inherit",
-            whiteSpace: "nowrap"
-          },
-          children: tab.name
-        },
-        tab.id
-      );
-    }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: detailsContent })
-  ] });
+  const detailsPanel = /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(ShellDetailTabs, { tabs: allTabs, activeTab, onTabChange: handleTabChange, children: renderTabBody(activeTab, false) });
   if (snapshots.length === 0) return renderEmptyState(shellThemeVars);
-  return /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(
-    "div",
+  return /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+    ShellLayout,
     {
-      ref: shellRef,
+      containerRef: shellRef,
       className,
-      style: {
-        ...shellThemeVars,
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        background: theme.bgPrimary,
-        color: theme.textPrimary,
-        fontFamily: theme.fontSans,
-        fontSize: 12,
-        ...style
-      },
-      "data-fp": "explainable-shell",
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-          TimeTravelControls,
+      style,
+      themeStyle: shellThemeVars,
+      isNarrow,
+      stageCount: activeSnapshots.length,
+      showTopology,
+      showTreeSidebar,
+      topology: { label: leftLabel, expanded: leftExpanded, onChange: toggleLeft },
+      details: { label: rightLabel, expanded: rightExpanded, onChange: toggleRight },
+      timeline: { label: bottomLabel, expanded: timelineExpanded, onChange: toggleTimeline },
+      slots: {
+        rail: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+          TimeTravelRail,
           {
             snapshots: activeSnapshots,
             selectedIndex: safeIdx,
             onIndexChange: handleSnapshotChange,
             size,
-            tracing: tracingRail
+            tracing: tracingRail,
+            autoPlay: railAutoPlay,
+            autoPlayKey: autoPlayRun,
+            offered: offeredRun
           }
         ),
-        navigationStatus,
-        isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
-        /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, overflow: isNarrow ? "auto" : "hidden", display: "flex", flexDirection: "column" }, children: isNarrow ? (
-          /* ── Mobile: stacked vertical ── */
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-            showTopology && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { height: 350, flexShrink: 0, overflow: "hidden" }, children: effectiveRenderFlowchart({
-              spec: null,
-              snapshots: activeSnapshots,
-              selectedIndex: safeIdx,
-              onNodeClick: handleNodeClick,
-              showStageId,
-              currentSubflowId: chartDrillKey,
-              onSubflowChange: handleChartSubflowChange,
-              ...sliceCone && { sliceCone }
-            }) }),
-            missingChart && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(MissingChartNote, {}),
-            showTreeSidebar && /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(HLinePill, { label: leftLabel, expanded: leftExpanded, onClick: () => toggleLeft(!leftExpanded) }),
-              leftExpanded && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { maxHeight: 180, overflow: "auto", flexShrink: 0 }, children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-                SubflowTree,
-                {
-                  graph: traceGraph ?? { nodes: [], edges: [] },
-                  activeStage: rootOverlay.activeStage,
-                  doneStages: rootOverlay.doneStages,
-                  onNodeSelect: handleTreeNodeSelect
-                }
-              ) })
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(HLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-            rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { maxHeight: 350, flexShrink: 0, overflow: "hidden" }, children: detailsPanel }),
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(HLinePill, { label: bottomLabel, detail: `${activeSnapshots.length} stages`, expanded: timelineExpanded, onClick: toggleTimeline }),
-            timelineExpanded && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flexShrink: 0, overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }) })
-          ] })
-        ) : (
-          /* ── Desktop: two-column — Flowchart | Right Panel ── */
-          /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)(import_jsx_runtime33.Fragment, { children: [
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { flex: 1, display: "flex", overflow: "hidden" }, children: [
-              showTreeSidebar && (leftExpanded ? /* @__PURE__ */ (0, import_jsx_runtime33.jsxs)("div", { style: { width: 180, flexShrink: 0, display: "flex", flexDirection: "row", overflow: "hidden" }, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, overflow: "auto" }, children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-                  SubflowTree,
-                  {
-                    graph: traceGraph ?? { nodes: [], edges: [] },
-                    activeStage: rootOverlay.activeStage,
-                    doneStages: rootOverlay.doneStages,
-                    onNodeSelect: handleTreeNodeSelect
-                  }
-                ) }),
-                /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(VLinePill, { label: leftLabel, expanded: true, side: "left", onClick: () => toggleLeft(false) })
-              ] }) : /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(VLinePill, { label: leftLabel, expanded: false, side: "left", onClick: () => toggleLeft(true) })),
-              showTopology ? /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, overflow: "hidden", minWidth: 0 }, children: effectiveRenderFlowchart({
-                spec: null,
-                snapshots: activeSnapshots,
-                selectedIndex: safeIdx,
-                onNodeClick: handleNodeClick,
-                showStageId,
-                currentSubflowId: chartDrillKey,
-                onSubflowChange: handleChartSubflowChange,
-                ...sliceCone && { sliceCone }
-              }) }) : /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { flex: 1, minWidth: 0, overflow: "auto" }, children: missingChart && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(MissingChartNote, {}) }),
-              /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(VLinePill, { label: rightLabel, expanded: rightExpanded, onClick: () => toggleRight(!rightExpanded) }),
-              rightExpanded && /* @__PURE__ */ (0, import_jsx_runtime33.jsx)("div", { style: { width: "42%", minWidth: 320, maxWidth: 550, display: "flex", flexDirection: "column", overflow: "hidden" }, children: /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-                RightPanel,
-                {
-                  mode: rightPanelMode,
-                  onModeChange: setRightPanelMode,
-                  dataTrace: shellDataTrace,
-                  onInspectorTabChange: setInspectorTab,
-                  inspectorTab,
-                  traceContent: traceTabContent,
-                  snapshots: activeSnapshots,
-                  selectedIndex: safeIdx,
-                  activeTab,
-                  allTabs,
-                  renderTabBody,
-                  size,
-                  onNavigateToStage: navigateToStage
-                }
-              ) })
-            ] }),
-            /* @__PURE__ */ (0, import_jsx_runtime33.jsx)(
-              CompactTimeline,
-              {
-                snapshots: activeSnapshots,
-                selectedIndex: safeIdx,
-                defaultExpanded: timelineExpanded,
-                label: bottomLabel
-              }
-            )
-          ] })
-        ) })
-      ]
+        navigation: navigationStatus,
+        breadcrumb: isInSubflow && /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(SubflowBreadcrumb, { breadcrumbs, onNavigate: handleBreadcrumbNavigate }),
+        chart: showTopology ? effectiveRenderFlowchart({
+          spec: null,
+          snapshots: activeSnapshots,
+          selectedIndex: safeIdx,
+          onNodeClick: handleNodeClick,
+          showStageId,
+          currentSubflowId: chartDrillKey,
+          onSubflowChange: handleChartSubflowChange,
+          ...sliceCone && { sliceCone }
+        }) : null,
+        missingChart: missingChart && /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(MissingChartNote, {}),
+        tree: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+          SubflowTree,
+          {
+            graph: traceGraph ?? { nodes: [], edges: [] },
+            activeStage: rootOverlay.activeStage,
+            doneStages: rootOverlay.doneStages,
+            onNodeSelect: handleTreeNodeSelect
+          }
+        ),
+        mobileDetails: detailsPanel,
+        desktopDetails: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+          RightPanel,
+          {
+            mode: rightPanelMode,
+            onModeChange: setRightPanelMode,
+            dataTrace: shellDataTrace,
+            onInspectorTabChange: setInspectorTab,
+            inspectorTab,
+            traceContent: traceTabContent,
+            snapshots: activeSnapshots,
+            selectedIndex: safeIdx,
+            activeTab,
+            allTabs,
+            renderTabBody,
+            size,
+            onNavigateToStage: navigateToStage
+          }
+        ),
+        gantt: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(GanttTimeline, { snapshots: activeSnapshots, selectedIndex: safeIdx, onSelect: handleSnapshotChange, size }),
+        compactTimeline: /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(
+          CompactTimeline,
+          {
+            snapshots: activeSnapshots,
+            selectedIndex: safeIdx,
+            defaultExpanded: timelineExpanded,
+            label: bottomLabel
+          }
+        )
+      }
     }
   );
 }
 
 // src/components/TraceViewer/TraceViewer.tsx
 var React = __toESM(require("react"), 1);
-var import_react46 = require("react");
+var import_react52 = require("react");
 
 // src/components/FlowchartView/_internal/keys.ts
 function asStageId(s) {
@@ -11447,22 +11908,21 @@ function graphFromStructure(structure) {
 }
 
 // src/components/TraceViewer/TraceViewer.tsx
-var import_jsx_runtime34 = require("react/jsx-runtime");
+var import_jsx_runtime39 = require("react/jsx-runtime");
 function parseRecording(input) {
   if (input == null) {
     return { ok: false, error: { kind: "invalid-json", message: "No recording provided." } };
   }
-  let candidate = input;
   if (typeof input === "string") {
     if (!input.trim()) {
       return { ok: false, error: { kind: "invalid-json", message: "Empty input." } };
     }
-    try {
-      candidate = JSON.parse(input);
-    } catch (err) {
-      return { ok: false, error: { kind: "invalid-json", message: err.message } };
-    }
   }
+  const parsed = parseRecordingInput(input);
+  if (!parsed.ok) {
+    return { ok: false, error: { kind: "invalid-json", message: parsed.detail } };
+  }
+  const candidate = parsed.value;
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
     return {
       ok: false,
@@ -11495,11 +11955,20 @@ function prepare(input) {
   const parsed = parseRecording(input);
   if (!parsed.ok) return parsed;
   try {
-    const snapshots = toVisualizationSnapshots(
+    const projection = projectRuntimeSnapshot(
       parsed.recording.snapshot,
       parsed.recording.narrativeEntries ?? void 0
     );
-    if (snapshots.length === 0) {
+    if (projection.kind === "unreadable") {
+      return {
+        ok: false,
+        error: {
+          kind: "unreadable-snapshot",
+          message: `Could not read this snapshot: ${projection.detail}`
+        }
+      };
+    }
+    if (projection.kind === "empty") {
       return {
         ok: false,
         error: {
@@ -11508,13 +11977,13 @@ function prepare(input) {
         }
       };
     }
-    return { ok: true, recording: parsed.recording, snapshotCount: snapshots.length };
-  } catch (err) {
+    return { ok: true, recording: parsed.recording };
+  } catch (error) {
     return {
       ok: false,
       error: {
         kind: "unreadable-snapshot",
-        message: `Could not read this snapshot: ${err instanceof Error ? err.message : String(err)}`
+        message: `Could not read this snapshot: ${error instanceof Error ? error.message : String(error)}`
       }
     };
   }
@@ -11533,20 +12002,21 @@ function TraceViewer({
   recorderViews,
   renderFlowchart,
   traceTheme,
+  autoPlay,
   theme: themeMode
 }) {
   const input = recording ?? trace;
-  const prepared = (0, import_react46.useMemo)(() => prepare(input), [input]);
+  const prepared = (0, import_react52.useMemo)(() => prepare(input), [input]);
   React.useEffect(() => {
     if (!prepared.ok && onError) onError(prepared.error);
   }, [prepared, onError]);
-  const traceGraph = (0, import_react46.useMemo)(() => {
+  const traceGraph = (0, import_react52.useMemo)(() => {
     if (!prepared.ok) return void 0;
     const structure = prepared.recording.structure ?? prepared.recording.blueprint;
     const graph = graphFromStructure(structure);
     return graph.nodes.length > 0 ? graph : void 0;
   }, [prepared]);
-  const runtimeOverlay = (0, import_react46.useMemo)(
+  const runtimeOverlay = (0, import_react52.useMemo)(
     () => prepared.ok ? overlayFromSnapshot(prepared.recording.snapshot, {
       // Retry attempts are never in the commit log (a discarded attempt
       // commits nothing): the snapshot's tree carries them on footprintjs
@@ -11558,7 +12028,7 @@ function TraceViewer({
   if (!prepared.ok) {
     return fallback ?? null;
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime39.jsx)(
     ExplainableShell,
     {
       runtimeSnapshot: prepared.recording.snapshot,
@@ -11572,30 +12042,28 @@ function TraceViewer({
       panelLabels,
       recorderViews,
       renderFlowchart,
+      autoPlay,
       traceTheme: traceTheme ?? (themeMode ? { mode: themeMode } : void 0)
     }
   );
 }
 
 // src/components/ExplainableView/ExplainableContext.tsx
-var import_react47 = require("react");
-var import_jsx_runtime35 = require("react/jsx-runtime");
-var ExplainableRunContext = (0, import_react47.createContext)(null);
+var import_react53 = require("react");
+var import_jsx_runtime40 = require("react/jsx-runtime");
+var ExplainableRunContext = (0, import_react53.createContext)(null);
 function parseRecording2(input) {
   if (input == null || input === "") {
     return { recording: null, error: "No recording provided." };
   }
-  let candidate = input;
-  if (typeof input === "string") {
-    try {
-      candidate = JSON.parse(input);
-    } catch (error) {
-      return {
-        recording: null,
-        error: `Could not parse recording JSON: ${error instanceof Error ? error.message : String(error)}`
-      };
-    }
+  const parsed = parseRecordingInput(input);
+  if (!parsed.ok) {
+    return {
+      recording: null,
+      error: `Could not parse recording JSON: ${parsed.detail}`
+    };
   }
+  const candidate = parsed.value;
   if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
     return { recording: null, error: "A recording must be a JSON object." };
   }
@@ -11621,8 +12089,8 @@ function ExplainableProvider({
   className,
   style
 }) {
-  const parsed = (0, import_react47.useMemo)(() => parseRecording2(input), [input]);
-  const prepared = (0, import_react47.useMemo)(() => {
+  const parsed = (0, import_react53.useMemo)(() => parseRecording2(input), [input]);
+  const prepared = (0, import_react53.useMemo)(() => {
     if (!parsed.recording) {
       return {
         snapshots: [],
@@ -11632,37 +12100,35 @@ function ExplainableProvider({
         error: parsed.error
       };
     }
-    const narrativeEntries = parsed.recording.narrativeEntries ?? narrativeFromSnapshot(parsed.recording.snapshot) ?? [];
-    const runtimeSnapshot = parsed.recording.snapshot;
+    const recording = parsed.recording;
+    const narrativeEntries = recording.narrativeEntries ?? narrativeFromSnapshot(recording.snapshot) ?? [];
+    const runtimeSnapshot = recording.snapshot;
+    const projection = projectRuntimeSnapshot(runtimeSnapshot, narrativeEntries);
+    const prepareSurfaces = (snapshots, error) => ({
+      snapshots,
+      narrativeEntries,
+      traceGraph: graphFromStructure(
+        recording.structure ?? recording.blueprint
+      ),
+      runtimeOverlay: overlayFromSnapshot(recording.snapshot, { narrativeEntries }),
+      error
+    });
+    if (projection.kind === "unreadable") {
+      return prepareSurfaces([], `Could not read recording snapshot: ${projection.detail}`);
+    }
     try {
-      return {
-        snapshots: toVisualizationSnapshots(runtimeSnapshot, narrativeEntries),
-        narrativeEntries,
-        traceGraph: graphFromStructure(
-          parsed.recording.structure ?? parsed.recording.blueprint
-        ),
-        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot, { narrativeEntries }),
-        error: null
-      };
+      return prepareSurfaces(projection.snapshots, null);
     } catch (error) {
-      return {
-        snapshots: [],
-        narrativeEntries,
-        traceGraph: graphFromStructure(
-          parsed.recording.structure ?? parsed.recording.blueprint
-        ),
-        runtimeOverlay: overlayFromSnapshot(parsed.recording.snapshot, { narrativeEntries }),
-        error: `Could not read recording snapshot: ${error instanceof Error ? error.message : String(error)}`
-      };
+      return prepareSurfaces([], `Could not read recording snapshot: ${error instanceof Error ? error.message : String(error)}`);
     }
   }, [parsed]);
-  const [uncontrolledIndex, setUncontrolledIndex] = (0, import_react47.useState)(defaultSelectedIndex);
+  const [uncontrolledIndex, setUncontrolledIndex] = (0, import_react53.useState)(defaultSelectedIndex);
   const requestedIndex = controlledIndex ?? uncontrolledIndex;
   const selectedIndex = Math.max(
     0,
     Math.min(requestedIndex, Math.max(0, prepared.snapshots.length - 1))
   );
-  const selectIndex = (0, import_react47.useCallback)(
+  const selectIndex = (0, import_react53.useCallback)(
     (nextIndex) => {
       const clamped = Math.max(
         0,
@@ -11673,7 +12139,7 @@ function ExplainableProvider({
     },
     [controlledIndex, onSelectedIndexChange, prepared.snapshots.length]
   );
-  const value = (0, import_react47.useMemo)(
+  const value = (0, import_react53.useMemo)(
     () => ({
       recording: parsed.recording,
       snapshots: prepared.snapshots,
@@ -11690,18 +12156,18 @@ function ExplainableProvider({
     }),
     [parsed.recording, prepared, selectedIndex, selectIndex, theme2?.flowchart]
   );
-  return /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(ExplainableRunContext.Provider, { value, children: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(ExplainableRunContext.Provider, { value, children: /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
     "div",
     {
       className,
       "data-fp": "explainable-provider",
       style: { ...themeModeVars(theme2?.mode), display: "contents", ...style },
-      children: /* @__PURE__ */ (0, import_jsx_runtime35.jsx)(FootprintTheme, { tokens: theme2?.tokens, children })
+      children: /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(FootprintTheme, { tokens: theme2?.tokens, children })
     }
   ) });
 }
 function useExplainableRun() {
-  const value = (0, import_react47.useContext)(ExplainableRunContext);
+  const value = (0, import_react53.useContext)(ExplainableRunContext);
   if (!value) {
     throw new Error("Explainable components must be rendered inside <ExplainableProvider>.");
   }
@@ -11709,8 +12175,8 @@ function useExplainableRun() {
 }
 
 // src/components/ExplainableView/TimelinePanel.tsx
-var import_react48 = require("react");
-var import_jsx_runtime36 = require("react/jsx-runtime");
+var import_react54 = require("react");
+var import_jsx_runtime41 = require("react/jsx-runtime");
 function formatOffset(milliseconds) {
   return milliseconds < 1e3 ? `+${Math.round(milliseconds)}ms` : `+${(milliseconds / 1e3).toFixed(1)}s`;
 }
@@ -11722,14 +12188,14 @@ function TimelinePanel({
   style
 }) {
   const { snapshots, selectedIndex, selectIndex, error } = useExplainableRun();
-  const focusedRef = (0, import_react48.useRef)(null);
-  (0, import_react48.useEffect)(() => {
+  const focusedRef = (0, import_react54.useRef)(null);
+  (0, import_react54.useEffect)(() => {
     focusedRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [selectedIndex]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("div", { className, style, "data-fp": "timeline-panel", children: snapshots.map((snapshot, index) => /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("button", { onClick: () => selectIndex(index), children: snapshot.stageLabel }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index}`)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("div", { className, style, "data-fp": "timeline-panel", children: snapshots.map((snapshot, index2) => /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("button", { onClick: () => selectIndex(index2), children: snapshot.stageLabel }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index2}`)) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)(
     "section",
     {
       className,
@@ -11746,22 +12212,22 @@ function TimelinePanel({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
-          /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: snapshots.length ? `${selectedIndex + 1} / ${snapshots.length}` : "0 stages" })
+        /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: snapshots.length ? `${selectedIndex + 1} / ${snapshots.length}` : "0 stages" })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("div", { role: "listbox", "aria-label": title, style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 0 12px" }, children: snapshots.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("p", { style: { margin: 0, padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "This recording has no stages to walk." }) : snapshots.map((snapshot, index) => {
-          const selected = index === selectedIndex;
-          const visited = index < selectedIndex;
-          return /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("div", { ref: selected ? focusedRef : void 0, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("div", { role: "listbox", "aria-label": title, style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 0 12px" }, children: snapshots.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("p", { style: { margin: 0, padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "This recording has no stages to walk." }) : snapshots.map((snapshot, index2) => {
+          const selected = index2 === selectedIndex;
+          const visited = index2 < selectedIndex;
+          return /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)("div", { ref: selected ? focusedRef : void 0, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)(
               "button",
               {
                 type: "button",
                 role: "option",
                 "aria-selected": selected,
-                "aria-label": `Go to stage ${index + 1}: ${snapshot.stageLabel}`,
-                onClick: () => selectIndex(index),
+                "aria-label": `Go to stage ${index2 + 1}: ${snapshot.stageLabel}`,
+                onClick: () => selectIndex(index2),
                 style: {
                   display: "grid",
                   gridTemplateColumns: "50px 18px 1fr",
@@ -11778,8 +12244,8 @@ function TimelinePanel({
                   textAlign: "left"
                 },
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("span", { style: { color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10, textAlign: "right" }, children: formatOffset(snapshot.startMs) }),
-                  /* @__PURE__ */ (0, import_jsx_runtime36.jsx)(
+                  /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("span", { style: { color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10, textAlign: "right" }, children: formatOffset(snapshot.startMs) }),
+                  /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(
                     "span",
                     {
                       "aria-hidden": "true",
@@ -11793,18 +12259,18 @@ function TimelinePanel({
                       }
                     }
                   ),
-                  /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("span", { children: [
-                    /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("strong", { style: { display: "block", fontSize: 12 }, children: snapshot.stageLabel }),
-                    /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("small", { style: { color: theme.textMuted, fontFamily: theme.fontMono }, children: snapshot.runtimeStageId ?? snapshot.stageName })
+                  /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)("span", { children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("strong", { style: { display: "block", fontSize: 12 }, children: snapshot.stageLabel }),
+                    /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("small", { style: { color: theme.textMuted, fontFamily: theme.fontMono }, children: snapshot.runtimeStageId ?? snapshot.stageName })
                   ] })
                 ]
               }
             ),
-            selected && (snapshot.description || renderDetail) ? /* @__PURE__ */ (0, import_jsx_runtime36.jsxs)("div", { style: { margin: "0 12px 10px 80px", color: theme.textSecondary, fontSize: 12, lineHeight: 1.5 }, children: [
-              snapshot.description ? /* @__PURE__ */ (0, import_jsx_runtime36.jsx)("p", { style: { margin: "0 0 8px" }, children: snapshot.description }) : null,
-              renderDetail?.(snapshot, index)
+            selected && (snapshot.description || renderDetail) ? /* @__PURE__ */ (0, import_jsx_runtime41.jsxs)("div", { style: { margin: "0 12px 10px 80px", color: theme.textSecondary, fontSize: 12, lineHeight: 1.5 }, children: [
+              snapshot.description ? /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("p", { style: { margin: "0 0 8px" }, children: snapshot.description }) : null,
+              renderDetail?.(snapshot, index2)
             ] }) : null
-          ] }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index}`);
+          ] }, `${snapshot.runtimeStageId ?? snapshot.stageName}-${index2}`);
         }) })
       ]
     }
@@ -11812,8 +12278,8 @@ function TimelinePanel({
 }
 
 // src/components/ExplainableView/FlowchartPanel.tsx
-var import_react49 = require("react");
-var import_jsx_runtime37 = require("react/jsx-runtime");
+var import_react55 = require("react");
+var import_jsx_runtime42 = require("react/jsx-runtime");
 function baseStageId(runtimeStageId) {
   const hashIndex = runtimeStageId.indexOf("#");
   return hashIndex >= 0 ? runtimeStageId.slice(0, hashIndex) : runtimeStageId;
@@ -11833,7 +12299,7 @@ function FlowchartPanel({
     selectIndex,
     flowchartColors
   } = useExplainableRun();
-  const scrubIndex = (0, import_react49.useMemo)(() => {
+  const scrubIndex = (0, import_react55.useMemo)(() => {
     const runtimeStageId = snapshots[selectedIndex]?.runtimeStageId;
     if (!runtimeStageId) return selectedIndex;
     const match = runtimeOverlay.executionOrder.findIndex(
@@ -11841,10 +12307,10 @@ function FlowchartPanel({
     );
     return match >= 0 ? match : selectedIndex;
   }, [runtimeOverlay.executionOrder, selectedIndex, snapshots]);
-  const handleNodeClick = (0, import_react49.useCallback)(
+  const handleNodeClick = (0, import_react55.useCallback)(
     (stageId) => {
-      const candidates = snapshots.map((snapshot, index) => ({
-        index,
+      const candidates = snapshots.map((snapshot, index2) => ({
+        index: index2,
         stageId: baseStageId(snapshot.runtimeStageId ?? snapshot.stageName)
       })).filter((candidate) => candidate.stageId === stageId);
       const next = candidates.find((candidate) => candidate.index >= selectedIndex) ?? candidates[candidates.length - 1];
@@ -11853,9 +12319,9 @@ function FlowchartPanel({
     [selectedIndex, selectIndex, snapshots]
   );
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("div", { className, style, "data-fp": "flowchart-panel", children: traceGraph.nodes.map((node) => /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("button", { onClick: () => handleNodeClick(node.id), children: String(node.data.label) }, node.id)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("div", { className, style, "data-fp": "flowchart-panel", children: traceGraph.nodes.map((node) => /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("button", { onClick: () => handleNodeClick(node.id), children: String(node.data.label) }, node.id)) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)(
     "section",
     {
       className,
@@ -11872,14 +12338,14 @@ function FlowchartPanel({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
-          /* @__PURE__ */ (0, import_jsx_runtime37.jsxs)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
             traceGraph.nodes.length,
             " nodes \xB7 click to move the cursor"
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("div", { style: { flex: 1, minHeight: 0, overflow: "hidden" }, children: traceGraph.nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime37.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("div", { style: { flex: 1, minHeight: 0, overflow: "hidden" }, children: traceGraph.nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(
           TracedFlow,
           {
             graph: traceGraph,
@@ -11888,14 +12354,14 @@ function FlowchartPanel({
             colors: { ...flowchartColors, ...colors },
             onNodeClick: handleNodeClick
           }
-        ) : /* @__PURE__ */ (0, import_jsx_runtime37.jsx)("p", { style: { padding: 18, color: theme.textMuted, fontSize: 12 }, children: "This recording carried no structure, so there is no chart to draw." }) })
+        ) : /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("p", { style: { padding: 18, color: theme.textMuted, fontSize: 12 }, children: "This recording carried no structure, so there is no chart to draw." }) })
       ]
     }
   );
 }
 
 // src/components/ExplainableView/ValueInspector.tsx
-var import_jsx_runtime38 = require("react/jsx-runtime");
+var import_jsx_runtime43 = require("react/jsx-runtime");
 function ValueInspector({
   title = "Inspect values",
   size = "compact",
@@ -11905,12 +12371,12 @@ function ValueInspector({
 }) {
   const { snapshots, selectedIndex, selectedSnapshot, error } = useExplainableRun();
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("div", { className, style, "data-fp": "value-inspector", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("strong", { children: selectedSnapshot?.stageLabel ?? title }),
-      /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(MemoryPanel, { snapshots, selectedIndex, unstyled: true })
+    return /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("div", { className, style, "data-fp": "value-inspector", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("strong", { children: selectedSnapshot?.stageLabel ?? title }),
+      /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(MemoryPanel, { snapshots, selectedIndex, unstyled: true })
     ] });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)(
     "section",
     {
       className,
@@ -11927,23 +12393,23 @@ function ValueInspector({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("strong", { style: { display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
-          selectedSnapshot ? /* @__PURE__ */ (0, import_jsx_runtime38.jsxs)("span", { style: { display: "block", marginTop: 4, color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("strong", { style: { display: "block", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          selectedSnapshot ? /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)("span", { style: { display: "block", marginTop: 4, color: theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: [
             selectedSnapshot.stageLabel,
             " \xB7 ",
             selectedSnapshot.runtimeStageId ?? selectedSnapshot.stageName
           ] }) : null
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("div", { style: { flex: 1, minHeight: 0, overflow: "auto" }, children: snapshots.length ? /* @__PURE__ */ (0, import_jsx_runtime38.jsx)(MemoryPanel, { snapshots, selectedIndex, size, style: { height: "100%" } }) : /* @__PURE__ */ (0, import_jsx_runtime38.jsx)("p", { style: { padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "No values to inspect." }) })
+        /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { style: { flex: 1, minHeight: 0, overflow: "auto" }, children: snapshots.length ? /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(MemoryPanel, { snapshots, selectedIndex, size, style: { height: "100%" } }) : /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("p", { style: { padding: 14, color: theme.textMuted, fontSize: 12 }, children: error ?? "No values to inspect." }) })
       ]
     }
   );
 }
 
 // src/components/ExplainableView/CommentaryPanel.tsx
-var import_react50 = require("react");
-var import_jsx_runtime39 = require("react/jsx-runtime");
+var import_react56 = require("react");
+var import_jsx_runtime44 = require("react/jsx-runtime");
 function CommentaryPanel({
   title = "Commentary",
   maxLines = 200,
@@ -11954,12 +12420,12 @@ function CommentaryPanel({
   style
 }) {
   const { snapshots, selectedIndex, narrativeEntries } = useExplainableRun();
-  const currentRef = (0, import_react50.useRef)(null);
-  const rangeIndex = (0, import_react50.useMemo)(
+  const currentRef = (0, import_react56.useRef)(null);
+  const rangeIndex = (0, import_react56.useMemo)(
     () => narrativeEntries.length ? buildEntryRangeIndex(narrativeEntries) : void 0,
     [narrativeEntries]
   );
-  const revealedCount = (0, import_react50.useMemo)(
+  const revealedCount = (0, import_react56.useMemo)(
     () => narrativeEntries.length ? computeRevealedEntryCount(
       narrativeEntries,
       snapshots,
@@ -11968,23 +12434,18 @@ function CommentaryPanel({
     ) : 0,
     [narrativeEntries, snapshots, selectedIndex, rangeIndex]
   );
-  const dedupedEntries = (0, import_react50.useMemo)(() => {
-    const revealed = narrativeEntries.slice(0, revealedCount);
-    return revealed.filter(
-      (entry, index) => index === 0 || entry.text !== revealed[index - 1]?.text
-    );
-  }, [narrativeEntries, revealedCount]);
-  const visibleEntries = dedupedEntries.slice(
-    Math.max(0, dedupedEntries.length - maxLines)
+  const visibleEntries = narrativeEntries.slice(
+    Math.max(0, revealedCount - maxLines),
+    revealedCount
   );
-  const hiddenCount = Math.max(0, dedupedEntries.length - visibleEntries.length);
-  (0, import_react50.useEffect)(() => {
+  const hiddenCount = Math.max(0, revealedCount - visibleEntries.length);
+  (0, import_react56.useEffect)(() => {
     currentRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
   }, [visibleEntries.length]);
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("div", { className, style, "data-fp": "commentary-panel", role: "log", children: visibleEntries.map((entry, index) => /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("div", { children: renderEntry?.(entry, { index, current: index === visibleEntries.length - 1 }) ?? entry.text }, `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index}`)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("div", { className, style, "data-fp": "commentary-panel", role: "log", children: visibleEntries.map((entry, index2) => /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("div", { children: renderEntry?.(entry, { index: index2, current: index2 === visibleEntries.length - 1 }) ?? entry.text }, `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index2}`)) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime39.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(
     "section",
     {
       className,
@@ -12001,24 +12462,24 @@ function CommentaryPanel({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime39.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
-          /* @__PURE__ */ (0, import_jsx_runtime39.jsxs)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("header", { style: { padding: "10px 12px", borderBottom: `1px solid ${theme.border}` }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("strong", { style: { fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }, children: title }),
+          /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("span", { style: { marginLeft: 8, color: theme.textMuted, fontSize: 10 }, children: [
             revealedCount,
             " of ",
             narrativeEntries.length,
             " lines"
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("div", { role: "log", "aria-live": "polite", style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 12px" }, children: visibleEntries.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("p", { style: { color: theme.textMuted, fontSize: 12, fontStyle: "italic" }, children: emptyMessage }) : /* @__PURE__ */ (0, import_jsx_runtime39.jsxs)(import_jsx_runtime39.Fragment, { children: [
-          hiddenCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime39.jsxs)("p", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic" }, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("div", { role: "log", "aria-live": "polite", style: { flex: 1, minHeight: 0, overflowY: "auto", padding: "6px 12px" }, children: visibleEntries.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { style: { color: theme.textMuted, fontSize: 12, fontStyle: "italic" }, children: emptyMessage }) : /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(import_jsx_runtime44.Fragment, { children: [
+          hiddenCount > 0 ? /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("p", { style: { color: theme.textMuted, fontSize: 11, fontStyle: "italic" }, children: [
             "\u2026 ",
             hiddenCount,
             " earlier lines hidden; scrub backward to revisit them."
           ] }) : null,
-          visibleEntries.map((entry, index) => {
-            const current = index === visibleEntries.length - 1;
-            return /* @__PURE__ */ (0, import_jsx_runtime39.jsxs)(
+          visibleEntries.map((entry, index2) => {
+            const current = index2 === visibleEntries.length - 1;
+            return /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(
               "div",
               {
                 ref: current ? currentRef : void 0,
@@ -12035,11 +12496,11 @@ function CommentaryPanel({
                   lineHeight: 1.55
                 },
                 children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("span", { style: { color: current ? theme.warning : theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: entry.type }),
-                  /* @__PURE__ */ (0, import_jsx_runtime39.jsx)("div", { style: { fontSize: 12 }, children: renderEntry?.(entry, { index, current }) ?? entry.text })
+                  /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("span", { style: { color: current ? theme.warning : theme.textMuted, fontFamily: theme.fontMono, fontSize: 10 }, children: entry.type }),
+                  /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("div", { style: { fontSize: 12 }, children: renderEntry?.(entry, { index: index2, current }) ?? entry.text })
                 ]
               },
-              `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index}`
+              `${entry.runtimeStageId ?? entry.stageId ?? entry.type}-${index2}`
             );
           })
         ] }) })
@@ -12049,7 +12510,7 @@ function CommentaryPanel({
 }
 
 // src/components/ExplainableView/TimeTravelBar.tsx
-var import_jsx_runtime40 = require("react/jsx-runtime");
+var import_jsx_runtime45 = require("react/jsx-runtime");
 function TimeTravelBar({
   autoPlayable = true,
   size,
@@ -12058,7 +12519,7 @@ function TimeTravelBar({
   style
 }) {
   const { snapshots, selectedIndex, selectIndex } = useExplainableRun();
-  return /* @__PURE__ */ (0, import_jsx_runtime40.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime45.jsx)(
     TimeTravelControls,
     {
       snapshots,
@@ -12080,7 +12541,7 @@ function TimeTravelBar({
 }
 
 // src/components/ExplainableView/CompactTimelinePanel.tsx
-var import_jsx_runtime41 = require("react/jsx-runtime");
+var import_jsx_runtime46 = require("react/jsx-runtime");
 function CompactTimelinePanel({
   defaultExpanded = false,
   unstyled = false,
@@ -12089,18 +12550,18 @@ function CompactTimelinePanel({
 }) {
   const { snapshots, selectedIndex, selectIndex } = useExplainableRun();
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime41.jsx)("div", { className, "data-fp": "compact-timeline-panel", style, children: snapshots.map((snapshot, index) => /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(
+    return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("div", { className, "data-fp": "compact-timeline-panel", style, children: snapshots.map((snapshot, index2) => /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(
       "button",
       {
-        "aria-current": index === selectedIndex ? "step" : void 0,
-        onClick: () => selectIndex(index),
+        "aria-current": index2 === selectedIndex ? "step" : void 0,
+        onClick: () => selectIndex(index2),
         type: "button",
         children: snapshot.stageLabel
       },
       snapshot.runtimeStageId
     )) });
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(
     "section",
     {
       className,
@@ -12113,7 +12574,7 @@ function CompactTimelinePanel({
         color: theme.textPrimary,
         ...style
       },
-      children: /* @__PURE__ */ (0, import_jsx_runtime41.jsx)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(
         CompactTimeline,
         {
           snapshots,
@@ -12126,7 +12587,7 @@ function CompactTimelinePanel({
 }
 
 // src/components/ExplainableView/SurfaceCollapseHandle.tsx
-var import_jsx_runtime42 = require("react/jsx-runtime");
+var import_jsx_runtime47 = require("react/jsx-runtime");
 function SurfaceCollapseHandle({
   label = "Details",
   expanded,
@@ -12138,7 +12599,7 @@ function SurfaceCollapseHandle({
 }) {
   const action2 = expanded ? "Collapse" : "Expand";
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)(
       "button",
       {
         "aria-expanded": expanded,
@@ -12157,7 +12618,7 @@ function SurfaceCollapseHandle({
     );
   }
   const vertical = orientation === "vertical";
-  return /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)(
     "div",
     {
       className,
@@ -12172,13 +12633,13 @@ function SurfaceCollapseHandle({
         ...style
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(
           "div",
           {
             style: vertical ? { flex: 1, width: 1, background: theme.border } : { flex: 1, height: 1, background: theme.border }
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime42.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsxs)(
           "button",
           {
             "aria-expanded": expanded,
@@ -12205,12 +12666,12 @@ function SurfaceCollapseHandle({
               writingMode: vertical ? "vertical-lr" : "horizontal-tb"
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime42.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: vertical ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25BC" : "\u25B6" }),
+              /* @__PURE__ */ (0, import_jsx_runtime47.jsx)("span", { style: { fontSize: 7, writingMode: "horizontal-tb" }, children: vertical ? expanded ? "\u25B6" : "\u25C0" : expanded ? "\u25BC" : "\u25B6" }),
               label
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime42.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime47.jsx)(
           "div",
           {
             style: vertical ? { flex: 1, width: 1, background: theme.border } : { flex: 1, height: 1, background: theme.border }
@@ -12223,7 +12684,7 @@ function SurfaceCollapseHandle({
 
 // src/components/ExplainableView/ExplainableView.tsx
 var React2 = __toESM(require("react"), 1);
-var import_jsx_runtime43 = require("react/jsx-runtime");
+var import_jsx_runtime48 = require("react/jsx-runtime");
 var layoutPresets = {
   developer: {
     columns: "minmax(0, 1.7fr) minmax(300px, 0.8fr)",
@@ -12313,8 +12774,7 @@ function ViewContents({
 }) {
   const context = useExplainableRun();
   const resolved = resolveLayout(layout);
-  const rootRef = React2.useRef(null);
-  const [isNarrow, setIsNarrow] = React2.useState(false);
+  const { ref: rootRef, isNarrow } = useContainerBreakpoints();
   const [uncontrolledDetailsExpanded, setUncontrolledDetailsExpanded] = React2.useState(defaultDetailsExpanded);
   const detailsExpanded = controlledDetailsExpanded ?? uncontrolledDetailsExpanded;
   const toggleDetails = () => {
@@ -12324,30 +12784,21 @@ function ViewContents({
     }
     onDetailsExpandedChange?.(nextExpanded);
   };
-  React2.useEffect(() => {
-    const element = rootRef.current;
-    if (!element || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(([entry]) => {
-      setIsNarrow(entry.contentRect.width < 640);
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
   const responsiveDefinition = resolved.definition;
   const responsiveTemplateAreas = responsiveDefinition.areas.map((row2) => `"${row2.join(" ")}"`).join(" ");
   const renderSurface = (surface) => {
     const fallback = {
-      timeTravel: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(TimeTravelBar, { unstyled }),
-      timeline: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(CompactTimelinePanel, { unstyled }),
-      stageRail: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(TimelinePanel, { unstyled }),
-      flowchart: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(FlowchartPanel, { unstyled }),
-      inspector: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(ValueInspector, { unstyled }),
-      commentary: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(CommentaryPanel, { unstyled })
+      timeTravel: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(TimeTravelBar, { unstyled }),
+      timeline: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(CompactTimelinePanel, { unstyled }),
+      stageRail: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(TimelinePanel, { unstyled }),
+      flowchart: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(FlowchartPanel, { unstyled }),
+      inspector: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(ValueInspector, { unstyled }),
+      commentary: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(CommentaryPanel, { unstyled })
     }[surface];
     return renderSlot(slots?.[surface], fallback, context);
   };
   if (unstyled) {
-    return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { className, style, "data-fp": "explainable-view", "data-layout": resolved.name, children: resolved.surfaces.map((surface) => /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { "data-fp-surface": surface, children: renderSurface(surface) }, surface)) });
+    return /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { className, style, "data-fp": "explainable-view", "data-layout": resolved.name, children: resolved.surfaces.map((surface) => /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { "data-fp-surface": surface, children: renderSurface(surface) }, surface)) });
   }
   if (resolved.name === "developer" || resolved.name === "product") {
     const product = resolved.name === "product";
@@ -12358,7 +12809,7 @@ function ViewContents({
       flexDirection: "column",
       overflow: "hidden"
     };
-    return /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)(
       "div",
       {
         ref: rootRef,
@@ -12381,8 +12832,8 @@ function ViewContents({
           ...style
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { "data-fp-surface": "timeTravel", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeTravel") }),
-          /* @__PURE__ */ (0, import_jsx_runtime43.jsxs)(
+          /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { "data-fp-surface": "timeTravel", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeTravel") }),
+          /* @__PURE__ */ (0, import_jsx_runtime48.jsxs)(
             "div",
             {
               "data-fp": "workbench-main",
@@ -12395,7 +12846,7 @@ function ViewContents({
                 overflow: "hidden"
               },
               children: [
-                /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
                   "div",
                   {
                     "data-fp-surface": "flowchart",
@@ -12406,7 +12857,7 @@ function ViewContents({
                     children: renderSurface("flowchart")
                   }
                 ),
-                /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
                   SurfaceCollapseHandle,
                   {
                     expanded: detailsExpanded,
@@ -12415,7 +12866,7 @@ function ViewContents({
                     orientation: isNarrow ? "horizontal" : "vertical"
                   }
                 ),
-                detailsExpanded ? /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(
+                detailsExpanded ? /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
                   "div",
                   {
                     "data-fp-surface": "inspector",
@@ -12432,7 +12883,7 @@ function ViewContents({
               ]
             }
           ),
-          product ? /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(
+          product ? /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
             "div",
             {
               "data-fp-surface": "commentary",
@@ -12444,12 +12895,12 @@ function ViewContents({
               },
               children: renderSurface("commentary")
             }
-          ) : /* @__PURE__ */ (0, import_jsx_runtime43.jsx)("div", { "data-fp-surface": "timeline", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeline") })
+          ) : /* @__PURE__ */ (0, import_jsx_runtime48.jsx)("div", { "data-fp-surface": "timeline", style: { ...surfaceStyle, flex: "0 0 auto" }, children: renderSurface("timeline") })
         ]
       }
     );
   }
-  return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
     "div",
     {
       ref: rootRef,
@@ -12474,7 +12925,7 @@ function ViewContents({
         background: theme.border,
         ...style
       },
-      children: resolved.surfaces.map((surface) => /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(
+      children: resolved.surfaces.map((surface) => /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
         "div",
         {
           "data-fp-surface": surface,
@@ -12510,7 +12961,7 @@ function ExplainableView({
   className,
   style
 }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
     ExplainableProvider,
     {
       recording,
@@ -12518,7 +12969,7 @@ function ExplainableView({
       defaultSelectedIndex,
       onSelectedIndexChange,
       theme: viewTheme,
-      children: /* @__PURE__ */ (0, import_jsx_runtime43.jsx)(
+      children: /* @__PURE__ */ (0, import_jsx_runtime48.jsx)(
         ViewContents,
         {
           layout,
@@ -12537,76 +12988,8 @@ function ExplainableView({
   );
 }
 
-// src/trace/projectTraceInvocation.ts
-function projectTraceInvocation(snapshot, exactMountId, options) {
-  const unavailable = (availability) => ({
-    availability,
-    commitLog: [],
-    executionTree: void 0,
-    scope: Object.freeze({
-      invocationPath: Object.freeze([]),
-      readsAvailable: false
-    })
-  });
-  try {
-    const targetId = readName(exactMountId);
-    if (!targetId.includes("#"))
-      return unavailable({ ok: false, reason: "invocation-not-recorded" });
-    const budget = new WorkBudget();
-    const pathValue = ownDataField(options, "invocationPath");
-    const path = pathValue === void 0 ? [targetId] : readOwnArray(pathValue, budget).map(readName);
-    if (path.length === 0 || path.length > 128 || path.join("").length > 8192 || path[path.length - 1] !== targetId)
-      return unavailable({ ok: false, reason: "ancestor-not-recorded" });
-    const results = ownDataField(snapshot, "subflowResults");
-    if (!isPlainRecord(results))
-      return unavailable({ ok: false, reason: "invocation-not-recorded" });
-    const root = rootMountLabels(
-      ownDataField(snapshot, "executionTree"),
-      ownDataField(snapshot, "commitLog")
-    );
-    if (!root.availability.ok) return unavailable(root.availability);
-    const readsAvailable = root.hasTree && runHasRecordedReads(snapshot);
-    let parents = root.labels;
-    for (let index = 0; index < path.length; index++) {
-      if (path.length > 1 && !parents.has(path[index]))
-        return unavailable({ ok: false, reason: "ancestor-not-recorded" });
-      const result = ownDataField(results, path[index]);
-      if (result === void 0)
-        return unavailable({
-          ok: false,
-          reason: index === path.length - 1 ? "invocation-not-recorded" : "ancestor-not-recorded"
-        });
-      const selected = childTraceScope(
-        result,
-        path.slice(0, index + 1),
-        readsAvailable
-      );
-      if (!selected.availability.ok) return unavailable(selected.availability);
-      parents = selected.mountLabels;
-      if (index === path.length - 1) {
-        return {
-          availability: selected.availability,
-          commitLog: selected.commitLog,
-          executionTree: selected.executionTree,
-          scope: Object.freeze({
-            invocationPath: Object.freeze([...path]),
-            mountLabels: Object.freeze(
-              Object.fromEntries(selected.mountLabels)
-            ),
-            readsAvailable: selected.readsAvailable,
-            startKeys: selected.startKeys
-          })
-        };
-      }
-    }
-    return unavailable({ ok: false, reason: "invocation-not-recorded" });
-  } catch (error) {
-    return unavailable({ ok: false, ...classifyAdmissionFailure(error) });
-  }
-}
-
 // src/components/InvestigationPanel/InvestigationPanel.tsx
-var import_react52 = require("react");
+var import_react58 = require("react");
 
 // src/components/InvestigationPanel/admission.ts
 var MAX_ITEMS = 256;
@@ -12650,7 +13033,7 @@ var reasons = {
 };
 var Refused = class extends Error {
 };
-function field3(value, key) {
+function field4(value, key) {
   if (!value || typeof value !== "object") throw new Refused();
   const descriptor = Object.getOwnPropertyDescriptor(value, key);
   if (!descriptor) return void 0;
@@ -12662,24 +13045,24 @@ var Admission = class {
     this.remaining = MAX_TEXT;
     this.evidence = (value) => this.list(value, 32, (entry) => this.text(entry));
     this.attention = (value) => {
-      const reason = field3(value, "reason");
+      const reason = field4(value, "reason");
       if (typeof reason !== "string" || !Object.prototype.hasOwnProperty.call(reasons, reason))
         throw new Refused();
       return {
-        kind: this.text(field3(value, "kind")),
+        kind: this.text(field4(value, "kind")),
         reason,
-        evidence: this.evidence(field3(value, "evidence"))
+        evidence: this.evidence(field4(value, "evidence"))
       };
     };
     this.gaps = (value) => this.list(value, 128, (entry) => {
-      const code = field3(entry, "code");
+      const code = field4(entry, "code");
       if (typeof code !== "string" || !Object.prototype.hasOwnProperty.call(gapMessages, code))
         throw new Refused();
-      const nodeId = field3(entry, "nodeId");
+      const nodeId = field4(entry, "nodeId");
       return {
         code,
         ...nodeId !== void 0 && { nodeId: this.text(nodeId) },
-        evidence: this.evidence(field3(entry, "evidence"))
+        evidence: this.evidence(field4(entry, "evidence"))
       };
     });
   }
@@ -12692,12 +13075,12 @@ var Admission = class {
   }
   list(value, max, parse) {
     if (!Array.isArray(value)) throw new Refused();
-    const length = field3(value, "length");
+    const length = field4(value, "length");
     if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0 || length > max)
       throw new Refused();
     const copy = [];
-    for (let index = 0; index < length; index++)
-      copy.push(parse(field3(value, String(index))));
+    for (let index2 = 0; index2 < length; index2++)
+      copy.push(parse(field4(value, String(index2))));
     return copy;
   }
   confidence(value) {
@@ -12706,19 +13089,19 @@ var Admission = class {
   }
   edges(value, members) {
     return this.list(value, 512, (entry) => {
-      const from = this.text(field3(entry, "from")), to = this.text(field3(entry, "to"));
-      const kind = field3(entry, "kind"), attribution = field3(entry, "attribution");
-      if (!members.has(from) || !members.has(to) || kind !== "data" && kind !== "control" || !["per-write", "stage", "recorded-control", "recorded-read"].includes(attribution)) throw new Refused();
-      return { from, to, kind, attribution, evidence: this.evidence(field3(entry, "evidence")) };
+      const from = this.text(field4(entry, "from")), to = this.text(field4(entry, "to"));
+      const kind = field4(entry, "kind"), attribution = field4(entry, "attribution");
+      if (!members.has(from) || !members.has(to) || kind !== "data" && kind !== "control" || !admitsRecordedAttribution(attribution, kind)) throw new Refused();
+      return { from, to, kind, attribution, evidence: this.evidence(field4(entry, "evidence")) };
     });
   }
   backward(value, selected, root, path, alternatives) {
-    const nodes = this.list(field3(value, "nodes"), MAX_ITEMS, (entry) => this.text(entry));
+    const nodes = this.list(field4(value, "nodes"), MAX_ITEMS, (entry) => this.text(entry));
     const members = new Set(nodes);
     if (members.size !== nodes.length || nodes.length > 0 && !members.has(selected)) throw new Refused();
-    const confidence = this.confidence(field3(value, "confidence")), gaps = this.gaps(field3(value, "gaps"));
+    const confidence = this.confidence(field4(value, "confidence")), gaps = this.gaps(field4(value, "gaps"));
     if (root !== void 0 && (!members.has(root) || confidence !== "complete" || gaps.length)) throw new Refused();
-    const edges = this.edges(field3(value, "edges"), members);
+    const edges = this.edges(field4(value, "edges"), members);
     if (path.some((id) => !members.has(id)) || alternatives.some((id) => !members.has(id)) || root !== void 0 && edges.some((edge) => edge.attribution === "stage")) throw new Refused();
     const links = /* @__PURE__ */ new Map();
     for (const edge of edges) {
@@ -12726,21 +13109,21 @@ var Admission = class {
       targets.add(edge.to);
       links.set(edge.from, targets);
     }
-    for (let index = 1; index < path.length; index++) if (!links.get(path[index - 1])?.has(path[index])) throw new Refused();
+    for (let index2 = 1; index2 < path.length; index2++) if (!links.get(path[index2 - 1])?.has(path[index2])) throw new Refused();
     return { nodes, edges, confidence, gaps };
   }
   impact(value, selected, visual) {
     const nodes = this.list(
-      field3(value, "nodes"),
+      field4(value, "nodes"),
       MAX_ITEMS,
       (entry) => this.text(entry)
     );
     if (new Set(nodes).size !== nodes.length) throw new Refused();
     return {
       nodes,
-      confidence: this.confidence(field3(value, "confidence")),
-      gaps: this.gaps(field3(value, "gaps")),
-      ...visual && field3(value, "edges") !== void 0 ? { edges: this.edges(field3(value, "edges"), /* @__PURE__ */ new Set([selected, ...nodes])) } : {}
+      confidence: this.confidence(field4(value, "confidence")),
+      gaps: this.gaps(field4(value, "gaps")),
+      ...visual && field4(value, "edges") !== void 0 ? { edges: this.edges(field4(value, "edges"), /* @__PURE__ */ new Set([selected, ...nodes])) } : {}
     };
   }
 };
@@ -12748,19 +13131,19 @@ function admitAttention(value) {
   try {
     const reader = new Admission();
     const nodes = reader.list(
-      field3(value, "nodes"),
+      field4(value, "nodes"),
       MAX_ITEMS,
       (entry) => ({
-        nodeId: reader.text(field3(entry, "nodeId")),
-        attention: reader.list(field3(entry, "attention"), 16, reader.attention)
+        nodeId: reader.text(field4(entry, "nodeId")),
+        attention: reader.list(field4(entry, "attention"), 16, reader.attention)
       })
     );
     if (new Set(nodes.map((node) => node.nodeId)).size !== nodes.length)
       return void 0;
     return {
       nodes,
-      confidence: reader.confidence(field3(value, "confidence")),
-      gaps: reader.gaps(field3(value, "gaps"))
+      confidence: reader.confidence(field4(value, "confidence")),
+      gaps: reader.gaps(field4(value, "gaps"))
     };
   } catch {
     return void 0;
@@ -12769,34 +13152,34 @@ function admitAttention(value) {
 function readExplanation(value, requested, visual) {
   try {
     const reader = new Admission();
-    const nodeId = reader.text(field3(value, "nodeId"));
+    const nodeId = reader.text(field4(value, "nodeId"));
     if (nodeId !== requested) return void 0;
     const path = reader.list(
-      field3(value, "path"),
+      field4(value, "path"),
       MAX_ITEMS,
       (entry) => reader.text(entry)
     );
     const alternatives = reader.list(
-      field3(value, "alternatives"),
+      field4(value, "alternatives"),
       MAX_ITEMS,
       (entry) => reader.text(entry)
     );
     if (path.length && path[0] !== nodeId || new Set(path).size !== path.length || new Set(alternatives).size !== alternatives.length)
       return void 0;
-    const confidence = reader.confidence(field3(value, "confidence"));
-    const gaps = reader.gaps(field3(value, "gaps"));
-    const root = field3(value, "rootCause");
+    const confidence = reader.confidence(field4(value, "confidence"));
+    const gaps = reader.gaps(field4(value, "gaps"));
+    const root = field4(value, "rootCause");
     const rootCause = root === void 0 ? void 0 : reader.text(root);
     if (rootCause !== void 0 && (alternatives.length || path[path.length - 1] !== rootCause))
       return void 0;
     return {
       nodeId,
-      attention: reader.list(field3(value, "attention"), 16, reader.attention),
+      attention: reader.list(field4(value, "attention"), 16, reader.attention),
       ...rootCause !== void 0 && { rootCause },
       path,
       alternatives,
-      impact: reader.impact(field3(value, "impact"), nodeId, visual),
-      ...visual && field3(value, "backward") !== void 0 ? { backward: reader.backward(field3(value, "backward"), nodeId, rootCause, path, alternatives) } : {},
+      impact: reader.impact(field4(value, "impact"), nodeId, visual),
+      ...visual && field4(value, "backward") !== void 0 ? { backward: reader.backward(field4(value, "backward"), nodeId, rootCause, path, alternatives) } : {},
       confidence,
       gaps
     };
@@ -12812,7 +13195,7 @@ function admitVisualExplanation(value, requested) {
 }
 function displayLabel(labels, nodeId) {
   try {
-    const label = field3(labels, nodeId);
+    const label = field4(labels, nodeId);
     return typeof label === "string" && label.length > 0 && label.length <= 512 ? label : nodeId;
   } catch {
     return nodeId;
@@ -12820,13 +13203,13 @@ function displayLabel(labels, nodeId) {
 }
 
 // src/components/InvestigationPanel/useInvestigationQuery.ts
-var import_react51 = require("react");
+var import_react57 = require("react");
 function useInvestigationQuery(port, admit) {
   const owner = port.binding;
-  const currentOwner = (0, import_react51.useRef)(null);
-  const active = (0, import_react51.useRef)(null);
-  const [state, setState] = (0, import_react51.useState)(null);
-  const [selection, setSelection] = (0, import_react51.useState)(null);
+  const currentOwner = (0, import_react57.useRef)(null);
+  const active = (0, import_react57.useRef)(null);
+  const [state, setState] = (0, import_react57.useState)(null);
+  const [selection, setSelection] = (0, import_react57.useState)(null);
   useIsomorphicLayoutEffect(() => {
     currentOwner.current = owner;
     if (!active.current) setState((previous) => previous?.owner === owner && previous.status === "loading" ? null : previous);
@@ -12883,7 +13266,7 @@ function useInvestigationQuery(port, admit) {
 }
 
 // src/components/InvestigationPanel/InvestigationPanel.tsx
-var import_jsx_runtime44 = require("react/jsx-runtime");
+var import_jsx_runtime49 = require("react/jsx-runtime");
 var box = {
   color: theme.textPrimary,
   background: theme.bg,
@@ -12919,7 +13302,7 @@ var attentionNames = {
   outlier: "Unusual result"
 };
 function Badges({ marks }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(import_jsx_runtime44.Fragment, { children: marks.map((mark, index) => /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(import_jsx_runtime49.Fragment, { children: marks.map((mark, index2) => /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
     "span",
     {
       style: {
@@ -12932,48 +13315,48 @@ function Badges({ marks }) {
       },
       children: Object.prototype.hasOwnProperty.call(attentionNames, mark.kind) ? attentionNames[mark.kind] : mark.kind
     },
-    index
+    index2
   )) });
 }
 function Gaps({ gaps }) {
-  return /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(import_jsx_runtime44.Fragment, { children: gaps.map((gap, index) => /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { role: "status", children: gapMessages[gap.code] }, index)) });
+  return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(import_jsx_runtime49.Fragment, { children: gaps.map((gap, index2) => /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { role: "status", children: gapMessages[gap.code] }, index2)) });
 }
 function InvestigationPanel(props) {
   if (!props.port)
-    return /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(
+    return /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)(
       "section",
       {
         "aria-label": "Investigation",
         className: props.className,
         style: { ...box, ...props.style },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("h2", { children: "Needs attention" }),
-          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { role: "status", children: "Investigation is unavailable for this recording." })
+          /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("h2", { children: "Needs attention" }),
+          /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { role: "status", children: "Investigation is unavailable for this recording." })
         ]
       }
     );
-  return /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(BoundInvestigationPanel, { ...props, port: props.port });
+  return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(BoundInvestigationPanel, { ...props, port: props.port });
 }
 function BoundInvestigationPanel(props) {
   const controller = useInvestigationQuery(props.port, admitExplanation);
-  return /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(InvestigationPanelView, { ...props, controller });
+  return /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(InvestigationPanelView, { ...props, controller });
 }
 function InvestigationPanelView({ port, className, style, controller, showAttention = true, focusExternalRequests = true }) {
-  const attention = (0, import_react52.useMemo)(
+  const attention = (0, import_react58.useMemo)(
     () => showAttention ? admitAttention(port.attention) : void 0,
     [port.attention, showAttention]
   );
   const { owner, currentOwner, active, selected } = controller;
-  const explanationElement = (0, import_react52.useRef)(null);
-  const attentionElements = (0, import_react52.useRef)(/* @__PURE__ */ new Map());
-  const returnTo = (0, import_react52.useRef)(null);
-  const focusIntent = (0, import_react52.useRef)(null);
-  const [page, setPage] = (0, import_react52.useState)({ owner, count: 20 });
+  const explanationElement = (0, import_react58.useRef)(null);
+  const attentionElements = (0, import_react58.useRef)(/* @__PURE__ */ new Map());
+  const returnTo = (0, import_react58.useRef)(null);
+  const focusIntent = (0, import_react58.useRef)(null);
+  const [page, setPage] = (0, import_react58.useState)({ owner, count: 20 });
   const visible = page.owner === owner ? page.count : 20;
-  const [showPath, setShowPath] = (0, import_react52.useState)(false);
-  const [showImpact, setShowImpact] = (0, import_react52.useState)(false);
-  const [showAlternatives, setShowAlternatives] = (0, import_react52.useState)(false);
-  const lastRequest = (0, import_react52.useRef)(null);
+  const [showPath, setShowPath] = (0, import_react58.useState)(false);
+  const [showImpact, setShowImpact] = (0, import_react58.useState)(false);
+  const [showAlternatives, setShowAlternatives] = (0, import_react58.useState)(false);
+  const lastRequest = (0, import_react58.useRef)(null);
   useIsomorphicLayoutEffect(() => {
     if (returnTo.current?.owner !== owner) returnTo.current = null;
     return () => {
@@ -13013,37 +13396,37 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
     focusIntent.current = { owner, kind: "explanation", request };
   };
   const label = (nodeId) => displayLabel(port.labels, nodeId);
-  const item = (nodeId, index) => /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("li", { style: row, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("span", { children: label(nodeId) }),
+  const item = (nodeId, index2) => /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("li", { style: row, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("span", { children: label(nodeId) }),
     " ",
-    /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
       "button",
       {
         type: "button",
         style: button,
-        "aria-label": `Investigate related item ${index + 1}`,
+        "aria-label": `Investigate related item ${index2 + 1}`,
         onClick: () => query(nodeId),
         children: "Investigate"
       }
     )
-  ] }, `${index}:${nodeId}`);
-  return /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(
+  ] }, `${index2}:${nodeId}`);
+  return /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)(
     "section",
     {
       "aria-label": "Investigation",
       className,
       style: { ...box, ...style },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("h2", { style: { marginBlockStart: 0 }, children: showAttention ? "Needs attention" : "Understand this step" }),
-        /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { style: { color: theme.textSecondary }, children: "Choose an item to inspect its recorded causes and effects." }),
-        showAttention && (!attention ? /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { role: "alert", children: "The attention list could not be verified." }) : /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(import_jsx_runtime44.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(Gaps, { gaps: attention.gaps }),
-          attention.confidence === "incomplete" && attention.nodes.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { role: "status", children: "Attention coverage is incomplete. Other outcomes remain unknown." }),
-          !attention.nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { children: attention.confidence === "incomplete" || attention.gaps.length ? "No attention items are available. Coverage is unknown." : "No attention items were reported in the supplied evidence." }) : /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("ul", { style: { listStyle: "none", padding: 0 }, children: attention.nodes.slice(0, selected ? 20 : visible).map((node, index) => /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("li", { style: row, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("div", { children: label(node.nodeId) }),
-            /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(Badges, { marks: node.attention }),
+        /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("h2", { style: { marginBlockStart: 0 }, children: showAttention ? "Needs attention" : "Understand this step" }),
+        /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { style: { color: theme.textSecondary }, children: "Choose an item to inspect its recorded causes and effects." }),
+        showAttention && (!attention ? /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { role: "alert", children: "The attention list could not be verified." }) : /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)(import_jsx_runtime49.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(Gaps, { gaps: attention.gaps }),
+          attention.confidence === "incomplete" && attention.nodes.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { role: "status", children: "Attention coverage is incomplete. Other outcomes remain unknown." }),
+          !attention.nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { children: attention.confidence === "incomplete" || attention.gaps.length ? "No attention items are available. Coverage is unknown." : "No attention items were reported in the supplied evidence." }) : /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("ul", { style: { listStyle: "none", padding: 0 }, children: attention.nodes.slice(0, selected ? 20 : visible).map((node, index2) => /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("li", { style: row, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("div", { children: label(node.nodeId) }),
+            /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(Badges, { marks: node.attention }),
             " ",
-            /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(
+            /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
               "button",
               {
                 ref: (element) => {
@@ -13053,13 +13436,13 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
                 },
                 type: "button",
                 style: button,
-                "aria-label": `Investigate item ${index + 1}`,
+                "aria-label": `Investigate item ${index2 + 1}`,
                 onClick: () => query(node.nodeId, true),
                 children: "Investigate"
               }
             )
           ] }, node.nodeId)) }),
-          !selected && attention.nodes.length > visible && /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(
+          !selected && attention.nodes.length > visible && /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
             "button",
             {
               type: "button",
@@ -13069,7 +13452,7 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
             }
           )
         ] })),
-        selected && /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(
+        selected && /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)(
           "section",
           {
             ref: explanationElement,
@@ -13082,11 +13465,11 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
               paddingBlockStart: 16
             },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("button", { type: "button", style: button, onClick: close, children: "Close investigation" }),
-              /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("h3", { children: label(selected.nodeId) }),
-              selected.status === "loading" ? /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { role: "status", children: "Loading explanation\u2026" }) : selected.status === "error" ? /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(import_jsx_runtime44.Fragment, { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { role: "alert", children: "Explanation unavailable. Try again." }),
-                /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(
+              /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("button", { type: "button", style: button, onClick: close, children: "Close investigation" }),
+              /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("h3", { children: label(selected.nodeId) }),
+              selected.status === "loading" ? /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { role: "status", children: "Loading explanation\u2026" }) : selected.status === "error" ? /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)(import_jsx_runtime49.Fragment, { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { role: "alert", children: "Explanation unavailable. Try again." }),
+                /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
                   "button",
                   {
                     type: "button",
@@ -13095,20 +13478,20 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
                     children: "Try again"
                   }
                 )
-              ] }) : selected.status === "refused" ? /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(import_jsx_runtime44.Fragment, { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { role: "alert", children: "This explanation could not be verified." }),
-                /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { children: "Its evidence is unsupported, too large, or from a different selection." })
-              ] }) : /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(import_jsx_runtime44.Fragment, { children: [
-                /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(Badges, { marks: selected.result.attention }),
-                /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("h4", { children: selected.result.rootCause ? "Supported root cause" : "Root cause unknown" }),
-                selected.result.rootCause && /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { children: label(selected.result.rootCause) }),
-                !selected.result.rootCause && /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { children: "The supplied evidence does not establish one root cause." }),
-                !!selected.result.gaps.length && /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("h4", { children: "Evidence coverage" }),
-                /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(Gaps, { gaps: selected.result.gaps }),
-                selected.result.confidence === "incomplete" && !selected.result.gaps.length && /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { role: "status", children: "The recorded explanation is incomplete." }),
-                /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)("details", { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("summary", { children: "Recorded evidence references" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("ul", { children: [
+              ] }) : selected.status === "refused" ? /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)(import_jsx_runtime49.Fragment, { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { role: "alert", children: "This explanation could not be verified." }),
+                /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { children: "Its evidence is unsupported, too large, or from a different selection." })
+              ] }) : /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)(import_jsx_runtime49.Fragment, { children: [
+                /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(Badges, { marks: selected.result.attention }),
+                /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("h4", { children: selected.result.rootCause ? "Supported root cause" : "Root cause unknown" }),
+                selected.result.rootCause && /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { children: label(selected.result.rootCause) }),
+                !selected.result.rootCause && /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { children: "The supplied evidence does not establish one root cause." }),
+                !!selected.result.gaps.length && /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("h4", { children: "Evidence coverage" }),
+                /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(Gaps, { gaps: selected.result.gaps }),
+                selected.result.confidence === "incomplete" && !selected.result.gaps.length && /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { role: "status", children: "The recorded explanation is incomplete." }),
+                /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)("details", { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("summary", { children: "Recorded evidence references" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("ul", { children: [
                     ...selected.result.attention.flatMap(
                       (mark) => mark.evidence
                     ),
@@ -13116,9 +13499,9 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
                     ...selected.result.impact.gaps.flatMap(
                       (gap) => gap.evidence
                     )
-                  ].map((reference, index) => /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("li", { children: reference }, index)) })
+                  ].map((reference, index2) => /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("li", { children: reference }, index2)) })
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
                   "button",
                   {
                     type: "button",
@@ -13128,14 +13511,14 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
                     children: showPath ? "Hide recorded path" : "Show recorded path"
                   }
                 ),
-                showPath && /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(import_jsx_runtime44.Fragment, { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("h4", { children: "Recorded dependency path" }),
-                  selected.result.path.length ? /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("ol", { children: selected.result.path.map(item) }) : /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { children: "No dependency path was supplied." })
+                showPath && /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)(import_jsx_runtime49.Fragment, { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("h4", { children: "Recorded dependency path" }),
+                  selected.result.path.length ? /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("ol", { children: selected.result.path.map(item) }) : /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { children: "No dependency path was supplied." })
                 ] }),
-                !!selected.result.alternatives.length && /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(import_jsx_runtime44.Fragment, { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("h4", { children: "Alternative candidates" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { children: "These candidates remain uncertain." }),
-                  /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(
+                !!selected.result.alternatives.length && /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)(import_jsx_runtime49.Fragment, { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("h4", { children: "Alternative candidates" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { children: "These candidates remain uncertain." }),
+                  /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
                     "button",
                     {
                       type: "button",
@@ -13145,9 +13528,9 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
                       children: showAlternatives ? "Hide alternative candidates" : "Show alternative candidates"
                     }
                   ),
-                  showAlternatives && /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("ul", { children: selected.result.alternatives.map(item) })
+                  showAlternatives && /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("ul", { children: selected.result.alternatives.map(item) })
                 ] }),
-                /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("div", { style: { marginBlockStart: 16 }, children: /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(
+                /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("div", { style: { marginBlockStart: 16 }, children: /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(
                   "button",
                   {
                     type: "button",
@@ -13157,11 +13540,11 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
                     children: showImpact ? "Hide affected items" : "Show affected items"
                   }
                 ) }),
-                showImpact && /* @__PURE__ */ (0, import_jsx_runtime44.jsxs)(import_jsx_runtime44.Fragment, { children: [
-                  /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("h4", { children: "Affected items" }),
-                  /* @__PURE__ */ (0, import_jsx_runtime44.jsx)(Gaps, { gaps: selected.result.impact.gaps }),
-                  selected.result.impact.confidence === "incomplete" && /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { role: "status", children: "Affected-item coverage is incomplete. Unlisted items remain unknown." }),
-                  selected.result.impact.nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("ul", { children: selected.result.impact.nodes.map(item) }) : /* @__PURE__ */ (0, import_jsx_runtime44.jsx)("p", { children: "No affected items were reported in the supplied evidence." })
+                showImpact && /* @__PURE__ */ (0, import_jsx_runtime49.jsxs)(import_jsx_runtime49.Fragment, { children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("h4", { children: "Affected items" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime49.jsx)(Gaps, { gaps: selected.result.impact.gaps }),
+                  selected.result.impact.confidence === "incomplete" && /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { role: "status", children: "Affected-item coverage is incomplete. Unlisted items remain unknown." }),
+                  selected.result.impact.nodes.length ? /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("ul", { children: selected.result.impact.nodes.map(item) }) : /* @__PURE__ */ (0, import_jsx_runtime49.jsx)("p", { children: "No affected items were reported in the supplied evidence." })
                 ] })
               ] })
             ]
@@ -13173,7 +13556,7 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
 }
 
 // src/components/GroupedFlowInvestigation/GroupedFlowInvestigation.tsx
-var import_react53 = require("react");
+var import_react59 = require("react");
 
 // src/components/GroupedFlowInvestigation/projection.ts
 function projectInvestigation(definition, result, direction) {
@@ -13224,19 +13607,19 @@ function projectInvestigation(definition, result, direction) {
 }
 
 // src/components/GroupedFlowInvestigation/DependencyEvidence.tsx
-var import_jsx_runtime45 = require("react/jsx-runtime");
+var import_jsx_runtime50 = require("react/jsx-runtime");
 function DependencyEvidence({ result, direction, labels }) {
   const source = direction === "cause" ? result.backward : result.impact;
   if (!source?.edges) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("details", { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("summary", { children: [
+  return /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("details", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("summary", { children: [
       "Recorded dependency evidence (",
       source.edges.length,
       ")"
     ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("p", { children: "These are the returned relationships, including references outside this diagram. Names do not establish identity or a cause." }),
-    /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("ol", { children: source.edges.slice(0, 64).map((edge, index) => /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("li", { children: [
-      /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("span", { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("p", { children: "These are the returned relationships, including references outside this diagram. Names do not establish identity or a cause." }),
+    /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("ol", { children: source.edges.slice(0, 64).map((edge, index2) => /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("li", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("span", { children: [
         displayLabel(labels, edge.from),
         " \u2192 ",
         displayLabel(labels, edge.to),
@@ -13245,46 +13628,53 @@ function DependencyEvidence({ result, direction, labels }) {
         " \xB7 ",
         edge.attribution
       ] }),
-      /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("ul", { children: edge.evidence.map((reference, at) => /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("li", { children: reference }, at)) })
-    ] }, index)) }),
-    source.edges.length > 64 && /* @__PURE__ */ (0, import_jsx_runtime45.jsxs)("p", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("ul", { children: edge.evidence.map((reference, at) => /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("li", { children: reference }, at)) })
+    ] }, index2)) }),
+    source.edges.length > 64 && /* @__PURE__ */ (0, import_jsx_runtime50.jsxs)("p", { children: [
       source.edges.length - 64,
       " additional relationships are retained in the admitted result and not expanded here."
     ] }),
-    !source.edges.length && /* @__PURE__ */ (0, import_jsx_runtime45.jsx)("p", { children: "No relationships were returned for this direction. This is not evidence of success or absence of external effects." })
+    !source.edges.length && /* @__PURE__ */ (0, import_jsx_runtime50.jsx)("p", { children: "No relationships were returned for this direction. This is not evidence of success or absence of external effects." })
   ] });
 }
 
 // src/components/GroupedFlowInvestigation/GroupedFlowInvestigation.tsx
-var import_jsx_runtime46 = require("react/jsx-runtime");
+var import_jsx_runtime51 = require("react/jsx-runtime");
 var action = { font: "inherit", fontSize: 12, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "7px 12px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
 function GroupedFlowInvestigation(props) {
-  const admitted = (0, import_react53.useMemo)(() => {
+  const admitted = (0, import_react59.useMemo)(() => {
     return projectGroupedFlowDiagram(props.definition, { observation: props.observation });
   }, [props.definition, props.observation]);
-  if (!admitted.model) return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(GroupedFlowDiagram, { definition: props.definition, observation: props.observation, className: props.className, style: props.style });
-  if (!props.port) return /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("section", { className: props.className, style: props.style, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(GroupedFlowDiagram, { definition: admitted.model.definition, observation: props.observation, direction: props.direction }),
-    /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(InvestigationPanel, { port: null })
+  if (!admitted.model) return /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(GroupedFlowDiagram, { definition: props.definition, observation: props.observation, className: props.className, style: props.style });
+  if (!props.port) return /* @__PURE__ */ (0, import_jsx_runtime51.jsxs)("section", { className: props.className, style: props.style, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(GroupedFlowDiagram, { definition: admitted.model.definition, observation: props.observation, direction: props.direction }),
+    /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(InvestigationPanel, { port: null })
   ] });
-  return /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(BoundGroupedFlowInvestigation, { ...props, port: props.port, admitted: admitted.model });
+  return /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(BoundGroupedFlowInvestigation, { ...props, port: props.port, admitted: admitted.model });
 }
 function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
   const controller = useInvestigationQuery(port, admitVisualExplanation);
   const { owner, selected } = controller;
   const ready = selected?.status === "ready" ? selected : void 0;
-  const wrapper = (0, import_react53.useRef)(null);
-  const [narrow, setNarrow] = (0, import_react53.useState)(false);
-  const [expansion, setExpansion] = (0, import_react53.useState)({ owner, ids: [] });
-  const [mode, setMode] = (0, import_react53.useState)();
-  const [focusCommand, setFocusCommand] = (0, import_react53.useState)();
-  const [view, setView] = (0, import_react53.useState)();
+  const committedResult = (0, import_react59.useRef)(void 0);
+  useIsomorphicLayoutEffect(() => {
+    committedResult.current = ready ? { owner, request: ready.request } : void 0;
+    return () => {
+      committedResult.current = void 0;
+    };
+  }, [owner, ready]);
+  const wrapper = (0, import_react59.useRef)(null);
+  const [narrow, setNarrow] = (0, import_react59.useState)(false);
+  const [expansion, setExpansion] = (0, import_react59.useState)({ owner, ids: [] });
+  const [mode, setMode] = (0, import_react59.useState)();
+  const [focusCommand, setFocusCommand] = (0, import_react59.useState)();
+  const [view, setView] = (0, import_react59.useState)();
   const activeView = view?.request === ready?.request ? view : void 0;
   const whole = activeView?.whole ?? false;
   const phase = mode && mode.request === selected?.request ? mode.value : "cause";
-  const diagramBindings = (0, import_react53.useRef)(/* @__PURE__ */ new WeakMap());
-  const nextDiagramBinding = (0, import_react53.useRef)(0);
-  const diagramBindingKey = (0, import_react53.useMemo)(() => {
+  const diagramBindings = (0, import_react59.useRef)(/* @__PURE__ */ new WeakMap());
+  const nextDiagramBinding = (0, import_react59.useRef)(0);
+  const diagramBindingKey = (0, import_react59.useMemo)(() => {
     let key = diagramBindings.current.get(owner);
     if (key === void 0) {
       key = nextDiagramBinding.current++;
@@ -13292,11 +13682,11 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
     }
     return key;
   }, [owner]);
-  const known = (0, import_react53.useMemo)(() => new Map(admitted.definition.nodes.map((node) => [node.id, node])), [admitted.definition]);
-  const states = (0, import_react53.useMemo)(() => new Map(Object.entries(admitted.nodeStates ?? {})), [admitted]);
-  const projected = (0, import_react53.useMemo)(() => ready ? projectInvestigation(admitted.definition, ready.result, phase) : void 0, [admitted.definition, ready, phase]);
+  const known = (0, import_react59.useMemo)(() => new Map(admitted.definition.nodes.map((node) => [node.id, node])), [admitted.definition]);
+  const states = (0, import_react59.useMemo)(() => new Map(Object.entries(admitted.nodeStates ?? {})), [admitted]);
+  const projected = (0, import_react59.useMemo)(() => ready ? projectInvestigation(admitted.definition, ready.result, phase) : void 0, [admitted.definition, ready, phase]);
   const currentIds = expansion.owner === owner ? expansion.ids : [];
-  const automaticExpansion = (0, import_react53.useRef)(void 0);
+  const automaticExpansion = (0, import_react59.useRef)(void 0);
   const needsReveal = ready && (automaticExpansion.current?.request !== ready.request || automaticExpansion.current?.phase !== phase);
   const expandedGroupIds = needsReveal ? [.../* @__PURE__ */ new Set([...currentIds, ...projected?.groupIds ?? []])] : currentIds;
   useIsomorphicLayoutEffect(() => {
@@ -13304,7 +13694,7 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
     automaticExpansion.current = { request: ready.request, phase };
     setExpansion({ owner, ids: expandedGroupIds });
   });
-  (0, import_react53.useEffect)(() => {
+  (0, import_react59.useEffect)(() => {
     const element = wrapper.current;
     if (!element) return;
     const measure = () => setNarrow(element.clientWidth > 0 && element.clientWidth < 600);
@@ -13316,7 +13706,7 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
   }, []);
   const selectedId = controller.selection && known.has(controller.selection) ? controller.selection : null;
   const activeFocusCommand = focusCommand?.request === ready?.request && focusCommand?.phase === phase ? focusCommand : void 0;
-  const cameraKey = (0, import_react53.useMemo)(() => ({ owner, request: ready?.request, phase, command: activeFocusCommand, view: activeView }), [owner, ready?.request, phase, activeFocusCommand, activeView]);
+  const cameraKey = (0, import_react59.useMemo)(() => ({ owner, request: ready?.request, phase, command: activeFocusCommand, view: activeView }), [owner, ready?.request, phase, activeFocusCommand, activeView]);
   let focusNodeIds = [.../* @__PURE__ */ new Set([...projected?.groupIds ?? [], ...projected?.nodeIds ?? []])];
   if (ready && (activeFocusCommand || narrow)) {
     const target = !activeFocusCommand && phase === "cause" && ready.result.rootCause && known.has(ready.result.rootCause) ? ready.result.rootCause : selectedId;
@@ -13338,10 +13728,10 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
   const summary = selected?.status === "loading" ? "Checking recorded evidence\u2026" : ready && mappedRoot ? `Supported cause: ${known.get(mappedRoot).label}. ${phase === "cause" ? "The recorded path is highlighted below." : "Showing recorded affected items below."}` : ready && root && !known.has(root) ? "The supported cause is not shown in this diagram. No substitute card is labelled." : ready || selected?.status === "error" || selected?.status === "refused" ? "Cause unknown. The available evidence does not support a cause on this diagram." : "Select a failed item, or select another item and choose Investigate selected item.";
   const recordedFitIds = narrow && ready ? phase === "cause" && mappedRoot ? [mappedRoot] : selectedId ? [selectedId] : [] : [.../* @__PURE__ */ new Set([...projected?.groupIds ?? [], ...projected?.nodeIds ?? []])];
   const changeView = () => {
-    if (!ready || controller.currentOwner.current !== owner || controller.active.current !== ready.request || ready.request.signal.aborted) return;
+    if (!ready || controller.currentOwner.current !== owner || committedResult.current?.owner !== owner || committedResult.current.request !== ready.request) return;
     setView({ request: ready.request, whole: !whole });
   };
-  return /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime51.jsxs)(
     "section",
     {
       ref: wrapper,
@@ -13349,13 +13739,13 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
       "aria-label": props["aria-label"] ?? "Grouped flow investigation",
       style: { display: "grid", gap: 16, minWidth: 0, color: theme.textPrimary, fontFamily: theme.fontSans, ...props.style },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("div", { role: "status", "aria-label": "Cause summary", "aria-live": "polite", style: { padding: "12px 16px", border: `1px solid ${theme.border}`, borderRadius: 10, background: theme.bgElevated }, children: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("strong", { children: summary }) }),
-        ready && /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("strong", { children: whole ? "Whole flow" : phase === "cause" ? "Cause focus" : "Impact focus" }),
-          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("button", { type: "button", style: action, onClick: changeView, children: whole ? "Focus on recorded links" : "Show whole flow" }),
-          !whole && /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("span", { style: { fontSize: 12, color: theme.textSecondary }, children: "Workflow arrows are hidden so the recorded connections are easier to follow." })
+        /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("div", { role: "status", "aria-label": "Cause summary", "aria-live": "polite", style: { padding: "12px 16px", border: `1px solid ${theme.border}`, borderRadius: 10, background: theme.bgElevated }, children: /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("strong", { children: summary }) }),
+        ready && /* @__PURE__ */ (0, import_jsx_runtime51.jsxs)("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("strong", { children: whole ? "Whole flow" : phase === "cause" ? "Cause focus" : "Impact focus" }),
+          /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("button", { type: "button", style: action, onClick: changeView, children: whole ? "Focus on recorded links" : "Show whole flow" }),
+          !whole && /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("span", { style: { fontSize: 12, color: theme.textSecondary }, children: "Workflow arrows are hidden so the recorded connections are easier to follow." })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(RecordedFocusContext.Provider, { value: { focused: !!ready && !whole, fitNodeIds: recordedFitIds }, children: /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(RecordedFocusContext.Provider, { value: { focused: !!ready && !whole, fitNodeIds: recordedFitIds }, children: /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(
           GroupedFlowDiagram,
           {
             definition: admitted.definition,
@@ -13371,33 +13761,33 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
           },
           diagramBindingKey
         ) }),
-        /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("button", { type: "button", style: action, disabled: !selectedId || selected?.status === "loading", onClick: () => {
+        /* @__PURE__ */ (0, import_jsx_runtime51.jsxs)("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("button", { type: "button", style: action, disabled: !selectedId || selected?.status === "loading", onClick: () => {
             if (selectedId) controller.query(selectedId);
           }, children: "Investigate selected item" }),
-          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("button", { type: "button", style: action, disabled: !ready, "aria-pressed": phase === "cause", onClick: () => {
+          /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("button", { type: "button", style: action, disabled: !ready, "aria-pressed": phase === "cause", onClick: () => {
             if (ready) setMode({ request: ready.request, value: "cause" });
           }, children: "Why it happened" }),
-          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("button", { type: "button", style: action, disabled: !ready, "aria-pressed": phase === "impact", onClick: () => {
+          /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("button", { type: "button", style: action, disabled: !ready, "aria-pressed": phase === "impact", onClick: () => {
             if (ready) setMode({ request: ready.request, value: "impact" });
           }, children: "What it affected" }),
-          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("button", { type: "button", style: action, disabled: !ready || !selectedId, onClick: () => {
+          /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("button", { type: "button", style: action, disabled: !ready || !selectedId, onClick: () => {
             if (ready) setFocusCommand((previous) => ({ request: ready.request, phase, count: (previous?.count ?? 0) + 1 }));
           }, children: "Back to selected item" })
         ] }),
-        projected && /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("div", { role: "status", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("p", { children: phase === "cause" ? "Dependency arrows point from an item toward its recorded source. They do not show execution order or prove how a value was used." : "Arrows show returned recorded relationships to linked items, not proof of harm or delivery." }),
-          !projected.relationshipsAvailable && /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("p", { children: phase === "cause" ? "Backward connections were not provided. References can be shown, but missing links remain unknown." : "Impact connections were not provided. The full effect of these references remains unknown." }),
-          projected.confidence === "incomplete" && /* @__PURE__ */ (0, import_jsx_runtime46.jsx)("p", { children: "Some evidence is missing. The highlighted references do not establish the full dependency picture." }),
-          projected.unmapped > 0 && /* @__PURE__ */ (0, import_jsx_runtime46.jsxs)("p", { children: [
+        projected && /* @__PURE__ */ (0, import_jsx_runtime51.jsxs)("div", { role: "status", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("p", { children: phase === "cause" ? "Dependency arrows point from an item toward its recorded source. They do not show execution order or prove how a value was used." : "Arrows show returned recorded relationships to linked items, not proof of harm or delivery." }),
+          !projected.relationshipsAvailable && /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("p", { children: phase === "cause" ? "Backward connections were not provided. References can be shown, but missing links remain unknown." : "Impact connections were not provided. The full effect of these references remains unknown." }),
+          projected.confidence === "incomplete" && /* @__PURE__ */ (0, import_jsx_runtime51.jsx)("p", { children: "Some evidence is missing. The highlighted references do not establish the full dependency picture." }),
+          projected.unmapped > 0 && /* @__PURE__ */ (0, import_jsx_runtime51.jsxs)("p", { children: [
             projected.unmapped,
             " recorded ",
             projected.unmapped === 1 ? "item is" : "items are",
             " not shown in this diagram. No substitute item has been selected."
           ] })
         ] }),
-        /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(InvestigationPanelView, { port, controller, showAttention: false, focusExternalRequests: false }),
-        ready && /* @__PURE__ */ (0, import_jsx_runtime46.jsx)(DependencyEvidence, { result: ready.result, direction: phase, labels: port.labels })
+        /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(InvestigationPanelView, { port, controller, showAttention: false, focusExternalRequests: false }),
+        ready && /* @__PURE__ */ (0, import_jsx_runtime51.jsx)(DependencyEvidence, { result: ready.result, direction: phase, labels: port.labels })
       ]
     }
   );

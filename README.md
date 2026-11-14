@@ -344,7 +344,7 @@ what it wanted instead of rendering empty chrome.
 |---|---|---|---|
 | `runtimeSnapshot` | `RuntimeSnapshotInput \| null` | — | A recorded `executor.getSnapshot()`. Drives the rows, memory, story, provenance, recorder tabs — and the chart's colouring |
 | `snapshots` | `StageSnapshot[]` | — | Pre-converted rows, when you called `toVisualizationSnapshots()` yourself. Wins over `runtimeSnapshot` |
-| `traceGraph` | `TraceGraph \| null` | — | The execution chart. From `createTraceStructureRecorder()` live, or `graphFromStructure(saved.structure)` for a recording. An active Variables trace uses its recorded walk instead |
+| `traceGraph` | `TraceGraph \| null` | — | The execution chart. From `createTraceStructureRecorder()` live, or `graphFromStructure(saved.structure)` for a recording. It stays available while tracing; Variables offers a separate recorded-read view |
 | `runtimeOverlay` | `RuntimeOverlay \| null` | derived from `runtimeSnapshot` | The executed-path colouring. Usually omit — pass one only for a live `createTraceRuntimeOverlay` handle |
 | `traceTheme` | `TraceTheme` | — | `{ mode: "light" \| "dark" }` re-themes the whole shell in one word; `visited` / `current` override the two node colours |
 | `narrativeEntries` | `NarrativeEntry[]` | read from the snapshot | Structured narrative. Only needed to override the story the recording carries |
@@ -357,7 +357,7 @@ what it wanted instead of rendering empty chrome.
 | `recorderViews` | `RecorderView[]` | auto-detected | Extra details tabs. Recorders inside the snapshot already get one each |
 | `panelLabels` | `PanelLabels` | `{ topology: "Topology", details: "Details", timeline: "Timeline" }` | Collapsible pill labels |
 | `defaultExpanded` | `DefaultExpanded` | `{ details: true }` | Which panels start open |
-| `renderFlowchart` | `(props) => ReactNode` | `<TracedFlow>` | Replace the execution chart renderer; it remains available through Execution while tracing |
+| `renderFlowchart` | `(props) => ReactNode` | `<TracedFlow>` | Replace the execution chart renderer; it remains mounted when switching between Execution and Variables |
 | `showStageId` | `boolean` | `false` | Print each node's stable `stageId` under its label (teaching aid) |
 | `autoPlay` | `boolean` | `false` | Play the run by itself when it opens, once per recording. Anything the reader does stops it |
 | `size` | `"compact" \| "default" \| "detailed"` | `"default"` | Size variant |
@@ -366,14 +366,19 @@ what it wanted instead of rendering empty chrome.
 ### Tracing a value — inspect its recorded state reads
 
 Open **Inspector → Data Trace** and choose a written value, or use **Trace any
-variable** to search the selected record. A usable trace opens **Variables**
-in the center. Variable cards show the key, its named writer and a bounded
-preview from the snapshot after that writer. Missing values and unresolved
-sources remain explicit.
+variable** to search the selected record. Tracing starts in **Execution**, keeping
+the workflow in view. The built-in chart highlights the question's recorded
+writers and reads while retaining the surrounding steps. **Variables** offers
+a separate map: each card names the key and writer, with a bounded preview from
+the snapshot after that writer. Missing values and unresolved sources remain
+explicit.
 
-Use **Execution** to return to the workflow chart, including a consumer's
-`renderFlowchart` replacement. Changing this view keeps the same question
-and cursor. Questions without a usable recorded walk keep the usual execution
+Switching views keeps the same question and cursor. The execution chart,
+including a consumer's `renderFlowchart` replacement, stays mounted so returning
+does not recreate it. Within each question, matching variable cards, workflow
+highlights and read chips use consistent colors. Short 240 ms transitions help
+track position and emphasis changes; the reader's reduced-motion preference
+disables them. Questions without a usable recorded walk keep the usual execution
 view and the explanation of what is missing.
 
 - **Recorded stage reads**: the variable map shows recorded read links to
@@ -412,8 +417,9 @@ view and the explanation of what is missing.
   boundary. Using `writeProvenance: 'reads-prefix'` also retains child-write
   read prefixes. An admitted source opens the exact child visit and asks for
   the selected key at its recorded cutoff. Parent and child logs and timelines
-  remain separate. Handoff references describe an observed-read prefix,
-  which can include reads used by other outputs. Partial, missing or invalid
+  remain separate. The question header keeps the parent context visible, with
+  **Back** to return to that question. Handoff references describe an
+  observed-read prefix, which can include reads used by other outputs. Partial, missing or invalid
   metadata retains the boundary as unknown.
 - **Invocation-start values**: a value already present when a child starts
   may come from input mapping or restored state. The card and copied text
@@ -1200,6 +1206,11 @@ relationship retains the direction returned by the canonical query. A recorded r
 establishes source usage, not that a later output was derived from it. Alternatives
 remain uncertain; an impact-only limit does not erase an independently supported
 backward root.
+`recorded-write` is a separate data relationship: a partial write kept an earlier
+recorded value. Its full label is **Recorded write (retained value)** and its compact
+caption is **Kept**, distinct from **Read**. It neither proves expression derivation
+nor asserts an external effect. The public attribution union includes this value;
+consumers with exhaustive attribution handlers must handle it explicitly.
 The cause summary appears above the diagram. In cause mode, the exact mapped root
 card carries **Supported cause** while its containing groups say only **Cause
 inside**. That role is separate from recorded Completed/Failed status; a completed
@@ -1253,7 +1264,7 @@ the drawing-limit notice.
 Where space permits, branches use the sides facing their destination cards before
 trying checked outside detours. Rounded elbows keep short forks readable.
 
-Compact Data/Read/Rule/Step captions retain their full fixed kind and attribution
+Compact Data/Read/Kept/Rule/Step captions retain their full fixed kind and attribution
 in accessible names, tooltips and the evidence list. Routing work is bounded. If a
 connection cannot be drawn safely, the diagram reports how many could not be drawn
 and offers ways to inspect them; its recorded evidence, cause and confidence are

@@ -10,6 +10,7 @@ import { recordedRelationshipEdgeTypes } from "./RecordedRelationshipEdge";
 import { recordedVisualBounds, routeRecordedRelationships } from "./recordedRouting";
 import { RecordedFocusContext, visibleRecordedFitTargets } from "./presentation";
 import type { RecordedPort } from "./recordedRouting";
+import { recordedAttributionLabel } from "../../recordedRelationships/attribution";
 
 export interface GroupedFlowDiagramProps {
   readonly definition: FlowDiagramDefinition;
@@ -121,15 +122,14 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
     if (edge.highlighted) { highlightFocusIds.add(edge.source); highlightFocusIds.add(edge.target); }
   }
   if (!highlightFocusIds.size) for (const node of model?.nodes ?? []) if (node.highlighted) highlightFocusIds.add(node.node.id);
-  const relationshipLabels = { "per-write": "Per-write link", stage: "Step-level link", "recorded-control": "Recorded control", "recorded-read": "Recorded read" };
   for (const item of overlay ?? []) {
     const relationship = item.relationship;
     const route = routing?.routes.get(relationship.id); if (!route) continue;
     const color = relationship.direction === "backward" ? theme.error : relationship.direction === "forward" ? theme.tracing : theme.textSecondary;
     edges.push({ id: relationship.id, source: item.source, target: item.target, type: "recordedRelationship",
       sourceHandle: route.sourcePort.id, targetHandle: route.targetPort.id,
-      label: `${relationshipLabels[relationship.attribution]} · ${relationship.kind}`,
-      ariaLabel: `${relationship.direction === "backward" ? "Backward source trail, not a failed step. " : relationship.direction === "forward" ? "Forward recorded impact. " : "Recorded dependency. "}${relationshipLabels[relationship.attribution]}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
+      label: `${recordedAttributionLabel(relationship.attribution)} · ${relationship.kind}`,
+      ariaLabel: `${relationship.direction === "backward" ? "Backward source trail, not a failed step. " : relationship.direction === "forward" ? "Forward recorded impact. " : "Recorded dependency. "}${recordedAttributionLabel(relationship.attribution)}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
       data: { relationship, collapsed: item.collapsed, route }, className: "gfd-recorded-relationship",
       markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
       style: { stroke: color, strokeWidth: 1.8, ...(relationship.attribution === "stage" ? { strokeDasharray: "6 5" } : {}) },

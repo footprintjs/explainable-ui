@@ -2,6 +2,7 @@ import { memo, useEffect, useRef } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import { theme } from "../../theme";
+import { recordedPathLabel } from "../../trace/recordedValuePreview";
 
 const KEYFRAMES_ID = "fp-stage-node-keyframes";
 const KEYFRAMES_CSS = `
@@ -16,10 +17,16 @@ const KEYFRAMES_CSS = `
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  @keyframes fp-pulse { 0%, 100% { opacity: 0.3; } }
-  @keyframes fp-blink { 0%, 100% { opacity: 1; } }
+  [data-fp="stage-node"], [data-fp="stage-node"] * {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 `;
+
+const TRACE_VALUE_LIMIT = 1;
+const traceText = (value: string, limit: number): string =>
+  value.length > limit ? `${value.slice(0, limit - 1)}…` : value;
 
 export interface StageNodeData {
   label: string;
@@ -47,6 +54,15 @@ export interface StageNodeData {
    * two apart is worse than one that stays quiet.
    */
   retryAttempts?: number;
+  /** Static evidence emphasis, independent of the node's execution status.
+   * All presentation sits outside the card's layout footprint. */
+  traceWorkflow?: {
+    color: string;
+    role: "question" | "input" | "upstream";
+    values: readonly { key: string; preview: string | null; color: string }[];
+  };
+  /** Stop node pulses and state transitions while inspecting recorded evidence. */
+  suppressMotion?: boolean;
   /** Node was not executed (dim it) */
   dimmed?: boolean;
   /** Node is a subflow root (show nested indicator) */
@@ -311,7 +327,7 @@ function StageIcon({ type, color }: { type: string; color: string }) {
 export const StageNode = memo(function StageNode({
   data,
 }: NodeProps & { data: StageNodeData }) {
-  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts } = data;
+  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts, traceWorkflow, suppressMotion } = data;
 
   // Lazy nodes show cloud icon by default (unless another icon is specified)
   const effectiveIcon = icon || (isLazy ? "lazy" : undefined);
@@ -420,7 +436,12 @@ export const StageNode = memo(function StageNode({
           coincide with the node-box center, so layout centering == paint
           centering. Mirrors SlotPillNode / GroupContainerNode, which already
           fill their wrapper width. */}
-      <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
+      <div
+        data-fp="stage-node"
+        data-trace-role={traceWorkflow?.role}
+        data-motion-suppressed={suppressMotion || undefined}
+        style={{ width: "100%", display: "flex", justifyContent: "center" }}
+      >
         <div
           style={{
             position: "relative",
@@ -432,6 +453,40 @@ export const StageNode = memo(function StageNode({
             opacity: isMuted ? 0.5 : undefined,
           }}
         >
+          {/* Evidence is an absolute overlay: run status, measured dimensions
+              and the target/source handles keep their existing meaning. */}
+          {traceWorkflow && <>
+            {isDecider ? <svg
+              data-fp="trace-workflow-ring"
+              aria-hidden="true"
+              viewBox="0 0 100 100"
+              preserveAspectRatio="none"
+              style={{ position: "absolute", inset: -8, width: "calc(100% + 16px)", height: "calc(100% + 16px)", overflow: "visible", pointerEvents: "none", zIndex: 3 }}
+            ><polygon points="50,0 100,50 50,100 0,50" fill="none" stroke={traceWorkflow.color} strokeWidth={3} vectorEffect="non-scaling-stroke" /></svg> : <div
+              data-fp="trace-workflow-ring"
+              aria-hidden="true"
+              style={{ position: "absolute", inset: -8, border: `3px solid ${traceWorkflow.color}`, borderRadius: `calc(${theme.radius} + 6px)`, pointerEvents: "none", zIndex: 3 }}
+            />}
+            <div
+              data-fp="trace-workflow-caption"
+              style={{ position: "absolute", left: "50%", top: "calc(100% + 7px)", transform: "translateX(-50%)", zIndex: 12, display: "flex", alignItems: "center", gap: 4, width: "max-content", maxWidth: 220, height: 18, boxSizing: "border-box", overflow: "hidden", padding: "1px 5px", border: `1px solid ${traceWorkflow.color}`, borderRadius: 5, background: theme.bgSecondary, fontFamily: theme.fontSans, fontSize: 9, lineHeight: "14px", whiteSpace: "nowrap", pointerEvents: "none" }}
+            >
+              <span data-fp="trace-workflow-role" style={{ flexShrink: 0, color: traceWorkflow.color, fontWeight: 700 }}>
+                {traceWorkflow.role === "question" ? "Question" : traceWorkflow.role === "input" ? "Recorded input" : "Upstream read"}
+              </span>
+              {traceWorkflow.values.length > 0 && <>
+                <span aria-hidden="true" style={{ color: theme.textSecondary }}>·</span>
+                <span data-fp="trace-workflow-values" style={{ display: "flex", alignItems: "center", minWidth: 0, overflow: "hidden" }}>
+                  {traceWorkflow.values.slice(0, TRACE_VALUE_LIMIT).map((value, index) => <span
+                    key={`${index}:${value.key}`}
+                    data-fp="trace-workflow-value"
+                    style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: value.color, fontFamily: "ui-monospace, monospace", fontWeight: 600 }}
+                  >{traceText(recordedPathLabel(value.key), 32)}{value.preview === null ? " · preview unavailable" : ` = ${traceText(value.preview, 48)}`}</span>)}
+                </span>
+                {traceWorkflow.values.length > TRACE_VALUE_LIMIT && <span data-fp="trace-workflow-more" style={{ flexShrink: 0, color: theme.textSecondary }}>+{traceWorkflow.values.length - TRACE_VALUE_LIMIT} more</span>}
+              </>}
+            </div>
+          </>}
           {/* Step number badges — multiple when revisited via loops */}
           {stepNumbers && stepNumbers.length > 0 && isOnPath && (
             <div
@@ -484,7 +539,7 @@ export const StageNode = memo(function StageNode({
                 clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : undefined,
                 border: `2px solid ${theme.primary}`,
                 opacity: 0.4,
-                animation: "fp-pulse 2s ease-in-out infinite",
+                animation: suppressMotion ? "none" : "fp-pulse 2s ease-in-out infinite",
               }}
             />
           )}
@@ -499,7 +554,7 @@ export const StageNode = memo(function StageNode({
                 clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : undefined,
                 border: `2px solid ${theme.nodeCursor}`,
                 opacity: 0.3,
-                animation: "fp-pulse 1.5s ease-out infinite",
+                animation: suppressMotion ? "none" : "fp-pulse 1.5s ease-out infinite",
               }}
             />
           )}
@@ -568,7 +623,7 @@ export const StageNode = memo(function StageNode({
 
           {/* Diamond for decider nodes — proper diamond via clip-path */}
           {isDecider ? (
-            <div style={{ position: "relative", width: 120, height: 72 }}>
+            <div data-fp="stage-node-body" style={{ position: "relative", width: 120, height: 72 }}>
               {/* Diamond shape layer */}
               <div
                 style={{
@@ -578,7 +633,7 @@ export const StageNode = memo(function StageNode({
                   clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
                   border: "none",
                   boxShadow: shadow,
-                  transition: "all 0.3s ease",
+                  transition: suppressMotion ? "none" : "all 0.3s ease",
                 }}
               />
               {/* Border layer — slightly larger diamond behind */}
@@ -663,6 +718,7 @@ export const StageNode = memo(function StageNode({
           ) : (
             /* Standard rectangular node */
             <div
+              data-fp="stage-node-body"
               style={{
                 background: bg,
                 border: `${isHero ? "2.5px" : isMuted ? "1px" : "2px"} ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
@@ -675,7 +731,7 @@ export const StageNode = memo(function StageNode({
                 alignItems: "center",
                 gap: description ? 2 : 0,
                 boxShadow: shadow,
-                transition: "all 0.3s ease",
+                transition: suppressMotion ? "none" : "all 0.3s ease",
                 fontFamily: theme.fontSans,
                 minWidth: 100,
                 justifyContent: "center",
@@ -696,7 +752,7 @@ export const StageNode = memo(function StageNode({
                       height: 8,
                       borderRadius: "50%",
                       background: "#fff",
-                      animation: "fp-blink 1s ease-in-out infinite",
+                      animation: suppressMotion ? "none" : "fp-blink 1s ease-in-out infinite",
                       flexShrink: 0,
                     }}
                   />

@@ -1,6 +1,12 @@
 /** Inspect executable module references, ignoring comments and erased type imports. */
 import assert from "node:assert/strict";
 import ts from "typescript";
+export function assertNoPilotSource(source, fileName = "shipped.js") {
+  assert(
+    !/src\/record(?:[/.]|$)|record-lens/i.test(source),
+    `Normal shipped output contains pilot source: ${fileName}`
+  );
+}
 export function assertNoFoottraceRuntime(source, fileName = "shipped.js") {
   const ast = ts.createSourceFile(
     fileName,

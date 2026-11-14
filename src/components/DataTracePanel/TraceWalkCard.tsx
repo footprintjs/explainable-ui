@@ -15,9 +15,11 @@
 import { scopeSentence, START_SENTENCE, inputSentence, isInvocationStart, mountLabel } from "../../trace/tracePresentation";
 import { handoffSentence, type SubflowHandoffSource } from "../../trace/subflowHandoff";
 import { recordedPathLabel, recordedValuePreview } from "../../trace/recordedValuePreview";
+import { buildTraceDependencyGraph } from "../../trace/traceDependencyGraph";
+import { traceIngredientColor, traceNodeColors } from "../../trace/traceWorkflowOverlay";
 import { memo, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { fontSize, theme, v } from "../../theme";
+import { fontSize, theme } from "../../theme";
 import type { BaseComponentProps, Size } from "../../types";
 import {
   formatTraceWalk,
@@ -25,21 +27,6 @@ import {
   type TraceStop,
   type TraceWalk,
 } from "../../trace/traceWalk";
-
-/** Junction-local ingredient palette — colors mean "chips of THIS stop",
- *  nothing across stops (a stable global key→color map would exhaust and
- *  mislead; the design review was explicit). Overflow past 4 goes gray.
- *
- *  Themeable per hue: the four are CATEGORICAL (they must stay tellable
- *  apart), so they are their own tokens rather than semantic roles. The
- *  defaults are the original hues, so nothing re-colors for existing
- *  consumers. */
-const CHIP_COLORS = [
-  v("--fp-chip-1", "#0d9488"),
-  v("--fp-chip-2", "#d97706"),
-  v("--fp-chip-3", "#7c3aed"),
-  v("--fp-chip-4", "#e11d48"),
-];
 
 /**
  * Styles vanish in `unstyled` mode; the tree stays exactly the same. The
@@ -117,6 +104,8 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   const accent = "var(--fp-accent, #6366f1)";
   // Same token the tracing rail uses (F3) — the chooser is tracing chrome.
   const tracingColor = "var(--fp-tracing, #0d9488)";
+  const dependencyGraph = useMemo(() => buildTraceDependencyGraph(walk), [walk]);
+  const ingredientColors = useMemo(() => traceNodeColors(dependencyGraph), [dependencyGraph]);
 
   const currentIdx = useMemo(() => {
     if (!cursorRuntimeStageId) return 0;
@@ -263,11 +252,11 @@ export const TraceWalkCard = memo(function TraceWalkCard({
             the walk follow?
           </div>
           <div style={sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 })}>
-            {current.ingredients.map((ing, i) => (
+            {current.ingredients.map(ing => (
               <IngredientChip
                 key={ing.key}
                 ing={ing}
-                color={i < CHIP_COLORS.length ? CHIP_COLORS[i] : theme.textMuted}
+                color={traceIngredientColor(dependencyGraph, ingredientColors, ing)}
                 step={ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null}
                 onFollow={onFollowIngredient}
                 sx={sx}
@@ -312,11 +301,11 @@ export const TraceWalkCard = memo(function TraceWalkCard({
             </div>
             {followableCount > 1 && <div style={sx({ marginTop: 4, fontSize: fs.label, color: theme.textSecondary })}>Choose a recorded input to follow; these inputs may be independent.</div>}
             <div style={sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 })}>
-              {current.ingredients.map((ing, i) => (
+              {current.ingredients.map(ing => (
                 <IngredientChip
                   key={ing.key}
                   ing={ing}
-                  color={i < CHIP_COLORS.length ? CHIP_COLORS[i] : theme.textMuted}
+                  color={traceIngredientColor(dependencyGraph, ingredientColors, ing)}
                   step={ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null}
                   onFollow={onFollowIngredient}
                   sx={sx}

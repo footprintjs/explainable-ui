@@ -16,6 +16,9 @@ export interface ChartAutoRefitProps {
   readonly focusRequestKey?: unknown;
   readonly maxAutoZoom?: number;
   readonly visualBounds?: Rect;
+  /** Container resize must not reclaim a camera the viewer moved. Initial
+   * readiness and explicit scope/layout/focus intents still fit normally. */
+  readonly preserveViewport?: boolean;
 }
 
 function hasVisibleArea(element: HTMLElement | null): boolean {
@@ -35,13 +38,17 @@ function hasVisibleArea(element: HTMLElement | null): boolean {
  * point a hidden tab may have a zero extent even though it was visible now.
  * User-driven pan/zoom and its animation controls are untouched.
  */
-export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutKey, focusNodeIds, focusRequestKey, maxAutoZoom, visualBounds }: ChartAutoRefitProps): void {
+export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutKey, focusNodeIds, focusRequestKey, maxAutoZoom, visualBounds, preserveViewport }: ChartAutoRefitProps): void {
   const store = useStoreApi();
   const { setViewport } = useReactFlow();
   const requestLayoutFit = useRef<(() => void) | null>(null);
   const visualBoundsKey = JSON.stringify(visualBounds);
   const committedVisualBounds = useRef(visualBounds);
   useIsomorphicLayoutEffect(() => { committedVisualBounds.current = visualBounds; }, [visualBoundsKey]);
+  // This changes resize policy, not camera ownership. In particular, entering
+  // an investigation must not tear down the owner after the viewer has panned.
+  const committedPreserveViewport = useRef(preserveViewport);
+  useIsomorphicLayoutEffect(() => { committedPreserveViewport.current = preserveViewport; }, [preserveViewport]);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -115,6 +122,7 @@ export function useChartAutoRefit({ wrapperRef, padding = 0.1, refitKey, layoutK
       // but must not create a new one after success or a manual camera gesture.
       if (nextKey === containerKey) { requestFit(); return; }
       containerKey = nextKey;
+      if (committedPreserveViewport.current && !autoOwned) { requestFit(); return; }
       requestIntent();
     };
     requestLayoutFit.current = () => {

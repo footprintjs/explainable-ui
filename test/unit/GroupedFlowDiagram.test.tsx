@@ -131,6 +131,25 @@ it("keeps the structural geometry and transitions unchanged when recorded depend
   expect(edges.find((edge: any) => edge.id === "dep")).toMatchObject({ source: "capture", target: "authorize", sourceHandle: "recorded-0-source", targetHandle: "recorded-0-target", data: { relationship: relationships[0], route: expect.any(Object) }, style: { strokeWidth: 1.8 }, markerEnd: { width: 14, height: 14 } });
 });
 
+it("renders retained-write and read relationships as separate proof links with explicit accessible labels", () => {
+  render(<GroupedFlowDiagram definition={definition} defaultExpandedGroupIds={["payment"]}
+    observation={{ nodeStates: { capture: "completed", authorize: "completed" } }} recordedRelationships={[
+      { id: "kept", source: "capture", target: "authorize", kind: "data", attribution: "recorded-write", evidence: ["retained:proof"], direction: "backward" } as any,
+      { id: "read", source: "capture", target: "authorize", kind: "data", attribution: "recorded-read", evidence: ["read:proof"], direction: "backward" },
+    ]} />);
+  const edges = JSON.parse(screen.getByTestId("canvas-model").getAttribute("data-model-edges")!);
+  const kept = edges.find((edge: any) => edge.id === "kept"), read = edges.find((edge: any) => edge.id === "read");
+  expect(kept.ariaLabel).toContain("Recorded write (retained value)");
+  expect(read.ariaLabel).toContain("Recorded read");
+  expect(kept.data.relationship.evidence).toEqual(["retained:proof"]);
+  expect(read.data.relationship.evidence).toEqual(["read:proof"]);
+  expect(kept.sourceHandle).not.toBe(read.sourceHandle);
+  expect(kept.targetHandle).not.toBe(read.targetHandle);
+  expect(kept.markerEnd.type).toBe(read.markerEnd.type);
+  expect(edges.find((edge: any) => edge.id === "paid-ship").className).toBe("gfd-edge-unknown");
+  expect(document.querySelector('[data-node-id="authorize"]')?.getAttribute("data-state")).toBe("completed");
+});
+
 it("applies one explicit camera key without stealing camera ownership on equivalent renders", () => {
   const key = {};
   const props = { definition, defaultExpandedGroupIds: ["payment"] };

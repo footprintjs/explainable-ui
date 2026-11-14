@@ -1018,6 +1018,31 @@ function projectGroupedFlowDiagram(definition, options) {
   }
 }
 
+// src/recordedRelationships/attribution.ts
+var attributions = Object.freeze({
+  "per-write": Object.freeze({ label: "Per-write link", caption: void 0 }),
+  stage: Object.freeze({ label: "Step-level link", caption: "Step" }),
+  "recorded-control": Object.freeze({ label: "Recorded control", caption: void 0 }),
+  "recorded-read": Object.freeze({ label: "Recorded read", caption: "Read" }),
+  "recorded-write": Object.freeze({ label: "Recorded write (retained value)", caption: "Kept" })
+});
+function isRecordedAttribution(value) {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(attributions, value);
+}
+function admitsRecordedAttribution(value, kind) {
+  return isRecordedAttribution(value) && (value !== "recorded-write" || kind === "data");
+}
+function recordedAttributionLabel(value) {
+  return attributions[value].label;
+}
+function recordedAttributionCaption(value, kind) {
+  if (isRecordedAttribution(value)) {
+    const caption = attributions[value].caption;
+    if (caption !== void 0) return caption;
+  }
+  return kind === "control" ? "Rule" : kind === "data" ? "Data" : "Link";
+}
+
 // src/components/GroupedFlowDiagram/relationships.ts
 function field2(value, key) {
   if (!value || typeof value !== "object") throw new Error();
@@ -1078,7 +1103,7 @@ function projectRecordedRelationships(value, model) {
       plain(entry);
       const id = readText(field2(entry, "id"), 256), source = readText(field2(entry, "source"), 256), target = readText(field2(entry, "target"), 256);
       const kind = field2(entry, "kind"), attribution = field2(entry, "attribution"), direction = field2(entry, "direction");
-      if (used.has(id) || !nodes.has(source) || !nodes.has(target) || notRun(source) || notRun(target) || kind !== "data" && kind !== "control" || !["per-write", "stage", "recorded-control", "recorded-read"].includes(attribution) || direction !== void 0 && direction !== "backward" && direction !== "forward") throw new Error();
+      if (used.has(id) || !nodes.has(source) || !nodes.has(target) || notRun(source) || notRun(target) || kind !== "data" && kind !== "control" || !admitsRecordedAttribution(attribution, kind) || direction !== void 0 && direction !== "backward" && direction !== "forward") throw new Error();
       used.add(id);
       return {
         id,
@@ -1468,7 +1493,7 @@ function RecordedRelationshipEdge(props) {
   const relationship = data?.relationship;
   const route = data?.route;
   if (!route) return null;
-  const caption = relationship?.attribution === "stage" ? "Step" : relationship?.attribution === "recorded-read" ? "Read" : relationship?.kind === "control" ? "Rule" : relationship?.kind === "data" ? "Data" : "Link";
+  const caption = recordedAttributionCaption(relationship?.attribution, relationship?.kind);
   const fullLabel = typeof props.label === "string" ? props.label : "Recorded dependency";
   const path = recordedRoutePath(route, { x: props.sourceX, y: props.sourceY }, { x: props.targetX, y: props.targetY });
   const { x, y } = route.label;
@@ -1641,7 +1666,6 @@ function GroupedFlowDiagram(props) {
   if (!highlightFocusIds.size) {
     for (const node of model?.nodes ?? []) if (node.highlighted) highlightFocusIds.add(node.node.id);
   }
-  const relationshipLabels = { "per-write": "Per-write link", stage: "Step-level link", "recorded-control": "Recorded control", "recorded-read": "Recorded read" };
   for (const item of overlay ?? []) {
     const relationship = item.relationship;
     const route = routing?.routes.get(relationship.id);
@@ -1654,8 +1678,8 @@ function GroupedFlowDiagram(props) {
       type: "recordedRelationship",
       sourceHandle: route.sourcePort.id,
       targetHandle: route.targetPort.id,
-      label: `${relationshipLabels[relationship.attribution]} \xB7 ${relationship.kind}`,
-      ariaLabel: `${relationship.direction === "backward" ? "Backward source trail, not a failed step. " : relationship.direction === "forward" ? "Forward recorded impact. " : "Recorded dependency. "}${relationshipLabels[relationship.attribution]}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
+      label: `${recordedAttributionLabel(relationship.attribution)} \xB7 ${relationship.kind}`,
+      ariaLabel: `${relationship.direction === "backward" ? "Backward source trail, not a failed step. " : relationship.direction === "forward" ? "Forward recorded impact. " : "Recorded dependency. "}${recordedAttributionLabel(relationship.attribution)}. ${relationship.kind} dependency.${item.collapsed ? " Grouped view of the original relationship." : ""}`,
       data: { relationship, collapsed: item.collapsed, route },
       className: "gfd-recorded-relationship",
       markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
@@ -3632,7 +3656,7 @@ function TraceFlow(props) {
 }
 
 // src/components/FlowchartView/TracedFlow.tsx
-import { useCallback as useCallback3, useEffect as useEffect9, useMemo as useMemo6, useRef as useRef7, useState as useState6 } from "react";
+import { useCallback as useCallback3, useEffect as useEffect9, useMemo as useMemo6, useRef as useRef8, useState as useState6 } from "react";
 import {
   ReactFlow as ReactFlow3,
   Background as Background3,
@@ -4288,8 +4312,8 @@ function SubflowBreadcrumbBar({ entries, onNavigate }) {
 }
 
 // src/components/FlowchartView/_internal/MeasuredNodeSizes.tsx
-import { useEffect as useEffect8 } from "react";
-import { useNodesInitialized, useStore as useStore3 } from "@xyflow/react";
+import { useEffect as useEffect8, useRef as useRef7 } from "react";
+import { useStore as useStore3 } from "@xyflow/react";
 
 // src/components/FlowchartView/_internal/measuredFootprints.ts
 function extractMeasuredFootprints(entries) {
@@ -4297,11 +4321,24 @@ function extractMeasuredFootprints(entries) {
   for (const [id, node] of entries) {
     const width = node.measured?.width;
     const height = node.measured?.height;
-    if (typeof width === "number" && typeof height === "number" && width > 0 && height > 0) {
-      sizes.set(id, { width: Math.round(width), height: Math.round(height) });
+    if (typeof width === "number" && typeof height === "number" && Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
+      const roundedWidth = Math.round(width), roundedHeight = Math.round(height);
+      if (roundedWidth > 0 && roundedHeight > 0) {
+        sizes.set(id, { width: roundedWidth, height: roundedHeight });
+      }
     }
   }
   return sizes;
+}
+function readMeasuredFootprints(entries, includeHiddenNodes = false) {
+  const relevant = [];
+  let visibleCount = 0;
+  for (const entry of entries) {
+    if (!entry[1].hidden) visibleCount++;
+    if (includeHiddenNodes || !entry[1].hidden) relevant.push(entry);
+  }
+  const sizes = extractMeasuredFootprints(relevant);
+  return { sizes, ready: visibleCount > 0 && sizes.size === relevant.length };
 }
 function sameFootprints(a, b) {
   if (a === b) return true;
@@ -4318,15 +4355,18 @@ function MeasuredNodeSizes({
   onSizes,
   includeHiddenNodes = false
 }) {
-  const initialized = useNodesInitialized({ includeHiddenNodes });
-  const sizes = useStore3(
-    (s) => extractMeasuredFootprints(s.nodeLookup),
-    sameFootprints
+  const measurement = useStore3(
+    (s) => readMeasuredFootprints(s.nodeLookup, includeHiddenNodes),
+    (previous, next) => previous.ready === next.ready && sameFootprints(previous.sizes, next.sizes)
   );
+  const lastPublished = useRef7(null);
   useEffect8(() => {
-    if (!initialized || sizes.size === 0) return;
-    onSizes(sizes);
-  }, [initialized, sizes, onSizes]);
+    if (!measurement.ready) return;
+    const previous = lastPublished.current;
+    if (previous?.onSizes === onSizes && sameFootprints(previous.sizes, measurement.sizes)) return;
+    lastPublished.current = { onSizes, sizes: measurement.sizes };
+    onSizes(measurement.sizes);
+  }, [measurement, onSizes]);
   return null;
 }
 
@@ -4423,7 +4463,7 @@ function toStageNodeWithOverlay(node, doneStageIds, activeStageId, errorMessage,
     ...node,
     type: "stageNode",
     data: stageData,
-    ...dimmed && { style: { opacity: 0.35 } }
+    ...dimmed && { style: { ...node.style ?? {}, opacity: 0.35 } }
   };
 }
 function styleEdgeWithOverlay(edge, doneStageIds, activeStageId, colors, cursorStandIns) {
@@ -4629,7 +4669,7 @@ function TracedFlow({
     },
     [drill, onNodeClick, groupedSet]
   );
-  const wrapperRef = useRef7(null);
+  const wrapperRef = useRef8(null);
   const layoutKey = chartLayoutKey(positioned.nodes);
   const refitKey = JSON.stringify([
     chartLayoutKey(filteredGraph.nodes),
@@ -7747,10 +7787,10 @@ function graphFromStructure(structure) {
 }
 
 // src/components/GroupedFlowInvestigation/GroupedFlowInvestigation.tsx
-import { useEffect as useEffect10, useMemo as useMemo15, useRef as useRef10, useState as useState13 } from "react";
+import { useEffect as useEffect10, useMemo as useMemo15, useRef as useRef11, useState as useState13 } from "react";
 
 // src/components/InvestigationPanel/InvestigationPanel.tsx
-import { useMemo as useMemo14, useRef as useRef9, useState as useState12 } from "react";
+import { useMemo as useMemo14, useRef as useRef10, useState as useState12 } from "react";
 
 // src/components/InvestigationPanel/admission.ts
 var MAX_ITEMS = 256;
@@ -7852,7 +7892,7 @@ var Admission = class {
     return this.list(value, 512, (entry) => {
       const from = this.text(field3(entry, "from")), to = this.text(field3(entry, "to"));
       const kind = field3(entry, "kind"), attribution = field3(entry, "attribution");
-      if (!members.has(from) || !members.has(to) || kind !== "data" && kind !== "control" || !["per-write", "stage", "recorded-control", "recorded-read"].includes(attribution)) throw new Refused();
+      if (!members.has(from) || !members.has(to) || kind !== "data" && kind !== "control" || !admitsRecordedAttribution(attribution, kind)) throw new Refused();
       return { from, to, kind, attribution, evidence: this.evidence(field3(entry, "evidence")) };
     });
   }
@@ -7964,11 +8004,11 @@ function displayLabel(labels, nodeId) {
 }
 
 // src/components/InvestigationPanel/useInvestigationQuery.ts
-import { useRef as useRef8, useState as useState11 } from "react";
+import { useRef as useRef9, useState as useState11 } from "react";
 function useInvestigationQuery(port, admit) {
   const owner = port.binding;
-  const currentOwner = useRef8(null);
-  const active = useRef8(null);
+  const currentOwner = useRef9(null);
+  const active = useRef9(null);
   const [state, setState] = useState11(null);
   const [selection, setSelection] = useState11(null);
   useIsomorphicLayoutEffect(() => {
@@ -8108,16 +8148,16 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
     [port.attention, showAttention]
   );
   const { owner, currentOwner, active, selected } = controller;
-  const explanationElement = useRef9(null);
-  const attentionElements = useRef9(/* @__PURE__ */ new Map());
-  const returnTo = useRef9(null);
-  const focusIntent = useRef9(null);
+  const explanationElement = useRef10(null);
+  const attentionElements = useRef10(/* @__PURE__ */ new Map());
+  const returnTo = useRef10(null);
+  const focusIntent = useRef10(null);
   const [page, setPage] = useState12({ owner, count: 20 });
   const visible = page.owner === owner ? page.count : 20;
   const [showPath, setShowPath] = useState12(false);
   const [showImpact, setShowImpact] = useState12(false);
   const [showAlternatives, setShowAlternatives] = useState12(false);
-  const lastRequest = useRef9(null);
+  const lastRequest = useRef10(null);
   useIsomorphicLayoutEffect(() => {
     if (returnTo.current?.owner !== owner) returnTo.current = null;
     return () => {
@@ -8414,7 +8454,14 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
   const controller = useInvestigationQuery(port, admitVisualExplanation);
   const { owner, selected } = controller;
   const ready = selected?.status === "ready" ? selected : void 0;
-  const wrapper = useRef10(null);
+  const committedResult = useRef11(void 0);
+  useIsomorphicLayoutEffect(() => {
+    committedResult.current = ready ? { owner, request: ready.request } : void 0;
+    return () => {
+      committedResult.current = void 0;
+    };
+  }, [owner, ready]);
+  const wrapper = useRef11(null);
   const [narrow, setNarrow] = useState13(false);
   const [expansion, setExpansion] = useState13({ owner, ids: [] });
   const [mode, setMode] = useState13();
@@ -8423,8 +8470,8 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
   const activeView = view?.request === ready?.request ? view : void 0;
   const whole = activeView?.whole ?? false;
   const phase = mode && mode.request === selected?.request ? mode.value : "cause";
-  const diagramBindings = useRef10(/* @__PURE__ */ new WeakMap());
-  const nextDiagramBinding = useRef10(0);
+  const diagramBindings = useRef11(/* @__PURE__ */ new WeakMap());
+  const nextDiagramBinding = useRef11(0);
   const diagramBindingKey = useMemo15(() => {
     let key = diagramBindings.current.get(owner);
     if (key === void 0) {
@@ -8437,7 +8484,7 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
   const states = useMemo15(() => new Map(Object.entries(admitted.nodeStates ?? {})), [admitted]);
   const projected = useMemo15(() => ready ? projectInvestigation(admitted.definition, ready.result, phase) : void 0, [admitted.definition, ready, phase]);
   const currentIds = expansion.owner === owner ? expansion.ids : [];
-  const automaticExpansion = useRef10(void 0);
+  const automaticExpansion = useRef11(void 0);
   const needsReveal = ready && (automaticExpansion.current?.request !== ready.request || automaticExpansion.current?.phase !== phase);
   const expandedGroupIds = needsReveal ? [.../* @__PURE__ */ new Set([...currentIds, ...projected?.groupIds ?? []])] : currentIds;
   useIsomorphicLayoutEffect(() => {
@@ -8479,7 +8526,7 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
   const summary = selected?.status === "loading" ? "Checking recorded evidence\u2026" : ready && mappedRoot ? `Supported cause: ${known.get(mappedRoot).label}. ${phase === "cause" ? "The recorded path is highlighted below." : "Showing recorded affected items below."}` : ready && root && !known.has(root) ? "The supported cause is not shown in this diagram. No substitute card is labelled." : ready || selected?.status === "error" || selected?.status === "refused" ? "Cause unknown. The available evidence does not support a cause on this diagram." : "Select a failed item, or select another item and choose Investigate selected item.";
   const recordedFitIds = narrow && ready ? phase === "cause" && mappedRoot ? [mappedRoot] : selectedId ? [selectedId] : [] : [.../* @__PURE__ */ new Set([...projected?.groupIds ?? [], ...projected?.nodeIds ?? []])];
   const changeView = () => {
-    if (!ready || controller.currentOwner.current !== owner || controller.active.current !== ready.request || ready.request.signal.aborted) return;
+    if (!ready || controller.currentOwner.current !== owner || committedResult.current?.owner !== owner || committedResult.current.request !== ready.request) return;
     setView({ request: ready.request, whole: !whole });
   };
   return /* @__PURE__ */ jsxs23(
