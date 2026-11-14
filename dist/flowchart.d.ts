@@ -187,6 +187,19 @@ interface StageNodeData {
      * two apart is worse than one that stays quiet.
      */
     retryAttempts?: number;
+    /** Static evidence emphasis, independent of the node's execution status.
+     * All presentation sits outside the card's layout footprint. */
+    traceWorkflow?: {
+        color: string;
+        role: "question" | "input" | "upstream";
+        values: readonly {
+            key: string;
+            preview: string | null;
+            color: string;
+        }[];
+    };
+    /** Stop node pulses and state transitions while inspecting recorded evidence. */
+    suppressMotion?: boolean;
     /** Node was not executed (dim it) */
     dimmed?: boolean;
     /** Node is a subflow root (show nested indicator) */
@@ -1328,6 +1341,33 @@ interface ThemeModeProps {
     theme?: ThemeMode;
 }
 
+/** Presentation of recorded stage reads; never expression-level output derivation. */
+
+interface TraceWorkflowStage {
+    runtimeStageId: string;
+    stageId: string;
+    color: string;
+    role: "question" | "input" | "upstream";
+    values: readonly {
+        key: string;
+        preview: string | null;
+        color: string;
+    }[];
+}
+interface TraceWorkflowRead {
+    key: string;
+    sourceRuntimeStageId: string;
+    targetRuntimeStageId: string;
+    color: string;
+}
+interface TraceWorkflowOverlay {
+    questionKey: string;
+    scopeKey: string;
+    focusRuntimeStageId: string | null;
+    stages: readonly TraceWorkflowStage[];
+    reads: readonly TraceWorkflowRead[];
+}
+
 /**
  * TracedFlow — runtime-overlay variant of `<TraceFlow>`.
  *
@@ -1448,6 +1488,8 @@ interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
      * `#N` before passing).
      */
     sliceCone?: ReadonlyMap<string, number> | null;
+    /** Static, scope-qualified recorded reads drawn separately from workflow execution edges. */
+    traceWorkflow?: TraceWorkflowOverlay | null;
     /**
      * Hide the nodes this predicate matches (a hidden subflow card takes its
      * drill-internals with it); edges re-connect THROUGH hidden nodes so every
@@ -1485,7 +1527,7 @@ interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
      */
     children?: react.ReactNode;
 }
-declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, currentSubflowId: controlledSubflowId, collapseNode, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, sliceCone, theme: themeMode, children, className, style, }: TracedFlowProps): react.JSX.Element;
+declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, currentSubflowId: controlledSubflowId, collapseNode, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, sliceCone, traceWorkflow, theme: themeMode, children, className, style, }: TracedFlowProps): react.JSX.Element;
 
 interface GroupContainerNodeData {
     label: string;
@@ -3212,4 +3254,4 @@ interface GroupedFlowInvestigationProps {
 /** User-initiated investigation over one host-bound recording. No graph storage or causal search lives here. */
 declare function GroupedFlowInvestigation(props: GroupedFlowInvestigationProps): react.JSX.Element;
 
-export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, type OverlayFromSnapshotOptions, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, getFlowDiagramAncestors, graphFromStructure, overlayFromSnapshot, projectGroupedFlowDiagram, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };
+export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, type OverlayFromSnapshotOptions, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, type TraceWorkflowOverlay, type TraceWorkflowRead, type TraceWorkflowStage, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, getFlowDiagramAncestors, graphFromStructure, overlayFromSnapshot, projectGroupedFlowDiagram, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };
