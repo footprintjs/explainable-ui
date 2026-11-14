@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-11-13
+
 ### Fixed
 
 - Grouped investigation and standalone diagrams display admitted `recorded-write`
