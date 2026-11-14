@@ -10,12 +10,24 @@ export interface FailureExplanationDisplaySection {
   readonly evidenceRefs: readonly string[];
 }
 
+/** A canonical recorded finding, never configured advice or execution authority. */
+export interface FailureExplanationDisplayFinding {
+  readonly code: string;
+  readonly summary: string;
+  readonly evidenceRefs: readonly string[];
+}
+
 /** Structurally accepts a formatted Blueprint explanation without a runtime dependency. */
 export interface FailureExplanationDisplay {
   readonly problem: FailureExplanationDisplaySection;
   readonly recordedCause: FailureExplanationDisplaySection;
   readonly suggestedNextStep: FailureExplanationDisplaySection;
   readonly unknowns: readonly string[];
+  readonly canonicalFindings: {
+    readonly causes: readonly FailureExplanationDisplayFinding[];
+    readonly consequences: readonly FailureExplanationDisplayFinding[];
+    readonly diagnosticFailures: readonly FailureExplanationDisplayFinding[];
+  };
 }
 
 export interface FailureExplanationViewProps {

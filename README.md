@@ -1043,6 +1043,11 @@ an always-visible Still unknown area. Optional authored copy is labelled Busines
 guidance and appears alongside canonical text. It cannot grant permission,
 execute a repair, choose a root cause or load a recording.
 
+The required `canonicalFindings` preserves complete causes, consequences and
+recording failures. The latter two appear in separate visible sections, rather
+than disappearing from the explanation or being relabelled as causes. Complete
+cause codes and references remain available in the cause details.
+
 ```tsx
 import { FailureExplanationView } from 'footprint-explainable-ui';
 
@@ -1056,7 +1061,8 @@ has no Blueprint runtime dependency. Evidence references are opaque text in
 disclosures, never links or selection authority. A malformed, accessor-backed or
 over-budget model refuses the whole view, with a message that the cause and
 outcome remain unknown. Display bounds are 262,144 UTF-16 text code units total,
-1,024 entries per list and 4,096 code units per reference/unknown. This is shape
+1,024 entries per list, 4,096 total nested list items and 4,096 code units per
+reference/unknown. All canonical finding text counts toward these limits. This is shape
 admission, not producer authentication or a JavaScript Proxy sandbox. Existing
 viewers and diagrams are unchanged until the host explicitly adds this component.
 

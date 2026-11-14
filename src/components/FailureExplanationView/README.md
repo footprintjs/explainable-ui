@@ -6,6 +6,13 @@ canonical wording, optional supplementary business guidance and mandatory
 uncertainty. There is no diagnosis, template matching, storage loading, action or
 graph selection here. Existing viewers do not change.
 
+The required `canonicalFindings` contains complete causes, consequences and
+diagnostic failures, including their codes, summaries and references. Cause
+summaries remain in the cause card; its details retain the complete findings.
+Other outcomes and recording problems are visibly separate sections, so a
+failed recorder is never silently dropped or presented as the business cause.
+Configured guidance cannot replace these fields.
+
 The host binds the formatted result to the exact selected recording and item,
 and replaces or clears it whenever that selection changes. Blueprint's formatted
 explanation is structurally assignable without introducing a runtime dependency.
@@ -14,7 +21,9 @@ Reference strings appear only in disclosure text, never as links or actions.
 
 The entire view is refused when a required field is missing, inconsistent,
 accessor-backed or over budget: 262,144 retained UTF-16 text code units total,
-1,024 entries per list and 4,096 code units per reference/unknown. Refusal keeps
+1,024 entries per list, 4,096 total list items across nested findings/references,
+and 4,096 code units per reference/unknown. All finding strings count toward the
+same text allowance. Refusal keeps
 the cause and outcome unknown and tells the host to supply an admitted result.
 Only known own data fields are read; unrelated fields, input iterators and input
 array methods are ignored. JavaScript Proxy reflection is not sandboxed.

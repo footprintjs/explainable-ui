@@ -159,7 +159,7 @@ export type { InvestigationPanelProps, InvestigationPort, InvestigationResult } 
 export { GroupedFlowInvestigation } from "./components/GroupedFlowInvestigation";
 export type { GroupedFlowInvestigationProps } from "./components/GroupedFlowInvestigation";
 export { FailureExplanationView } from "./components/FailureExplanationView";
-export type { FailureExplanationViewProps, FailureExplanationDisplay, FailureExplanationDisplaySection } from "./components/FailureExplanationView";
+export type { FailureExplanationViewProps, FailureExplanationDisplay, FailureExplanationDisplaySection, FailureExplanationDisplayFinding } from "./components/FailureExplanationView";
 
 // Recorded-read presentation for custom workflow renderers.
 export type { TraceWorkflowOverlay, TraceWorkflowStage, TraceWorkflowRead } from "./trace/traceWorkflowOverlay";

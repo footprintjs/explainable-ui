@@ -1,18 +1,77 @@
 /** @vitest-environment jsdom */
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { FailureExplanationView } from './FailureExplanationView';
 
 const section = (text: string) => ({ text, wordingSource: 'default' as const, evidenceRefs: ['record:attempt:2'] });
+const findings = (): { code: string; summary: string; evidenceRefs: string[] }[] => [];
 const explanation = () => ({
   problem: section('The recorded service call timed out.'),
   recordedCause: section('The adapter reported a timeout; the upstream reason is unknown.'),
   suggestedNextStep: section('Check the original operation before retrying.'),
   unknowns: ['Customer delivery is unknown.', 'The service root cause is unknown.'],
+  canonicalFindings: { causes: findings(), consequences: findings(), diagnosticFailures: findings() },
 });
 const unavailable = () => expect(screen.getByRole('status').textContent).toContain('cause and outcome remain unknown');
 
 describe('optional plain-language explanation display', () => {
+  it('keeps complete canonical outcomes and recording failures distinct from causes', () => {
+    const model = explanation();
+    model.canonicalFindings.causes.push({ code: 'AUTH_REJECTION_RECORDED', summary: 'An access problem was reported.', evidenceRefs: ['source:auth'] });
+    model.canonicalFindings.consequences.push({ code: 'PHYSICAL_RECOVERY_RECORDED', summary: 'A later observed attempt answered.', evidenceRefs: ['source:recovery'] });
+    model.canonicalFindings.diagnosticFailures.push({ code: 'TRACE_PERSISTENCE_FAILED', summary: 'The recording was not confirmed saved.', evidenceRefs: ['source:save'] });
+    const { container } = render(<FailureExplanationView explanation={model} />);
+    const cause = screen.getByRole('region', { name: 'Recorded cause' });
+    expect(within(cause).getByText(model.recordedCause.text)).toBeTruthy();
+    expect(within(cause).getByText('AUTH_REJECTION_RECORDED')).toBeTruthy();
+    expect(within(cause).getByText('An access problem was reported.')).toBeTruthy();
+    const outcomes = screen.getByRole('region', { name: 'Other recorded outcomes' });
+    expect(within(outcomes).getByText('PHYSICAL_RECOVERY_RECORDED')).toBeTruthy();
+    expect(within(outcomes).getByText('A later observed attempt answered.')).toBeTruthy();
+    const recording = screen.getByRole('region', { name: 'Recording problems' });
+    expect(within(recording).getByText('TRACE_PERSISTENCE_FAILED')).toBeTruthy();
+    expect(within(recording).getByText('The recording was not confirmed saved.')).toBeTruthy();
+    expect(within(cause).queryByText('The recording was not confirmed saved.')).toBeNull();
+    for (const ref of ['source:auth', 'source:recovery', 'source:save']) expect(screen.getByText(ref)).toBeTruthy();
+    expect(screen.getByText(model.unknowns[0]!)).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull(); expect(screen.queryByRole('link')).toBeNull();
+    expect(container.querySelector('a,button')).toBeNull();
+  });
+  it.each([
+    undefined,
+    { causes: [], consequences: [], diagnosticFailures: undefined },
+    { causes: [], consequences: [null], diagnosticFailures: [] },
+    { causes: [], consequences: [], diagnosticFailures: [{ code: 'BAD', summary: 'x'.repeat(262145), evidenceRefs: [] }] },
+  ])('refuses missing or malformed canonical findings instead of hiding them (%#)', canonicalFindings => {
+    render(<FailureExplanationView explanation={{ ...explanation(), canonicalFindings } as never} />);
+    unavailable(); expect(screen.queryByRole('heading', { name: 'Problem' })).toBeNull();
+  });
+  it('refuses a canonical finding getter without invoking it', () => {
+    const model = explanation(); let reads = 0;
+    const finding = { code: 'TRACE_OBSERVER_FAILED', summary: 'Unavailable', evidenceRefs: [] };
+    Object.defineProperty(finding, 'summary', { get() { reads++; return 'Fabricated'; } });
+    model.canonicalFindings.diagnosticFailures.push(finding);
+    render(<FailureExplanationView explanation={model} />); unavailable(); expect(reads).toBe(0);
+  });
+  it('counts canonical finding strings toward the whole-view allowance', () => {
+    const model = explanation();
+    model.canonicalFindings.consequences.push(...Array.from({ length: 2 }, () => ({ code: 'OUTCOME_RECORDED', summary: 'x'.repeat(140000), evidenceRefs: [] })));
+    render(<FailureExplanationView explanation={model} />); unavailable();
+  });
+  it('bounds total nested finding references even when their text is short', () => {
+    const model = explanation();
+    model.canonicalFindings.diagnosticFailures.push(...Array.from({ length: 5 }, () => ({ code: 'TRACE_OBSERVER_FAILED', summary: 'Recording stopped.', evidenceRefs: Array(1024).fill('ref') })));
+    render(<FailureExplanationView explanation={model} />); unavailable();
+  });
+  it('copies finding arrays without invoking caller-owned map or iterator', () => {
+    const model = explanation(); let calls = 0;
+    model.canonicalFindings.diagnosticFailures.push({ code: 'TRACE_OBSERVER_FAILED', summary: 'Recording stopped.', evidenceRefs: [] });
+    for (const key of ['map', Symbol.iterator]) Object.defineProperty(model.canonicalFindings.diagnosticFailures, key, {
+      get() { calls++; throw Error('Caller-owned method'); },
+    });
+    render(<FailureExplanationView explanation={model} />);
+    expect(screen.getByText('Recording stopped.')).toBeTruthy(); expect(calls).toBe(0);
+  });
   it('shows three canonical sections and every unknown without an automatic action', () => {
     const model = explanation(); render(<FailureExplanationView explanation={model} />);
     for (const title of ['Problem', 'Recorded cause', 'Suggested next step', 'Still unknown'])

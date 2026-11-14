@@ -1,2 +1,2 @@
 export { FailureExplanationView } from './FailureExplanationView';
-export type { FailureExplanationViewProps, FailureExplanationDisplay, FailureExplanationDisplaySection } from './types';
+export type { FailureExplanationViewProps, FailureExplanationDisplay, FailureExplanationDisplaySection, FailureExplanationDisplayFinding } from './types';

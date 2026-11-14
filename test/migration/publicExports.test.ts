@@ -59,6 +59,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         { name: "FailureExplanationViewProps", kind: "type" },
         { name: "FailureExplanationDisplay", kind: "type" },
         { name: "FailureExplanationDisplaySection", kind: "type" },
+        { name: "FailureExplanationDisplayFinding", kind: "type" },
         { name: "projectTraceInvocation", kind: "value" },
         { name: "TraceInvocationOptions", kind: "type" },
         { name: "TraceInvocationProjection", kind: "type" },

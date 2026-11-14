@@ -2,7 +2,7 @@ import { useId } from 'react';
 import type { CSSProperties } from 'react';
 import { theme } from '../../theme/styles';
 import { admitFailureExplanation } from './admission';
-import type { FailureExplanationViewProps } from './types';
+import type { FailureExplanationDisplayFinding, FailureExplanationViewProps } from './types';
 
 const box: CSSProperties = {
   color: theme.textPrimary, background: theme.bg, border: `1px solid ${theme.border}`,
@@ -14,6 +14,19 @@ const card: CSSProperties = {
   borderRadius: theme.radius, background: theme.bgElevated,
 };
 const titles = ['Problem', 'Recorded cause', 'Suggested next step'] as const;
+
+function FindingList({ findings }: { findings: readonly FailureExplanationDisplayFinding[] }) {
+  return <ul>{findings.map((finding, index) => (
+    <li key={index} style={{ marginBlock: 12 }}>
+      <code style={{ color: theme.textSecondary, fontSize: 12 }}>{finding.code}</code>
+      <p style={{ whiteSpace: 'pre-wrap', marginBlock: 6 }}>{finding.summary}</p>
+      {finding.evidenceRefs.length > 0 && <details>
+        <summary>Recorded references</summary>
+        <ul>{finding.evidenceRefs.map((reference, number) => <li key={number}><code>{reference}</code></li>)}</ul>
+      </details>}
+    </li>
+  ))}</ul>;
+}
 
 /** Optional presentation only: no diagnosis, graph traversal, storage query or executable advice. */
 export function FailureExplanationView(props: FailureExplanationViewProps) {
@@ -44,9 +57,25 @@ export function FailureExplanationView(props: FailureExplanationViewProps) {
                 <ul>{section.evidenceRefs.map((reference, number) => <li key={number}><code>{reference}</code></li>)}</ul>
               </details>
             )}
+            {index === 1 && model.canonicalFindings.causes.length > 0 && <details>
+              <summary>Recorded cause details</summary>
+              <FindingList findings={model.canonicalFindings.causes} />
+            </details>}
           </section>
         ))}
       </div>
+      {model.canonicalFindings.consequences.length > 0 && (
+        <section aria-labelledby={`${id}-outcomes`} style={{ ...card, marginBlockStart: 12 }}>
+          <h3 id={`${id}-outcomes`} style={{ marginBlockStart: 0, fontSize: 16 }}>Other recorded outcomes</h3>
+          <FindingList findings={model.canonicalFindings.consequences} />
+        </section>
+      )}
+      {model.canonicalFindings.diagnosticFailures.length > 0 && (
+        <section aria-labelledby={`${id}-recording`} style={{ ...card, marginBlockStart: 12, borderInlineStart: `3px solid ${theme.warning}` }}>
+          <h3 id={`${id}-recording`} style={{ marginBlockStart: 0, fontSize: 16 }}>Recording problems</h3>
+          <FindingList findings={model.canonicalFindings.diagnosticFailures} />
+        </section>
+      )}
       <section aria-labelledby={`${id}-unknowns`} style={{ ...card, marginBlockStart: 12, borderInlineStart: `3px solid ${theme.warning}` }}>
         <h3 id={`${id}-unknowns`} style={{ marginBlockStart: 0, fontSize: 16 }}>Still unknown</h3>
         {model.unknowns.length > 0
