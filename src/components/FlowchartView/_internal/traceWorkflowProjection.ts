@@ -2,11 +2,13 @@ import type { TraceWorkflowOverlay, TraceWorkflowStage } from "../../../trace/tr
 import type { Rect } from "@xyflow/react";
 import type { ChartFitNode } from "./chartFitGeometry";
 import { positiveFinite } from "./chartFitGeometry";
+import { recordedReadGeometry } from "./recordedReadGeometry";
 
 /** The caption is paint, not layout: reserve its bounded extent only for automatic fits. */
 export function traceWorkflowPaintBounds(
   nodes: ReadonlyMap<string, ChartFitNode>,
   stageIds: Iterable<string>,
+  reads: readonly Pick<VisibleWorkflowRead, "source" | "target">[] = [],
 ): Rect | undefined {
   let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
   for (const id of stageIds) {
@@ -20,6 +22,13 @@ export function traceWorkflowPaintBounds(
     right = Math.max(right, x + width / 2 + captionHalfWidth);
     top = Math.min(top, y - 8);
     bottom = Math.max(bottom, y + height + 26); // 7px gap + 18px caption + rounding room.
+  }
+  for (const [lane, read] of reads.entries()) {
+    const route = recordedReadGeometry(nodes, read.source, read.target, lane);
+    if (!route) return undefined;
+    left = Math.min(left, route.bounds.x); top = Math.min(top, route.bounds.y);
+    right = Math.max(right, route.bounds.x + route.bounds.width);
+    bottom = Math.max(bottom, route.bounds.y + route.bounds.height);
   }
   if (![left, top, right, bottom].every(Number.isFinite)) return undefined;
   return { x: left, y: top, width: right - left, height: bottom - top };

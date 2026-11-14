@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { projectTraceWorkflow, traceWorkflowPaintBounds } from "../../src/components/FlowchartView/_internal/traceWorkflowProjection";
 import type { TraceWorkflowOverlay, TraceWorkflowStage } from "../../src/trace/traceWorkflowOverlay";
+import { chartFitViewport } from "../../src/components/FlowchartView/_internal/chartFitGeometry";
+import { recordedReadGeometry } from "../../src/components/FlowchartView/_internal/recordedReadGeometry";
 
 const stage = (runtimeStageId: string): TraceWorkflowStage => ({ runtimeStageId,
   stageId: runtimeStageId.split("#")[0], color: "teal", role: "input", values: [{ key: "value", preview: "1", color: "teal" }] });
@@ -20,6 +22,43 @@ describe("workflow read projection", () => {
     expect(JSON.stringify([...nodes])).toBe(before);
     expect(traceWorkflowPaintBounds(nodes, [])).toBeUndefined();
     expect(traceWorkflowPaintBounds(new Map([["a", { ...nodes.get("a")!, measured: {} }]]), ["a"])).toBeUndefined();
+  });
+
+  it("fits every bounded read label and lane on a wide workflow, including the sixth outer lane", () => {
+    const nodes = new Map([
+      ["source", { measured: { width: 220, height: 60 }, internals: { positionAbsolute: { x: 0, y: 0 } } }],
+      ["result", { measured: { width: 220, height: 60 }, internals: { positionAbsolute: { x: 0, y: 300 } } }],
+      ["parallel", { measured: { width: 220, height: 60 }, internals: { positionAbsolute: { x: 980, y: 0 } } }],
+    ]);
+    const before = JSON.stringify([...nodes]);
+    const stages = ["source", "result"];
+    const reads = Array.from({ length: 6 }, () => ({ source: "source", target: "result" }));
+    const state = { width: 600, height: 400, minZoom: 0.1, maxZoom: 2, nodeLookup: nodes };
+    const oldFit = chartFitViewport({ ...state, visualBounds: traceWorkflowPaintBounds(nodes, stages) }, .18)!;
+    const outside = recordedReadGeometry(nodes, "source", "result", 5)!;
+    expect(oldFit.x + (outside.label.x + outside.label.width / 2) * oldFit.zoom).toBeLessThan(0);
+
+    const visualBounds = traceWorkflowPaintBounds(nodes, stages, reads)!;
+    const fit = chartFitViewport({ ...state, visualBounds }, .18)!;
+    for (const [lane, read] of reads.entries()) {
+      const route = recordedReadGeometry(nodes, read.source, read.target, lane)!;
+      for (const box of [route.label, route.bounds]) {
+        expect(fit.x + box.x * fit.zoom).toBeGreaterThanOrEqual(0);
+        expect(fit.x + (box.x + box.width) * fit.zoom).toBeLessThanOrEqual(state.width);
+        expect(fit.y + box.y * fit.zoom).toBeGreaterThanOrEqual(0);
+        expect(fit.y + (box.y + box.height) * fit.zoom).toBeLessThanOrEqual(state.height);
+      }
+    }
+    expect(JSON.stringify([...nodes])).toBe(before);
+  });
+
+  it("waits for measured read endpoints instead of fitting partial evidence lanes", () => {
+    const nodes = new Map([
+      ["source", { measured: { width: 220, height: 60 }, internals: { positionAbsolute: { x: 0, y: 0 } } }],
+      ["result", { measured: {}, internals: { positionAbsolute: { x: 0, y: 300 } } }],
+    ]);
+    expect(recordedReadGeometry(nodes, "source", "result", 0)).toBeNull();
+    expect(traceWorkflowPaintBounds(nodes, ["source"], [{ source: "source", target: "result" }])).toBeUndefined();
   });
 
   it("maps only exact qualified endpoints and never substitutes an execution neighbor", () => {

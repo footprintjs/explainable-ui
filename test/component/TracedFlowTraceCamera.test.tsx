@@ -116,6 +116,13 @@ describe("investigation camera ownership", () => {
     measure(); flush(); expect(setViewport).toHaveBeenCalled(); setViewport.mockClear(); pan();
 
     view.rerender(chart(investigation)); resize(700, 450);
+    // Read-lane paint can extend farther left than the node captions. Adding
+    // that evidence is still not permission to move a manually owned camera.
+    const withReads: TraceWorkflowOverlay = { ...investigation,
+      stages: [{ ...investigation.stages[0], runtimeStageId: "a#0", stageId: "a" }, ...investigation.stages],
+      reads: Array.from({ length: 6 }, (_, lane) => ({ key: `input${lane}`, sourceRuntimeStageId: "a#0", targetRuntimeStageId: "b#1", color: "teal" })),
+    };
+    view.rerender(chart(withReads)); resize(690, 440);
     view.rerender(chart({ ...investigation, questionKey: "input", focusRuntimeStageId: "a#0" })); resize(680, 430);
     view.rerender(chart(investigation)); resize(700, 450);
     view.rerender(chart(null)); resize(800, 500);

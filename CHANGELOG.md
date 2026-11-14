@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Include bounded recorded-read labels in workflow fitting so wide and parallel
+  charts keep their evidence labels inside the viewport.
 - Grouped investigation and standalone diagrams display admitted `recorded-write`
   data links as retained values, separately from recorded reads, while preserving
   each link's evidence, direction and uncertainty. Missing links remain unknown.

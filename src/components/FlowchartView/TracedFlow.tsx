@@ -763,7 +763,7 @@ export function TracedFlow({
           proOptions={{ hideAttribution: true }}
         >
           <TraceWorkflowAutoRefit wrapperRef={wrapperRef} refitKey={refitKey} layoutKey={layoutKey} padding={0.18}
-            preserveViewport={investigationSeen.current} stages={workflowProjection.stages} />
+            preserveViewport={investigationSeen.current} stages={workflowProjection.stages} reads={workflowProjection.reads} />
           <MeasuredNodeSizes onSizes={setMeasuredSizes} />
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
           {children}

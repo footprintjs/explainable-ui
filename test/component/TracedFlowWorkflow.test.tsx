@@ -71,7 +71,11 @@ describe("TracedFlow recorded workflow reads", () => {
     expect(read.style?.strokeDasharray).toBe("6 4");
     expect(mounted.container.querySelector('[data-fp="trace-workflow-read"]')?.getAttribute("aria-label"))
       .toBe("Recorded read amount from source#0 to result#2");
-    expect(mounted.container.querySelector('[data-fp="trace-workflow-read"] text')?.textContent).toBe("amount · recorded read");
+    const label = mounted.container.querySelector<HTMLElement>('[data-fp="trace-workflow-read-label"]')!;
+    expect(label.textContent).toBe("amount · recorded read");
+    expect(label.style.maxWidth).toBe("220px");
+    expect(label.style.height).toBe("20px");
+    expect(label.style.textOverflow).toBe("ellipsis");
     expect(store.getState().edges.every(edge => !edge.animated)).toBe(true);
     expect(store.getState().nodeLookup.get("audit")!.style?.opacity).toBe(0.4);
     expect(store.getState().nodeLookup.get("audit")!.data.error).toBe(true);
