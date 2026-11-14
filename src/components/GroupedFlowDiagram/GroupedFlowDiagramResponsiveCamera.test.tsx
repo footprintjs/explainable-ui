@@ -1,10 +1,10 @@
 /** @vitest-environment jsdom */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { GroupedFlowDiagram } from '../../src/components/GroupedFlowDiagram/GroupedFlowDiagram';
-import { RecordedFocusContext } from '../../src/components/GroupedFlowDiagram/presentation';
+import { GroupedFlowDiagram } from './GroupedFlowDiagram';
+import { RecordedFocusContext } from './presentation';
 
-vi.mock('../../src/components/FlowchartView/_internal/useChartAutoRefit', () => ({
+vi.mock('../FlowchartView/_internal/useChartAutoRefit', () => ({
   ChartAutoRefit: (props: any) => <output data-testid="camera" data-focus={props.focusNodeIds?.join(' ') ?? 'overview'} data-preserve={String(props.preserveViewport)} />,
 }));
 vi.mock('@xyflow/react', async original => ({ ...await original<typeof import('@xyflow/react')>(),

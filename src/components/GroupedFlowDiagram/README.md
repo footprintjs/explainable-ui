@@ -20,7 +20,7 @@ responsive polling or app resize workaround exists here. Phone-root versus
 recorded-chain framing remains the investigation composition's policy.
 
 Regression behavior is exercised by
-`test/component/GroupedFlowDiagramResponsiveCamera.test.tsx`, the real
+`GroupedFlowDiagramResponsiveCamera.test.tsx` beside this owner, the real
 `TracedFlowTraceCamera`/`useChartAutoRefit` ownership tests and existing grouped
 investigation camera tests. Browser pixel-containment proof is a separate gate;
 DOM target presence alone does not prove the target is visible.
