@@ -52,7 +52,7 @@ describe("public tool text equals the shell Copy story artifact", () => {
     const expected=formatTraceWalk(buildTraceWalk(log,nested.runtimeSnapshot.executionTree,"total"),id=>{
       const index=log.findIndex((row:any)=>row.runtimeStageId===id);return index<0?null:index+1;
     });
-    expect(expected).toContain("computed inside");
+    expect(expected).toContain("subflow boundary:");
     expect(writeText.mock.calls[0][0]).toBe(expected);
   });
   it.each([

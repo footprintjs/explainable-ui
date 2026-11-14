@@ -344,7 +344,7 @@ what it wanted instead of rendering empty chrome.
 |---|---|---|---|
 | `runtimeSnapshot` | `RuntimeSnapshotInput \| null` | — | A recorded `executor.getSnapshot()`. Drives the rows, memory, story, provenance, recorder tabs — and the chart's colouring |
 | `snapshots` | `StageSnapshot[]` | — | Pre-converted rows, when you called `toVisualizationSnapshots()` yourself. Wins over `runtimeSnapshot` |
-| `traceGraph` | `TraceGraph \| null` | — | The chart. From `createTraceStructureRecorder()` live, or `graphFromStructure(saved.structure)` for a recording. **No chart without it** |
+| `traceGraph` | `TraceGraph \| null` | — | The execution chart. From `createTraceStructureRecorder()` live, or `graphFromStructure(saved.structure)` for a recording. It stays available while tracing; Variables offers a separate recorded-read view |
 | `runtimeOverlay` | `RuntimeOverlay \| null` | derived from `runtimeSnapshot` | The executed-path colouring. Usually omit — pass one only for a live `createTraceRuntimeOverlay` handle |
 | `traceTheme` | `TraceTheme` | — | `{ mode: "light" \| "dark" }` re-themes the whole shell in one word; `visited` / `current` override the two node colours |
 | `narrativeEntries` | `NarrativeEntry[]` | read from the snapshot | Structured narrative. Only needed to override the story the recording carries |
@@ -357,83 +357,86 @@ what it wanted instead of rendering empty chrome.
 | `recorderViews` | `RecorderView[]` | auto-detected | Extra details tabs. Recorders inside the snapshot already get one each |
 | `panelLabels` | `PanelLabels` | `{ topology: "Topology", details: "Details", timeline: "Timeline" }` | Collapsible pill labels |
 | `defaultExpanded` | `DefaultExpanded` | `{ details: true }` | Which panels start open |
-| `renderFlowchart` | `(props) => ReactNode` | `<TracedFlow>` | Replace the chart renderer. Still requires `traceGraph` |
+| `renderFlowchart` | `(props) => ReactNode` | `<TracedFlow>` | Replace the execution chart renderer; it remains mounted when switching between Execution and Variables |
 | `showStageId` | `boolean` | `false` | Print each node's stable `stageId` under its label (teaching aid) |
 | `autoPlay` | `boolean` | `false` | Play the run by itself when it opens, once per recording. Anything the reader does stops it |
 | `size` | `"compact" \| "default" \| "detailed"` | `"default"` | Size variant |
 | `unstyled` | `boolean` | `false` | Strip styles, render `data-fp` attributes |
 
-### Tracing a value — walk the timeline backward through its causes
+### Tracing a value — inspect its recorded state reads
 
-![Tracing mode: the rail becomes the walk](demo/tracing-verified.png)
+Open **Inspector → Data Trace** and choose a written value, or use **Trace any
+variable** to search the selected record. Tracing starts in **Execution**, keeping
+the workflow in view. The built-in chart highlights the question's recorded
+writers and reads while retaining the surrounding steps. **Variables** offers
+a separate map: each card names the key and writer, with a bounded preview from
+the snapshot after that writer. Missing values and unresolved sources remain
+explicit.
 
-Open **Inspector → Data Trace** and click one of the "Trace a value" chips.
-The time slider stays the same rail — the stages that made that value light
-up as **stops**, everything else fades to unlandable ticks, and the buttons
-become **◀ earlier cause / toward result ▶**. This works because every
-ingredient of a value was always written *earlier in the run* than the value
-it fed, so the dependency chain is a sub-sequence of the timeline you already
-have. One cursor, no new axis.
+Switching views keeps the same question and cursor. The execution chart,
+including a consumer's `renderFlowchart` replacement, stays mounted so returning
+does not recreate it. Within each question, matching variable cards, workflow
+highlights and read chips use consistent colors. Short 240 ms transitions help
+track position and emphasis changes; the reader's reduced-motion preference
+disables them. Questions without a usable recorded walk keep the usual execution
+view and the explanation of what is missing.
 
-- A value made from **two ingredients** shows both as colored chips —
-  pressing "earlier cause" visits both (most recent first); nothing is ever
-  silently skipped. Click a chip to **follow** just that ingredient (the
-  breadcrumb shows `key ▸ via ingredient · show all`).
-- Every stop shows the world **as it was at that moment** — the state panel
-  time-travels with the walk for free.
-- **Honest absence**: a value nobody wrote gets a truthful card ("no recorded write; value unknown"), and a value not
-  written *yet* at the cursor's moment says exactly that, naming where its
-  first write happens. Reads-off runs say "unknowable, not absent".
-- **[Copy story]** uses `formatTraceWalk`. A tool formatting the same walk and
-  step numbering receives the identical text; arbitrary external tools need
-  not use that formatter. Root mount labels are derived from the recorded tree.
-- **Trace inside a subflow**: drill into a recorded child, then open
-  Inspector → Data Trace. Search, ingredient follow, earlier cause and Done
-  use that child's own history. Repeated visits are identified by runtime ID;
-  the breadcrumb names the selected visit, and an ambiguous click offers a
-  visit choice. Story shows only that visit's recorded entries.
-  Recorded child results must be keyed by the exact mount runtime ID; a
-  path-only alias is not proof of a visit, even if a partial record shows just
-  one. Custom snapshot hosts can provide the exact result map or attach the
-  matching result to the selected `StageSnapshot`.
-- **Follow a recorded child source**: recordings made with FootPrint's
-  `captureOutputHandoff: true` and `writeProvenance: 'reads-prefix'` can show
-  source buttons at an output-mapping boundary. A button opens that exact
-  child visit and traces the selected key at its recorded cutoff. Parent
-  and child timelines remain separate. The label describes a conservative
-  observed-read prefix, which may include reads used by other outputs;
-  it does not claim an exact mapping between each output and its inputs.
-  Missing, partial or invalid handoffs retain the ordinary unknown boundary.
-- Values already present when a child starts may come from input mapping or
-  state restored after a pause. Cards and copied stories check the selected
-  invocation's own starting data for each key. A recorded non-undefined
-  starting value says "recorded at invocation start; earlier origin unknown";
-  a key absent there says "no recorded write; value unknown". These records
-  cannot reliably distinguish input mapping from restored state, so neither
-  origin is asserted. Missing evidence stays unknown.
-- Refreshing the same run keeps the selected visit and trace question. A new
-  run keeps the root cursor; if a selected child visit is absent, the viewer
-  returns to the nearest available level and explains why. Navigation clears
-  that notice and any visit chooser.
-- Supply each run's own Story, state and overlay when overriding the recorded
-  data. Known old inputs are withheld; null inputs and explicit empty arrays
-  remain valid choices.
-- Agent tools can use the same public `projectTraceInvocation`,
-  `buildTraceWalk` and `formatTraceWalk` functions as the viewer. See
-  [the tracing guide](https://github.com/footprintjs/explainable-ui/blob/main/src/components/ExplainableShell/_internal/README.md)
-  for the scope example, evidence limits and offline package checks.
-- **Trace anything**: below the current step's chips, a search box lists
-  *every* variable the run ever wrote — trace any of them from wherever you
-  stand.
-- **Forks ask, never assume**: at a value made from two or more ingredients
-  the walk-back button becomes **⑂ choose cause…** and asks which ingredient
-  to follow (or "visit all, in time order"). Nothing is ever silently picked.
+- **Recorded stage reads**: the variable map shows recorded read links to
+  earlier local writers. This is conservative stage-level evidence, not
+  exact per-write derivation. A step that read two keys and wrote two outputs
+  can associate both recorded reads with both outputs. Its arrows do not
+  establish how an expression computed one output.
+- **Choose a source explicitly**: branches remain visible in the variable
+  map and the recorded-read chips. Select a variable or chip to follow its
+  recorded writer. The rail's **Earlier recorded step** and **Later recorded
+  step** buttons move through the same stops in time order; they do not
+  silently choose an input branch. The walk lists stops newest first, and
+  moving earlier visits them in reverse commit order.
+- **Return to an earlier question**: the investigation trail retains the
+  selected key, scope, recorded cutoff and cursor across local source follows
+  and child-record hops. Choose an earlier key or **Back to** to restore that
+  question and position. Missing or withdrawn evidence is not replaced with
+  a guessed visit.
+- **One cursor**: the rail, execution view and state panel stay synchronized.
+  Selecting an earlier recorded step changes the displayed moment; it does
+  not move the question's frozen cutoff. **Done** exits tracing at that cursor.
+- **Honest absence**: a missing writer says "no recorded write; value
+  unknown". A value not written yet names the later recorded write. An empty
+  read list says "No recorded state reads", without declaring a data origin.
+  When reads were not recorded, their dependencies remain unknown. Limited
+  views say that earlier evidence may be missing.
+- **Trace inside a subflow**: drill into an exact recorded child visit, then
+  open Inspector → Data Trace. The breadcrumb identifies that invocation;
+  its known place in the parent does not establish earlier input sources.
+  Ambiguous clicks offer a visit choice. Story shows that visit's entries.
+  Child results must be keyed by the exact mount runtime ID; a path-only
+  alias cannot identify a visit. Custom hosts can supply the exact result map
+  or attach the matching result to the selected `StageSnapshot`.
+- **Follow a recorded child source**: recordings with FootPrint's
+  `captureOutputHandoff: true` can show source buttons at an output-mapping
+  boundary. Using `writeProvenance: 'reads-prefix'` also retains child-write
+  read prefixes. An admitted source opens the exact child visit and asks for
+  the selected key at its recorded cutoff. Parent and child logs and timelines
+  remain separate. The question header keeps the parent context visible, with
+  **Back** to return to that question. Handoff references describe an
+  observed-read prefix, which can include reads used by other outputs. Partial, missing or invalid
+  metadata retains the boundary as unknown.
+- **Invocation-start values**: a value already present when a child starts
+  may come from input mapping or restored state. The card and copied text
+  identify recorded starting keys without inventing their earlier writers.
+- **Copy story** uses `formatTraceWalk`. A tool formatting the same walk and
+  step numbers receives the identical text. `buildTraceWalk` and Foottrace's
+  `causalChain` stay local to the supplied record; neither automatically joins
+  parent and child logs. Agent tools can use `projectTraceInvocation` to
+  select an exact child explicitly. See [the tracing guide](src/components/ExplainableShell/_internal/README.md)
+  for scope examples, evidence limits and offline checks.
+- Refreshing the same run keeps the selected visit and question. A new run
+  keeps the root cursor; an unavailable selected child returns to the nearest
+  recorded level with a notice. Supply each run's own Story, state and overlay
+  when overriding the recording; known stale inputs are withheld.
 
-![The fork chooser: which cause should the walk follow?](demo/fork-chooser-verified.png)
-
-- **Unmistakable mode**: the whole tracing rail wears its own color
-  (`--fp-tracing`, teal by default — themeable) so tracing can never be
-  confused with normal time-travel.
+The tracing rail uses its own theme color (`--fp-tracing`, teal by default)
+to distinguish this investigation from ordinary time travel.
 
 ### Panel Labels
 
@@ -636,8 +639,8 @@ Consumer controls theme via `--fp-*` CSS custom properties. Components use `var(
   --fp-text-secondary: #b0a898;
   --fp-text-muted: #6b6b80;
   --fp-border: #3a3455;
-  --fp-tracing: #3ecfb2;            /* the "walking a value's causes" rail */
-  --fp-chip-1: #0d9488;             /* the four ingredient-chip hues (categorical) */
+  --fp-tracing: #3ecfb2;            /* the recorded-read investigation rail */
+  --fp-chip-1: #0d9488;             /* the four recorded-read chip hues (categorical) */
   --fp-chip-2: #d97706;
   --fp-chip-3: #7c3aed;
   --fp-chip-4: #e11d48;
@@ -694,8 +697,8 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | `TraceViewer` | Renders a saved `{ snapshot, structure }` recording — parse, diagnose, draw |
 | `StageDetailPanel` | One stage in full: its reads, its writes, its description |
 | `InspectorPanel` | The Inspector: State tab + Data Trace tab, time-travel synced |
-| `DataTracePanel` | The backward causal chain as a stack trace — click a frame to go there |
-| `TraceWalkCard` | The "why this value" stop card for the tracing rail (ingredient chips, itinerary, Copy story) |
+| `DataTracePanel` | Recorded state-read links as a stack — click a frame to inspect that step |
+| `TraceWalkCard` | The tracing stop card with recorded-read chips, an investigation trail and Copy story |
 | `InvestigationPanel` | Host-bound, on-demand recorded cause and impact results with unknown evidence states |
 | `GroupedFlowInvestigation` | Grouped run diagram with on-demand recorded cause, backward relationships and impact |
 | `InsightPanel` | Recorder outputs as tabs or a grid — Story, Performance, Quality, Cost |
@@ -746,7 +749,7 @@ the primitive can work.
 | `buildEntryRangeIndex` | Index narrative entries by `runtimeStageId` for O(1) slider sync |
 | `computeRevealedEntryCount` | How many story lines are true as of the cursor's step |
 | `extractSubflowNarrative` | Just one subflow's lines out of a run's story |
-| `buildTraceWalk` | The value-tracing walk (stops + ingredients) for one key |
+| `buildTraceWalk` | The local value-tracing walk with recorded stops and stage reads for one key |
 | `formatTraceWalk` | That walk as the exact text an LLM backtrack tool returns |
 | `projectTraceInvocation` | Select one exact recorded child invocation and its scope for UI or agent trace text |
 | `mergeWritePatch` | Replay a commit patch onto a state object (objects merge; arrays REPLACE) |

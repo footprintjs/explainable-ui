@@ -6,7 +6,7 @@ export function scopeSentence(
   return scope?.invocationPath.length
     ? `Tracing subflow invocation ${scope.invocationPath.join(
         " → "
-      )}. Parent ancestry is unknown.`
+      )}. This is the child's local record; earlier input sources need separate evidence.`
     : undefined;
 }
 export const START_SENTENCE = "recorded at invocation start; earlier origin unknown";

@@ -158,3 +158,6 @@ export type { InvestigationPanelProps, InvestigationPort, InvestigationResult } 
 
 export { GroupedFlowInvestigation } from "./components/GroupedFlowInvestigation";
 export type { GroupedFlowInvestigationProps } from "./components/GroupedFlowInvestigation";
+
+// Recorded-read presentation for custom workflow renderers.
+export type { TraceWorkflowOverlay, TraceWorkflowStage, TraceWorkflowRead } from "./trace/traceWorkflowOverlay";

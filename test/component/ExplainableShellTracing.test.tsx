@@ -6,10 +6,9 @@
  * 1. ENTRY: clicking a "Trace a value" chip in the Data Trace tab enters
  *    tracing mode — the ONE visible jump lands the cursor on the anchor,
  *    the rail shows the mode header, non-dependency ticks go unlandable.
- * 2. WALK: at a FORK stop (2+ ingredients) the walk-back control PROMPTS —
- *    the chooser offers each ingredient plus "visit all (time order)",
- *    which performs the classic nearest-earlier-stop move. At a non-fork
- *    stop "earlier cause" steps backward through stops only, as before.
+ * 2. WALK: "earlier recorded step" moves through recorded stops in time
+ *    order, including both branches of a fork. At the earliest landable
+ *    stop, remaining recorded inputs can open the chooser.
  * 3. FOLLOW: an ingredient chip (in the chooser) re-anchors the walk
  *    (breadcrumb "▸ via"), "show all" restores the full walk.
  * 4. EXIT: Done leaves the cursor where the walk ended (no teleport).
@@ -100,8 +99,10 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
     expect(toolbar().getAttribute("data-tracing")).toBe("true");
     expect(within(toolbar()).getByText(/stop 1 of 4/)).toBeTruthy();
     // The stop card is open with the anchor's story
-    expect(screen.getByText(/Why this value — stop 1 of 4/i)).toBeTruthy();
-    expect(screen.getByText(/Made from 2 ingredients/)).toBeTruthy();
+    const card = document.querySelector('[data-fp="trace-walk-card"]') as HTMLElement;
+    expect(within(card).getByText("Why total?")).toBeTruthy();
+    expect(within(card).getByText("Recorded stop 1 of 4")).toBeTruthy();
+    expect(within(card).getByText("Recorded state reads (2)")).toBeTruthy();
     // Non-dependency tick (Audit) is unlandable
     const audit = screen.getByTitle(/Audit \(not part of this trace\)/);
     expect((audit as HTMLButtonElement).disabled).toBe(true);
@@ -109,18 +110,18 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
 
   // THE LAW: the walk visits every frame in reverse-commit order, so a fork
   // MID-WALK is explained (its chips stay on the card), never navigated —
-  // "earlier cause" just moves. Prompting on ingredient count alone froze
+  // "earlier recorded step" just moves. Prompting on ingredient count alone froze
   // the cursor at the anchor of every real run (the neo dead state).
   it("WALK: forks mid-walk still step; the rail walks all the way to the origin", () => {
     renderShell();
     enterTracing();
     // The anchor (ComputeTotal ← subtotal + tax) IS a fork by ingredient
     // count — and still walks, because an earlier stop exists.
-    const back = () => screen.getByLabelText("Earlier cause") as HTMLButtonElement;
-    expect(back().textContent).toMatch(/earlier cause/);
+    const back = () => screen.getByLabelText("Earlier recorded step") as HTMLButtonElement;
+    expect(back().textContent).toMatch(/earlier recorded step/);
     fireEvent.click(back());
     expect(within(toolbar()).getByText(/stop 2 of 4/)).toBeTruthy();
-    expect(screen.getByText(/Step 4 ·/)).toBeTruthy(); // ApplyTax is rail step 4 — Audit was skipped
+    expect(screen.getByText(/Execution step 4 ·/)).toBeTruthy(); // ApplyTax is rail step 4 — Audit was skipped
     expect(forkChooser()).toBeNull(); // no prompt hijacked the step
     // ApplyTax (← rate + subtotal) is ALSO a fork — and also just steps.
     fireEvent.click(back());
@@ -155,7 +156,7 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
       within(screen.getByText("This step wrote:").parentElement as HTMLElement).getByText("total"),
     );
     // One step back lands on ApplyTax — the earliest stop left on this rail.
-    fireEvent.click(screen.getByLabelText("Earlier cause"));
+    fireEvent.click(screen.getByLabelText("Earlier recorded step"));
     const prompt = screen.getByLabelText("Choose cause") as HTMLButtonElement;
     expect(prompt.disabled).toBe(false);
     fireEvent.click(prompt);
@@ -166,7 +167,7 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
     expect(toolbar().getAttribute("data-tracing")).toBe("true"); // still tracing
   });
 
-  it("FOLLOW from the stop card: an ingredient chip re-anchors the walk with the via breadcrumb; show-all restores", () => {
+  it("FOLLOW from the stop card: an input chip re-anchors the walk and preserves its question trail; show-all restores", () => {
     renderShell();
     enterTracing();
     // The card's ingredient chips are ALWAYS on screen (no chooser needed) —
@@ -175,19 +176,24 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
     const chips = within(card).getAllByTitle(/Follow /);
     expect(chips).toHaveLength(2); // anchor fork: subtotal + tax
     fireEvent.click(chips.find((c) => c.textContent?.includes("subtotal"))!);
-    // Re-anchored on subtotal's writer (Sum): the header + breadcrumb say so.
+    // Re-anchored on subtotal's writer (Sum), retaining the original question.
     expect(screen.getAllByText(/via/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Why this value — stop 1 of/i)).toBeTruthy();
-    expect(screen.getByText(/Step 2 ·/)).toBeTruthy(); // Sum is rail step 2
+    expect(within(card).getByText("Why subtotal?")).toBeTruthy();
+    expect(within(card).getByText("Recorded stop 1 of 2")).toBeTruthy();
+    const trail = within(card).getByRole("navigation", { name: "Investigation trail" });
+    expect(within(trail).getByRole("button", { name: "Return to total in root" })).toBeTruthy();
+    expect(trail.querySelector('[aria-current="step"]')?.textContent).toBe("subtotal");
+    expect(screen.getByText(/Execution step 2 ·/)).toBeTruthy(); // Sum is rail step 2
     expect(forkChooser()).toBeNull(); // following answered the chooser
-    fireEvent.click(screen.getByText("show all ingredients"));
+    fireEvent.click(within(toolbar()).getByText("show all"));
     expect(within(toolbar()).getByText(/stop 1 of 4/)).toBeTruthy(); // full walk restored, back at the anchor
+    expect(within(card).getByText("Why total?")).toBeTruthy();
   });
 
   it("EXIT: Done restores the normal rail and the cursor stays at the found cause", () => {
     renderShell();
     enterTracing();
-    fireEvent.click(screen.getByLabelText("Earlier cause")); // → ApplyTax
+    fireEvent.click(screen.getByLabelText("Earlier recorded step")); // → ApplyTax
     fireEvent.click(within(toolbar()).getByLabelText("Exit tracing"));
     expect(toolbar().getAttribute("data-tracing")).toBeNull();
     // Normal rail is back (play button returns) and no teleport happened:
@@ -229,7 +235,9 @@ describe("ExplainableShell — Same-Rail Rewind", () => {
     fireEvent.click(within(screen.getByText("This step wrote:").parentElement as HTMLElement).getByText("rate"));
     // rate's anchor is Seed itself — a 1-stop walk, no rail mode (< 2 stops is
     // still a walk; rail shows when stops exist). Here we assert the card.
-    expect(screen.getByText(/Why this value/i)).toBeTruthy();
+    const card = document.querySelector('[data-fp="trace-walk-card"]') as HTMLElement;
+    expect(within(card).getByText("Why rate?")).toBeTruthy();
+    expect(within(card).getByText("Recorded stop 1 of 1")).toBeTruthy();
   });
 });
 

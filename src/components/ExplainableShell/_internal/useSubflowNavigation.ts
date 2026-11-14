@@ -249,6 +249,37 @@ export function useSubflowNavigation({
     setSnapshotIdxRaw(index);
     return true;
   }, [selectedStack, snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
+  /** Restore a saved trace location only after resolving it against this source. */
+  const restoreTraceQuestion = useCallback((
+    invocationPath: readonly string[],
+    targetRuntimeStageId: string,
+  ): boolean => {
+    if (sourceChanged || !targetRuntimeStageId || invocationPath.length > 128) return false;
+    const stack: DrillDownEntry[] = [];
+    let parent = snapshots;
+    for (const mountRuntimeStageId of invocationPath) {
+      const matches = parent.filter(stage => stage.runtimeStageId === mountRuntimeStageId);
+      if (matches.length !== 1) return false;
+      const found = resolveSubflowLevel({
+        parent,
+        key: matches[0].subflowId ?? mountRuntimeStageId.split("#")[0],
+        requestedId: mountRuntimeStageId,
+        parentPath: stack.at(-1)?.traceScope.invocationPath ?? [],
+        sourceRunId, readsAvailable, results: exactResults, narrative: narrativeEntries,
+      });
+      if (found.kind !== "found" || !found.entry.traceScope.availability.ok) return false;
+      stack.push(found.entry);
+      parent = found.entry.snapshots;
+    }
+    const matches = parent.flatMap((stage, index) =>
+      stage.runtimeStageId === targetRuntimeStageId ? [index] : []);
+    if (matches.length !== 1) return false;
+    onScopeReset();
+    clearTransient();
+    setDrillDownStack(stack);
+    setSnapshotIdxRaw(matches[0]);
+    return true;
+  }, [sourceChanged, snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
   const handleBreadcrumbNavigate = useCallback(
     (level: number) => {
       onScopeReset();
@@ -364,6 +395,7 @@ export function useSubflowNavigation({
     resetRoot,
     handleDrillDown,
     openTraceSource,
+    restoreTraceQuestion,
     handleBreadcrumbNavigate,
     handleChartSubflowChange,
     handleNodeClick,

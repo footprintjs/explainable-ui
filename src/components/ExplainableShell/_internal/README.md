@@ -10,15 +10,64 @@ owners now live in `src/trace`; old shell-internal paths only re-export them.
 `TraceWalkScope` is explicit serializable data on the walk, shared by cards
 and non-UI callers. No hidden WeakMap or in-place walk mutation is involved.
 
-A missing `stageReads` is a normal no-read step. The read-tracking dial applies
-to a whole run, so any recorded read in the root or its child trees establishes
-that the dial was on. No recorded reads stays unknowable; this is evidence of
-coverage, not a capture-completeness certificate or exact read attribution.
-A mount has its own inner computation and never becomes a no-read origin.
+## Variables and execution
 
-For recordings with `captureOutputHandoff: true` and
-`writeProvenance: 'reads-prefix'`, `src/trace/subflowHandoff.ts` admits optional
-engine-owned `outputHandoff` metadata. It checks exact parent/child log
+During an active admitted walk, `TraceDependencyView` opens the central pane in
+**Execution**, retaining the workflow context. The built-in renderer overlays
+the admitted question's recorded writers and reads; **Variables** is an optional
+view of the same question. Its bounded `buildTraceDependencyGraph` projection
+identifies each variable by its key and exact recorded writer visit, with
+unresolved reads and writers outside the view represented explicitly. Arrows
+describe **recorded stage reads**. The existing walk considers all of a stage's reads, so these edges
+are conservative evidence rather than exact per-write or expression-level
+derivation. This projection does not add another causal walker.
+
+Value previews come from the `StageSnapshot.memory` associated with the named
+writer visit, not from whichever cursor moment is currently selected.
+`recordedValuePreview` keeps previews bounded and reads inert own data;
+missing or unavailable values remain labelled rather than inferred.
+The ordinary or consumer-supplied execution chart stays mounted when the reader
+switches views, preserving its local state without changing the question or
+cursor. Without a usable walk, that chart and the existing missing-evidence
+presentation remain in place.
+
+One question-local palette identifies exact variable/writer visits consistently
+across the variable map, workflow overlay and read chips. Colors are reading
+aids, not additional evidence or a claim that the same key has one writer across
+visits. Position and emphasis changes use short 240 ms transitions while
+retaining the selected context. `useTraceMotion` observes the live reduced-motion
+preference through modern or legacy media-query listeners, with cleanup on
+unmount. Motion stays off during server rendering and in unsupported hosts.
+
+The rail uses **Earlier recorded step** and **Later recorded step** for its
+one-cursor movement. The walk remains newest-first; moving earlier visits
+stops in reverse commit order, including both recorded parents of a fork.
+Following a particular input is an explicit variable-node or read-chip action.
+The timeline's ordering never chooses that branch implicitly.
+
+A missing `stageReads` means no state reads are listed for that step in this
+record. It is presented as **No recorded state reads**, not a proved origin.
+The read-tracking dial applies to a whole run, so any recorded read in the root
+or child trees establishes that the dial was on. With no recorded reads,
+coverage stays unknown; it is not a capture-completeness certificate or exact
+read attribution. A mount remains an explicit child-record boundary.
+
+## Following and returning to questions
+
+`useTraceSession` retains the investigation trail as recorded questions, each
+with its key, invocation scope, frozen commit cutoff and cursor runtime ID.
+Local source follows and admitted child-source hops append the prior question.
+Choosing an earlier trail entry restores its question and cursor after checking
+the current record still supports them. A changed source, unavailable visit or
+withdrawn handoff cannot be revived through an old return callback. This trail
+does not create another live cursor or combine the logs. Child-source questions
+keep a parent-context pill and **Back** action in the header, so the originating
+question remains visible while the child scope is selected.
+
+For recordings with `captureOutputHandoff: true`, `src/trace/subflowHandoff.ts`
+admits optional engine-owned `outputHandoff` metadata. The independent
+`writeProvenance: 'reads-prefix'` dial additionally retains child-write read
+prefixes. Admission checks exact parent/child log
 addresses, invocation ancestry, actual parent write rows and bounded child
 cutoffs. Only captured handoffs without limitations expose source links.
 Their observed-read prefix is conservative, not a claim of per-output
@@ -28,6 +77,9 @@ scope and re-anchors the question there. Raw cutoffs account for the child's
 excluded seed bookend. No child key or commit is inserted into the parent's
 rail. The card and copied story format the same admitted source names;
 standalone `buildTraceWalk` continues to walk only its supplied scope.
+Foottrace's `causalChain` likewise does not automatically cross this boundary;
+the host selects a child record explicitly instead of flattening its history
+into the parent's log.
 
 The exact first bundle belongs to invocation-start state. Current records
 stamp it with the mount runtime ID; engines through 9.33 may use an empty
@@ -110,8 +162,10 @@ if (selected.availability.ok) {
 }
 ```
 
-The exact ID identifies one recorded invocation. A supplied chain must be
-witnessed at every level; a direct exact lookup leaves ancestry unknown.
+The exact ID identifies one recorded invocation. A supplied containing chain
+must be witnessed at every level; a direct exact lookup establishes the
+selected invocation without validating that containing chain. Known breadcrumb
+containment and the earlier sources of input data are separate questions.
 An invocation's initial state may be input mapping or state restored after a
 pause. Only non-undefined own data fields become names-only `startKeys` in the
 projected scope. Their earlier origin remains unknown; an absent key is never

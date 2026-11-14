@@ -59,6 +59,7 @@ export function SmartStepEdge({
     const childTops: number[] = [];
     for (const e of s.edges) {
       if (e.source !== source) continue;
+      if (e.type === "recordedRead") continue; // Evidence lanes do not change the workflow's fork geometry.
       if ((e.data as TraceEdgeData | undefined)?.kind === "loop") continue;
       const c = s.nodeLookup.get(e.target);
       if (c && c.type !== GROUP_CONTAINER_NODE_TYPE) {

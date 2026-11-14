@@ -88,9 +88,9 @@ describe.each([false, true])(
         onExit,
         onShowAll,
       });
-      fireEvent.click(view.getByRole("button", { name: "Earlier cause" }));
+      fireEvent.click(view.getByRole("button", { name: "Earlier recorded step" }));
       expect(view.onIndexChange).toHaveBeenLastCalledWith(0);
-      fireEvent.click(view.getByRole("button", { name: "Toward result" }));
+      fireEvent.click(view.getByRole("button", { name: "Later recorded step" }));
       expect(view.onIndexChange).toHaveBeenLastCalledWith(1);
       fireEvent.click(
         view.container.querySelectorAll('[data-fp="tt-tick"]')[2],
