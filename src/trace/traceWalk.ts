@@ -383,12 +383,12 @@ export function formatTraceWalk(
     const step = stepNumberOf(stop.runtimeStageId);
     const pass = stop.loopPass > 0 ? ` (pass ${stop.loopPass})` : "";
     const boundary = mountLabel(presentation, stop.runtimeStageId);
-    const made = isInvocationStart(presentation, stop.runtimeStageId)
+    const readEvidence = isInvocationStart(presentation, stop.runtimeStageId)
       ? ` · ${START_SENTENCE}`
       : boundary
-      ? ` · computed inside ${boundary}; drill in to trace it`
+      ? ` · subflow boundary: ${boundary}; drill in to inspect its local record`
       : stop.ingredients.length > 0
-      ? ` · made from: ${stop.ingredients
+      ? ` · recorded state reads: ${stop.ingredients
           .map((ing) =>
             ing.writerRuntimeStageId
               ? `${ing.key} (← ${ing.writerStageName}${
@@ -400,12 +400,12 @@ export function formatTraceWalk(
           )
           .join(", ")}`
       : readsAvailable
-      ? " · reads nothing — origin"
+      ? " · No recorded state reads"
       : "";
     lines.push(
       `stop ${i + 1}/${walk.stops.length} · ${step ? `step ${step} · ` : ""}${
         stop.stageName
-      }${pass} wrote \`${stop.contributedKeys.join("`, `")}\`${made}`
+      }${pass} wrote \`${stop.contributedKeys.join("`, `")}\`${readEvidence}`
     );
     if (stop.handoffSources?.length) lines.push(handoffSentence(stop.handoffSources));
   });
@@ -419,7 +419,7 @@ export function formatTraceWalk(
   }
   if (walk.truncated) {
     lines.push(
-      "⚠ walk truncated at its frame budget — the earliest stop may not be the true origin."
+      "⚠ trace limited by its frame or depth budget — earlier recorded state reads may be missing."
     );
   }
   return lines.join("\n");

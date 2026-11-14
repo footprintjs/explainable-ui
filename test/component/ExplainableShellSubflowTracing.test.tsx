@@ -74,9 +74,16 @@ describe('ExplainableShell selected subflow tracing', () => {
     expect(within(screen.getByRole('toolbar')).getByText(/stop 1 of 3/)).toBeTruthy();
     const card = document.querySelector('[data-fp="trace-walk-card"]') as HTMLElement;
     fireEvent.click(within(card).getAllByTitle(/Follow /).find(el => el.textContent?.includes('subtotal'))!);
-    expect(screen.getByText(/Step 2 ·/)).toBeTruthy();
-    fireEvent.click(screen.getByText('show all ingredients'));
-    fireEvent.click(screen.getByLabelText('Earlier cause'));
+    expect(screen.getByText(/Execution step 2 ·/)).toBeTruthy();
+    expect(within(card).getByText('Why subtotal?')).toBeTruthy();
+    expect(within(card).getByText('Recorded stop 1 of 2')).toBeTruthy();
+    // This legacy attached-result fixture has no exact root invocation record;
+    // local following retains its via question and existing show-all action.
+    const breadcrumb = card.querySelector('[data-fp="twc-breadcrumb"]') as HTMLElement;
+    expect(breadcrumb.textContent).toMatch(/via\s+subtotal/);
+    expect(screen.getByRole('toolbar').getAttribute('aria-label')).toBe('Tracing total');
+    fireEvent.click(within(card).getByText('show all ingredients'));
+    fireEvent.click(screen.getByLabelText('Earlier recorded step'));
     fireEvent.click(within(screen.getByRole('toolbar')).getByLabelText('Exit tracing'));
     expect(screen.getByRole('toolbar').getAttribute('data-tracing')).toBeNull();
     next();

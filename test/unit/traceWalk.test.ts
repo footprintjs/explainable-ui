@@ -203,13 +203,15 @@ describe("formatTraceWalk — the parity artifact", () => {
     return i >= 0 ? i + 1 : null;
   };
 
-  it("narrates the walk in walk order with ingredients and termini", () => {
+  it("narrates the recorded state reads in walk order without asserting output derivation", () => {
     const walk = buildTraceWalk(DIAMOND_LOG, DIAMOND_TREE, "total");
     const text = formatTraceWalk(walk, stepOf);
     expect(text).toContain("Tracing `total` — 4 stops, newest first.");
     expect(text).toContain("stop 1/4 · step 5 · ComputeTotal wrote `total`");
     expect(text).toContain("subtotal (← Sum, step 2)");
     expect(text).toContain("tax (← ApplyTax, step 4)");
+    expect(text).toContain("recorded state reads:");
+    expect(text).not.toContain("made from");
     // Walk order in the text matches the stops array (line order).
     const lines = text.split("\n");
     expect(lines[1]).toContain("ComputeTotal");
@@ -230,5 +232,20 @@ describe("formatTraceWalk — the parity artifact", () => {
   it("carries the honesty flags into the text", () => {
     const noReads = buildTraceWalk(DIAMOND_LOG, tree([{ id: "x#0" }]), "total");
     expect(formatTraceWalk(noReads, stepOf)).toContain("unknowable, not absent");
+  });
+
+  it("describes an empty recorded read list without declaring a data origin", () => {
+    const walk = buildTraceWalk(DIAMOND_LOG, DIAMOND_TREE, "rate");
+    const text = formatTraceWalk(walk, stepOf);
+    expect(text).toContain("No recorded state reads");
+    expect(text).not.toContain("origin");
+  });
+
+  it("describes a bounded trace as incomplete evidence without naming a true origin", () => {
+    const walk = buildTraceWalk(DIAMOND_LOG, DIAMOND_TREE, "total", { maxFrames: 2 });
+    expect(walk.truncated).toBe(true);
+    const text = formatTraceWalk(walk, stepOf);
+    expect(text).toContain("earlier recorded state reads may be missing");
+    expect(text).not.toContain("true origin");
   });
 });

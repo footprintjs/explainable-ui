@@ -40,7 +40,7 @@ export function useTimeTravelPlayback({
     [tracing],
   );
 
-  // In tracing mode "earlier cause" = the nearest stop BEFORE the cursor in
+  // In tracing mode "earlier recorded step" = the nearest stop BEFORE the cursor in
   // time (which is the NEXT stop in walk order — the walk runs backward).
   const earlierStop = useMemo(() => {
     if (!tracing) return null;
@@ -57,7 +57,7 @@ export function useTimeTravelPlayback({
   //
   // WHY THE GUARD (regression fix): the walk is reverse-commit order, and
   // every dependency committed earlier than the value it fed, so "◀ earlier
-  // cause" already visits EVERY frame — including both parents of a fork
+  // recorded step" already visits EVERY frame — including both parents of a fork
   // (traceWalk.ts's load-bearing fact: "forks are explained, not navigated").
   // Prompting whenever `forkCount >= 2` therefore hijacked the walk-back
   // button at nearly every stop of a real run — a stage that reads 6-9

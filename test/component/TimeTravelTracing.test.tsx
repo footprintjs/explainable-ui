@@ -5,7 +5,7 @@
  * What is being pinned:
  * 1. ONE rail, one cursor: tracing changes AFFORDANCE (which ticks are
  *    landable, what prev/next mean), never the axis or the cursor type.
- * 2. Direction-honest buttons: "earlier cause" moves the cursor to a
+ * 2. Direction-honest buttons: "earlier recorded step" moves the cursor to a
  *    SMALLER index (leftward in time) — never a relabeled "+1".
  * 3. Non-stop ticks are unlandable in tracing mode (disabled), stop ticks
  *    stay clickable; Escape exits and the cursor stays put.
@@ -65,27 +65,27 @@ describe("TimeTravelControls — tracing mode", () => {
     expect(screen.getByLabelText("Exit tracing")).toBeTruthy();
   });
 
-  it("'earlier cause' moves the ONE cursor to the nearest stop before it (skipping non-stops)", () => {
+  it("'earlier recorded step' moves the ONE cursor to the nearest stop before it (skipping non-stops)", () => {
     const { onIndexChange } = renderTracing({ selectedIndex: 4 });
-    fireEvent.click(screen.getByLabelText("Earlier cause"));
+    fireEvent.click(screen.getByLabelText("Earlier recorded step"));
     expect(onIndexChange).toHaveBeenCalledWith(3);
   });
 
-  it("'earlier cause' skips the non-dependency tick entirely (3 → 1, never 2)", () => {
+  it("'earlier recorded step' skips the non-dependency tick entirely (3 → 1, never 2)", () => {
     const { onIndexChange } = renderTracing({ selectedIndex: 3 });
-    fireEvent.click(screen.getByLabelText("Earlier cause"));
+    fireEvent.click(screen.getByLabelText("Earlier recorded step"));
     expect(onIndexChange).toHaveBeenCalledWith(1);
   });
 
-  it("'toward result' walks forward along stops only", () => {
+  it("'later recorded step' walks forward along stops only", () => {
     const { onIndexChange } = renderTracing({ selectedIndex: 1 });
-    fireEvent.click(screen.getByLabelText("Toward result"));
+    fireEvent.click(screen.getByLabelText("Later recorded step"));
     expect(onIndexChange).toHaveBeenCalledWith(3);
   });
 
-  it("disables 'earlier cause' at the walk's earliest stop (the origin — no invented past)", () => {
+  it("disables 'earlier recorded step' at the walk's earliest stop (the origin — no invented past)", () => {
     renderTracing({ selectedIndex: 0 });
-    expect((screen.getByLabelText("Earlier cause") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText("Earlier recorded step") as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("non-stop ticks are unlandable; stop ticks stay clickable", () => {
@@ -104,7 +104,7 @@ describe("TimeTravelControls — tracing mode", () => {
     expect(onIndexChange).not.toHaveBeenCalled();
   });
 
-  it("arrow keys drive the stop walk (ArrowLeft = earlier cause)", () => {
+  it("arrow keys drive the stop walk (ArrowLeft = earlier recorded step)", () => {
     const { onIndexChange } = renderTracing({ selectedIndex: 3 });
     fireEvent.keyDown(screen.getByRole("toolbar"), { key: "ArrowLeft" });
     expect(onIndexChange).toHaveBeenCalledWith(1);
@@ -159,9 +159,9 @@ describe("TimeTravelControls — fork chooser (F2)", () => {
   it("a fork MID-WALK still moves the cursor — the chooser never hijacks the walk", () => {
     const onForkPrompt = vi.fn();
     const { onIndexChange } = renderTracing({ selectedIndex: 4 }, { forkCount: 6, onForkPrompt });
-    const btn = screen.getByLabelText("Earlier cause") as HTMLButtonElement;
+    const btn = screen.getByLabelText("Earlier recorded step") as HTMLButtonElement;
     expect(btn.disabled).toBe(false);
-    expect(btn.textContent).toMatch(/earlier cause/);
+    expect(btn.textContent).toMatch(/earlier recorded step/);
     fireEvent.click(btn);
     expect(onIndexChange).toHaveBeenCalledWith(3);
     expect(onForkPrompt).not.toHaveBeenCalled();
@@ -201,7 +201,7 @@ describe("TimeTravelControls — fork chooser (F2)", () => {
           }}
         />,
       );
-      const btn = screen.getByLabelText(/Earlier cause|Choose cause/) as HTMLButtonElement;
+      const btn = screen.getByLabelText(/Earlier recorded step|Choose cause/) as HTMLButtonElement;
       fireEvent.click(btn);
       unmount();
       if (onIndexChange.mock.calls.length === 0) break; // terminus reached
@@ -213,16 +213,16 @@ describe("TimeTravelControls — fork chooser (F2)", () => {
     expect(onForkPrompt).toHaveBeenCalledOnce();
   });
 
-  it("forkCount undefined keeps the classic earlier-cause behavior", () => {
+  it("forkCount undefined keeps the classic earlier-recorded-step behavior", () => {
     const { onIndexChange } = renderTracing({ selectedIndex: 4 }, { onForkPrompt: vi.fn() });
-    fireEvent.click(screen.getByLabelText("Earlier cause"));
+    fireEvent.click(screen.getByLabelText("Earlier recorded step"));
     expect(onIndexChange).toHaveBeenCalledWith(3);
   });
 
-  it("forkCount 1 (not a fork) keeps the classic earlier-cause behavior", () => {
+  it("forkCount 1 (not a fork) keeps the classic earlier-recorded-step behavior", () => {
     const onForkPrompt = vi.fn();
     const { onIndexChange } = renderTracing({ selectedIndex: 4 }, { forkCount: 1, onForkPrompt });
-    fireEvent.click(screen.getByLabelText("Earlier cause"));
+    fireEvent.click(screen.getByLabelText("Earlier recorded step"));
     expect(onIndexChange).toHaveBeenCalledWith(3);
     expect(onForkPrompt).not.toHaveBeenCalled();
   });
@@ -240,7 +240,7 @@ describe("TimeTravelControls — fork chooser (F2)", () => {
 
   it("the earliest stop with nothing to follow simply disables walk-back", () => {
     const { onIndexChange } = renderTracing({ selectedIndex: 0 }, { forkCount: 1, onForkPrompt: vi.fn() });
-    const btn = screen.getByLabelText("Earlier cause") as HTMLButtonElement;
+    const btn = screen.getByLabelText("Earlier recorded step") as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
     expect(onIndexChange).not.toHaveBeenCalled();
   });
