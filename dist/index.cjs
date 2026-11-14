@@ -15000,6 +15000,7 @@ var import_react65 = require("react");
 var MAX_TEXT2 = 262144;
 var MAX_ITEMS2 = 1024;
 var MAX_ITEM_TEXT = 4096;
+var MAX_TOTAL_ITEMS = 4096;
 var Refused2 = class extends Error {
 };
 function field5(value, key) {
@@ -15012,6 +15013,7 @@ function field5(value, key) {
 var Admission2 = class {
   constructor() {
     this.remaining = MAX_TEXT2;
+    this.remainingItems = MAX_TOTAL_ITEMS;
   }
   text(value, maximum = MAX_TEXT2) {
     if (typeof value !== "string" || value.length === 0 || value.length > maximum) throw new Refused2();
@@ -15019,13 +15021,29 @@ var Admission2 = class {
     if (this.remaining < 0) throw new Refused2();
     return value;
   }
-  strings(value) {
+  list(value, parse) {
     if (!Array.isArray(value)) throw new Refused2();
     const length = field5(value, "length");
     if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0 || length > MAX_ITEMS2) throw new Refused2();
+    this.remainingItems -= length;
+    if (this.remainingItems < 0) throw new Refused2();
     const copy = [];
-    for (let index2 = 0; index2 < length; index2++) copy.push(this.text(field5(value, String(index2)), MAX_ITEM_TEXT));
+    for (let index2 = 0; index2 < length; index2++) copy.push(parse(field5(value, String(index2))));
     return Object.freeze(copy);
+  }
+  strings(value) {
+    return this.list(value, (entry) => this.text(entry, MAX_ITEM_TEXT));
+  }
+  findings(value) {
+    return this.list(value, (entry) => {
+      const code = this.text(field5(entry, "code"), 80);
+      if (!/^[A-Z][A-Z0-9_]{1,79}$/.test(code)) throw new Refused2();
+      return Object.freeze({
+        code,
+        summary: this.text(field5(entry, "summary")),
+        evidenceRefs: this.strings(field5(entry, "evidenceRefs"))
+      });
+    });
   }
   section(value) {
     const text3 = this.text(field5(value, "text"));
@@ -15040,11 +15058,17 @@ var Admission2 = class {
 function admitFailureExplanation(value) {
   try {
     const reader = new Admission2();
+    const canonicalFindings = field5(value, "canonicalFindings");
     return Object.freeze({
       problem: reader.section(field5(value, "problem")),
       recordedCause: reader.section(field5(value, "recordedCause")),
       suggestedNextStep: reader.section(field5(value, "suggestedNextStep")),
-      unknowns: reader.strings(field5(value, "unknowns"))
+      unknowns: reader.strings(field5(value, "unknowns")),
+      canonicalFindings: Object.freeze({
+        causes: reader.findings(field5(canonicalFindings, "causes")),
+        consequences: reader.findings(field5(canonicalFindings, "consequences")),
+        diagnosticFailures: reader.findings(field5(canonicalFindings, "diagnosticFailures"))
+      })
     });
   } catch {
     return void 0;
@@ -15072,6 +15096,16 @@ var card = {
   background: theme.bgElevated
 };
 var titles = ["Problem", "Recorded cause", "Suggested next step"];
+function FindingList({ findings }) {
+  return /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("ul", { children: findings.map((finding, index2) => /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("li", { style: { marginBlock: 12 }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("code", { style: { color: theme.textSecondary, fontSize: 12 }, children: finding.code }),
+    /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("p", { style: { whiteSpace: "pre-wrap", marginBlock: 6 }, children: finding.summary }),
+    finding.evidenceRefs.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("details", { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("summary", { children: "Recorded references" }),
+      /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("ul", { children: finding.evidenceRefs.map((reference, number) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("code", { children: reference }) }, number)) })
+    ] })
+  ] }, index2)) });
+}
 function FailureExplanationView(props) {
   const id = (0, import_react65.useId)();
   const model = admitFailureExplanation(props.explanation);
@@ -15088,8 +15122,20 @@ function FailureExplanationView(props) {
       section.evidenceRefs.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("details", { children: [
         /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("summary", { style: { color: theme.textSecondary, cursor: "pointer" }, children: "Recorded references" }),
         /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("ul", { children: section.evidenceRefs.map((reference, number) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("li", { children: /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("code", { children: reference }) }, number)) })
+      ] }),
+      index2 === 1 && model.canonicalFindings.causes.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("details", { children: [
+        /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("summary", { children: "Recorded cause details" }),
+        /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(FindingList, { findings: model.canonicalFindings.causes })
       ] })
     ] }, index2)) }),
+    model.canonicalFindings.consequences.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("section", { "aria-labelledby": `${id}-outcomes`, style: { ...card, marginBlockStart: 12 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("h3", { id: `${id}-outcomes`, style: { marginBlockStart: 0, fontSize: 16 }, children: "Other recorded outcomes" }),
+      /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(FindingList, { findings: model.canonicalFindings.consequences })
+    ] }),
+    model.canonicalFindings.diagnosticFailures.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("section", { "aria-labelledby": `${id}-recording`, style: { ...card, marginBlockStart: 12, borderInlineStart: `3px solid ${theme.warning}` }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("h3", { id: `${id}-recording`, style: { marginBlockStart: 0, fontSize: 16 }, children: "Recording problems" }),
+      /* @__PURE__ */ (0, import_jsx_runtime55.jsx)(FindingList, { findings: model.canonicalFindings.diagnosticFailures })
+    ] }),
     /* @__PURE__ */ (0, import_jsx_runtime55.jsxs)("section", { "aria-labelledby": `${id}-unknowns`, style: { ...card, marginBlockStart: 12, borderInlineStart: `3px solid ${theme.warning}` }, children: [
       /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("h3", { id: `${id}-unknowns`, style: { marginBlockStart: 0, fontSize: 16 }, children: "Still unknown" }),
       model.unknowns.length > 0 ? /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("ul", { children: model.unknowns.map((unknown, index2) => /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("li", { children: unknown }, index2)) }) : /* @__PURE__ */ (0, import_jsx_runtime55.jsx)("p", { children: "No additional unknowns were supplied. This view does not verify the underlying evidence." })
