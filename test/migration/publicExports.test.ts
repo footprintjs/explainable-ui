@@ -41,6 +41,17 @@ const traceWorkflowExports = [
   { name: "TraceWorkflowRead", kind: "type" },
 ];
 
+const stageActivityExports = [
+  { name: "StageActivityPanel", kind: "value" },
+  { name: "projectStageActivity", kind: "value" },
+  { name: "formatStageActivitySummary", kind: "value" },
+  ...[
+    "StageActivityPanelProps", "StageActivityInput", "StageActivityView",
+    "StageActivityEvent", "StageActivityVariable", "StageActivityValue",
+    "StageActivityWriter", "StageActivityTraceTarget",
+  ].map(name => ({ name, kind: "type" })),
+];
+
 describe("M1 — preserve every existing public home and value/type kind", () => {
   it("keeps all root and flowchart names, including deprecations and duplicate homes", () => {
     expect(
@@ -67,6 +78,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         { name: "TraceWalkScope", kind: "type" },
         ...groupedFlowExports,
         ...traceWorkflowExports,
+        ...stageActivityExports,
       ].sort((a, b) => a.name.localeCompare(b.name)),
       "./flowchart": [
         ...ledger.entries["./flowchart"],

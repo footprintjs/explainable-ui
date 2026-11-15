@@ -77,11 +77,31 @@ describe("StageNode recorded-evidence overlay", () => {
     const view = render(node({ linked: true, active: true, traceWorkflow: trace, suppressMotion: true }));
     const stage = view.container.querySelector<HTMLElement>('[data-fp="stage-node"]')!;
     expect(stage.getAttribute("data-motion-suppressed")).toBe("true");
-    expect(view.getByText("NOW")).toBeTruthy();
+    expect(view.getByText("VIEWING")).toBeTruthy();
     const animated = [...stage.querySelectorAll<HTMLElement>("[style]")].filter(element => element.style.animation);
     expect(animated).toHaveLength(3); // linked ring, active ring, state dot
     expect(animated.every(element => element.style.animation === "none")).toBe(true);
     expect(view.container.querySelector<HTMLElement>('[data-fp="stage-node-body"]')!.style.transition).toBe("none");
     expect(document.getElementById("fp-stage-node-keyframes")!.textContent).toMatch(/prefers-reduced-motion: reduce[\s\S]*animation: none !important[\s\S]*transition: none !important/);
+  });
+
+  it("labels outside context neutrally and restores normal muted appearance on exit", () => {
+    const view = render(node({ active: true, emphasis: "muted" }));
+    const stage = () => view.container.querySelector<HTMLElement>('[data-fp="stage-node"]')!;
+    expect(view.getByText("NOW")).toBeTruthy();
+    expect((stage().firstElementChild as HTMLElement).style.opacity).toBe("0.5");
+    view.rerender(node({ active: true, emphasis: "muted", traceContext: "outside" }));
+    expect(view.getByText("VIEWING")).toBeTruthy();
+    expect(view.queryByText("NOW")).toBeNull();
+    expect(stage().dataset.traceContext).toBe("outside");
+    expect(stage().title).toBe("Outside displayed trace. Recorded execution status is shown independently.");
+    expect((stage().firstElementChild as HTMLElement).style.opacity).toBe("1");
+    expect(view.getByText("Outside displayed trace")).toBeTruthy();
+    expect(stage().querySelector('[data-fp="trace-workflow-ring"]')).toBeNull();
+    view.rerender(node({ active: true, emphasis: "muted" }));
+    expect(view.getByText("NOW")).toBeTruthy();
+    expect(stage().hasAttribute("data-trace-context")).toBe(false);
+    expect(stage().hasAttribute("title")).toBe(false);
+    expect((stage().firstElementChild as HTMLElement).style.opacity).toBe("0.5");
   });
 });

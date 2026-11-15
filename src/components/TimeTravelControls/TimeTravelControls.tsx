@@ -29,8 +29,12 @@ export interface TracingRail {
    *  the "stop 2 of 6" label. */
   stopOrdinal: number;
   totalStops: number;
-  /** Exit tracing (Done button / Escape). The cursor stays put. */
+  /** Exit tracing (button / Escape). The host decides where to return. */
   onExit: () => void;
+  /** Optional return destination; defaults to the legacy Done label. */
+  exitLabel?: string;
+  /** Accessible return action; defaults to Exit tracing. */
+  exitAriaLabel?: string;
   /** Clear the via filter back to the full walk (breadcrumb's "show all"). */
   onShowAll?: () => void;
   /** Ingredient count at the CURRENT stop. At the earliest landable stop,
@@ -129,7 +133,7 @@ export function TimeTravelRail({
               </>
             )}
             {" · "}stop {tracing!.stopOrdinal} of {tracing!.totalStops}
-            <button type="button" data-fp="tt-exit-tracing" onClick={tracing!.onExit} aria-label="Exit tracing">Done</button>
+            <button type="button" data-fp="tt-exit-tracing" onClick={tracing!.onExit} aria-label={tracing!.exitAriaLabel ?? "Exit tracing"}>{tracing!.exitLabel ?? "Done"}</button>
           </span>
         )}
         <button
@@ -200,6 +204,7 @@ export function TimeTravelRail({
         background: theme.bgSecondary,
         borderBottom: isTracing ? `2px solid ${tracingColor}` : `1px solid ${theme.border}`,
         display: "flex",
+        flexWrap: isTracing && tracing!.exitLabel !== undefined ? "wrap" : undefined,
         alignItems: "center",
         gap: 6,
         flexShrink: 0,
@@ -218,9 +223,12 @@ export function TimeTravelRail({
           data-fp="tt-tracing-header"
           style={{
             display: "flex",
+            flexWrap: tracing!.exitLabel !== undefined ? "wrap" : undefined,
             alignItems: "center",
             gap: 6,
             flexShrink: 0,
+            maxWidth: tracing!.exitLabel !== undefined ? "100%" : undefined,
+            overflowWrap: tracing!.exitLabel !== undefined ? "anywhere" : undefined,
             fontSize: fs.body,
           }}
         >
@@ -382,10 +390,12 @@ export function TimeTravelRail({
           type="button"
           data-fp="tt-exit-tracing"
           onClick={tracing!.onExit}
-          aria-label="Exit tracing"
-          style={{ ...btnStyle(false), background: "transparent" }}
+          aria-label={tracing!.exitAriaLabel ?? "Exit tracing"}
+          style={{ ...btnStyle(false), background: "transparent", ...(tracing!.exitLabel !== undefined ? {
+            flexShrink: 1, maxWidth: "100%", overflowWrap: "anywhere", textAlign: "left",
+          } : {}) }}
         >
-          Done ✕
+          {tracing!.exitLabel ?? "Done ✕"}
         </button>
       )}
     </div>

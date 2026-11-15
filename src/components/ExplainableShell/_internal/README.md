@@ -12,6 +12,77 @@ and non-UI callers. No hidden WeakMap or in-place walk mutation is involved.
 
 ## Variables and execution
 
+### Exact-visit Activity
+
+The shell projects the selected scope, snapshot and paired narrative through
+`projectStageActivity`. Inspector opens in Activity; State and Data Trace remain
+available. The same projection feeds the stage panel and
+`formatStageActivitySummary`, without another lineage walker. Narrow and
+unstyled surfaces use this same selected-visit model.
+
+Activity preserves the narrative's within-visit sequence. It does not merge
+that sequence with execution-tree branch messages into a global order across
+parallel stages. A legacy operation label is admitted only when the standard
+text's step number, operation wording and key agree with the narrative fields;
+it remains labelled as reported narrative, not typed scope-event capture.
+Stored predicate expressions, source files and algorithm reconstruction are
+not inferred from that wording.
+
+Read keys come from the exact tree visit or admitted narrative. Their bounded
+previews belong to the earlier writer's end snapshot, not to the read call.
+If the narrative reports reading a key after an in-stage write, the generic
+read for that key withholds its preview, writer and trace target. Even an
+available pre-stage writer cannot establish the origin of that later read.
+Committed changes compare snapshots around the selected commit; the first
+before-state stays unknown when no previous snapshot exists. These are net
+committed changes, not every local assignment. Only exact-runtime-linked logs
+are stage logs; the shell's run-level console input is not attributed here.
+
+Activity trace targets contain names, the exact invocation and runtime visit,
+and an exclusive commit cutoff. A read uses the selected commit index; a write
+uses that index plus one. The shell revalidates the current evidence before
+dispatching to its existing trace controller, so reading and writing the same
+key do not collapse onto the later value. Selecting a recorded writer changes
+the existing scope's cursor.
+
+Starting a trace from Activity also records an origin bookmark: source
+identity, exact invocation/runtime address and the selected read/write variable
+identity. It retains no snapshot values. The primary **Back to … · Activity**
+action ends that investigation and restores the validated origin, selected
+variable and Activity lens. Escape and selecting the Activity tab take the
+same route. This is separate from the variable-question trail's return to an
+earlier question. A stale or withdrawn recording cannot revive an old origin.
+Legacy Data Trace starts carry no Activity bookmark; their Done action keeps
+the existing current-cursor behavior.
+The shell handles Escape for Activity-origin investigations even when an
+unknown writer leaves no tracing rail. This handler is scoped to the shell
+and defers to an already handled rail key. Entry/return focus follows the
+return action and the restored variable where those controls are available.
+
+An explicit `exit` or `repeat` phase is a bookkeeping row only when its trace,
+overwrite, updates and redactions are absent or demonstrably empty. Such a row
+does not become a duplicate visit or a committed write. Primary identity and
+before-state lookup skip it, while trace targets retain the original raw log
+index; the controller validates that exact current target and raw address.
+It does not re-canonicalize or renumber commit history independently. A row
+with values, unreadable payload fields or redactions remains subject to the
+normal ambiguity checks.
+
+`InspectorPanel` keeps `tab`/`onTabChange` as `"state" | "trace"` for existing
+consumers. Its optional Activity selection is controlled separately with
+`activitySelected`/`onActivitySelect`; omitting an activity model preserves the
+legacy two-tab panel. Stage logic and full-flow exports remain separate work.
+`StageActivityPanel.selectedVariableId`/`onVariableSelect` and the wrapping
+Inspector's `selectedActivityVariableId`/`onActivityVariableSelect` optionally
+lift the selected variable. The shell owns that identity across an
+Activity-origin trace and return, while the panel keeps its local fallback
+for standalone uncontrolled use.
+Switching narrow Inspector/recorder tabs keeps the selected invocation and
+cursor. Stage-anchored Data Trace dimming follows the visible Inspector surface
+and is absent from hidden or unstyled Inspector chrome.
+
+### Backtracking views
+
 During an active admitted walk, `TraceDependencyView` opens the central pane in
 **Execution**, retaining the workflow context. The built-in renderer overlays
 the admitted question's recorded writers and reads; **Variables** is an optional
@@ -21,6 +92,11 @@ unresolved reads and writers outside the view represented explicitly. Arrows
 describe **recorded stage reads**. The existing walk considers all of a stage's reads, so these edges
 are conservative evidence rather than exact per-write or expression-level
 derivation. This projection does not add another causal walker.
+
+The traced execution view keeps surrounding nodes readable as workflow
+context. StageNode's **VIEWING** badge marks the recorded cursor rather than
+live execution. This context treatment is separate from run status and does
+not assert completion for future steps on the selected rail.
 
 Value previews come from the `StageSnapshot.memory` associated with the named
 writer visit, not from whichever cursor moment is currently selected.

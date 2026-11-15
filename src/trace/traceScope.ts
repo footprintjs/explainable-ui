@@ -76,6 +76,29 @@ export function sourceRunKey(snapshot: unknown): unknown {
     return snapshot;
   }
 }
+
+/** Preserve only a value-free engine bookend marker. Activity can then
+ * distinguish an exit/repeat from a second commit with an ambiguous stamp,
+ * without retaining child state values in this names-only scope. */
+function emptyVisitPhase(entry: unknown, traceLength: number, budget: WorkBudget): "exit" | "repeat" | undefined {
+  const phase = ownDataField(entry, "phase");
+  if ((phase !== "exit" && phase !== "repeat") || traceLength !== 0 || !entry || typeof entry !== "object") return undefined;
+  for (const field of ["overwrite", "updates"]) {
+    const descriptor = Object.getOwnPropertyDescriptor(entry, field);
+    if (descriptor && !("value" in descriptor)) return undefined;
+    const value = descriptor?.value;
+    if (value === undefined) continue;
+    if (!isPlainRecord(value)) return undefined;
+    const keys = Object.keys(value); budget.spend(keys.length);
+    if (keys.length) return undefined;
+  }
+  const redactions = Object.getOwnPropertyDescriptor(entry, "redactedPaths");
+  if (redactions && !("value" in redactions)) return undefined;
+  if (redactions?.value !== undefined &&
+    (!Array.isArray(redactions.value) || ownDataField(redactions.value, "length") !== 0)) return undefined;
+  return phase;
+}
+
 export function childTraceScope(
   result: unknown,
   invocationPath: readonly string[],
@@ -136,13 +159,16 @@ export function childTraceScope(
         (runtimeStageId === "" || runtimeStageId === mountInvocation)
       )
         return null;
+      const trace = readOwnArray(ownDataField(entry, "trace"), budget).map(
+        (write) => ({ path: readName(ownDataField(write, "path")) })
+      );
+      const phase = emptyVisitPhase(entry, trace.length, budget);
       return {
         stage: readName(ownDataField(entry, "stage")),
         stageId: readName(ownDataField(entry, "stageId")),
         runtimeStageId: readName(runtimeStageId),
-        trace: readOwnArray(ownDataField(entry, "trace"), budget).map(
-          (write) => ({ path: readName(ownDataField(write, "path")) })
-        ),
+        trace,
+        ...(phase ? { phase } : {}),
       };
     });
     type TraceNode = {

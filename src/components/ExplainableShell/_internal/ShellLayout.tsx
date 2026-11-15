@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode, RefCallback } from "react";
+import type { CSSProperties, KeyboardEventHandler, ReactNode, RefCallback } from "react";
 import { theme } from "../../../theme";
 import { HLinePill, VLinePill } from "./ShellChrome";
 
@@ -10,6 +10,7 @@ export interface ShellPanelControl {
 
 interface ShellLayoutProps {
   containerRef: RefCallback<HTMLDivElement>;
+  onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
   className?: string;
   style?: CSSProperties;
   themeStyle: CSSProperties;
@@ -36,11 +37,11 @@ interface ShellLayoutProps {
 
 /** Layout only: selected records, navigation and playback are supplied by the container. */
 export function ShellLayout({
-  containerRef, className, style, themeStyle, isNarrow, stageCount,
+  containerRef, onKeyDown, className, style, themeStyle, isNarrow, stageCount,
   showTopology, showTreeSidebar, topology, details, timeline, slots,
 }: ShellLayoutProps) {
   return (
-    <div ref={containerRef} className={className} data-fp="explainable-shell" style={{
+    <div ref={containerRef} onKeyDown={onKeyDown} className={className} data-fp="explainable-shell" style={{
       ...themeStyle, height: "100%", display: "flex", flexDirection: "column",
       overflow: "hidden", background: theme.bgPrimary, color: theme.textPrimary,
       fontFamily: theme.fontSans, fontSize: 12, ...style,
@@ -95,10 +96,12 @@ interface ShellTabsProps {
   children: ReactNode;
 }
 
-export function UnstyledShellLayout({ tabs, activeTab, onTabChange, children, className, style }: ShellTabsProps & { className?: string; style?: CSSProperties }) {
-  return <div className={className} style={style} data-fp="explainable-shell">
+export function UnstyledShellLayout({ tabs, activeTab, onTabChange, children, className, style, containerRef, onKeyDown }: ShellTabsProps & {
+  className?: string; style?: CSSProperties; containerRef?: RefCallback<HTMLDivElement>; onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
+}) {
+  return <div ref={containerRef} onKeyDown={onKeyDown} className={className} style={style} data-fp="explainable-shell">
     <div data-fp="shell-tabs">
-      {tabs.map(tab => <button key={tab.id} data-fp="shell-tab" data-active={tab.id === activeTab} onClick={() => onTabChange(tab.id)}>{tab.name}</button>)}
+      {tabs.map(tab => <button key={tab.id} type="button" data-fp="shell-tab" data-active={tab.id === activeTab} onClick={() => onTabChange(tab.id)}>{tab.name}</button>)}
     </div>
     <div data-fp="shell-content" data-tab={activeTab}>{children}</div>
   </div>;
