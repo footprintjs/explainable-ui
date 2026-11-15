@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-11-14
+
 ### Added
 
 - Optional `FailureExplanationView` displays a host-admitted problem, recorded
