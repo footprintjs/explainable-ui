@@ -1,3 +1,5 @@
+import { FootprintButton, componentStyles, theme } from "../../../theme";
+import type { Size } from "../../../types";
 import type { VisitChoice } from "./useSubflowNavigation";
 interface Props {
   staleInputs: boolean;
@@ -5,6 +7,8 @@ interface Props {
   choice: VisitChoice | null;
   onChoose: (mountKey: string, choices: ReadonlyMap<string, string>) => void;
   onDismiss: () => void;
+  unstyled?: boolean;
+  size?: Size;
 }
 /** User-facing feedback stays separate from the navigation state machine. */
 export function SubflowNavigationStatus({
@@ -13,25 +17,32 @@ export function SubflowNavigationStatus({
   choice,
   onChoose,
   onDismiss,
+  unstyled = false,
+  size = "default",
 }: Props) {
+  const ui = componentStyles(size);
+  const noticeStyle = unstyled ? undefined : { padding: ui.padding, fontSize: ui.body, lineHeight: ui.lineHeight, color: theme.textPrimary };
+  const buttonStyle = unstyled ? undefined : { fontFamily: theme.fontSans, fontSize: ui.body,
+    padding: ui.controlPadding, border: `${ui.borderWidth} solid ${theme.border}`,
+    borderRadius: ui.radiusControl, color: theme.textPrimary, background: theme.bgPrimary };
   return (
     <>
       {staleInputs && (
         <div
           data-fp="companion-source-note"
           role="status"
-          style={{ padding: 10 }}
+          style={noticeStyle}
         >
           Some details from the previous run were withheld. Their evidence for
           this run is unknown.
         </div>
       )}
       {notice && (
-        <div data-fp="source-change-note" role="status" style={{ padding: 10 }}>
+        <div data-fp="source-change-note" role="status" style={noticeStyle}>
           {notice}{" "}
-          <button type="button" onClick={onDismiss}>
+          <FootprintButton type="button" part="navigation-dismiss" onClick={onDismiss} defaultStyle={buttonStyle}>
             Dismiss
-          </button>
+          </FootprintButton>
         </div>
       )}
       {choice && (
@@ -39,13 +50,14 @@ export function SubflowNavigationStatus({
           data-fp="subflow-visit-choice"
           role="group"
           aria-label="Choose subflow visit"
-          style={{ padding: 10 }}
+          style={noticeStyle}
         >
           <div>This step ran {choice.visits.length} times. Choose a visit:</div>
           {choice.visits.map((visit) => (
-            <button
+            <FootprintButton
               type="button"
               key={visit.runtimeStageId}
+              part="navigation-choose-visit"
               onClick={() =>
                 onChoose(
                   choice.mountKey,
@@ -54,14 +66,14 @@ export function SubflowNavigationStatus({
                     [choice.choiceKey, visit.runtimeStageId],
                   ])
                 )
-              }
+              } defaultStyle={buttonStyle}
             >
               step {visit.step} · visit {visit.visit} of {visit.total}
-            </button>
+            </FootprintButton>
           ))}
-          <button type="button" onClick={onDismiss}>
+          <FootprintButton type="button" part="navigation-cancel" onClick={onDismiss} defaultStyle={buttonStyle}>
             Cancel
-          </button>
+          </FootprintButton>
         </div>
       )}
     </>

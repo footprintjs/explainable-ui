@@ -21,7 +21,7 @@
 
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { theme } from "../../theme";
+import { theme, componentStyles } from "../../theme";
 
 export interface SlotPillNodeData {
   label: string;
@@ -34,12 +34,15 @@ export interface SlotPillNodeData {
   /** Semantic kind hint for the dot color (e.g. 'system-prompt'|'messages'|'tools'). */
   slotKind?: string;
   icon?: string;
+  unstyled?: boolean;
   [key: string]: unknown;
 }
 
 export function SlotPillNode({ data }: NodeProps) {
   const d = data as SlotPillNodeData;
   const lit = !!(d.active || d.selected);
+  const unstyled = d.unstyled === true;
+  const ui = componentStyles();
 
   // Lit → primary glow; done → visited tint; otherwise muted. Dimmed fades.
   const accent = lit ? theme.primary : d.done ? theme.nodeVisited : theme.textMuted;
@@ -47,16 +50,22 @@ export function SlotPillNode({ data }: NodeProps) {
 
   return (
     <div
+      data-fp="slot-pill-node"
+      data-active={lit || undefined}
+      data-done={d.done || undefined}
+      data-unstyled={unstyled || undefined}
       style={{
         width: "100%",
         height: "100%",
         boxSizing: "border-box",
         display: "flex",
         alignItems: "center",
-        gap: 8,
-        padding: "0 12px",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        ...(!unstyled && { gap: ui.spaceSm,
+        padding: `0 ${ui.spaceMd}`,
         borderRadius: 999, // full pill
-        border: `1.5px solid ${lit ? theme.primary : theme.border}`,
+        border: `calc(${ui.borderWidth} + 0.5px) solid ${lit ? theme.primary : theme.border}`,
         // Fills derive from the theme so the pill follows dark/light — the lit
         // state is a faint primary tint over the resting node bg, unlit is the
         // resting bg itself (visible against the canvas via the border).
@@ -65,12 +74,10 @@ export function SlotPillNode({ data }: NodeProps) {
           : theme.bgSecondary,
         boxShadow: lit ? `0 0 0 2px color-mix(in srgb, ${theme.primary} 25%, transparent)` : "none",
         opacity,
-        fontSize: 12,
-        fontWeight: 600,
+        fontSize: ui.body,
+        fontWeight: `calc(${ui.weightStrong} - 100)`,
         color: lit ? theme.textPrimary : theme.textSecondary,
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        transition: "opacity 120ms, box-shadow 120ms, border-color 120ms",
+        transition: `opacity ${ui.fastDuration}, box-shadow ${ui.fastDuration}, border-color ${ui.fastDuration}` }),
       }}
       title={d.label}
     >
@@ -81,16 +88,15 @@ export function SlotPillNode({ data }: NodeProps) {
           flexShrink: 0,
           width: 8,
           height: 8,
-          borderRadius: "50%",
-          background: accent,
+          ...(!unstyled && { borderRadius: "50%", background: accent }),
         }}
       />
       {d.icon ? <span aria-hidden style={{ flexShrink: 0 }}>{d.icon}</span> : null}
       <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{d.label}</span>
 
       {/* Edge handles — top in, bottom out (top→bottom flow). */}
-      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Top} style={unstyled ? undefined : { opacity: 0 }} />
+      <Handle type="source" position={Position.Bottom} style={unstyled ? undefined : { opacity: 0 }} />
     </div>
   );
 }

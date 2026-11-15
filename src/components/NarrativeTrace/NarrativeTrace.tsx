@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import type { BaseComponentProps } from "../../types";
-import { theme, fontSize, padding } from "../../theme";
+import { theme, componentStyles, FootprintButton } from "../../theme";
+import { useTraceMotion } from "../../_internal/useTraceMotion";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,6 +22,8 @@ export interface NarrativeTraceProps extends BaseComponentProps {
   defaultCollapsed?: boolean;
   /** Called when user clicks a stage header */
   onStageClick?: (headerIndex: number) => void;
+  /** Follow revealed sections only when the reader opts in. */
+  followCursor?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -40,7 +43,7 @@ function parseGroups(lines: string[]): NarrativeGroup[] {
       current = { header: line, headerIdx: i, steps: [] };
       groups.push(current);
     } else {
-      current.steps.push({ text: trimmed, idx: i });
+      current.steps.push({ text: line, idx: i });
     }
   }
 
@@ -52,204 +55,60 @@ function parseGroups(lines: string[]): NarrativeGroup[] {
 // ---------------------------------------------------------------------------
 
 export function NarrativeTrace({
-  narrative,
-  revealedCount,
-  defaultCollapsed = false,
-  onStageClick,
-  size = "default",
-  unstyled = false,
-  className,
-  style,
+  narrative, revealedCount, defaultCollapsed = false, onStageClick, followCursor = false,
+  size = "default", unstyled = false, className, style,
 }: NarrativeTraceProps) {
   const revealed = revealedCount != null ? narrative.slice(0, revealedCount) : narrative;
   const future = revealedCount != null ? narrative.slice(revealedCount) : [];
-
   const revealedGroups = useMemo(() => parseGroups(revealed), [revealed]);
   const futureGroups = useMemo(() => parseGroups(future), [future]);
-
-  const [collapsedSet, setCollapsedSet] = useState<Set<number>>(() => {
-    if (!defaultCollapsed) return new Set();
-    return new Set(parseGroups(narrative).map((g) => g.headerIdx));
-  });
-
+  const [collapsedSet, setCollapsedSet] = useState<Set<number>>(() =>
+    defaultCollapsed ? new Set(parseGroups(narrative).map(group => group.headerIdx)) : new Set());
   const latestRef = useRef<HTMLDivElement>(null);
-
+  const motion = useTraceMotion();
   useEffect(() => {
-    latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [revealedGroups.length]);
+    if (!followCursor) return;
+    try { if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return; } catch { /* Unsupported hosts can follow without animation. */ }
+    latestRef.current?.scrollIntoView?.({ behavior: motion ? "smooth" : "auto", block: "nearest" });
+  }, [followCursor, motion, revealedGroups.length, revealedCount]);
+  const toggle = useCallback((index: number) => setCollapsedSet(previous => {
+    const next = new Set(previous);
+    if (next.has(index)) next.delete(index); else next.add(index);
+    return next;
+  }), []);
+  const chrome = componentStyles(size);
+  const sx = (value: React.CSSProperties): React.CSSProperties | undefined => unstyled ? undefined : value;
+  const lastIndex = revealedGroups.length - 1;
 
-  const toggle = useCallback((idx: number) => {
-    setCollapsedSet((prev) => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx);
-      else next.add(idx);
-      return next;
-    });
-  }, []);
-
-  const lastIdx = revealedGroups.length - 1;
-  const fs = fontSize[size];
-  const pad = padding[size];
-
-  // ── Unstyled mode ──
-  if (unstyled) {
-    return (
-      <div className={className} style={style} data-fp="narrative-trace">
-        {revealedGroups.map((group, gi) => (
-          <div key={group.headerIdx} data-fp="narrative-group" data-latest={gi === lastIdx}>
-            <div
-              data-fp="narrative-header"
-              data-collapsible={group.steps.length > 0}
-              data-collapsed={collapsedSet.has(group.headerIdx)}
-              role={group.steps.length > 0 ? "button" : undefined}
-              tabIndex={group.steps.length > 0 ? 0 : undefined}
-              aria-expanded={group.steps.length > 0 ? !collapsedSet.has(group.headerIdx) : undefined}
-              aria-label={`Stage ${gi + 1}, ${group.steps.length} steps${gi === lastIdx ? ", current" : ""}`}
-              onClick={() => {
-                if (group.steps.length > 0) toggle(group.headerIdx);
-                onStageClick?.(group.headerIdx);
-              }}
-              onKeyDown={(e: React.KeyboardEvent) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  if (group.steps.length > 0) toggle(group.headerIdx);
-                  onStageClick?.(group.headerIdx);
-                }
-              }}
-            >
-              {group.header}
-            </div>
-            {!collapsedSet.has(group.headerIdx) &&
-              group.steps.map((step) => (
-                <div key={step.idx} data-fp="narrative-step">
-                  {step.text}
-                </div>
-              ))}
-          </div>
-        ))}
-        {futureGroups.length > 0 && (
-          <div data-fp="narrative-future-hint">
-            {futureGroups.length} more {futureGroups.length === 1 ? "stage" : "stages"} ahead...
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ── Styled mode ──
-  return (
-    <div
-      className={className}
-      style={{
-        flex: 1,
-        overflow: "auto",
-        padding: pad,
-        fontFamily: theme.fontMono,
-        ...style,
-      }}
-      data-fp="narrative-trace"
-    >
-      {revealedGroups.map((group, gi) => {
-        const isLatest = gi === lastIdx;
-        const isCollapsed = collapsedSet.has(group.headerIdx);
-        const hasSteps = group.steps.length > 0;
-
-        return (
-          <div
-            key={group.headerIdx}
-            ref={isLatest ? latestRef : undefined}
-            style={{ marginBottom: 2 }}
-            data-fp="narrative-group"
-          >
-            {/* Stage header */}
-            <div
-              role={hasSteps ? "button" : undefined}
-              tabIndex={hasSteps ? 0 : undefined}
-              aria-expanded={hasSteps ? !isCollapsed : undefined}
-              aria-label={`Stage ${gi + 1}, ${group.steps.length} steps${isLatest ? ", current" : ", completed"}`}
-              onClick={() => {
-                if (hasSteps) toggle(group.headerIdx);
-                onStageClick?.(group.headerIdx);
-              }}
-              onKeyDown={(e: React.KeyboardEvent) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  if (hasSteps) toggle(group.headerIdx);
-                  onStageClick?.(group.headerIdx);
-                }
-              }}
-              style={{
-                fontSize: fs.body,
-                lineHeight: 1.7,
-                color: isLatest ? theme.textPrimary : theme.textSecondary,
-                padding: `4px ${pad - 4}px`,
-                borderRadius: 4,
-                background: isLatest ? theme.bgTertiary : "transparent",
-                borderLeft: isLatest
-                  ? `3px solid ${theme.primary}`
-                  : `3px solid ${theme.success}`,
-                cursor: hasSteps ? "pointer" : "default",
-                fontWeight: 600,
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                userSelect: "none",
-                transition: "all 0.15s ease",
-              }}
-            >
-              {hasSteps && (
-                <span
-                  style={{
-                    fontSize: fs.small - 1,
-                    color: theme.textMuted,
-                    transition: "transform 0.15s ease",
-                    transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                    display: "inline-block",
-                    width: 10,
-                    flexShrink: 0,
-                  }}
-                >
-                  &#9660;
-                </span>
-              )}
-              {!hasSteps && <span style={{ width: 10, flexShrink: 0 }} />}
-              <span>{group.header}</span>
-            </div>
-
-            {/* Step lines */}
-            {!isCollapsed &&
-              group.steps.map((step) => (
-                <div
-                  key={step.idx}
-                  style={{
-                    fontSize: fs.small,
-                    lineHeight: 1.6,
-                    color: isLatest ? theme.textSecondary : theme.textMuted,
-                    padding: `2px ${pad - 4}px 2px ${pad + 20}px`,
-                    opacity: isLatest ? 0.9 : 0.7,
-                    transition: "all 0.15s ease",
-                  }}
-                  data-fp="narrative-step"
-                >
-                  {step.text}
-                </div>
-              ))}
-          </div>
-        );
-      })}
-
-      {/* Future groups — show count hint only, skip full rendering for performance */}
-      {futureGroups.length > 0 && (
-        <div style={{
-          opacity: 0.3,
-          fontSize: fs.small,
-          color: theme.textMuted,
-          padding: `8px ${pad}px`,
-          fontStyle: "italic",
-        }}>
-          {futureGroups.length} more {futureGroups.length === 1 ? "stage" : "stages"} ahead...
-        </div>
-      )}
-    </div>
-  );
+  return <div className={className} data-fp="narrative-trace" role="log" aria-label="Recorded narrative lines"
+    style={{ ...sx({ flex: 1, overflow: "auto", padding: chrome.padding, fontFamily: theme.fontMono, color: theme.textPrimary }), ...style }}>
+    {revealedGroups.map((group, index) => {
+      const latest = index === lastIndex, collapsed = collapsedSet.has(group.headerIdx), hasSteps = group.steps.length > 0;
+      const header = <>{hasSteps && <span aria-hidden="true" style={sx({ display: "inline-block", width: chrome.iconSize, flexShrink: 0 })}>{collapsed ? "▸" : "▾"}</span>}<span>{group.header}</span></>;
+      const headerStyle: React.CSSProperties = { display: "flex", alignItems: "baseline", gap: chrome.spaceXs,
+        textAlign: "left", width: "100%", minWidth: 0, border: "none", borderLeft: `${chrome.borderWidth} solid ${latest ? theme.accent : theme.border}`,
+        background: latest ? theme.accentBg : "transparent", color: theme.textPrimary, borderRadius: chrome.radiusControl,
+        padding: chrome.controlPadding, fontFamily: theme.fontSans, fontSize: chrome.body, fontWeight: chrome.weightStrong,
+        lineHeight: chrome.lineHeight, whiteSpace: "pre-wrap", overflowWrap: "anywhere" };
+      return <div key={group.headerIdx} ref={latest ? latestRef : undefined} data-fp="narrative-group" data-latest={latest || undefined}
+        style={sx({ marginBottom: chrome.spaceXs, minWidth: 0 })}>
+        {hasSteps || onStageClick ? <FootprintButton data-fp="narrative-header" data-collapsible={hasSteps}
+          data-collapsed={collapsed} aria-expanded={hasSteps ? !collapsed : undefined}
+          aria-label={`Recorded section: ${group.header}${hasSteps ? `, ${group.steps.length} lines` : ""}`}
+          onClick={() => { if (hasSteps) toggle(group.headerIdx); onStageClick?.(group.headerIdx); }}
+          defaultStyle={{ ...headerStyle, cursor: "pointer" }} unstyled={unstyled} densitySize={size} part="narrative-section">
+          {header}
+        </FootprintButton> : <div data-fp="narrative-header" style={sx(headerStyle)}>{header}</div>}
+        {!collapsed && group.steps.map(step => <div key={step.idx} data-fp="narrative-step"
+          style={sx({ fontSize: chrome.body, lineHeight: chrome.lineHeight, color: theme.textSecondary,
+            padding: chrome.controlPadding, paddingLeft: chrome.spaceLg, whiteSpace: "pre-wrap", overflowWrap: "anywhere" })}>
+          {step.text}
+        </div>)}
+      </div>;
+    })}
+    {revealedGroups.length === 0 && <p data-fp="narrative-empty" style={sx({ margin: 0, fontSize: chrome.body, color: theme.textSecondary })}>No recorded lines at this selected step.</p>}
+    {futureGroups.length > 0 && <div data-fp="narrative-future-hint" style={sx({ fontSize: chrome.small, color: theme.textSecondary, padding: chrome.controlPadding })}>
+      {futureGroups.length} more recorded {futureGroups.length === 1 ? "section" : "sections"} ahead...
+    </div>}
+  </div>;
 }

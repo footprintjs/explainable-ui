@@ -87,7 +87,7 @@ describe("round-two navigation regressions", () => {
     expect(
       document.querySelector('[data-fp="subflow-visit-choice"]')
     ).not.toBeNull();
-    fireEvent.click(screen.getByText("Inspector"));
+    fireEvent.click(screen.getByRole("button", { name: "Run data" }));
     expect(
       document.querySelector('[data-fp="subflow-visit-choice"]')
     ).toBeNull();

@@ -74,6 +74,37 @@ function resize(width: number, height: number) {
 function pan() { act(() => store.setState({ transform: [31, -42, .43] })); }
 
 describe("investigation camera ownership", () => {
+  it("leaves the camera and zoom bounds to the host when automatic fitting is disabled", () => {
+    render(<TracedFlow graph={graph} layout="passthrough" autoFit={false}
+      minZoom={0.25} maxZoom={3} defaultViewport={{ x: 10, y: 20, zoom: 0.6 }}><Probe /></TracedFlow>);
+    const setViewport = cameraSpy();
+    measure(); flush();
+    expect(setViewport).not.toHaveBeenCalled();
+    expect(store.getState().minZoom).toBe(0.25);
+    expect(store.getState().maxZoom).toBe(3);
+    pan(); resize(640, 420);
+    expect(setViewport).not.toHaveBeenCalled();
+    expect(store.getState().transform).toEqual([31, -42, .43]);
+  });
+
+  it("does not install automatic fitting over a controlled viewport", () => {
+    const onViewportChange = vi.fn();
+    render(<TracedFlow graph={graph} layout="passthrough"
+      viewport={{ x: 19, y: 27, zoom: 0.7 }} onViewportChange={onViewportChange}><Probe /></TracedFlow>);
+    const setViewport = cameraSpy();
+    measure(); flush(); resize(640, 420);
+    expect(setViewport).not.toHaveBeenCalled();
+    expect(store.getState().transform).toEqual([19, 27, 0.7]);
+  });
+
+  it("applies host automatic-fit padding and zoom ceiling", () => {
+    render(<TracedFlow graph={graph} layout="passthrough" autoFit={{ padding: 0.5, maxZoom: 0.4 }}><Probe /></TracedFlow>);
+    const setViewport = cameraSpy();
+    measure(); flush();
+    expect(setViewport).toHaveBeenCalledTimes(1);
+    expect(store.getState().transform[2]).toBe(0.4);
+  });
+
   it("changes resize policy without reclaiming a manual camera, while explicit intents still fit", () => {
     const view = render(<Harness preserveViewport={false} />);
     const setViewport = cameraSpy();

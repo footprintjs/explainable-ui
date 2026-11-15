@@ -88,6 +88,10 @@ function trace(key: string) {
 function card() {
   return document.querySelector('[data-fp="trace-walk-card"]') as HTMLElement;
 }
+function openRunLog() {
+  fireEvent.click(screen.getByRole("button", { name: "Run data" }));
+  fireEvent.click(screen.getByRole("button", { name: "Run log" }));
+}
 
 describe("recorded subflow review regressions", () => {
   it("traces the middle level and describes its child mount as a boundary, not an origin", () => {
@@ -236,7 +240,7 @@ describe("recorded subflow review regressions", () => {
     move(5);
     ui.drill("prepare");
     move(3);
-    fireEvent.click(screen.getByText("Story"));
+    openRunLog();
     const story = document.querySelector('[data-fp="story-narrative"]');
     expect(story).toBeTruthy();
     expect(story?.textContent).not.toContain("Write total = 24");
@@ -451,7 +455,7 @@ describe("recorded subflow review regressions", () => {
     const ui = setup();
     ui.drill("pipeline/prepare");
     move(3);
-    fireEvent.click(screen.getByText("Story"));
+    openRunLog();
     expect(
       document.querySelector('[data-fp="story-narrative"]')?.textContent,
     ).toContain("Write total = 44");
@@ -526,7 +530,7 @@ describe("recorded subflow review regressions", () => {
     const ui = setup();
     ui.drill("pipeline/prepare");
     move(3);
-    fireEvent.click(screen.getByText("Story"));
+    openRunLog();
     const source = JSON.parse(
       JSON.stringify(ui.run.runtimeSnapshot).replace(/44/g, "888"),
     );
@@ -549,7 +553,7 @@ describe("recorded subflow review regressions", () => {
     const ui = setup();
     ui.drill("pipeline/prepare");
     move(3);
-    fireEvent.click(screen.getByText("Story"));
+    openRunLog();
     const source = JSON.parse(
       JSON.stringify(ui.run.runtimeSnapshot).replace(/44/g, "888"),
     );

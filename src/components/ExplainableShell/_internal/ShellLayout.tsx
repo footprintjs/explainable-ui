@@ -1,5 +1,5 @@
 import type { CSSProperties, KeyboardEventHandler, ReactNode, RefCallback } from "react";
-import { theme } from "../../../theme";
+import { theme, componentStyles, FootprintTab } from "../../../theme";
 import { HLinePill, VLinePill } from "./ShellChrome";
 
 export interface ShellPanelControl {
@@ -40,11 +40,12 @@ export function ShellLayout({
   containerRef, onKeyDown, className, style, themeStyle, isNarrow, stageCount,
   showTopology, showTreeSidebar, topology, details, timeline, slots,
 }: ShellLayoutProps) {
+  const ui = componentStyles();
   return (
     <div ref={containerRef} onKeyDown={onKeyDown} className={className} data-fp="explainable-shell" style={{
       ...themeStyle, height: "100%", display: "flex", flexDirection: "column",
       overflow: "hidden", background: theme.bgPrimary, color: theme.textPrimary,
-      fontFamily: theme.fontSans, fontSize: 12, ...style,
+      fontFamily: theme.fontSans, fontSize: ui.body, lineHeight: ui.lineHeight, ...style,
     }}>
       {slots.rail}
       {slots.navigation}
@@ -101,23 +102,29 @@ export function UnstyledShellLayout({ tabs, activeTab, onTabChange, children, cl
 }) {
   return <div ref={containerRef} onKeyDown={onKeyDown} className={className} style={style} data-fp="explainable-shell">
     <div data-fp="shell-tabs">
-      {tabs.map(tab => <button key={tab.id} type="button" data-fp="shell-tab" data-active={tab.id === activeTab} onClick={() => onTabChange(tab.id)}>{tab.name}</button>)}
+      {tabs.map(tab => <FootprintTab key={tab.id} type="button" data-fp="shell-tab" data-tab-id={tab.id}
+        part="shell-tab" unstyled aria-pressed={tab.id === activeTab} data-active={tab.id === activeTab}
+        onClick={() => onTabChange(tab.id)} defaultStyle={undefined}>{tab.name}</FootprintTab>)}
     </div>
     <div data-fp="shell-content" data-tab={activeTab}>{children}</div>
   </div>;
 }
 
 export function ShellDetailTabs({ tabs, activeTab, onTabChange, children }: ShellTabsProps) {
+  const ui = componentStyles();
   return <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-    <div style={{ display: "flex", borderBottom: `1px solid ${theme.border}`, background: theme.bgSecondary, flexShrink: 0, overflowX: "auto" }}>
+    <div data-fp="shell-detail-tabs" style={{ display: "flex", borderBottom: `${ui.borderWidth} solid ${theme.border}`, background: theme.bgSecondary, flexShrink: 0, overflowX: "auto" }}>
       {tabs.map(tab => {
         const active = tab.id === activeTab;
-        return <button key={tab.id} onClick={() => onTabChange(tab.id)} title={tab.description} style={{
-          padding: "6px 14px", fontSize: 11, fontWeight: active ? 700 : 500,
-          textTransform: "uppercase", letterSpacing: "0.08em", color: active ? theme.primary : theme.textMuted,
-          background: "transparent", border: "none", borderBottom: active ? `2px solid ${theme.primary}` : "2px solid transparent",
-          cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-        }}>{tab.name}</button>;
+        return <FootprintTab key={tab.id} part="shell-detail-tab" data-fp="shell-detail-tab" data-tab-id={tab.id} aria-pressed={active}
+          style={{ flexShrink: 0 }}
+          onClick={() => onTabChange(tab.id)} title={tab.description} defaultStyle={{
+          padding: ui.controlPadding, minHeight: ui.controlHeight, fontSize: ui.label,
+          fontWeight: active ? ui.weightStrong : ui.weightMedium, lineHeight: ui.lineHeight,
+          color: active ? theme.primary : theme.textMuted,
+          background: "transparent", border: "none", borderBottom: `${ui.focusWidth} solid ${active ? theme.primary : "transparent"}`,
+          cursor: "pointer", fontFamily: theme.fontSans, whiteSpace: "nowrap",
+        }}>{tab.name}</FootprintTab>;
       })}
     </div>
     <div style={{ flex: 1, overflow: "auto" }}>{children}</div>

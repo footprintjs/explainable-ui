@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { BaseComponentProps } from "../../types";
-import { theme, fontSize, padding } from "../../theme";
+import { theme, componentStyles } from "../../theme";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,12 +84,12 @@ export function ScopeDiff({
   const entries = useMemo(() => computeDiff(previous, current), [previous, current]);
   const visible = hideUnchanged ? entries.filter((e) => e.type !== "unchanged") : entries;
 
-  const fs = fontSize[size];
-  const pad = padding[size];
+  const ui = componentStyles(size);
 
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="scope-diff">
+        {visible.length === 0 && <div>No changes</div>}
         {visible.map((e) => (
           <div key={e.key} data-fp="diff-entry" data-type={e.type}>
             <span data-fp="diff-key">{e.key}</span>
@@ -114,11 +114,11 @@ export function ScopeDiff({
   return (
     <div
       className={className}
-      style={{ padding: pad, fontFamily: theme.fontMono, ...style }}
+      style={{ padding: ui.padding, fontFamily: theme.fontMono, ...style }}
       data-fp="scope-diff"
     >
       {visible.length === 0 && (
-        <div style={{ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }}>
+        <div style={{ fontSize: ui.body, color: theme.textMuted, fontStyle: "italic" }}>
           No changes
         </div>
       )}
@@ -130,28 +130,28 @@ export function ScopeDiff({
             style={{
               display: "flex",
               alignItems: "flex-start",
-              gap: 8,
-              padding: `4px ${pad - 4}px`,
-              marginBottom: 2,
-              borderRadius: 4,
+              gap: ui.spaceSm,
+              padding: `${ui.spaceXs} max(0px, calc(${ui.padding} - ${ui.spaceXs}))`,
+              marginBottom: `calc(${ui.spaceXs} / 2)`,
+              borderRadius: ui.radiusControl,
               background: dc.bg,
-              fontSize: fs.body,
-              lineHeight: 1.5,
+              fontSize: ui.body,
+              lineHeight: ui.lineHeight,
             }}
             data-fp="diff-entry"
           >
             <span
               style={{
-                width: 16,
+                width: ui.iconSize,
                 flexShrink: 0,
-                fontWeight: 700,
+                fontWeight: ui.weightStrong,
                 color: dc.fg || theme.textMuted,
                 textAlign: "center",
               }}
             >
               {dc.icon}
             </span>
-            <span style={{ color: theme.primary, fontWeight: 600, flexShrink: 0 }}>
+            <span style={{ color: theme.primary, fontWeight: ui.weightStrong, flexShrink: 0 }}>
               {entry.key}
             </span>
             <span style={{ color: theme.textMuted }}>=</span>
@@ -166,7 +166,7 @@ export function ScopeDiff({
                 >
                   {fmt(entry.oldValue)}
                 </span>
-                <span style={{ color: theme.textMuted, margin: "0 4px" }}>&rarr;</span>
+                <span style={{ color: theme.textMuted, margin: `0 ${ui.spaceXs}` }}>&rarr;</span>
                 <span style={{ color: theme.success }}>{fmt(entry.newValue)}</span>
               </span>
             ) : (

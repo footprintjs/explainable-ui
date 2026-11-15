@@ -92,14 +92,14 @@ describe("ExplainableShell — unstyled renders every tab it lists", () => {
     const { container } = renderUnstyled();
     const names = tabButtons(container).map((b) => b.textContent);
     expect(names).toContain("Result");
-    expect(names).toContain("Memory");
-    expect(names).toContain("Narrative");
+    expect(names).toContain("State");
+    expect(names).toContain("Run log");
     expect(names).toContain("Explainable");
   });
 
   it("the Memory tab renders memory instead of nothing", () => {
     const { container } = renderUnstyled();
-    const memoryTab = tabButtons(container).find((b) => b.textContent === "Memory")!;
+    const memoryTab = tabButtons(container).find((b) => b.textContent === "State")!;
     fireEvent.click(memoryTab);
     const body = content(container);
     expect(body.querySelector('[data-fp="memory-panel"]')).toBeTruthy();
@@ -109,7 +109,7 @@ describe("ExplainableShell — unstyled renders every tab it lists", () => {
 
   it("the Narrative tab renders the story instead of nothing", () => {
     const { container } = renderUnstyled();
-    fireEvent.click(tabButtons(container).find((b) => b.textContent === "Narrative")!);
+    fireEvent.click(tabButtons(container).find((b) => b.textContent === "Run log")!);
     const body = content(container);
     expect(body.querySelector('[data-fp="narrative-panel"], [data-fp="story-narrative"]')).toBeTruthy();
     expect(body.textContent).toContain("Seeded the run.");
@@ -126,6 +126,7 @@ describe("ExplainableShell — unstyled renders every tab it lists", () => {
 
   it("the Result tab still works — nothing was traded away for the rest", () => {
     const { container } = renderUnstyled();
+    fireEvent.click(tabButtons(container).find((b) => b.textContent === "Result")!);
     expect(content(container).textContent).toContain("first log line");
   });
 
@@ -251,14 +252,12 @@ describe("ExplainableShell — the Result view has a home on desktop", () => {
   it("hideTabs={['result']} removes the mode entirely", () => {
     const { container } = renderDesktop({ hideTabs: ["result"] });
     expect(modeButton(container, "Result")).toBeUndefined();
-    expect(modeButton(container, "Insights")).toBeTruthy();
+    expect(modeButton(container, "Run data")).toBeTruthy();
   });
 
-  it("Insights still opens on the Story, not on Result", () => {
-    // Result deliberately lives on the mode toggle rather than in the
-    // Insights list: an Insight is recorder-derived, and seeding the list
-    // with Result would have pushed the story off the opening screen.
+  it("Run data opens the recorded log without replacing the Result mode", () => {
     const { container } = renderDesktop();
+    fireEvent.click(modeButton(container, "Run data")!);
     const insights = container.querySelector('[data-fp="insight-panel"], [data-fp="story-narrative"]');
     expect(insights).toBeTruthy();
     expect(container.textContent).toContain("Seeded the run.");
@@ -268,6 +267,7 @@ describe("ExplainableShell — the Result view has a home on desktop", () => {
     const { container } = render(
       <ExplainableShell snapshots={SNAPSHOTS} traceGraph={GRAPH} resultData={RESULT} />,
     );
+    fireEvent.click(modeButton(container, "Run data")!);
     expect(container.querySelector('[data-fp="insights-empty"]')).toBeTruthy();
   });
 });
@@ -307,8 +307,9 @@ describe("ExplainableShell — the `tabs` prop is loudly deprecated", () => {
         tabs={["nonsense"]}
       />,
     );
-    expect(within(container).queryByText(/Insights/)).toBeTruthy();
-    expect(container.textContent).toContain("Seeded the run.");
+    expect(within(container).getByRole("button", { name: "Run data" })).toBeTruthy();
+    expect(container.querySelector('[data-fp="inspector-panel"]')).toBeTruthy();
+    expect(container.querySelector('[data-fp="stage-activity-panel"]')).toBeTruthy();
   });
 });
 

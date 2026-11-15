@@ -1,7 +1,9 @@
+import { FootprintButton } from "../../theme";
 import { useState, useMemo, useRef, useEffect } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
-import { theme, fontSize, padding, themeModeVars } from "../../theme";
+import { theme, componentStyles, themeModeVars } from "../../theme";
 import type { ThemeModeProps } from "../../theme";
+import { useTraceMotion } from "../../_internal/useTraceMotion";
 
 export interface GanttTimelineProps extends BaseComponentProps, ThemeModeProps {
   /** Stage snapshots with timing info */
@@ -75,8 +77,8 @@ export function GanttTimeline({
           widthPct: Math.max((snap.durationMs / totalWallTime) * 100, 1),
         };
 
-  const fs = fontSize[size];
-  const pad = padding[size];
+  const ui = componentStyles(size);
+  const motion = useTraceMotion() && !unstyled;
   const labelWidth = size === "compact" ? 50 : size === "detailed" ? 100 : 80;
   const msWidth = size === "compact" ? 28 : 36;
   const rowHeight = size === "compact" ? 18 : 22;
@@ -89,41 +91,39 @@ export function GanttTimeline({
     if (!showAll && activeRowRef.current && scrollContainerRef.current) {
       activeRowRef.current.scrollIntoView({
         block: "nearest",
-        behavior: "smooth",
+        behavior: motion ? "smooth" : "auto",
       });
     }
-  }, [selectedIndex, showAll]);
+  }, [selectedIndex, showAll, motion]);
 
   if (unstyled) {
     return (
-      <div
-        className={className}
-        style={style}
-        data-fp="gantt-timeline"
-        data-timing={untimed ? "none" : undefined}
-        role="listbox"
-        aria-label="Execution timeline"
-      >
-        {snapshots.map((snap, idx) => (
-          <div
-            key={`${snap.stageName}-${idx}`}
-            data-fp="gantt-bar"
-            data-selected={idx === selectedIndex}
-            data-visible={idx <= selectedIndex}
-            role="option"
-            aria-selected={idx === selectedIndex}
-            aria-label={rowLabel(snap, idx)}
-            onClick={() => onSelect?.(idx)}
-          >
-            <span data-fp="gantt-label">{snap.stageLabel}</span>
-            <span data-fp="gantt-duration">{rowDuration(snap)}</span>
-          </div>
-        ))}
-        {untimed && (
-          <div data-fp="gantt-no-timing" title={NO_TIMING_HINT}>
-            {NO_TIMING_NOTE}
-          </div>
-        )}
+      <div className={className} style={style} data-fp="gantt-timeline"
+        data-timing={untimed ? "none" : undefined} data-expanded={showAll} data-max-visible={maxVisibleRows}>
+        <div data-fp="gantt-header">
+          <span>{size === "compact" ? "Timeline" : "Execution Timeline"}</span>
+          {collapsible && <FootprintButton defaultStyle={undefined} onClick={() => setExpanded(value => !value)} aria-expanded={expanded}>
+            {expanded ? "Collapse" : `${snapshots.length - maxVisibleRows} more...`}
+          </FootprintButton>}
+        </div>
+        <div role="listbox" aria-label="Execution timeline">
+          {snapshots.map((snap, idx) => {
+            const geometry = barGeometry(snap, idx);
+            return <div key={`${snap.stageName}-${idx}`} data-fp="gantt-bar"
+              data-selected={idx === selectedIndex} data-visible={idx <= selectedIndex}
+              data-left-pct={geometry.leftPct} data-width-pct={geometry.widthPct}
+              role="option" aria-selected={idx === selectedIndex} aria-label={rowLabel(snap, idx)}
+              tabIndex={onSelect ? 0 : undefined}
+              onClick={() => onSelect?.(idx)} onKeyDown={event => {
+                if (onSelect && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelect(idx); }
+              }}>
+              <span data-fp="gantt-label">{snap.stageLabel}</span>
+              <span data-fp="gantt-duration">{rowDuration(snap)}</span>
+            </div>;
+          })}
+        </div>
+        {untimed ? <div data-fp="gantt-no-timing" title={NO_TIMING_HINT}>{NO_TIMING_NOTE}</div>
+          : <div data-fp="gantt-axis"><span>0ms</span>{size !== "compact" && <span>{(totalWallTime / 2).toFixed(1)}ms</span>}<span>{totalWallTime.toFixed(1)}ms</span></div>}
       </div>
     );
   }
@@ -133,9 +133,10 @@ export function GanttTimeline({
       className={className}
       // `theme="light"` stamps the light preset here, so a timeline mounted
       // on its own follows the host app instead of the dark fallbacks.
-      style={{ ...themeModeVars(themeMode), padding: pad, fontFamily: theme.fontSans, ...style }}
+      style={{ ...themeModeVars(themeMode), padding: ui.padding, fontFamily: theme.fontSans, ...style }}
       data-fp="gantt-timeline"
       data-timing={untimed ? "none" : undefined}
+      data-expanded={showAll} data-max-visible={maxVisibleRows}
     >
       {/* Header with collapse toggle */}
       <div
@@ -147,8 +148,8 @@ export function GanttTimeline({
       >
         <span
           style={{
-            fontSize: fs.label,
-            fontWeight: 600,
+            fontSize: ui.label,
+            fontWeight: ui.weightStrong,
             color: theme.textMuted,
             textTransform: "uppercase",
             letterSpacing: "0.08em",
@@ -157,15 +158,16 @@ export function GanttTimeline({
           {size === "compact" ? "Timeline" : "Execution Timeline"}
         </span>
         {collapsible && (
-          <button
+          <FootprintButton
             onClick={() => setExpanded((e) => !e)}
-            style={{
+            aria-expanded={expanded}
+            defaultStyle={{
               background: "none",
-              border: `1px solid ${theme.border}`,
-              borderRadius: 4,
+              border: `${ui.borderWidth} solid ${theme.border}`,
+              borderRadius: ui.radiusControl,
               color: theme.textSecondary,
-              fontSize: fs.small,
-              padding: "2px 8px",
+              fontSize: ui.small,
+              padding: `calc(${ui.spaceXs} / 2) ${ui.spaceSm}`,
               cursor: "pointer",
               fontFamily: theme.fontSans,
             }}
@@ -173,7 +175,7 @@ export function GanttTimeline({
             {expanded
               ? "Collapse"
               : `${snapshots.length - maxVisibleRows} more...`}
-          </button>
+          </FootprintButton>
         )}
       </div>
 
@@ -183,10 +185,10 @@ export function GanttTimeline({
         role="listbox"
         aria-label="Execution timeline"
         style={{
-          marginTop: 8,
+          marginTop: ui.spaceSm,
           display: "flex",
           flexDirection: "column",
-          gap: 4,
+          gap: ui.spaceXs,
           ...(showAll
             ? {}
             : {
@@ -205,7 +207,12 @@ export function GanttTimeline({
             <div
               key={`${snap.stageName}-${idx}`}
               ref={isSelected ? activeRowRef : undefined}
+              data-fp="gantt-bar" data-selected={isSelected} data-visible={isVisible}
               role="option"
+              tabIndex={onSelect ? 0 : undefined}
+              onKeyDown={event => {
+                if (onSelect && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onSelect(idx); }
+              }}
               aria-selected={isSelected}
               aria-label={rowLabel(snap, idx)}
               onClick={() => onSelect?.(idx)}
@@ -215,18 +222,19 @@ export function GanttTimeline({
                 gap: size === "compact" ? 4 : 8,
                 cursor: onSelect ? "pointer" : "default",
                 opacity: isVisible ? 1 : 0.3,
-                transition: "opacity 0.3s ease",
+                transition: motion ? `opacity ${ui.duration} ${ui.easing}` : "none",
                 height: rowHeight,
                 flexShrink: 0,
               }}
             >
               <span
+                data-fp="gantt-label"
                 title={snap.stageLabel}
                 style={{
                   width: labelWidth,
-                  fontSize: fs.small,
+                  fontSize: ui.small,
                   color: isSelected ? theme.primary : theme.textMuted,
-                  fontWeight: isSelected ? 600 : 400,
+                  fontWeight: isSelected ? ui.weightStrong : ui.weightNormal,
                   textAlign: "right",
                   flexShrink: 0,
                   overflow: "hidden",
@@ -242,7 +250,7 @@ export function GanttTimeline({
                   height: size === "compact" ? 6 : 8,
                   position: "relative",
                   background: theme.bgTertiary,
-                  borderRadius: 3,
+                  borderRadius: ui.radiusControl,
                 }}
               >
                 {isVisible && (
@@ -253,16 +261,16 @@ export function GanttTimeline({
                       top: 0,
                       width: `${widthPct}%`,
                       height: "100%",
-                      borderRadius: 3,
+                      borderRadius: ui.radiusControl,
                       background: isSelected ? theme.primary : theme.success,
-                      transition: "width 0.3s ease",
+                      transition: motion ? `width ${ui.duration} ${ui.easing}` : "none",
                     }}
                   />
                 )}
               </div>
-              <span
+              <span data-fp="gantt-duration"
                 style={{
-                  fontSize: fs.small,
+                  fontSize: ui.small,
                   color: theme.textMuted,
                   fontFamily: theme.fontMono,
                   width: msWidth,
@@ -284,11 +292,11 @@ export function GanttTimeline({
           data-fp="gantt-no-timing"
           title={NO_TIMING_HINT}
           style={{
-            marginTop: 6,
-            fontSize: fs.small,
+            marginTop: ui.controlGap,
+            fontSize: ui.small,
             color: theme.textMuted,
             fontStyle: "italic",
-            lineHeight: 1.4,
+            lineHeight: ui.lineHeight,
           }}
         >
           {NO_TIMING_NOTE}
@@ -296,12 +304,12 @@ export function GanttTimeline({
       ) : (
         <div
           style={{
-            marginTop: 4,
+            marginTop: ui.spaceXs,
             marginLeft: labelWidth + (size === "compact" ? 4 : 8),
             marginRight: msWidth + (size === "compact" ? 4 : 8),
             display: "flex",
             justifyContent: "space-between",
-            fontSize: fs.small - 1,
+            fontSize: `calc(${ui.small} - 1px)`,
             color: theme.textMuted,
             fontFamily: theme.fontMono,
           }}

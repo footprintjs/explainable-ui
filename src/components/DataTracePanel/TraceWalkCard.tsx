@@ -1,3 +1,4 @@
+import { FootprintCode, FootprintButton, FootprintIcon, FootprintTooltip } from "../../theme";
 /**
  * TraceWalkCard — the "WHY THIS VALUE" stop card for Same-Rail Rewind.
  *
@@ -19,7 +20,7 @@ import { buildTraceDependencyGraph } from "../../trace/traceDependencyGraph";
 import { traceIngredientColor, traceNodeColors } from "../../trace/traceWorkflowOverlay";
 import { memo, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
-import { fontSize, theme } from "../../theme";
+import { componentStyles, theme } from "../../theme";
 import type { BaseComponentProps, Size } from "../../types";
 import {
   formatTraceWalk,
@@ -38,7 +39,7 @@ const PAINT: Sx = (s) => s;
 const BARE: Sx = () => undefined;
 
 /** The type scale for one card, resolved from its `size`. */
-type Fs = (typeof fontSize)[Size];
+type Ui = ReturnType<typeof componentStyles>;
 
 export interface TraceWalkCardProps extends BaseComponentProps {
   walk: TraceWalk;
@@ -104,7 +105,8 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   style,
 }: TraceWalkCardProps) {
   const presentation = walk.scope;
-  const fs = fontSize[size];
+  const ui = componentStyles(size);
+  const controls = { unstyled, densitySize: size };
   const sx = unstyled ? BARE : PAINT;
   const [copied, setCopied] = useState(false);
   const accent = "var(--fp-accent, #6366f1)";
@@ -145,19 +147,19 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         className={className}
         data-fp="trace-walk-card"
         data-missing={walk.missing.reason}
-        style={{ ...sx({ padding: "14px", fontSize: fs.body + 1, lineHeight: 1.55 }), ...style }}
+        style={{ ...sx({ padding: `calc(${ui.padding} + 2px)`, fontSize: `calc(${ui.body} + 1px)`, lineHeight: ui.lineHeight, fontFamily: theme.fontSans, fontWeight: ui.weightNormal }), ...style }}
       >
-        <CardHeader label={`Why this value — \`${walk.key}\``} onExit={onExit} exitLabel={exitLabel} exitAriaLabel={exitAriaLabel} sx={sx} fs={fs} />
-        <QuestionTrail entries={questionTrail} onReturn={onReturnToQuestion} sx={sx} fs={fs} />
+        <CardHeader label={`Why this value — \`${walk.key}\``} onExit={onExit} exitLabel={exitLabel} exitAriaLabel={exitAriaLabel} sx={sx} ui={ui} size={size} unstyled={unstyled} />
+        <QuestionTrail entries={questionTrail} onReturn={onReturnToQuestion} sx={sx} ui={ui} size={size} unstyled={unstyled} />
         {scopeSentence(presentation) && <div data-fp="trace-scope-note">{scopeSentence(presentation)}</div>}
-        <div style={sx({ color: theme.textPrimary, marginTop: 8 })}>
+        <div style={sx({ color: theme.textPrimary, marginTop: ui.spaceSm })}>
           {walk.missing.reason === "evidence-unavailable" ? (
-            <><code>{walk.key}</code>: write evidence is unavailable; value origin unknown.</>
+            <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{walk.key}</FootprintCode>: write evidence is unavailable; value origin unknown.</>
           ) : walk.missing.reason === "never-written" ? (
-            <><code style={sx({color:accent})}>{walk.key}</code>: {inputLabel}.</>
+            <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{walk.key}</FootprintCode>: {inputLabel}.</>
           ) : (
             <>
-              <code style={sx({ color: accent })}>{walk.key}</code> has <b>not been written yet at this
+              <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{walk.key}</FootprintCode> has <b>not been written yet at this
               moment</b> — its first write happens later
               {walk.missing.firstWriterStageName && (
                 <>
@@ -185,7 +187,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
     <div
       className={className}
       data-fp="trace-walk-card"
-      style={{ ...sx({ padding: "10px 14px 14px", fontSize: fs.body + 1, lineHeight: 1.5 }), ...style }}
+      style={{ ...sx({ padding: `calc(${ui.spaceSm} + 2px) calc(${ui.padding} + 2px) calc(${ui.padding} + 2px)`, fontSize: `calc(${ui.body} + 1px)`, lineHeight: ui.lineHeight, fontFamily: theme.fontSans, fontWeight: ui.weightNormal }), ...style }}
     >
       <CardHeader
         label={`Why ${recordedPathLabel(walk.key)}?`}
@@ -193,27 +195,28 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         exitLabel={exitLabel}
         exitAriaLabel={exitAriaLabel}
         sx={sx}
-        fs={fs}
+        ui={ui} size={size} unstyled={unstyled}
       />
 
-      <QuestionTrail entries={questionTrail} onReturn={onReturnToQuestion} sx={sx} fs={fs} />
-      <div style={sx({ marginTop: 7, fontSize: fs.label, color: theme.textSecondary })}>
+      <QuestionTrail entries={questionTrail} onReturn={onReturnToQuestion} sx={sx} ui={ui} size={size} unstyled={unstyled} />
+      <div style={sx({ marginTop: ui.spaceSm, fontSize: ui.label, color: theme.textSecondary })}>
         Recorded stop {currentIdx + 1} of {walk.stops.length}
       </div>
 
       {viaKey && !questionTrail?.length && (
-        <div data-fp="twc-breadcrumb" style={sx({ fontSize: fs.label, color: theme.textMuted, marginTop: 4 })}>
-              <code style={sx({ color: accent })}>{walk.key}</code> ▸ via <code>{viaKey}</code>
+        <div data-fp="twc-breadcrumb" style={sx({ fontSize: ui.label, color: theme.textMuted, marginTop: ui.spaceXs })}>
+              <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{walk.key}</FootprintCode> ▸ via <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{viaKey}</FootprintCode>
           {onShowAll && (
             <>
               {" · "}
-              <button
+              <FootprintButton {...controls}
                 type="button"
                 onClick={onShowAll}
-                style={sx({ border: "none", background: "transparent", color: accent, cursor: "pointer", fontSize: fs.label, textDecoration: "underline", padding: 0 })}
+                part="trace-show-all"
+                defaultStyle={sx({ border: "none", background: "transparent", color: accent, cursor: "pointer", minHeight: ui.controlHeight, fontSize: ui.label, textDecoration: "underline", padding: 0 })}
               >
                 show all ingredients
-              </button>
+              </FootprintButton>
             </>
           )}
         </div>
@@ -221,23 +224,23 @@ export const TraceWalkCard = memo(function TraceWalkCard({
 
       {scopeSentence(presentation) && <div data-fp="trace-scope-note">{scopeSentence(presentation)}</div>}
       {/* ── THIS STOP ── */}
-      <div data-fp="twc-stop-headline" style={sx({ marginTop: 10, fontWeight: 600, color: theme.textPrimary })}>
-        {step && <span style={sx({ color: theme.textSecondary, fontWeight: 500 })}>Execution step {step} · </span>}
+      <div data-fp="twc-stop-headline" style={sx({ marginTop: `calc(${ui.spaceSm} + 2px)`, fontWeight: ui.weightStrong, color: theme.textPrimary })}>
+        {step && <span style={sx({ color: theme.textSecondary, fontWeight: ui.weightMedium })}>Execution step {step} · </span>}
         {current.stageName}
         {current.loopPass > 0 && (
-          <span style={sx({ color: theme.textMuted, fontWeight: 500 })}> (pass {current.loopPass})</span>
+          <span style={sx({ color: theme.textMuted, fontWeight: ui.weightMedium })}> (pass {current.loopPass})</span>
         )}
       </div>
-      <div style={sx({ marginTop: 2, color: theme.textSecondary })}>
+      <div style={sx({ marginTop: `calc(${ui.spaceXs} / 2)`, color: theme.textSecondary })}>
         wrote{" "}
         {current.contributedKeys.map((k, i) => (
-          <code key={k} style={sx({ color: accent })}>
+          <FootprintCode {...controls} part="trace-value" key={k} defaultStyle={sx({ color: accent })}>
             {i > 0 && ", "}
             {recordedPathLabel(k)}
-          </code>
+          </FootprintCode>
         ))}
         {preview !== null && (
-          <span style={sx({ color: theme.textPrimary, fontWeight: 600 })}> = {preview}</span>
+          <span style={sx({ color: theme.textPrimary, fontWeight: ui.weightStrong })}> = {preview}</span>
         )}
       </div>
 
@@ -249,18 +252,18 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         <div
           data-fp="twc-fork-chooser"
           style={sx({
-            marginTop: 10,
-            padding: "10px 12px",
-            border: `1.5px solid ${tracingColor}`,
-            borderRadius: 8,
+            marginTop: `calc(${ui.spaceSm} + 2px)`,
+            padding: `calc(${ui.spaceSm} + 2px) ${ui.padding}`,
+            border: `calc(${ui.borderWidth} * 1.5) solid ${tracingColor}`,
+            borderRadius: ui.radiusPanel,
             background: `color-mix(in srgb, ${tracingColor} 8%, transparent)`,
           })}
         >
-          <div style={sx({ fontWeight: 600, fontSize: fs.body, color: theme.textPrimary })}>
+          <div style={sx({ fontWeight: ui.weightStrong, fontSize: ui.body, color: theme.textPrimary })}>
             This step has {current.ingredients.length} recorded state reads. Which source should
             the walk follow?
           </div>
-          <div style={sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 })}>
+          <div style={sx({ display: "flex", flexWrap: "wrap", gap: ui.controlGap, marginTop: ui.spaceSm })}>
             {current.ingredients.map(ing => (
               <IngredientChip
                 key={ing.key}
@@ -269,33 +272,33 @@ export const TraceWalkCard = memo(function TraceWalkCard({
                 step={ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null}
                 onFollow={onFollowIngredient}
                 sx={sx}
-                fs={fs}
+                ui={ui} size={size} unstyled={unstyled}
                 inputLabel={inputSentence(presentation, ing.key)}
               />
             ))}
           </div>
-          <button
+          <FootprintButton {...controls}
             type="button"
-            data-fp="twc-continue-time"
+            data-fp="twc-continue-time" part="trace-continue"
             onClick={canContinueTimeOrder ? onContinueTimeOrder : undefined}
             disabled={!canContinueTimeOrder}
             title={canContinueTimeOrder ? undefined : "This is the walk's earliest stop — there is nothing earlier to visit"}
-            style={sx({
+            defaultStyle={sx({
               display: "block",
               width: "100%",
-              marginTop: 8,
-              border: `1px solid ${theme.border}`,
+              marginTop: ui.spaceSm,
+              border: `${ui.borderWidth} solid ${theme.border}`,
               background: theme.bgTertiary,
               color: theme.textPrimary,
-              borderRadius: 6,
-              padding: "5px 10px",
-              fontSize: fs.label,
-              fontWeight: 600,
+              borderRadius: ui.radiusControl,
+              padding: ui.controlPadding, minHeight: ui.controlHeight,
+              fontSize: ui.label,
+              fontWeight: ui.weightStrong,
               cursor: "pointer",
             })}
           >
             visit all recorded steps (newest first)
-          </button>
+          </FootprintButton>
         </div>
       )}
 
@@ -303,14 +306,14 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           while the chooser is open, which shows the SAME chips as the
           question; rendering both would be noise (implementer's own note,
           promoted to a fix). ── */}
-      <div style={sx({ marginTop: 10 })}>
+      <div style={sx({ marginTop: `calc(${ui.spaceSm} + 2px)` })}>
         {atInvocationStart ? <div data-fp="twc-boundary">{START_SENTENCE}.</div> : boundary ? <div data-fp="twc-boundary">subflow boundary: {boundary}; drill in to inspect its local record.</div> : chooserVisible ? null : current.ingredients.length > 0 ? (
           <>
-            <div style={sx({ fontSize: fs.label, color: theme.textSecondary, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600 })}>
+            <div style={sx({ fontSize: ui.label, color: theme.textSecondary, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: ui.weightStrong })}>
               Recorded state reads ({current.ingredients.length})
             </div>
-            {followableCount > 1 && <div style={sx({ marginTop: 4, fontSize: fs.label, color: theme.textSecondary })}>Choose a recorded input to follow; these inputs may be independent.</div>}
-            <div style={sx({ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 })}>
+            {followableCount > 1 && <div style={sx({ marginTop: ui.spaceXs, fontSize: ui.label, color: theme.textSecondary })}>Choose a recorded input to follow; these inputs may be independent.</div>}
+            <div style={sx({ display: "flex", flexWrap: "wrap", gap: ui.controlGap, marginTop: ui.controlGap })}>
               {current.ingredients.map(ing => (
                 <IngredientChip
                   key={ing.key}
@@ -319,64 +322,64 @@ export const TraceWalkCard = memo(function TraceWalkCard({
                   step={ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null}
                   onFollow={onFollowIngredient}
                   sx={sx}
-                  fs={fs}
+                  ui={ui} size={size} unstyled={unstyled}
                   inputLabel={inputSentence(presentation, ing.key)}
                 />
               ))}
             </div>
           </>
         ) : walk.readsAvailable ? (
-          <div data-fp="twc-origin" style={sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" })}>
+          <div data-fp="twc-origin" style={sx({ fontSize: ui.body, color: theme.textMuted, fontStyle: "italic" })}>
             No recorded state reads.
           </div>
         ) : (
-          <div data-fp="twc-unknowable" style={sx({ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" })}>
+          <div data-fp="twc-unknowable" style={sx({ fontSize: ui.body, color: theme.textMuted, fontStyle: "italic" })}>
             ⚠ reads were not recorded — dependencies are unknowable, not absent.
           </div>
         )}
       </div>
 
-      {!!current.handoffSources?.length && <div data-fp="twc-handoff" style={sx({ marginTop: 10 })}>
-        <div style={sx({ fontSize: fs.label, color: theme.textMuted })}>{handoffSentence(current.handoffSources)}</div>
-        {onFollowHandoff && current.handoffSources.map(source => <button
+      {!!current.handoffSources?.length && <div data-fp="twc-handoff" style={sx({ marginTop: `calc(${ui.spaceSm} + 2px)` })}>
+        <div style={sx({ fontSize: ui.label, color: theme.textMuted })}>{handoffSentence(current.handoffSources)}</div>
+        {onFollowHandoff && current.handoffSources.map(source => <FootprintButton {...controls}
           key={source.key}
           type="button"
-          data-fp="twc-handoff-source"
+          data-fp="twc-handoff-source" part="trace-handoff"
           aria-label={`Follow child source ${source.key} in ${source.mountRuntimeStageId}`}
           onClick={() => onFollowHandoff(source)}
-          style={sx({ marginTop: 6, marginRight: 6, border: `1px solid ${accent}`, borderRadius: 12, background: "transparent", color: accent, padding: "3px 10px", cursor: "pointer", fontSize: fs.label })}
-        >Follow child source <code>{source.key}</code></button>)}
+          defaultStyle={sx({ marginTop: ui.controlGap, marginRight: ui.controlGap, border: `${ui.borderWidth} solid ${accent}`, borderRadius: ui.radiusBadge, background: "transparent", color: accent, padding: `calc(${ui.spaceXs} - 1px) calc(${ui.controlPaddingX} + 2px)`, minHeight: ui.controlHeight, cursor: "pointer", fontSize: ui.label })}
+        >Follow child source <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{source.key}</FootprintCode></FootprintButton>)}
       </div>}
 
       {/* ── Itinerary (the whole walk; current row highlighted) ── */}
-      <div style={sx({ marginTop: 14 })}>
-        <div style={sx({ fontSize: fs.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 600, marginBottom: 4 })}>
+      <div style={sx({ marginTop: ui.spaceLg })}>
+        <div style={sx({ fontSize: ui.label, color: theme.textMuted, textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: ui.weightStrong, marginBottom: ui.spaceXs })}>
           Recorded steps, newest first
         </div>
         {walk.stops.map((s, i) => {
           const isCurrent = i === currentIdx;
           return (
-            <button
+            <FootprintButton {...controls}
               type="button"
               key={s.runtimeStageId}
-              data-fp="twc-itinerary-row"
+              data-fp="twc-itinerary-row" part="trace-itinerary-stop"
               data-current={isCurrent || undefined}
               onClick={() => onJumpToStop?.(s.runtimeStageId)}
-              style={sx({
+              defaultStyle={sx({
                 display: "block",
                 width: "100%",
                 textAlign: "left",
                 border: "none",
-                borderLeft: isCurrent ? `3px solid ${accent}` : "3px solid transparent",
+                borderLeft: isCurrent ? `calc(${ui.borderWidth} * 3) solid ${accent}` : `calc(${ui.borderWidth} * 3) solid transparent`,
                 background: isCurrent ? "var(--fp-accent-bg, rgba(99,102,241,0.12))" : "transparent",
-                padding: "4px 8px",
+                padding: ui.controlPadding, minHeight: ui.controlHeight,
                 cursor: onJumpToStop ? "pointer" : "default",
                 color: "inherit",
-                fontSize: fs.body,
+                fontSize: ui.body,
               })}
             >
               <span style={sx({ color: theme.textMuted })}>{i + 1}.</span>{" "}
-              <code style={sx({ color: accent })}>{s.contributedKeys.map(recordedPathLabel).join(", ")}</code>
+              <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{s.contributedKeys.map(recordedPathLabel).join(", ")}</FootprintCode>
               <span style={sx({ color: theme.textMuted })}> ← </span>
               {s.stageName}
               {s.loopPass > 0 && <span style={sx({ color: theme.textMuted })}> (pass {s.loopPass})</span>}
@@ -384,46 +387,46 @@ export const TraceWalkCard = memo(function TraceWalkCard({
                 <span style={sx({ color: theme.textMuted })}> · step {stepNumberOf(s.runtimeStageId)}</span>
               )}
               {s.ingredients.length > 1 && (
-                <span style={sx({ color: theme.warning, fontWeight: 600 })}> ⑂ {s.ingredients.length}</span>
+                <span style={sx({ color: theme.warning, fontWeight: ui.weightStrong })}> ⑂ {s.ingredients.length}</span>
               )}
-            </button>
+            </FootprintButton>
           );
         })}
       </div>
 
       {/* ── Honesty footer + parity artifact ── */}
-      <div style={sx({ marginTop: 12, display: "flex", flexDirection: "column", gap: 4 })}>
+      <div style={sx({ marginTop: ui.spaceMd, display: "flex", flexDirection: "column", gap: ui.spaceXs })}>
         {walk.inputTermini.length > 0 && (
-          <div data-fp="twc-run-inputs" style={sx({ fontSize: fs.label, color: theme.textMuted })}>
+          <div data-fp="twc-run-inputs" style={sx({ fontSize: ui.label, color: theme.textMuted })}>
             ⚑ No local writer: {walk.inputTermini.map((k, i) => (
-              <span key={k}>{i > 0 && ", "}<code>{k}</code> ({inputSentence(presentation, k)})</span>
+              <span key={k}>{i > 0 && ", "}<FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{k}</FootprintCode> ({inputSentence(presentation, k)})</span>
             ))}
           </div>
         )}
         {walk.truncated && (
-          <div data-fp="twc-truncated" style={sx({ fontSize: fs.label, color: theme.warning })}>
-            ⚠ trace limited by its frame or depth budget — earlier recorded state reads may be missing.
+          <div data-fp="twc-truncated" style={sx({ fontSize: ui.label, color: theme.warning })}>
+            <FootprintIcon {...controls} name="warning" part="trace-warning-icon" defaultStyle={sx({ color: theme.warning, fontSize: ui.iconSize })}>⚠</FootprintIcon> trace limited by its frame or depth budget — earlier recorded state reads may be missing.
           </div>
         )}
-        <button
+        <FootprintButton {...controls}
           type="button"
-          data-fp="twc-copy-story"
+          data-fp="twc-copy-story" part="trace-copy"
           onClick={copyStory}
-          style={sx({
+          defaultStyle={sx({
             alignSelf: "flex-start",
-            marginTop: 4,
-            border: `1px solid ${theme.border}`,
+            marginTop: ui.spaceXs,
+            border: `${ui.borderWidth} solid ${theme.border}`,
             background: theme.bgTertiary,
             color: theme.textPrimary,
-            borderRadius: 6,
-            padding: "4px 10px",
-            fontSize: fs.label,
-            fontWeight: 600,
+            borderRadius: ui.radiusControl,
+            padding: ui.controlPadding, minHeight: ui.controlHeight,
+            fontSize: ui.label,
+            fontWeight: ui.weightStrong,
             cursor: "pointer",
           })}
         >
           {copied ? "Copied ✓" : "Copy story"}
-        </button>
+        </FootprintButton>
       </div>
     </div>
   );
@@ -435,62 +438,70 @@ function CardHeader({
   exitLabel,
   exitAriaLabel,
   sx,
-  fs,
+  ui,
+  size,
+  unstyled,
 }: {
   label: string;
   onExit?: () => void;
   exitLabel?: string;
   exitAriaLabel?: string;
   sx: Sx;
-  fs: Fs;
+  ui: Ui;
+  size: Size;
+  unstyled: boolean;
 }) {
+  const controls = { unstyled, densitySize: size };
   return (
     <div style={sx({ display: "flex", alignItems: "center", justifyContent: "space-between",
-      flexWrap: exitLabel !== undefined ? "wrap" : undefined, gap: exitLabel !== undefined ? 8 : undefined })}>
-      <div style={sx({ fontSize: fs.body + 3, color: theme.textPrimary, fontWeight: 700, overflowWrap: "anywhere", minWidth: 0 })}>
+      flexWrap: exitLabel !== undefined ? "wrap" : undefined, gap: exitLabel !== undefined ? ui.spaceSm : undefined })}>
+      <div style={sx({ fontSize: ui.title, color: theme.textPrimary, fontWeight: ui.weightStrong, overflowWrap: "anywhere", minWidth: 0 })}>
         {label}
       </div>
       {onExit && (
-        <button
+        <FootprintButton {...controls}
           type="button"
-          data-fp="twc-exit"
+          data-fp="twc-exit" part="trace-exit"
           onClick={onExit}
           aria-label={exitAriaLabel ?? "Exit tracing"}
-          style={sx({ border: "none", background: "transparent", color: theme.textMuted, cursor: "pointer", fontSize: fs.body,
+          defaultStyle={sx({ border: "none", background: "transparent", color: theme.textMuted, cursor: "pointer", fontSize: ui.body, minHeight: ui.controlHeight,
             ...(exitLabel !== undefined ? { maxWidth: "100%", overflowWrap: "anywhere", textAlign: "left" } : {}) })}
         >
           {exitLabel ?? "Done ✕"}
-        </button>
+        </FootprintButton>
       )}
     </div>
   );
 }
 
-function QuestionTrail({ entries, onReturn, sx, fs }: {
+function QuestionTrail({ entries, onReturn, sx, ui, size, unstyled }: {
   entries: TraceWalkCardProps["questionTrail"];
   onReturn: TraceWalkCardProps["onReturnToQuestion"];
   sx: Sx;
-  fs: Fs;
+  ui: Ui;
+  size: Size;
+  unstyled: boolean;
 }) {
+  const controls = { unstyled, densitySize: size };
   if (!entries || entries.length < 2) return null;
   const previous = entries[entries.length - 2];
-  return <nav aria-label="Investigation trail" data-fp="twc-question-trail" style={sx({ marginTop: 10, padding: "9px 10px", border: `1px solid ${theme.border}`, borderRadius: 7, background: theme.bgSecondary })}>
-    <div style={sx({ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 5, fontSize: fs.label })}>
-      {entries.map((entry, index) => <span key={`${index}:${entry.key}`} style={sx({ display: "inline-flex", alignItems: "center", gap: 5 })}>
+  return <nav aria-label="Investigation trail" data-fp="twc-question-trail" style={sx({ marginTop: `calc(${ui.spaceSm} + 2px)`, padding: `${ui.spaceSm} calc(${ui.controlPaddingX} + 2px)`, border: `${ui.borderWidth} solid ${theme.border}`, borderRadius: ui.radiusPanel, boxShadow: ui.shadowPanel, background: theme.bgSecondary })}>
+    <div style={sx({ display: "flex", flexWrap: "wrap", alignItems: "center", gap: ui.controlGap, fontSize: ui.label })}>
+      {entries.map((entry, index) => <span key={`${index}:${entry.key}`} style={sx({ display: "inline-flex", alignItems: "center", gap: ui.controlGap })}>
         {index > 0 && <span aria-hidden="true">›</span>}
-        {index === entries.length - 1 ? <span aria-current="step"><code>{recordedPathLabel(entry.key)}</code></span> : <button type="button" onClick={() => onReturn?.(index)} disabled={!onReturn}
+        {index === entries.length - 1 ? <span aria-current="step"><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(entry.key)}</FootprintCode></span> : <FootprintButton {...controls} part="trace-question-return" type="button" onClick={() => onReturn?.(index)} disabled={!onReturn}
           aria-label={`Return to ${entry.key} in ${entry.invocationPath.join(" → ") || "root"}`}
           title={`${entry.invocationPath.length ? entry.invocationPath.join(" → ") : "Root"}: ${entry.key}`}
-          style={sx({ padding: 0, border: "none", background: "transparent", color: theme.accent, cursor: "pointer", textDecoration: "underline", fontSize: fs.label })}>
-          <code>{recordedPathLabel(entry.key)}</code>
-        </button>}
+          defaultStyle={sx({ padding: 0, border: "none", background: "transparent", color: theme.accent, cursor: "pointer", textDecoration: "underline", fontSize: ui.label, minHeight: ui.controlHeight })}>
+          <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(entry.key)}</FootprintCode>
+        </FootprintButton>}
       </span>)}
     </div>
-    <button type="button" onClick={() => onReturn?.(entries.length - 2)} disabled={!onReturn}
-      style={sx({ display: "block", marginTop: 7, border: "none", background: "transparent", color: theme.textPrimary, fontSize: fs.body, cursor: "pointer", padding: 0, fontWeight: 600 })}>
-      ← Back to <code>{recordedPathLabel(previous.key)}</code>
+    <FootprintButton {...controls} part="trace-question-back" type="button" onClick={() => onReturn?.(entries.length - 2)} disabled={!onReturn}
+      defaultStyle={sx({ display: "block", marginTop: ui.spaceSm, border: "none", background: "transparent", color: theme.textPrimary, fontSize: ui.body, cursor: "pointer", padding: 0, minHeight: ui.controlHeight, fontWeight: ui.weightStrong })}>
+      ← Back to <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(previous.key)}</FootprintCode>
       {previous.invocationPath.length !== entries[entries.length - 1].invocationPath.length ? " in parent" : ""}
-    </button>
+    </FootprintButton>
   </nav>;
 }
 
@@ -500,7 +511,9 @@ function IngredientChip({
   step,
   onFollow,
   sx,
-  fs,
+  ui,
+  size,
+  unstyled,
   inputLabel,
 }: {
   ing: TraceIngredient;
@@ -509,44 +522,46 @@ function IngredientChip({
   step: number | null;
   onFollow?: (ing: TraceIngredient) => void;
   sx: Sx;
-  fs: Fs;
+  ui: Ui;
+  size: Size;
+  unstyled: boolean;
 }) {
+  const controls = { unstyled, densitySize: size };
   const terminus = !ing.writerRuntimeStageId;
+  const tooltip = terminus ? `${ing.key}: ${inputLabel}` : `Follow ${ing.key} — re-anchor the walk on its writer`;
   return (
-    <button
+    <FootprintTooltip {...controls} part="trace-ingredient-tooltip" content={tooltip} title="">
+    <FootprintButton {...controls}
       type="button"
-      data-fp="twc-ingredient"
+      data-fp="twc-ingredient" part="trace-ingredient"
       data-terminus={terminus || undefined}
       disabled={terminus || !onFollow}
       onClick={() => onFollow?.(ing)}
-      title={
-        terminus
-          ? `${ing.key}: ${inputLabel}`
-          : `Follow ${ing.key} — re-anchor the walk on its writer`
-      }
-      style={sx({
+      title={tooltip}
+      defaultStyle={sx({
         display: "inline-flex",
         alignItems: "center",
-        gap: 4,
-        border: `1px solid ${terminus ? theme.border : color}`,
+        gap: ui.spaceXs,
+        border: `${ui.borderWidth} solid ${terminus ? theme.border : color}`,
         background: "transparent",
         color: terminus ? theme.textMuted : color,
-        borderRadius: 12,
-        padding: "3px 10px",
-        fontSize: fs.label,
-        fontWeight: 600,
+        borderRadius: ui.radiusBadge,
+        padding: `calc(${ui.spaceXs} - 1px) calc(${ui.controlPaddingX} + 2px)`, minHeight: ui.controlHeight,
+        fontSize: ui.label,
+        fontWeight: ui.weightStrong,
         cursor: terminus || !onFollow ? "default" : "pointer",
       })}
     >
-      <code>{recordedPathLabel(ing.key)}</code>
+      <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(ing.key)}</FootprintCode>
       {terminus ? (
-        <span style={sx({ fontWeight: 400 })}>— {inputLabel} ⚑</span>
+        <span style={sx({ fontWeight: ui.weightNormal })}>— {inputLabel} ⚑</span>
       ) : (
-        <span style={sx({ fontWeight: 400 })}>
+        <span style={sx({ fontWeight: ui.weightNormal })}>
           ← {ing.writerStageName}
           {step && ` · step ${step}`}
         </span>
       )}
-    </button>
+    </FootprintButton>
+    </FootprintTooltip>
   );
 }

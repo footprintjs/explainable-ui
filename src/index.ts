@@ -1,9 +1,19 @@
 // Types
+export { useLensWorkbench } from "./components/ExplainableShell/LensWorkbench";
+export type { LensTheme, LensWorkbenchContextValue, LensWorkbenchActions, LensWorkbenchSurfaces, LensWorkbenchLayout } from "./components/ExplainableShell/LensWorkbench";
 export * from "./components/GroupedFlowDiagram";
 export type { StageSnapshot, Size, BaseComponentProps, NarrativeEntry } from "./types";
 
 // Theme
-export { FootprintTheme, useFootprintTheme } from "./theme";
+export { FootprintTheme, useFootprintTheme, componentStyles,
+  useFootprintComponents, FootprintButton, FootprintTab, FootprintInput,
+  FootprintCheckbox, FootprintBadge, FootprintCode, FootprintTooltip, FootprintIcon,
+} from "./theme";
+export type { FootprintThemeProps, FootprintComponents, FootprintPrimitiveOptions,
+  FootprintButtonProps, FootprintInputProps, FootprintCheckboxProps, FootprintBadgeProps,
+  FootprintCodeProps, FootprintTooltipProps, FootprintTooltipAdapterProps,
+  FootprintIconProps, FootprintIconAdapterProps,
+} from "./theme";
 export { tokensToCSSVars, defaultTokens, rawDefaults } from "./theme";
 export { themePresets, coolDark, coolLight, warmDark, warmLight } from "./theme";
 export { useDarkModeTokens } from "./theme";

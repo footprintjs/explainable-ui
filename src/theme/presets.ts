@@ -1,4 +1,4 @@
-import type { ThemeTokens } from "./tokens";
+import { rawDefaults, type ThemeTokens } from "./tokens";
 
 /**
  * Built-in palettes.
@@ -17,7 +17,9 @@ import type { ThemeTokens } from "./tokens";
 
 /** Cool dark theme (the library default) */
 export const coolDark: ThemeTokens = {
+  ...rawDefaults,
   colors: {
+    ...rawDefaults.colors,
     primary: "#6366f1",
     success: "#22c55e",
     error: "#ef4444",
@@ -51,7 +53,9 @@ export const coolDark: ThemeTokens = {
 
 /** Warm dark theme — charcoal-purple palette */
 export const warmDark: ThemeTokens = {
+  ...rawDefaults,
   colors: {
+    ...rawDefaults.colors,
     primary: "#7c6cf0",
     success: "#3dd68c",
     error: "#f06292",
@@ -85,7 +89,9 @@ export const warmDark: ThemeTokens = {
 
 /** Warm light theme — cream/peach palette */
 export const warmLight: ThemeTokens = {
+  ...rawDefaults,
   colors: {
+    ...rawDefaults.colors,
     primary: "#7c6cf0",
     success: "#22a860",
     error: "#d94452",
@@ -119,7 +125,9 @@ export const warmLight: ThemeTokens = {
 
 /** Cool light theme — neutral grays, matches Tailwind zinc palette */
 export const coolLight: ThemeTokens = {
+  ...rawDefaults,
   colors: {
+    ...rawDefaults.colors,
     primary: "#6366f1",
     success: "#22c55e",
     error: "#ef4444",

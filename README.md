@@ -45,8 +45,8 @@ npm install @xyflow/react
 
 ## Which component do I mount?
 
-Several all-in-one components ship here, and a fifth front door lives one
-package over. This is the ladder — take the **first** row your run matches,
+Several all-in-one components ship here, with an agent viewer one package
+over. Take the **first** row your run matches,
 and read the last column before you skip one.
 
 | If your run is… | Mount | It gives you | It costs you |
@@ -54,7 +54,8 @@ and read the last column before you skip one.
 | an **agentfootprint agent run** you recorded (`recordRun` → `{ snapshot, events, structure }`) | [`footprint-viewer`](https://www.npmjs.com/package/footprint-viewer) — a separate package | The whole experience with zero config: Story, Why, Flow, Skill Graph and Data as five tabs over **one shared cursor**, wired for you — or refused in a sentence that names what you passed | Three more packages (`agentfootprint`, `agentfootprint-lens`, and `agentthinkingui` for the Story tab), and a layout that is the viewer's rather than yours |
 | a **footprintjs pipeline run**, live in your app (`executor.getSnapshot()` + a `TraceGraph`) | `ExplainableShell` — this library | Chart + topology tree + inspector + story + timeline + the value-tracing rail, from two props | The agent readings. There is no Story / Why / Skill Graph here: this is the commit-trace lens. (The viewer refuses a bare footprintjs snapshot for exactly that reason — and names this shell as where to go) |
 | a **saved footprintjs run** on disk (`{ snapshot, structure }`) | `TraceViewer` | The same shell from one prop, with parse errors and honest gaps stated on screen instead of an empty frame | Nothing the shell has — it *is* the shell plus the file-reading |
-| a saved run whose **layout must be yours** | `ExplainableProvider` + the surfaces (or `ExplainableView` with a `layout`) | Every surface as its own component, all moving one cursor; presets, CSS-grid areas, and per-surface `slots` | The shell's richer topology, subflow drill-down and tracing chrome — the surfaces do not re-implement those |
+| a footprintjs run whose **full Lens layout must be yours** | `ExplainableShell` with `renderLayout`, optionally `unstyled` | Ready-made surfaces and actions for the same cursor, exact invocation, drill-down and backtracking | You supply the layout and, in unstyled mode, its presentation |
+| a saved run needing **basic composable panels** | `ExplainableProvider` + the surfaces (or `ExplainableView` with a `layout`) | Basic surfaces moving one cursor; presets, CSS-grid areas and per-surface `slots` | These surfaces do not re-implement the shell's richer topology, subflow drill-down and tracing chrome |
 | a run you want to read as **commits and chains** | `TraceExplorerShell` | The L8 translator stack in one master/detail screen: chain tree, commit inspector, node inspector, cursor slider | It is a parts bin rather than a product surface — you create and attach the translators yourself (`createTraceBundle` does that in one call) |
 
 **Not on the ladder:** `TimeTravelDebugger` is deprecated in 0.38.0 — see
@@ -72,9 +73,10 @@ quiet when you forget them, and nothing errors:
   inspector, the rail and the chart. A hand-mounted inspector simply has no
   rail to hand back to.
 
-So: inside this library, get the cursor from `ExplainableProvider` (that is
-what it is for) rather than passing `selectedIndex` down a tree by hand, and
-keep tracing inside `ExplainableShell`, which owns it end to end. And if you
+Use `ExplainableShell.renderLayout` when your screen needs the complete Lens
+behavior in a custom layout. Its `useLensWorkbench` context shares the shell's
+cursor, invocation and trace actions. For basic composable panels,
+`ExplainableProvider` remains available. If you
 are replacing a pane in `footprint-viewer`, its slots are
 **capability-accounted**: a replacement pane is handed every capability the
 shipped pane had, and a pane that never uses one gets a named console line in
@@ -346,22 +348,81 @@ what it wanted instead of rendering empty chrome.
 | `snapshots` | `StageSnapshot[]` | — | Pre-converted rows, when you called `toVisualizationSnapshots()` yourself. Wins over `runtimeSnapshot` |
 | `traceGraph` | `TraceGraph \| null` | — | The execution chart. From `createTraceStructureRecorder()` live, or `graphFromStructure(saved.structure)` for a recording. It stays available while tracing; Variables offers a separate recorded-read view |
 | `runtimeOverlay` | `RuntimeOverlay \| null` | derived from `runtimeSnapshot` | The executed-path colouring. Usually omit — pass one only for a live `createTraceRuntimeOverlay` handle |
-| `traceTheme` | `TraceTheme` | — | `{ mode: "light" \| "dark" }` re-themes the whole shell in one word; `visited` / `current` override the two node colours |
+| `traceTheme` | `TraceTheme` | — | Existing mode shorthand and `visited` / `current` node-colour overrides |
+| `theme` | `LensTheme` | inherited | `{ mode, tokens, components }` maps the core Lens to your design system; explicit tokens override the selected mode |
 | `narrativeEntries` | `NarrativeEntry[]` | read from the snapshot | Structured narrative. Only needed to override the story the recording carries |
 | `title` | `string` | `"Flowchart"` | Breadcrumb root label |
 | `resultData` | `Record<string, unknown>` | `snapshot.sharedState` | Final output shown on the Result view |
 | `logs` | `string[]` | `[]` | Console lines shown under the result |
-| `defaultTab` | `ShellTab` | first available | Which details tab opens first |
+| `defaultTab` | `ShellTab` | Inspector → Activity | A valid existing tab ID selects its corresponding initial surface; see below |
 | `hideTabs` | `string[]` | — | Details tabs to hide by id (e.g. `["result", "memory"]`) |
 | `hideConsole` | `boolean` | `false` | Hide the console block on the Result view |
 | `recorderViews` | `RecorderView[]` | auto-detected | Extra details tabs. Recorders inside the snapshot already get one each |
 | `panelLabels` | `PanelLabels` | `{ topology: "Topology", details: "Details", timeline: "Timeline" }` | Collapsible pill labels |
 | `defaultExpanded` | `DefaultExpanded` | `{ details: true }` | Which panels start open |
 | `renderFlowchart` | `(props) => ReactNode` | `<TracedFlow>` | Replace the execution chart renderer; it remains mounted when switching between Execution and Variables |
+| `renderLayout` | `LensWorkbenchLayout` | built-in responsive layout | Arrange the full shell's surfaces while retaining its selection, drill-down and backtracking owners |
 | `showStageId` | `boolean` | `false` | Print each node's stable `stageId` under its label (teaching aid) |
 | `autoPlay` | `boolean` | `false` | Play the run by itself when it opens, once per recording. Anything the reader does stops it |
 | `size` | `"compact" \| "default" \| "detailed"` | `"default"` | Size variant |
-| `unstyled` | `boolean` | `false` | Strip styles, render `data-fp` attributes |
+| `unstyled` | `boolean` | `false` | Remove built-in core Lens paint and retain semantic `data-fp` hooks; the default becomes the composite Explainable surface |
+
+### Default template and existing tab IDs
+
+Without a valid `defaultTab`, the shell opens **Inspector → Activity**.
+`defaultTab="result"` opens Result; `"memory"` opens Inspector → State;
+`"narrative"` or an available recorder ID opens Run data. Hidden or unavailable
+IDs do not select an initial lens. In unstyled mode, the default **Explainable**
+composite includes Activity alongside the chart, log and timeline.
+
+Visible labels are **Run log**, **Metrics** and **State**. Existing tab IDs,
+including `narrative` and `memory`, remain unchanged for `defaultTab`, `hideTabs`
+and recorder integrations.
+
+### Own the full Lens layout
+
+`renderLayout` receives a `LensWorkbenchContextValue`. Components rendered
+inside it can read the same value with `useLensWorkbench`:
+
+```tsx
+import { ExplainableShell, useLensWorkbench } from "footprint-explainable-ui";
+
+function CustomerWorkbench() {
+  const { surfaces } = useLensWorkbench();
+  return (
+    <section className="customer-lens">
+      <header>{surfaces.breadcrumb}{surfaces.timeTravel}</header>
+      <div className="customer-lens-columns">
+        <main>{surfaces.chart}</main>
+        <aside>{surfaces.inspector}</aside>
+      </div>
+      {surfaces.navigation}
+    </section>
+  );
+}
+
+<ExplainableShell
+  runtimeSnapshot={snapshot}
+  traceGraph={graph}
+  theme={{ mode: "light" }}
+  renderLayout={() => <CustomerWorkbench />}
+/>;
+```
+
+Give the chart container a height in your layout. These supplied surfaces keep
+the same backtracking, selected visit and subflow drill-down behavior as the
+default shell. Additional surfaces are `topology`, `runData`, `result`,
+`timeline` and `compactTimeline`. The context exposes `snapshots`,
+`selectedIndex`, `selectedSnapshot`, `invocationPath`, `activity`,
+`selectedActivityVariableId`, `traceWalk`, `questionTrail` and `activityOrigin`.
+`narrativeEntries` contains the current scope's full supplied recording;
+custom log renderers must apply their own cursor filtering. Its `actions` are
+`selectIndex`, `selectStage`, `drillDown`, `returnToRoot`, `backtrack`,
+`exitBacktrack`, `followIngredient`, `followHandoff`, `returnToQuestion`,
+`showAllIngredients` and `selectActivityVariable`. Trace targets and returns
+still pass the shell's validation.
+`useLensWorkbench` requires this shell context. `ExplainableView` and
+`ExplainableProvider` continue to provide their separate basic composition API.
 
 ### Inspect one executed stage
 
@@ -412,8 +473,8 @@ The panel keeps its evidence limits visible:
 
 `projectStageActivity` produces the bounded evidence model used by
 `StageActivityPanel`; `formatStageActivitySummary` formats that same projection
-for copying or tools. These APIs are exported from the package root. The
-flowchart entry point is unchanged. Stage source code, algorithm reconstruction
+for copying or tools. These stage-activity APIs are exported from the package
+root. Stage source code, algorithm reconstruction
 and full-flow export are outside this stage-activity view.
 
 Standalone `InspectorPanel` keeps its existing State/Data Trace behavior when
@@ -426,6 +487,31 @@ Hosts can control the inspected variable with
 `StageActivityPanel.selectedVariableId` / `onVariableSelect`, or the wrapping
 Inspector's `selectedActivityVariableId` / `onActivityVariableSelect`. The shell
 uses this selection to return to the same read or write after backtracking.
+
+### Read the run log and metrics
+
+The shell's **Run log** groups exact recorded visits and initially collapses
+their data-operation details. Expanding a group shows the full recorded text;
+the presentation does not shorten or rewrite it. With exact visit IDs, only
+the selected invocation's recorded prefix through the cursor is revealed.
+Missing, unmatched or ambiguous IDs produce an explicit **not synchronized**
+notice and show the supplied scope's entries without selected-step attribution.
+
+Standalone `NarrativePanel` and `StoryNarrative` keep `presentation="entries"`
+as their default; use `presentation="visits"` for visit groups. Following the
+cursor is opt-in: `NarrativePanel.defaultFollowCursor` defaults to `false`.
+**Copy full run debug bundle** deliberately includes the full supplied run,
+other invocations and entries after the cursor. Without a runtime snapshot,
+**Copy recorded log** copies all supplied log entries.
+
+**Metrics** presents recorded per-visit counts and durations in a table. Rows
+must match an exact runtime visit in the current invocation. Selected-step,
+through-this-step and current-flow totals have distinct labels; the source
+recorder's `grandTotal` is never substituted for a drilled child's flow total.
+Missing, invalid, string or non-finite numeric cells stay unavailable, while
+recorded zero remains zero. Legacy stage-name tables are explicitly unscoped:
+they have no selected-step or current-flow totals. Custom recorder views keep
+their generic presentation.
 
 ### Tracing a value — inspect its recorded state reads
 
@@ -547,7 +633,7 @@ Control which panels start open. Desktop default: details panel open (flowchart 
 
 The shell auto-detects container width via `ResizeObserver`:
 
-- **Desktop (≥640px):** 3-column layout — SubflowTree | Flowchart | Memory/Narrative. Side panels collapse to VLinePill handles.
+- **Desktop (≥640px):** 3-column layout — SubflowTree | Flowchart | Inspector/Run data. Side panels collapse to VLinePill handles.
 - **Mobile (<640px):** Stacked vertical — Flowchart (350px) → collapsible HLinePill sections. All panels auto-collapse on narrow.
 
 ### Collapsible Panel UX
@@ -593,6 +679,27 @@ guessing readiness after a fixed number of frames. Automatic fits are immediate;
 they do not start a zoom animation that could outlive the visible container.
 Ordinary replay, selection and overlay updates preserve the user's pan and zoom.
 Manual viewport controls remain available.
+
+#### Customize the chart surface
+
+| Concern | Props |
+|---|---|
+| Node and edge renderers | `nodeTypes`, `edgeTypes`; custom metadata is retained |
+| Default measured layout | `layoutOptions` for node sizes and separation; direction remains top-to-bottom |
+| Host-owned layout | `layout`; this owns its options, so `layoutOptions` is ignored with a development warning |
+| Background | `background={false}` removes the dots; explicit xyflow `BackgroundProps` configures them |
+| Breadcrumb | `breadcrumb={false}` hides it; a function receives `{ entries, onNavigate, unstyled }` |
+| Camera | `minZoom`, `maxZoom`, `defaultViewport`, or controlled `viewport` / `onViewportChange` |
+| Automatic fitting | `autoFit={false}` leaves fitting to the host; `{ padding, maxZoom }` configures it, with default padding `0.18` |
+
+A controlled `viewport` disables the internal automatic fitter. Omitted
+`minZoom` retains `0.1`. Authored edge type, style and `markerEnd` take priority
+over built-in defaults. `unstyled` retains the interactive graph, ports and
+layout geometry while removing built-in paint and preserving authored styles.
+It omits the default dotted background; explicit `background` props still work.
+Stage-node foregrounds use the paired semantic color roles, and its semantic
+icons can use the host `Icon` adapter. Shared theme tokens, recipes and control
+adapters are exported from both package entry points.
 
 #### A stage that had to be tried again says so on the chart
 
@@ -643,23 +750,22 @@ either overlay light the right boxes.
 
 ## Theming
 
-**Every default in this library is dark.** Dropped into a light app with nothing
-set, a panel renders dark — correct by the rules, wrong on the page. There are
-three ways to fix that, smallest first.
+The built-in fallback palette is dark. Use a mode, inherit your application's
+CSS variables, or supply tokens and native-compatible control adapters.
 
 ### 1. One word, per component
 
 ```tsx
-<ExplainableShell traceTheme={{ mode: "light" }} />   {/* the shell */}
+<ExplainableShell theme={{ mode: "light" }} />         {/* the shell */}
 <TraceViewer theme="light" />                          {/* the standalone components */}
 <SnapshotPanel theme="light" />
 <GanttTimeline theme="light" />
 <TracedFlow theme="light" />
 ```
 
-`theme` stamps a full built-in preset as `--fp-*` variables on that component's
-own root, so everything under it follows. It is the whole theme wiring for an
-app that just wants light.
+An explicit mode stamps the built-in palette as `--fp-*` variables on the
+component's root. The shell also accepts token and component overrides through
+`theme`; its existing `traceTheme` mode and node-colour overrides remain valid.
 
 ### 2. Follow the app's own dark mode — `useDarkModeTokens`
 
@@ -720,10 +826,87 @@ Consumer controls theme via `--fp-*` CSS custom properties. Components use `var(
 }
 ```
 
-Every built-in preset sets all of these, so one `mode` re-themes the whole shell
-— no component is left on a hard-coded dark default. `test/unit/themeTokens.test.ts`
-enforces both halves of that: every `--fp-*` a component reads must be emitted by
-every preset, and no component may paint a raw colour the theme cannot reach.
+Built-in presets supply the palette. New design-system roles also have
+fallbacks, so a partial override can inherit the rest from your application.
+
+### Density, typography and semantic foregrounds
+
+`ThemeTokens` accepts these groups. Values are CSS strings, including sizes,
+weights and durations; for example `"0.875rem"`, `"600"` and `"120ms"`.
+
+| Group | Fields |
+|---|---|
+| `typography` | `body`, `label`, `small`, `title`, `lineHeight`, `weightNormal`, `weightMedium`, `weightStrong` |
+| `spacing` | `xs`, `sm`, `md`, `lg`, `xl` |
+| `radii` | `control`, `panel`, `badge` |
+| `borders` | `width`, `focusWidth` |
+| `elevation` | `panel`, `popover`, `focus` |
+| `motion` | `duration`, `fastDuration`, `easing` |
+| `controls` | `height`, `paddingX`, `gap`, `iconSize` |
+| `colors` foreground pairs | `onPrimary`, `onSuccess`, `onError`, `onWarning`, `onTracing`, `onNodeCursor`, `onNodeVisited`, `onNodeMain` |
+
+Set each foreground with its corresponding fill when adapting contrast to your
+brand. Existing color roles and `fontFamily.sans` / `fontFamily.mono` remain
+available. Legacy `radius` seeds all three component radii; an explicit
+`radii.control`, `radii.panel` or `radii.badge` overrides its corresponding value.
+`componentStyles(size)` exports the CSS-variable recipes for custom surfaces;
+the existing numeric font-size and padding helpers remain available for math.
+
+```tsx
+<ExplainableShell
+  runtimeSnapshot={snapshot}
+  traceGraph={graph}
+  theme={{
+    mode: "light",
+    tokens: {
+      typography: { body: "0.875rem", small: "0.75rem" },
+      spacing: { sm: "0.5rem", md: "0.75rem" },
+      controls: { height: "2.25rem", iconSize: "1rem" },
+      radii: { control: "0.375rem", panel: "0.75rem" },
+      colors: { primary: "#4338ca", onPrimary: "#fff" },
+    },
+  }}
+/>;
+```
+
+### Host design-system controls
+
+`FootprintTheme.components`, also available as `ExplainableShell.theme.components`,
+accepts `Button`, `Tab`, `Input`, `Checkbox`, `Badge`, `Code`, `Tooltip` and `Icon`
+adapters. They must forward the native ref, events, `disabled` / `checked`, ARIA
+and `data-*` attributes. Tooltip adapters receive `content`; Icon adapters
+receive `name`. A native-compatible adapter can wrap your existing design
+system:
+
+```tsx
+import { forwardRef, type ButtonHTMLAttributes } from "react";
+import { FootprintTheme } from "footprint-explainable-ui";
+
+const AppButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>(
+  (props, ref) => <button {...props} ref={ref}
+    className={["app-button", props.className].filter(Boolean).join(" ")} />,
+);
+
+<FootprintTheme components={{ Button: AppButton, Tab: AppButton }}>
+  <ExplainableShell runtimeSnapshot={snapshot} traceGraph={graph} />
+</FootprintTheme>;
+```
+
+Registered adapters receive explicit consumer `style`, never the primitive's
+internal `defaultStyle`. Native fallbacks merge explicit `style` last.
+`unstyled` suppresses fallback paint while preserving explicit style;
+explicit `defaultStyle={undefined}` also opts out of a primitive's default
+recipe. Nested providers merge token groups and component registries: omitted
+or undefined fields inherit. They emit only local CSS overrides, so a nested
+provider does not reset the host palette to a preset.
+
+Shared recipes and control adapters cover the core shell chrome, Inspector,
+Activity, backtracking, time controls, run log, metrics and built-in stage-node
+surfaces, plus the shell's breadcrumb, tree, memory, diff, result and timeline.
+Ancillary exported components can retain their own presentation;
+this is not a claim that every component consumes every new token or adapter.
+Combine adapters with `renderLayout` and `unstyled`, or your own chart renderer,
+when your application needs to own the complete presentation.
 
 ### ThemeProvider
 
@@ -732,6 +915,17 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 
 <FootprintTheme tokens={warmDark}>
   <MyApp />
+</FootprintTheme>
+```
+
+Use `asChild` when a wrapper would affect your flex/grid layout or direct-child
+selectors. It applies local CSS variables to exactly one non-Fragment element
+without adding a DOM wrapper, preserving that child's ref, events and authored
+style. A custom child must forward `className` and `style` to its DOM root.
+
+```tsx
+<FootprintTheme asChild tokens={warmDark}>
+  <section className="application-workspace"><MyApp /></section>
 </FootprintTheme>
 ```
 
@@ -753,6 +947,7 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | Component | Description |
 |---|---|
 | `ExplainableShell` | All-in-one orchestrator with collapsible panels and responsive layout |
+| `useLensWorkbench` | Read the full shell's surfaces, state and validated actions inside its custom layout; root entry point |
 | `TimeTravelControls` | Play/pause, prev/next, scrubber timeline |
 | `MemoryPanel` | Memory state + scope diff (composite right-panel view) |
 | `NarrativePanel` | Narrative trace with progressive reveal |
@@ -803,10 +998,23 @@ the primitive can work.
 
 ### Theme API
 
+Theme primitives, `useFootprintComponents` and `componentStyles` are available
+from both `footprint-explainable-ui` and `footprint-explainable-ui/flowchart`.
+
 | Export | Description |
 |---|---|
-| `FootprintTheme` | Provider that stamps a token set on everything below it |
-| `useFootprintTheme` | Read the tokens the nearest provider set |
+| `FootprintTheme` | Inheriting token and native-control adapter provider |
+| `useFootprintTheme` | Read the merged token context |
+| `useFootprintComponents` | Read the inherited host adapter registry |
+| `componentStyles` | CSS-variable recipes for typography, density and control geometry |
+| `FootprintButton` | Native-compatible button with an optional host adapter |
+| `FootprintTab` | Native-compatible tab button; uses the Tab adapter or Button fallback |
+| `FootprintInput` | Native-compatible input with an optional host adapter |
+| `FootprintCheckbox` | Native-compatible checkbox; preserves checked state and events |
+| `FootprintBadge` | Badge primitive using the host registry or native span |
+| `FootprintCode` | Code primitive using the host registry or native code element |
+| `FootprintTooltip` | Host tooltip adapter or native-title fallback; receives content |
+| `FootprintIcon` | Named semantic icon using the host adapter or supplied children |
 | `useDarkModeTokens` | Follow your app's OWN dark-mode switch (class or selector) and hand back the matching preset |
 | `themeModeVars` | The `--fp-*` variables for one mode, ready to spread onto your own wrapper |
 | `tokensToCSSVars` | Turn a token object into that variable map yourself |

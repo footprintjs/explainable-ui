@@ -1,3 +1,4 @@
+import { FootprintButton, componentStyles, useFootprintComponents } from "../../theme";
 /**
  * SubflowTree — collapsible sidebar listing mounted subflows.
  *
@@ -23,10 +24,10 @@
  *
  * All colors come from `--fp-*` CSS variables set by the consumer.
  */
-import { memo, useState, useCallback, useMemo } from "react";
+import { memo, useState, useCallback, useMemo, type CSSProperties } from "react";
 import { theme } from "../../theme";
 import type { TraceGraph } from "./traceStructureRecorder";
-import type { BaseComponentProps } from "../../types";
+import type { BaseComponentProps, Size } from "../../types";
 
 export interface SubflowTreeEntry {
   /** Node name / identifier */
@@ -89,7 +90,10 @@ const TreeNode = memo(function TreeNode({
   activeStage,
   doneStages,
   onNodeSelect,
+  unstyled = false, size = "default",
 }: {
+  unstyled?: boolean;
+  size?: Size;
   entry: SubflowTreeEntry;
   depth: number;
   activeStage?: string | null;
@@ -97,6 +101,9 @@ const TreeNode = memo(function TreeNode({
   onNodeSelect?: (name: string, isSubflow: boolean, nodeId?: string) => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const ui = componentStyles(size);
+  const sx = (value: CSSProperties): CSSProperties | undefined => unstyled ? undefined : value;
+  const nativeButton = !useFootprintComponents().Button;
   const hasChildren = entry.children && entry.children.length > 0;
   const isActive = activeStage === entry.name;
   const isDone = doneStages?.has(entry.name);
@@ -110,33 +117,35 @@ const TreeNode = memo(function TreeNode({
 
   return (
     <>
-      <button
+      <FootprintButton
         onClick={handleClick}
         data-fp="subflow-tree-node"
-        style={{
+        aria-current={isActive ? "step" : undefined}
+        data-state={isActive ? "active" : isDone ? "done" : "pending"}
+        defaultStyle={sx({
           display: "flex",
           alignItems: "center",
-          gap: 6,
+          gap: ui.controlGap,
           width: "100%",
           border: "none",
           background: isActive
             ? `color-mix(in srgb, ${theme.primary} 15%, transparent)`
             : "transparent",
           cursor: "pointer",
-          padding: `4px 8px 4px ${8 + depth * 16}px`,
+          padding: `${ui.spaceXs} ${ui.spaceSm} ${ui.spaceXs} calc(${ui.spaceSm} + ${depth} * ${ui.spaceLg})`,
           fontFamily: theme.fontSans,
-          fontSize: 12,
+          fontSize: ui.body,
           textAlign: "left",
-          borderRadius: 4,
-          transition: "background 0.15s",
-        }}
+          borderRadius: ui.radiusControl,
+          transition: `background ${ui.fastDuration} ${ui.easing}`,
+        })}
         onMouseEnter={(e) => {
-          if (!isActive) {
+          if (!unstyled && nativeButton && !isActive) {
             e.currentTarget.style.background = `color-mix(in srgb, ${theme.textMuted} 10%, transparent)`;
           }
         }}
         onMouseLeave={(e) => {
-          if (!isActive) {
+          if (!unstyled && nativeButton && !isActive) {
             e.currentTarget.style.background = "transparent";
           }
         }}
@@ -144,28 +153,28 @@ const TreeNode = memo(function TreeNode({
         {/* Expand/collapse chevron for subflows */}
         {hasChildren ? (
           <span
-            style={{
-              fontSize: 10,
+            style={sx({
+              fontSize: ui.small,
               color: theme.textMuted,
-              width: 12,
+              width: `calc(${ui.iconSize} - 2px)`,
               textAlign: "center",
               flexShrink: 0,
-              transition: "transform 0.15s",
+              transition: `transform ${ui.fastDuration} ${ui.easing}`,
               transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
               display: "inline-block",
-            }}
+            })}
           >
             ▶
           </span>
         ) : (
-          <span style={{ width: 12, flexShrink: 0 }} />
+          <span style={sx({ width: `calc(${ui.iconSize} - 2px)`, flexShrink: 0 })} />
         )}
 
         {/* Status dot */}
         <span
-          style={{
-            width: 6,
-            height: 6,
+          style={sx({
+            width: `calc(${ui.iconSize} * 3 / 7)`,
+            height: `calc(${ui.iconSize} * 3 / 7)`,
             borderRadius: "50%",
             flexShrink: 0,
             background: isActive
@@ -173,44 +182,44 @@ const TreeNode = memo(function TreeNode({
               : isDone
                 ? theme.success
                 : theme.border,
-          }}
+          })}
         />
 
         {/* Label + description */}
-        <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <span style={sx({ display: "flex", flexDirection: "column", minWidth: 0 })}>
           <span
-            style={{
+            style={sx({
               color: isActive
                 ? theme.primary
                 : isDone
                   ? theme.textPrimary
                   : theme.textSecondary,
-              fontWeight: isActive ? 600 : entry.isSubflow ? 500 : 400,
+              fontWeight: isActive ? ui.weightStrong : entry.isSubflow ? ui.weightMedium : ui.weightNormal,
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
-            }}
+            })}
           >
             {entry.name}
             {entry.isSubflow && (
-              <span style={{ opacity: 0.5, marginLeft: 4, fontSize: 10 }}>⊞</span>
+              <span style={sx({ opacity: 0.5, marginLeft: ui.spaceXs, fontSize: ui.small })}>⊞</span>
             )}
           </span>
           {entry.description && (
             <span
-              style={{
+              style={sx({
                 color: theme.textMuted,
-                fontSize: 10,
+                fontSize: ui.small,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-              }}
+              })}
             >
               {entry.description}
             </span>
           )}
         </span>
-      </button>
+      </FootprintButton>
 
       {/* Children */}
       {hasChildren && expanded && (
@@ -223,6 +232,7 @@ const TreeNode = memo(function TreeNode({
               activeStage={activeStage}
               doneStages={doneStages}
               onNodeSelect={onNodeSelect}
+              unstyled={unstyled} size={size}
             />
           ))}
         </div>
@@ -232,17 +242,19 @@ const TreeNode = memo(function TreeNode({
 });
 
 /** Section label used for "Flowchart" and "Subflows" headings. */
-const SectionLabel = memo(function SectionLabel({ children }: { children: string }) {
+const SectionLabel = memo(function SectionLabel({ children, unstyled = false, size = "default" }: { children: string; unstyled?: boolean; size?: Size }) {
+  const ui = componentStyles(size);
+  const sx = (value: CSSProperties): CSSProperties | undefined => unstyled ? undefined : value;
   return (
     <div
-      style={{
-        padding: "4px 12px 8px",
-        fontSize: 10,
-        fontWeight: 600,
+      style={sx({
+        padding: `${ui.spaceXs} ${ui.padding} ${ui.spaceSm}`,
+        fontSize: ui.small,
+        fontWeight: ui.weightStrong,
         textTransform: "uppercase",
         letterSpacing: "0.05em",
         color: theme.textMuted,
-      }}
+      })}
     >
       {children}
     </div>
@@ -255,9 +267,11 @@ export const SubflowTree = memo(function SubflowTree({
   doneStages,
   onNodeSelect,
   unstyled = false,
+  size = "default",
   className,
   style,
 }: SubflowTreeProps) {
+  const ui = componentStyles(size);
   const subflowStages = useMemo(() => graphToSubflowEntries(graph), [graph]);
 
   // Don't render anything if there are no subflows
@@ -272,17 +286,17 @@ export const SubflowTree = memo(function SubflowTree({
           ? {}
           : {
               fontFamily: theme.fontSans,
-              fontSize: 12,
+              fontSize: ui.body,
               background: theme.bgPrimary,
-              borderRight: `1px solid ${theme.border}`,
+              borderRight: `${ui.borderWidth} solid ${theme.border}`,
               overflowY: "auto",
               overflowX: "hidden",
-              padding: "8px 0",
+              padding: `${ui.spaceSm} 0`,
             }),
         ...style,
       }}
     >
-      {!unstyled && <SectionLabel>Subflows</SectionLabel>}
+      <SectionLabel unstyled={unstyled} size={size}>Subflows</SectionLabel>
       {subflowStages.map((entry, i) => (
         <TreeNode
           key={entry.nodeId ?? entry.subflowId ?? `${entry.name}-${i}`}
@@ -291,6 +305,7 @@ export const SubflowTree = memo(function SubflowTree({
           activeStage={activeStage}
           doneStages={doneStages}
           onNodeSelect={onNodeSelect}
+          unstyled={unstyled} size={size}
         />
       ))}
     </div>

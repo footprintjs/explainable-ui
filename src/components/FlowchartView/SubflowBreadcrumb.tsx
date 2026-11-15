@@ -1,4 +1,5 @@
-import { memo } from "react";
+import { FootprintButton, componentStyles, useFootprintComponents } from "../../theme";
+import { memo, type CSSProperties } from "react";
 import { warnDeprecated } from "../../_internal/deprecate";
 import { theme } from "../../theme";
 import type { BreadcrumbEntry } from "./useSubflowNavigation";
@@ -12,6 +13,7 @@ import type { BreadcrumbEntry } from "./useSubflowNavigation";
 export interface SubflowBreadcrumbProps {
   breadcrumbs: BreadcrumbEntry[];
   onNavigate: (level: number) => void;
+  unstyled?: boolean;
 }
 
 /**
@@ -27,7 +29,11 @@ export interface SubflowBreadcrumbProps {
 export const SubflowBreadcrumb = memo(function SubflowBreadcrumb({
   breadcrumbs,
   onNavigate,
+  unstyled = false,
 }: SubflowBreadcrumbProps) {
+  const ui = componentStyles();
+  const sx = (value: CSSProperties): CSSProperties | undefined => unstyled ? undefined : value;
+  const nativeButton = !useFootprintComponents().Button;
   warnDeprecated(
     "SubflowBreadcrumb",
     "It renders the legacy useSubflowNavigation stack. Use <TracedFlow> " +
@@ -37,74 +43,75 @@ export const SubflowBreadcrumb = memo(function SubflowBreadcrumb({
 
   return (
     <div
-      style={{
+      data-fp="subflow-breadcrumb"
+      style={sx({
         display: "flex",
         alignItems: "center",
-        gap: 4,
-        padding: "6px 12px",
+        gap: ui.spaceXs,
+        padding: `${ui.controlGap} ${ui.padding}`,
         background: theme.bgSecondary,
-        borderBottom: `1px solid ${theme.border}`,
-        fontSize: 12,
+        borderBottom: `${ui.borderWidth} solid ${theme.border}`,
+        fontSize: ui.body,
         fontFamily: theme.fontSans,
         flexShrink: 0,
         overflowX: "auto",
-      }}
+      })}
     >
       {breadcrumbs.map((crumb, i) => {
         const isLast = i === breadcrumbs.length - 1;
         return (
-          <span key={`${crumb.label}-${i}`} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span key={`${crumb.label}-${i}`} style={sx({ display: "flex", alignItems: "center", gap: ui.spaceXs })}>
             {i > 0 && (
-              <span style={{ color: theme.textMuted, fontSize: 10 }}>
+              <span style={sx({ color: theme.textMuted, fontSize: ui.small })}>
                 ›
               </span>
             )}
             {isLast ? (
-              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={sx({ display: "flex", alignItems: "center", gap: ui.controlGap })}>
                 <span
-                  style={{
+                  style={sx({
                     color: theme.primary,
-                    fontWeight: 600,
-                  }}
+                    fontWeight: ui.weightStrong,
+                  })}
                 >
                   {crumb.label}
                 </span>
                 {crumb.description && (
                   <span
-                    style={{
+                    style={sx({
                       color: theme.textMuted,
-                      fontWeight: 400,
-                      fontSize: 11,
-                    }}
+                      fontWeight: ui.weightNormal,
+                      fontSize: ui.label,
+                    })}
                   >
                     — {crumb.description}
                   </span>
                 )}
               </span>
             ) : (
-              <button
+              <FootprintButton
                 onClick={() => onNavigate(i)}
-                style={{
+                defaultStyle={sx({
                   background: "none",
                   border: "none",
                   color: theme.textSecondary,
                   cursor: "pointer",
-                  padding: "2px 4px",
-                  borderRadius: 4,
-                  fontSize: 12,
+                  padding: `calc(${ui.spaceXs} / 2) ${ui.spaceXs}`,
+                  borderRadius: ui.radiusControl,
+                  fontSize: ui.body,
                   fontFamily: "inherit",
-                  fontWeight: 500,
-                  transition: "color 0.15s",
-                }}
+                  fontWeight: ui.weightMedium,
+                  transition: `color ${ui.fastDuration} ${ui.easing}`,
+                })}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = `${theme.primary}`;
+                  if (!unstyled && nativeButton) e.currentTarget.style.color = theme.primary;
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = `${theme.textSecondary}`;
+                  if (!unstyled && nativeButton) e.currentTarget.style.color = theme.textSecondary;
                 }}
               >
                 {crumb.label}
-              </button>
+              </FootprintButton>
             )}
           </span>
         );

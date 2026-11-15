@@ -14,6 +14,8 @@
 
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
+import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes } from "react";
+import { FootprintTheme, type FootprintIconAdapterProps, type FootprintTooltipAdapterProps } from "../../src/theme";
 
 import { TraceWalkCard } from "../../src/components/DataTracePanel/TraceWalkCard";
 import {
@@ -53,10 +55,53 @@ const stepOf = (rsid: string) => {
 };
 
 const WALK = buildTraceWalk(LOG, TREE, "total");
+const HostButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>((props, ref) => <button {...props} ref={ref} data-host="button" />);
+const HostCode = forwardRef<HTMLElement, HTMLAttributes<HTMLElement>>((props, ref) => <code {...props} ref={ref} data-host="code" />);
+const HostTooltip = forwardRef<HTMLSpanElement, FootprintTooltipAdapterProps>(({ content, ...props }, ref) => <span {...props} ref={ref} data-host="tooltip" data-content={content} />);
+const HostIcon = forwardRef<HTMLSpanElement, FootprintIconAdapterProps>(({ name, ...props }, ref) => <span {...props} ref={ref} data-host="icon" data-icon-name={name} />);
 
 describe("TraceWalkCard", () => {
   beforeEach(() => {
     Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
+  });
+
+  it("uses theme micro tokens and replaceable primitives while preserving ingredient actions", () => {
+    const follow = vi.fn();
+    const view = render(<TraceWalkCard walk={WALK} cursorRuntimeStageId="computeTotal#4" stepNumberOf={stepOf} onFollowIngredient={follow} />);
+    const card = view.container.querySelector<HTMLElement>('[data-fp="trace-walk-card"]')!;
+    const chip = screen.getAllByTitle(/Follow /)[0];
+    expect(card.style.fontSize).toContain("--fp-font-size-body");
+    expect(card.style.lineHeight).toContain("--fp-line-height");
+    expect(chip.style.borderRadius).toContain("--fp-radius-badge");
+    expect(chip.style.minHeight).toContain("--fp-control-height");
+    expect(chip.style.border).toContain("--fp-border-width");
+    view.rerender(<FootprintTheme components={{ Button: HostButton, Code: HostCode, Tooltip: HostTooltip, Icon: HostIcon }}>
+      <TraceWalkCard walk={{ ...WALK, truncated: true }} cursorRuntimeStageId="computeTotal#4" stepNumberOf={stepOf} onFollowIngredient={follow} />
+    </FootprintTheme>);
+    const hostChip = screen.getAllByTitle(/Follow /)[0];
+    expect(hostChip.getAttribute("data-fp-part")).toBe("trace-ingredient");
+    expect(hostChip.style.fontSize).toBe("");
+    expect(hostChip.style.border).toBe("");
+    fireEvent.click(hostChip);
+    expect(follow).toHaveBeenCalledOnce();
+    expect(follow.mock.calls[0][0]).toMatchObject({ key: "subtotal", writerRuntimeStageId: "sum#1" });
+    expect(view.container.querySelector('[data-host="tooltip"]')?.getAttribute("data-content")).toContain("re-anchor the walk on its writer");
+    expect(view.container.querySelector('[data-host="icon"][data-icon-name="warning"]')).toBeTruthy();
+    expect(view.container.querySelector('[data-host="code"][data-fp-part="trace-value"]')).toBeTruthy();
+  });
+
+  it("keeps nested chooser, trail, tooltip and code content unstyled", () => {
+    const follow = vi.fn(), back = vi.fn(), exit = vi.fn();
+    const view = render(<TraceWalkCard walk={{ ...WALK, truncated: true }} cursorRuntimeStageId="computeTotal#4" stepNumberOf={stepOf}
+      questionTrail={[{ key: "total", invocationPath: [] }, { key: "subtotal", invocationPath: [] }]}
+      onReturnToQuestion={back} onFollowIngredient={follow} onExit={exit} forkChooserOpen unstyled />);
+    expect(view.container.querySelector("[style]")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Return to total in root" }));
+    expect(back).toHaveBeenCalledExactlyOnceWith(0);
+    fireEvent.click(screen.getAllByTitle(/Follow /)[0]);
+    expect(follow).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Exit tracing" }));
+    expect(exit).toHaveBeenCalledOnce();
   });
 
   it.each([false, true])("offers the Activity return action in recorded and missing cards (unstyled=%s)", (unstyled) => {

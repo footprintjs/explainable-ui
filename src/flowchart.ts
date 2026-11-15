@@ -1,5 +1,16 @@
 // Flowchart components (require @xyflow/react peer dependency)
 // Import from "footprint-explainable-ui/flowchart"
+export { FootprintTheme, useFootprintTheme, componentStyles, tokensToCSSVars,
+  themeModeVars, useFootprintComponents, FootprintButton, FootprintTab,
+  FootprintInput, FootprintCheckbox, FootprintBadge, FootprintCode,
+  FootprintTooltip, FootprintIcon,
+} from "./theme";
+export type { ThemeTokens, ThemeMode, FootprintThemeProps, FootprintComponents,
+  FootprintPrimitiveOptions, FootprintButtonProps, FootprintInputProps,
+  FootprintCheckboxProps, FootprintBadgeProps, FootprintCodeProps,
+  FootprintTooltipProps, FootprintTooltipAdapterProps, FootprintIconProps,
+  FootprintIconAdapterProps,
+} from "./theme";
 export * from "./components/GroupedFlowDiagram";
 //
 // v6+: recorder-driven only. The legacy spec-walk path was deleted.

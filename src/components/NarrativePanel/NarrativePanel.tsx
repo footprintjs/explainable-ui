@@ -11,8 +11,8 @@
  */
 import { useMemo, useState, useCallback } from "react";
 import type { StageSnapshot, NarrativeEntry, BaseComponentProps } from "../../types";
-import { theme, fontSize, padding } from "../../theme";
-import { buildEntryRangeIndex, computeRevealedEntryCount } from "../../utils/narrativeSync";
+import { theme, componentStyles, FootprintButton, FootprintCheckbox } from "../../theme";
+import { buildEntryRangeIndex, computeRevealedEntryCount, narrativeSynchronizationStatus } from "../../utils/narrativeSync";
 import { StoryNarrative } from "../StoryNarrative";
 import { NarrativeTrace } from "../NarrativeTrace";
 
@@ -56,6 +56,10 @@ export interface NarrativePanelProps extends BaseComponentProps {
    *  a drilled-in level. Forwarded to `<StoryNarrative scopeSubflowId>` so the
    *  level's own stages are shown instead of hidden as "subflow internals". */
   scopeSubflowId?: string;
+  /** Expanded recorded entries, or readable groups of exact recorded visits. */
+  presentation?: "entries" | "visits";
+  /** Opt into following the selected step. Reading never scrolls by default. */
+  defaultFollowCursor?: boolean;
   /**
    * Full runtime snapshot from the runner (executor.getSnapshot() /
    * agent.getSnapshot()). When present, "Copy for LLM" includes the
@@ -80,6 +84,8 @@ export function NarrativePanel({
   selectedIndex,
   narrativeEntries,
   scopeSubflowId,
+  presentation = "entries",
+  defaultFollowCursor = false,
   runtimeSnapshot,
   spec,
   size = "default",
@@ -87,8 +93,9 @@ export function NarrativePanel({
   className,
   style,
 }: NarrativePanelProps) {
-  const fs = fontSize[size];
-  const pad = padding[size];
+  const chrome = componentStyles(size);
+  const sx = (value: React.CSSProperties): React.CSSProperties | undefined => unstyled ? undefined : value;
+  const [followCursor, setFollowCursor] = useState(defaultFollowCursor);
 
   // Build plain narrative lines from per-stage snapshot.narrative.
   // Used as fallback when narrativeEntries is empty, and for the
@@ -102,138 +109,54 @@ export function NarrativePanel({
     return lines;
   }, [snapshots]);
 
-  // Progressive reveal for plain narrative
+  // Each fallback line belongs to the snapshot that supplied it. Prose and
+  // relative line lengths cannot establish a different visit boundary.
   const revealedCount = useMemo(() => {
-    if (snapshots.length === 0 || narrative.length === 0) return narrative.length;
-    const stageBoundaries: number[] = [];
-    for (let i = 0; i < narrative.length; i++) {
-      const trimmed = narrative[i].trimStart();
-      if (trimmed.startsWith("Stage ") && !trimmed.match(/^Stage\s+\d+:\s*Step\s/)) {
-        stageBoundaries.push(i);
-      }
-    }
-    if (stageBoundaries.length === 0) {
-      const ratio = (selectedIndex + 1) / snapshots.length;
-      return Math.max(1, Math.ceil(narrative.length * ratio));
-    }
-    const groupsToShow = Math.min(selectedIndex + 1, stageBoundaries.length);
-    const endIdx = groupsToShow < stageBoundaries.length
-      ? stageBoundaries[groupsToShow]
-      : narrative.length;
-    return Math.max(1, endIdx);
-  }, [snapshots.length, selectedIndex, narrative]);
+    const through = Number.isFinite(selectedIndex) ? Math.min(snapshots.length - 1, Math.floor(selectedIndex)) : -1;
+    return snapshots.slice(0, Math.max(0, through + 1)).reduce((count, snapshot) =>
+      count + (snapshot.narrative ?? "").split("\n").filter(Boolean).length, 0);
+  }, [snapshots, selectedIndex]);
+
+  const scopedEntries = useMemo(() => {
+    const exactIds = new Set(snapshots.map(snapshot => snapshot.runtimeStageId).filter(Boolean));
+    return (narrativeEntries ?? []).filter(entry => {
+      if (!entry.subflowId) return scopeSubflowId === undefined;
+      // A nested mount's markers belong to that nested rail. Idless markers
+      // remain visible only in the explicitly unsynchronized fallback.
+      if (entry.type === "subflow") return !entry.runtimeStageId || exactIds.has(entry.runtimeStageId);
+      return entry.subflowId === scopeSubflowId;
+    });
+  }, [narrativeEntries, snapshots, scopeSubflowId]);
+  const synchronization = useMemo(() => narrativeSynchronizationStatus(scopedEntries, snapshots), [scopedEntries, snapshots]);
 
   // Precompute range index once when entries change — O(n) build, then O(1) per slider tick.
   // Same shape as SequenceRecorder.getEntryRanges() in footprintjs.
   const rangeIndex = useMemo(
-    () => narrativeEntries?.length ? buildEntryRangeIndex(narrativeEntries) : undefined,
-    [narrativeEntries],
+    () => scopedEntries.length ? buildEntryRangeIndex(scopedEntries) : undefined,
+    [scopedEntries],
   );
 
   // Exact sync via runtimeStageId — O(selectedIndex) with precomputed index.
   const revealedEntryCount = useMemo(
-    () => narrativeEntries?.length ? computeRevealedEntryCount(narrativeEntries, snapshots, selectedIndex, rangeIndex) : 0,
-    [narrativeEntries, snapshots, selectedIndex, rangeIndex],
+    () => synchronization.status === "unsynchronized" ? scopedEntries.length
+      : computeRevealedEntryCount(scopedEntries, snapshots, selectedIndex, rangeIndex),
+    [scopedEntries, snapshots, selectedIndex, rangeIndex, synchronization],
   );
 
   const hasStructured = narrativeEntries && narrativeEntries.length > 0;
+  const visibleRuntimeStageIds = useMemo(() => snapshots.slice(0, Math.max(0, selectedIndex + 1))
+    .map(snapshot => snapshot.runtimeStageId).filter((id): id is string => !!id), [snapshots, selectedIndex]);
 
   // ── Copy as LLM-ready text ─────────────────────────────────────────────
   const [copied, setCopied] = useState(false);
 
   const buildLLMNarrative = useCallback(() => {
-    if (!narrativeEntries?.length) {
-      return narrative.join("\n");
-    }
-
-    // ── Partition entries: root vs subflow internals ─────────────────
-    // Root includes: stages, subflow entry/exit markers, decisions, loops, breaks
-    // Subflow internals: entries with subflowId that aren't entry/exit markers
-    const root: NarrativeEntry[] = [];
-    const subflows = new Map<string, NarrativeEntry[]>();
-    const subflowNames = new Map<string, string>(); // sfId → display name
-
-    for (const entry of narrativeEntries) {
-      const sfId = entry.subflowId;
-      if (!sfId) {
-        root.push(entry);
-      } else {
-        // Subflow ENTRY markers go in root (show WHEN the subflow ran).
-        // Exit markers are noise — the next stage implies completion.
-        if (entry.type === "subflow") {
-          const isExit = entry.direction === 'exit';
-          if (!isExit) {
-            root.push(entry);
-          }
-          // Track name for the subflow details header
-          if (entry.stageName && !isExit) {
-            subflowNames.set(sfId, entry.stageName);
-          }
-        } else {
-          // Internal subflow entries go in the subflow detail section
-          if (!subflows.has(sfId)) subflows.set(sfId, []);
-          subflows.get(sfId)!.push(entry);
-        }
-      }
-    }
-
-    // ── Render a list of entries as numbered text ────────────────────
-    // Uses only entry.text (already rendered by the NarrativeRenderer).
-    // No type prefix — the renderer output IS the narrative.
-    const renderEntries = (entries: NarrativeEntry[], opts?: { inSubflow?: string }): string => {
-      let counter = 0;
-      const lines: string[] = [];
-
-      for (const e of entries) {
-        // Skip subflow entry/exit in subflow details (redundant — we're already in the section)
-        if (opts?.inSubflow && e.type === "subflow") continue;
-
-        let text = e.text;
-
-        // Strip subflow path prefix from stage names inside subflow details.
-        // e.g., "[sf-system-prompt/ResolvePrompt]" → "[ResolvePrompt]"
-        // The section header already identifies the subflow.
-        // Uses literal string replacement (not regex) to avoid injection from special characters.
-        if (opts?.inSubflow) {
-          const prefix = `[${opts.inSubflow}/`;
-          const idx = text.indexOf(prefix);
-          if (idx !== -1) {
-            text = text.slice(0, idx) + "[" + text.slice(idx + prefix.length);
-          }
-        }
-
-        const isHeading = e.type === "stage" || e.type === "subflow" || e.type === "fork" || e.type === "selector";
-
-        if (isHeading) {
-          counter++;
-          // For subflow markers in root, append the subflow ID for drill-down
-          const sfId = (e as { subflowId?: string }).subflowId;
-          const idSuffix = e.type === "subflow" && sfId ? ` [→ ${sfId}]` : "";
-          lines.push(`${counter}. ${text}${idSuffix}`);
-        } else {
-          // Sub-items (steps, conditions, loops, breaks, errors) — indented
-          lines.push(`  ${text}`);
-        }
-      }
-
-      return lines.join("\n");
-    };
-
-    // ── Assemble the full LLM-ready document ────────────────────────
-    const sections: string[] = [];
-    sections.push("## Execution Narrative\n");
-    sections.push(renderEntries(root));
-
-    if (subflows.size > 0) {
-      sections.push("\n\n## Subflow Details");
-      sections.push("Use the subflow IDs above to look up details below.\n");
-      for (const [sfId, entries] of subflows) {
-        const name = subflowNames.get(sfId) ?? sfId;
-        sections.push(`### ${name} (${sfId})\n`);
-        sections.push(renderEntries(entries, { inSubflow: sfId }));
-        sections.push("");
-      }
-    }
+    const sections: string[] = [runtimeSnapshot ? "## Full run debug bundle" : "## Recorded log"];
+    sections.push(`Recorded log scope: ${scopeSubflowId ?? "Root invocation"}.`);
+    sections.push("This export includes all supplied log entries, including entries after the selected step. Recorded array order is preserved.");
+    sections.push("\n## Recorded narrative\n");
+    sections.push(narrativeEntries?.length ? narrativeEntries.map(entry => entry.text).join("\n") : narrative.join("\n"));
+    if (runtimeSnapshot) sections.push("\nThe following debug data is from the full supplied run snapshot, including root state and other invocations. It is not limited to the visible log or selected step.");
 
     // ── Append the full debug bundle when caller provided snapshot/spec ──
     // Everything below the narrative is for LLM debugging: final state,
@@ -299,7 +222,7 @@ export function NarrativePanel({
     }
 
     return sections.join("\n");
-  }, [narrativeEntries, narrative, runtimeSnapshot, spec]);
+  }, [narrativeEntries, narrative, runtimeSnapshot, spec, scopeSubflowId]);
 
   const handleCopy = useCallback(async () => {
     const text = buildLLMNarrative();
@@ -308,80 +231,44 @@ export function NarrativePanel({
     setTimeout(() => setCopied(false), 2000);
   }, [buildLLMNarrative]);
 
-  if (unstyled) {
-    return (
-      <div className={className} style={style} data-fp="narrative-panel">
-        {hasStructured ? (
-          <StoryNarrative entries={narrativeEntries!} revealedEntryCount={revealedEntryCount} scopeSubflowId={scopeSubflowId} unstyled />
-        ) : (
-          <NarrativeTrace narrative={narrative} revealedCount={revealedCount} unstyled />
-        )}
-      </div>
-    );
-  }
+  const synchronized = synchronization.status === "exact";
+  const scopeLabel = scopeSubflowId ?? "Root invocation";
+  const selectedSnapshot = snapshots[selectedIndex];
+  const copyLabel = runtimeSnapshot ? "Copy full run debug bundle" : "Copy recorded log";
 
-  return (
-    <div
-      className={className}
-      style={{
-        overflow: "auto",
-        display: "flex",
-        flexDirection: "column",
-        ...style,
-      }}
-      data-fp="narrative-panel"
-    >
-      {/* Intro + Copy button */}
-      <div
-        style={{
-          padding: `${pad - 4}px ${pad}px`,
-          fontSize: fs.small,
-          color: theme.textMuted,
-          borderBottom: `1px solid ${theme.border}`,
-          flexShrink: 0,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}
-      >
-        <span style={{ fontStyle: "italic" }}>
-          What happened at each stage, what data flowed, what decisions were made, and why.
-        </span>
-        <button
-          onClick={handleCopy}
-          title="Copy narrative as LLM-ready text (includes subflow details)"
-          style={{
-            background: copied ? theme.success : theme.bgSecondary,
-            border: `1px solid ${theme.border}`,
-            borderRadius: 4,
-            padding: "2px 8px",
-            fontSize: fs.small,
-            color: copied ? "#fff" : theme.textSecondary,
-            cursor: "pointer",
-            flexShrink: 0,
-            marginLeft: 8,
-            transition: "all 0.2s",
-          }}
-        >
-          {copied ? "Copied!" : "Copy for LLM"}
-        </button>
+  return <section className={className} data-fp="narrative-panel" data-presentation={presentation}
+    style={{ ...sx({ overflow: "auto", display: "flex", flexDirection: "column", color: theme.textPrimary, fontFamily: theme.fontSans, fontSize: chrome.body }), ...style }}>
+    <header style={sx({ padding: chrome.padding, borderBottom: `${chrome.borderWidth} solid ${theme.border}`, flexShrink: 0 })}>
+      <p style={sx({ margin: `0 0 ${chrome.spaceSm}`, color: theme.textSecondary, fontSize: chrome.body, lineHeight: chrome.lineHeight, overflowWrap: "anywhere" })}>
+        Recorded entries in {scopeLabel}{hasStructured && !synchronized ? "." : ` through selected step ${Math.min(snapshots.length, Math.max(0, selectedIndex + 1))} of ${snapshots.length}.`}
+      </p>
+      {hasStructured && !synchronized && <p role="status" data-fp="narrative-unsynchronized"
+        style={sx({ margin: `0 0 ${chrome.spaceSm}`, color: theme.warning, fontSize: chrome.body, lineHeight: chrome.lineHeight })}>
+        This recorded log is not synchronized to the selected step. Exact visit IDs are missing, unmatched or ambiguous; all supplied entries in this scope are shown without selected-step attribution.
+      </p>}
+      <div style={sx({ display: "flex", alignItems: "center", gap: chrome.spaceSm, flexWrap: "wrap" })}>
+        <label style={sx({ display: "inline-flex", alignItems: "center", gap: chrome.spaceXs, fontSize: chrome.body, color: theme.textSecondary })}>
+          <FootprintCheckbox checked={followCursor} onChange={event => setFollowCursor(event.currentTarget.checked)} unstyled={unstyled} part="narrative-follow" />
+          Follow cursor
+        </label>
+        <FootprintButton onClick={handleCopy} unstyled={unstyled} densitySize={size} part="narrative-copy"
+          title={runtimeSnapshot ? "Copies the full supplied run snapshot and all log entries, including other invocations and entries after the selected step." : "Copies all supplied recorded log entries, including entries after the selected step."}
+          defaultStyle={{ background: copied ? theme.success : theme.bgSecondary, border: `${chrome.borderWidth} solid ${theme.border}`,
+            borderRadius: chrome.radiusControl, padding: chrome.controlPadding, fontSize: chrome.small,
+            color: copied ? theme.onSuccess : theme.textPrimary, cursor: "pointer", fontFamily: theme.fontSans, minHeight: chrome.controlHeight }}>
+          {copied ? "Copied!" : copyLabel}
+        </FootprintButton>
       </div>
-      {hasStructured ? (
-        <StoryNarrative
-          entries={narrativeEntries!}
-          revealedEntryCount={revealedEntryCount}
-          scopeSubflowId={scopeSubflowId}
-          size={size}
-          style={{ flex: 1 }}
-        />
-      ) : (
-        <NarrativeTrace
-          narrative={narrative}
-          revealedCount={revealedCount}
-          size={size}
-          style={{ flex: 1 }}
-        />
-      )}
-    </div>
-  );
+      {runtimeSnapshot && <p data-fp="narrative-copy-scope" style={sx({ margin: `${chrome.spaceSm} 0 0`, fontSize: chrome.small, color: theme.textSecondary })}>
+        Debug bundle includes the full supplied run, beyond this log's scope and selected step.
+      </p>}
+    </header>
+    {hasStructured ? <StoryNarrative entries={scopedEntries} revealedEntryCount={revealedEntryCount}
+      scopeSubflowId={scopeSubflowId} presentation={synchronized ? presentation : "entries"}
+      selectedRuntimeStageId={synchronized ? selectedSnapshot?.runtimeStageId : undefined}
+      visibleRuntimeStageIds={synchronized ? visibleRuntimeStageIds : undefined}
+      followCursor={followCursor && synchronized} size={size} unstyled={unstyled} style={sx({ flex: 1 })} />
+      : <NarrativeTrace narrative={narrative} revealedCount={revealedCount} followCursor={followCursor}
+        size={size} unstyled={unstyled} style={sx({ flex: 1 })} />}
+  </section>;
 }

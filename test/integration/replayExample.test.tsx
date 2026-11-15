@@ -13,7 +13,7 @@
  * (`graphFromStructure` + a snapshot-derived overlay) does not exist.
  */
 import { describe, it, expect, afterEach } from "vitest";
-import { render, cleanup, waitFor } from "@testing-library/react";
+import { render, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import * as React from "react";
 
 import { Replay } from "../../examples/replay-a-recording/Replay";
@@ -71,6 +71,8 @@ describe("examples/replay-a-recording", () => {
 
   it("tells the story the run recorded, not a generic one", async () => {
     const { container } = render(React.createElement(Replay));
+    fireEvent.click(within(container).getByRole("button", { name: "Run data" }));
+    fireEvent.click(within(container).getByRole("button", { name: "Run log" }));
     await waitFor(() =>
       expect(container.querySelector('[data-fp="story-narrative"]')).toBeTruthy(),
     );
