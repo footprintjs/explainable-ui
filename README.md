@@ -701,6 +701,7 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | `TraceWalkCard` | The tracing stop card with recorded-read chips, an investigation trail and Copy story |
 | `InvestigationPanel` | Host-bound, on-demand recorded cause and impact results with unknown evidence states |
 | `GroupedFlowInvestigation` | Grouped run diagram with on-demand recorded cause, backward relationships and impact |
+| `FailureExplanationView` | Optional plain-language problem, recorded cause and suggested next step with uncertainty kept visible |
 | `InsightPanel` | Recorder outputs as tabs or a grid — Story, Performance, Quality, Cost |
 | `CompactTimeline` | Collapsed = a row of dots, expanded = the Gantt. The shell's footer |
 
@@ -1033,6 +1034,39 @@ pipeline and snapshot-asserts the outputs in `test/golden/__snapshots__/`.
 library still has zero footprintjs dependency (it consumes plain JSON shapes).
 
 ## On-demand investigation
+
+### Optional plain-language explanations
+
+`FailureExplanationView` displays an explanation already admitted by the host.
+It keeps three sections—Problem, Recorded cause and Suggested next step—beside
+an always-visible Still unknown area. Optional authored copy is labelled Business
+guidance and appears alongside canonical text. It cannot grant permission,
+execute a repair, choose a root cause or load a recording.
+
+The required `canonicalFindings` preserves complete causes, consequences and
+recording failures. The latter two appear in separate visible sections, rather
+than disappearing from the explanation or being relabelled as causes. Complete
+cause codes and references remain available in the cause details.
+
+```tsx
+import { FailureExplanationView } from 'footprint-explainable-ui';
+
+// The host formats an admitted diagnosis and binds it to the exact selected
+// recording/item. Clear it whenever that selection changes.
+<FailureExplanationView explanation={selectedExplanation ?? null} />
+```
+
+Blueprint's formatted explanation is structurally assignable; this UI component
+has no Blueprint runtime dependency. Evidence references are opaque text in
+disclosures, never links or selection authority. A malformed, accessor-backed or
+over-budget model refuses the whole view, with a message that the cause and
+outcome remain unknown. Display bounds are 262,144 UTF-16 text code units total,
+1,024 entries per list, 4,096 total nested list items and 4,096 code units per
+reference/unknown. All canonical finding text counts toward these limits. This is shape
+admission, not producer authentication or a JavaScript Proxy sandbox. Existing
+viewers and diagrams are unchanged until the host explicitly adds this component.
+
+### Recorded cause and impact panel
 
 `InvestigationPanel` is a standalone, optional panel. Existing viewers and their
 selected visits do not change. The host supplies a bounded canonical attention
