@@ -6,11 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ExplainableShell } from "../../src/components/ExplainableShell/ExplainableShell";
 import type { NarrativeEntry, StageSnapshot } from "../../src/types";
 import type { StageActivityPanelProps } from "../../src/components/StageActivityPanel/StageActivityPanel";
+import type { TimeTravelControlsProps } from "../../src/components/TimeTravelControls/TimeTravelControls";
 import { toVisualizationSnapshots } from "../../src/adapters/fromRuntimeSnapshot";
 
 // Keep the real panel in the integration path. Retaining its public callback
 // models an old rendered action that a host still holds after replacing a run.
 const panelCapture = vi.hoisted(() => ({ props: null as StageActivityPanelProps | null }));
+const railCapture = vi.hoisted(() => ({ props: null as TimeTravelControlsProps | null }));
 vi.mock("../../src/components/StageActivityPanel/StageActivityPanel", async importOriginal => {
   const actual = await importOriginal<typeof import("../../src/components/StageActivityPanel/StageActivityPanel")>();
   return {
@@ -18,6 +20,16 @@ vi.mock("../../src/components/StageActivityPanel/StageActivityPanel", async impo
     StageActivityPanel(props: StageActivityPanelProps) {
       panelCapture.props = props;
       return React.createElement(actual.StageActivityPanel, props);
+    },
+  };
+});
+vi.mock("../../src/components/TimeTravelControls/TimeTravelControls", async importOriginal => {
+  const actual = await importOriginal<typeof import("../../src/components/TimeTravelControls/TimeTravelControls")>();
+  return {
+    ...actual,
+    TimeTravelRail(props: React.ComponentProps<typeof actual.TimeTravelRail>) {
+      railCapture.props = props;
+      return React.createElement(actual.TimeTravelRail, props);
     },
   };
 });
@@ -60,6 +72,23 @@ function counterRun(runId = "counter-one", seed = 2, written = 3, later = 99) {
 function stageActivity() { return screen.getByRole("region", { name: "Stage activity" }); }
 function variableInspector() { return within(stageActivity()).getByRole("complementary", { name: "Variable inspector" }); }
 function traceCard() { return document.querySelector('[data-fp="trace-walk-card"]') as HTMLElement; }
+function returnToActivity(stageLabel: string) {
+  fireEvent.click(within(screen.getByRole("toolbar")).getByRole("button", { name: `Return to ${stageLabel} activity` }));
+}
+function expectReadAtVisit(runtimeStageId: string, value: string) {
+  expect(stageActivity().querySelector('[data-fp="stage-activity-visit"]')?.textContent).toBe(runtimeStageId);
+  expect(within(variableInspector()).getByText("Read key")).toBeTruthy();
+  expect(variableInspector().querySelector('[data-fp="stage-activity-value"]')?.textContent).toBe(value);
+  expect(within(variableInspector()).getByRole("button", { name: "Backtrack read count" })).toBeTruthy();
+  expect(document.querySelector('[data-fp="trace-walk-card"]')).toBeNull();
+  expect(document.querySelector('[data-fp="trace-activity-origin"]')).toBeNull();
+  expect(document.querySelector('[data-fp="trace-execution-legend"]')).toBeNull();
+  expect(screen.getByRole("toolbar").getAttribute("data-tracing")).toBeNull();
+  expect(stageActivity().contains(document.activeElement)).toBe(true);
+  expect(document.activeElement?.getAttribute("data-variable-kind")).toBe("read");
+  expect(document.activeElement?.getAttribute("data-variable-key")).toBe("count");
+  expect(document.activeElement?.getAttribute("aria-pressed")).toBe("true");
+}
 function next(times = 1) {
   for (let index = 0; index < times; index++) fireEvent.click(screen.getByRole("button", { name: "Next stage" }));
 }
@@ -80,7 +109,7 @@ function renderCounter(extra: Partial<Props> = {}) {
   return { ...render(React.createElement(ExplainableShell, props)), run, props };
 }
 
-beforeEach(() => { panelCapture.props = null; });
+beforeEach(() => { panelCapture.props = null; railCapture.props = null; });
 
 describe("ExplainableShell stage Activity", () => {
   it("opens Activity in the Inspector while keeping State and Data Trace available", () => {
@@ -113,10 +142,15 @@ describe("ExplainableShell stage Activity", () => {
     expect(activeTick()).toBe(0);
     expect(traceCard().textContent).not.toContain("99");
     expect(screen.queryByRole("region", { name: "Stage activity" })).toBeNull();
+    expect(document.querySelector('[data-fp="trace-activity-origin"]')?.textContent).toBe("From Increment · read count");
+    expect(document.querySelector('[data-fp="trace-view-position"]')?.textContent).toBe("Viewing recorded step 1 of 3");
+    expect(document.querySelector('[data-fp="trace-execution-legend"]')?.textContent).toContain("Other steps: context");
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("Return to Increment activity");
 
-    fireEvent.click(within(screen.getByRole("toolbar")).getByRole("button", { name: "Exit tracing" }));
-    next();
-    fireEvent.click(screen.getByRole("button", { name: "Activity" }));
+    returnToActivity("Increment");
+    expectReadAtVisit("increment#1", "2");
+    expect(activeTick()).toBe(1);
+    expect(screen.getByRole("button", { name: "Activity" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(within(stageActivity()).getByRole("button", { name: "Inspect write count" }));
     expect(variableInspector().querySelector('[data-fp="stage-activity-value"]')?.textContent).toBe("3");
     fireEvent.click(within(variableInspector()).getByRole("button", { name: "Backtrack write count" }));
@@ -124,6 +158,92 @@ describe("ExplainableShell stage Activity", () => {
     expect(activeTick()).toBe(1);
     expect(traceCard().textContent).not.toContain("99");
     expect(within(screen.getByRole("toolbar")).getByText(/stop 1 of 2/)).toBeTruthy();
+  });
+
+  it.each(["Escape", "Activity tab"])("returns to the original read and visit through %s", returnAction => {
+    renderCounter();
+    next();
+    openActivity();
+    fireEvent.click(within(stageActivity()).getByRole("button", { name: "Inspect read count" }));
+    fireEvent.click(within(variableInspector()).getByRole("button", { name: "Backtrack read count" }));
+    expect(activeTick()).toBe(0);
+    if (returnAction === "Escape") fireEvent.keyDown(screen.getByRole("toolbar"), { key: "Escape" });
+    else fireEvent.click(screen.getByRole("button", { name: "Activity" }));
+    expectReadAtVisit("increment#1", "2");
+    expect(activeTick()).toBe(1);
+  });
+
+  it("returns a first-visit read with no prior writer through Escape on the focused card action", () => {
+    const run = counterRun();
+    run.runtimeSnapshot.executionTree.stageReads = { count: 2 };
+    renderCounter({ ...run, runtimeSnapshot: run.runtimeSnapshot as never });
+    openActivity();
+    fireEvent.click(within(stageActivity()).getByRole("button", { name: "Inspect read count" }));
+    const unavailableValue = variableInspector().querySelector('[data-fp="stage-activity-value"]')?.textContent;
+    expect(unavailableValue).toBe("Value preview unavailable");
+    fireEvent.click(within(variableInspector()).getByRole("button", { name: "Backtrack read count" }));
+
+    expect(traceCard().getAttribute("data-missing")).toBeTruthy();
+    expect(screen.getByRole("toolbar").getAttribute("data-tracing")).toBeNull();
+    expect(railCapture.props!.tracing).toBeNull();
+    const investigation = screen.getByRole("region", { name: "Variable investigation" });
+    expect(investigation.querySelector('[data-fp="trace-activity-origin"]')?.textContent).toBe("From Seed · read count");
+    expect(investigation.querySelector('[data-fp="trace-view-position"]')?.textContent).toBe("Viewing recorded step 1 of 3");
+    expect(within(investigation).queryByRole("group", { name: "Investigation view" })).toBeNull();
+    const returnAction = within(traceCard()).getByRole("button", { name: "Return to Seed activity" });
+    expect(document.activeElement).toBe(returnAction);
+    expect(screen.queryByRole("region", { name: "Stage activity" })).toBeNull();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+
+    expectReadAtVisit("seed#0", unavailableValue!);
+    expect(activeTick()).toBe(0);
+    expect(screen.getByRole("button", { name: "Activity" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("returns to the written variable after following an earlier source", () => {
+    renderCounter();
+    next();
+    openActivity();
+    fireEvent.click(within(stageActivity()).getByRole("button", { name: "Inspect write count" }));
+    fireEvent.click(within(variableInspector()).getByRole("button", { name: "Backtrack write count" }));
+    fireEvent.click(within(traceCard()).getByTitle("Follow count — re-anchor the walk on its writer"));
+    expect(activeTick()).toBe(0);
+    expect(traceCard().textContent).toContain("wrote count = 2");
+    expect(screen.getByRole("navigation", { name: "Investigation trail" })).toBeTruthy();
+    returnToActivity("Increment");
+    expect(stageActivity().querySelector('[data-fp="stage-activity-visit"]')?.textContent).toBe("increment#1");
+    expect(activeTick()).toBe(1);
+    expect(within(variableInspector()).getByText("Written key")).toBeTruthy();
+    expect(variableInspector().querySelector('[data-fp="stage-activity-value"]')?.textContent).toBe("3");
+    expect(screen.queryByRole("navigation", { name: "Investigation trail" })).toBeNull();
+  });
+
+  it("does not let a retained return action replace a new run's active investigation", () => {
+    const ui = renderCounter();
+    next();
+    openActivity();
+    fireEvent.click(within(stageActivity()).getByRole("button", { name: "Inspect read count" }));
+    fireEvent.click(within(variableInspector()).getByRole("button", { name: "Backtrack read count" }));
+    const oldReturn = railCapture.props!.tracing!.onExit;
+    const replacement = counterRun("counter-two", 20, 30, 990);
+    ui.rerender(React.createElement(ExplainableShell, {
+      ...ui.props, ...replacement, runtimeSnapshot: replacement.runtimeSnapshot as never,
+    }));
+    // A new run starts at the traced writer; choose its Increment explicitly.
+    expect(activeTick()).toBe(0);
+    next();
+    fireEvent.click(screen.getByRole("button", { name: "Activity" }));
+    fireEvent.click(within(stageActivity()).getByRole("button", { name: "Inspect write count" }));
+    fireEvent.click(within(variableInspector()).getByRole("button", { name: "Backtrack write count" }));
+    expect(traceCard().textContent).toContain("wrote count = 30");
+    act(() => oldReturn());
+    expect(traceCard().textContent).toContain("wrote count = 30");
+    expect(screen.queryByRole("region", { name: "Stage activity" })).toBeNull();
+    expect(activeTick()).toBe(1);
+    returnToActivity("Increment");
+    expect(stageActivity().querySelector('[data-fp="stage-activity-visit"]')?.textContent).toBe("increment#1");
+    expect(within(variableInspector()).getByText("Written key")).toBeTruthy();
+    expect(variableInspector().querySelector('[data-fp="stage-activity-value"]')?.textContent).toBe("30");
   });
 
   it("resets the inspected read when moving to another visit of the same variable", () => {
@@ -192,6 +312,12 @@ describe("ExplainableShell stage Activity", () => {
     fireEvent.click(within(stageActivity()).getByRole("button", { name: "Inspect read count" }));
     fireEvent.click(within(variableInspector()).getByRole("button", { name: "Backtrack read count" }));
     expect(traceCard().textContent).toContain("wrote count = 2");
+    expect(traceCard().hasAttribute("style")).toBe(false);
+    expect(traceCard().querySelector("[style]")).toBeNull();
+    expect(document.querySelector('[data-fp="memory-panel"]')).toBeTruthy();
+    returnToActivity("Increment");
+    expectReadAtVisit("increment#1", "2");
+    expect(activeTick()).toBe(1);
     expect(document.querySelector('[data-fp="memory-panel"]')).toBeTruthy();
   });
 
@@ -205,6 +331,10 @@ describe("ExplainableShell stage Activity", () => {
       fireEvent.click(within(variableInspector()).getByRole("button", { name: "Backtrack read count" }));
       expect(traceCard().textContent).toContain("wrote count = 2");
       expect(activeTick()).toBe(0);
+      returnToActivity("Increment");
+      expectReadAtVisit("increment#1", "2");
+      expect(activeTick()).toBe(1);
+      expect(screen.getByRole("button", { name: "Activity" }).getAttribute("aria-pressed")).toBe("true");
     });
   });
 
@@ -305,6 +435,19 @@ describe("Stage Activity exact child invocation", () => {
     expect(traceCard().textContent).toContain("wrote renamed = 4");
     expect(traceCard().textContent).toContain("subflow boundary");
     expect(activeTick()).toBe(targetIndex);
+    fireEvent.click(within(traceCard()).getByRole("button", { name: "Follow child source middleOutput in child#9" }));
+    fireEvent.click(within(traceCard()).getByRole("button", { name: "Follow child source localOutput in child/inner#11" }));
+    expect(screen.getByRole("toolbar").getAttribute("aria-label")).toBe("Tracing localOutput");
+    expect(traceCard().textContent).toContain("child#9 → child/inner#11");
+    expect(screen.getByRole("toolbar").querySelectorAll('[data-fp="tt-tick"]')).toHaveLength(1);
+    returnToActivity("Child");
+    expect(stageActivity().querySelector('[data-fp="stage-activity-visit"]')?.textContent).toBe("child#9");
+    expect(within(variableInspector()).getByText("Written key")).toBeTruthy();
+    expect(within(variableInspector()).getByRole("button", { name: "Backtrack write renamed" })).toBeTruthy();
+    expect(variableInspector().querySelector('[data-fp="stage-activity-value"]')?.textContent).toBe("4");
+    expect(activeTick()).toBe(targetIndex);
+    expect(screen.getByRole("toolbar").querySelectorAll('[data-fp="tt-tick"]')).toHaveLength(snapshots.length);
+    expect(screen.queryByRole("navigation", { name: "Investigation trail" })).toBeNull();
   });
 
   it("keeps a narrow child visit and cursor when switching Inspector, Memory and Narrative", () => {
@@ -380,5 +523,11 @@ describe("Stage Activity exact child invocation", () => {
     expect(variableInspector().textContent).toContain("quote/seed#10");
     fireEvent.click(within(variableInspector()).getByRole("button", { name: "Backtrack read count" }));
     expect(traceCard().textContent).toContain("wrote count = 20");
+    returnToActivity("increment");
+    expectReadAtVisit("quote/increment#11", "20");
+    expect(stageActivity().textContent).toContain("quote#9");
+    expect(stageActivity().textContent).not.toContain("quote#0");
+    expect(variableInspector().textContent).toContain("quote/seed#10");
+    expect(activeTick()).toBe(1);
   });
 });

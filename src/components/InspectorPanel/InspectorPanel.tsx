@@ -45,6 +45,9 @@ export interface InspectorPanelProps extends BaseComponentProps {
   onActivitySelect?: () => void;
   /** Reuse the host's validated trace controller for this exact read or write. */
   onTraceActivityVariable?: (target: StageActivityTraceTarget) => void;
+  /** Controlled variable selection within the exact Activity visit. */
+  selectedActivityVariableId?: string;
+  onActivityVariableSelect?: (id: string) => void;
 }
 
 type InspectorTab = "state" | "trace";
@@ -63,6 +66,8 @@ export const InspectorPanel = memo(function InspectorPanel({
   activitySelected,
   onActivitySelect,
   onTraceActivityVariable,
+  selectedActivityVariableId,
+  onActivityVariableSelect,
   size = "default",
   unstyled = false,
   className,
@@ -131,6 +136,7 @@ export const InspectorPanel = memo(function InspectorPanel({
       {/* Tab content */}
       <div data-fp="inspector-body" style={sx({ flex: 1, overflow: "auto" })}>
         {showActivity && activity && <StageActivityPanel activity={activity} onTraceVariable={onTraceActivityVariable}
+          selectedVariableId={selectedActivityVariableId} onVariableSelect={onActivityVariableSelect}
           onNavigateToStage={onNavigateToStage} size={size} unstyled={unstyled} />}
         {!showActivity && tab === "state" && (
           <MemoryPanel

@@ -17,11 +17,15 @@ export interface StageActivityPanelProps extends BaseComponentProps {
   onTraceVariable?: (target: StageActivityTraceTarget) => void;
   /** Explicitly inspect the recorded writer without changing the read's identity. */
   onNavigateToStage?: (runtimeStageId: string) => void;
+  /** A variable id from this exact visit. Omit to keep selection local. */
+  selectedVariableId?: string;
+  /** Fires for an explicit variable selection, including controlled instances. */
+  onVariableSelect?: (id: string) => void;
 }
 
 /** A stage remains the context while its recorded reads and changes are inspected. */
 export function StageActivityPanel({
-  activity, onTraceVariable, onNavigateToStage,
+  activity, onTraceVariable, onNavigateToStage, selectedVariableId, onVariableSelect,
   size = "default", unstyled = false, className, style,
 }: StageActivityPanelProps) {
   const fs = fontSize[size], pad = padding[size];
@@ -31,10 +35,14 @@ export function StageActivityPanel({
   const contentRef = useRef<HTMLDivElement>(null);
   const inspectorRef = useRef<HTMLElement>(null);
   const variables = [...activity.reads, ...activity.writes];
-  const selected = (selection?.identity === identity && variables.find(variable => variable.id === selection.variableId))
+  const selectedId = selectedVariableId ?? (selection?.identity === identity ? selection.variableId : undefined);
+  const selected = variables.find(variable => variable.id === selectedId)
     || activity.writes[0] || activity.reads[0] || null;
   const variableById = new Map(variables.map(variable => [variable.id, variable]));
-  const select = (variable: StageActivityVariable) => setSelection({ identity, variableId: variable.id });
+  const select = (variable: StageActivityVariable) => {
+    setSelection({ identity, variableId: variable.id });
+    onVariableSelect?.(variable.id);
+  };
   useIsomorphicLayoutEffect(() => {
     if (!selection || selection.identity !== identity || unstyled) return;
     const content = contentRef.current?.getBoundingClientRect();

@@ -65,6 +65,19 @@ describe("TimeTravelControls — tracing mode", () => {
     expect(screen.getByLabelText("Exit tracing")).toBeTruthy();
   });
 
+  it.each([false, true])("offers the host's Activity return destination (unstyled=%s)", (unstyled) => {
+    const { onExit, onIndexChange } = renderTracing({ unstyled }, {
+      exitLabel: "Back to Quote · Activity", exitAriaLabel: "Return to Quote activity",
+    });
+    const back = screen.getByRole("button", { name: "Return to Quote activity" });
+    expect(back.textContent).toBe("Back to Quote · Activity");
+    expect(back.getAttribute("type")).toBe("button");
+    fireEvent.click(back);
+    expect(onExit).toHaveBeenCalledOnce();
+    expect(onIndexChange).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Exit tracing" })).toBeNull();
+  });
+
   it("'earlier recorded step' moves the ONE cursor to the nearest stop before it (skipping non-stops)", () => {
     const { onIndexChange } = renderTracing({ selectedIndex: 4 });
     fireEvent.click(screen.getByLabelText("Earlier recorded step"));

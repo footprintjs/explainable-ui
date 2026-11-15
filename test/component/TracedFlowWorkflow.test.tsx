@@ -6,6 +6,7 @@ import { TracedFlow } from "../../src/components/FlowchartView/TracedFlow";
 import type { TraceGraph } from "../../src/components/FlowchartView/traceStructureRecorder";
 import type { RuntimeOverlay } from "../../src/components/FlowchartView/createTraceRuntimeOverlay";
 import type { TraceWorkflowOverlay } from "../../src/trace/traceWorkflowOverlay";
+import { StageNode } from "../../src/components/StageNode";
 
 const graph: TraceGraph = {
   nodes: ["source", "audit", "result"].map((id, index) => ({ id, type: "stage", position: { x: 100, y: index * 150 },
@@ -77,7 +78,7 @@ describe("TracedFlow recorded workflow reads", () => {
     expect(label.style.height).toBe("20px");
     expect(label.style.textOverflow).toBe("ellipsis");
     expect(store.getState().edges.every(edge => !edge.animated)).toBe(true);
-    expect(store.getState().nodeLookup.get("audit")!.style?.opacity).toBe(0.4);
+    expect(store.getState().nodeLookup.get("audit")!.style?.opacity).toBe(1);
     expect(store.getState().nodeLookup.get("audit")!.data.error).toBe(true);
     expect(store.getState().nodeLookup.get("source")!.data.done).toBe(true);
     expect(store.getState().nodeLookup.get("result")!.data.active).toBe(true);
@@ -86,6 +87,72 @@ describe("TracedFlow recorded workflow reads", () => {
     expect(store.getState().edges.some(edge => edge.type === "recordedRead")).toBe(false);
     expect(store.getState().nodes.every(node => node.data.traceWorkflow === undefined)).toBe(true);
     expect(store.getState().transform).toEqual([51, -24, 0.67]);
+  });
+
+  it("keeps context and later trace stages readable without marking them visited", () => {
+    const mutedGraph = { ...graph, nodes: graph.nodes.map(node => node.id === "audit"
+      ? { ...node, data: { ...node.data, emphasis: "muted" as const } } : node) };
+    let store!: ReturnType<typeof useStoreApi>;
+    function Probe() { store = useStoreApi(); return null; }
+    const chart = (workflow?: TraceWorkflowOverlay) => <TracedFlow graph={mutedGraph} overlay={runtime}
+      scrubIndex={0} traceWorkflow={workflow} layout="passthrough"><Probe /></TracedFlow>;
+    const mounted = render(chart());
+    const stage = (id: string) => mounted.container.querySelector<HTMLElement>(`.react-flow__node[data-id="${id}"] [data-fp="stage-node"]`)!;
+    const statuses = () => store.getState().nodes.map(node => ({ id: node.id,
+      active: node.data.active, done: node.data.done, error: node.data.error }));
+    const baseline = statuses();
+    const futureBody = stage("result").querySelector<HTMLElement>('[data-fp="stage-node-body"]')!.style.background;
+    expect(store.getState().nodeLookup.get("audit")!.style?.opacity).toBe(0.35);
+    expect((stage("audit").firstElementChild as HTMLElement).style.opacity).toBe("0.5");
+    expect(mounted.getByText("NOW")).toBeTruthy();
+
+    mounted.rerender(chart(trace));
+    expect(statuses()).toEqual(baseline);
+    expect(store.getState().nodes.every(node => node.style?.opacity === 1 && node.data.dimmed === false)).toBe(true);
+    expect((stage("audit").firstElementChild as HTMLElement).style.opacity).toBe("1");
+    expect(stage("audit").getAttribute("data-trace-context")).toBe("outside");
+    expect(stage("audit").title).toContain("Outside displayed trace");
+    expect(stage("audit").textContent).toContain("Outside displayed trace");
+    const caption = stage("audit").querySelector<HTMLElement>('[data-fp="trace-context-caption"]')!;
+    expect(caption.style.position).toBe("absolute");
+    expect(caption.style.top).toBe("calc(100% + 7px)");
+    expect(stage("result").getAttribute("data-trace-context")).toBe("displayed");
+    expect(stage("result").querySelector<HTMLElement>('[data-fp="stage-node-body"]')!.style.background).toBe(futureBody);
+    expect(store.getState().nodeLookup.get("result")!.data).toMatchObject({ active: false, done: false });
+    expect(stage("result").querySelector('[data-fp="trace-workflow-ring"]')).toBeTruthy();
+    expect(mounted.getByText("VIEWING")).toBeTruthy();
+    expect(mounted.queryByText("NOW")).toBeNull();
+
+    mounted.rerender(chart());
+    expect(statuses()).toEqual(baseline);
+    expect(store.getState().nodeLookup.get("audit")!.style?.opacity).toBe(0.35);
+    expect(store.getState().nodeLookup.get("audit")!.data.dimmed).toBe(true);
+    expect((stage("audit").firstElementChild as HTMLElement).style.opacity).toBe("0.5");
+    expect(stage("audit").hasAttribute("data-trace-context")).toBe(false);
+    expect(mounted.queryByText("Outside displayed trace")).toBeNull();
+    expect(mounted.getByText("NOW")).toBeTruthy();
+  });
+
+  it.each([{}, { done: true, error: true }])("retains custom-node authored opacity, metadata and status overrides: %j", overrides => {
+    const customGraph = { ...graph, nodes: graph.nodes.map(node => node.id === "audit"
+      ? { ...node, type: "customStage", style: { ...node.style, opacity: 0.8 },
+        data: { ...node.data, ...overrides, customLabel: "host-controlled" } } : node) };
+    let store!: ReturnType<typeof useStoreApi>;
+    function Probe() { store = useStoreApi(); return null; }
+    const nodeTypes = { customStage: StageNode };
+    const chart = (workflow?: TraceWorkflowOverlay) => <TracedFlow graph={customGraph} overlay={runtime}
+      nodeTypes={nodeTypes} scrubIndex={0} traceWorkflow={workflow} layout="passthrough"><Probe /></TracedFlow>;
+    const mounted = render(chart());
+    const baseline = store.getState().nodeLookup.get("audit")!;
+    const status = { active: baseline.data.active, done: baseline.data.done, error: baseline.data.error };
+    mounted.rerender(chart(trace));
+    const node = store.getState().nodeLookup.get("audit")!;
+    expect(node.type).toBe("customStage");
+    expect(node.style?.opacity).toBe(0.8);
+    expect(node.data).toMatchObject({ ...status, customLabel: "host-controlled", dimmed: false, traceContext: "outside" });
+    mounted.rerender(chart());
+    expect(store.getState().nodeLookup.get("audit")!.style?.opacity).toBe(baseline.style?.opacity);
+    expect(customGraph.nodes.find(node => node.id === "audit")!.style?.opacity).toBe(0.8);
   });
 
   it("reacts to reduced motion and keeps recorded-read edges static even when motion is allowed", async () => {

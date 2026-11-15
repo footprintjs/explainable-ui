@@ -371,6 +371,19 @@ the default Inspector view in `ExplainableShell`. Selecting a variable keeps the
 stage context visible while showing its recorded writer and bounded value
 preview; **Backtrack** enters the existing value-tracing rail.
 
+An Activity-started trace keeps an origin bookmark containing the stage address
+and selected variable identity, without retaining snapshot values. Its primary
+**Back to … · Activity** action restores that exact stage, invocation and
+variable selection after validating the current recording. **Escape** and the
+Inspector's **Activity** tab use the same return. The variable-question trail
+still lets you return to earlier questions within the investigation. A trace
+started through the legacy Data Trace controls keeps its existing **Done**
+behavior: exit at the currently viewed cursor.
+
+The return route also works when no earlier writer is recorded and there are
+no trace stops to step through. Keyboard focus can return to the inspected
+variable after the origin is restored.
+
 A read and a write of the same key remain separate. For a stage that reads
 `count = 2` and writes `count = 3`, the read's trace cutoff is before that
 stage's commit; the write's cutoff includes it. Exact invocation and visit IDs
@@ -409,6 +422,10 @@ it by default. Controlled hosts use `activitySelected` and `onActivitySelect`
 for that selection; `tab` and `onTabChange` retain their existing
 `"state" | "trace"` contract. `onTraceActivityVariable` receives an exact
 recorded target that the host must validate before starting the existing walk.
+Hosts can control the inspected variable with
+`StageActivityPanel.selectedVariableId` / `onVariableSelect`, or the wrapping
+Inspector's `selectedActivityVariableId` / `onActivityVariableSelect`. The shell
+uses this selection to return to the same read or write after backtracking.
 
 ### Tracing a value — inspect its recorded state reads
 
@@ -428,6 +445,11 @@ track position and emphasis changes; the reader's reduced-motion preference
 disables them. Questions without a usable recorded walk keep the usual execution
 view and the explanation of what is missing.
 
+While tracing, execution nodes remain readable as workflow context. A
+**VIEWING** badge identifies the recorded cursor; it does not assert that a
+stage is running now or that a later stage has already completed. Recorded
+relationships and execution status retain their separate meanings.
+
 - **Recorded stage reads**: the variable map shows recorded read links to
   earlier local writers. This is conservative stage-level evidence, not
   exact per-write derivation. A step that read two keys and wrote two outputs
@@ -446,7 +468,8 @@ view and the explanation of what is missing.
   a guessed visit.
 - **One cursor**: the rail, execution view and state panel stay synchronized.
   Selecting an earlier recorded step changes the displayed moment; it does
-  not move the question's frozen cutoff. **Done** exits tracing at that cursor.
+  not move the question's frozen cutoff. Legacy Data Trace **Done** exits at
+  that cursor; an Activity-origin return restores its bookmarked stage instead.
 - **Honest absence**: a missing writer says "no recorded write; value
   unknown". A value not written yet names the later recorded write. An empty
   read list says "No recorded state reads", without declaring a data origin.

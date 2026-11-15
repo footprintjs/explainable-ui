@@ -3,9 +3,11 @@ import type { TraceAvailability } from "./traceScope";
 export function TraceUnavailableNote({
   availability,
   scopeLabel = "Child",
+  unstyled = false,
 }: {
   availability: TraceAvailability;
   scopeLabel?: "Root" | "Child";
+  unstyled?: boolean;
 }) {
   if (availability.ok) return null;
   const reason =
@@ -17,7 +19,7 @@ export function TraceUnavailableNote({
       ? `${scopeLabel} trace history was not recorded.`
       : `${scopeLabel} trace evidence is unavailable or malformed.`;
   return (
-    <div data-fp="trace-unavailable" role="status" style={{ padding: 14 }}>
+    <div data-fp="trace-unavailable" role="status" style={unstyled ? undefined : { padding: 14 }}>
       {reason} Dependencies are unknown.
       {scopeLabel === "Child" && " No parent record was substituted."}
     </div>

@@ -20,6 +20,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Reads reported after an in-stage write remain unresolved instead of pointing
   to a different pre-stage value. Proven value-free exit/repeat bookkeeping
   rows preserve raw trace cutoffs without becoming extra visits or writes.
+- Activity-started backtracking retains a names-only stage/variable origin.
+  Its primary return action, Escape and the Activity tab restore the validated
+  origin and variable selection; legacy Data Trace Done retains its cursor.
+  Optional controlled variable-selection props support standalone Activity and
+  Inspector hosts.
+
+### Fixed
+
+- Keep traced execution nodes readable as workflow context and identify the
+  recorded cursor with a VIEWING badge without asserting future completion.
+
+## [0.44.0] - 2026-11-14
+
+### Added
+
 - Optional `FailureExplanationView` displays a host-admitted problem, recorded
   cause and suggested next step. Canonical text and uncertainty remain visible
   beside clearly labelled business guidance; references are text only, and no

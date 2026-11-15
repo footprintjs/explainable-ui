@@ -63,6 +63,10 @@ export interface TraceWalkCardProps extends BaseComponentProps {
   onJumpToStop?: (runtimeStageId: string) => void;
   onShowAll?: () => void;
   onExit?: () => void;
+  /** Optional return destination; defaults to the legacy Done label. */
+  exitLabel?: string;
+  /** Accessible return action; defaults to Exit tracing. */
+  exitAriaLabel?: string;
   /** F2 fork chooser: when true AND the current stop has 2+ ingredients,
    *  a loud chooser block asks WHICH ingredient the walk should follow —
    *  the rail's walk-back control opens it instead of moving. */
@@ -89,6 +93,8 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   onJumpToStop,
   onShowAll,
   onExit,
+  exitLabel,
+  exitAriaLabel,
   forkChooserOpen,
   onContinueTimeOrder,
   canContinueTimeOrder = true,
@@ -141,7 +147,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         data-missing={walk.missing.reason}
         style={{ ...sx({ padding: "14px", fontSize: fs.body + 1, lineHeight: 1.55 }), ...style }}
       >
-        <CardHeader label={`Why this value — \`${walk.key}\``} onExit={onExit} sx={sx} fs={fs} />
+        <CardHeader label={`Why this value — \`${walk.key}\``} onExit={onExit} exitLabel={exitLabel} exitAriaLabel={exitAriaLabel} sx={sx} fs={fs} />
         <QuestionTrail entries={questionTrail} onReturn={onReturnToQuestion} sx={sx} fs={fs} />
         {scopeSentence(presentation) && <div data-fp="trace-scope-note">{scopeSentence(presentation)}</div>}
         <div style={sx({ color: theme.textPrimary, marginTop: 8 })}>
@@ -184,6 +190,8 @@ export const TraceWalkCard = memo(function TraceWalkCard({
       <CardHeader
         label={`Why ${recordedPathLabel(walk.key)}?`}
         onExit={onExit}
+        exitLabel={exitLabel}
+        exitAriaLabel={exitAriaLabel}
         sx={sx}
         fs={fs}
       />
@@ -200,6 +208,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
             <>
               {" · "}
               <button
+                type="button"
                 onClick={onShowAll}
                 style={sx({ border: "none", background: "transparent", color: accent, cursor: "pointer", fontSize: fs.label, textDecoration: "underline", padding: 0 })}
               >
@@ -266,6 +275,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
             ))}
           </div>
           <button
+            type="button"
             data-fp="twc-continue-time"
             onClick={canContinueTimeOrder ? onContinueTimeOrder : undefined}
             disabled={!canContinueTimeOrder}
@@ -347,6 +357,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           const isCurrent = i === currentIdx;
           return (
             <button
+              type="button"
               key={s.runtimeStageId}
               data-fp="twc-itinerary-row"
               data-current={isCurrent || undefined}
@@ -395,6 +406,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           </div>
         )}
         <button
+          type="button"
           data-fp="twc-copy-story"
           onClick={copyStory}
           style={sx({
@@ -420,27 +432,34 @@ export const TraceWalkCard = memo(function TraceWalkCard({
 function CardHeader({
   label,
   onExit,
+  exitLabel,
+  exitAriaLabel,
   sx,
   fs,
 }: {
   label: string;
   onExit?: () => void;
+  exitLabel?: string;
+  exitAriaLabel?: string;
   sx: Sx;
   fs: Fs;
 }) {
   return (
-    <div style={sx({ display: "flex", alignItems: "center", justifyContent: "space-between" })}>
-      <div style={sx({ fontSize: fs.body + 3, color: theme.textPrimary, fontWeight: 700 })}>
+    <div style={sx({ display: "flex", alignItems: "center", justifyContent: "space-between",
+      flexWrap: exitLabel !== undefined ? "wrap" : undefined, gap: exitLabel !== undefined ? 8 : undefined })}>
+      <div style={sx({ fontSize: fs.body + 3, color: theme.textPrimary, fontWeight: 700, overflowWrap: "anywhere", minWidth: 0 })}>
         {label}
       </div>
       {onExit && (
         <button
+          type="button"
           data-fp="twc-exit"
           onClick={onExit}
-          aria-label="Exit tracing"
-          style={sx({ border: "none", background: "transparent", color: theme.textMuted, cursor: "pointer", fontSize: fs.body })}
+          aria-label={exitAriaLabel ?? "Exit tracing"}
+          style={sx({ border: "none", background: "transparent", color: theme.textMuted, cursor: "pointer", fontSize: fs.body,
+            ...(exitLabel !== undefined ? { maxWidth: "100%", overflowWrap: "anywhere", textAlign: "left" } : {}) })}
         >
-          Done ✕
+          {exitLabel ?? "Done ✕"}
         </button>
       )}
     </div>
@@ -495,6 +514,7 @@ function IngredientChip({
   const terminus = !ing.writerRuntimeStageId;
   return (
     <button
+      type="button"
       data-fp="twc-ingredient"
       data-terminus={terminus || undefined}
       disabled={terminus || !onFollow}

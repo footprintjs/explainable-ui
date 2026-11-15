@@ -61,6 +61,8 @@ export interface StageNodeData {
     role: "question" | "input" | "upstream";
     values: readonly { key: string; preview: string | null; color: string }[];
   };
+  /** Display membership only; makes no claim about execution or causal independence. */
+  traceContext?: "displayed" | "outside";
   /** Stop node pulses and state transitions while inspecting recorded evidence. */
   suppressMotion?: boolean;
   /** Node was not executed (dim it) */
@@ -327,7 +329,9 @@ function StageIcon({ type, color }: { type: string; color: string }) {
 export const StageNode = memo(function StageNode({
   data,
 }: NodeProps & { data: StageNodeData }) {
-  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts, traceWorkflow, suppressMotion } = data;
+  const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts, traceWorkflow, traceContext, suppressMotion } = data;
+  const displayedContext = traceContext ?? (traceWorkflow ? "displayed" : undefined);
+  const viewingTrace = displayedContext !== undefined;
 
   // Lazy nodes show cloud icon by default (unless another icon is specified)
   const effectiveIcon = icon || (isLazy ? "lazy" : undefined);
@@ -439,6 +443,9 @@ export const StageNode = memo(function StageNode({
       <div
         data-fp="stage-node"
         data-trace-role={traceWorkflow?.role}
+        data-trace-context={displayedContext}
+        title={displayedContext === "outside" ? "Outside displayed trace. Recorded execution status is shown independently."
+          : displayedContext === "displayed" ? "In displayed trace. Recorded execution status is shown independently." : undefined}
         data-motion-suppressed={suppressMotion || undefined}
         style={{ width: "100%", display: "flex", justifyContent: "center" }}
       >
@@ -448,9 +455,8 @@ export const StageNode = memo(function StageNode({
             display: "flex",
             alignItems: "center",
             gap: 6,
-            // Plumbing recedes. Layers with the run-overlay `dimmed` (not-yet-run)
-            // — a muted AND not-run node is faintest, which is correct.
-            opacity: isMuted ? 0.5 : undefined,
+            // Trace emphasis uses rings and read links; every stage label stays readable.
+            opacity: viewingTrace ? 1 : isMuted ? 0.5 : undefined,
           }}
         >
           {/* Evidence is an absolute overlay: run status, measured dimensions
@@ -487,6 +493,14 @@ export const StageNode = memo(function StageNode({
               </>}
             </div>
           </>}
+          {displayedContext === "outside" && <div
+            data-fp="trace-context-caption"
+            style={{ position: "absolute", left: "calc(50% + 12px)", top: "calc(100% + 7px)", zIndex: 12,
+              width: "max-content", maxWidth: 220, height: 18, boxSizing: "border-box", overflow: "hidden",
+              textOverflow: "ellipsis", padding: "1px 5px", border: `1px solid ${theme.border}`, borderRadius: 5,
+              background: theme.bgSecondary, color: theme.textSecondary, fontFamily: theme.fontSans, fontSize: 9,
+              lineHeight: "14px", whiteSpace: "nowrap", pointerEvents: "none" }}
+          >Outside displayed trace</div>}
           {/* Step number badges — multiple when revisited via loops */}
           {stepNumbers && stepNumbers.length > 0 && isOnPath && (
             <div
@@ -559,11 +573,11 @@ export const StageNode = memo(function StageNode({
             />
           )}
 
-          {/* "NOW" badge — marks the step the cursor is on (the live step),
-              mirroring the monitor mockup. Sits top-right so it never collides
-              with the top-left step-number badge. */}
+          {/* The cursor is a viewed recorded step while tracing. Sits top-right
+              so it never collides with the top-left step-number badge. */}
           {active && (
             <div
+              data-fp="stage-cursor-badge"
               style={{
                 position: "absolute",
                 top: -9,
@@ -579,7 +593,7 @@ export const StageNode = memo(function StageNode({
                 boxShadow: `0 0 10px color-mix(in srgb, ${theme.warning} 60%, transparent)`,
               }}
             >
-              NOW
+              {viewingTrace ? "VIEWING" : "NOW"}
             </div>
           )}
 

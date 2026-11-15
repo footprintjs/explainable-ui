@@ -22,6 +22,8 @@ interface TraceDependencyViewProps extends BaseComponentProps {
   hasWorkflow?: boolean;
   questionTrail?: readonly { key: string; invocationPath: readonly string[] }[];
   onReturnToQuestion?: (index: number) => void;
+  /** Where an Activity-started investigation can return; no recorded values. */
+  activityOrigin?: { stageLabel: string; key: string; kind: "read" | "write" };
   children: ReactNode;
 }
 
@@ -31,7 +33,7 @@ const NODE_HEIGHT = 104;
 /** A variable/read view of one admitted scope; execution order stays a separate view. */
 export function TraceDependencyView({
   walk, cursorRuntimeStageId, snapshots, onJumpToStop, onFollowIngredient,
-  onFollowHandoff, children, hasWorkflow = true, questionTrail, onReturnToQuestion, unstyled = false, className, style,
+  onFollowHandoff, children, hasWorkflow = true, questionTrail, onReturnToQuestion, activityOrigin, unstyled = false, className, style,
 }: TraceDependencyViewProps) {
   const [view, setView] = useState<"variables" | "execution">("execution");
   const motion = useTraceMotion() && !unstyled;
@@ -70,6 +72,7 @@ export function TraceDependencyView({
   }, [graph]);
 
   const active = !!walk && !!graph && !walk.missing && !!layout;
+  const investigating = active || !!(walk && activityOrigin);
   const showExecution = !active || (hasWorkflow && view === "execution");
   const showVariables = active && !showExecution;
   useIsomorphicLayoutEffect(() => {
@@ -100,12 +103,19 @@ export function TraceDependencyView({
 
   const sources = walk?.stops.find(stop => stop.runtimeStageId === cursorRuntimeStageId)?.handoffSources ?? [];
   const previous = questionTrail && questionTrail.length > 1 ? questionTrail[questionTrail.length - 2] : undefined;
+  const cursorIndex = snapshots.findIndex(snapshot => snapshot.runtimeStageId === cursorRuntimeStageId);
 
-  return <section data-fp="trace-dependency-view" data-tracing={active || undefined} data-motion={motion ? "on" : "off"} aria-label={active ? "Variable investigation" : undefined} className={className}
+  return <section data-fp="trace-dependency-view" data-tracing={investigating || undefined} data-motion={motion ? "on" : "off"} aria-label={investigating ? "Variable investigation" : undefined} className={className}
     style={{ ...sx({ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", overflow: "hidden", color: theme.textPrimary, background: active ? theme.bgPrimary : "transparent" }), ...style }}>
-    <div hidden={!active} style={sx({ flexShrink: 0, display: active ? "flex" : "none", gap: 12, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", padding: "12px 16px", borderBottom: `1px solid ${theme.border}` })}>
+    <div hidden={!investigating} style={sx({ flexShrink: 0, display: investigating ? "flex" : "none", gap: 12, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", padding: "12px 16px", borderBottom: `1px solid ${theme.border}` })}>
       <div style={sx({ minWidth: 0, flex: 1 })}>
+        {activityOrigin && <div data-fp="trace-activity-origin" style={sx({ marginBottom: 5, fontSize: 12, color: theme.textSecondary, overflowWrap: "anywhere" })}>
+          From <b>{activityOrigin.stageLabel}</b> · {activityOrigin.kind} <code>{recordedPathLabel(activityOrigin.key)}</code>
+        </div>}
         <div aria-live="polite" style={sx({ fontWeight: 700, fontSize: 16 })}>Why <code>{recordedPathLabel(walk?.key ?? "")}</code>{anchorValue !== null ? ` = ${anchorValue}` : ""}?</div>
+        {cursorIndex >= 0 && <div data-fp="trace-view-position" style={sx({ marginTop: 5, fontSize: 12, color: theme.textSecondary })}>
+          Viewing recorded step {cursorIndex + 1} of {snapshots.length}
+        </div>}
       {previous && <div data-fp="trace-context-bridge" style={sx({ display: "flex", alignItems: "center", gap: 6, marginTop: 5, fontSize: 12, color: theme.textSecondary })}>
         <span>Following</span>
         <button type="button" disabled={!onReturnToQuestion} onClick={() => onReturnToQuestion?.(questionTrail!.length - 2)}
@@ -114,7 +124,7 @@ export function TraceDependencyView({
         </button><span aria-hidden="true">→</span><code>{recordedPathLabel(walk?.key ?? "")}</code>
       </div>}
       </div>
-      <div role="group" aria-label="Investigation view" style={sx({ display: "flex", flexShrink: 0, gap: 3, border: `1px solid ${theme.border}`, borderRadius: 8, padding: 3, background: theme.bgSecondary })}>
+      <div hidden={!active} role="group" aria-label="Investigation view" style={sx({ display: active ? "flex" : "none", flexShrink: 0, gap: 3, border: `1px solid ${theme.border}`, borderRadius: 8, padding: 3, background: theme.bgSecondary })}>
         {(["execution", "variables"] as const).map(mode => <button key={mode} type="button" aria-pressed={mode === "execution" ? showExecution : showVariables} disabled={mode === "execution" && !hasWorkflow}
           onClick={() => setView(mode)} style={sx({ padding: "6px 10px", borderRadius: 5, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
             color: (mode === "execution" ? showExecution : showVariables) ? theme.textPrimary : theme.textSecondary, background: (mode === "execution" ? showExecution : showVariables) ? theme.bgPrimary : "transparent" })}>
@@ -122,6 +132,9 @@ export function TraceDependencyView({
         </button>)}
       </div>
     </div>
+    {active && showExecution && <div data-fp="trace-execution-legend" style={sx({ flexShrink: 0, padding: "7px 16px", borderBottom: `1px solid ${theme.border}`, fontSize: 11, lineHeight: 1.5, color: theme.textSecondary })}>
+      Highlight: recorded sources · Dashed: recorded read · Other steps: context
+    </div>}
     {!unstyled && <style>{`
       @keyframes fp-trace-source-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
       @media (prefers-reduced-motion: reduce) {

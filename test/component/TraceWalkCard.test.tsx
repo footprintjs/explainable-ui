@@ -59,6 +59,24 @@ describe("TraceWalkCard", () => {
     Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } });
   });
 
+  it.each([false, true])("offers the Activity return action in recorded and missing cards (unstyled=%s)", (unstyled) => {
+    const onExit = vi.fn(), submit = vi.fn(event => event.preventDefault());
+    const props = { cursorRuntimeStageId: "computeTotal#4", stepNumberOf: stepOf, onExit, unstyled,
+      exitLabel: "Back to Quote · Activity", exitAriaLabel: "Return to Quote activity" };
+    const view = render(<form onSubmit={submit}><TraceWalkCard {...props} walk={WALK} /></form>);
+    const back = screen.getByRole("button", { name: "Return to Quote activity" });
+    expect(back.textContent).toBe("Back to Quote · Activity");
+    fireEvent.click(back);
+    expect(onExit).toHaveBeenCalledOnce();
+    expect(submit).not.toHaveBeenCalled();
+    view.rerender(<form onSubmit={submit}><TraceWalkCard {...props} walk={buildTraceWalk(LOG, TREE, "phantom")} /></form>);
+    fireEvent.click(screen.getByRole("button", { name: "Return to Quote activity" }));
+    expect(onExit).toHaveBeenCalledTimes(2);
+    expect(submit).not.toHaveBeenCalled();
+    view.rerender(<TraceWalkCard walk={WALK} cursorRuntimeStageId={null} stepNumberOf={stepOf} onExit={onExit} unstyled={unstyled} />);
+    expect(screen.getByRole("button", { name: "Exit tracing" }).textContent).toBe("Done ✕");
+  });
+
   it("renders the fork stop with BOTH ingredient chips, followable", () => {
     const onFollow = vi.fn();
     render(

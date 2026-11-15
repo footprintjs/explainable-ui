@@ -45,6 +45,20 @@ dispatching to its existing trace controller, so reading and writing the same
 key do not collapse onto the later value. Selecting a recorded writer changes
 the existing scope's cursor.
 
+Starting a trace from Activity also records an origin bookmark: source
+identity, exact invocation/runtime address and the selected read/write variable
+identity. It retains no snapshot values. The primary **Back to … · Activity**
+action ends that investigation and restores the validated origin, selected
+variable and Activity lens. Escape and selecting the Activity tab take the
+same route. This is separate from the variable-question trail's return to an
+earlier question. A stale or withdrawn recording cannot revive an old origin.
+Legacy Data Trace starts carry no Activity bookmark; their Done action keeps
+the existing current-cursor behavior.
+The shell handles Escape for Activity-origin investigations even when an
+unknown writer leaves no tracing rail. This handler is scoped to the shell
+and defers to an already handled rail key. Entry/return focus follows the
+return action and the restored variable where those controls are available.
+
 An explicit `exit` or `repeat` phase is a bookkeeping row only when its trace,
 overwrite, updates and redactions are absent or demonstrably empty. Such a row
 does not become a duplicate visit or a committed write. Primary identity and
@@ -58,6 +72,11 @@ normal ambiguity checks.
 consumers. Its optional Activity selection is controlled separately with
 `activitySelected`/`onActivitySelect`; omitting an activity model preserves the
 legacy two-tab panel. Stage logic and full-flow exports remain separate work.
+`StageActivityPanel.selectedVariableId`/`onVariableSelect` and the wrapping
+Inspector's `selectedActivityVariableId`/`onActivityVariableSelect` optionally
+lift the selected variable. The shell owns that identity across an
+Activity-origin trace and return, while the panel keeps its local fallback
+for standalone uncontrolled use.
 Switching narrow Inspector/recorder tabs keeps the selected invocation and
 cursor. Stage-anchored Data Trace dimming follows the visible Inspector surface
 and is absent from hidden or unstyled Inspector chrome.
@@ -73,6 +92,11 @@ unresolved reads and writers outside the view represented explicitly. Arrows
 describe **recorded stage reads**. The existing walk considers all of a stage's reads, so these edges
 are conservative evidence rather than exact per-write or expression-level
 derivation. This projection does not add another causal walker.
+
+The traced execution view keeps surrounding nodes readable as workflow
+context. StageNode's **VIEWING** badge marks the recorded cursor rather than
+live execution. This context treatment is separate from run status and does
+not assert completion for future steps on the selected rail.
 
 Value previews come from the `StageSnapshot.memory` associated with the named
 writer visit, not from whichever cursor moment is currently selected.

@@ -69,6 +69,35 @@ describe("StageActivityPanel", () => {
     expect(within(screen.getByRole("complementary", { name: "Variable inspector" })).getByText("Written key")).toBeTruthy();
   });
 
+  it("keeps a restored read selected until its controlling host accepts a different variable", () => {
+    const onVariableSelect = vi.fn();
+    const view = render(<StageActivityPanel activity={activity} selectedVariableId={read.id} onVariableSelect={onVariableSelect} />);
+    const inspector = within(screen.getByRole("complementary", { name: "Variable inspector" }));
+    expect(inspector.getByText("Read key")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Inspect write count" }));
+    expect(onVariableSelect).toHaveBeenLastCalledWith(write.id);
+    expect(inspector.getByText("Read key")).toBeTruthy();
+    view.rerender(<StageActivityPanel activity={activity} selectedVariableId={write.id} onVariableSelect={onVariableSelect} />);
+    expect(inspector.getByText("Written key")).toBeTruthy();
+    view.rerender(<StageActivityPanel activity={activity} onVariableSelect={onVariableSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: "Inspect read count" }));
+    expect(inspector.getByText("Read key")).toBeTruthy();
+    expect(onVariableSelect).toHaveBeenLastCalledWith(read.id);
+  });
+
+  it("ignores controlled ids that do not belong to the current visit", () => {
+    const view = render(<StageActivityPanel activity={activity} selectedVariableId={read.id} />);
+    const second: StageActivityView = { ...activity,
+      identity: { ...activity.identity, runtimeStageId: "other#2", commitIdx: 2 },
+      reads: [], writes: [{ ...write, id: "other-write", value: { state: "recorded", preview: "101" }, after: { state: "recorded", preview: "101" } }],
+      events: [],
+    };
+    view.rerender(<StageActivityPanel activity={second} selectedVariableId={read.id} />);
+    expect(within(screen.getByRole("complementary", { name: "Variable inspector" })).getByText("Written key")).toBeTruthy();
+    expect(view.container.querySelector('[data-fp="stage-activity-value"]')?.textContent).toBe("101");
+    expect(screen.queryByRole("button", { name: "Inspect read count" })).toBeNull();
+  });
+
   it("preserves generic narrative text, saved decisions and stage events without inventing their semantics", () => {
     const decision = { id: "decision", kind: "decision" as const, source: "execution-tree" as const, text: "returned branchId: manual" };
     const log = { id: "emit", kind: "event" as const, source: "narrative" as const, text: "Recorded emission: queued" };
@@ -154,6 +183,17 @@ describe("Inspector Activity lens compatibility", () => {
     expect(screen.getByRole("region", { name: "Stage activity" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "State" }));
     expect(change).toHaveBeenLastCalledWith("state");
+  });
+
+  it("forwards the selected Activity variable when reopening the lens", () => {
+    const select = vi.fn();
+    const view = render(<InspectorPanel {...props} activity={activity} activitySelected={false} tab="trace" traceContent={<div>Existing trace</div>}
+      selectedActivityVariableId={read.id} onActivityVariableSelect={select} />);
+    view.rerender(<InspectorPanel {...props} activity={activity} activitySelected selectedActivityVariableId={read.id} onActivityVariableSelect={select} />);
+    expect(within(screen.getByRole("complementary", { name: "Variable inspector" })).getByText("Read key")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Inspect write count" }));
+    expect(select).toHaveBeenLastCalledWith(write.id);
+    expect(within(screen.getByRole("complementary", { name: "Variable inspector" })).getByText("Read key")).toBeTruthy();
   });
 
   it("keeps all Inspector controls safe when embedded in a consumer form", () => {

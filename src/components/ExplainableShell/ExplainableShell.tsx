@@ -6,7 +6,7 @@
  * Consumer controls theme via --fp-* CSS custom properties.
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
-import type { ReactNode } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import { theme, themeModeVars } from "../../theme";
 import { useContainerBreakpoints } from "../../_internal/useContainerBreakpoints";
@@ -15,7 +15,7 @@ import type { RuntimeSnapshotInput } from "../../model/recording";
 import { runHasRecordedReads, sourceRunKey, rootMountLabels, type TraceScope } from "./_internal/traceScope";
 import { exactSubflowResults } from "./_internal/subflowRecord";
 import { useSubflowNavigation } from "./_internal/useSubflowNavigation";
-import { useTraceSessionState, useTraceSessionController } from "./_internal/useTraceSession";
+import { useTraceSessionState, useTraceSessionController, type ActivityTraceOrigin } from "./_internal/useTraceSession";
 import { EmptyShell, MissingChartNote } from "./_internal/ShellChrome";
 import { KeyedRecorderView } from "./_internal/KeyedRecorderView";
 import { RightPanel, type RightPanelMode } from "./_internal/RightPanel";
@@ -506,6 +506,15 @@ export function ExplainableShell({
   const { ref: shellRef, isNarrow } = useContainerBreakpoints<HTMLDivElement>({
     notifyWindowResize: true,
   });
+  const shellElement = useRef<HTMLDivElement | null>(null);
+  const setShellElement = useCallback((node: HTMLDivElement | null) => {
+    shellElement.current = node;
+    shellRef(node);
+  }, [shellRef]);
+  const setUnstyledShellElement = useCallback((node: HTMLDivElement | null) => {
+    shellElement.current = node;
+  }, []);
+  const activityFocusRequest = useRef<"trace" | "activity" | null>(null);
 
   // Auto-detect recorder views from runtimeSnapshot.recorders
   const autoRecorderViews = useMemo(() => {
@@ -569,12 +578,19 @@ export function ExplainableShell({
   // CONE exactly while the Data Trace tab is open (Inspector mode).
   const [inspectorTab, setInspectorTab] = useState<"state" | "trace">("state");
   const [activitySelected, setActivitySelected] = useState(true);
+  const [activityVariableSelection, setActivityVariableSelection] = useState<{
+    identity: string; variableId: string; sourceToken: object;
+  } | null>(null);
+  const activityExitRef = useRef<(() => void) | null>(null);
   const [mobileInspectorSelected, setMobileInspectorSelected] = useState(defaultTab === undefined);
   const handleInspectorTabChange = useCallback((tab: "state" | "trace") => {
     setActivitySelected(false);
     setInspectorTab(tab);
   }, []);
-  const handleActivitySelect = useCallback(() => setActivitySelected(true), []);
+  const handleActivitySelect = useCallback(() => {
+    if (activityExitRef.current) activityExitRef.current();
+    else setActivitySelected(true);
+  }, []);
 
   const traceSessionState = useTraceSessionState(snapshotIdx);
 
@@ -614,6 +630,8 @@ export function ExplainableShell({
   const toggleTimeline = useCallback(() => { setTimelineExpanded((p) => !p); triggerReflow(); }, [triggerReflow]);
 
   const sourceRunId = sourceRunKey(runtimeSnapshot);
+  const activitySource = useRef({ source: sourceRunId, token: {} });
+  if (activitySource.current.source !== sourceRunId) activitySource.current = { source: sourceRunId, token: {} };
   const readsAvailable = useMemo(
     () =>
       runHasRecordedReads(
@@ -688,31 +706,79 @@ export function ExplainableShell({
   }), [activeTraceScope, activeSnapshots, safeIdx, activeNarrativeEntries, companionNarrativeMissing]);
 
   const onStartInspector = useCallback(() => {
+    activityFocusRequest.current = "trace";
     setRightPanelMode("what");
+    setRightExpanded(true);
     setMobileInspectorSelected(true);
     setActivitySelected(false);
     setInspectorTab("trace");
+  }, []);
+  const onReturnToActivity = useCallback((origin: ActivityTraceOrigin) => {
+    activityFocusRequest.current = "activity";
+    setRightPanelMode("what");
+    setRightExpanded(true);
+    setMobileInspectorSelected(true);
+    setActivitySelected(true);
+    setActivityVariableSelection({
+      identity: JSON.stringify([origin.invocationPath, origin.runtimeStageId,
+        origin.beforeCommitIdx - (origin.kind === "write" ? 1 : 0)]),
+      variableId: origin.variableId,
+      sourceToken: activitySource.current.token,
+    });
   }, []);
   const traceSession = useTraceSessionController({
     session: traceSessionState, activeTraceScope, activeTraceKey, activeSnapshots,
     safeIdx, sourceChanged: navigation.sourceChanged,
     traceHistoryAvailable: isInSubflow || !!runtimeSnapshot?.commitLog,
     showDataTraceCone: !unstyled && (isNarrow ? mobileInspectorSelected : rightPanelMode === "what") && !activitySelected && inspectorTab === "trace",
-    setSnapshotIdx, onStartInspector,
+    setSnapshotIdx, onStartInspector, onReturnToActivity,
     runtimeSnapshot, openTraceSource: navigation.openTraceSource,
     restoreTraceQuestion: navigation.restoreTraceQuestion,
     stageActivity,
   });
+  activityExitRef.current = traceSession.activityOrigin ? traceSession.handleExitTracing : null;
   const { shellDataTrace, sliceCone, navigateToStage, tracingRail } = traceSession;
   const traceCursorRuntimeStageId = activeSnapshots[safeIdx]?.runtimeStageId ?? null;
   const traceWorkflow = useMemo(() => buildTraceWorkflowOverlay(
     traceSession.traceWalk, activeSnapshots, traceCursorRuntimeStageId,
   ), [traceSession.traceWalk, activeSnapshots, traceCursorRuntimeStageId]);
 
-  const latestActivity = useRef({ view: stageActivity, sourceChanged: navigation.sourceChanged,
+  const activityIdentity = JSON.stringify([stageActivity.identity.invocationPath,
+    stageActivity.identity.runtimeStageId, stageActivity.identity.commitIdx]);
+  const selectedActivityVariableId = !navigation.sourceChanged &&
+    activityVariableSelection?.sourceToken === activitySource.current.token &&
+    activityVariableSelection.identity === activityIdentity ? activityVariableSelection.variableId : undefined;
+  const latestActivity = useRef({ view: stageActivity, identity: activityIdentity,
+    sourceToken: activitySource.current.token, sourceChanged: navigation.sourceChanged,
     trace: traceSession.handleTraceStageVariable });
-  latestActivity.current = { view: stageActivity, sourceChanged: navigation.sourceChanged,
+  latestActivity.current = { view: stageActivity, identity: activityIdentity,
+    sourceToken: activitySource.current.token, sourceChanged: navigation.sourceChanged,
     trace: traceSession.handleTraceStageVariable };
+  const handleActivityVariableSelect = useCallback((variableId: string) => {
+    const current = latestActivity.current;
+    if (current.sourceChanged || !current.view.availability.ok ||
+      ![...current.view.reads, ...current.view.writes].some(variable => variable.id === variableId)) return;
+    setActivityVariableSelection({ identity: current.identity, variableId, sourceToken: current.sourceToken });
+  }, []);
+  const handleShellKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Escape" || event.defaultPrevented || !traceSession.activityOrigin) return;
+    event.preventDefault();
+    event.stopPropagation();
+    traceSession.handleExitTracing();
+  }, [traceSession.activityOrigin, traceSession.handleExitTracing]);
+  useEffect(() => {
+    const request = activityFocusRequest.current;
+    if (!request || (request === "trace" && !traceSession.activityOrigin)) return;
+    const selector = request === "trace"
+      ? '[data-fp="tt-exit-tracing"], [data-fp="twc-exit"]'
+      : '[data-fp="stage-activity-variable"][aria-pressed="true"]';
+    const button = shellElement.current?.querySelector<HTMLButtonElement>(selector);
+    if (!button) return;
+    // The return is an explicit navigation: let the browser reveal a selected
+    // key inside a long scrolling Inspector, rather than focus a clipped row.
+    button.focus({ preventScroll: request === "trace" });
+    activityFocusRequest.current = null;
+  }, [traceSession.activityOrigin, traceSession.tracing, activitySelected, selectedActivityVariableId, isNarrow]);
   const handleTraceActivityVariable = useCallback((target: StageActivityTraceTarget) => {
     const current = latestActivity.current;
     if (current.sourceChanged || !current.view.availability.ok) return;
@@ -804,6 +870,7 @@ export function ExplainableShell({
     snapshot={activeSnapshots[safeIdx]}
     selectedIndex={safeIdx}
     view={traceSession}
+    unstyled={unstyled}
   />;
 
   const navigationStatus = <SubflowNavigationStatus
@@ -989,6 +1056,7 @@ export function ExplainableShell({
   if (unstyled) {
     if (snapshots.length === 0) return renderEmptyState({});
     return <UnstyledShellLayout
+      containerRef={setUnstyledShellElement} onKeyDown={handleShellKeyDown}
       tabs={unstyledTabs} activeTab={activeTab} onTabChange={handleTabChange}
       className={className} style={style}
     >
@@ -1001,11 +1069,13 @@ export function ExplainableShell({
                 cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null} snapshots={activeSnapshots}
                 onJumpToStop={traceSession.navigateToStage} onFollowIngredient={traceSession.handleFollowIngredient}
                 onFollowHandoff={traceSession.handleFollowHandoff}
-                questionTrail={traceSession.questionTrail} onReturnToQuestion={traceSession.handleReturnToQuestion}>
+                questionTrail={traceSession.questionTrail} onReturnToQuestion={traceSession.handleReturnToQuestion}
+                activityOrigin={traceSession.activityOrigin ?? undefined}>
                 {(traceGraph || renderFlowchart) && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, traceWorkflow, ...(sliceCone && { sliceCone }) })}
               </TraceDependencyView>
               {missingChart && <MissingChartNote unstyled />}
               <StageActivityPanel activity={stageActivity} onTraceVariable={handleTraceActivityVariable}
+                selectedVariableId={selectedActivityVariableId} onVariableSelect={handleActivityVariableSelect}
                 onNavigateToStage={navigateToStage} size={size} unstyled />
               {traceSession.tracing && traceTabContent}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
@@ -1045,6 +1115,7 @@ export function ExplainableShell({
       selectedStageId={activeSnapshots[safeIdx]?.runtimeStageId} onNavigateToStage={navigateToStage}
       tab={inspectorTab} onTabChange={handleInspectorTabChange} traceContent={traceTabContent}
       activity={stageActivity} activitySelected={activitySelected} onActivitySelect={handleActivitySelect}
+      selectedActivityVariableId={selectedActivityVariableId} onActivityVariableSelect={handleActivityVariableSelect}
       onTraceActivityVariable={handleTraceActivityVariable} size={size} /> : renderTabBody(activeTab, false)}
   </ShellDetailTabs>;
 
@@ -1053,7 +1124,7 @@ export function ExplainableShell({
   if (snapshots.length === 0) return renderEmptyState(shellThemeVars);
 
   return <ShellLayout
-    containerRef={shellRef} className={className} style={style}
+    containerRef={setShellElement} onKeyDown={handleShellKeyDown} className={className} style={style}
     themeStyle={shellThemeVars} isNarrow={isNarrow} stageCount={activeSnapshots.length}
     showTopology={showTopology} showTreeSidebar={showTreeSidebar && !traceSession.traceWalk}
     topology={{ label: leftLabel, expanded: leftExpanded, onChange: toggleLeft }}
@@ -1068,7 +1139,8 @@ export function ExplainableShell({
         cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null} snapshots={activeSnapshots}
         onJumpToStop={traceSession.navigateToStage} onFollowIngredient={traceSession.handleFollowIngredient}
         onFollowHandoff={traceSession.handleFollowHandoff}
-        questionTrail={traceSession.questionTrail} onReturnToQuestion={traceSession.handleReturnToQuestion}>
+        questionTrail={traceSession.questionTrail} onReturnToQuestion={traceSession.handleReturnToQuestion}
+        activityOrigin={traceSession.activityOrigin ?? undefined}>
         {showExecutionChart ? effectiveRenderFlowchart!({
           spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick,
           showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange,
@@ -1084,6 +1156,7 @@ export function ExplainableShell({
         dataTrace={shellDataTrace} onInspectorTabChange={handleInspectorTabChange} inspectorTab={inspectorTab}
         traceContent={traceTabContent} snapshots={activeSnapshots} selectedIndex={safeIdx}
         activity={stageActivity} activitySelected={activitySelected} onActivitySelect={handleActivitySelect}
+        selectedActivityVariableId={selectedActivityVariableId} onActivityVariableSelect={handleActivityVariableSelect}
         onTraceActivityVariable={handleTraceActivityVariable}
         activeTab={activeTab} allTabs={allTabs} renderTabBody={renderTabBody} size={size}
         onNavigateToStage={navigateToStage} />,

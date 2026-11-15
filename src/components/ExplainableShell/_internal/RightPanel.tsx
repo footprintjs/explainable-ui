@@ -44,6 +44,8 @@ export const RightPanel = memo(function RightPanel({
   activitySelected,
   onActivitySelect,
   onTraceActivityVariable,
+  selectedActivityVariableId,
+  onActivityVariableSelect,
 }: {
   mode: RightPanelMode;
   onModeChange: (mode: RightPanelMode) => void;
@@ -71,6 +73,8 @@ export const RightPanel = memo(function RightPanel({
   activitySelected?: boolean;
   onActivitySelect?: () => void;
   onTraceActivityVariable?: (target: StageActivityTraceTarget) => void;
+  selectedActivityVariableId?: string;
+  onActivityVariableSelect?: (variableId: string) => void;
 }) {
   // The Result segment appears only when a Result tab exists, so
   // `hideTabs={["result"]}` still removes it everywhere.
@@ -93,6 +97,7 @@ export const RightPanel = memo(function RightPanel({
       }}>
         {modes.map((m) => (
           <button
+            type="button"
             key={m}
             onClick={() => onModeChange(m)}
             style={{
@@ -135,6 +140,7 @@ export const RightPanel = memo(function RightPanel({
           />
         ) : (
           <InspectorPanel
+            size={size}
             snapshots={snapshots}
             selectedIndex={selectedIndex}
             dataTraceFrames={dataTrace.frames}
@@ -148,6 +154,8 @@ export const RightPanel = memo(function RightPanel({
             activitySelected={activitySelected}
             onActivitySelect={onActivitySelect}
             onTraceActivityVariable={onTraceActivityVariable}
+            selectedActivityVariableId={selectedActivityVariableId}
+            onActivityVariableSelect={onActivityVariableSelect}
           />
         )}
       </div>

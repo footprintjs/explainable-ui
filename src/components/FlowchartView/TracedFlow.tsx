@@ -173,6 +173,7 @@ function toStageNodeWithOverlay(
   executedOrderIds: readonly string[],
   coActiveStageIds: ReadonlySet<string>,
   retryAttempts: number | undefined,
+  suppressDimming = false,
 ): Node {
   const overlayFields = deriveOverlayFields(
     node,
@@ -235,7 +236,7 @@ function toStageNodeWithOverlay(
             retryAttempts: overlayFields.retryAttempts,
           }),
       },
-      ...(finalDimmed && { style: { ...(node.style ?? {}), opacity: 0.35 } }),
+      ...(finalDimmed && !suppressDimming && { style: { ...(node.style ?? {}), opacity: 0.35 } }),
     } as Node;
   }
 
@@ -258,7 +259,7 @@ function toStageNodeWithOverlay(
     ...node,
     type: "stageNode",
     data: stageData as unknown as Record<string, unknown>,
-    ...(dimmed && { style: { ...(node.style ?? {}), opacity: 0.35 } }),
+    ...(dimmed && !suppressDimming && { style: { ...(node.style ?? {}), opacity: 0.35 } }),
   };
 }
 
@@ -611,10 +612,11 @@ export function TracedFlow({
           slice.executedOrderIds,
           coActiveStageIds ?? EMPTY_SET,
           slice.retryAttempts?.get(n.id),
+          !!traceWorkflow,
         );
         return { ...node, data: { ...node.data, suppressMotion: suppressMotion || node.data.suppressMotion === true } };
       }),
-    [positioned.nodes, slice, coActiveStageIds, suppressMotion],
+    [positioned.nodes, slice, coActiveStageIds, suppressMotion, traceWorkflow],
   );
   // The ids that stand for the cursor on this chart: the active id plus its
   // path ancestors — what a contracted edge's `via` list is checked against.
@@ -633,9 +635,11 @@ export function TracedFlow({
     return reactFlowNodes.map(node => {
       const stage = workflowProjection.stages.get(node.id);
       return { ...node,
-        data: { ...node.data, ...(stage ? { traceWorkflow: stage } : {}) },
-        // Group frames must not compound opacity onto their relevant children.
-        style: { ...node.style, opacity: node.type === "groupContainer" || stage ? 1 : 0.4,
+        data: { ...node.data, dimmed: false, traceContext: stage ? "displayed" : "outside",
+          ...(stage ? { traceWorkflow: stage } : {}) },
+        // Inspection removes system fading, including group/pill dimming.
+        // Authored opacity remains a host choice, including for custom nodes.
+        style: { ...node.style, opacity: node.style?.opacity ?? 1,
           transition: motionEnabled ? `opacity ${TRACE_MOTION_MS}ms ease` : "none", animation: "none" },
       };
     });

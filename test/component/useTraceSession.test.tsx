@@ -1,10 +1,11 @@
 /** @vitest-environment jsdom */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useTraceSessionController, useTraceSessionState } from "../../src/components/ExplainableShell/_internal/useTraceSession";
 import type { TraceScope } from "../../src/trace/traceScope";
 import { childTraceScope } from "../../src/trace/traceScope";
+import { projectStageActivity } from "../../src/trace/stageActivity";
 import type { StageSnapshot } from "../../src/types";
 
 const stages = [
@@ -68,7 +69,139 @@ function renderSession(scope = scopeWithReads(), initialIndex = 4) {
   return { ...hook, options, openInspector };
 }
 
+function renderActivitySession(scope = scopeWithReads(), initialIndex = 4) {
+  const returned = vi.fn(), restored = vi.fn();
+  const options = { scope, snapshotList: snapshots, runId: "activity-run", sourceChanged: false,
+    restore: false, restoreResult: true };
+  const hook = renderHook((props: typeof options) => {
+    const [cursor, setCursor] = useState(initialIndex);
+    const session = useTraceSessionState(cursor);
+    const stageActivity = useMemo(() => projectStageActivity({ scope: props.scope, snapshots: props.snapshotList, selectedIndex: cursor }),
+      [props.scope, props.snapshotList, cursor]);
+    const controller = useTraceSessionController({ session, activeTraceScope: props.scope, activeTraceKey: null,
+      activeSnapshots: props.snapshotList, safeIdx: cursor, sourceChanged: props.sourceChanged,
+      traceHistoryAvailable: true, showDataTraceCone: false, setSnapshotIdx: setCursor, onStartInspector: () => {},
+      runtimeSnapshot: { runId: props.runId, commitLog: props.scope.commitLog, executionTree: props.scope.executionTree },
+      stageActivity, onReturnToActivity: returned,
+      restoreTraceQuestion: props.restore ? (path, id) => {
+        restored(path, id);
+        if (!props.restoreResult) return false;
+        const indices = props.snapshotList.flatMap((snapshot, index) => snapshot.runtimeStageId === id ? [index] : []);
+        if (path.length || indices.length !== 1) return false;
+        // The shell's exact navigation resolver resets the session before moving.
+        session.reset(); setCursor(indices[0]); return true;
+      } : undefined,
+    });
+    return { ...controller, cursor, setCursor, stageActivity };
+  }, { initialProps: options });
+  return { ...hook, options, returned, restored };
+}
+
 describe("trace session controller", () => {
+  it("returns an Activity read to its original visit and variable after following and restoring questions", () => {
+    const { result, rerender, options, returned, restored } = renderActivitySession();
+    rerender({ ...options, restore: true });
+    const target = result.current.stageActivity.reads.find(variable => variable.key === "subtotal")!.traceTarget!;
+    act(() => result.current.handleTraceStageVariable(target));
+    expect(result.current.cursor).toBe(1);
+    const origin = result.current.activityOrigin;
+    expect(origin).toEqual({ invocationPath: [], runtimeStageId: "total#4", beforeCommitIdx: 4,
+      key: "subtotal", kind: "read", variableId: "read:subtotal", stageLabel: "total" });
+    expect(result.current.tracingRail?.exitLabel).toBe("Back to total · Activity");
+    const items = result.current.traceWalk!.stops[0].ingredients[0];
+    act(() => result.current.handleFollowIngredient(items));
+    expect(result.current.cursor).toBe(0);
+    expect(result.current.activityOrigin).toEqual(origin);
+    act(() => result.current.handleReturnToQuestion(0));
+    expect(result.current.cursor).toBe(1);
+    expect(result.current.activityOrigin).toEqual(origin);
+    act(() => result.current.handleExitTracing());
+    expect(restored).toHaveBeenLastCalledWith([], "total#4");
+    expect(result.current.cursor).toBe(4);
+    expect(returned).toHaveBeenCalledExactlyOnceWith(origin);
+    expect(result.current.tracing).toBeNull();
+    expect(result.current.activityOrigin).toBeNull();
+  });
+
+  it("uses the same-scope fallback for an Activity write and admits empty engine bookends", () => {
+    const scope = scopeWithReads();
+    scope.commitLog.push({ stage: "total", stageId: "total", runtimeStageId: "total#4", phase: "exit", trace: [], overwrite: {} });
+    const { result, returned } = renderActivitySession(scope);
+    expect(result.current.stageActivity.availability).toEqual({ ok: true });
+    expect(result.current.stageActivity.writes[0].traceTarget).toEqual({ key: "total", kind: "write", runtimeStageId: "total#4", beforeCommitIdx: 5, invocationPath: [] });
+    act(() => result.current.handleTraceStageVariable(result.current.stageActivity.writes[0].traceTarget!));
+    expect(result.current.tracing?.key).toBe("total");
+    expect(result.current.activityOrigin?.beforeCommitIdx).toBe(5);
+    act(() => result.current.setCursor(0));
+    act(() => result.current.handleExitTracing());
+    expect(result.current.cursor).toBe(4);
+    expect(returned).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ kind: "write", variableId: "write:total" }));
+  });
+
+  it("keeps legacy exit at the current cursor and rejects an older Activity exit after a new question", () => {
+    const { result, returned } = renderActivitySession();
+    act(() => result.current.handleTraceStageVariable(result.current.stageActivity.reads[0].traceTarget!));
+    const oldExit = result.current.handleExitTracing;
+    act(() => result.current.handleStartTracing("subtotal"));
+    expect(result.current.activityOrigin).toBeNull();
+    act(() => oldExit());
+    expect(result.current.tracing?.key).toBe("subtotal");
+    act(() => result.current.setCursor(0));
+    act(() => result.current.handleExitTracing());
+    expect(result.current.cursor).toBe(0);
+    expect(result.current.tracing).toBeNull();
+    expect(returned).not.toHaveBeenCalled();
+  });
+
+  it("cannot use a retained return button to close a replacement run's investigation", () => {
+    const { result, rerender, options, returned } = renderActivitySession();
+    act(() => result.current.handleTraceStageVariable(result.current.stageActivity.writes[0].traceTarget!));
+    const oldExit = result.current.handleExitTracing;
+    rerender({ ...options, runId: "replacement-run", scope: scopeWithReads() });
+    act(() => result.current.handleTraceStageVariable(result.current.stageActivity.writes[0].traceTarget!));
+    act(() => oldExit());
+    expect(result.current.tracing?.key).toBe("total");
+    expect(result.current.activityOrigin?.runtimeStageId).toBe("total#4");
+    expect(returned).not.toHaveBeenCalled();
+  });
+
+  it("withholds a withdrawn origin visit without restoring a same-named visit at a different raw cutoff", () => {
+    const { result, rerender, options, returned, restored } = renderActivitySession();
+    rerender({ ...options, restore: true });
+    act(() => result.current.handleTraceStageVariable(result.current.stageActivity.reads[0].traceTarget!));
+    const oldExit = result.current.handleExitTracing;
+    const replacement = scopeWithReads();
+    replacement.commitLog.splice(3, 1);
+    rerender({ ...options, restore: true, scope: replacement });
+    expect(result.current.activityOrigin).toBeNull();
+    const cursor = result.current.cursor;
+    act(() => oldExit());
+    expect(result.current.cursor).toBe(cursor);
+    expect(restored).not.toHaveBeenCalled();
+    expect(returned).not.toHaveBeenCalled();
+  });
+
+  it("does not return to Activity if the exact navigation resolver refuses the location", () => {
+    const { result, rerender, options, returned, restored } = renderActivitySession();
+    rerender({ ...options, restore: true, restoreResult: false });
+    act(() => result.current.handleTraceStageVariable(result.current.stageActivity.reads[0].traceTarget!));
+    act(() => result.current.handleExitTracing());
+    expect(restored).toHaveBeenCalledExactlyOnceWith([], "total#4");
+    expect(returned).not.toHaveBeenCalled();
+    expect(result.current.tracing).not.toBeNull();
+    expect(result.current.cursor).toBe(1);
+  });
+
+  it("refuses an ambiguous same-scope snapshot fallback", () => {
+    const { result, rerender, options, returned } = renderActivitySession();
+    act(() => result.current.handleTraceStageVariable(result.current.stageActivity.reads[0].traceTarget!));
+    rerender({ ...options, snapshotList: [...snapshots, snapshots[4]] });
+    expect(result.current.activityOrigin).toBeNull();
+    act(() => result.current.handleExitTracing());
+    expect(result.current.cursor).toBe(1);
+    expect(returned).not.toHaveBeenCalled();
+  });
+
   it("freezes the recorded question while one cursor moves across the dependency rail", () => {
     const { result, openInspector } = renderSession();
     act(() => result.current.handleStartTracing("total"));
