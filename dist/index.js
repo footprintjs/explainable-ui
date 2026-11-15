@@ -1268,12 +1268,12 @@ var STUB = 18;
 var MAX_WORK = 2e6;
 var MAX_VISITS = 1e5;
 var intersects = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-var point = (box2, side, offset) => ({
-  x: side === "left" ? box2.x : side === "right" ? box2.x + box2.width : box2.x + (offset ?? box2.width / 2),
-  y: side === "top" ? box2.y : side === "bottom" ? box2.y + box2.height : box2.y + (offset ?? box2.height / 2)
+var point = (box3, side, offset) => ({
+  x: side === "left" ? box3.x : side === "right" ? box3.x + box3.width : box3.x + (offset ?? box3.width / 2),
+  y: side === "top" ? box3.y : side === "bottom" ? box3.y + box3.height : box3.y + (offset ?? box3.height / 2)
 });
 var escape = (p, side) => ({ x: p.x + (side === "left" ? -STUB : side === "right" ? STUB : 0), y: p.y + (side === "top" ? -STUB : side === "bottom" ? STUB : 0) });
-var crossing = (a, b, box2) => a.x === b.x ? a.x > box2.x && a.x < box2.x + box2.width && Math.max(a.y, b.y) > box2.y && Math.min(a.y, b.y) < box2.y + box2.height : a.y > box2.y && a.y < box2.y + box2.height && Math.max(a.x, b.x) > box2.x && Math.min(a.x, b.x) < box2.x + box2.width;
+var crossing = (a, b, box3) => a.x === b.x ? a.x > box3.x && a.x < box3.x + box3.width && Math.max(a.y, b.y) > box3.y && Math.min(a.y, b.y) < box3.y + box3.height : a.y > box3.y && a.y < box3.y + box3.height && Math.max(a.x, b.x) > box3.x && Math.min(a.x, b.x) < box3.x + box3.width;
 var distance = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 var Queue = class {
   constructor() {
@@ -1321,10 +1321,10 @@ function routeRecordedRelationships(links, model) {
     const parent = item.parentId ? byId.get(item.parentId) : void 0;
     if (item.parentId && !parent) throw new Error();
     const origin = parent ? absolute(parent, depth + 1) : { x: 0, y: 0 };
-    const box2 = { x: item.position.x + origin.x, y: item.position.y + origin.y, width: item.width, height: item.height, owner: item.node.id };
-    if (![box2.x, box2.y, box2.width, box2.height].every(Number.isFinite) || Math.max(Math.abs(box2.x), Math.abs(box2.y), box2.width, box2.height) > 1e6 || box2.width <= 0 || box2.height <= 0) throw new Error();
-    boxes.set(item.node.id, box2);
-    return box2;
+    const box3 = { x: item.position.x + origin.x, y: item.position.y + origin.y, width: item.width, height: item.height, owner: item.node.id };
+    if (![box3.x, box3.y, box3.width, box3.height].every(Number.isFinite) || Math.max(Math.abs(box3.x), Math.abs(box3.y), box3.width, box3.height) > 1e6 || box3.width <= 0 || box3.height <= 0) throw new Error();
+    boxes.set(item.node.id, box3);
+    return box3;
   };
   try {
     for (const item of model.nodes) absolute(item);
@@ -1332,17 +1332,17 @@ function routeRecordedRelationships(links, model) {
     return outcome();
   }
   for (const item of model.nodes) if (item.isRootCause || item.containsRootCause) {
-    const box2 = boxes.get(item.node.id);
-    decorations.set(item.node.id, { x: box2.x, y: box2.y - 16, width: box2.width + 18, height: box2.height + 16 });
+    const box3 = boxes.get(item.node.id);
+    decorations.set(item.node.id, { x: box3.x, y: box3.y - 16, width: box3.width + 18, height: box3.height + 16 });
   }
   const obstacles = model.nodes.map((item) => {
-    const box2 = boxes.get(item.node.id);
+    const box3 = boxes.get(item.node.id);
     return {
-      x: box2.x - HALO,
-      y: box2.y - (item.isRootCause || item.containsRootCause ? 28 : HALO),
-      width: box2.width + HALO * 2,
-      height: (item.expanded ? 72 : box2.height) + HALO + (item.isRootCause || item.containsRootCause ? 28 : HALO),
-      owner: box2.owner
+      x: box3.x - HALO,
+      y: box3.y - (item.isRootCause || item.containsRootCause ? 28 : HALO),
+      width: box3.width + HALO * 2,
+      height: (item.expanded ? 72 : box3.height) + HALO + (item.isRootCause || item.containsRootCause ? 28 : HALO),
+      owner: box3.owner
     };
   });
   for (const edge of model.edges) {
@@ -1365,17 +1365,17 @@ function routeRecordedRelationships(links, model) {
   const candidates = /* @__PURE__ */ new Map();
   const facingSources = /* @__PURE__ */ new Map();
   const slots = (id, side, type, remote, remotePort) => {
-    const box2 = boxes.get(id), item = byId.get(id), length = side === "top" || side === "bottom" ? box2.width : box2.height;
+    const box3 = boxes.get(id), item = byId.get(id), length = side === "top" || side === "bottom" ? box3.width : box3.height;
     const count = Math.min(6, Math.floor((length - 56) / 24) + 1), offsets = Array.from({ length: Math.max(0, count) }, (_, index3) => 28 + (length - 56) * index3 / Math.max(1, count - 1)).filter((offset) => Math.abs(offset - length / 2) >= 20 && !(item.expanded && (side === "left" || side === "right") && offset < 96));
-    const neighbour = side === "top" || side === "bottom" ? (remotePort?.x ?? remote.x + remote.width / 2) - box2.x : (remotePort?.y ?? remote.y + remote.height / 2) - box2.y;
+    const neighbour = side === "top" || side === "bottom" ? (remotePort?.x ?? remote.x + remote.width / 2) - box3.x : (remotePort?.y ?? remote.y + remote.height / 2) - box3.y;
     return offsets.sort((a, b) => Math.abs(a - neighbour) - Math.abs(b - neighbour) || (type === "source" ? a - b : b - a));
   };
   const xs = /* @__PURE__ */ new Set(), ys = /* @__PURE__ */ new Set();
-  for (const box2 of obstacles) for (const offset of [-18, 0, 18]) {
-    xs.add(box2.x + offset);
-    xs.add(box2.x + box2.width + offset);
-    ys.add(box2.y + offset);
-    ys.add(box2.y + box2.height + offset);
+  for (const box3 of obstacles) for (const offset of [-18, 0, 18]) {
+    xs.add(box3.x + offset);
+    xs.add(box3.x + box3.width + offset);
+    ys.add(box3.y + offset);
+    ys.add(box3.y + box3.height + offset);
   }
   for (const [ordinal, link] of ordered.entries()) {
     const a = boxes.get(link.source), b = boxes.get(link.target);
@@ -1415,7 +1415,7 @@ function routeRecordedRelationships(links, model) {
   }
   for (const [key, group] of fanGroups) {
     if (group.length < 2 || new Set(group.map((link) => link.target)).size !== group.length) continue;
-    const side = facingSources.get(group[0].relationship.id), box2 = boxes.get(group[0].source), length = side === "left" || side === "right" ? box2.height : box2.width;
+    const side = facingSources.get(group[0].relationship.id), box3 = boxes.get(group[0].source), length = side === "left" || side === "right" ? box3.height : box3.width;
     let common;
     for (const link of group) {
       const offsets = new Set((candidates.get(link.relationship.id) ?? []).filter((option) => option.sourceSide === side).map((option) => option.sourcePort.offset));
@@ -1432,10 +1432,10 @@ function routeRecordedRelationships(links, model) {
   const portKey = (id, port) => JSON.stringify([id, port.side, port.offset]);
   const segmentKey = (a, b) => a < b ? `${a}:${b}` : `${b}:${a}`;
   const clear = (a, b, boxes2, ignore) => {
-    for (const box2 of boxes2) {
+    for (const box3 of boxes2) {
       if (work >= MAX_WORK) return false;
       work++;
-      if ((ignore === void 0 || box2.owner !== ignore) && crossing(a, b, box2)) return false;
+      if ((ignore === void 0 || box3.owner !== ignore) && crossing(a, b, box3)) return false;
     }
     return true;
   };
@@ -1485,12 +1485,12 @@ function routeRecordedRelationships(links, model) {
       if (length < 28) continue;
       for (const fraction of [0.5, 0.25, 0.75, 0.125, 0.875]) for (const offset of [0, 20, -20, 38, -38]) {
         const horizontal = a.y === b.y, x = a.x + (b.x - a.x) * fraction + (horizontal ? 0 : offset), y = a.y + (b.y - a.y) * fraction + (horizontal ? offset : 0);
-        const box2 = { x: x - 28, y: y - 15, width: 56, height: 30 };
+        const box3 = { x: x - 28, y: y - 15, width: 56, height: 30 };
         if ([...obstacles, ...labels].every((other) => {
           if (work >= MAX_WORK) return false;
           work++;
-          return !intersects(box2, other);
-        })) return { x, y, width: 48, height: 22, box: box2 };
+          return !intersects(box3, other);
+        })) return { x, y, width: 48, height: 22, box: box3 };
       }
     }
     return void 0;
@@ -1566,13 +1566,13 @@ function recordedRoutePath(route, source, target) {
 function recordedVisualBounds(plan, links, focus) {
   const selected = focus?.length ? new Set(focus) : void 0;
   let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
-  const include = (box2) => {
-    left = Math.min(left, box2.x);
-    top = Math.min(top, box2.y);
-    right = Math.max(right, box2.x + box2.width);
-    bottom = Math.max(bottom, box2.y + box2.height);
+  const include = (box3) => {
+    left = Math.min(left, box3.x);
+    top = Math.min(top, box3.y);
+    right = Math.max(right, box3.x + box3.width);
+    bottom = Math.max(bottom, box3.y + box3.height);
   };
-  for (const [id, box2] of plan.decorations) if (!selected || selected.has(id)) include(box2);
+  for (const [id, box3] of plan.decorations) if (!selected || selected.has(id)) include(box3);
   for (const link of links) {
     if (selected && (selected.size < 2 || !selected.has(link.source) || !selected.has(link.target))) continue;
     const route = plan.routes.get(link.relationship.id);
@@ -1659,14 +1659,6 @@ function RecordedRelationshipEdge(props) {
 }
 var recordedRelationshipEdgeTypes = { recordedRelationship: RecordedRelationshipEdge };
 
-// src/components/GroupedFlowDiagram/cameraInitialization.ts
-var NARROW_DIAGRAM_WIDTH = 600;
-function initialCameraDecision(state) {
-  if (!Number.isFinite(state.width) || state.width <= 0) return "wait";
-  if (state.alreadyInitialized || state.cameraOwned || state.width >= NARROW_DIAGRAM_WIDTH || !state.hasVisibleSelection) return "preserve";
-  return "selection";
-}
-
 // src/components/GroupedFlowDiagram/GroupedFlowDiagram.tsx
 import { jsx as jsx6, jsxs as jsxs4 } from "react/jsx-runtime";
 var buttonStyle = { font: "inherit", fontSize: 12, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "7px 12px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
@@ -1714,7 +1706,6 @@ function GroupedFlowDiagram(props) {
     props.onSelectNode?.(id);
   };
   const requestFocus = (ids) => {
-    initiallyFocused.current = true;
     setFocusIds(ids);
     setFocusRequest((value) => value + 1);
   };
@@ -1828,28 +1819,19 @@ function GroupedFlowDiagram(props) {
   useEffect4(() => {
     const element = wrapper.current;
     if (!element) return;
-    let active = true;
-    const measure = () => {
-      if (!active) return;
-      const width = element.clientWidth;
-      setNarrow(width > 0 && width < NARROW_DIAGRAM_WIDTH);
-      const decision = initialCameraDecision({
-        width,
-        alreadyInitialized: initiallyFocused.current,
-        cameraOwned: camera !== void 0 || recordedFocus,
-        hasVisibleSelection: !!selected && !!model?.nodes.some((node) => node.node.id === selected)
-      });
-      if (decision !== "wait") initiallyFocused.current = true;
-      if (decision === "selection" && selected) requestFocus([selected]);
-    };
+    const measure = () => setNarrow(element.clientWidth > 0 && element.clientWidth < 600);
     measure();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    observer?.observe(element);
-    return () => {
-      active = false;
-      observer?.disconnect();
-    };
-  }, [model, selected, Boolean(camera), camera?.key, recordedFocus]);
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [Boolean(model)]);
+  useEffect4(() => {
+    if (model && narrow && !initiallyFocused.current && selected && model.nodes.some((node) => node.node.id === selected)) {
+      initiallyFocused.current = true;
+      requestFocus([selected]);
+    }
+  }, [model, selected, narrow]);
   if (!model || !overlay || props.focusRequest !== void 0 && !camera) return /* @__PURE__ */ jsxs4("section", { role: "alert", className: props.className, style: { color: theme.textPrimary, fontFamily: theme.fontSans, ...props.style }, children: [
     /* @__PURE__ */ jsx6("p", { children: "This diagram cannot be shown yet. Its saved information or grouping needs checking." }),
     /* @__PURE__ */ jsxs4("details", { children: [
@@ -1906,7 +1888,7 @@ function GroupedFlowDiagram(props) {
             preventScrolling: false,
             proOptions: { hideAttribution: true },
             children: [
-              /* @__PURE__ */ jsx6(ChartAutoRefit, { wrapperRef: wrapper, refitKey: geometry, padding: 0.06, focusNodeIds: focusIds, focusRequestKey: focusRequest, maxAutoZoom: 1, visualBounds, preserveViewport: true }),
+              /* @__PURE__ */ jsx6(ChartAutoRefit, { wrapperRef: wrapper, refitKey: geometry, padding: 0.06, focusNodeIds: focusIds, focusRequestKey: focusRequest, maxAutoZoom: 1, visualBounds }),
               /* @__PURE__ */ jsx6(Background, { gap: 24, color: theme.border }),
               /* @__PURE__ */ jsx6(Controls, { showInteractive: false })
             ]
@@ -8439,7 +8421,7 @@ function TraceDependencyView({
                     /* @__PURE__ */ jsx27("span", { style: sx({ display: "block", marginTop: 3, fontFamily: theme.fontMono, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: theme.textPrimary }), children: value ?? "Value not recorded" }),
                     /* @__PURE__ */ jsx27("span", { style: sx({ display: "block", marginTop: 6, fontSize: 11, color: theme.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }), children: note(node) })
                   ] });
-                  const box2 = sx({
+                  const box3 = sx({
                     position: "absolute",
                     boxSizing: "border-box",
                     left: position2.x - NODE_WIDTH / 2,
@@ -8473,7 +8455,7 @@ function TraceDependencyView({
                       title: `${node.key}: ${value ?? "value not recorded"}. ${note(node)}`,
                       "aria-label": enabled ? `${node.isAnchor ? "Show" : "Follow"} ${recordedPathLabel(node.key)} at ${node.stageName}` : `${recordedPathLabel(node.key)}: ${note(node)}`,
                       "aria-describedby": `${markerId}-node-${nodeIndex}`,
-                      style: box2,
+                      style: box3,
                       children: nodeText
                     },
                     node.id
@@ -10947,10 +10929,10 @@ function applyGroupLayout(graph, opts) {
     groupBox.set(sfId, { width: boxWidth, height: boxHeight, minX, minY, members: innerPositioned.nodes });
   }
   const outerNodes = graph.nodes.filter((n) => !memberIds.has(n.id)).map((n) => {
-    const box2 = n.data?.subflowId ? groupBox.get(n.data.subflowId) : void 0;
-    return box2 ? {
+    const box3 = n.data?.subflowId ? groupBox.get(n.data.subflowId) : void 0;
+    return box3 ? {
       ...n,
-      style: { ...n.style ?? {}, width: box2.width, height: box2.height },
+      style: { ...n.style ?? {}, width: box3.width, height: box3.height },
       data: { ...n.data, isGroupContainer: true }
     } : n;
   });
@@ -10961,8 +10943,8 @@ function applyGroupLayout(graph, opts) {
   const outerPosById = new Map(outerPositioned.nodes.map((n) => [n.id, n.position]));
   for (const sfId of activeGroups) {
     const mount = mountBySubflow.get(sfId);
-    const box2 = groupBox.get(sfId);
-    const { width: boxWidth, height: boxHeight, minX, minY } = box2;
+    const box3 = groupBox.get(sfId);
+    const { width: boxWidth, height: boxHeight, minX, minY } = box3;
     const mountPos = outerPosById.get(mount.id) ?? mount.position ?? { x: 0, y: 0 };
     containerNodes.push({
       ...mount,
@@ -10971,7 +10953,7 @@ function applyGroupLayout(graph, opts) {
       style: { ...mount.style ?? {}, width: boxWidth, height: boxHeight },
       data: { ...mount.data, isGroupContainer: true }
     });
-    for (const m of box2.members) {
+    for (const m of box3.members) {
       const relX = m.position.x - minX + padding2;
       const relY = m.position.y - minY + headerHeight + padding2;
       nestedMembers.push({
@@ -11422,7 +11404,7 @@ function RecordedReadEdge({ id, source, target, markerEnd, style, data }) {
     return route ? JSON.stringify(route) : "";
   });
   if (!geometry) return null;
-  const { path, label: box2 } = JSON.parse(geometry);
+  const { path, label: box3 } = JSON.parse(geometry);
   const key = typeof data?.key === "string" ? data.key : "";
   const pathLabel = recordedPathLabel(key);
   const label = `${pathLabel.length > 36 ? `${pathLabel.slice(0, 35)}\u2026` : pathLabel} \xB7 recorded read`;
@@ -11455,10 +11437,10 @@ function RecordedReadEdge({ id, source, target, markerEnd, style, data }) {
         "aria-hidden": "true",
         style: {
           position: "absolute",
-          transform: `translate(-50%, -50%) translate(${box2.x + box2.width / 2}px,${box2.y + box2.height / 2}px)`,
+          transform: `translate(-50%, -50%) translate(${box3.x + box3.width / 2}px,${box3.y + box3.height / 2}px)`,
           width: "max-content",
-          maxWidth: box2.width,
-          height: box2.height,
+          maxWidth: box3.width,
+          height: box3.height,
           boxSizing: "border-box",
           padding: "3px 5px",
           overflow: "hidden",
@@ -14918,6 +14900,156 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
     }
   );
 }
+
+// src/components/FailureExplanationView/FailureExplanationView.tsx
+import { useId as useId3 } from "react";
+
+// src/components/FailureExplanationView/admission.ts
+var MAX_TEXT2 = 262144;
+var MAX_ITEMS2 = 1024;
+var MAX_ITEM_TEXT = 4096;
+var MAX_TOTAL_ITEMS = 4096;
+var Refused2 = class extends Error {
+};
+function field5(value, key) {
+  if (!value || typeof value !== "object") throw new Refused2();
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (descriptor === void 0) return void 0;
+  if (!("value" in descriptor)) throw new Refused2();
+  return descriptor.value;
+}
+var Admission2 = class {
+  constructor() {
+    this.remaining = MAX_TEXT2;
+    this.remainingItems = MAX_TOTAL_ITEMS;
+  }
+  text(value, maximum = MAX_TEXT2) {
+    if (typeof value !== "string" || value.length === 0 || value.length > maximum) throw new Refused2();
+    this.remaining -= value.length;
+    if (this.remaining < 0) throw new Refused2();
+    return value;
+  }
+  list(value, parse) {
+    if (!Array.isArray(value)) throw new Refused2();
+    const length = field5(value, "length");
+    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0 || length > MAX_ITEMS2) throw new Refused2();
+    this.remainingItems -= length;
+    if (this.remainingItems < 0) throw new Refused2();
+    const copy = [];
+    for (let index2 = 0; index2 < length; index2++) copy.push(parse(field5(value, String(index2))));
+    return Object.freeze(copy);
+  }
+  strings(value) {
+    return this.list(value, (entry) => this.text(entry, MAX_ITEM_TEXT));
+  }
+  findings(value) {
+    return this.list(value, (entry) => {
+      const code = this.text(field5(entry, "code"), 80);
+      if (!/^[A-Z][A-Z0-9_]{1,79}$/.test(code)) throw new Refused2();
+      return Object.freeze({
+        code,
+        summary: this.text(field5(entry, "summary")),
+        evidenceRefs: this.strings(field5(entry, "evidenceRefs"))
+      });
+    });
+  }
+  section(value) {
+    const text3 = this.text(field5(value, "text"));
+    const wordingSource = field5(value, "wordingSource");
+    const configured = field5(value, "configuredText");
+    if (wordingSource !== "default" && wordingSource !== "configured" || wordingSource === "configured" !== (configured !== void 0)) throw new Refused2();
+    const configuredText = configured === void 0 ? void 0 : this.text(configured);
+    const evidenceRefs = this.strings(field5(value, "evidenceRefs"));
+    return Object.freeze({ text: text3, wordingSource, evidenceRefs, ...configuredText === void 0 ? {} : { configuredText } });
+  }
+};
+function admitFailureExplanation(value) {
+  try {
+    const reader = new Admission2();
+    const canonicalFindings = field5(value, "canonicalFindings");
+    return Object.freeze({
+      problem: reader.section(field5(value, "problem")),
+      recordedCause: reader.section(field5(value, "recordedCause")),
+      suggestedNextStep: reader.section(field5(value, "suggestedNextStep")),
+      unknowns: reader.strings(field5(value, "unknowns")),
+      canonicalFindings: Object.freeze({
+        causes: reader.findings(field5(canonicalFindings, "causes")),
+        consequences: reader.findings(field5(canonicalFindings, "consequences")),
+        diagnosticFailures: reader.findings(field5(canonicalFindings, "diagnosticFailures"))
+      })
+    });
+  } catch {
+    return void 0;
+  }
+}
+
+// src/components/FailureExplanationView/FailureExplanationView.tsx
+import { jsx as jsx55, jsxs as jsxs46 } from "react/jsx-runtime";
+var box2 = {
+  color: theme.textPrimary,
+  background: theme.bg,
+  border: `1px solid ${theme.border}`,
+  borderRadius: theme.radius,
+  padding: 20,
+  fontFamily: theme.fontSans,
+  lineHeight: 1.6,
+  minWidth: 0,
+  overflowWrap: "anywhere"
+};
+var card = {
+  minWidth: 0,
+  padding: 16,
+  border: `1px solid ${theme.border}`,
+  borderRadius: theme.radius,
+  background: theme.bgElevated
+};
+var titles = ["Problem", "Recorded cause", "Suggested next step"];
+function FindingList({ findings }) {
+  return /* @__PURE__ */ jsx55("ul", { children: findings.map((finding, index2) => /* @__PURE__ */ jsxs46("li", { style: { marginBlock: 12 }, children: [
+    /* @__PURE__ */ jsx55("code", { style: { color: theme.textSecondary, fontSize: 12 }, children: finding.code }),
+    /* @__PURE__ */ jsx55("p", { style: { whiteSpace: "pre-wrap", marginBlock: 6 }, children: finding.summary }),
+    finding.evidenceRefs.length > 0 && /* @__PURE__ */ jsxs46("details", { children: [
+      /* @__PURE__ */ jsx55("summary", { children: "Recorded references" }),
+      /* @__PURE__ */ jsx55("ul", { children: finding.evidenceRefs.map((reference, number) => /* @__PURE__ */ jsx55("li", { children: /* @__PURE__ */ jsx55("code", { children: reference }) }, number)) })
+    ] })
+  ] }, index2)) });
+}
+function FailureExplanationView(props) {
+  const id = useId3();
+  const model = admitFailureExplanation(props.explanation);
+  if (!model) return /* @__PURE__ */ jsx55("section", { "aria-label": "Recorded failure explanation", className: props.className, style: { ...box2, ...props.style }, children: /* @__PURE__ */ jsx55("p", { role: "status", children: "Explanation is unavailable. The cause and outcome remain unknown. Reload the recording or ask an administrator to check it." }) });
+  const sections = [model.problem, model.recordedCause, model.suggestedNextStep];
+  return /* @__PURE__ */ jsxs46("section", { "aria-label": "Recorded failure explanation", className: props.className, style: { ...box2, ...props.style }, children: [
+    /* @__PURE__ */ jsx55("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 16rem), 1fr))", gap: 12 }, children: sections.map((section, index2) => /* @__PURE__ */ jsxs46("section", { "aria-labelledby": `${id}-${index2}`, style: card, children: [
+      /* @__PURE__ */ jsx55("h3", { id: `${id}-${index2}`, style: { marginBlockStart: 0, fontSize: 16 }, children: titles[index2] }),
+      /* @__PURE__ */ jsx55("p", { style: { whiteSpace: "pre-wrap" }, children: section.text }),
+      section.configuredText !== void 0 && /* @__PURE__ */ jsxs46("div", { style: { borderInlineStart: `3px solid ${theme.primary}`, paddingInlineStart: 12 }, children: [
+        /* @__PURE__ */ jsx55("p", { style: { color: theme.textSecondary, marginBlockEnd: 4, fontSize: 12 }, children: "Business guidance" }),
+        /* @__PURE__ */ jsx55("p", { style: { marginBlockStart: 0, whiteSpace: "pre-wrap" }, children: section.configuredText })
+      ] }),
+      section.evidenceRefs.length > 0 && /* @__PURE__ */ jsxs46("details", { children: [
+        /* @__PURE__ */ jsx55("summary", { style: { color: theme.textSecondary, cursor: "pointer" }, children: "Recorded references" }),
+        /* @__PURE__ */ jsx55("ul", { children: section.evidenceRefs.map((reference, number) => /* @__PURE__ */ jsx55("li", { children: /* @__PURE__ */ jsx55("code", { children: reference }) }, number)) })
+      ] }),
+      index2 === 1 && model.canonicalFindings.causes.length > 0 && /* @__PURE__ */ jsxs46("details", { children: [
+        /* @__PURE__ */ jsx55("summary", { children: "Recorded cause details" }),
+        /* @__PURE__ */ jsx55(FindingList, { findings: model.canonicalFindings.causes })
+      ] })
+    ] }, index2)) }),
+    model.canonicalFindings.consequences.length > 0 && /* @__PURE__ */ jsxs46("section", { "aria-labelledby": `${id}-outcomes`, style: { ...card, marginBlockStart: 12 }, children: [
+      /* @__PURE__ */ jsx55("h3", { id: `${id}-outcomes`, style: { marginBlockStart: 0, fontSize: 16 }, children: "Other recorded outcomes" }),
+      /* @__PURE__ */ jsx55(FindingList, { findings: model.canonicalFindings.consequences })
+    ] }),
+    model.canonicalFindings.diagnosticFailures.length > 0 && /* @__PURE__ */ jsxs46("section", { "aria-labelledby": `${id}-recording`, style: { ...card, marginBlockStart: 12, borderInlineStart: `3px solid ${theme.warning}` }, children: [
+      /* @__PURE__ */ jsx55("h3", { id: `${id}-recording`, style: { marginBlockStart: 0, fontSize: 16 }, children: "Recording problems" }),
+      /* @__PURE__ */ jsx55(FindingList, { findings: model.canonicalFindings.diagnosticFailures })
+    ] }),
+    /* @__PURE__ */ jsxs46("section", { "aria-labelledby": `${id}-unknowns`, style: { ...card, marginBlockStart: 12, borderInlineStart: `3px solid ${theme.warning}` }, children: [
+      /* @__PURE__ */ jsx55("h3", { id: `${id}-unknowns`, style: { marginBlockStart: 0, fontSize: 16 }, children: "Still unknown" }),
+      model.unknowns.length > 0 ? /* @__PURE__ */ jsx55("ul", { children: model.unknowns.map((unknown, index2) => /* @__PURE__ */ jsx55("li", { children: unknown }, index2)) }) : /* @__PURE__ */ jsx55("p", { children: "No additional unknowns were supplied. This view does not verify the underlying evidence." })
+    ] })
+  ] });
+}
 export {
   CommentaryPanel,
   CompactTimeline,
@@ -14927,6 +15059,7 @@ export {
   ExplainableProvider,
   ExplainableShell,
   ExplainableView,
+  FailureExplanationView,
   FlowchartPanel,
   FootprintTheme,
   GanttTimeline,

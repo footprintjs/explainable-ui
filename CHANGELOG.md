@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Optional `FailureExplanationView` displays a host-admitted problem, recorded
+  cause and suggested next step. Canonical text and uncertainty remain visible
+  beside clearly labelled business guidance; references are text only, and no
+  advice is executed. Missing, malformed or over-budget explanations stay unknown.
+- The view retains complete canonical causes, other outcomes and recording
+  failures. Recording failures and consequences stay visibly separate from
+  causes, including when configured wording is absent or ambiguous.
+
 ### Fixed
 
 - Preserve the grouped diagram's current recorded focus and manual camera when
