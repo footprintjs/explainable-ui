@@ -17,7 +17,7 @@
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import type { ReactNode } from "react";
-import { theme } from "../../theme";
+import { theme, componentStyles } from "../../theme";
 
 export interface GroupContainerNodeData {
   label: string;
@@ -38,12 +38,15 @@ export interface GroupContainerNodeData {
   handleDirection?: "LR" | "TB";
   highlighted?: boolean;
   compactHeader?: boolean;
+  unstyled?: boolean;
   [key: string]: unknown;
 }
 
 export function GroupContainerNode({ data }: NodeProps) {
   const d = data as GroupContainerNodeData;
   const expandable = d.headerMode === "expandable";
+  const unstyled = d.unstyled === true;
+  const ui = componentStyles();
   const borderColor = d.error
     ? theme.error
     : expandable && d.highlighted
@@ -56,17 +59,22 @@ export function GroupContainerNode({ data }: NodeProps) {
 
   return (
     <div
+      data-fp="group-container-node"
+      data-active={d.active || undefined}
+      data-done={d.done || undefined}
+      data-error={d.error || undefined}
+      data-unstyled={unstyled || undefined}
       style={{
         width: "100%",
         height: "100%",
         boxSizing: "border-box",
-        border: `1.5px ${d.active || d.done || d.error ? "solid" : "dashed"} ${borderColor}`,
-        borderRadius: 12,
+        position: "relative",
+        ...(!unstyled && { border: `calc(${ui.borderWidth} + 0.5px) ${d.active || d.done || d.error ? "solid" : "dashed"} ${borderColor}`,
+        borderRadius: `calc(${ui.radiusPanel} + 4px)`,
         // Translucent (theme-derived) so the dotted background + nested children
         // read clearly, while still following dark/light.
         background: `color-mix(in srgb, ${theme.textMuted} 7%, transparent)`,
-        opacity: d.dimmed ? 0.4 : 1,
-        position: "relative",
+        opacity: d.dimmed ? 0.4 : 1 }),
       }}
     >
       {/* Title header strip. */}
@@ -74,23 +82,23 @@ export function GroupContainerNode({ data }: NodeProps) {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 6,
-          padding: "8px 12px",
-          fontSize: expandable && d.compactHeader ? 14 : 12,
-          fontWeight: 600,
+          ...(!unstyled && { gap: ui.controlGap,
+          padding: `${ui.spaceSm} ${ui.spaceMd}`,
+          fontSize: expandable && d.compactHeader ? `calc(${ui.body} + 2px)` : ui.body,
+          fontWeight: `calc(${ui.weightStrong} - 100)`,
           color: theme.textMuted,
-          letterSpacing: 0.2,
+          letterSpacing: 0.2 }),
         }}
       >
         {(expandable ? d.iconContent : undefined) ?? (d.icon ? <span aria-hidden>{d.icon}</span> : null)}
         <span title={d.label} style={expandable && d.compactHeader ? { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : undefined}>{d.label}</span>
         {expandable && d.headerAction ? <span style={{ marginLeft: "auto", flexShrink: 0 }}>{d.headerAction}</span> : null}
       </div>
-      {expandable && d.statusLabel ? <div id={d.statusLabelId} title={d.statusLabel} style={{ padding: "0 12px", fontSize: 11, color: theme.textSecondary, ...(d.compactHeader ? { maxHeight: 32, lineHeight: "16px", overflow: "hidden" } : {}) }}>{d.statusLabel}</div> : null}
+      {expandable && d.statusLabel ? <div id={d.statusLabelId} title={d.statusLabel} style={{ ...(!unstyled && { padding: `0 ${ui.spaceMd}`, fontSize: ui.label, color: theme.textSecondary }), ...(d.compactHeader ? { maxHeight: 32, lineHeight: unstyled ? undefined : "16px", overflow: "hidden" } : {}) }}>{d.statusLabel}</div> : null}
 
       {/* Edge handles — top target, bottom source (top→bottom flow). */}
-      <Handle type="target" position={expandable && d.handleDirection === "LR" ? Position.Left : Position.Top} style={{ opacity: 0 }} />
-      <Handle type="source" position={expandable && d.handleDirection === "LR" ? Position.Right : Position.Bottom} style={{ opacity: 0 }} />
+      <Handle type="target" position={expandable && d.handleDirection === "LR" ? Position.Left : Position.Top} style={unstyled ? undefined : { opacity: 0 }} />
+      <Handle type="source" position={expandable && d.handleDirection === "LR" ? Position.Right : Position.Bottom} style={unstyled ? undefined : { opacity: 0 }} />
     </div>
   );
 }

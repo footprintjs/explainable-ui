@@ -42,20 +42,20 @@ import {
   BackgroundVariant,
   MarkerType,
 } from "@xyflow/react";
-import type { Node, Edge, NodeTypes, EdgeTypes } from "@xyflow/react";
+import type { Node, Edge, NodeTypes, EdgeTypes, BackgroundProps, Viewport } from "@xyflow/react";
 import type { TraceGraph, TraceNode, TraceEdge } from "./traceStructureRecorder";
 import type { TraceFlowLayout } from "./TraceFlow";
 import { defaultTraceFlowLayout } from "./TraceFlow";
 import { dagreTraceLayout, createDagreTraceLayout } from "./_internal/dagreTraceLayout";
 import { devWarn } from "./_internal/devWarn";
-import type { NodeFootprint, NodeSizeResolver } from "./_internal/dagreTraceLayout";
+import type { DagreTraceLayoutOptions, NodeFootprint, NodeSizeResolver } from "./_internal/dagreTraceLayout";
 import { createSnappedDagreLayout } from "./_internal/snapLinearSuccessors";
 import { withForkCentering } from "./_internal/centerForkParents";
 import type { RuntimeOverlay } from "./createTraceRuntimeOverlay";
 import { sliceOverlay } from "./createTraceRuntimeOverlay";
 import { StageNode } from "../StageNode";
 import type { StageNodeData } from "../StageNode";
-import { rawDefaults } from "../../theme/tokens";
+import { theme, componentStyles } from "../../theme/styles";
 import { themeModeVars } from "../../theme/mode";
 import type { ThemeModeProps } from "../../theme/mode";
 import type { BaseComponentProps } from "../../types";
@@ -66,6 +66,7 @@ import { useSubflowDrill } from "./_internal/useSubflowDrill";
 import { TraceWorkflowAutoRefit } from "./_internal/TraceWorkflowAutoRefit";
 import { chartLayoutKey, chartTopologyKey } from "./_internal/chartFitGeometry";
 import { SubflowBreadcrumbBar } from "./SubflowBreadcrumbBar";
+import type { SubflowBreadcrumbBarProps } from "./SubflowBreadcrumbBar";
 import { GroupContainerNode } from "../GroupContainerNode";
 import { LoopBackEdge } from "../LoopBackEdge";
 import { SmartStepEdge } from "../SmartStepEdge";
@@ -81,25 +82,42 @@ import { TRACE_MOTION_MS, useTraceMotion } from "../../_internal/useTraceMotion"
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface TracedFlowColors {
-  /** Default (un-executed) node text + edge stroke. */
+  /** Default workflow edge stroke. Node renderers use semantic theme tokens. */
   default: string;
   /** Done — visually de-emphasised (lighter). */
   done: string;
   /** Active — current scrub position. */
   active: string;
-  /** Error — node with recorded onError. */
+  /** Optional error-edge paint, activated only when explicitly supplied through colors.error. */
   error: string;
   /** Loop back-edge color. */
   loop: string;
 }
 
 const DEFAULT_COLORS: TracedFlowColors = {
-  default: rawDefaults.colors.textMuted,
-  done: rawDefaults.colors.success,
-  active: rawDefaults.colors.primary,
-  error: rawDefaults.colors.error,
-  loop: rawDefaults.colors.warning,
+  default: theme.textMuted,
+  done: theme.success,
+  active: theme.primary,
+  error: theme.error,
+  loop: theme.warning,
 };
+
+/** Bridge xyflow accessories to the same palette as the chart, not its light CSS defaults. */
+const ACCESSORY_THEME_STYLE = {
+  "--xy-controls-button-background-color": theme.bgSecondary,
+  "--xy-controls-button-background-color-hover": theme.bgTertiary,
+  "--xy-controls-button-color": theme.textPrimary,
+  "--xy-controls-button-color-hover": theme.textPrimary,
+  "--xy-controls-button-border-color": theme.border,
+  "--xy-controls-box-shadow": componentStyles().shadowPanel,
+  "--xy-minimap-background-color": theme.bgSecondary,
+  "--xy-minimap-mask-background-color": `color-mix(in srgb, ${theme.bgPrimary} 60%, transparent)`,
+  "--xy-minimap-mask-stroke-color": theme.border,
+  "--xy-minimap-node-background-color": theme.bgTertiary,
+  "--xy-minimap-node-stroke-color": theme.border,
+  "--xy-edge-label-background-color": theme.bgSecondary,
+  "--xy-edge-label-color": theme.textPrimary,
+} as React.CSSProperties;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Per-node / per-edge styling (pure)
@@ -270,6 +288,9 @@ function styleEdgeWithOverlay(
   colors: TracedFlowColors,
   cursorStandIns: ReadonlySet<string>,
   suppressMotion = false,
+  errors: ReadonlyMap<string, string> = new Map(),
+  unstyled = false,
+  errorColorEnabled = false,
 ): Edge {
   const kind = edge.data?.kind ?? "next";
   const sourceExecuted = doneStageIds.has(edge.source) || activeStageId === edge.source;
@@ -282,9 +303,11 @@ function styleEdgeWithOverlay(
   const carriesCursor = edgeCarriesCursor(edge.data?.via, cursorStandIns);
   const isLeadingEdge =
     carriesCursor || (activeStageId === edge.source && !doneStageIds.has(edge.target));
+  const hasError = !!errors.get(edge.source) || !!errors.get(edge.target);
 
   let color: string = colors.default;
   if (carriesCursor) color = colors.active;
+  else if (errorColorEnabled && hasError) color = colors.error;
   else if (kind === "loop") color = colors.loop;
   else if (isLeadingEdge) color = colors.active;
   else if (traversed) color = colors.done;
@@ -297,14 +320,17 @@ function styleEdgeWithOverlay(
     // on the node (the old approach broke for any node missing them).
     // Every other edge uses `smartStep`: a smoothstep superset that routes a
     // RANK-SKIPPING edge around the node it skips (else identical to smoothstep).
-    type: kind === "loop" ? "loopBack" : "smartStep",
-    animated: !suppressMotion && isLeadingEdge,
-    style: { stroke: color, strokeWidth: traversed || carriesCursor ? 2 : 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16 },
+    type: edge.type ?? (kind === "loop" ? "loopBack" : "smartStep"),
+    animated: !suppressMotion && (edge.animated ?? isLeadingEdge),
+    style: {
+      ...(!unstyled && { stroke: color, strokeWidth: kind === "loop" ? 1.5 : traversed || carriesCursor ? 2 : 1.5,
+        ...(kind === "loop" && { strokeDasharray: "4 3" }) }),
+      ...edge.style,
+    },
+    markerEnd: edge.markerEnd !== undefined ? edge.markerEnd : unstyled ? undefined
+      : { type: MarkerType.ArrowClosed, color: typeof edge.style?.stroke === "string" ? edge.style.stroke : color, width: 16, height: 16 },
+    ...(unstyled && { data: { ...edge.data, unstyled: true } }),
   };
-  if (kind === "loop") {
-    styled.style = { ...styled.style, strokeDasharray: "4 3" };
-  }
   return styled;
 }
 
@@ -321,6 +347,8 @@ export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
   scrubIndex?: number;
   /** Layout function. Default: BFS tree walk over the recorder graph. */
   layout?: TraceFlowLayout | "passthrough";
+  /** Tune the measured top-to-bottom pipeline without replacing it. Ignored with a custom layout. */
+  layoutOptions?: Omit<DagreTraceLayoutOptions, "direction">;
   /** Color overrides. */
   colors?: Partial<TracedFlowColors>;
   /** Node click handler — receives stage id. */
@@ -360,8 +388,8 @@ export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
    */
   nodeTypes?: NodeTypes;
   /**
-   * Consumer-supplied xyflow edge types. Merged with no built-in
-   * defaults — pass `{ myEdge: MyEdge }` to register custom edge
+   * Consumer-supplied xyflow edge types. Consumer registry keys override
+   * built-ins — pass `{ myEdge: MyEdge }` to register custom edge
    * components for edges you push into the graph with `type: 'myEdge'`.
    */
   edgeTypes?: EdgeTypes;
@@ -412,6 +440,19 @@ export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
    * subflow the box reframes to that subflow's contents.
    */
   mainChartBox?: { label?: string; kind?: string };
+  /** Default dotted background; false removes it. Explicit props also work in unstyled mode. */
+  background?: false | BackgroundProps;
+  /** Replace or remove the default drill breadcrumb. Navigation commands retain the same scope owner. */
+  breadcrumb?: false | ((props: SubflowBreadcrumbBarProps) => React.ReactNode);
+  /** xyflow camera bounds. The existing minimum of 0.1 is retained when omitted. */
+  minZoom?: number;
+  maxZoom?: number;
+  /** Controlled camera: disables the internal automatic fitter. */
+  viewport?: Viewport;
+  defaultViewport?: Viewport;
+  onViewportChange?: (viewport: Viewport) => void;
+  /** Initial/layout automatic fitting. Defaults to padding 0.18; false leaves camera ownership to the host. */
+  autoFit?: boolean | { padding?: number; maxZoom?: number };
   /**
    * Children rendered INSIDE the `<ReactFlow>` element, after the
    * built-in `<Background>`. Use this slot to mount xyflow
@@ -437,6 +478,7 @@ export function TracedFlow({
   overlay,
   scrubIndex,
   layout: layoutProp,
+  layoutOptions,
   colors: colorOverrides,
   onNodeClick,
   onSubflowChange,
@@ -449,13 +491,23 @@ export function TracedFlow({
   coActiveStageIds,
   sliceCone,
   traceWorkflow,
+  background,
+  breadcrumb: renderBreadcrumb,
+  minZoom = 0.1,
+  maxZoom,
+  viewport,
+  defaultViewport,
+  onViewportChange,
+  autoFit = true,
   theme: themeMode,
+  unstyled = false,
   children,
   className,
   style,
 }: TracedFlowProps) {
   const motionEnabled = useTraceMotion();
-  const suppressMotion = !!traceWorkflow || !motionEnabled;
+  const suppressMotion = unstyled || !!traceWorkflow || !motionEnabled;
+  const errorColorEnabled = colorOverrides?.error !== undefined;
   // Investigation chrome changes size on entry and exit; neither is permission to reclaim a user's camera.
   const investigationSeen = useRef(false);
   if (traceWorkflow) investigationSeen.current = true;
@@ -479,6 +531,10 @@ export function TracedFlow({
       );
     }
   }, [layoutProp]);
+  useEffect(() => {
+    if (layoutOptions !== undefined && layoutProp !== undefined)
+      devWarn(() => "[footprint-explainable-ui] TracedFlow layoutOptions applies only to the default measured layout; the supplied layout owns its options.");
+  }, [layoutOptions, layoutProp]);
   const colors = useMemo<TracedFlowColors>(
     () => ({ ...DEFAULT_COLORS, ...(colorOverrides ?? {}) }),
     [colorOverrides],
@@ -538,18 +594,19 @@ export function TracedFlow({
     // snap reconstructs centers from wrong widths (the identical-resolver
     // invariant). A consumer's custom `layout` owns its own sizing;
     // "passthrough" keeps the incoming positions.
-    const nodeSize: NodeSizeResolver | undefined = measuredSizes
-      ? (n) => measuredSizes.get(n.id)
+    const nodeSize: NodeSizeResolver | undefined = layoutOptions?.nodeSize || measuredSizes
+      ? (n) => layoutOptions?.nodeSize?.(n) ?? measuredSizes?.get(n.id)
       : undefined;
-    const sizeOpts = nodeSize ? { nodeSize } : {};
+    const sizeOpts = { nodeSize, nodeWidth: layoutOptions?.nodeWidth, nodeHeight: layoutOptions?.nodeHeight };
+    const nodeSep = layoutOptions?.nodeSep ?? 36;
     // dagre → snap (spine drift) → fork-centering (off-center fork parents).
     // SAME sizeOpts to every stage (the identical-resolver invariant).
     const dagreBase: TraceFlowLayout = withForkCentering(
       createSnappedDagreLayout(
-        createDagreTraceLayout({ ...sizeOpts, rankSep: 52, nodeSep: 36 }),
+        createDagreTraceLayout({ ...layoutOptions, ...sizeOpts, direction: "TB", rankSep: layoutOptions?.rankSep ?? 52, nodeSep }),
         sizeOpts,
       ),
-      { ...sizeOpts, nodeSep: 36 }, // same nodeSep → clamp preserves dagre's reserved gap
+      { ...sizeOpts, nodeSep }, // same nodeSep → clamp preserves dagre's reserved gap
     );
     const realBase: TraceFlowLayout =
       layout === "passthrough"
@@ -577,7 +634,7 @@ export function TracedFlow({
     }
 
     return realBase(filteredGraph);
-  }, [filteredGraph, layout, layoutProp, groupedSet, mainChartBox, measuredSizes]);
+  }, [filteredGraph, layout, layoutProp, layoutOptions, groupedSet, mainChartBox, measuredSizes]);
 
   // ── Runtime overlay slice → mount aggregation ────
   // Overlay stage ids are path-qualified (`subflowPath/stageId`, parsed
@@ -612,11 +669,11 @@ export function TracedFlow({
           slice.executedOrderIds,
           coActiveStageIds ?? EMPTY_SET,
           slice.retryAttempts?.get(n.id),
-          !!traceWorkflow,
+          unstyled || !!traceWorkflow,
         );
-        return { ...node, data: { ...node.data, suppressMotion: suppressMotion || node.data.suppressMotion === true } };
+        return { ...node, data: { ...node.data, ...(unstyled && { unstyled: true }), suppressMotion: suppressMotion || node.data.suppressMotion === true } };
       }),
-    [positioned.nodes, slice, coActiveStageIds, suppressMotion, traceWorkflow],
+    [positioned.nodes, slice, coActiveStageIds, suppressMotion, traceWorkflow, unstyled],
   );
   // The ids that stand for the cursor on this chart: the active id plus its
   // path ancestors — what a contracted edge's `via` list is checked against.
@@ -624,9 +681,9 @@ export function TracedFlow({
   const reactFlowEdges = useMemo<Edge[]>(
     () =>
       positioned.edges.map((e) =>
-        styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns, suppressMotion),
+        styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns, suppressMotion, slice.errors, unstyled, errorColorEnabled),
       ),
-    [positioned.edges, slice, colors, cursorStandIns, suppressMotion],
+    [positioned.edges, slice, colors, cursorStandIns, suppressMotion, unstyled, errorColorEnabled],
   );
 
   const workflowProjection = useMemo(() => projectTraceWorkflow(traceWorkflow, positioned.nodes), [traceWorkflow, positioned.nodes]);
@@ -639,25 +696,25 @@ export function TracedFlow({
           ...(stage ? { traceWorkflow: stage } : {}) },
         // Inspection removes system fading, including group/pill dimming.
         // Authored opacity remains a host choice, including for custom nodes.
-        style: { ...node.style, opacity: node.style?.opacity ?? 1,
+        style: unstyled ? node.style : { ...node.style, opacity: node.style?.opacity ?? 1,
           transition: motionEnabled ? `opacity ${TRACE_MOTION_MS}ms ease` : "none", animation: "none" },
       };
     });
-  }, [traceWorkflow, reactFlowNodes, workflowProjection, motionEnabled]);
+  }, [traceWorkflow, reactFlowNodes, workflowProjection, motionEnabled, unstyled]);
   const workflowEdges = useMemo<Edge[]>(() => {
     if (!traceWorkflow) return reactFlowEdges;
     const execution = reactFlowEdges.map(edge => ({ ...edge, animated: false,
-      style: { ...edge.style, animation: "none", transition: motionEnabled ? `opacity ${TRACE_MOTION_MS}ms ease` : "none", opacity: 0.4 } }));
+      style: unstyled ? edge.style : { animation: "none", transition: motionEnabled ? `opacity ${TRACE_MOTION_MS}ms ease` : "none", opacity: 0.4, ...edge.style } }));
     const reads: Edge[] = workflowProjection.reads.map((read, lane) => ({
       id: `recorded-read:${JSON.stringify([traceWorkflow.scopeKey, read.key, read.sourceRuntimeStageId, read.targetRuntimeStageId])}`,
       source: read.source, target: read.target, type: "recordedRead", animated: false, selectable: false,
       zIndex: 2,
-      data: { kind: "recorded-read", ...read, lane, scopeKey: traceWorkflow.scopeKey },
-      style: { stroke: read.color, strokeWidth: 2, strokeDasharray: "6 4", animation: "none", transition: "none" },
-      markerEnd: { type: MarkerType.ArrowClosed, color: read.color, width: 14, height: 14 },
+      data: { kind: "recorded-read", ...read, lane, scopeKey: traceWorkflow.scopeKey, ...(unstyled && { unstyled: true }) },
+      ...(!unstyled && { style: { stroke: read.color, strokeWidth: 2, strokeDasharray: "6 4", animation: "none", transition: "none" },
+        markerEnd: { type: MarkerType.ArrowClosed, color: read.color, width: 14, height: 14 } }),
     }));
     return [...execution, ...reads];
-  }, [traceWorkflow, reactFlowEdges, workflowProjection, motionEnabled]);
+  }, [traceWorkflow, reactFlowEdges, workflowProjection, motionEnabled, unstyled]);
 
   // ── Dependency-cone overlay (sliceCone) ────────────────────────────
   // Two-phase reveal: when the cone changes, everything renders at the
@@ -667,14 +724,15 @@ export function TracedFlow({
   // node renderers. No cone → the original arrays pass through untouched.
   const [coneRevealed, setConeRevealed] = useState(false);
   useEffect(() => {
-    if (!sliceCone || traceWorkflow) return;
+    if (!sliceCone || traceWorkflow || unstyled) return;
     setConeRevealed(false);
     const raf = requestAnimationFrame(() => setConeRevealed(true));
     return () => cancelAnimationFrame(raf);
-  }, [sliceCone, traceWorkflow]);
+  }, [sliceCone, traceWorkflow, unstyled]);
 
   const conedNodes = useMemo<Node[]>(() => {
     if (traceWorkflow) return workflowNodes;
+    if (unstyled) return reactFlowNodes;
     if (!sliceCone || sliceCone.size === 0) return reactFlowNodes;
     return reactFlowNodes.map((n) => {
       const depth = sliceCone.get(n.id);
@@ -691,10 +749,11 @@ export function TracedFlow({
         },
       };
     });
-  }, [traceWorkflow, workflowNodes, reactFlowNodes, sliceCone, coneRevealed]);
+  }, [traceWorkflow, workflowNodes, reactFlowNodes, sliceCone, coneRevealed, unstyled]);
 
   const conedEdges = useMemo<Edge[]>(() => {
     if (traceWorkflow) return workflowEdges;
+    if (unstyled) return reactFlowEdges;
     if (!sliceCone || sliceCone.size === 0) return reactFlowEdges;
     return reactFlowEdges.map((e) => {
       const inCone = sliceCone.has(e.source) && sliceCone.has(e.target);
@@ -702,7 +761,7 @@ export function TracedFlow({
         ? e
         : { ...e, style: { ...e.style, opacity: 0.12, transition: "opacity 260ms ease" } };
     });
-  }, [traceWorkflow, workflowEdges, reactFlowEdges, sliceCone]);
+  }, [traceWorkflow, workflowEdges, reactFlowEdges, sliceCone, unstyled]);
 
   // ── Click handling: drill on subflow mount click, propagate click ─
   const handleNodeClick = useCallback(
@@ -737,11 +796,14 @@ export function TracedFlow({
   return (
     <div
       ref={wrapperRef}
+      data-fp="traced-flow"
+      data-unstyled={unstyled || undefined}
       className={className}
       style={{
         // The one-word switch, applied to this chart's own root so a chart
         // mounted alone in a light app is light (see theme/mode.ts).
-        ...themeModeVars(themeMode),
+        ...(!unstyled && themeModeVars(themeMode)),
+        ...(!unstyled && ACCESSORY_THEME_STYLE),
         width: "100%",
         height: "100%",
         minHeight: 300,
@@ -750,12 +812,9 @@ export function TracedFlow({
         ...style,
       }}
     >
-      {breadcrumb.length > 1 && (
-        <SubflowBreadcrumbBar
-          entries={breadcrumb}
-          onNavigate={drill.setCurrentSubflowId}
-        />
-      )}
+      {breadcrumb.length > 1 && renderBreadcrumb !== false && (renderBreadcrumb
+        ? renderBreadcrumb({ entries: breadcrumb, onNavigate: drill.setCurrentSubflowId, unstyled })
+        : <SubflowBreadcrumbBar entries={breadcrumb} onNavigate={drill.setCurrentSubflowId} unstyled={unstyled} />)}
       <div style={{ flex: 1, minHeight: 0 }}>
         <ReactFlow
           nodes={conedNodes}
@@ -763,13 +822,19 @@ export function TracedFlow({
           nodeTypes={mergedNodeTypes}
           edgeTypes={mergedEdgeTypes}
           onNodeClick={handleNodeClick}
-          minZoom={0.1}
+          minZoom={minZoom}
+          maxZoom={maxZoom}
+          viewport={viewport}
+          defaultViewport={defaultViewport}
+          onViewportChange={onViewportChange}
           proOptions={{ hideAttribution: true }}
         >
-          <TraceWorkflowAutoRefit wrapperRef={wrapperRef} refitKey={refitKey} layoutKey={layoutKey} padding={0.18}
-            preserveViewport={investigationSeen.current} stages={workflowProjection.stages} reads={workflowProjection.reads} />
+          {autoFit !== false && viewport === undefined && <TraceWorkflowAutoRefit wrapperRef={wrapperRef}
+            refitKey={refitKey} layoutKey={layoutKey} padding={typeof autoFit === "object" ? autoFit.padding ?? 0.18 : 0.18}
+            maxAutoZoom={typeof autoFit === "object" ? autoFit.maxZoom : undefined}
+            preserveViewport={investigationSeen.current} stages={workflowProjection.stages} reads={workflowProjection.reads} />}
           <MeasuredNodeSizes onSizes={setMeasuredSizes} />
-          <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+          {background !== false && (!unstyled || background !== undefined) && <Background variant={BackgroundVariant.Dots} gap={20} size={1} {...background} />}
           {children}
         </ReactFlow>
       </div>

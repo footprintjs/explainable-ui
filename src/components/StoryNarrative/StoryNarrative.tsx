@@ -9,9 +9,10 @@
  *
  * Data source: FlowRecorder (fires AFTER stage execution)
  */
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useState, type CSSProperties } from "react";
 import type { NarrativeEntry, BaseComponentProps, KnownNarrativeEntryType } from "../../types";
-import { theme, fontSize, padding } from "../../theme";
+import { theme, componentStyles, FootprintButton } from "../../theme";
+import { useTraceMotion } from "../../_internal/useTraceMotion";
 
 export interface StoryNarrativeProps extends BaseComponentProps {
   /** Structured narrative entries from CombinedNarrativeRecorder */
@@ -29,6 +30,14 @@ export interface StoryNarrativeProps extends BaseComponentProps {
    * hidden and only the Entering/Exiting markers show.
    */
   scopeSubflowId?: string;
+  /** Keep the expanded entry list, or group contiguous exact recorded visits. */
+  presentation?: "entries" | "visits";
+  /** An admitted exact visit; omitted when the log cannot synchronize. */
+  selectedRuntimeStageId?: string;
+  /** Exact admitted visits through the cursor, when entry and rail order differ. */
+  visibleRuntimeStageIds?: readonly string[];
+  /** Follow newly revealed entries only when the reader opts in. */
+  followCursor?: boolean;
 }
 
 interface EntryBadge {
@@ -103,271 +112,113 @@ function badgeOf(type: string): EntryBadge {
 }
 
 export function StoryNarrative({
-  entries,
-  revealedEntryCount,
-  scopeSubflowId,
-  size = "default",
-  unstyled = false,
-  className,
-  style: outerStyle,
+  entries, revealedEntryCount, scopeSubflowId, presentation = "entries",
+  selectedRuntimeStageId, visibleRuntimeStageIds, followCursor = false,
+  size = "default", unstyled = false, className, style: outerStyle,
 }: StoryNarrativeProps) {
-  const fs = fontSize[size];
-  const pad = padding[size];
-
-  // Position-based reveal: NarrativePanel computes the cut point based on
-  // section boundaries (stage entries). This handles loops (same stageId,
-  // different iterations) and subflow repeats correctly.
-  const revealedCount = revealedEntryCount;
-
-  // Filter revealed entries: show the entries of the level being VIEWED plus
-  // subflow Entering/Exiting markers. Entries belonging to a subflow deeper
-  // than this level are hidden — they appear in ITS drill-down view.
-  //
-  // `scopeSubflowId` is what makes that work at every depth: a drilled story
-  // is handed only its own subflow's entries, and every one of them carries a
-  // `subflowId`. Judging by "has a subflowId" alone therefore hid the entire
-  // story the moment the drill started resolving the narrative correctly.
-  const isOwnLevel = useMemo(() => {
-    return (e: NarrativeEntry): boolean => {
-      const sfId = (e as { subflowId?: string }).subflowId;
-      if (!sfId) return scopeSubflowId === undefined; // root entry
-      if (e.type === "subflow") return true; // Entering/Exiting markers — show
-      return sfId === scopeSubflowId;
-    };
-  }, [scopeSubflowId]);
-  const revealed = useMemo(
-    () => entries.slice(0, revealedCount).filter(isOwnLevel),
-    [entries, revealedCount, isOwnLevel],
-  );
-  // Future count: only count entries that would actually be shown (same filter as revealed)
-  const futureCount = useMemo(() => {
-    let count = 0;
-    for (let i = revealedCount; i < entries.length; i++) {
-      if (isOwnLevel(entries[i])) count++;
-    }
-    return count;
-  }, [entries, revealedCount, isOwnLevel]);
-
+  const chrome = componentStyles(size);
+  const sx = (value: CSSProperties): CSSProperties | undefined => unstyled ? undefined : value;
+  const motion = useTraceMotion();
+  const revealedCount = Math.max(0, Math.min(entries.length, revealedEntryCount));
+  const isOwnLevel = (entry: NarrativeEntry) => !entry.subflowId
+    ? scopeSubflowId === undefined : entry.type === "subflow" || entry.subflowId === scopeSubflowId;
+  const visibleIds = visibleRuntimeStageIds === undefined ? null : new Set(visibleRuntimeStageIds);
+  const admitted = (entry: NarrativeEntry, index: number) => index < revealedCount
+    && (!visibleIds || !!entry.runtimeStageId && visibleIds.has(entry.runtimeStageId));
+  const revealed = entries.filter((entry, index) => isOwnLevel(entry) && admitted(entry, index));
+  const futureCount = entries.filter((entry, index) => isOwnLevel(entry) && !admitted(entry, index)).length;
   const latestRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    latestRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }, [revealed.length]);
+    if (!followCursor) return;
+    try { if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return; } catch { /* Unsupported hosts can follow without animation. */ }
+    latestRef.current?.scrollIntoView?.({ behavior: motion ? "smooth" : "auto", block: "nearest" });
+  }, [followCursor, motion, revealedCount, scopeSubflowId, visibleRuntimeStageIds]);
 
-  // Compute heading numbers for each revealed entry.
-  // Flat sequential counter matching flowchart traversal (DFS visit order):
-  //   1. [Stage: Seed] ...
-  //   2. [Subflow: SystemPrompt] ...
-  //   3. [Subflow: Messages] ...
-  //   4. [Stage: ApplyPreparedMessages] ...
-  //
-  // Counter increments on: stage, subflow entry, condition, first fork in sequence.
-  // No counter on: step, subflow exit, loop, break, error, subsequent forks.
-  const numberedEntries = useMemo(() => {
-    let counter = 0;
-    // Track subflow enter/exit: first occurrence of type=subflow per stageId = enter, second = exit.
-    const subflowSeen = new Set<string>();
-    let prevType = "";
+  const groups = useMemo(() => {
+    const result: { id: string | undefined; entries: NarrativeEntry[]; start: number }[] = [];
+    for (const [index, entry] of revealed.entries()) {
+      const previous = result[result.length - 1];
+      if (entry.runtimeStageId && previous?.id === entry.runtimeStageId) previous.entries.push(entry);
+      else result.push({ id: entry.runtimeStageId, entries: [entry], start: index });
+    }
+    return result;
+  }, [entries, revealedCount, scopeSubflowId, visibleRuntimeStageIds]);
 
-    return revealed.map((entry) => {
-      // What came IMMEDIATELY before this entry. Read it here and advance the
-      // tracker in the same breath, because every branch below returns early:
-      // when only the fork branch advanced it, a stage (or subflow, or
-      // condition) between two forks left `prevType` still reading "fork", so
-      // the SECOND fork was treated as a continuation of the first and lost
-      // its heading and its number.
-      const prevEntryType = prevType;
-      prevType = entry.type;
+  const renderEntry = (entry: NarrativeEntry, index: number) => {
+    const badge = badgeOf(entry.type);
+    const heading = entry.type === "stage" || entry.type === "subflow";
+    const emphasis = entry.type === "condition" || entry.type === "retry" || entry.type === "attempt";
+    const failed = entry.type === "error" || entry.type === "break";
+    return <div key={index} data-fp="narrative-entry" data-type={entry.type}
+      style={sx({ display: "flex", gap: chrome.spaceSm, padding: `${heading ? chrome.spaceSm : chrome.spaceXs} 0`,
+        marginLeft: presentation === "visits" ? 0 : `calc(${chrome.spaceMd} * ${Math.min(3, Math.max(0, entry.depth))})`,
+        minWidth: 0, alignItems: "baseline" })}>
+      <span title={badge.label} aria-label={badge.label} style={sx({ color: badge.color, fontWeight: chrome.weightStrong,
+        width: chrome.iconSize, flexShrink: 0, textAlign: "center", fontSize: chrome.body })}>{badge.icon}</span>
+      <span data-fp="narrative-text" style={sx({ minWidth: 0, fontSize: chrome.body, lineHeight: chrome.lineHeight,
+        fontWeight: heading ? chrome.weightStrong : chrome.weightNormal,
+        color: failed ? theme.error : emphasis ? theme.warning : theme.textPrimary,
+        fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans,
+        whiteSpace: "pre-wrap", overflowWrap: "anywhere" })}>
+        <RecordedText text={entry.text} size={size} unstyled={unstyled} />
+      </span>
+    </div>;
+  };
+  const renderVisit = (group: typeof groups[number]) => {
+    const current = !!group.id && group.id === selectedRuntimeStageId;
+    const blocks: { operations: boolean; entries: NarrativeEntry[]; start: number }[] = [];
+    for (const [offset, entry] of group.entries.entries()) {
+      const operations = entry.type === "step", previous = blocks[blocks.length - 1];
+      if (previous?.operations === operations) previous.entries.push(entry);
+      else blocks.push({ operations, entries: [entry], start: offset });
+    }
+    return <section key={`${group.id ?? "unbound"}:${group.start}`} data-fp="narrative-visit"
+      data-runtime-stage-id={group.id} data-current={current || undefined}
+      aria-label={group.id ? `Recorded visit ${group.id}` : "Unbound recorded entries"}
+      style={sx({ border: `${chrome.borderWidth} solid ${current ? theme.accent : theme.border}`,
+        borderRadius: chrome.radiusPanel, padding: chrome.padding, marginBottom: chrome.spaceMd,
+        background: current ? theme.accentBg : theme.bgPrimary, minWidth: 0 })}>
+      {group.id && <header style={sx({ marginBottom: chrome.spaceSm, overflowWrap: "anywhere" })}>
+        <strong style={sx({ fontSize: chrome.body })}>{group.entries.find(entry => entry.stageName)?.stageName ?? "Recorded visit"}</strong>
+        {current && <span style={sx({ color: theme.accent, marginLeft: chrome.spaceSm, fontSize: chrome.small })}>Selected step</span>}
+        <code style={sx({ display: "block", fontFamily: theme.fontMono, fontSize: chrome.small, color: theme.textSecondary, marginTop: chrome.spaceXs })}>{group.id}</code>
+      </header>}
+      {blocks.map(block => block.operations ? <details key={block.start} data-fp="narrative-operations"
+        style={sx({ margin: `${chrome.spaceXs} 0`, overflowWrap: "anywhere" })}>
+        <summary style={sx({ cursor: "pointer", fontSize: chrome.body, color: theme.textSecondary })}>
+          Recorded operations ({block.entries.length})
+        </summary>
+        <div style={sx({ marginTop: chrome.spaceSm })}>{block.entries.map((entry, offset) => renderEntry(entry, block.start + offset))}</div>
+      </details> : <div key={block.start}>{block.entries.map((entry, offset) => renderEntry(entry, block.start + offset))}</div>)}
+    </section>;
+  };
 
-      // Strip legacy "Stage N: " prefix from text (default renderer)
-      let cleanText = entry.text;
-      cleanText = cleanText.replace(/^Stage \d+:\s*/, "");
-      // Detect fork type BEFORE stripping prefix
-      const isSelector = entry.type === "fork" && entry.text.includes("[Selected]");
-      cleanText = cleanText.replace(/^\[(Selected|Parallel)\]:\s*/, "");
+  return <div className={className} data-fp="story-narrative" data-presentation={presentation}
+    role="log" aria-label="Execution narrative"
+    style={{ ...sx({ flex: 1, overflow: "auto", padding: chrome.padding, fontFamily: theme.fontSans, color: theme.textPrimary, fontSize: chrome.body }), ...outerStyle }}>
+    {presentation === "visits" ? groups.map(renderVisit) : revealed.map(renderEntry)}
+    {revealed.length === 0 && <p data-fp="narrative-empty" style={sx({ margin: 0, color: theme.textSecondary })}>No recorded entries at this selected step.</p>}
+    {futureCount > 0 && <div data-fp="narrative-future-hint" style={sx({ fontSize: chrome.small, color: theme.textSecondary, padding: `${chrome.spaceSm} 0` })}>
+      {futureCount} more {futureCount === 1 ? "entry" : "entries"} ahead...
+    </div>}
+    <div ref={latestRef} data-fp="narrative-follow-target" />
+  </div>;
+}
 
-      // ── Subflow: enter vs exit ──
-      if (entry.type === "subflow") {
-        // The entry SAYS which it is — `direction` is set on both markers by
-        // footprintjs's narrative recorder, and NarrativePanel already reads
-        // it. The old toggle keyed on the STABLE stageId instead: the first
-        // marker for an id was "enter" and every later one was "exit", so a
-        // subflow mounted more than once (a loop, a repeat mount) showed its
-        // first entry and then silently vanished from the story for good.
-        //
-        // The toggle survives only as the fallback for entries that carry no
-        // `direction` (a hand-built narrative, or an older renderer).
-        const toggleKey = (entry as { stageId?: string }).stageId ?? entry.text;
-        const direction = (entry as { direction?: "entry" | "exit" }).direction;
-        const isExit = direction !== undefined ? direction === "exit" : subflowSeen.has(toggleKey);
-        if (!isExit) {
-          subflowSeen.add(toggleKey);
-          counter++;
-          return {
-            ...entry,
-            heading: `${counter}`,
-            headingType: "Subflow",
-            text: cleanText,
-            isHeading: true,
-            isSubflow: true,
-          };
-        }
-        // Exit marker — no heading, will be hidden in render
-        return { ...entry, heading: null, isHeading: false, isSubflowExit: true };
-      }
-
-      // ── Stage ──
-      if (entry.type === "stage") {
-        counter++;
-        return { ...entry, heading: `${counter}`, headingType: "Stage", text: cleanText, isHeading: true };
-      }
-
-      // ── Condition (decision) — nested under the preceding stage, no separate number ──
-      if (entry.type === "condition") {
-        return { ...entry, heading: null, headingType: "Decision", text: cleanText, isHeading: false };
-      }
-
-      // ── Fork / Selector — first in sequence gets number ──
-      if (entry.type === "fork" || entry.type === "selector") {
-        const isForkHeading = prevEntryType !== "fork" && prevEntryType !== "selector";
-        if (isForkHeading) {
-          counter++;
-          const typeLabel = entry.type === "selector" || isSelector ? "Selector" : "Fork";
-          return { ...entry, heading: `${counter}`, headingType: typeLabel, text: cleanText, isHeading: true };
-        }
-        return { ...entry, heading: null, isHeading: false, text: cleanText };
-      }
-
-      // loop, break, step, error, retry, attempt, and any kind this release
-      // does not know — no heading number. Loop is a back-edge (not a new
-      // node), break is a termination signal, and retry / attempt lines sit
-      // WITHIN the stage above them — numbering any of them would invent a
-      // step the flowchart never took.
-      return { ...entry, heading: null, isHeading: false };
-    });
-  }, [revealed]);
-
-  if (unstyled) {
-    return (
-      <div className={className} style={outerStyle} data-fp="story-narrative" role="log">
-        {numberedEntries.map((entry, i) => {
-          if ((entry as any).isSubflowExit) return null;
-          const ht = (entry as any).headingType;
-          return (
-            <div key={i} data-fp="narrative-entry" data-type={entry.type}>
-              {entry.heading
-                ? entry.text.startsWith('[')
-                  ? `${entry.heading}. ${entry.text}`
-                  : `${entry.heading}. [${ht}: ${entry.stageName ?? ''}] ${entry.text}`
-                : entry.text}
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={className}
-      style={{
-        flex: 1,
-        overflow: "auto",
-        padding: pad,
-        fontFamily: theme.fontSans,
-        ...outerStyle,
-      }}
-      data-fp="story-narrative"
-      role="log"
-      aria-label="Execution narrative"
-    >
-      {numberedEntries.map((entry, i) => {
-        // Skip subflow exit markers — entry marker is enough
-        if ((entry as any).isSubflowExit) return null;
-
-        const meta = badgeOf(entry.type);
-        const isHeading = entry.isHeading;
-        const isDecision = entry.type === "condition";
-        const isError = entry.type === "error";
-        const isBreak = entry.type === "break";
-        // Warning-weight alongside decisions: an attempt is a fact worth
-        // catching the eye, but it is not the stage's outcome.
-        const isAttemptLine = entry.type === "retry" || entry.type === "attempt";
-        const isSubflow = (entry as any).isSubflow;
-        const isLast = i === numberedEntries.length - 1;
-        const headingType = (entry as any).headingType as string | undefined;
-
-        return (
-          <div
-            key={i}
-            ref={isLast ? latestRef : undefined}
-            style={{
-              display: "flex",
-              gap: 8,
-              padding: isHeading ? `${pad - 4}px 0` : `2px 0`,
-              marginLeft: entry.depth * 16,
-              borderBottom: isHeading ? `1px solid ${theme.border}` : undefined,
-              marginTop: isHeading && i > 0 ? 8 : 0,
-            }}
-          >
-            <span
-              style={{
-                color: meta.color,
-                fontWeight: 700,
-                fontSize: isHeading ? fs.body : fs.small,
-                width: 16,
-                textAlign: "center",
-                flexShrink: 0,
-              }}
-              title={meta.label}
-              aria-label={meta.label}
-            >
-              {meta.icon}
-            </span>
-            <span
-              style={{
-                fontSize: isHeading ? fs.body : fs.small,
-                fontWeight: isHeading ? 600 : 400,
-                color: isError || isBreak
-                  ? theme.error
-                  : isDecision || isAttemptLine
-                    ? theme.warning
-                    : isHeading
-                      ? theme.textPrimary
-                      : theme.textSecondary,
-                lineHeight: 1.6,
-                fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans,
-              }}
-            >
-              {entry.heading && headingType ? (
-                entry.text.startsWith('[') ? (
-                  <>
-                    <strong>{entry.heading}.</strong>
-                    {' '}{entry.text}
-                  </>
-                ) : (
-                  <>
-                    <strong>{entry.heading}. [{headingType}{entry.stageName ? `: ${entry.stageName}` : ''}]</strong>
-                    {' '}{entry.text}
-                  </>
-                )
-              ) : entry.text}
-            </span>
-          </div>
-        );
-      })}
-
-      {/* Future entries — show count hint only, skip full rendering for performance */}
-      {futureCount > 0 && (
-        <div style={{
-          opacity: 0.3,
-          fontSize: fs.small,
-          color: theme.textMuted,
-          padding: `8px 0`,
-          fontStyle: "italic",
-        }}>
-          {futureCount} more {futureCount === 1 ? "entry" : "entries"} ahead...
-        </div>
-      )}
-    </div>
-  );
+function RecordedText({ text, size, unstyled }: { text: string; size: NonNullable<BaseComponentProps["size"]>; unstyled: boolean }) {
+  const [expandedText, setExpandedText] = useState<string | null>(null);
+  const expanded = expandedText === text;
+  const limit = 600;
+  const chrome = componentStyles(size);
+  if (text.length <= limit) return text;
+  return <>
+    <span>{expanded ? text : `${text.slice(0, limit)}…`}</span>
+    <FootprintButton unstyled={unstyled} densitySize={size} part="narrative-text-toggle"
+      aria-expanded={expanded} onClick={() => setExpandedText(value => value === text ? null : text)}
+      defaultStyle={{ display: "block", marginTop: chrome.spaceXs, border: `${chrome.borderWidth} solid ${theme.border}`,
+        borderRadius: chrome.radiusControl, padding: chrome.controlPadding, color: theme.textPrimary,
+        background: theme.bgSecondary, fontSize: chrome.small, cursor: "pointer", fontFamily: theme.fontSans }}>
+      {expanded ? "Show less recorded text" : `Show full recorded text (${text.length} characters)`}
+    </FootprintButton>
+  </>;
 }

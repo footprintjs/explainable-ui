@@ -52,6 +52,16 @@ const stageActivityExports = [
   ].map(name => ({ name, kind: "type" })),
 ];
 
+const themePrimitiveExports = [
+  ...["componentStyles", "useFootprintComponents", "FootprintButton", "FootprintTab", "FootprintInput",
+    "FootprintCheckbox", "FootprintBadge", "FootprintCode", "FootprintTooltip", "FootprintIcon",
+  ].map(name => ({ name, kind: "value" })),
+  ...["FootprintThemeProps", "FootprintComponents", "FootprintPrimitiveOptions", "FootprintButtonProps",
+    "FootprintInputProps", "FootprintCheckboxProps", "FootprintBadgeProps", "FootprintCodeProps",
+    "FootprintTooltipProps", "FootprintTooltipAdapterProps", "FootprintIconProps", "FootprintIconAdapterProps",
+  ].map(name => ({ name, kind: "type" })),
+];
+
 describe("M1 — preserve every existing public home and value/type kind", () => {
   it("keeps all root and flowchart names, including deprecations and duplicate homes", () => {
     expect(
@@ -79,11 +89,18 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...groupedFlowExports,
         ...traceWorkflowExports,
         ...stageActivityExports,
+        ...themePrimitiveExports,
+        { name: "useLensWorkbench", kind: "value" },
+        ...["LensTheme", "LensWorkbenchContextValue", "LensWorkbenchActions", "LensWorkbenchSurfaces", "LensWorkbenchLayout"]
+          .map(name => ({ name, kind: "type" })),
       ].sort((a, b) => a.name.localeCompare(b.name)),
       "./flowchart": [
         ...ledger.entries["./flowchart"],
         ...groupedFlowExports,
         ...traceWorkflowExports,
+        ...themePrimitiveExports,
+        ...["FootprintTheme", "useFootprintTheme", "tokensToCSSVars", "themeModeVars"].map(name => ({ name, kind: "value" })),
+        ...["ThemeTokens", "ThemeMode"].map(name => ({ name, kind: "type" })),
       ].sort((a, b) => a.name.localeCompare(b.name)),
     });
     expect(ledger.policy).toBe(

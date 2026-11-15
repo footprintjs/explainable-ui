@@ -1,4 +1,5 @@
 import type { Size } from "../types";
+import { rawDefaults } from "./tokens";
 
 /**
  * Helper to resolve a CSS variable with a fallback.
@@ -14,6 +15,15 @@ export const theme = {
   success: v("--fp-color-success", "#22c55e"),
   error: v("--fp-color-error", "#ef4444"),
   warning: v("--fp-color-warning", "#f59e0b"),
+  onPrimary: v("--fp-on-primary", rawDefaults.colors.onPrimary),
+  onSuccess: v("--fp-on-success", rawDefaults.colors.onSuccess),
+  onError: v("--fp-on-error", rawDefaults.colors.onError),
+  onWarning: v("--fp-on-warning", rawDefaults.colors.onWarning),
+  onTracing: v("--fp-on-tracing", rawDefaults.colors.onTracing),
+  onNodeCursor: v("--fp-on-node-cursor", rawDefaults.colors.onNodeCursor),
+  onNodeVisited: v("--fp-on-node-visited", rawDefaults.colors.onNodeVisited),
+  onNodeMain: v("--fp-on-node-main", rawDefaults.colors.onNodeMain),
+  onNodeError: v("--fp-on-error", rawDefaults.colors.onError),
   // Semantic NODE-STATE colors — first-class, themeable roles a runtime overlay
   // maps onto (scrub cursor / executed / a group's lead node). Distinct from the
   // generic `primary` accent so the three read as three different things.
@@ -53,3 +63,48 @@ export const padding: Record<Size, number> = {
   default: 12,
   detailed: 16,
 };
+
+
+/**
+ * CSS recipes for visual sizes. Numeric layout/math callers retain fontSize
+ * and padding above; components use these strings for themeable paint.
+ * Size offsets keep the historic compact/default/detailed density distinct.
+ */
+export function componentStyles(size: Size = "default") {
+  const fontOffset = fontSize[size].body - fontSize.default.body;
+  const padOffset = padding[size] - padding.default;
+  const offset = (name: string, fallback: string, amount: number) => amount === 0
+    ? v(name, fallback) : `calc(${v(name, fallback)} ${amount < 0 ? "-" : "+"} ${Math.abs(amount)}px)`;
+  return {
+    body: offset("--fp-font-size-body", rawDefaults.typography.body, fontOffset),
+    label: offset("--fp-font-size-label", rawDefaults.typography.label, fontOffset),
+    small: offset("--fp-font-size-small", rawDefaults.typography.small, fontOffset),
+    title: offset("--fp-font-size-title", rawDefaults.typography.title, fontOffset),
+    lineHeight: v("--fp-line-height", rawDefaults.typography.lineHeight),
+    weightNormal: v("--fp-font-weight-normal", rawDefaults.typography.weightNormal),
+    weightMedium: v("--fp-font-weight-medium", rawDefaults.typography.weightMedium),
+    weightStrong: v("--fp-font-weight-strong", rawDefaults.typography.weightStrong),
+    padding: `max(0px, ${offset("--fp-space-md", rawDefaults.spacing.md, padOffset)})`,
+    controlHeight: `max(0px, ${offset("--fp-control-height", rawDefaults.controls.height, fontOffset * 4)})`,
+    controlPadding: `${v("--fp-space-xs", rawDefaults.spacing.xs)} ${v("--fp-control-padding-x", rawDefaults.controls.paddingX)}`,
+    controlPaddingX: v("--fp-control-padding-x", rawDefaults.controls.paddingX),
+    controlGap: v("--fp-control-gap", rawDefaults.controls.gap),
+    iconSize: offset("--fp-icon-size", rawDefaults.controls.iconSize, fontOffset),
+    radiusControl: `var(--fp-radius-control, var(--fp-radius, ${rawDefaults.radii.control}))`,
+    radiusPanel: `var(--fp-radius-panel, var(--fp-radius, ${rawDefaults.radii.panel}))`,
+    radiusBadge: `var(--fp-radius-badge, var(--fp-radius, ${rawDefaults.radii.badge}))`,
+    borderWidth: v("--fp-border-width", rawDefaults.borders.width),
+    focusWidth: v("--fp-focus-width", rawDefaults.borders.focusWidth),
+    shadowPanel: v("--fp-shadow-panel", rawDefaults.elevation.panel),
+    shadowPopover: v("--fp-shadow-popover", rawDefaults.elevation.popover),
+    shadowFocus: v("--fp-shadow-focus", rawDefaults.elevation.focus),
+    duration: v("--fp-motion-duration", rawDefaults.motion.duration),
+    fastDuration: v("--fp-motion-fast-duration", rawDefaults.motion.fastDuration),
+    easing: v("--fp-motion-easing", rawDefaults.motion.easing),
+    spaceXs: v("--fp-space-xs", rawDefaults.spacing.xs),
+    spaceSm: v("--fp-space-sm", rawDefaults.spacing.sm),
+    spaceMd: v("--fp-space-md", rawDefaults.spacing.md),
+    spaceLg: v("--fp-space-lg", rawDefaults.spacing.lg),
+    spaceXl: v("--fp-space-xl", rawDefaults.spacing.xl),
+  };
+}

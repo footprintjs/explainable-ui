@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { StageSnapshot, NarrativeEntry } from '../../src/types';
-import { buildEntryRangeIndex, computeRevealedEntryCount } from '../../src/utils/narrativeSync';
+import { buildEntryRangeIndex, computeRevealedEntryCount, narrativeSynchronizationStatus } from '../../src/utils/narrativeSync';
 
 /** Helper: compute with both paths (scan + indexed) and assert they match. */
 function computeBoth(
@@ -30,6 +30,56 @@ function snap(runtimeStageId: string): Pick<StageSnapshot, 'runtimeStageId'> {
 function entry(type: NarrativeEntry['type'], runtimeStageId?: string): NarrativeEntry {
   return { type, text: `${type} ${runtimeStageId ?? ''}`, depth: 0, runtimeStageId };
 }
+
+describe('narrative synchronization availability', () => {
+  it('admits repeated recorded events for one exact visit without requiring an entry for every stage', () => {
+    expect(narrativeSynchronizationStatus([
+      entry('stage', 'a#0'), entry('step', 'a#0'), entry('step', 'a#0'),
+    ], [snap('a#0'), snap('silent#1')])).toEqual({ status: 'exact' });
+  });
+
+  it('admits a subflow entry and exit sharing one mount visit', () => {
+    const entries = [entry('subflow', 'mount#1'), entry('step', 'mount#1'), entry('subflow', 'mount#1')];
+    expect(narrativeSynchronizationStatus(entries, [snap('mount#1')])).toEqual({ status: 'exact' });
+  });
+
+  it('requires a recorded rail instead of binding a detached log to a synthetic visit', () => {
+    expect(narrativeSynchronizationStatus([entry('stage', 'a#0')], []))
+      .toEqual({ status: 'unsynchronized', reason: 'no-snapshots' });
+  });
+
+  it.each([undefined, '', '  '])('withholds synchronization when a snapshot has no usable visit id (%s)', (id) => {
+    expect(narrativeSynchronizationStatus([entry('stage', 'a#0')], [snap('a#0'), { runtimeStageId: id }]))
+      .toEqual({ status: 'unsynchronized', reason: 'missing-snapshot-id' });
+  });
+
+  it('rejects a rail with two positions claiming the same visit', () => {
+    expect(narrativeSynchronizationStatus([entry('stage', 'a#0')], [snap('a#0'), snap('a#0')]))
+      .toEqual({ status: 'unsynchronized', reason: 'duplicate-snapshot-id' });
+  });
+
+  it.each([undefined, '', '  '])('does not attribute an idless event to its preceding visit (%s)', (id) => {
+    expect(narrativeSynchronizationStatus([entry('stage', 'a#0'), entry('loop', id)], [snap('a#0')]))
+      .toEqual({ status: 'unsynchronized', reason: 'missing-entry-id' });
+  });
+
+  it('does not match a names-equal visit from another invocation', () => {
+    expect(narrativeSynchronizationStatus([entry('stage', 'child-2/parse#0')], [snap('child-1/parse#0')]))
+      .toEqual({ status: 'unsynchronized', reason: 'unmatched-entry-id' });
+  });
+
+  it('accepts only the scope the caller admitted and does not hide unmatched nested entries itself', () => {
+    const entries = [entry('subflow', 'mount#1'), entry('stage', 'mount/inner#2'), entry('subflow', 'mount#1')];
+    expect(narrativeSynchronizationStatus(entries, [snap('mount#1')]))
+      .toEqual({ status: 'unsynchronized', reason: 'unmatched-entry-id' });
+    expect(narrativeSynchronizationStatus(entries.filter(value => value.runtimeStageId === 'mount#1'), [snap('mount#1')]))
+      .toEqual({ status: 'exact' });
+  });
+
+  it('keeps missing narrative coverage distinct from ambiguous identity', () => {
+    expect(narrativeSynchronizationStatus([], [snap('a#0')])).toEqual({ status: 'exact' });
+  });
+});
 
 describe('Narrative runtimeStageId sync', () => {
   describe('linear flow', () => {

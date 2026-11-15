@@ -9,7 +9,7 @@
  * that passes entries is never second-guessed.
  */
 import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import * as React from "react";
 
 import { ExplainableShell } from "../../src/components/ExplainableShell/ExplainableShell";
@@ -68,13 +68,18 @@ function snapshotWithNarrative(recorderName = "Narrative") {
 }
 
 function renderShell(props: Record<string, unknown>) {
-  return render(
+  const view = render(
     React.createElement(ExplainableShell, {
       snapshots: SNAPSHOTS,
       title: "Replay",
       ...props,
     } as never),
   );
+  const runData = [...view.container.querySelectorAll("button")].find(button => button.textContent?.trim() === "Run data");
+  fireEvent.click(runData!);
+  const runLog = [...view.container.querySelectorAll("button")].find(button => button.textContent?.trim() === "Run log");
+  if (runLog) fireEvent.click(runLog);
+  return view;
 }
 
 /** Text of the STORY panel specifically — not "somewhere on the page",
@@ -82,16 +87,14 @@ function renderShell(props: Record<string, unknown>) {
 const storyText = (container: HTMLElement): string =>
   container.querySelector('[data-fp="story-narrative"]')?.textContent ?? "";
 
-/** The Story TAB — a clickable tab, not the word "Story" anywhere on the
- *  page (the empty-state copy names the recorders you could attach, and
- *  that is help, not a story). */
+/** The Run log tab, distinct from the empty state's recorder help. */
 const storyTabs = (container: HTMLElement): Element[] =>
-  [...container.querySelectorAll("button")].filter((b) => b.textContent?.trim() === "Story");
+  [...container.querySelectorAll("button")].filter((b) => b.textContent?.trim() === "Run log");
 
 describe("ExplainableShell — narrative carried by the snapshot", () => {
   it("renders the Story panel from the recorded entries", () => {
     const { container } = renderShell({ runtimeSnapshot: snapshotWithNarrative() as never });
-    // "Story" is the user-facing name of the narrative tab.
+    // The public narrative ID is presented as Run log.
     expect(storyTabs(container)).toHaveLength(1);
     expect(container.querySelector('[data-fp="story-narrative"]')).toBeTruthy();
     expect(storyText(container)).toContain("Seeded the run from the request.");

@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { forwardRef, useEffect, useState, type ButtonHTMLAttributes, type HTMLAttributes } from "react";
 /** @vitest-environment jsdom */
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { TraceDependencyView } from "../../src/components/DataTracePanel/TraceDependencyView";
 import { buildTraceWalk, type TraceWalk } from "../../src/trace/traceWalk";
 import type { StageSnapshot } from "../../src/types";
+import { FootprintTheme } from "../../src/theme";
 
 const log = [
   ["LoadRates", "load#1", "rates"], ["PickBase", "pick#2", "baseRate"],
@@ -26,6 +27,55 @@ const snapshots: StageSnapshot[] = log.map((entry, index) => ({
 const walk = buildTraceWalk(log, tree, "quote");
 
 describe("variable dependency investigation view", () => {
+  it("keeps numeric graph geometry for host buttons while leaving their paint to the host", () => {
+    const HostButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>((props, ref) => <button {...props} ref={ref} data-host="button" />);
+    const HostCode = forwardRef<HTMLElement, HTMLAttributes<HTMLElement>>((props, ref) => <code {...props} ref={ref} data-host="code" />);
+    const HostBadge = forwardRef<HTMLSpanElement, HTMLAttributes<HTMLSpanElement>>((props, ref) => <span {...props} ref={ref} data-host="badge" />);
+    const follow = vi.fn();
+    const { container } = render(<FootprintTheme components={{ Button: HostButton, Code: HostCode, Badge: HostBadge }}>
+      <TraceDependencyView hasWorkflow={false} walk={walk} cursorRuntimeStageId="quote#5" snapshots={snapshots} onFollowIngredient={follow}><div /></TraceDependencyView>
+    </FootprintTheme>);
+    const node = container.querySelector('[data-variable="baseRate"]') as HTMLButtonElement;
+    expect(node.getAttribute("data-host")).toBe("button");
+    expect(node.getAttribute("data-fp-part")).toBe("trace-variable-node");
+    expect(node.style.position).toBe("absolute");
+    expect(node.style.width).toBe("218px");
+    expect(node.style.height).toBe("104px");
+    expect(Number.parseFloat(node.style.left)).toBeGreaterThanOrEqual(0);
+    expect(node.style.background).toBe("");
+    expect(node.style.borderRadius).toBe("");
+    expect(node.style.fontSize).toBe("");
+    expect(node.querySelector('[data-host="code"]')?.getAttribute("data-fp-part")).toBe("trace-node-variable");
+    expect(node.querySelector('[data-host="badge"]')?.getAttribute("data-fp-part")).toBe("trace-variable-kind");
+    fireEvent.click(node);
+    expect(follow).toHaveBeenCalledWith(expect.objectContaining({ key: "baseRate", writerRuntimeStageId: "pick#2" }));
+  });
+
+  it("uses theme recipes for diagram paint without changing measured graph dimensions", () => {
+    const { container } = render(<FootprintTheme tokens={{ typography: { title: "19px", lineHeight: "1.7", weightStrong: "800" },
+      spacing: { md: "18px" }, radii: { panel: "12px" }, borders: { focusWidth: "3px" }, elevation: { focus: "0 0 0 3px cyan" } }}>
+      <TraceDependencyView hasWorkflow={false} walk={walk} cursorRuntimeStageId="quote#5" snapshots={snapshots}><div /></TraceDependencyView>
+    </FootprintTheme>);
+    const node = container.querySelector('[data-variable="quote"]') as HTMLElement;
+    expect(node.style.width).toBe("218px");
+    expect(node.style.lineHeight).toContain("--fp-line-height");
+    expect(node.style.borderRadius).toContain("--fp-radius-panel");
+    expect(node.style.boxShadow).toContain("--fp-shadow-focus");
+    expect((node.querySelector('[data-fp-part="trace-node-variable"]') as HTMLElement).style.fontSize).toContain("--fp-font-size-title");
+  });
+
+  it("keeps variable actions and evidence available without built-in geometry or paint in unstyled mode", () => {
+    const follow = vi.fn();
+    const { container } = render(<TraceDependencyView hasWorkflow={false} walk={walk} cursorRuntimeStageId="quote#5" snapshots={snapshots}
+      onFollowIngredient={follow} unstyled><div>Execution chart</div></TraceDependencyView>);
+    expect(container.querySelector("[style]")).toBeNull();
+    expect(container.querySelector("svg")).toBeNull();
+    const node = screen.getByRole("button", { name: "Follow baseRate at PickBase" });
+    fireEvent.click(node);
+    expect(follow).toHaveBeenCalledWith(expect.objectContaining({ key: "baseRate", writerCommitIdx: 1 }));
+    expect(screen.getByRole("button", { name: "Variables" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("shows both sibling inputs and writer-time values, without unrelated execution stages", () => {
     const follow = vi.fn();
     const { container } = render(<TraceDependencyView walk={walk} cursorRuntimeStageId="quote#5" snapshots={snapshots} onFollowIngredient={follow}><div>Execution chart</div></TraceDependencyView>);

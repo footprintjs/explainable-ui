@@ -345,6 +345,9 @@ describe("ExplainableShell stage Activity", () => {
       expect(document.querySelector('[data-fp="memory-panel"]')).toBeTruthy();
       expect(screen.queryByRole("region", { name: "Stage activity" })).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Inspector" }));
+      const inspector = document.querySelector('[data-fp="inspector-panel"]') as HTMLElement;
+      expect(within(inspector).getByRole("button", { name: "State" }).getAttribute("aria-pressed")).toBe("true");
+      fireEvent.click(screen.getByRole("button", { name: "Activity" }));
       expect(stageActivity()).toBeTruthy();
     });
   });
@@ -360,7 +363,7 @@ describe("ExplainableShell stage Activity", () => {
       fireEvent.click(screen.getByRole("button", { name: /^Data Trace/ }));
       expect([...chart!.sliceCone!.keys()]).toEqual(expect.arrayContaining(["seed", "increment"]));
 
-      fireEvent.click(screen.getByRole("button", { name: "Memory" }));
+      fireEvent.click(document.querySelector('[data-fp="shell-detail-tab"][data-tab-id="memory"]')!);
       expect(chart?.sliceCone).toBeUndefined();
       fireEvent.click(screen.getByRole("button", { name: "Inspector" }));
       expect([...chart!.sliceCone!.keys()]).toEqual(expect.arrayContaining(["seed", "increment"]));
@@ -475,11 +478,11 @@ describe("Stage Activity exact child invocation", () => {
       expect(activeTick()).toBe(1);
       expect(stageActivity().querySelector('[data-fp="stage-activity-visit"]')?.textContent).toBe("quote/increment#2");
 
-      fireEvent.click(screen.getByRole("button", { name: "Memory" }));
+      fireEvent.click(document.querySelector('[data-fp="shell-detail-tab"][data-tab-id="memory"]')!);
       expect(document.querySelector('[data-fp="memory-panel"]')).toBeTruthy();
       expect(selectedVisit()).toBe("quote/increment#2");
       expect(activeTick()).toBe(1);
-      fireEvent.click(screen.getByRole("button", { name: "Narrative" }));
+      fireEvent.click(screen.getByRole("button", { name: "Run log" }));
       expect(screen.getByText("Increment the child counter.")).toBeTruthy();
       expect(selectedVisit()).toBe("quote/increment#2");
       expect(activeTick()).toBe(1);

@@ -8,7 +8,7 @@
  * of its own, just correct data derivation from snapshots + index.
  */
 import type { StageSnapshot, BaseComponentProps } from "../../types";
-import { theme } from "../../theme";
+import { theme, componentStyles } from "../../theme";
 import { MemoryInspector } from "../MemoryInspector";
 import { ScopeDiff } from "../ScopeDiff";
 
@@ -25,6 +25,7 @@ export function MemoryPanel({
   className,
   style,
 }: MemoryPanelProps) {
+  const ui = componentStyles(size);
   const prevMemory = selectedIndex > 0
     ? snapshots[selectedIndex - 1]?.memory ?? null
     : null;
@@ -33,8 +34,8 @@ export function MemoryPanel({
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="memory-panel">
-        <MemoryInspector snapshots={snapshots} selectedIndex={selectedIndex} unstyled />
-        <ScopeDiff previous={prevMemory} current={currMemory} unstyled />
+        <MemoryInspector snapshots={snapshots} selectedIndex={selectedIndex} size={size} unstyled />
+        <ScopeDiff previous={prevMemory} current={currMemory} hideUnchanged size={size} unstyled />
       </div>
     );
   }
@@ -51,7 +52,7 @@ export function MemoryPanel({
       data-fp="memory-panel"
     >
       <MemoryInspector snapshots={snapshots} selectedIndex={selectedIndex} size={size} />
-      <div style={{ borderTop: `1px solid ${theme.border}` }}>
+      <div style={{ borderTop: `${ui.borderWidth} solid ${theme.border}` }}>
         <ScopeDiff previous={prevMemory} current={currMemory} hideUnchanged size={size} />
       </div>
     </div>

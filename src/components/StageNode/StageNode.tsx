@@ -1,7 +1,8 @@
 import { memo, useEffect, useRef } from "react";
+import type { CSSProperties } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { theme } from "../../theme";
+import { theme, componentStyles, fontSize, FootprintIcon, useFootprintComponents } from "../../theme";
 import { recordedPathLabel } from "../../trace/recordedValuePreview";
 
 const KEYFRAMES_ID = "fp-stage-node-keyframes";
@@ -25,6 +26,7 @@ const KEYFRAMES_CSS = `
 `;
 
 const TRACE_VALUE_LIMIT = 1;
+const GEOMETRY_STYLE_KEYS = new Set(["position", "inset", "top", "bottom", "left", "right", "width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "display", "alignItems", "justifyContent", "flexDirection", "flexShrink", "overflow", "whiteSpace", "textOverflow", "transform", "zIndex", "pointerEvents", "boxSizing", "clipPath"]);
 const traceText = (value: string, limit: number): string =>
   value.length > limit ? `${value.slice(0, limit - 1)}…` : value;
 
@@ -63,6 +65,8 @@ export interface StageNodeData {
   };
   /** Display membership only; makes no claim about execution or causal independence. */
   traceContext?: "displayed" | "outside";
+  /** Keep content, semantic hooks and ports; let the host supply visual styles. */
+  unstyled?: boolean;
   /** Stop node pulses and state transitions while inspecting recorded evidence. */
   suppressMotion?: boolean;
   /** Node was not executed (dim it) */
@@ -117,11 +121,12 @@ export interface StageNodeData {
 
 const ICON_SIZE = 16;
 
-function StageIcon({ type, color }: { type: string; color: string }) {
+function StageIcon({ type, color, size, unstyled }: { type: string; color: string; size?: string; unstyled: boolean }) {
+  const customIcon = useFootprintComponents().Icon;
   const s = ICON_SIZE;
-  const props = { width: s, height: s, viewBox: `0 0 ${s} ${s}`, fill: "none", style: { flexShrink: 0 } as const };
+  const props = { width: s, height: s, viewBox: `0 0 ${s} ${s}`, fill: "none", style: { flexShrink: 0, ...(size && { width: size, height: size }) } as const };
 
-  switch (type) {
+  const glyph = (() => { switch (type) {
     // LLM / AI call — brain/sparkle
     case "llm":
     case "ai":
@@ -318,7 +323,12 @@ function StageIcon({ type, color }: { type: string; color: string }) {
 
     default:
       return null;
-  }
+  } })();
+  if (!glyph && !customIcon) return null;
+  return <FootprintIcon name={type} part="stage-icon" unstyled={unstyled}
+    style={{ flexShrink: 0 }} defaultStyle={{ display: "inline-flex", alignItems: "center", justifyContent: "center", color, width: size, height: size }}>
+    {glyph}
+  </FootprintIcon>;
 }
 
 /**
@@ -332,6 +342,29 @@ export const StageNode = memo(function StageNode({
   const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts, traceWorkflow, traceContext, suppressMotion } = data;
   const displayedContext = traceContext ?? (traceWorkflow ? "displayed" : undefined);
   const viewingTrace = displayedContext !== undefined;
+  const unstyled = data.unstyled === true;
+  const density = data.size === "sm" ? "compact" : data.size === "lg" ? "detailed" : "default";
+  const metrics = componentStyles(density);
+  const iconFootprint = `calc(${metrics.iconSize} + ${2 - (fontSize[density].body - fontSize.default.body)}px)`;
+  const offset = (base: string, delta: number) => delta === 0 ? base
+    : `calc(${base} ${delta < 0 ? "-" : "+"} ${Math.abs(delta)}px)`;
+  const sx = (styles: CSSProperties): CSSProperties => {
+    if (unstyled) return Object.fromEntries(Object.entries(styles).filter(([key]) => GEOMETRY_STYLE_KEYS.has(key)));
+    return { ...styles,
+      ...(typeof styles.fontSize === "number" && { fontSize: `calc(${metrics.body} + ${styles.fontSize - fontSize[density].body}px)` }),
+      ...(styles.fontWeight === 400 && { fontWeight: metrics.weightNormal }),
+      ...(styles.fontWeight === 500 && { fontWeight: metrics.weightMedium }),
+      ...(typeof styles.fontWeight === "number" && styles.fontWeight >= 600 && {
+        fontWeight: styles.fontWeight === 700 ? metrics.weightStrong
+          : `calc(${metrics.weightStrong} ${styles.fontWeight < 700 ? "-" : "+"} ${Math.abs(styles.fontWeight - 700)})`,
+      }),
+      ...(typeof styles.gap === "number" && { gap: offset(metrics.controlGap, styles.gap - 6) }),
+      ...(typeof styles.borderRadius === "number" && { borderRadius: offset(metrics.radiusControl, styles.borderRadius - 6) }),
+      ...(typeof styles.padding === "string" && /^\d+px(?: \d+px)*$/.test(styles.padding) && {
+        padding: styles.padding.split(" ").map(part => offset(metrics.spaceMd, Number.parseInt(part, 10) - 12)).join(" "),
+      }),
+    };
+  };
 
   // Lazy nodes show cloud icon by default (unless another icon is specified)
   const effectiveIcon = icon || (isLazy ? "lazy" : undefined);
@@ -341,6 +374,7 @@ export const StageNode = memo(function StageNode({
   // Inject keyframes once into document head
   const injectedRef = useRef(false);
   useEffect(() => {
+    if (unstyled) return;
     if (injectedRef.current) return;
     if (typeof document !== "undefined" && !document.getElementById(KEYFRAMES_ID)) {
       const styleEl = document.createElement("style");
@@ -349,7 +383,7 @@ export const StageNode = memo(function StageNode({
       document.head.appendChild(styleEl);
     }
     injectedRef.current = true;
-  }, []);
+  }, [unstyled]);
 
   const isOnPath = active || done;
 
@@ -421,15 +455,13 @@ export const StageNode = memo(function StageNode({
   // design, so it needs DARK text (white washes out on amber — that's the "Final
   // node unreadable" regression). done (green) / error (red) are dark enough for
   // white. Resting uses the consumer's text color.
-  const textColor = active
-    ? "#1a1a1a"
-    : done || error
-      ? "#fff"
-      : theme.textPrimary;
+  const textColor = unstyled ? "currentColor" : active ? theme.onNodeCursor
+    : done ? isHero ? theme.onNodeMain : theme.onNodeVisited
+    : error ? theme.onNodeError : theme.textPrimary;
 
   return (
     <>
-      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Top} style={sx({ opacity: 0 })} />
       {/* Centering wrapper. React Flow sizes the node WRAPPER to the layout's
           allocated width (which may be WIDER than the card — e.g. uniform-width
           columns, or a NodeSizeResolver footprint stamped by the layout). The
@@ -442,22 +474,26 @@ export const StageNode = memo(function StageNode({
           fill their wrapper width. */}
       <div
         data-fp="stage-node"
+        data-active={active || undefined}
+        data-done={done || undefined}
+        data-error={error || undefined}
+        data-unstyled={unstyled || undefined}
         data-trace-role={traceWorkflow?.role}
         data-trace-context={displayedContext}
         title={displayedContext === "outside" ? "Outside displayed trace. Recorded execution status is shown independently."
           : displayedContext === "displayed" ? "In displayed trace. Recorded execution status is shown independently." : undefined}
         data-motion-suppressed={suppressMotion || undefined}
-        style={{ width: "100%", display: "flex", justifyContent: "center" }}
+        style={sx({ width: "100%", display: "flex", justifyContent: "center" })}
       >
         <div
-          style={{
+          style={sx({
             position: "relative",
             display: "flex",
             alignItems: "center",
             gap: 6,
             // Trace emphasis uses rings and read links; every stage label stays readable.
             opacity: viewingTrace ? 1 : isMuted ? 0.5 : undefined,
-          }}
+          })}
         >
           {/* Evidence is an absolute overlay: run status, measured dimensions
               and the target/source handles keep their existing meaning. */}
@@ -467,51 +503,51 @@ export const StageNode = memo(function StageNode({
               aria-hidden="true"
               viewBox="0 0 100 100"
               preserveAspectRatio="none"
-              style={{ position: "absolute", inset: -8, width: "calc(100% + 16px)", height: "calc(100% + 16px)", overflow: "visible", pointerEvents: "none", zIndex: 3 }}
-            ><polygon points="50,0 100,50 50,100 0,50" fill="none" stroke={traceWorkflow.color} strokeWidth={3} vectorEffect="non-scaling-stroke" /></svg> : <div
+              style={sx({ position: "absolute", inset: -8, width: "calc(100% + 16px)", height: "calc(100% + 16px)", overflow: "visible", pointerEvents: "none", zIndex: 3 })}
+            ><polygon points="50,0 100,50 50,100 0,50" fill="none" stroke={unstyled ? "currentColor" : traceWorkflow.color} strokeWidth={unstyled ? undefined : 3} vectorEffect="non-scaling-stroke" /></svg> : <div
               data-fp="trace-workflow-ring"
               aria-hidden="true"
-              style={{ position: "absolute", inset: -8, border: `3px solid ${traceWorkflow.color}`, borderRadius: `calc(${theme.radius} + 6px)`, pointerEvents: "none", zIndex: 3 }}
+              style={sx({ position: "absolute", inset: -8, border: `3px solid ${traceWorkflow.color}`, borderRadius: `calc(${theme.radius} + 6px)`, pointerEvents: "none", zIndex: 3 })}
             />}
             <div
               data-fp="trace-workflow-caption"
-              style={{ position: "absolute", left: "50%", top: "calc(100% + 7px)", transform: "translateX(-50%)", zIndex: 12, display: "flex", alignItems: "center", gap: 4, width: "max-content", maxWidth: 220, height: 18, boxSizing: "border-box", overflow: "hidden", padding: "1px 5px", border: `1px solid ${traceWorkflow.color}`, borderRadius: 5, background: theme.bgSecondary, fontFamily: theme.fontSans, fontSize: 9, lineHeight: "14px", whiteSpace: "nowrap", pointerEvents: "none" }}
+              style={sx({ position: "absolute", left: "50%", top: "calc(100% + 7px)", transform: "translateX(-50%)", zIndex: 12, display: "flex", alignItems: "center", gap: 4, width: "max-content", maxWidth: 220, height: 18, boxSizing: "border-box", overflow: "hidden", padding: "1px 5px", border: `1px solid ${traceWorkflow.color}`, borderRadius: 5, background: theme.bgSecondary, fontFamily: theme.fontSans, fontSize: 9, lineHeight: "14px", whiteSpace: "nowrap", pointerEvents: "none" })}
             >
-              <span data-fp="trace-workflow-role" style={{ flexShrink: 0, color: traceWorkflow.color, fontWeight: 700 }}>
+              <span data-fp="trace-workflow-role" style={sx({ flexShrink: 0, color: traceWorkflow.color, fontWeight: 700 })}>
                 {traceWorkflow.role === "question" ? "Question" : traceWorkflow.role === "input" ? "Recorded input" : "Upstream read"}
               </span>
               {traceWorkflow.values.length > 0 && <>
-                <span aria-hidden="true" style={{ color: theme.textSecondary }}>·</span>
-                <span data-fp="trace-workflow-values" style={{ display: "flex", alignItems: "center", minWidth: 0, overflow: "hidden" }}>
+                <span aria-hidden="true" style={sx({ color: theme.textSecondary })}>·</span>
+                <span data-fp="trace-workflow-values" style={sx({ display: "flex", alignItems: "center", minWidth: 0, overflow: "hidden" })}>
                   {traceWorkflow.values.slice(0, TRACE_VALUE_LIMIT).map((value, index) => <span
                     key={`${index}:${value.key}`}
                     data-fp="trace-workflow-value"
-                    style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: value.color, fontFamily: "ui-monospace, monospace", fontWeight: 600 }}
+                    style={sx({ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: value.color, fontFamily: "ui-monospace, monospace", fontWeight: 600 })}
                   >{traceText(recordedPathLabel(value.key), 32)}{value.preview === null ? " · preview unavailable" : ` = ${traceText(value.preview, 48)}`}</span>)}
                 </span>
-                {traceWorkflow.values.length > TRACE_VALUE_LIMIT && <span data-fp="trace-workflow-more" style={{ flexShrink: 0, color: theme.textSecondary }}>+{traceWorkflow.values.length - TRACE_VALUE_LIMIT} more</span>}
+                {traceWorkflow.values.length > TRACE_VALUE_LIMIT && <span data-fp="trace-workflow-more" style={sx({ flexShrink: 0, color: theme.textSecondary })}>+{traceWorkflow.values.length - TRACE_VALUE_LIMIT} more</span>}
               </>}
             </div>
           </>}
           {displayedContext === "outside" && <div
             data-fp="trace-context-caption"
-            style={{ position: "absolute", left: "calc(50% + 12px)", top: "calc(100% + 7px)", zIndex: 12,
+            style={sx({ position: "absolute", left: "calc(50% + 12px)", top: "calc(100% + 7px)", zIndex: 12,
               width: "max-content", maxWidth: 220, height: 18, boxSizing: "border-box", overflow: "hidden",
               textOverflow: "ellipsis", padding: "1px 5px", border: `1px solid ${theme.border}`, borderRadius: 5,
               background: theme.bgSecondary, color: theme.textSecondary, fontFamily: theme.fontSans, fontSize: 9,
-              lineHeight: "14px", whiteSpace: "nowrap", pointerEvents: "none" }}
+              lineHeight: "14px", whiteSpace: "nowrap", pointerEvents: "none" })}
           >Outside displayed trace</div>}
           {/* Step number badges — multiple when revisited via loops */}
           {stepNumbers && stepNumbers.length > 0 && isOnPath && (
             <div
-              style={{
+              style={sx({
                 position: "absolute",
                 top: -10,
                 left: -10,
                 display: "flex",
                 gap: 3,
                 zIndex: 10,
-              }}
+              })}
             >
               {stepNumbers.map((num, i) => {
                 const isLatest = i === stepNumbers.length - 1;
@@ -522,19 +558,19 @@ export const StageNode = memo(function StageNode({
                 return (
                   <div
                     key={num}
-                    style={{
+                    style={sx({
                       width: 22,
                       height: 22,
                       borderRadius: "50%",
                       background: badgeBg,
-                      color: "#fff",
+                    color: isLatest && active ? theme.onNodeCursor : theme.onNodeVisited,
                       fontSize: 11,
                       fontWeight: 700,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       boxShadow: `0 0 8px ${glow}`,
-                    }}
+                    })}
                   >
                     {num}
                   </div>
@@ -546,7 +582,7 @@ export const StageNode = memo(function StageNode({
           {/* Linked pulse ring */}
           {linked && (
             <div
-              style={{
+              style={sx({
                 position: "absolute",
                 inset: -6,
                 borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
@@ -554,14 +590,14 @@ export const StageNode = memo(function StageNode({
                 border: `2px solid ${theme.primary}`,
                 opacity: 0.4,
                 animation: suppressMotion ? "none" : "fp-pulse 2s ease-in-out infinite",
-              }}
+              })}
             />
           )}
 
           {/* Active node pulse ring */}
           {active && (
             <div
-              style={{
+              style={sx({
                 position: "absolute",
                 inset: -6,
                 borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
@@ -569,7 +605,7 @@ export const StageNode = memo(function StageNode({
                 border: `2px solid ${theme.nodeCursor}`,
                 opacity: 0.3,
                 animation: suppressMotion ? "none" : "fp-pulse 1.5s ease-out infinite",
-              }}
+              })}
             />
           )}
 
@@ -578,20 +614,20 @@ export const StageNode = memo(function StageNode({
           {active && (
             <div
               data-fp="stage-cursor-badge"
-              style={{
+              style={sx({
                 position: "absolute",
                 top: -9,
                 right: -8,
                 zIndex: 11,
-                background: theme.warning,
-                color: "#1a1a1a",
+                background: theme.nodeCursor,
+                color: theme.onNodeCursor,
                 fontSize: 9,
                 fontWeight: 800,
                 letterSpacing: 0.6,
                 padding: "2px 6px",
                 borderRadius: 10,
-                boxShadow: `0 0 10px color-mix(in srgb, ${theme.warning} 60%, transparent)`,
-              }}
+                boxShadow: `0 0 10px color-mix(in srgb, ${theme.nodeCursor} 60%, transparent)`,
+              })}
             >
               {viewingTrace ? "VIEWING" : "NOW"}
             </div>
@@ -609,7 +645,7 @@ export const StageNode = memo(function StageNode({
               role="img"
               aria-label={retryLabel}
               title={retryLabel}
-              style={{
+              style={sx({
                 position: "absolute",
                 bottom: -9,
                 right: -8,
@@ -628,7 +664,7 @@ export const StageNode = memo(function StageNode({
                 padding: "2px 5px",
                 borderRadius: 9,
                 whiteSpace: "nowrap",
-              }}
+              })}
             >
               <span aria-hidden="true">&#x21BA;</span>
               <span aria-hidden="true">&#xD7;{retryAttempts}</span>
@@ -637,10 +673,10 @@ export const StageNode = memo(function StageNode({
 
           {/* Diamond for decider nodes — proper diamond via clip-path */}
           {isDecider ? (
-            <div data-fp="stage-node-body" style={{ position: "relative", width: 120, height: 72 }}>
+            <div data-fp="stage-node-body" style={sx({ position: "relative", width: 120, height: 72, color: textColor })}>
               {/* Diamond shape layer */}
               <div
-                style={{
+                style={sx({
                   position: "absolute",
                   inset: 0,
                   background: bg,
@@ -648,11 +684,11 @@ export const StageNode = memo(function StageNode({
                   border: "none",
                   boxShadow: shadow,
                   transition: suppressMotion ? "none" : "all 0.3s ease",
-                }}
+                })}
               />
               {/* Border layer — slightly larger diamond behind */}
               <div
-                style={{
+                style={sx({
                   position: "absolute",
                   inset: -2,
                   clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
@@ -662,11 +698,11 @@ export const StageNode = memo(function StageNode({
                     background: "transparent",
                     // Dashed border via SVG for clip-path (CSS border doesn't work with clip-path)
                   } : {}),
-                }}
+                })}
               />
               {/* Content — centered on top of diamond */}
               <div
-                style={{
+                style={sx({
                   position: "absolute",
                   inset: 0,
                   display: "flex",
@@ -676,27 +712,27 @@ export const StageNode = memo(function StageNode({
                   gap: 1,
                   fontFamily: theme.fontSans,
                   zIndex: 1,
-                }}
+                })}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  {effectiveIcon && <StageIcon type={effectiveIcon} color={textColor} />}
+                <div style={sx({ display: "flex", alignItems: "center", gap: 4 })}>
+                  {effectiveIcon && <StageIcon type={effectiveIcon} color={textColor} unstyled={unstyled} size={unstyled ? undefined : iconFootprint} />}
                   {!effectiveIcon && (
-                    <span style={{ fontSize: 9, color: textColor }}>&#x25C7;</span>
+                    <span style={sx({ fontSize: 9, color: textColor })}>&#x25C7;</span>
                   )}
                   <span
-                    style={{
+                    style={sx({
                       fontSize: 11,
                       fontWeight: 600,
                       color: textColor,
                       whiteSpace: "nowrap",
-                    }}
+                    })}
                   >
                     {label}
                   </span>
                 </div>
                 {description && (
                   <span
-                    style={{
+                    style={sx({
                       fontSize: 8,
                       fontWeight: 400,
                       color: textColor,
@@ -705,23 +741,23 @@ export const StageNode = memo(function StageNode({
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       maxWidth: 100,
-                    }}
+                    })}
                   >
                     {description}
                   </span>
                 )}
                 {showStageId && stageId && (
                   <span
-                    style={{
+                    style={sx({
                       fontSize: 8,
-                      fontFamily: "ui-monospace, monospace",
+                      fontFamily: theme.fontMono,
                       color: textColor,
                       opacity: 0.55,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       maxWidth: 100,
-                    }}
+                    })}
                     title={`stageId: ${stageId}`}
                   >
                     {stageId}
@@ -733,8 +769,9 @@ export const StageNode = memo(function StageNode({
             /* Standard rectangular node */
             <div
               data-fp="stage-node-body"
-              style={{
+              style={sx({
                 background: bg,
+                color: textColor,
                 border: `${isHero ? "2.5px" : isMuted ? "1px" : "2px"} ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
                 borderRadius: theme.radius,
                 padding: description
@@ -749,46 +786,46 @@ export const StageNode = memo(function StageNode({
                 fontFamily: theme.fontSans,
                 minWidth: 100,
                 justifyContent: "center",
-              }}
+              })}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div style={sx({ display: "flex", alignItems: "center", gap: 6 })}>
                 {/* Semantic icon (lazy nodes default to cloud icon) */}
-                {effectiveIcon && <StageIcon type={effectiveIcon} color={textColor} />}
+                {effectiveIcon && <StageIcon type={effectiveIcon} color={textColor} unstyled={unstyled} size={unstyled ? undefined : iconFootprint} />}
 
                 {/* State icon */}
                 {done && !effectiveIcon && (
-                  <span style={{ fontSize: 10, color: textColor }}>&#x2713;</span>
+                  <span style={sx({ fontSize: 10, color: textColor })}>&#x2713;</span>
                 )}
                 {active && !effectiveIcon && (
                   <span
-                    style={{
+                    style={sx({
                       width: 8,
                       height: 8,
                       borderRadius: "50%",
                       background: "#fff",
                       animation: suppressMotion ? "none" : "fp-blink 1s ease-in-out infinite",
                       flexShrink: 0,
-                    }}
+                    })}
                   />
                 )}
                 {error && !effectiveIcon && (
-                  <span style={{ fontSize: 10, color: textColor }}>&#x2717;</span>
+                  <span style={sx({ fontSize: 10, color: textColor })}>&#x2717;</span>
                 )}
 
                 <span
-                  style={{
+                  style={sx({
                     fontSize: Math.round(13 * sizeScale),
                     fontWeight: isHero ? 700 : 500,
                     color: textColor,
                     whiteSpace: "nowrap",
-                  }}
+                  })}
                 >
                   {label}
                 </span>
                 {/* Subflow indicator — nested boxes icon */}
                 {isSubflow && (
                   <span
-                    style={{
+                    style={sx({
                       display: "inline-flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -799,15 +836,15 @@ export const StageNode = memo(function StageNode({
                       position: "relative",
                       opacity: 0.7,
                       flexShrink: 0,
-                    }}
+                    })}
                   >
                     <span
-                      style={{
+                      style={sx({
                         width: 8,
                         height: 8,
                         borderRadius: 2,
                         border: `1px solid ${textColor}`,
-                      }}
+                      })}
                     />
                   </span>
                 )}
@@ -815,7 +852,7 @@ export const StageNode = memo(function StageNode({
               {/* Description subtitle */}
               {description && (
                 <span
-                  style={{
+                  style={sx({
                     fontSize: 10,
                     fontWeight: 400,
                     color: textColor,
@@ -824,7 +861,7 @@ export const StageNode = memo(function StageNode({
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     maxWidth: 160,
-                  }}
+                  })}
                 >
                   {description}
                 </span>
@@ -835,16 +872,16 @@ export const StageNode = memo(function StageNode({
                   output by lookup. */}
               {showStageId && stageId && (
                 <span
-                  style={{
+                  style={sx({
                     fontSize: 9,
-                    fontFamily: "ui-monospace, monospace",
+                    fontFamily: theme.fontMono,
                     color: textColor,
                     opacity: 0.55,
                     whiteSpace: "nowrap",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
                     maxWidth: 160,
-                  }}
+                  })}
                   title={`stageId: ${stageId}`}
                 >
                   {stageId}
@@ -854,7 +891,7 @@ export const StageNode = memo(function StageNode({
           )}
         </div>
       </div>
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Bottom} style={sx({ opacity: 0 })} />
     </>
   );
 });

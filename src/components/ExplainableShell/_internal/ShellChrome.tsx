@@ -1,5 +1,5 @@
 import { memo, type ReactNode, type CSSProperties } from "react";
-import { theme } from "../../../theme";
+import { theme, componentStyles, FootprintButton, FootprintCode, FootprintIcon } from "../../../theme";
 
 /** Horizontal line with centered pill (for top/bottom edges) */
 export const HLinePill = memo(function HLinePill({
@@ -13,6 +13,7 @@ export const HLinePill = memo(function HLinePill({
   expanded: boolean;
   onClick: () => void;
 }) {
+  const ui = componentStyles();
   return (
     <div style={{
       display: "flex",
@@ -20,34 +21,36 @@ export const HLinePill = memo(function HLinePill({
       gap: 0,
       padding: "0",
     }}>
-      <div style={{ flex: 1, height: 1, background: theme.border }} />
-      <button
+      <div style={{ flex: 1, height: ui.borderWidth, background: theme.border }} />
+      <FootprintButton
+        part="shell-collapse-horizontal" aria-expanded={expanded}
         onClick={onClick}
-        style={{
+        defaultStyle={{
           display: "flex",
           alignItems: "center",
-          gap: 5,
-          padding: "3px 12px",
-          margin: "4px 0",
-          fontSize: 10,
-          fontWeight: 600,
-          fontFamily: "inherit",
+          gap: ui.controlGap,
+          padding: ui.controlPadding,
+          minHeight: ui.controlHeight,
+          margin: `${ui.spaceXs} 0`,
+          fontSize: ui.small,
+          lineHeight: ui.lineHeight,
+          fontWeight: ui.weightStrong,
+          fontFamily: theme.fontSans,
           color: theme.textMuted,
           background: theme.bgSecondary,
-          border: `1px solid ${theme.border}`,
-          borderRadius: 10,
+          border: `${ui.borderWidth} solid ${theme.border}`,
+          borderRadius: ui.radiusBadge,
           cursor: "pointer",
           whiteSpace: "nowrap",
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          transition: "color 0.15s ease",
+          transition: `color ${ui.fastDuration} ${ui.easing}`,
         }}
       >
-        <span style={{ fontSize: 7 }}>{expanded ? "▼" : "▶"}</span>
+        <FootprintIcon name={expanded ? "collapse" : "expand"} part="shell-collapse-icon" aria-hidden="true"
+          defaultStyle={{ width: ui.iconSize, height: ui.iconSize, fontSize: ui.small, lineHeight: ui.lineHeight }}>{expanded ? "▼" : "▶"}</FootprintIcon>
         {label}
-        {detail && <span style={{ fontWeight: 400, opacity: 0.5, fontSize: 9 }}>{detail}</span>}
-      </button>
-      <div style={{ flex: 1, height: 1, background: theme.border }} />
+        {detail && <span style={{ fontWeight: ui.weightNormal, color: theme.textSecondary, fontSize: ui.small }}>{detail}</span>}
+      </FootprintButton>
+      <div style={{ flex: 1, height: ui.borderWidth, background: theme.border }} />
     </div>
   );
 });
@@ -68,6 +71,7 @@ export const VLinePill = memo(function VLinePill({
   side?: "left" | "right";
   onClick: () => void;
 }) {
+  const ui = componentStyles();
   const arrow = side === "right"
     ? (expanded ? "▶" : "◀")
     : (expanded ? "◀" : "▶");
@@ -79,34 +83,34 @@ export const VLinePill = memo(function VLinePill({
       gap: 0,
       padding: "0",
     }}>
-      <div style={{ flex: 1, width: 1, background: theme.border }} />
-      <button
+      <div style={{ flex: 1, width: ui.borderWidth, background: theme.border }} />
+      <FootprintButton
+        part="shell-collapse-vertical" aria-expanded={expanded}
         onClick={onClick}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          padding: "10px 4px",
-          margin: "0 3px",
-          fontSize: 10,
-          fontWeight: 600,
-          fontFamily: "inherit",
+        style={{ display: "flex", alignItems: "center", writingMode: "vertical-lr" }}
+        defaultStyle={{
+          gap: ui.controlGap,
+          padding: `${ui.controlPaddingX} ${ui.spaceXs}`,
+          margin: `0 ${ui.spaceXs}`,
+          fontSize: ui.small,
+          lineHeight: ui.lineHeight,
+          fontWeight: ui.weightStrong,
+          fontFamily: theme.fontSans,
           color: theme.textMuted,
           background: theme.bgSecondary,
-          border: `1px solid ${theme.border}`,
-          borderRadius: 10,
+          border: `${ui.borderWidth} solid ${theme.border}`,
+          borderRadius: ui.radiusBadge,
           cursor: "pointer",
           whiteSpace: "nowrap",
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          writingMode: "vertical-lr",
-          transition: "color 0.15s ease",
+          transition: `color ${ui.fastDuration} ${ui.easing}`,
         }}
       >
-        <span style={{ fontSize: 7, writingMode: "horizontal-tb" }}>{arrow}</span>
+        <FootprintIcon name={expanded ? "collapse" : "expand"} part="shell-collapse-icon" aria-hidden="true"
+          style={{ writingMode: "horizontal-tb", flexShrink: 0 }}
+          defaultStyle={{ width: ui.iconSize, height: ui.iconSize, fontSize: ui.small, lineHeight: ui.lineHeight }}>{arrow}</FootprintIcon>
         {label}
-      </button>
-      <div style={{ flex: 1, width: 1, background: theme.border }} />
+      </FootprintButton>
+      <div style={{ flex: 1, width: ui.borderWidth, background: theme.border }} />
     </div>
   );
 });
@@ -121,6 +125,7 @@ export const VLinePill = memo(function VLinePill({
 
 /** Shown in the chart's place when there is a run to draw but no graph. */
 export const MissingChartNote = memo(function MissingChartNote({ unstyled }: { unstyled?: boolean }) {
+  const ui = componentStyles();
   const body = (
     <>
       <strong>No chart — `traceGraph` was not provided.</strong>
@@ -128,7 +133,8 @@ export const MissingChartNote = memo(function MissingChartNote({ unstyled }: { u
         A snapshot holds the memory, the story and the timeline. Only the chart's own
         structure can draw the chart. Two ways to get one:
       </div>
-      <pre style={unstyled ? undefined : { margin: 0, whiteSpace: "pre-wrap", fontFamily: theme.fontMono, fontSize: 11 }}>
+      <pre style={unstyled ? undefined : { margin: 0, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+        <FootprintCode part="missing-chart-code" unstyled={unstyled} defaultStyle={{ fontFamily: theme.fontMono, fontSize: ui.small, whiteSpace: "pre-wrap" }}>
 {`// live build
 const trace = createTraceStructureRecorder();
 flowChart(..., { structureRecorders: [trace.recorder] });
@@ -136,6 +142,7 @@ flowChart(..., { structureRecorders: [trace.recorder] });
 
 // saved run — save chart.buildTimeStructure with your snapshot
 <ExplainableShell traceGraph={graphFromStructure(saved.structure)} />`}
+        </FootprintCode>
       </pre>
     </>
   );
@@ -146,14 +153,15 @@ flowChart(..., { structureRecorders: [trace.recorder] });
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 8,
+        gap: ui.spaceSm,
         justifyContent: "center",
         alignItems: "flex-start",
         height: "100%",
-        padding: 20,
+        padding: ui.spaceLg,
         color: theme.textMuted,
-        fontSize: 12,
-        lineHeight: 1.5,
+        fontFamily: theme.fontSans,
+        fontSize: ui.body,
+        lineHeight: ui.lineHeight,
         maxWidth: 520,
         margin: "0 auto",
       }}
@@ -177,9 +185,10 @@ export const EmptyShell = memo(function EmptyShell({
   className?: string;
   style?: CSSProperties;
 }) {
+  const ui = componentStyles();
   const body = (
     <>
-      <div style={unstyled ? undefined : { fontWeight: 700, color: theme.textPrimary, fontSize: 13 }}>
+      <div style={unstyled ? undefined : { fontWeight: ui.weightStrong, color: theme.textPrimary, fontSize: ui.title }}>
         {reason}
       </div>
       <div data-fp="shell-empty-detail">{detail}</div>
@@ -200,16 +209,16 @@ export const EmptyShell = memo(function EmptyShell({
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: ui.spaceSm,
         justifyContent: "center",
         alignItems: "center",
         textAlign: "center",
-        padding: 24,
+        padding: ui.spaceXl,
         background: theme.bgPrimary,
         color: theme.textMuted,
         fontFamily: theme.fontSans,
-        fontSize: 12,
-        lineHeight: 1.6,
+        fontSize: ui.body,
+        lineHeight: ui.lineHeight,
         ...style,
       }}
     >

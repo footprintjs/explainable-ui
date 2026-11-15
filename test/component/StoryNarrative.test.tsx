@@ -100,15 +100,14 @@ describe('StoryNarrative component', () => {
     expect(rendered).toHaveLength(2);
   });
 
-  it('hides Exiting subflow markers in styled mode', () => {
+  it('preserves recorded Exiting subflow boundaries in styled mode', () => {
     const entries = [
       e('stage', 'Stage 1: Root.'),
       { type: 'subflow' as const, text: 'Entering the Auth subflow.', depth: 0, subflowId: 'sf-1', stageId: 'sf-1' } as any,
       { type: 'subflow' as const, text: 'Exiting the Auth subflow.', depth: 0, subflowId: 'sf-1', stageId: 'sf-1' } as any,
     ];
     render(<StoryNarrative entries={entries} revealedEntryCount={3} />);
-    // Exit marker rendered as null — toggle detects second occurrence of same stageId
-    expect(screen.queryByText(/Exiting/)).toBeNull();
+    expect(screen.getByText(/Exiting/)).toBeTruthy();
   });
 
   it('renders empty state without crashing', () => {
@@ -215,14 +214,14 @@ describe('StoryNarrative component', () => {
     expect(badge.textContent).toBe('◦');
     expect(screen.queryByLabelText('Data operation')).toBeNull();
     // It is not a step of the flowchart, so it takes no heading number.
-    expect(screen.getByText(/2\. \[Stage/)).toBeTruthy();
+    expect(screen.getByText('Stage 2: Finish.')).toBeTruthy();
     styled.unmount();
     // Unstyled mode passes the raw kind through as `data-type`, so a consumer
     // styling by selector can reach a kind this release never heard of.
     const { container } = render(
       <StoryNarrative entries={entries} revealedEntryCount={3} unstyled />,
     );
-    expect(container.querySelector('[data-type="teleport"]')?.textContent).toBe('something new happened');
+    expect(container.querySelector('[data-type="teleport"] [data-fp="narrative-text"]')?.textContent).toBe('something new happened');
   });
 
   it('a kind named like an Object.prototype member gets the generic badge, not a phantom one', () => {
@@ -316,13 +315,13 @@ describe('StoryNarrative component', () => {
     // Every row, exactly: an attempt line numbered by mistake would read "2. …" and push the stage to "4.".
     const rows = Array.from(container.querySelectorAll('[data-fp="narrative-entry"]')).map((row) => [
       row.getAttribute('data-type'),
-      row.textContent,
+      row.querySelector('[data-fp="narrative-text"]')?.textContent,
     ]);
     expect(rows).toEqual([
-      ['stage', '1. [Stage: ] Fetch rate.'],
+      ['stage', 'Stage 1: Fetch rate.'],
       ['attempt', 'Attempt 1 of 2 at Fetch rate failed in 4ms (boom), retrying immediately.'],
       ['attempt', 'Attempt 2 of 2 at Fetch rate succeeded in 3ms.'],
-      ['stage', '2. [Stage: ] Format the answer.'],
+      ['stage', 'Stage 2: Format the answer.'],
     ]);
   });
 
@@ -337,6 +336,6 @@ describe('StoryNarrative component', () => {
     expect(screen.getByText(/attempt 1 of 3 at CallApi failed/)).toBeTruthy();
     // The stage AFTER the retry is still number 2 — a retry does not advance
     // the flowchart, so it must not consume a heading number.
-    expect(screen.getByText(/^2\./)).toBeTruthy();
+    expect(screen.getByText('Stage 2: Format the answer.')).toBeTruthy();
   });
 });

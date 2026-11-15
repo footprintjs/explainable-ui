@@ -1,3 +1,4 @@
+import { FootprintBadge, FootprintTab } from "../../theme";
 /**
  * InspectorPanel — Node-specific debug view.
  *
@@ -9,7 +10,7 @@
  */
 import { memo, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
-import { fontSize, theme } from "../../theme";
+import { componentStyles, theme } from "../../theme";
 import type { BaseComponentProps, Size, StageSnapshot } from "../../types";
 import { MemoryPanel } from "../MemoryPanel";
 import { DataTracePanel, type CausalFrame } from "../DataTracePanel/DataTracePanel";
@@ -83,6 +84,7 @@ export const InspectorPanel = memo(function InspectorPanel({
     onTabChange?.(t);
   };
   const currentSnapshot = snapshots[selectedIndex];
+  const ui = componentStyles(size);
   /** Styles vanish in unstyled mode; the tree stays exactly the same. */
   const sx = (s: CSSProperties): CSSProperties | undefined => (unstyled ? undefined : s);
 
@@ -96,6 +98,7 @@ export const InspectorPanel = memo(function InspectorPanel({
           flexDirection: "column",
           height: "100%",
           overflow: "hidden",
+          fontFamily: theme.fontSans, fontSize: ui.body, lineHeight: ui.lineHeight, fontWeight: ui.weightNormal,
         }),
         ...style,
       }}
@@ -105,7 +108,7 @@ export const InspectorPanel = memo(function InspectorPanel({
         data-fp="inspector-tabs"
         style={sx({
           display: "flex",
-          borderBottom: `1px solid ${theme.border}`,
+          borderBottom: `${ui.borderWidth} solid ${theme.border}`,
           flexShrink: 0,
         })}
       >
@@ -178,48 +181,52 @@ function TabButton({
   size?: Size;
   unstyled?: boolean;
 }) {
-  const fs = fontSize[size];
+  const ui = componentStyles(size);
   const sx = (s: CSSProperties): CSSProperties | undefined => (unstyled ? undefined : s);
   return (
-    <button
+    <FootprintTab
+      unstyled={unstyled}
+      densitySize={size}
+      part={`inspector-tab-${label.toLowerCase().replace(/\s+/g, "-")}`}
       type="button"
       onClick={onClick}
       aria-pressed={active}
       data-fp="inspector-tab"
       data-active={active || undefined}
-      style={sx({
-        padding: "8px 14px",
+      defaultStyle={sx({
+        padding: `${ui.spaceSm} calc(${ui.controlPaddingX} + 6px)`,
+        minHeight: ui.controlHeight,
         border: "none",
         borderBottom: active
-          ? "2px solid var(--fp-accent, #6366f1)"
-          : "2px solid transparent",
+          ? `${ui.focusWidth} solid ${theme.accent}`
+          : `${ui.focusWidth} solid transparent`,
         background: "transparent",
-        color: active ? "var(--fp-accent, #6366f1)" : theme.textMuted,
-        fontWeight: active ? 600 : 400,
-        fontSize: fs.body,
+        color: active ? theme.accent : theme.textMuted,
+        fontWeight: active ? ui.weightStrong : ui.weightNormal,
+        fontSize: ui.body,
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
-        gap: 4,
+        gap: ui.spaceXs,
       })}
     >
       {label}
       {badge && (
-        <span
-          style={sx({
-            fontSize: fs.small,
+        <FootprintBadge unstyled={unstyled} densitySize={size} part="inspector-tab-count"
+          defaultStyle={sx({
+            fontSize: ui.small,
             background: active
-              ? "var(--fp-accent, #6366f1)"
-              : theme.textMuted,
-            color: "#fff",
-            borderRadius: 8,
-            padding: "1px 5px",
-            fontWeight: 600,
+              ? theme.accent
+              : theme.bgTertiary,
+            color: active ? theme.onPrimary : theme.textSecondary,
+            borderRadius: ui.radiusBadge,
+            padding: `calc(${ui.spaceXs} / 4) calc(${ui.spaceXs} + 1px)`,
+            fontWeight: ui.weightStrong,
           })}
         >
           {badge}
-        </span>
+        </FootprintBadge>
       )}
-    </button>
+    </FootprintTab>
   );
 }

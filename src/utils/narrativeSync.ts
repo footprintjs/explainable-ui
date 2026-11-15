@@ -5,6 +5,55 @@
  */
 import type { StageSnapshot, NarrativeEntry } from "../types";
 
+export type NarrativeSynchronizationStatus =
+  | { readonly status: "exact" }
+  | {
+      readonly status: "unsynchronized";
+      readonly reason:
+        | "no-snapshots"
+        | "missing-snapshot-id"
+        | "duplicate-snapshot-id"
+        | "missing-entry-id"
+        | "unmatched-entry-id";
+    };
+
+/**
+ * Whether displayed narrative entries can be bound to exact visits on a rail.
+ * The caller supplies only entries admitted to its displayed invocation scope;
+ * nested narrative entries may legitimately refer to a different rail.
+ *
+ * Multiple events may name one visit, including a subflow's entry and exit.
+ * The rail itself must name each visit once. Missing ids, including structural
+ * markers, are not inherited from nearby entries or matched by stage name.
+ * A recorder may omit entries for a stage without making the other bindings
+ * ambiguous. This checks identity availability, not causal or clock ordering.
+ */
+export function narrativeSynchronizationStatus(
+  entries: readonly Pick<NarrativeEntry, "runtimeStageId">[],
+  snapshots: readonly Pick<StageSnapshot, "runtimeStageId">[],
+): NarrativeSynchronizationStatus {
+  if (snapshots.length === 0) return { status: "unsynchronized", reason: "no-snapshots" };
+
+  const visitIds = new Set<string>();
+  for (const snapshot of snapshots) {
+    const id = snapshot.runtimeStageId;
+    if (typeof id !== "string" || id.trim().length === 0) {
+      return { status: "unsynchronized", reason: "missing-snapshot-id" };
+    }
+    if (visitIds.has(id)) return { status: "unsynchronized", reason: "duplicate-snapshot-id" };
+    visitIds.add(id);
+  }
+
+  for (const entry of entries) {
+    const id = entry.runtimeStageId;
+    if (typeof id !== "string" || id.trim().length === 0) {
+      return { status: "unsynchronized", reason: "missing-entry-id" };
+    }
+    if (!visitIds.has(id)) return { status: "unsynchronized", reason: "unmatched-entry-id" };
+  }
+  return { status: "exact" };
+}
+
 // ── Entry Range Index ───────────────────────────────────────────────────────
 
 /**

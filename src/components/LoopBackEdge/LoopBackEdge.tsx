@@ -33,10 +33,8 @@ const LOOP_DASH = "5 5";
 const LOOP_STROKE_OPACITY_CAP = 0.55; // muted — the long return shouldn't dominate
 const LOOP_STROKE_WIDTH = 1.5; // thinner than a spine edge (default ~2)
 export function softenLoopStyle(style: CSSProperties | undefined): CSSProperties {
-  // Use SVG-native stroke props (strokeOpacity / strokeWidth) — they render on
-  // the <path> reliably, unlike `opacity` which react-flow's BaseEdge does not
-  // forward to the stroke. strokeOpacity is CAPPED (never bolder than the cap)
-  // but may go lower when the renderer dims an out-of-scope edge.
+  // This pure helper retains its soft-return contract. The renderer applies
+  // explicit host paint afterward, rather than changing these defaults.
   const passedStrokeOpacity =
     typeof style?.strokeOpacity === "number" ? style.strokeOpacity : 1;
   return {
@@ -61,7 +59,7 @@ function centerY(node: InternalNode): number {
   return node.internals.positionAbsolute.y + (node.measured.height ?? 0) / 2;
 }
 
-export function LoopBackEdge({ id, source, target, markerEnd, style }: EdgeProps) {
+export function LoopBackEdge({ id, source, target, markerEnd, style, data }: EdgeProps) {
   // Derive the full SVG path inside the store selector and return it as a
   // STRING — primitive equality means the edge only re-renders when its
   // geometry actually changes (no per-tick churn, no render loop).
@@ -98,7 +96,7 @@ export function LoopBackEdge({ id, source, target, markerEnd, style }: EdgeProps
       id={id}
       path={path}
       markerEnd={markerEnd}
-      style={softenLoopStyle(style)}
+      style={data?.unstyled === true ? style : { ...softenLoopStyle(undefined), ...style }}
       aria-label="Loop back"
     />
   );

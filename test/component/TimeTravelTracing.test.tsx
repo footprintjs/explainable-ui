@@ -14,10 +14,12 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { forwardRef, type ButtonHTMLAttributes, type HTMLAttributes } from "react";
 
 import { TimeTravelControls } from "../../src/components/TimeTravelControls/TimeTravelControls";
 import type { TracingRail } from "../../src/components/TimeTravelControls/TimeTravelControls";
 import type { StageSnapshot } from "../../src/types";
+import { FootprintTheme } from "../../src/theme";
 
 const snap = (label: string): StageSnapshot => ({
   stageName: label.toLowerCase(),
@@ -57,6 +59,84 @@ function renderTracing(
 }
 
 describe("TimeTravelControls — tracing mode", () => {
+  it("uses theme recipes and a paired tracing foreground while keeping the trace controls usable", () => {
+    const onIndexChange = vi.fn();
+    const { container } = render(<FootprintTheme tokens={{
+      typography: { body: "17px", small: "15px", lineHeight: "1.8" },
+      controls: { height: "42px", gap: "10px" }, radii: { control: "10px", badge: "14px" },
+      borders: { width: "2px" }, colors: { tracing: "yellow", onTracing: "navy" },
+    }}><TimeTravelControls snapshots={SNAPSHOTS} selectedIndex={4} onIndexChange={onIndexChange}
+      tracing={{ tracedKey: "total", stopIndices: [0, 1, 3, 4], stopOrdinal: 1, totalStops: 4, onExit: vi.fn() }} />
+    </FootprintTheme>);
+    const previous = screen.getByRole("button", { name: "Earlier recorded step" });
+    expect(previous.style.fontSize).toContain("--fp-font-size-body");
+    expect(previous.style.minHeight).toContain("--fp-control-height");
+    expect(previous.style.borderRadius).toContain("--fp-radius-control");
+    expect(screen.getByRole("toolbar").style.lineHeight).toContain("--fp-line-height");
+    expect((container.querySelector('[data-fp-part="time-travel-tracing-badge"]') as HTMLElement).style.color).toContain("--fp-on-tracing");
+    fireEvent.click(previous);
+    expect(onIndexChange).toHaveBeenCalledWith(3);
+  });
+
+  it("forwards semantic parts and native behavior to host primitives without fallback paint", () => {
+    const HostButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>((props, ref) => <button {...props} ref={ref} data-host="button" />);
+    const HostBadge = forwardRef<HTMLSpanElement, HTMLAttributes<HTMLSpanElement>>((props, ref) => <span {...props} ref={ref} data-host="badge" />);
+    const onIndexChange = vi.fn();
+    const { container } = render(<FootprintTheme components={{ Button: HostButton, Badge: HostBadge }}>
+      <TimeTravelControls snapshots={SNAPSHOTS} selectedIndex={4} onIndexChange={onIndexChange}
+        tracing={{ tracedKey: "total", stopIndices: [0, 1, 3, 4], stopOrdinal: 1, totalStops: 4, onExit: vi.fn() }} />
+    </FootprintTheme>);
+    const previous = screen.getByRole("button", { name: "Earlier recorded step" });
+    expect(previous.getAttribute("data-fp-part")).toBe("time-travel-previous");
+    expect(previous.style.flexShrink).toBe("0");
+    expect(previous.style.background).toBe("");
+    expect(previous.style.fontSize).toBe("");
+    expect(container.querySelector('[data-host="badge"]')?.getAttribute("data-fp-part")).toBe("time-travel-tracing-badge");
+    expect((container.querySelector('[data-fp="tt-tick"][data-stop="false"]') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(previous);
+    expect(onIndexChange).toHaveBeenCalledWith(3);
+  });
+
+  it("keeps rail segment and fixed-control geometry when a host button forwards explicit styles", () => {
+    const HostButton = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButtonElement>>((props, ref) => <button {...props} ref={ref} data-host="button" />);
+    const onIndexChange = vi.fn();
+    const view = render(<FootprintTheme components={{ Button: HostButton }}>
+      <TimeTravelControls snapshots={SNAPSHOTS} selectedIndex={4} onIndexChange={onIndexChange}
+        tracing={{ tracedKey: "total", stopIndices: [0, 1, 3, 4], stopOrdinal: 1, totalStops: 4, onExit: vi.fn() }} />
+    </FootprintTheme>);
+    const ticks = [...view.container.querySelectorAll<HTMLButtonElement>('[data-fp="tt-tick"]')];
+    expect(ticks).toHaveLength(SNAPSHOTS.length);
+    expect(ticks.every(tick => tick.style.flex === "1 1 0%" && tick.getAttribute("data-fp-part") === "time-travel-tick")).toBe(true);
+    expect(ticks[4].style.height).toContain("--fp-icon-size");
+    expect(ticks[2].style.height).toContain("--fp-space-xs");
+    expect(ticks[1].style.height).toContain("--fp-space-sm");
+    expect(ticks[1].style.background).toBe("");
+    expect(ticks[1].style.borderRadius).toBe("");
+    expect(ticks[2].disabled).toBe(true);
+    fireEvent.click(ticks[1]);
+    expect(onIndexChange).toHaveBeenCalledWith(1);
+    expect(screen.getByRole("button", { name: "Earlier recorded step" }).style.flexShrink).toBe("0");
+    expect(screen.getByRole("button", { name: "Later recorded step" }).style.flexShrink).toBe("0");
+    view.rerender(<FootprintTheme components={{ Button: HostButton }}>
+      <TimeTravelControls snapshots={SNAPSHOTS} selectedIndex={1} onIndexChange={onIndexChange} />
+    </FootprintTheme>);
+    const play = screen.getByRole("button", { name: "Play" });
+    expect(play.style.flexShrink).toBe("0");
+    expect(play.style.width).toContain("--fp-control-height");
+    expect(play.style.height).toContain("--fp-control-height");
+    expect(play.style.background).toBe("");
+  });
+
+  it("keeps tracing actions and parts without built-in paint in unstyled mode", () => {
+    const { container, onIndexChange, onExit } = renderTracing({ unstyled: true });
+    expect(container.querySelector("[style]")).toBeNull();
+    expect(screen.getByRole("button", { name: "Earlier recorded step" }).getAttribute("data-fp-part")).toBe("time-travel-previous");
+    fireEvent.click(screen.getByRole("button", { name: "Earlier recorded step" }));
+    expect(onIndexChange).toHaveBeenCalledWith(3);
+    fireEvent.keyDown(screen.getByRole("toolbar"), { key: "Escape" });
+    expect(onExit).toHaveBeenCalledOnce();
+  });
+
   it("renders the loud mode header (traced key + stop N of M) and Done", () => {
     renderTracing();
     expect(screen.getByText("Tracing")).toBeTruthy();

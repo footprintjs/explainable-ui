@@ -1,6 +1,7 @@
+import { FootprintCode } from "../../theme";
 import { useMemo } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
-import { theme, fontSize, padding } from "../../theme";
+import { theme, componentStyles } from "../../theme";
 
 export interface MemoryInspectorProps extends BaseComponentProps {
   /** A memory object to show as-is. Takes precedence over `snapshots`. */
@@ -66,16 +67,18 @@ export function MemoryInspector({
   }, [data, snapshots, selectedIndex, highlightNew]);
 
   const entries = Object.entries(memory);
-  const fs = fontSize[size];
-  const pad = padding[size];
+  const ui = componentStyles(size);
 
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="memory-inspector" role="region" aria-label="Memory state">
         <div data-fp="memory-label">Memory State</div>
         <pre data-fp="memory-json">
-          <code>{JSON.stringify(memory, null, 2)}</code>
+          <FootprintCode defaultStyle={undefined}>{JSON.stringify(memory, null, 2)}</FootprintCode>
         </pre>
+        {showTypes && <dl data-fp="memory-types">{entries.map(([key, value]) => <div key={key}>
+          <dt>{key}</dt><dd>{typeof value}</dd>
+        </div>)}</dl>}
       </div>
     );
   }
@@ -84,7 +87,7 @@ export function MemoryInspector({
     <div
       className={className}
       style={{
-        padding: pad,
+        padding: ui.padding,
         fontFamily: theme.fontSans,
         ...style,
       }}
@@ -94,8 +97,8 @@ export function MemoryInspector({
     >
       <span
         style={{
-          fontSize: fs.label,
-          fontWeight: 600,
+          fontSize: ui.label,
+          fontWeight: ui.weightStrong,
           color: theme.textMuted,
           textTransform: "uppercase",
           letterSpacing: "0.08em",
@@ -105,21 +108,21 @@ export function MemoryInspector({
       </span>
       <div
         style={{
-          marginTop: 8,
+          marginTop: ui.spaceSm,
           background: theme.bgSecondary,
-          border: `1px solid ${theme.border}`,
-          borderRadius: theme.radius,
-          padding: `${pad}px ${pad + 4}px`,
+          border: `${ui.borderWidth} solid ${theme.border}`,
+          borderRadius: ui.radiusPanel,
+          padding: `${ui.padding} calc(${ui.padding} + ${ui.spaceXs})`,
           fontFamily: theme.fontMono,
-          fontSize: fs.body,
-          lineHeight: 1.8,
+          fontSize: ui.body,
+          lineHeight: ui.lineHeight,
         }}
       >
         <span style={{ color: theme.textMuted }}>{"{"}</span>
         {entries.length === 0 && (
           <div
             style={{
-              paddingLeft: 16,
+              paddingLeft: ui.spaceLg,
               color: theme.textMuted,
               fontStyle: "italic",
             }}
@@ -134,27 +137,27 @@ export function MemoryInspector({
             <div
               key={key}
               style={{
-                paddingLeft: 16,
+                paddingLeft: ui.spaceLg,
                 background: isNew
                   ? `color-mix(in srgb, ${theme.success} 10%, transparent)`
                   : "transparent",
-                borderRadius: 4,
-                marginLeft: -4,
-                marginRight: -4,
-                paddingRight: 4,
+                borderRadius: ui.radiusControl,
+                marginLeft: `calc(-1 * ${ui.spaceXs})`,
+                marginRight: `calc(-1 * ${ui.spaceXs})`,
+                paddingRight: ui.spaceXs,
               }}
             >
               <span style={{ color: theme.primary }}>&quot;{key}&quot;</span>
               <span style={{ color: theme.textMuted }}>: </span>
               <span style={{ color: theme.success }}>
-                {formatValue(value)}
+                <FootprintCode defaultStyle={undefined}>{formatValue(value)}</FootprintCode>
               </span>
               {showTypes && (
                 <span
                   style={{
                     color: theme.textMuted,
-                    fontSize: fs.small,
-                    marginLeft: 8,
+                    fontSize: ui.small,
+                    marginLeft: ui.spaceSm,
                     opacity: 0.6,
                   }}
                 >

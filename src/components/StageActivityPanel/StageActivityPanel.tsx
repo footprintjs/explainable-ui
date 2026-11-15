@@ -1,6 +1,7 @@
+import { FootprintBadge, FootprintButton, FootprintCode } from "../../theme";
 import { useRef, useState, type CSSProperties } from "react";
 import type { BaseComponentProps } from "../../types";
-import { fontSize, padding, theme } from "../../theme";
+import { componentStyles, theme } from "../../theme";
 import { useIsomorphicLayoutEffect } from "../../_internal/useIsomorphicLayoutEffect";
 import type {
   StageActivityEvent,
@@ -28,7 +29,7 @@ export function StageActivityPanel({
   activity, onTraceVariable, onNavigateToStage, selectedVariableId, onVariableSelect,
   size = "default", unstyled = false, className, style,
 }: StageActivityPanelProps) {
-  const fs = fontSize[size], pad = padding[size];
+  const ui = componentStyles(size);
   const sx = (value: CSSProperties): CSSProperties | undefined => unstyled ? undefined : value;
   const identity = JSON.stringify([activity.identity.invocationPath, activity.identity.runtimeStageId, activity.identity.commitIdx]);
   const [selection, setSelection] = useState<{ identity: string; variableId: string } | null>(null);
@@ -54,16 +55,16 @@ export function StageActivityPanel({
     if (Math.abs(bounds.left - content.left) < 1 && bounds.top > content.top) inspector.scrollIntoView({ block: "nearest", behavior: "auto" });
   }, [selection, identity, unstyled]);
   const scope = activity.identity.invocationPath.length ? activity.identity.invocationPath.join(" / ") : "Root";
-  const heading = (text: string) => <h4 style={sx({ margin: "0 0 8px", fontSize: fs.small, fontWeight: 600, color: theme.textSecondary })}>{text}</h4>;
-  const keyButton = (variable: StageActivityVariable, context: "list" | "sequence") => <button
+  const heading = (text: string) => <h4 style={sx({ margin: `0 0 ${ui.spaceSm}`, fontSize: ui.small, fontWeight: ui.weightStrong, color: theme.textSecondary })}>{text}</h4>;
+  const keyButton = (variable: StageActivityVariable, context: "list" | "sequence") => <FootprintButton unstyled={unstyled} densitySize={size} part="activity-variable"
     type="button" data-fp="stage-activity-variable" data-variable-kind={variable.kind} data-variable-key={variable.key}
     aria-label={`Inspect ${variable.kind} ${variable.label}${context === "sequence" ? " from recorded activity" : ""}`}
     aria-pressed={selected?.id === variable.id} onClick={() => select(variable)}
-    style={sx({ border: `1px solid ${selected?.id === variable.id ? theme.accent : theme.border}`, borderRadius: 6,
+    defaultStyle={sx({ border: `${ui.borderWidth} solid ${selected?.id === variable.id ? theme.accent : theme.border}`, borderRadius: ui.radiusControl,
       color: theme.textPrimary, background: selected?.id === variable.id ? theme.accentBg : theme.bgPrimary,
-      padding: "5px 8px", fontFamily: theme.fontMono, fontSize: fs.body, textAlign: "left", overflowWrap: "anywhere", cursor: "pointer" })}>
+      padding: ui.controlPadding, minHeight: ui.controlHeight, fontFamily: theme.fontMono, fontSize: ui.body, textAlign: "left", overflowWrap: "anywhere", cursor: "pointer" })}>
     {variable.label}
-  </button>;
+  </FootprintButton>;
   const eventLabel = (event: StageActivityEvent) => event.reportedOperation
     ? `${event.reportedOperation.toUpperCase()} · narrative`
     : event.kind === "decision" ? "RECORDED DECISION"
@@ -73,14 +74,14 @@ export function StageActivityPanel({
     const color = event.kind === "error" ? theme.error : event.kind === "decision" ? theme.warning
       : event.reportedOperation === "read" ? theme.primary : event.reportedOperation ? theme.success : theme.textSecondary;
     return <li key={event.id} data-fp="stage-activity-event" data-event-kind={event.kind}
-      style={sx({ padding: "9px 0", borderBottom: `1px solid ${theme.border}`, overflowWrap: "anywhere" })}>
-      <div style={sx({ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 })}>
-        <span style={sx({ fontSize: fs.small, color })}>
+      style={sx({ padding: `${ui.spaceSm} 0`, borderBottom: `${ui.borderWidth} solid ${theme.border}`, overflowWrap: "anywhere" })}>
+      <div style={sx({ display: "flex", alignItems: "center", gap: ui.spaceSm, flexWrap: "wrap", marginBottom: ui.spaceXs })}>
+        <FootprintBadge unstyled={unstyled} densitySize={size} part="activity-event-kind" defaultStyle={sx({ fontSize: ui.small, color, background: "transparent", padding: 0 })}>
           {eventLabel(event)}
-        </span>
+        </FootprintBadge>
         {variable && keyButton(variable, "sequence")}
       </div>
-      <div style={sx({ fontSize: fs.body, lineHeight: 1.5, whiteSpace: "pre-wrap" })}>{event.text}</div>
+      <div style={sx({ fontSize: ui.body, lineHeight: ui.lineHeight, whiteSpace: "pre-wrap" })}>{event.text}</div>
     </li>;
   };
   const eventIds = new Set(activity.events.map(event => event.id));
@@ -88,59 +89,59 @@ export function StageActivityPanel({
   const additionalLogs = activity.logs.filter(event => !eventIds.has(event.id));
 
   return <section data-fp="stage-activity-panel" aria-label="Stage activity" className={className}
-    style={{ ...sx({ padding: pad, color: theme.textPrimary, fontFamily: theme.fontSans, fontSize: fs.body }), ...style }}>
-    <header style={sx({ marginBottom: 16, overflowWrap: "anywhere" })}>
-      <h3 style={sx({ margin: 0, fontSize: fs.label + 1, fontWeight: 600 })}>{activity.identity.stageLabel || activity.identity.stageName || "Selected stage"}</h3>
-      <div style={sx({ marginTop: 3, fontSize: fs.small, color: theme.textSecondary })}>{scope}</div>
-      <code data-fp="stage-activity-visit" style={sx({ display: "block", marginTop: 3, fontSize: fs.small, color: theme.textSecondary, overflowWrap: "anywhere" })}>
+    style={{ ...sx({ padding: ui.padding, color: theme.textPrimary, fontFamily: theme.fontSans, fontSize: ui.body, lineHeight: ui.lineHeight, fontWeight: ui.weightNormal }), ...style }}>
+    <header style={sx({ marginBottom: ui.spaceLg, overflowWrap: "anywhere" })}>
+      <h3 style={sx({ margin: 0, fontSize: ui.body, fontWeight: ui.weightStrong })}>{activity.identity.stageLabel || activity.identity.stageName || "Selected stage"}</h3>
+      <div style={sx({ marginTop: ui.spaceXs, fontSize: ui.small, color: theme.textSecondary })}>{scope}</div>
+      <FootprintCode unstyled={unstyled} densitySize={size} part="activity-visit" data-fp="stage-activity-visit" defaultStyle={sx({ fontFamily: theme.fontMono, display: "block", marginTop: ui.spaceXs, fontSize: ui.small, color: theme.textSecondary, overflowWrap: "anywhere" })}>
         {activity.identity.runtimeStageId ?? "Exact visit not recorded"}
-      </code>
+      </FootprintCode>
     </header>
-    {!activity.availability.ok ? <p role="status" data-fp="stage-activity-unavailable" style={sx({ margin: 0, lineHeight: 1.5 })}>
+    {!activity.availability.ok ? <p role="status" data-fp="stage-activity-unavailable" style={sx({ margin: 0, lineHeight: ui.lineHeight })}>
       Activity is unavailable for this exact visit. {activity.availability.reason}
     </p> : <>
-      <div style={sx({ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", gap: 20, alignItems: "start" })}>
+      <div style={sx({ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 180px), 1fr))", gap: `calc(${ui.spaceLg} + ${ui.spaceXs})`, alignItems: "start" })}>
         <div ref={contentRef} data-fp="stage-activity-content" style={sx({ minWidth: 0 })}>
           {heading("Recorded activity")}
-          {activity.events.length ? <ol data-fp="stage-activity-sequence" style={sx({ listStyle: "none", padding: 0, margin: "0 0 16px" })}>
+          {activity.events.length ? <ol data-fp="stage-activity-sequence" style={sx({ listStyle: "none", padding: 0, margin: `0 0 ${ui.spaceLg}` })}>
             {activity.events.map(renderEvent)}
-          </ol> : <p style={sx({ margin: "0 0 16px", color: theme.textSecondary, lineHeight: 1.5 })}>
+          </ol> : <p style={sx({ margin: `0 0 ${ui.spaceLg}`, color: theme.textSecondary, lineHeight: ui.lineHeight })}>
             {activity.coverage.narrative === "unavailable" ? "Recorded narrative is unavailable for this visit." : "No ordered narrative steps recorded for this visit."}
           </p>}
           {heading("Recorded read keys")}
-          {activity.reads.length ? <ul style={sx({ listStyle: "none", padding: 0, margin: "0 0 16px", display: "flex", flexWrap: "wrap", gap: 6 })}>
+          {activity.reads.length ? <ul style={sx({ listStyle: "none", padding: 0, margin: `0 0 ${ui.spaceLg}`, display: "flex", flexWrap: "wrap", gap: ui.controlGap })}>
             {activity.reads.map(variable => <li key={variable.id}>{keyButton(variable, "list")}</li>)}
-          </ul> : <p style={sx({ margin: "0 0 16px", color: theme.textSecondary })}>
+          </ul> : <p style={sx({ margin: `0 0 ${ui.spaceLg}`, color: theme.textSecondary })}>
             {activity.coverage.reads === "unknown" ? "Read coverage is unknown for this visit." : "No state reads recorded for this visit."}
           </p>}
           {heading("Committed changes")}
-          {activity.writes.length ? <ul data-fp="stage-activity-writes" style={sx({ listStyle: "none", padding: 0, margin: "0 0 16px" })}>
-            {activity.writes.map(variable => <li key={variable.id} style={sx({ padding: "6px 0", overflowWrap: "anywhere" })}>
+          {activity.writes.length ? <ul data-fp="stage-activity-writes" style={sx({ listStyle: "none", padding: 0, margin: `0 0 ${ui.spaceLg}` })}>
+            {activity.writes.map(variable => <li key={variable.id} style={sx({ padding: `${ui.controlGap} 0`, overflowWrap: "anywhere" })}>
               {keyButton(variable, "list")}
-              <span style={sx({ marginLeft: 8, fontSize: fs.small, color: theme.textSecondary })}>{changeLabel(variable.change)}</span>
+              <span style={sx({ marginLeft: ui.spaceSm, fontSize: ui.small, color: theme.textSecondary })}>{changeLabel(variable.change)}</span>
             </li>)}
-          </ul> : <p style={sx({ margin: "0 0 16px", color: theme.textSecondary })}>
+          </ul> : <p style={sx({ margin: `0 0 ${ui.spaceLg}`, color: theme.textSecondary })}>
             {activity.coverage.writes === "unavailable" ? "Committed-write evidence is unavailable." : "No committed state changes recorded for this visit."}
           </p>}
           {heading("Decisions")}
-          {additionalDecisions.length ? <ol style={sx({ listStyle: "none", padding: 0, margin: "0 0 16px" })}>{additionalDecisions.map(renderEvent)}</ol>
-            : <p style={sx({ margin: "0 0 16px", color: theme.textSecondary })}>{activity.decisions.length ? "Recorded decisions appear in the activity above." : "No decision recorded for this visit."}</p>}
+          {additionalDecisions.length ? <ol style={sx({ listStyle: "none", padding: 0, margin: `0 0 ${ui.spaceLg}` })}>{additionalDecisions.map(renderEvent)}</ol>
+            : <p style={sx({ margin: `0 0 ${ui.spaceLg}`, color: theme.textSecondary })}>{activity.decisions.length ? "Recorded decisions appear in the activity above." : "No decision recorded for this visit."}</p>}
           {heading("Stage events and logs")}
           {additionalLogs.length ? <ol style={sx({ listStyle: "none", padding: 0, margin: 0 })}>{additionalLogs.map(renderEvent)}</ol>
             : <p style={sx({ margin: 0, color: theme.textSecondary })}>{activity.logs.length ? "Stage-scoped events appear in the activity above." : "No stage-scoped logs captured. Run-level console logs remain separate."}</p>}
         </div>
         <aside ref={inspectorRef} data-fp="stage-activity-inspector" aria-label="Variable inspector" aria-live="polite"
-          style={sx({ minWidth: 0, padding: 12, border: `1px solid ${theme.border}`, borderRadius: 8, background: theme.bgSecondary, overflowWrap: "anywhere" })}>
+          style={sx({ minWidth: 0, padding: ui.padding, border: `${ui.borderWidth} solid ${theme.border}`, borderRadius: ui.radiusPanel, boxShadow: ui.shadowPanel, background: theme.bgSecondary, overflowWrap: "anywhere" })}>
           {heading("Variable inspector")}
           {selected ? <VariableDetail key={selected.id} variable={selected} activity={activity} onTrace={onTraceVariable}
             onNavigateToStage={onNavigateToStage} unstyled={unstyled} size={size} />
             : <p style={sx({ margin: 0, color: theme.textSecondary })}>No recorded state key is available to inspect.</p>}
         </aside>
       </div>
-      {activity.coverage.truncated && <p role="status" style={sx({ margin: "12px 0 0", fontSize: fs.small, color: theme.textSecondary })}>This view is limited. Some recorded activity may be omitted.</p>}
-      {activity.notes.length > 0 && <details data-fp="stage-activity-notes" style={sx({ marginTop: 16, borderTop: `1px solid ${theme.border}`, paddingTop: 12, fontSize: fs.small, color: theme.textSecondary, lineHeight: 1.5 })}>
+      {activity.coverage.truncated && <p role="status" style={sx({ margin: `${ui.spaceMd} 0 0`, fontSize: ui.small, color: theme.textSecondary })}>This view is limited. Some recorded activity may be omitted.</p>}
+      {activity.notes.length > 0 && <details data-fp="stage-activity-notes" style={sx({ marginTop: ui.spaceLg, borderTop: `${ui.borderWidth} solid ${theme.border}`, paddingTop: ui.padding, fontSize: ui.small, color: theme.textSecondary, lineHeight: ui.lineHeight })}>
         <summary style={sx({ cursor: "pointer" })}>Evidence details</summary>
-        <div style={sx({ marginTop: 8 })}>{activity.notes.map((note, index) => <p key={index} style={sx({ margin: "0 0 6px" })}>{note}</p>)}</div>
+        <div style={sx({ marginTop: ui.spaceSm })}>{activity.notes.map((note, index) => <p key={index} style={sx({ margin: `0 0 ${ui.controlGap}` })}>{note}</p>)}</div>
       </details>}
     </>}
   </section>;
@@ -171,46 +172,46 @@ function VariableDetail({ variable, activity, onTrace, onNavigateToStage, size, 
   size: NonNullable<BaseComponentProps["size"]>;
   unstyled: boolean;
 }) {
-  const fs = fontSize[size];
+  const ui = componentStyles(size);
   const sx = (value: CSSProperties): CSSProperties | undefined => unstyled ? undefined : value;
-  const textStyle: CSSProperties = { whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontFamily: theme.fontMono, fontSize: fs.body, margin: "6px 0 10px" };
+  const textStyle: CSSProperties = { whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontFamily: theme.fontMono, fontSize: ui.body, margin: `${ui.controlGap} 0 calc(${ui.spaceSm} + 2px)` };
   return <>
-    <h4 style={sx({ margin: "0 0 8px", fontSize: fs.body + 1, fontWeight: 600, overflowWrap: "anywhere" })}>
-      <span style={sx({ display: "block", fontSize: fs.small, color: theme.textSecondary, fontWeight: 400 })}>{variable.kind === "read" ? "Read key" : "Written key"}</span>
-      <code>{variable.label}</code>
+    <h4 style={sx({ margin: `0 0 ${ui.spaceSm}`, fontSize: `calc(${ui.body} + 1px)`, fontWeight: ui.weightStrong, overflowWrap: "anywhere" })}>
+      <span style={sx({ display: "block", fontSize: ui.small, color: theme.textSecondary, fontWeight: ui.weightNormal })}>{variable.kind === "read" ? "Read key" : "Written key"}</span>
+      <FootprintCode unstyled={unstyled} densitySize={size} part="activity-variable-name" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{variable.label}</FootprintCode>
     </h4>
     {variable.kind === "read" && <>
-      <div data-fp="stage-activity-value-source" style={sx({ fontSize: fs.small, color: theme.textSecondary, lineHeight: 1.5 })}>{variable.valueLabel}</div>
+      <div data-fp="stage-activity-value-source" style={sx({ fontSize: ui.small, color: theme.textSecondary, lineHeight: ui.lineHeight })}>{variable.valueLabel}</div>
       <pre data-fp="stage-activity-value" style={sx(textStyle)}>{valueText(variable.value)}</pre>
     </>}
-    <div style={sx({ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 })}>
-      <button type="button" data-fp="stage-activity-backtrack" disabled={!onTrace || !variable.traceTarget}
+    <div style={sx({ display: "flex", gap: ui.controlGap, flexWrap: "wrap", marginTop: ui.spaceSm })}>
+      <FootprintButton unstyled={unstyled} densitySize={size} part="activity-backtrack" type="button" data-fp="stage-activity-backtrack" disabled={!onTrace || !variable.traceTarget}
         onClick={() => { if (variable.traceTarget) onTrace?.(variable.traceTarget); }}
-        style={sx({ padding: "6px 10px", border: `1px solid ${theme.accent}`, borderRadius: 6, background: theme.bgPrimary,
-          color: theme.textPrimary, fontSize: fs.body, cursor: onTrace && variable.traceTarget ? "pointer" : "default" })}>
+        defaultStyle={sx({ padding: ui.controlPadding, minHeight: ui.controlHeight, border: `${ui.borderWidth} solid ${theme.accent}`, borderRadius: ui.radiusControl, background: theme.bgPrimary,
+          color: theme.textPrimary, fontSize: ui.body, cursor: onTrace && variable.traceTarget ? "pointer" : "default" })}>
         Backtrack {variable.kind === "read" ? "read" : "write"} {variable.label}
-      </button>
-      {onNavigateToStage && variable.writer && variable.writer.runtimeStageId !== activity.identity.runtimeStageId && <button
+      </FootprintButton>
+      {onNavigateToStage && variable.writer && variable.writer.runtimeStageId !== activity.identity.runtimeStageId && <FootprintButton unstyled={unstyled} densitySize={size} part="activity-open-writer"
         type="button" onClick={() => onNavigateToStage(variable.writer!.runtimeStageId)}
-        style={sx({ padding: "6px 10px", border: `1px solid ${theme.border}`, borderRadius: 6, background: theme.bgPrimary,
-          color: theme.textPrimary, fontSize: fs.body, cursor: "pointer" })}>Open writer</button>}
+        defaultStyle={sx({ padding: ui.controlPadding, minHeight: ui.controlHeight, border: `${ui.borderWidth} solid ${theme.border}`, borderRadius: ui.radiusControl, background: theme.bgPrimary,
+          color: theme.textPrimary, fontSize: ui.body, cursor: "pointer" })}>Open writer</FootprintButton>}
     </div>
-    {variable.traceTarget && <div data-fp="stage-activity-trace-moment" style={sx({ marginTop: 6, fontSize: fs.small, color: theme.textSecondary })}>
+    {variable.traceTarget && <div data-fp="stage-activity-trace-moment" style={sx({ marginTop: ui.controlGap, fontSize: ui.small, color: theme.textSecondary })}>
       {variable.kind === "read" ? "Traces the state before this stage committed." : "Traces the value committed by this stage."}
     </div>}
-    {!variable.traceTarget && <p style={sx({ fontSize: fs.small, color: theme.textSecondary, margin: "8px 0 0" })}>The recording does not provide an exact trace target for this key.</p>}
-    {variable.kind === "write" && <div data-fp="stage-activity-change" style={sx({ margin: "12px 0" })}>
-      <div style={sx({ fontSize: fs.small, color: theme.textSecondary })}>Before stage</div>
+    {!variable.traceTarget && <p style={sx({ fontSize: ui.small, color: theme.textSecondary, margin: `${ui.spaceSm} 0 0` })}>The recording does not provide an exact trace target for this key.</p>}
+    {variable.kind === "write" && <div data-fp="stage-activity-change" style={sx({ margin: `${ui.spaceMd} 0` })}>
+      <div style={sx({ fontSize: ui.small, color: theme.textSecondary })}>Before stage</div>
       <pre style={sx(textStyle)}>{valueText(variable.before)}</pre>
-      <div style={sx({ fontSize: fs.small, color: theme.textSecondary })}>After stage</div>
+      <div style={sx({ fontSize: ui.small, color: theme.textSecondary })}>After stage</div>
       <pre data-fp="stage-activity-value" style={sx(textStyle)}>{valueText(variable.after)}</pre>
-      <div style={sx({ fontSize: fs.small, color: theme.textSecondary })}>Committed result · {changeLabel(variable.change)}</div>
+      <div style={sx({ fontSize: ui.small, color: theme.textSecondary })}>Committed result · {changeLabel(variable.change)}</div>
     </div>}
-    <div style={sx({ fontSize: fs.small, color: theme.textSecondary, marginTop: 12 })}>
+    <div style={sx({ fontSize: ui.small, color: theme.textSecondary, marginTop: ui.spaceMd })}>
       {variable.writer ? variable.kind === "write" && variable.writer.runtimeStageId === activity.identity.runtimeStageId
         ? "Recorded writer: this stage"
         : <>{variable.kind === "read" ? "Prior recorded writer" : "Recorded writer"}: {variable.writer.stageName}
-          <code style={sx({ display: "block", marginTop: 3, overflowWrap: "anywhere" })}>{variable.writer.runtimeStageId}</code></>
+          <FootprintCode unstyled={unstyled} densitySize={size} part="activity-writer-visit" defaultStyle={sx({ fontFamily: theme.fontMono, display: "block", marginTop: ui.spaceXs, overflowWrap: "anywhere" })}>{variable.writer.runtimeStageId}</FootprintCode></>
         : variable.kind === "read" ? "This read's origin is not established." : "Recorded writer information is unavailable."}
     </div>
   </>;

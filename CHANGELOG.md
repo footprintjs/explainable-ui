@@ -25,11 +25,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   origin and variable selection; legacy Data Trace Done retains its cursor.
   Optional controlled variable-selection props support standalone Activity and
   Inspector hosts.
+- Core Lens design-system tokens cover typography, spacing, component radii,
+  borders, elevation, motion, control geometry and paired semantic foregrounds.
+  `FootprintTheme.components` provides native-compatible Button, Tab, Input,
+  Checkbox, Badge, Code, Tooltip and Icon adapters with inherited overrides.
+  Optional `asChild` applies local theme variables without a DOM wrapper,
+  preserving a single element child's authored style, ref and events.
+- `ExplainableShell.theme` accepts mode, tokens and adapters. Its `renderLayout`
+  and `useLensWorkbench` expose the full shell's surfaces, current state and
+  validated navigation actions for custom layouts with drill-down/backtracking.
+- `TracedFlow` exposes measured-layout options, background/breadcrumb overrides
+  and controlled camera/fit settings. Unstyled charts retain interaction and
+  geometry, and authored edge style, type and markers take precedence.
+
+### Changed
+
+- Default shell entry is Inspector → Activity, including the unstyled
+  Explainable composite. Valid explicit `defaultTab` IDs retain their existing
+  destinations. Labels read Run log, Metrics and State; public IDs are unchanged.
+- The shell's Run log groups exact visits, collapses operation details and
+  reveals the recorded prefix when synchronization is established. Missing or
+  ambiguous visit IDs are visibly unsynchronized. Following the cursor is
+  opt-in; full-run copying is labelled separately from the selected log prefix.
 
 ### Fixed
 
 - Keep traced execution nodes readable as workflow context and identify the
   recorded cursor with a VIEWING badge without asserting future completion.
+- Metrics separates selected-visit, through-cursor and current-flow values,
+  excludes unmatched/ambiguous runtime rows and labels legacy stage-name data
+  unscoped. Invalid numeric values remain unavailable, and a source-wide
+  `grandTotal` cannot stand in for a child invocation's total.
 
 ## [0.44.0] - 2026-11-14
 

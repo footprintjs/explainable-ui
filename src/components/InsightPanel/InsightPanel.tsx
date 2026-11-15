@@ -6,17 +6,17 @@
  * - Grid: all insights visible (2x2) — when flowchart is collapsed
  *
  * Each insight maps to a recorder's toSnapshot() output.
- * User-facing names: Story, Performance, Quality, Cost.
+ * User-facing names: Run log, Metrics, Quality, Cost.
  */
 import { memo, useState } from "react";
 import type { CSSProperties } from "react";
-import { fontSize, padding, theme } from "../../theme";
+import { componentStyles, theme, FootprintCode, FootprintTab } from "../../theme";
 import type { BaseComponentProps, Size } from "../../types";
 
 export interface InsightConfig {
   /** Unique ID (matches recorder id). */
   id: string;
-  /** User-facing name (Story, Performance, Quality, Cost). */
+  /** User-facing name (Run log, Metrics, Quality, Cost). */
   name: string;
   /** Aggregate summary for collapsed header (e.g., "1.2ms 3R 3W"). */
   summary?: string;
@@ -76,8 +76,8 @@ const styler =
  * the four, so the fix is a line to copy rather than a docs hunt.
  */
 const INGREDIENTS: ReadonlyArray<{ panel: string; call: string; from: string }> = [
-  { panel: "Story", call: "narrative()", from: "footprintjs/recorders" },
-  { panel: "Performance", call: "metrics()", from: "footprintjs/recorders" },
+  { panel: "Run log", call: "narrative()", from: "footprintjs/recorders" },
+  { panel: "Metrics", call: "metrics()", from: "footprintjs/recorders" },
   { panel: "Quality", call: "new QualityRecorder(scoreFn)", from: "footprintjs/trace" },
   { panel: "Cost", call: "costRecorder()", from: "agentfootprint/observe" },
 ];
@@ -88,37 +88,40 @@ const NoInsights = memo(function NoInsights({
   className,
   style,
 }: PanelChrome) {
-  const fs = fontSize[size];
+  const ui = componentStyles(size);
   const sx = styler(unstyled);
   return (
     <div
       className={className}
       data-fp="insights-empty"
       style={{
-        ...sx({ padding: padding[size], color: theme.textMuted, fontSize: fs.body, lineHeight: 1.6 }),
+        ...sx({ padding: ui.padding, color: theme.textMuted, fontFamily: theme.fontSans,
+          fontSize: ui.body, lineHeight: ui.lineHeight, overflowX: "auto" }),
         ...style,
       }}
     >
-      <div style={sx({ marginBottom: 8 })}>
+      <div style={sx({ marginBottom: ui.spaceSm })}>
         Nothing to show — this run was recorded without any of these. Each one lights one panel:
       </div>
       <table style={sx({ borderCollapse: "collapse" })}>
         <tbody>
           {INGREDIENTS.map(({ panel, call, from }) => (
             <tr key={panel} data-fp="insights-empty-row">
-              <td style={sx({ paddingRight: 10, color: theme.textSecondary, whiteSpace: "nowrap" })}>
+              <td style={sx({ paddingRight: ui.spaceSm, color: theme.textSecondary, whiteSpace: "nowrap", verticalAlign: "top" })}>
                 {panel}
               </td>
-              <td style={sx({ fontFamily: theme.fontMono, fontSize: fs.label, whiteSpace: "nowrap" })}>
-                {call}
-                <span style={sx({ opacity: 0.7 })}> — from {from}</span>
+              <td style={sx({ fontFamily: theme.fontMono, fontSize: ui.label, overflowWrap: "anywhere" })}>
+                <FootprintCode part="recorder-attachment" densitySize={size} unstyled={unstyled}
+                  defaultStyle={{ fontFamily: theme.fontMono, fontSize: ui.label, overflowWrap: "anywhere" }}>{call}</FootprintCode>
+                <span style={sx({ color: theme.textSecondary })}> — from {from}</span>
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div style={sx({ marginTop: 8 })}>
-        Attach with <code>executor.attachScopeRecorder(...)</code> before the run, then pass the
+      <div style={sx({ marginTop: ui.spaceSm })}>
+        Attach with <FootprintCode part="recorder-attachment-instruction" unstyled={unstyled} densitySize={size}
+          defaultStyle={{ fontFamily: theme.fontMono, fontSize: ui.body }}>executor.attachScopeRecorder(...)</FootprintCode> before the run, then pass the
         snapshot here — each recorder&apos;s data rides along inside it.
       </div>
     </div>
@@ -140,7 +143,8 @@ const InsightTabs = memo(function InsightTabs({
 }) {
   const [activeId, setActiveId] = useState(defaultId ?? insights[0]?.id);
   const active = insights.find((i) => i.id === activeId) ?? insights[0];
-  const fs = fontSize[size];
+  const resolvedId = active?.id;
+  const ui = componentStyles(size);
   const sx = styler(unstyled);
 
   return (
@@ -154,6 +158,9 @@ const InsightTabs = memo(function InsightTabs({
           flexDirection: "column",
           height: "100%",
           overflow: "hidden",
+          fontFamily: theme.fontSans,
+          fontSize: ui.body,
+          lineHeight: ui.lineHeight,
         }),
         ...style,
       }}
@@ -163,37 +170,43 @@ const InsightTabs = memo(function InsightTabs({
         data-fp="insight-tabs"
         style={sx({
           display: "flex",
-          borderBottom: `1px solid ${theme.border}`,
+          borderBottom: `${ui.borderWidth} solid ${theme.border}`,
           flexShrink: 0,
           overflowX: "auto",
         })}
       >
         {insights.map((insight) => (
-          <button
+          <FootprintTab
+            type="button"
             key={insight.id}
+            part="run-data-tab" densitySize={size} unstyled={unstyled} data-tab-id={insight.id}
             onClick={() => setActiveId(insight.id)}
             data-fp="insight-tab"
-            data-active={activeId === insight.id || undefined}
-            style={sx({
-              padding: "8px 12px",
+            aria-pressed={resolvedId === insight.id}
+            data-active={resolvedId === insight.id || undefined}
+            defaultStyle={sx({
+              padding: ui.controlPadding,
+              minHeight: ui.controlHeight,
               border: "none",
               borderBottom:
-                activeId === insight.id
-                  ? "2px solid var(--fp-accent, #6366f1)"
-                  : "2px solid transparent",
+                resolvedId === insight.id
+                  ? `${ui.focusWidth} solid ${theme.accent}`
+                  : `${ui.focusWidth} solid transparent`,
               background: "transparent",
               color:
-                activeId === insight.id
-                  ? "var(--fp-accent, #6366f1)"
+                resolvedId === insight.id
+                  ? theme.accent
                   : theme.textMuted,
-              fontWeight: activeId === insight.id ? 600 : 400,
-              fontSize: fs.body,
+              fontWeight: resolvedId === insight.id ? ui.weightStrong : ui.weightNormal,
+              fontSize: ui.body,
+              fontFamily: theme.fontSans,
+              lineHeight: ui.lineHeight,
               cursor: "pointer",
               whiteSpace: "nowrap",
             })}
           >
             {insight.name}
-          </button>
+          </FootprintTab>
         ))}
       </div>
 
@@ -217,7 +230,7 @@ const InsightGrid = memo(function InsightGrid({
   insights: InsightConfig[];
 }) {
   const cols = insights.length <= 2 ? 1 : 2;
-  const fs = fontSize[size];
+  const ui = componentStyles(size);
   const sx = styler(unstyled);
 
   return (
@@ -231,8 +244,11 @@ const InsightGrid = memo(function InsightGrid({
           gridTemplateColumns: `repeat(${cols}, 1fr)`,
           height: "100%",
           overflow: "auto",
-          gap: 1,
+          gap: ui.borderWidth,
           background: theme.border,
+          fontFamily: theme.fontSans,
+          fontSize: ui.body,
+          lineHeight: ui.lineHeight,
         }),
         ...style,
       }}
@@ -242,7 +258,7 @@ const InsightGrid = memo(function InsightGrid({
           key={insight.id}
           data-fp="insight-cell"
           style={sx({
-            background: "var(--fp-bg, #1a1b26)",
+            background: theme.bg,
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
@@ -250,14 +266,14 @@ const InsightGrid = memo(function InsightGrid({
         >
           {/* Grid cell header */}
           <div
+            data-fp="insight-cell-header"
             style={sx({
-              padding: "6px 10px",
-              fontSize: fs.label,
-              fontWeight: 600,
+              padding: ui.controlPadding,
+              fontSize: ui.label,
+              lineHeight: ui.lineHeight,
+              fontWeight: ui.weightStrong,
               color: theme.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              borderBottom: `1px solid ${theme.border}`,
+              borderBottom: `${ui.borderWidth} solid ${theme.border}`,
               flexShrink: 0,
             })}
           >
@@ -265,9 +281,9 @@ const InsightGrid = memo(function InsightGrid({
             {insight.summary && (
               <span
                 style={sx({
-                  marginLeft: 8,
-                  fontWeight: 400,
-                  fontSize: fs.small,
+                  marginLeft: ui.spaceSm,
+                  fontWeight: ui.weightNormal,
+                  fontSize: ui.small,
                   color: theme.textMuted,
                 })}
               >

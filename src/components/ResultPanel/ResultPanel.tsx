@@ -1,5 +1,5 @@
 import type { BaseComponentProps } from "../../types";
-import { theme, fontSize, padding } from "../../theme";
+import { theme, componentStyles, FootprintCode } from "../../theme";
 
 export interface ResultPanelProps extends BaseComponentProps {
   /** Final pipeline output / shared state */
@@ -19,17 +19,19 @@ export function ResultPanel({
   className,
   style,
 }: ResultPanelProps) {
-  const fs = fontSize[size];
-  const pad = padding[size];
+  const ui = componentStyles(size);
 
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="result-panel">
         <div data-fp="result-data">
-          <pre>{data ? JSON.stringify(data, null, 2) : "No data"}</pre>
+          <div data-fp="result-heading">{size === "compact" ? "Result" : "Business Result (Scope)"}</div>
+          <pre><FootprintCode defaultStyle={undefined}>{data ? JSON.stringify(data, null, 2) : "No data"}</FootprintCode></pre>
         </div>
         {!hideConsole && (
           <div data-fp="result-console">
+            <div>Console</div>
+            {logs.length === 0 && <div>No console output</div>}
             {logs.map((line, i) => (
               <div key={i} data-fp="console-line" data-error={line.startsWith("ERROR")}>
                 {line}
@@ -53,42 +55,40 @@ export function ResultPanel({
       }}
       data-fp="result-panel"
     >
-      {data && (
-        <div style={{ flex: 1, overflow: "auto", padding: pad }}>
-          <div
-            style={{
-              fontSize: fs.label,
-              fontWeight: 600,
-              color: theme.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-              marginBottom: 8,
-            }}
-          >
-            {size === "compact" ? "Result" : "Business Result (Scope)"}
-          </div>
-          <pre
-            style={{
-              fontSize: fs.body,
-              fontFamily: theme.fontMono,
-              color: theme.textPrimary,
-              background: theme.bgSecondary,
-              padding: pad,
-              borderRadius: theme.radius,
-              overflow: "auto",
-              margin: 0,
-            }}
-          >
-            {JSON.stringify(data, null, 2)}
-          </pre>
+      <div style={{ flex: 1, overflow: "auto", padding: ui.padding }}>
+        <div
+          style={{
+            fontSize: ui.label,
+            fontWeight: ui.weightStrong,
+            color: theme.textMuted,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: ui.spaceSm,
+          }}
+        >
+          {size === "compact" ? "Result" : "Business Result (Scope)"}
         </div>
-      )}
+        <pre
+          style={{
+            fontSize: ui.body,
+            fontFamily: theme.fontMono,
+            color: theme.textPrimary,
+            background: theme.bgSecondary,
+            padding: ui.padding,
+            borderRadius: ui.radiusPanel,
+            overflow: "auto",
+            margin: 0,
+          }}
+        >
+          <FootprintCode defaultStyle={undefined}>{data ? JSON.stringify(data, null, 2) : "No data"}</FootprintCode>
+        </pre>
+      </div>
 
       {!hideConsole && (
         <div
           style={{
-            borderTop: `1px solid ${theme.border}`,
-            padding: pad,
+            borderTop: `${ui.borderWidth} solid ${theme.border}`,
+            padding: ui.padding,
             overflow: "auto",
             maxHeight: "40%",
             flexShrink: 0,
@@ -96,18 +96,18 @@ export function ResultPanel({
         >
           <div
             style={{
-              fontSize: fs.label,
-              fontWeight: 600,
+              fontSize: ui.label,
+              fontWeight: ui.weightStrong,
               color: theme.textMuted,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              marginBottom: 8,
+              marginBottom: ui.spaceSm,
             }}
           >
             Console
           </div>
           {logs.length === 0 && (
-            <div style={{ fontSize: fs.body, color: theme.textMuted, fontStyle: "italic" }}>
+            <div style={{ fontSize: ui.body, color: theme.textMuted, fontStyle: "italic" }}>
               No console output
             </div>
           )}
@@ -115,11 +115,11 @@ export function ResultPanel({
             <div
               key={i}
               style={{
-                fontSize: fs.body,
+                fontSize: ui.body,
                 fontFamily: theme.fontMono,
                 color: line.startsWith("ERROR") ? theme.error : theme.textPrimary,
-                padding: "2px 0",
-                borderBottom: `1px solid ${theme.bgSecondary}`,
+                padding: `calc(${ui.spaceXs} / 2) 0`,
+                borderBottom: `${ui.borderWidth} solid ${theme.bgSecondary}`,
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
               }}

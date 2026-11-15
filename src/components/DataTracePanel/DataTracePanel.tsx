@@ -14,7 +14,7 @@
  */
 import { memo, useMemo } from "react";
 import type { CSSProperties } from "react";
-import { fontSize, padding, theme } from "../../theme";
+import { componentStyles, padding, theme } from "../../theme";
 import type { BaseComponentProps, StageSnapshot } from "../../types";
 
 // ── Types for causal chain data ────────────────────────────────────
@@ -58,15 +58,15 @@ export const DataTracePanel = memo(function DataTracePanel({
   className,
   style,
 }: DataTracePanelProps) {
-  const fs = fontSize[size];
+  const ui = componentStyles(size);
   const pad = padding[size];
   // `body + 1` keeps the shipped default (13px) byte-identical while giving
   // `compact` / `detailed` the same one-step scale every other panel uses.
-  const base = fs.body + 1;
+  const base = `calc(${ui.body} + 1px)`;
   /** Styles vanish in unstyled mode; the tree stays exactly the same. */
   const sx = (s: CSSProperties): CSSProperties | undefined => (unstyled ? undefined : s);
   const noteLine = note ? (
-    <div style={sx({ color: theme.textMuted, fontSize: fs.label, fontStyle: "italic", marginBottom: 8 })}>
+    <div style={sx({ color: theme.textMuted, fontSize: ui.label, fontStyle: "italic", marginBottom: 8 })}>
       {note}
     </div>
   ) : null;
@@ -75,11 +75,11 @@ export const DataTracePanel = memo(function DataTracePanel({
       <div
         className={className}
         data-fp="data-trace-panel"
-        style={{ ...sx({ padding: `${pad + 2}px ${pad + 2}px ${pad}px`, fontSize: base, lineHeight: 1.55 }), ...style }}
+        style={{ ...sx({ padding: `${pad + 2}px ${pad + 2}px ${pad}px`, fontSize: base, lineHeight: ui.lineHeight }), ...style }}
       >
         <div
           style={sx({
-            fontSize: fs.label,
+            fontSize: ui.label,
             color: theme.textMuted,
             textTransform: "uppercase",
             letterSpacing: "0.5px",
@@ -93,7 +93,7 @@ export const DataTracePanel = memo(function DataTracePanel({
           Inspect recorded state reads and their earlier local writers.
         </div>
         {noteLine}
-        <div style={sx({ color: theme.textMuted, fontSize: fs.body })}>
+        <div style={sx({ color: theme.textMuted, fontSize: ui.body })}>
           Select a stage above to inspect its recorded state reads.
         </div>
       </div>
@@ -106,12 +106,12 @@ export const DataTracePanel = memo(function DataTracePanel({
       data-fp="data-trace-panel"
       style={{ ...sx({ padding: "8px 0", fontSize: base }), ...style }}
     >
-      {note && <div style={sx({ padding: "4px 12px 0", fontSize: fs.label, color: theme.textMuted, fontStyle: "italic" })}>{note}</div>}
+      {note && <div style={sx({ padding: "4px 12px 0", fontSize: ui.label, color: theme.textMuted, fontStyle: "italic" })}>{note}</div>}
       {fromStageName && (
         <div style={sx({ padding: "4px 12px 8px" })}>
           <div
             style={sx({
-              fontSize: fs.label,
+              fontSize: ui.label,
               color: theme.textMuted,
               textTransform: "uppercase",
               letterSpacing: "0.5px",
@@ -122,7 +122,7 @@ export const DataTracePanel = memo(function DataTracePanel({
           </div>
           <div
             style={sx({
-              fontSize: fs.label,
+              fontSize: ui.label,
               color: theme.textMuted,
               fontStyle: "italic",
               marginTop: 3,
@@ -165,7 +165,7 @@ const DataTraceFrame = memo(function DataTraceFrame({
   unstyled?: boolean;
   size?: NonNullable<BaseComponentProps["size"]>;
 }) {
-  const fs = fontSize[size];
+  const ui = componentStyles(size);
   const sx = (s: CSSProperties): CSSProperties | undefined => (unstyled ? undefined : s);
   return (
     <button
@@ -186,14 +186,14 @@ const DataTraceFrame = memo(function DataTraceFrame({
           ? "3px solid var(--fp-accent, #6366f1)"
           : "3px solid transparent",
         color: "inherit",
-        fontSize: fs.body + 1,
+        fontSize: `calc(${ui.body} + 1px)`,
       })}
     >
       {/* Stage name + depth indicator */}
       <div style={sx({ display: "flex", alignItems: "center", gap: 6 })}>
         {/* Connector line */}
         {!isFirst && (
-          <span style={sx({ color: theme.textMuted, fontSize: fs.label })}>
+          <span style={sx({ color: theme.textMuted, fontSize: ui.label })}>
             ↑
           </span>
         )}
@@ -210,7 +210,7 @@ const DataTraceFrame = memo(function DataTraceFrame({
         {isLast && !isFirst && (
           <span
             style={sx({
-              fontSize: fs.small,
+              fontSize: ui.small,
               color: theme.textMuted,
               fontStyle: "italic",
             })}
@@ -224,7 +224,7 @@ const DataTraceFrame = memo(function DataTraceFrame({
       {frame.keysWritten.length > 0 && (
         <div
           style={sx({
-            fontSize: fs.label,
+            fontSize: ui.label,
             color: theme.textMuted,
             paddingLeft: isFirst ? 0 : 18,
             marginTop: 2,
@@ -241,7 +241,7 @@ const DataTraceFrame = memo(function DataTraceFrame({
       {frame.linkedBy && (
         <div
           style={sx({
-            fontSize: fs.label,
+            fontSize: ui.label,
             color: "var(--fp-accent, #6366f1)",
             paddingLeft: 18,
             marginTop: 1,

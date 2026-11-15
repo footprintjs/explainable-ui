@@ -1,6 +1,6 @@
 import { memo, useMemo, type ReactNode } from "react";
 import type { StageSnapshot } from "../../../types";
-import { theme } from "../../../theme";
+import { theme, componentStyles, FootprintTab } from "../../../theme";
 import { InspectorPanel } from "../../InspectorPanel/InspectorPanel";
 import { InsightPanel } from "../../InsightPanel/InsightPanel";
 import { insightName } from "../../../model/recorderView";
@@ -21,7 +21,7 @@ import type { StageActivityView, StageActivityTraceTarget } from "../../../trace
 export type RightPanelMode = "insights" | "what" | "result";
 
 const RIGHT_PANEL_MODE_LABELS: Record<RightPanelMode, string> = {
-  insights: "Insights",
+  insights: "Run data",
   what: "Inspector",
   result: "Result",
 };
@@ -76,6 +76,7 @@ export const RightPanel = memo(function RightPanel({
   selectedActivityVariableId?: string;
   onActivityVariableSelect?: (variableId: string) => void;
 }) {
+  const ui = componentStyles(size);
   // The Result segment appears only when a Result tab exists, so
   // `hideTabs={["result"]}` still removes it everywhere.
   const modes = useMemo<readonly RightPanelMode[]>(
@@ -89,34 +90,35 @@ export const RightPanel = memo(function RightPanel({
   return (
     <>
       {/* Mode toggle */}
-      <div style={{
+      <div data-fp="lens-modes" style={{
         display: "flex",
-        borderBottom: `1px solid ${theme.border}`,
+        borderBottom: `${ui.borderWidth} solid ${theme.border}`,
         flexShrink: 0,
         background: theme.bgSecondary,
       }}>
         {modes.map((m) => (
-          <button
+          <FootprintTab
             type="button"
             key={m}
+            part="lens-mode" densitySize={size} data-fp="lens-mode" data-mode-id={m} aria-pressed={mode === m}
             onClick={() => onModeChange(m)}
-            style={{
-              flex: 1,
-              padding: "7px 12px",
-              fontSize: 11,
-              fontWeight: mode === m ? 700 : 500,
-              textTransform: "uppercase",
-              letterSpacing: "0.06em",
+            style={{ flex: 1, minWidth: 0 }}
+            defaultStyle={{
+              padding: ui.controlPadding,
+              minHeight: ui.controlHeight,
+              fontSize: ui.label,
+              lineHeight: ui.lineHeight,
+              fontWeight: mode === m ? ui.weightStrong : ui.weightMedium,
               color: mode === m ? theme.primary : theme.textMuted,
               background: "transparent",
               border: "none",
-              borderBottom: mode === m ? `2px solid ${theme.primary}` : "2px solid transparent",
+              borderBottom: `${ui.focusWidth} solid ${mode === m ? theme.primary : "transparent"}`,
               cursor: "pointer",
-              fontFamily: "inherit",
+              fontFamily: theme.fontSans,
             }}
           >
             {RIGHT_PANEL_MODE_LABELS[m]}
-          </button>
+          </FootprintTab>
         ))}
       </div>
 
@@ -126,6 +128,7 @@ export const RightPanel = memo(function RightPanel({
           <div style={{ height: "100%", overflow: "auto" }}>{renderTabBody("result", false)}</div>
         ) : mode === "insights" ? (
           <InsightPanel
+            size={size}
             mode="tabs"
             expandedId={activeTab}
             // Two tabs are held back, each with its own home: Memory (the

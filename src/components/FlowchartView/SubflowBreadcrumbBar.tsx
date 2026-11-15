@@ -12,24 +12,27 @@
  */
 
 import type { BreadcrumbEntry } from "./_internal/subflowDrill";
-import { theme } from "../../theme";
+import { theme, componentStyles, FootprintButton } from "../../theme";
 
 export interface SubflowBreadcrumbBarProps {
   entries: BreadcrumbEntry[];
   onNavigate: (subflowId: string | null) => void;
+  unstyled?: boolean;
 }
 
-export function SubflowBreadcrumbBar({ entries, onNavigate }: SubflowBreadcrumbBarProps) {
+export function SubflowBreadcrumbBar({ entries, onNavigate, unstyled = false }: SubflowBreadcrumbBarProps) {
+  const ui = componentStyles();
   return (
     <div
-      style={{
+      data-fp="subflow-breadcrumb"
+      style={unstyled ? undefined : {
         display: "flex",
         alignItems: "center",
-        gap: 6,
-        padding: "6px 12px",
-        fontSize: 11,
+        gap: ui.controlGap,
+        padding: `calc(${ui.spaceSm} - 2px) ${ui.spaceMd}`,
+        fontSize: ui.label,
         background: theme.bgSecondary,
-        borderBottom: `1px solid ${theme.border}`,
+        borderBottom: `${ui.borderWidth} solid ${theme.border}`,
         flexShrink: 0,
       }}
       aria-label="Subflow breadcrumb"
@@ -39,18 +42,20 @@ export function SubflowBreadcrumbBar({ entries, onNavigate }: SubflowBreadcrumbB
         return (
           <span
             key={entry.subflowId ?? "__top__"}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            style={unstyled ? undefined : { display: "inline-flex", alignItems: "center", gap: ui.controlGap }}
           >
-            <button
+            <FootprintButton
+              part="subflow-breadcrumb-button"
+              unstyled={unstyled}
               type="button"
               onClick={() => onNavigate(entry.subflowId)}
               disabled={isLast}
-              style={{
+              defaultStyle={{
                 background: "transparent",
                 border: "none",
                 padding: 0,
-                fontSize: 11,
-                fontWeight: isLast ? 600 : 500,
+                fontSize: ui.label,
+                fontWeight: isLast ? `calc(${ui.weightStrong} - 100)` : ui.weightMedium,
                 color: isLast ? theme.textPrimary : theme.primary,
                 cursor: isLast ? "default" : "pointer",
                 textDecoration: isLast ? "none" : "underline",
@@ -58,8 +63,8 @@ export function SubflowBreadcrumbBar({ entries, onNavigate }: SubflowBreadcrumbB
               }}
             >
               {entry.label}
-            </button>
-            {!isLast && <span style={{ color: theme.textMuted }}>›</span>}
+            </FootprintButton>
+            {!isLast && <span style={unstyled ? undefined : { color: theme.textMuted }}>›</span>}
           </span>
         );
       })}

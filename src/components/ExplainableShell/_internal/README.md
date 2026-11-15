@@ -10,6 +10,83 @@ owners now live in `src/trace`; old shell-internal paths only re-export them.
 `TraceWalkScope` is explicit serializable data on the walk, shared by cards
 and non-UI callers. No hidden WeakMap or in-place walk mutation is involved.
 
+## Default template and presentation ownership
+
+With no valid explicit `defaultTab`, the initial lens is Inspector → Activity.
+Valid existing IDs keep their destinations: `result` opens Result, `memory`
+opens Inspector → State, and `narrative` or a recorder ID opens Run data. The
+unstyled default is the Explainable composite with Activity. Visible labels
+Run log, Metrics and State do not rename the public tab IDs. Initialization
+does not change the selected invocation or turn a tab click into a scope reset.
+
+`LensWorkbenchContextValue` is the complete shell layout contract. The shell
+still owns recording preparation, exact-scope navigation, playback, cursor and
+trace controllers. `renderLayout(workbench)` receives those owners' ready-made
+surfaces and actions; `useLensWorkbench` reads the same context below that
+layout. The surfaces are `timeTravel`, `navigation`, `breadcrumb`, `chart`,
+`topology`, `inspector`, `runData`, `result`, `timeline` and `compactTimeline`.
+Current state includes `snapshots`, `selectedIndex`, `selectedSnapshot`,
+`invocationPath`, `activity`, `selectedActivityVariableId`, `traceWalk`,
+`questionTrail` and `activityOrigin`. The exposed `narrativeEntries` is the
+current scope's full supplied recording; custom logs own cursor filtering.
+Actions are `selectIndex`, `selectStage`, `drillDown`, `returnToRoot`,
+`backtrack`, `exitBacktrack`, `followIngredient`, `followHandoff`,
+`returnToQuestion`, `showAllIngredients` and `selectActivityVariable`.
+Trace target admission and Activity return validation remain with the shell.
+The basic `ExplainableProvider`/`ExplainableView` API is separate and does not
+promise this full shell feature set.
+
+`theme: LensTheme` supplies `mode`, `tokens` and native-compatible `components`.
+Explicit tokens override the chosen mode. `FootprintTheme` merges each nested
+token group and adapter registry, ignoring undefined overrides, and emits only
+local CSS declarations so host variables continue to inherit. Token groups
+cover typography, spacing, radii, borders, elevation, motion and controls, plus
+foreground colors paired with semantic fills. Legacy `radius` seeds component
+radii unless a specific radius is supplied.
+The shell uses `FootprintTheme asChild` to retain the host's actual root box
+and direct-child layout relationship. Standalone hosts can use the same option
+with one non-Fragment child that forwards className/style. Theme variables are
+merged beneath child-authored style without replacing its ref or events.
+
+`componentStyles(size)` is the shared CSS recipe; numeric sizing helpers stay
+available for geometry calculations. Primitives delegate Button, Tab, Input,
+Checkbox, Badge, Code, Tooltip and Icon to host adapters that preserve refs,
+native events/state and accessibility attributes. Internal `defaultStyle`
+never reaches a host adapter. Explicit `style` wins for native fallbacks;
+unstyled or explicitly undefined `defaultStyle` suppresses fallback paint.
+The migration covers core Lens presentation rather than every exported
+component. Custom layouts, unstyled semantics and custom chart renderers let a
+host own presentation while retaining the same behavior owners.
+
+`TracedFlow` separately exposes renderer registries, default measured
+`layoutOptions`, background/breadcrumb overrides and camera ownership. A
+supplied `layout` owns its own options. Controlled `viewport` or `autoFit=false`
+turns off the automatic fitter. Unstyled graph rendering retains geometry,
+ports, interaction and authored host styles while omitting built-in paint.
+Authored edge types, styles and markers take precedence over system defaults.
+
+## Run log and recorder scope
+
+The shell requests `NarrativePanel`'s `presentation="visits"`; standalone
+NarrativePanel and StoryNarrative default to `entries`. Visit groups preserve
+full recorded text and initially collapse operation details. Exact runtime IDs
+establish a selected-invocation prefix through the cursor. Missing, unmatched
+or ambiguous IDs produce an explicit unsynchronized view of all supplied
+entries in the scope, without selected-visit attribution. Fallback snapshot
+lines are revealed by the snapshot that supplied them, never estimated from
+text length. Reading does not scroll automatically: `defaultFollowCursor` is
+false. Copying with a runtime snapshot is labelled **Copy full run debug
+bundle**, including other scopes and future entries from the supplied run.
+
+`projectKeyedRecorder` admits only uniquely matched runtime rows for a scoped
+metrics table. Selected visit, through-cursor totals and current-flow totals
+stay separate. A source-wide `grandTotal` is retained as source metadata and
+never borrowed as the drilled invocation's total. Strings, missing/non-finite
+values and invalid negative counts/durations stay unavailable. Stage-name
+legacy tables are unscoped and receive no selected-step/current-flow totals.
+The built-in Metrics view uses recorded count/duration columns; custom
+recorders retain generic presentation.
+
 ## Variables and execution
 
 ### Exact-visit Activity

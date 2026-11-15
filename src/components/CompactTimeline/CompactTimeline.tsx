@@ -1,3 +1,4 @@
+import { FootprintButton, componentStyles } from "../../theme";
 /**
  * CompactTimeline — Collapsed = dot line, expanded = Gantt chart.
  *
@@ -12,12 +13,12 @@
  * run and the shared cursor out of `<ExplainableProvider>`. Inside a
  * provider use the Panel; outside one, only this component can work.
  */
-import { memo, useState } from "react";
+import { memo, useState, type CSSProperties } from "react";
 import { theme } from "../../theme";
-import type { StageSnapshot } from "../../types";
+import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { GanttTimeline } from "../GanttTimeline";
 
-export interface CompactTimelineProps {
+export interface CompactTimelineProps extends BaseComponentProps {
   snapshots: StageSnapshot[];
   selectedIndex: number;
   /** Start expanded or collapsed. Default: collapsed. */
@@ -43,55 +44,61 @@ export const CompactTimeline = memo(function CompactTimeline({
   selectedIndex,
   defaultExpanded = false,
   label = "Timeline",
+  size = "default", unstyled = false, className, style,
 }: CompactTimelineProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const ui = componentStyles(size);
+  const sx = (value: CSSProperties): CSSProperties | undefined => unstyled ? undefined : value;
 
   if (snapshots.length === 0) return null;
 
   return (
-    <div style={{ borderTop: `1px solid ${theme.border}` }}>
+    <div className={className} data-fp="compact-timeline" data-expanded={expanded} style={{ ...sx({ borderTop: `${ui.borderWidth} solid ${theme.border}` }), ...style }}>
       {/* Toggle header */}
-      <button
+      <FootprintButton
         onClick={() => setExpanded((e) => !e)}
-        style={{
+        aria-expanded={expanded}
+        data-fp="compact-timeline-toggle"
+        defaultStyle={sx({
           width: "100%",
           display: "flex",
           alignItems: "center",
-          gap: 8,
-          padding: "6px 12px",
+          gap: ui.spaceSm,
+          padding: `${ui.controlGap} ${ui.padding}`,
           border: "none",
           background: "transparent",
           cursor: "pointer",
-          fontSize: 11,
+          fontSize: ui.label,
           color: theme.textMuted,
-          fontWeight: 600,
+          fontWeight: ui.weightStrong,
           textTransform: "uppercase",
           letterSpacing: "0.5px",
-        }}
+        })}
       >
-        <span style={{ fontSize: 10 }}>{expanded ? "▼" : "▸"}</span>
+        <span style={sx({ fontSize: ui.small })}>{expanded ? "▼" : "▸"}</span>
         {label}
-        <span style={{ fontWeight: 400, fontSize: 10 }}>
+        <span style={sx({ fontWeight: ui.weightNormal, fontSize: ui.small })}>
           {snapshots.length} stages
         </span>
 
         {/* Compact dot line (visible when collapsed) */}
         {!expanded && (
           <div
-            style={{
+            style={sx({
               flex: 1,
               display: "flex",
               alignItems: "center",
-              gap: 2,
-              marginLeft: 8,
-            }}
+              gap: `calc(${ui.spaceXs} / 2)`,
+              marginLeft: ui.spaceSm,
+            })}
           >
             {snapshots.map((snap, i) => (
               <div
                 key={i}
-                style={{
-                  width: i === selectedIndex ? 8 : 5,
-                  height: i === selectedIndex ? 8 : 5,
+                data-fp="compact-timeline-dot" data-selected={i === selectedIndex} data-visible={i <= selectedIndex}
+                style={sx({
+                  width: `calc(${ui.iconSize} * ${i === selectedIndex ? "4 / 7" : "5 / 14"})`,
+                  height: `calc(${ui.iconSize} * ${i === selectedIndex ? "4 / 7" : "5 / 14"})`,
                   borderRadius: "50%",
                   background:
                     i < selectedIndex
@@ -99,32 +106,34 @@ export const CompactTimeline = memo(function CompactTimeline({
                       : i === selectedIndex
                         ? "var(--fp-accent, #6366f1)"
                         : tint(theme.textMuted, 25),
-                  transition: "all 0.15s",
+                  transition: `all ${ui.fastDuration} ${ui.easing}`,
                   flexShrink: 0,
-                }}
+                })}
                 title={snap.stageName}
               />
             ))}
             {/* Connecting line */}
             <div
-              style={{
+              style={sx({
                 flex: 1,
-                height: 1,
+                height: ui.borderWidth,
                 background: tint(theme.textMuted, 20),
-                marginLeft: -2,
-                marginRight: 4,
-              }}
+                marginLeft: `calc(-1 * ${ui.spaceXs} / 2)`,
+                marginRight: ui.spaceXs,
+              })}
             />
           </div>
         )}
-      </button>
+      </FootprintButton>
 
       {/* Expanded: full Gantt */}
       {expanded && (
-        <div style={{ padding: "0 12px 8px" }}>
+        <div style={sx({ padding: `0 ${ui.padding} ${ui.spaceSm}` })}>
           <GanttTimeline
             snapshots={snapshots}
             selectedIndex={selectedIndex}
+            size={size}
+            unstyled={unstyled}
           />
         </div>
       )}

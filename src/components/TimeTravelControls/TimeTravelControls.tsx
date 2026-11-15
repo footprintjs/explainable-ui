@@ -1,6 +1,7 @@
+import { componentStyles, FootprintBadge, FootprintButton, FootprintIcon } from "../../theme";
 import { useRef } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
-import { theme, fontSize } from "../../theme";
+import { theme } from "../../theme";
 import { useTimeTravelPlayback } from "./useTimeTravelPlayback";
 
 /**
@@ -105,11 +106,11 @@ export function TimeTravelRail({
     autoPlay, autoPlayKey, offered,
   });
 
-  const fs = fontSize[size];
+  const ui = componentStyles(size);
   // F3: tracing chrome uses its OWN token — teal by default, distinct from
   // the violet accent, green done-ticks, and the orange NOW ring — so a
   // glance tells tracing from normal time-travel. Never read in normal mode.
-  const tracingColor = "var(--fp-tracing, #0d9488)";
+  const tracingColor = theme.tracing;
 
   if (unstyled) {
     return (
@@ -125,45 +126,48 @@ export function TimeTravelRail({
       >
         {isTracing && (
           <span data-fp="tt-tracing-header">
-            Tracing {tracing!.tracedKey}
+            <FootprintBadge unstyled={unstyled} densitySize={size} part="time-travel-tracing-badge" defaultStyle={undefined}>Tracing</FootprintBadge>{" "}{tracing!.tracedKey}
             {tracing!.viaKey && (
               <>
                 {" "}▸ via {tracing!.viaKey}{" "}
-                <button type="button" data-fp="tt-show-all" onClick={tracing!.onShowAll}>show all</button>
+                <FootprintButton unstyled={unstyled} densitySize={size} part="time-travel-show-all" type="button" data-fp="tt-show-all" onClick={tracing!.onShowAll} defaultStyle={undefined}>show all</FootprintButton>
               </>
             )}
             {" · "}stop {tracing!.stopOrdinal} of {tracing!.totalStops}
-            <button type="button" data-fp="tt-exit-tracing" onClick={tracing!.onExit} aria-label={tracing!.exitAriaLabel ?? "Exit tracing"}>{tracing!.exitLabel ?? "Done"}</button>
+            <FootprintButton unstyled={unstyled} densitySize={size} part="time-travel-exit" type="button" data-fp="tt-exit-tracing" onClick={tracing!.onExit} aria-label={tracing!.exitAriaLabel ?? "Exit tracing"} defaultStyle={undefined}>{tracing!.exitLabel ?? "Done"}</FootprintButton>
           </span>
         )}
-        <button
+        <FootprintButton
+          unstyled={unstyled} densitySize={size} part="time-travel-previous"
           type="button"
           data-fp="tt-prev"
           disabled={!canPrev || playing}
           onClick={goPrev}
-          aria-label={isTracing ? (forkPrompt ? "Choose cause" : "Earlier recorded step") : "Previous stage"}
+          aria-label={isTracing ? (forkPrompt ? "Choose cause" : "Earlier recorded step") : "Previous stage"} defaultStyle={undefined}
         >
           {isTracing ? (forkPrompt ? "Choose cause…" : "Earlier recorded step") : "Prev"}
-        </button>
+        </FootprintButton>
         {autoPlayable && !isTracing && (
-          <button type="button" data-fp="tt-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"}>
+          <FootprintButton unstyled={unstyled} densitySize={size} part="time-travel-play" type="button" data-fp="tt-play" onClick={togglePlay} aria-label={playing ? "Pause" : "Play"} defaultStyle={undefined}>
             {playing ? "Pause" : "Play"}
-          </button>
+          </FootprintButton>
         )}
-        <button
+        <FootprintButton
+          unstyled={unstyled} densitySize={size} part="time-travel-next"
           type="button"
           data-fp="tt-next"
           disabled={!canNext || playing}
           onClick={goNext}
-          aria-label={isTracing ? "Later recorded step" : "Next stage"}
+          aria-label={isTracing ? "Later recorded step" : "Next stage"} defaultStyle={undefined}
         >
           {isTracing ? "Later recorded step" : "Next"}
-        </button>
+        </FootprintButton>
         <div data-fp="tt-ticks">
           {snapshots.map((snap, i) => {
             const isStop = !stopSet || stopSet.has(i);
             return (
-              <button
+              <FootprintButton
+                unstyled={unstyled} densitySize={size} part="time-travel-tick"
                 type="button"
                 key={i}
                 data-fp="tt-tick"
@@ -172,7 +176,7 @@ export function TimeTravelRail({
                 data-stop={isTracing ? isStop : undefined}
                 disabled={isTracing && !isStop}
                 onClick={() => selectIndex(i)}
-                title={snap.stageLabel}
+                title={snap.stageLabel} defaultStyle={undefined}
               />
             );
           })}
@@ -185,28 +189,38 @@ export function TimeTravelRail({
   // border + label — part of F3's "unmistakably different" rail chrome.
   const btnStyle = (disabled: boolean): React.CSSProperties => ({
     background: theme.bgTertiary,
-    border: `1px solid ${isTracing ? tracingColor : theme.border}`,
+    border: `${ui.borderWidth} solid ${isTracing ? tracingColor : theme.border}`,
     color: disabled ? theme.textMuted : isTracing ? tracingColor : theme.textPrimary,
-    borderRadius: "6px",
-    padding: "4px 12px",
-    fontSize: fs.body,
-    fontWeight: 600,
+    borderRadius: ui.radiusControl,
+    padding: ui.controlPadding,
+    minHeight: ui.controlHeight,
+    fontFamily: theme.fontSans,
+    fontSize: ui.body,
+    lineHeight: ui.lineHeight,
+    fontWeight: ui.weightMedium,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.5 : 1,
-    flexShrink: 0,
   });
+  // Required rail geometry reaches native-compatible host adapters through
+  // `style`; their own skin replaces only the fallback paint in defaultStyle.
+  const fixedControlLayout: React.CSSProperties = { flexShrink: 0 };
 
   return (
     <div
       className={className}
       style={{
-        padding: "6px 12px",
+        padding: `${ui.controlGap} ${ui.spaceMd}`,
         background: theme.bgSecondary,
-        borderBottom: isTracing ? `2px solid ${tracingColor}` : `1px solid ${theme.border}`,
+        color: theme.textPrimary,
+        fontFamily: theme.fontSans,
+        fontSize: ui.body,
+        lineHeight: ui.lineHeight,
+        fontWeight: ui.weightNormal,
+        borderBottom: `${isTracing ? ui.focusWidth : ui.borderWidth} solid ${isTracing ? tracingColor : theme.border}`,
         display: "flex",
         flexWrap: isTracing && tracing!.exitLabel !== undefined ? "wrap" : undefined,
         alignItems: "center",
-        gap: 6,
+        gap: ui.controlGap,
         flexShrink: 0,
         ...style,
       }}
@@ -225,52 +239,56 @@ export function TimeTravelRail({
             display: "flex",
             flexWrap: tracing!.exitLabel !== undefined ? "wrap" : undefined,
             alignItems: "center",
-            gap: 6,
+            gap: ui.controlGap,
             flexShrink: 0,
             maxWidth: tracing!.exitLabel !== undefined ? "100%" : undefined,
             overflowWrap: tracing!.exitLabel !== undefined ? "anywhere" : undefined,
-            fontSize: fs.body,
+            fontSize: ui.body,
           }}
         >
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 700,
+          <FootprintBadge
+            unstyled={unstyled} densitySize={size} part="time-travel-tracing-badge"
+            defaultStyle={{
+              fontSize: ui.small,
+              fontWeight: ui.weightStrong,
+              lineHeight: ui.lineHeight,
               letterSpacing: "0.06em",
               textTransform: "uppercase",
-              color: "#fff",
+              color: theme.onTracing,
               background: tracingColor,
-              borderRadius: 4,
-              padding: "2px 7px",
+              borderRadius: ui.radiusBadge,
+              padding: `${ui.spaceXs} ${ui.spaceSm}`,
             }}
           >
             Tracing
-          </span>
-          <span style={{ fontFamily: "monospace", fontWeight: 600, color: tracingColor }}>
+          </FootprintBadge>
+          <span style={{ fontFamily: theme.fontMono, fontWeight: ui.weightMedium, color: tracingColor }}>
             {tracing!.tracedKey}
           </span>
           {tracing!.viaKey && (
             <span style={{ color: theme.textMuted }}>
               ▸ via{" "}
-              <span style={{ fontFamily: "monospace", color: theme.textSecondary }}>
+              <span style={{ fontFamily: theme.fontMono, color: theme.textSecondary }}>
                 {tracing!.viaKey}
               </span>{" "}
-              <button
+              <FootprintButton
+                unstyled={unstyled} densitySize={size} part="time-travel-show-all"
                 type="button"
                 data-fp="tt-show-all"
                 onClick={tracing!.onShowAll}
-                style={{
+                defaultStyle={{
                   border: "none",
                   background: "transparent",
                   color: tracingColor,
                   cursor: "pointer",
-                  fontSize: fs.body,
+                  fontSize: ui.body,
+                  lineHeight: ui.lineHeight,
                   textDecoration: "underline",
                   padding: 0,
                 }}
               >
                 show all
-              </button>
+              </FootprintButton>
             </span>
           )}
           <span style={{ color: theme.textMuted }}>
@@ -279,9 +297,11 @@ export function TimeTravelRail({
         </span>
       )}
 
-      <button
+      <FootprintButton
+        unstyled={unstyled} densitySize={size} part="time-travel-previous"
         type="button"
-        style={btnStyle(!canPrev || playing)}
+        style={fixedControlLayout}
+        defaultStyle={btnStyle(!canPrev || playing)}
         disabled={!canPrev || playing}
         onClick={goPrev}
         aria-label={isTracing ? (forkPrompt ? "Choose cause" : "Earlier recorded step") : "Previous stage"}
@@ -294,45 +314,45 @@ export function TimeTravelRail({
         }
         data-fp="tt-prev"
       >
-        {isTracing ? (forkPrompt ? "⑂ choose cause…" : "◀ earlier recorded step") : "◀"}
-      </button>
+        <FootprintIcon unstyled={unstyled} densitySize={size} part="time-travel-previous-icon" name={forkPrompt ? "choose-cause" : "previous"} aria-hidden="true">{isTracing && forkPrompt ? "⑂" : "◀"}</FootprintIcon>{isTracing ? (forkPrompt ? " choose cause…" : " earlier recorded step") : ""}
+      </FootprintButton>
 
       {autoPlayable && !isTracing && (
-        <button
+        <FootprintButton
+          unstyled={unstyled} densitySize={size} part="time-travel-play"
           type="button"
           onClick={togglePlay}
-          style={{
+          style={{ ...fixedControlLayout, width: ui.controlHeight, height: ui.controlHeight,
+            display: "flex", alignItems: "center", justifyContent: "center" }}
+          defaultStyle={{
             background: playing ? theme.primary : theme.bgTertiary,
-            border: `1px solid ${theme.border}`,
-            color: playing ? "white" : theme.textPrimary,
-            borderRadius: "6px",
-            width: 28,
-            height: 28,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
+            border: `${ui.borderWidth} solid ${theme.border}`,
+            color: playing ? theme.onPrimary : theme.textPrimary,
+            borderRadius: ui.radiusControl,
             cursor: "pointer",
-            fontSize: 14,
-            flexShrink: 0,
+            fontSize: ui.iconSize,
+            lineHeight: ui.lineHeight,
           }}
           title={playing ? "Pause" : "Play"}
           aria-label={playing ? "Pause" : "Play"}
         >
-          {playing ? "⏸" : "▶"}
-        </button>
+          <FootprintIcon unstyled={unstyled} densitySize={size} part="time-travel-play-icon" name={playing ? "pause" : "play"} aria-hidden="true">{playing ? "⏸" : "▶"}</FootprintIcon>
+        </FootprintButton>
       )}
 
-      <button
+      <FootprintButton
+        unstyled={unstyled} densitySize={size} part="time-travel-next"
         type="button"
-        style={btnStyle(!canNext || playing)}
+        style={fixedControlLayout}
+        defaultStyle={btnStyle(!canNext || playing)}
         disabled={!canNext || playing}
         onClick={goNext}
         aria-label={isTracing ? "Later recorded step" : "Next stage"}
         title={isTracing ? "Later recorded step" : "Next stage"}
         data-fp="tt-next"
       >
-        {isTracing ? "later recorded step ▶" : "▶"}
-      </button>
+        {isTracing ? "later recorded step " : ""}<FootprintIcon unstyled={unstyled} densitySize={size} part="time-travel-next-icon" name="next" aria-hidden="true">▶</FootprintIcon>
+      </FootprintButton>
 
       {/* Tick-mark timeline — in tracing mode non-stops fade to unlandable
           ticks (context, not destinations); stops stay bright and clickable. */}
@@ -341,8 +361,8 @@ export function TimeTravelRail({
           flex: 1,
           display: "flex",
           alignItems: "center",
-          gap: 2,
-          padding: "0 4px",
+          gap: `calc(${ui.spaceXs} / 2)`,
+          padding: `0 ${ui.spaceXs}`,
         }}
       >
         {snapshots.map((snap, i) => {
@@ -351,7 +371,8 @@ export function TimeTravelRail({
           const isStop = !stopSet || stopSet.has(i);
           const unlandable = isTracing && !isStop;
           return (
-            <button
+            <FootprintButton
+              unstyled={unstyled} densitySize={size} part="time-travel-tick"
               type="button"
               key={i}
               onClick={() => selectIndex(i)}
@@ -362,8 +383,10 @@ export function TimeTravelRail({
               data-active={isActive || undefined}
               style={{
                 flex: 1,
-                height: isActive ? 14 : unlandable ? 4 : 8,
-                borderRadius: 3,
+                height: isActive ? ui.iconSize : unlandable ? ui.spaceXs : ui.spaceSm,
+              }}
+              defaultStyle={{
+                borderRadius: `calc(${ui.radiusControl} / 2)`,
                 border: "none",
                 cursor: unlandable ? "default" : "pointer",
                 background: isTracing
@@ -378,7 +401,7 @@ export function TimeTravelRail({
                       ? theme.success
                       : theme.bgTertiary,
                 opacity: unlandable ? 0.3 : isTracing || isDone || isActive ? 1 : 0.4,
-                transition: "all 0.15s ease",
+                transition: `all ${ui.fastDuration} ${ui.easing}`,
               }}
             />
           );
@@ -386,17 +409,21 @@ export function TimeTravelRail({
       </div>
 
       {isTracing && (
-        <button
+        <FootprintButton
+          unstyled={unstyled} densitySize={size} part="time-travel-exit"
           type="button"
           data-fp="tt-exit-tracing"
           onClick={tracing!.onExit}
           aria-label={tracing!.exitAriaLabel ?? "Exit tracing"}
-          style={{ ...btnStyle(false), background: "transparent", ...(tracing!.exitLabel !== undefined ? {
-            flexShrink: 1, maxWidth: "100%", overflowWrap: "anywhere", textAlign: "left",
+          style={{ ...fixedControlLayout, ...(tracing!.exitLabel !== undefined ? {
+            flexShrink: 1, maxWidth: "100%", overflowWrap: "anywhere",
+          } : {}) }}
+          defaultStyle={{ ...btnStyle(false), background: "transparent", ...(tracing!.exitLabel !== undefined ? {
+            textAlign: "left",
           } : {}) }}
         >
           {tracing!.exitLabel ?? "Done ✕"}
-        </button>
+        </FootprintButton>
       )}
     </div>
   );

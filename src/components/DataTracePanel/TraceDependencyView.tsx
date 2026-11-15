@@ -1,6 +1,7 @@
+import { componentStyles, FootprintBadge, FootprintCode, FootprintButton } from "../../theme";
 import { useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import dagre from "dagre";
-import { useTraceMotion, TRACE_MOTION_MS } from "../../_internal/useTraceMotion";
+import { useTraceMotion } from "../../_internal/useTraceMotion";
 import { useIsomorphicLayoutEffect } from "../../_internal/useIsomorphicLayoutEffect";
 import { traceNodeColors } from "../../trace/traceWorkflowOverlay";
 import { theme } from "../../theme";
@@ -33,7 +34,7 @@ const NODE_HEIGHT = 104;
 /** A variable/read view of one admitted scope; execution order stays a separate view. */
 export function TraceDependencyView({
   walk, cursorRuntimeStageId, snapshots, onJumpToStop, onFollowIngredient,
-  onFollowHandoff, children, hasWorkflow = true, questionTrail, onReturnToQuestion, activityOrigin, unstyled = false, className, style,
+  onFollowHandoff, children, hasWorkflow = true, questionTrail, onReturnToQuestion, activityOrigin, size = "default", unstyled = false, className, style,
 }: TraceDependencyViewProps) {
   const [view, setView] = useState<"variables" | "execution">("execution");
   const motion = useTraceMotion() && !unstyled;
@@ -42,6 +43,7 @@ export function TraceDependencyView({
   const question = JSON.stringify([walk?.key, walk?.scope?.invocationPath]);
   useEffect(() => { if (!walk) setView("execution"); }, [walk]);
   const sx = (value: CSSProperties): CSSProperties | undefined => unstyled ? undefined : value;
+  const ui = componentStyles(size);
   const graph = useMemo(() => walk ? buildTraceDependencyGraph(walk) : null, [walk]);
   const colors = useMemo(() => graph ? traceNodeColors(graph) : new Map<string, string>(), [graph]);
   const memories = useMemo(() => {
@@ -106,37 +108,38 @@ export function TraceDependencyView({
   const cursorIndex = snapshots.findIndex(snapshot => snapshot.runtimeStageId === cursorRuntimeStageId);
 
   return <section data-fp="trace-dependency-view" data-tracing={investigating || undefined} data-motion={motion ? "on" : "off"} aria-label={investigating ? "Variable investigation" : undefined} className={className}
-    style={{ ...sx({ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", overflow: "hidden", color: theme.textPrimary, background: active ? theme.bgPrimary : "transparent" }), ...style }}>
-    <div hidden={!investigating} style={sx({ flexShrink: 0, display: investigating ? "flex" : "none", gap: 12, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", padding: "12px 16px", borderBottom: `1px solid ${theme.border}` })}>
+    style={{ ...sx({ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", overflow: "hidden", color: theme.textPrimary,
+      background: active ? theme.bgPrimary : "transparent", fontFamily: theme.fontSans, fontSize: ui.body, lineHeight: ui.lineHeight, fontWeight: ui.weightNormal }), ...style }}>
+    <div hidden={!investigating} style={sx({ flexShrink: 0, display: investigating ? "flex" : "none", gap: ui.spaceMd, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", padding: `${ui.padding} ${ui.spaceLg}`, borderBottom: `${ui.borderWidth} solid ${theme.border}` })}>
       <div style={sx({ minWidth: 0, flex: 1 })}>
-        {activityOrigin && <div data-fp="trace-activity-origin" style={sx({ marginBottom: 5, fontSize: 12, color: theme.textSecondary, overflowWrap: "anywhere" })}>
-          From <b>{activityOrigin.stageLabel}</b> · {activityOrigin.kind} <code>{recordedPathLabel(activityOrigin.key)}</code>
+        {activityOrigin && <div data-fp="trace-activity-origin" style={sx({ marginBottom: ui.spaceXs, fontSize: ui.body, color: theme.textSecondary, overflowWrap: "anywhere" })}>
+          From <b style={sx({ fontWeight: ui.weightStrong })}>{activityOrigin.stageLabel}</b> · {activityOrigin.kind} <FootprintCode unstyled={unstyled} densitySize={size} part="trace-origin-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(activityOrigin.key)}</FootprintCode>
         </div>}
-        <div aria-live="polite" style={sx({ fontWeight: 700, fontSize: 16 })}>Why <code>{recordedPathLabel(walk?.key ?? "")}</code>{anchorValue !== null ? ` = ${anchorValue}` : ""}?</div>
-        {cursorIndex >= 0 && <div data-fp="trace-view-position" style={sx({ marginTop: 5, fontSize: 12, color: theme.textSecondary })}>
+        <div aria-live="polite" style={sx({ fontWeight: ui.weightStrong, fontSize: ui.title })}>Why <FootprintCode unstyled={unstyled} densitySize={size} part="trace-question-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(walk?.key ?? "")}</FootprintCode>{anchorValue !== null ? ` = ${anchorValue}` : ""}?</div>
+        {cursorIndex >= 0 && <div data-fp="trace-view-position" style={sx({ marginTop: ui.spaceXs, fontSize: ui.body, color: theme.textSecondary })}>
           Viewing recorded step {cursorIndex + 1} of {snapshots.length}
         </div>}
-      {previous && <div data-fp="trace-context-bridge" style={sx({ display: "flex", alignItems: "center", gap: 6, marginTop: 5, fontSize: 12, color: theme.textSecondary })}>
+      {previous && <div data-fp="trace-context-bridge" style={sx({ display: "flex", alignItems: "center", gap: ui.controlGap, marginTop: ui.spaceXs, fontSize: ui.body, color: theme.textSecondary })}>
         <span>Following</span>
-        <button type="button" disabled={!onReturnToQuestion} onClick={() => onReturnToQuestion?.(questionTrail!.length - 2)}
-          style={sx({ border: "none", background: "transparent", color: theme.accent, padding: 0, cursor: "pointer", fontFamily: theme.fontMono })}>
+        <FootprintButton unstyled={unstyled} densitySize={size} part="trace-return-question" type="button" disabled={!onReturnToQuestion} onClick={() => onReturnToQuestion?.(questionTrail!.length - 2)}
+          defaultStyle={sx({ border: "none", background: "transparent", color: theme.accent, padding: 0, cursor: "pointer", fontFamily: theme.fontMono })}>
           {recordedPathLabel(previous.key)}
-        </button><span aria-hidden="true">→</span><code>{recordedPathLabel(walk?.key ?? "")}</code>
+        </FootprintButton><span aria-hidden="true">→</span><FootprintCode unstyled={unstyled} densitySize={size} part="trace-followed-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(walk?.key ?? "")}</FootprintCode>
       </div>}
       </div>
-      <div hidden={!active} role="group" aria-label="Investigation view" style={sx({ display: active ? "flex" : "none", flexShrink: 0, gap: 3, border: `1px solid ${theme.border}`, borderRadius: 8, padding: 3, background: theme.bgSecondary })}>
-        {(["execution", "variables"] as const).map(mode => <button key={mode} type="button" aria-pressed={mode === "execution" ? showExecution : showVariables} disabled={mode === "execution" && !hasWorkflow}
-          onClick={() => setView(mode)} style={sx({ padding: "6px 10px", borderRadius: 5, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600,
+      <div hidden={!active} role="group" aria-label="Investigation view" style={sx({ display: active ? "flex" : "none", flexShrink: 0, gap: ui.spaceXs, border: `${ui.borderWidth} solid ${theme.border}`, borderRadius: ui.radiusPanel, padding: ui.spaceXs, background: theme.bgSecondary })}>
+        {(["execution", "variables"] as const).map(mode => <FootprintButton unstyled={unstyled} densitySize={size} part={`trace-view-${mode}`} key={mode} type="button" aria-pressed={mode === "execution" ? showExecution : showVariables} disabled={mode === "execution" && !hasWorkflow}
+          onClick={() => setView(mode)} defaultStyle={sx({ padding: ui.controlPadding, minHeight: ui.controlHeight, borderRadius: ui.radiusControl, border: "none", cursor: "pointer", fontSize: ui.body, lineHeight: ui.lineHeight, fontWeight: ui.weightMedium,
             color: (mode === "execution" ? showExecution : showVariables) ? theme.textPrimary : theme.textSecondary, background: (mode === "execution" ? showExecution : showVariables) ? theme.bgPrimary : "transparent" })}>
           {mode === "variables" ? "Variables" : "Execution"}
-        </button>)}
+        </FootprintButton>)}
       </div>
     </div>
-    {active && showExecution && <div data-fp="trace-execution-legend" style={sx({ flexShrink: 0, padding: "7px 16px", borderBottom: `1px solid ${theme.border}`, fontSize: 11, lineHeight: 1.5, color: theme.textSecondary })}>
+    {active && showExecution && <div data-fp="trace-execution-legend" style={sx({ flexShrink: 0, padding: `${ui.spaceSm} ${ui.spaceLg}`, borderBottom: `${ui.borderWidth} solid ${theme.border}`, fontSize: ui.label, lineHeight: ui.lineHeight, color: theme.textSecondary })}>
       Highlight: recorded sources · Dashed: recorded read · Other steps: context
     </div>}
     {!unstyled && <style>{`
-      @keyframes fp-trace-source-enter { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes fp-trace-source-enter { from { opacity: 0; transform: translateY(${ui.spaceSm}); } to { opacity: 1; transform: translateY(0); } }
       @media (prefers-reduced-motion: reduce) {
         [data-fp="trace-dependency-view"] *, [data-fp="trace-dependency-view"] *::before, [data-fp="trace-dependency-view"] *::after {
           animation: none !important; transition: none !important; scroll-behavior: auto !important;
@@ -144,13 +147,13 @@ export function TraceDependencyView({
       }
     `}</style>}
     <div style={sx({ flex: 1, minHeight: 0, position: "relative", overflow: "hidden" })}>
-      <TraceViewLayer visible={showExecution} motion={motion} unstyled={unstyled} name="execution">{children}</TraceViewLayer>
-      <TraceViewLayer visible={showVariables} motion={motion} unstyled={unstyled} name="variables">
+      <TraceViewLayer visible={showExecution} motion={motion} unstyled={unstyled} size={size} name="execution">{children}</TraceViewLayer>
+      <TraceViewLayer visible={showVariables} motion={motion} unstyled={unstyled} size={size} name="variables">
       {active && walk && graph && layout && <>
-      <div style={sx({ flexShrink: 0, padding: "9px 16px", fontSize: 12, lineHeight: 1.5, color: theme.textSecondary, borderBottom: `1px solid ${theme.border}` })}>
+      <div style={sx({ flexShrink: 0, padding: `${ui.spaceSm} ${ui.spaceLg}`, fontSize: ui.body, lineHeight: ui.lineHeight, color: theme.textSecondary, borderBottom: `${ui.borderWidth} solid ${theme.border}` })}>
         <details>
           <summary style={sx({ cursor: "pointer" })}>Recorded stage reads · writer snapshots</summary>
-          <div style={sx({ marginTop: 5 })}>Arrows show <b>recorded stage reads</b>, not execution order or proof of exact derivation. Values are snapshots after the named writer.</div>
+          <div style={sx({ marginTop: ui.spaceXs })}>Arrows show <b style={sx({ fontWeight: ui.weightStrong })}>recorded stage reads</b>, not execution order or proof of exact derivation. Values are snapshots after the named writer.</div>
         </details>
         {!walk.readsAvailable && <div role="status">Read evidence is unavailable; only recorded writes can be shown.</div>}
         {(graph.truncated || walk.truncated) && <div role="status">This view is limited. Earlier recorded reads may be missing.</div>}
@@ -164,9 +167,9 @@ export function TraceDependencyView({
               if (!points.length) return null;
               const middle = points[Math.floor(points.length / 2)];
               return <g key={edge.id} data-fp="trace-read-edge" data-source={edge.source} data-target={edge.target}>
-                <path d={points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ")} fill="none" stroke={colors.get(edge.source) ?? theme.accent} strokeWidth="1.8" markerEnd={`url(#${markerId}-${graph.nodes.findIndex(node => node.id === edge.source)})`} />
-                <rect x={middle.x - 35} y={middle.y - 8} width="70" height="16" rx="4" fill={theme.bgSecondary} />
-                <text x={middle.x} y={middle.y + 4} textAnchor="middle" fill={theme.textSecondary} fontSize="10">stage read</text>
+                <path d={points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ")} fill="none" stroke={colors.get(edge.source) ?? theme.accent} style={{ strokeWidth: `calc(${ui.borderWidth} * 1.8)` }} markerEnd={`url(#${markerId}-${graph.nodes.findIndex(node => node.id === edge.source)})`} />
+                <rect x={middle.x - 35} y={middle.y - 8} width="70" height="16" style={{ rx: ui.radiusControl }} fill={theme.bgSecondary} />
+                <text x={middle.x} y={middle.y + 4} textAnchor="middle" fill={theme.textSecondary} style={{ fontSize: ui.small, fontFamily: theme.fontSans, fontWeight: ui.weightNormal }}>stage read</text>
               </g>;
             })}
           </svg>}
@@ -177,27 +180,28 @@ export function TraceDependencyView({
             const value = preview(node);
             const enabled = node.runtimeStageId !== null && (node.isAnchor ? !!onJumpToStop : !!onFollowIngredient);
             const nodeText = <>
-              <span style={sx({ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 10, fontWeight: 700, letterSpacing: ".5px", textTransform: "uppercase", color: nodeColor })}>
-                <span>{node.isAnchor ? "Investigating" : node.kind === "unresolved" ? "Source unknown" : "Recorded value"}</span>
-                {selected && <span>Selected</span>}
+              <span style={sx({ display: "flex", justifyContent: "space-between", gap: ui.spaceSm, fontSize: ui.small, fontWeight: ui.weightStrong, letterSpacing: ".5px", textTransform: "uppercase", color: nodeColor })}>
+                <FootprintBadge unstyled={unstyled} densitySize={size} part="trace-variable-kind" defaultStyle={undefined}>{node.isAnchor ? "Investigating" : node.kind === "unresolved" ? "Source unknown" : "Recorded value"}</FootprintBadge>
+                {selected && <FootprintBadge unstyled={unstyled} densitySize={size} part="trace-variable-selected" defaultStyle={undefined}>Selected</FootprintBadge>}
               </span>
-              <code style={sx({ display: "block", marginTop: 6, fontSize: 14, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" })}>{recordedPathLabel(node.key)}</code>
-              <span style={sx({ display: "block", marginTop: 3, fontFamily: theme.fontMono, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: theme.textPrimary })}>{value ?? "Value not recorded"}</span>
-              <span style={sx({ display: "block", marginTop: 6, fontSize: 11, color: theme.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" })}>{note(node)}</span>
+              <FootprintCode unstyled={unstyled} densitySize={size} part="trace-node-variable" defaultStyle={sx({ display: "block", marginTop: ui.spaceXs, fontFamily: theme.fontMono, fontSize: ui.title, fontWeight: ui.weightStrong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" })}>{recordedPathLabel(node.key)}</FootprintCode>
+              <span style={sx({ display: "block", marginTop: ui.spaceXs, fontFamily: theme.fontMono, fontSize: ui.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: theme.textPrimary })}>{value ?? "Value not recorded"}</span>
+              <span style={sx({ display: "block", marginTop: ui.spaceXs, fontSize: ui.label, color: theme.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" })}>{note(node)}</span>
             </>;
-            const box = sx({ position: "absolute", boxSizing: "border-box", left: position.x - NODE_WIDTH / 2, top: position.y - NODE_HEIGHT / 2,
-              width: NODE_WIDTH, height: NODE_HEIGHT, textAlign: "left", padding: "10px 12px", borderRadius: 10, lineHeight: 1.3,
-              border: `${selected ? 2 : 1}px ${node.kind === "unresolved" ? "dashed" : "solid"} ${node.kind === "unresolved" ? theme.border : nodeColor}`,
-              color: theme.textPrimary, background: theme.bgPrimary, boxShadow: selected ? `0 2px 12px color-mix(in srgb, ${theme.accent} 12%, transparent)` : "0 1px 3px rgba(0,0,0,.04)", cursor: enabled ? "pointer" : "default",
-              transition: motion ? `left ${TRACE_MOTION_MS}ms ease, top ${TRACE_MOTION_MS}ms ease, border-color ${TRACE_MOTION_MS}ms ease, box-shadow ${TRACE_MOTION_MS}ms ease` : undefined,
-              animation: motion ? `fp-trace-source-enter ${TRACE_MOTION_MS}ms ease both` : undefined,
-              animationDelay: motion ? `${Math.min(nodeIndex * 20, 80)}ms` : undefined,
+            const geometry = sx({ position: "absolute", boxSizing: "border-box", left: position.x - NODE_WIDTH / 2, top: position.y - NODE_HEIGHT / 2,
+              width: NODE_WIDTH, height: NODE_HEIGHT });
+            const box = sx({ textAlign: "left", padding: `${ui.spaceSm} ${ui.spaceMd}`, borderRadius: ui.radiusPanel, lineHeight: ui.lineHeight, fontFamily: theme.fontSans,
+              border: `${selected ? ui.focusWidth : ui.borderWidth} ${node.kind === "unresolved" ? "dashed" : "solid"} ${node.kind === "unresolved" ? theme.border : nodeColor}`,
+              color: theme.textPrimary, background: theme.bgPrimary, boxShadow: selected ? ui.shadowFocus : ui.shadowPanel, cursor: enabled ? "pointer" : "default",
+              transition: motion ? `left ${ui.duration} ${ui.easing}, top ${ui.duration} ${ui.easing}, border-color ${ui.duration} ${ui.easing}, box-shadow ${ui.duration} ${ui.easing}` : undefined,
+              animation: motion ? `fp-trace-source-enter ${ui.duration} ${ui.easing} both` : undefined,
+              animationDelay: motion ? `calc(${ui.fastDuration} * ${Math.min(nodeIndex, 4)} / 6)` : undefined,
             });
-            return <button key={node.id} data-fp="trace-variable-node" data-variable={node.key} data-kind={node.kind} data-current={selected || undefined} data-anchor={node.isAnchor || undefined}
+            return <FootprintButton unstyled={unstyled} densitySize={size} part="trace-variable-node" key={node.id} data-fp="trace-variable-node" data-variable={node.key} data-kind={node.kind} data-current={selected || undefined} data-anchor={node.isAnchor || undefined}
               type="button" disabled={!enabled} onClick={() => follow(node)} title={`${node.key}: ${value ?? "value not recorded"}. ${note(node)}`}
               aria-label={enabled ? `${node.isAnchor ? "Show" : "Follow"} ${recordedPathLabel(node.key)} at ${node.stageName}` : `${recordedPathLabel(node.key)}: ${note(node)}`}
               aria-describedby={`${markerId}-node-${nodeIndex}`}
-              style={box}>{nodeText}</button>;
+              style={geometry} defaultStyle={box}>{nodeText}</FootprintButton>;
           })}
         </div>
         <dl style={unstyled ? undefined : { position: "absolute", width: 1, height: 1, padding: 0, overflow: "hidden", clipPath: "inset(50%)", whiteSpace: "nowrap" }}>
@@ -213,29 +217,30 @@ export function TraceDependencyView({
       </>}
       </TraceViewLayer>
     </div>
-    {active && sources.length > 0 && <div data-fp="trace-workflow-handoff" style={sx({ flexShrink: 0, padding: "10px 16px", borderTop: `1px solid ${theme.border}`, fontSize: 12 })}>
-      <div style={sx({ color: theme.textSecondary, marginBottom: 6 })}>Recorded child sources for this output:</div>
-      {sources.map(source => <button key={`${source.mountRuntimeStageId}:${source.key}`} type="button"
-        disabled={!onFollowHandoff} onClick={() => onFollowHandoff?.(source)} style={sx({ border: `1px solid ${theme.border}`, borderRadius: 6, background: theme.bgPrimary, color: theme.textPrimary, padding: "6px 10px", marginRight: 6, cursor: "pointer" })}>
-        Open child source <code>{recordedPathLabel(source.key)}</code>
-      </button>)}
+    {active && sources.length > 0 && <div data-fp="trace-workflow-handoff" style={sx({ flexShrink: 0, padding: `${ui.spaceSm} ${ui.spaceLg}`, borderTop: `${ui.borderWidth} solid ${theme.border}`, fontSize: ui.body })}>
+      <div style={sx({ color: theme.textSecondary, marginBottom: ui.controlGap })}>Recorded child sources for this output:</div>
+      {sources.map(source => <FootprintButton unstyled={unstyled} densitySize={size} part="trace-child-source" key={`${source.mountRuntimeStageId}:${source.key}`} type="button"
+        disabled={!onFollowHandoff} onClick={() => onFollowHandoff?.(source)} defaultStyle={sx({ border: `${ui.borderWidth} solid ${theme.border}`, borderRadius: ui.radiusControl, background: theme.bgPrimary, color: theme.textPrimary, padding: ui.controlPadding, minHeight: ui.controlHeight, marginRight: ui.controlGap, cursor: "pointer", fontSize: ui.body, lineHeight: ui.lineHeight })}>
+        Open child source <FootprintCode unstyled={unstyled} densitySize={size} part="trace-child-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(source.key)}</FootprintCode>
+      </FootprintButton>)}
     </div>}
 
   </section>;
 }
 
 /** Keep both renderer instances alive; hidden content cannot receive keyboard focus. */
-function TraceViewLayer({ visible, motion, unstyled, name, children }: {
-  visible: boolean; motion: boolean; unstyled: boolean; name: string; children: ReactNode;
+function TraceViewLayer({ visible, motion, unstyled, size, name, children }: {
+  visible: boolean; motion: boolean; unstyled: boolean; size: NonNullable<BaseComponentProps["size"]>; name: string; children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const ui = componentStyles(size);
   useIsomorphicLayoutEffect(() => { if (ref.current) ref.current.inert = !visible; }, [visible]);
   return <div ref={ref} data-fp={`trace-${name}-layer`} aria-hidden={visible ? undefined : true}
     hidden={unstyled ? !visible : undefined}
     style={unstyled ? undefined : {
       position: "absolute", inset: 0, display: "flex", flexDirection: "column", minHeight: 0,
       opacity: visible ? 1 : 0, visibility: visible ? "visible" : "hidden", pointerEvents: visible ? "auto" : "none",
-      transition: motion ? `opacity ${TRACE_MOTION_MS}ms ease, visibility 0s linear ${visible ? 0 : TRACE_MOTION_MS}ms` : undefined,
+      transition: motion ? `opacity ${ui.duration} ${ui.easing}, visibility 0s linear ${visible ? "0ms" : ui.duration}` : undefined,
     }}>
     {children}
   </div>;
