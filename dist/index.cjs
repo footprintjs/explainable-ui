@@ -1756,6 +1756,14 @@ function RecordedRelationshipEdge(props) {
 }
 var recordedRelationshipEdgeTypes = { recordedRelationship: RecordedRelationshipEdge };
 
+// src/components/GroupedFlowDiagram/cameraInitialization.ts
+var NARROW_DIAGRAM_WIDTH = 600;
+function initialCameraDecision(state) {
+  if (!Number.isFinite(state.width) || state.width <= 0) return "wait";
+  if (state.alreadyInitialized || state.cameraOwned || state.width >= NARROW_DIAGRAM_WIDTH || !state.hasVisibleSelection) return "preserve";
+  return "selection";
+}
+
 // src/components/GroupedFlowDiagram/GroupedFlowDiagram.tsx
 var import_jsx_runtime6 = require("react/jsx-runtime");
 var buttonStyle = { font: "inherit", fontSize: 12, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "7px 12px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
@@ -1803,6 +1811,7 @@ function GroupedFlowDiagram(props) {
     props.onSelectNode?.(id);
   };
   const requestFocus = (ids) => {
+    initiallyFocused.current = true;
     setFocusIds(ids);
     setFocusRequest((value) => value + 1);
   };
@@ -1916,19 +1925,28 @@ function GroupedFlowDiagram(props) {
   (0, import_react14.useEffect)(() => {
     const element = wrapper.current;
     if (!element) return;
-    const measure = () => setNarrow(element.clientWidth > 0 && element.clientWidth < 600);
+    let active = true;
+    const measure = () => {
+      if (!active) return;
+      const width = element.clientWidth;
+      setNarrow(width > 0 && width < NARROW_DIAGRAM_WIDTH);
+      const decision = initialCameraDecision({
+        width,
+        alreadyInitialized: initiallyFocused.current,
+        cameraOwned: camera !== void 0 || recordedFocus,
+        hasVisibleSelection: !!selected && !!model?.nodes.some((node) => node.node.id === selected)
+      });
+      if (decision !== "wait") initiallyFocused.current = true;
+      if (decision === "selection" && selected) requestFocus([selected]);
+    };
     measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [Boolean(model)]);
-  (0, import_react14.useEffect)(() => {
-    if (model && narrow && !initiallyFocused.current && selected && model.nodes.some((node) => node.node.id === selected)) {
-      initiallyFocused.current = true;
-      requestFocus([selected]);
-    }
-  }, [model, selected, narrow]);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    return () => {
+      active = false;
+      observer?.disconnect();
+    };
+  }, [model, selected, Boolean(camera), camera?.key, recordedFocus]);
   if (!model || !overlay || props.focusRequest !== void 0 && !camera) return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("section", { role: "alert", className: props.className, style: { color: theme.textPrimary, fontFamily: theme.fontSans, ...props.style }, children: [
     /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("p", { children: "This diagram cannot be shown yet. Its saved information or grouping needs checking." }),
     /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("details", { children: [
@@ -1985,7 +2003,7 @@ function GroupedFlowDiagram(props) {
             preventScrolling: false,
             proOptions: { hideAttribution: true },
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ChartAutoRefit, { wrapperRef: wrapper, refitKey: geometry, padding: 0.06, focusNodeIds: focusIds, focusRequestKey: focusRequest, maxAutoZoom: 1, visualBounds }),
+              /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(ChartAutoRefit, { wrapperRef: wrapper, refitKey: geometry, padding: 0.06, focusNodeIds: focusIds, focusRequestKey: focusRequest, maxAutoZoom: 1, visualBounds, preserveViewport: true }),
               /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_react15.Background, { gap: 24, color: theme.border }),
               /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_react15.Controls, { showInteractive: false })
             ]

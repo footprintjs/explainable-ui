@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   failures. Recording failures and consequences stay visibly separate from
   causes, including when configured wording is absent or ambiguous.
 
+### Fixed
+
+- Preserve the grouped diagram's current recorded focus and manual camera when
+  its container crosses into a narrow layout; initial phone framing no longer
+  replaces a later owned request.
+
 ## [0.43.0] - 2026-11-14
 
 ### Added
