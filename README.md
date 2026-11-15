@@ -123,7 +123,7 @@ This gives you:
 - **Flowchart** (center) — execution path overlay, click subflow nodes to drill-down
 - **Topology panel** (left) — subflow tree navigator, collapsible via VLinePill handle
 - **Details panel** (right) — three modes: Insights (the story and any
-  recorder views), Inspector (state + data trace), and Result (the run's
+  recorder views), Inspector (stage activity, state and data trace), and Result (the run's
   output and console lines). Collapsible.
 - **Timeline** (bottom) — Gantt-style stage durations, collapsible
 - **Time-travel slider** — scrub through execution steps
@@ -362,6 +362,53 @@ what it wanted instead of rendering empty chrome.
 | `autoPlay` | `boolean` | `false` | Play the run by itself when it opens, once per recording. Anything the reader does stops it |
 | `size` | `"compact" \| "default" \| "detailed"` | `"default"` | Size variant |
 | `unstyled` | `boolean` | `false` | Strip styles, render `data-fp` attributes |
+
+### Inspect one executed stage
+
+Open **Inspector → Activity** to read the selected execution visit's narrative,
+recorded read keys, committed state changes and recorded decisions. Activity is
+the default Inspector view in `ExplainableShell`. Selecting a variable keeps the
+stage context visible while showing its recorded writer and bounded value
+preview; **Backtrack** enters the existing value-tracing rail.
+
+A read and a write of the same key remain separate. For a stage that reads
+`count = 2` and writes `count = 3`, the read's trace cutoff is before that
+stage's commit; the write's cutoff includes it. Exact invocation and visit IDs
+keep loop iterations and repeated subflows separate. **Open writer** selects
+that recorded writer on the same scope's timeline.
+
+Value-free engine exit/repeat bookkeeping rows do not create another visit or
+write. Trace targets retain their raw commit positions, including those rows;
+they are not indexes into a filtered list of displayed stages. A phase marker
+alone does not excuse a duplicate value-carrying commit address.
+
+The panel keeps its evidence limits visible:
+
+- The narrative sequence belongs to one visit, not a global clock across
+  parallel stages. Legacy Read/Write/Update/Delete labels report strictly
+  matched narrative wording; they are not typed scope-event capture.
+- A read preview is the state **after the earlier writer**, not the captured
+  value of every read call. Missing or ambiguous writer snapshots stay
+  unavailable. When the narrative reports reading a key after writing it inside
+  the same stage, that key's generic read origin and Backtrack action remain
+  unresolved; a different pre-stage value is not substituted.
+- Before/after values describe committed stage changes, not every JavaScript
+  assignment. Without an earlier snapshot, the first before-value is unknown.
+- Only logs linked to this exact runtime visit appear as stage logs. Run-level
+  console lines remain in Result and are not assigned to a stage.
+
+`projectStageActivity` produces the bounded evidence model used by
+`StageActivityPanel`; `formatStageActivitySummary` formats that same projection
+for copying or tools. These APIs are exported from the package root. The
+flowchart entry point is unchanged. Stage source code, algorithm reconstruction
+and full-flow export are outside this stage-activity view.
+
+Standalone `InspectorPanel` keeps its existing State/Data Trace behavior when
+no `activity` model is supplied. Supplying `activity` adds Activity and selects
+it by default. Controlled hosts use `activitySelected` and `onActivitySelect`
+for that selection; `tab` and `onTabChange` retain their existing
+`"state" | "trace"` contract. `onTraceActivityVariable` receives an exact
+recorded target that the host must validate before starting the existing walk.
 
 ### Tracing a value — inspect its recorded state reads
 
@@ -695,8 +742,9 @@ import { FootprintTheme, warmDark } from "footprint-explainable-ui";
 | `GanttTimeline` | Horizontal duration timeline (collapsible) |
 | `SnapshotPanel` | All-in-one inspector (scrubber + memory + narrative + Gantt) |
 | `TraceViewer` | Renders a saved `{ snapshot, structure }` recording — parse, diagnose, draw |
-| `StageDetailPanel` | One stage in full: its reads, its writes, its description |
-| `InspectorPanel` | The Inspector: State tab + Data Trace tab, time-travel synced |
+| `StageDetailPanel` | Stage description and narrative, or an accumulated-memory change ledger |
+| `InspectorPanel` | Activity when supplied, plus State and Data Trace, time-travel synced |
+| `StageActivityPanel` | Exact-visit narrative, recorded reads, committed changes and variable inspection |
 | `DataTracePanel` | Recorded state-read links as a stack — click a frame to inspect that step |
 | `TraceWalkCard` | The tracing stop card with recorded-read chips, an investigation trail and Copy story |
 | `InvestigationPanel` | Host-bound, on-demand recorded cause and impact results with unknown evidence states |
@@ -753,6 +801,8 @@ the primitive can work.
 | `buildTraceWalk` | The local value-tracing walk with recorded stops and stage reads for one key |
 | `formatTraceWalk` | That walk as the exact text an LLM backtrack tool returns |
 | `projectTraceInvocation` | Select one exact recorded child invocation and its scope for UI or agent trace text |
+| `projectStageActivity` | Project one exact visit's bounded narrative, reads, committed changes and decisions |
+| `formatStageActivitySummary` | Format the same stage activity projection for copying or tools |
 | `mergeWritePatch` | Replay a commit patch onto a state object (objects merge; arrays REPLACE) |
 | `DEFAULT_EXCLUDED_KEYS` | The keys `StageDetailPanel` hides by default |
 

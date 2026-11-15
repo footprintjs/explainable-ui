@@ -4,6 +4,7 @@ import { theme } from "../../../theme";
 import { InspectorPanel } from "../../InspectorPanel/InspectorPanel";
 import { InsightPanel } from "../../InsightPanel/InsightPanel";
 import { insightName } from "../../../model/recorderView";
+import type { StageActivityView, StageActivityTraceTarget } from "../../../trace/stageActivity";
 
 /**
  * The right column's three modes.
@@ -39,6 +40,10 @@ export const RightPanel = memo(function RightPanel({
   onInspectorTabChange,
   inspectorTab,
   traceContent,
+  activity,
+  activitySelected,
+  onActivitySelect,
+  onTraceActivityVariable,
 }: {
   mode: RightPanelMode;
   onModeChange: (mode: RightPanelMode) => void;
@@ -62,6 +67,10 @@ export const RightPanel = memo(function RightPanel({
   inspectorTab?: "state" | "trace";
   /** The Data Trace tab body (stop card while tracing / entry chips + frames list). */
   traceContent?: ReactNode;
+  activity?: StageActivityView;
+  activitySelected?: boolean;
+  onActivitySelect?: () => void;
+  onTraceActivityVariable?: (target: StageActivityTraceTarget) => void;
 }) {
   // The Result segment appears only when a Result tab exists, so
   // `hideTabs={["result"]}` still removes it everywhere.
@@ -135,6 +144,10 @@ export const RightPanel = memo(function RightPanel({
             traceContent={traceContent}
             selectedStageId={snapshots[selectedIndex]?.runtimeStageId}
             onNavigateToStage={onNavigateToStage}
+            activity={activity}
+            activitySelected={activitySelected}
+            onActivitySelect={onActivitySelect}
+            onTraceActivityVariable={onTraceActivityVariable}
           />
         )}
       </div>

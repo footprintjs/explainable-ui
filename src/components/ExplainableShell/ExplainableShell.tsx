@@ -31,6 +31,9 @@ import {
 } from "../../adapters/fromRuntimeSnapshot";
 import { overlayFromSnapshot } from "../../adapters/overlayFromSnapshot";
 import { buildTraceWorkflowOverlay, type TraceWorkflowOverlay } from "../../trace/traceWorkflowOverlay";
+import { projectStageActivity, type StageActivityTraceTarget } from "../../trace/stageActivity";
+import { StageActivityPanel } from "../StageActivityPanel";
+import { InspectorPanel } from "../InspectorPanel/InspectorPanel";
 import { devWarn } from "../FlowchartView/_internal/devWarn";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
@@ -565,6 +568,13 @@ export function ExplainableShell({
   // Inspector's active tab, lifted so the chart can paint the dependency
   // CONE exactly while the Data Trace tab is open (Inspector mode).
   const [inspectorTab, setInspectorTab] = useState<"state" | "trace">("state");
+  const [activitySelected, setActivitySelected] = useState(true);
+  const [mobileInspectorSelected, setMobileInspectorSelected] = useState(defaultTab === undefined);
+  const handleInspectorTabChange = useCallback((tab: "state" | "trace") => {
+    setActivitySelected(false);
+    setInspectorTab(tab);
+  }, []);
+  const handleActivitySelect = useCallback(() => setActivitySelected(true), []);
 
   const traceSessionState = useTraceSessionState(snapshotIdx);
 
@@ -617,7 +627,7 @@ export function ExplainableShell({
   const navigation = useSubflowNavigation({
     snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries,
     traceGraph, snapshotIdx, setSnapshotIdxRaw,
-    activeTab: JSON.stringify([activeTab, rightPanelMode, inspectorTab]),
+    activeTab: JSON.stringify([activeTab, rightPanelMode, inspectorTab, activitySelected, mobileInspectorSelected]),
     onScopeReset: traceSessionState.reset,
   });
   const {
@@ -670,19 +680,28 @@ export function ExplainableShell({
   const safeIdx = activeSnapshots.length > 0
     ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1))
     : 0;
+  // Child narrative stays on the selected invocation's local cursor rail.
+  const activeNarrativeEntries = isInSubflow ? currentLevel.narrative : narrativeEntries;
+  const stageActivity = useMemo(() => projectStageActivity({
+    scope: activeTraceScope, snapshots: activeSnapshots, selectedIndex: safeIdx,
+    narrativeEntries: activeNarrativeEntries, narrativeAvailable: !companionNarrativeMissing,
+  }), [activeTraceScope, activeSnapshots, safeIdx, activeNarrativeEntries, companionNarrativeMissing]);
 
   const onStartInspector = useCallback(() => {
     setRightPanelMode("what");
+    setMobileInspectorSelected(true);
+    setActivitySelected(false);
     setInspectorTab("trace");
   }, []);
   const traceSession = useTraceSessionController({
     session: traceSessionState, activeTraceScope, activeTraceKey, activeSnapshots,
     safeIdx, sourceChanged: navigation.sourceChanged,
     traceHistoryAvailable: isInSubflow || !!runtimeSnapshot?.commitLog,
-    showDataTraceCone: rightPanelMode === "what" && inspectorTab === "trace",
+    showDataTraceCone: !unstyled && (isNarrow ? mobileInspectorSelected : rightPanelMode === "what") && !activitySelected && inspectorTab === "trace",
     setSnapshotIdx, onStartInspector,
     runtimeSnapshot, openTraceSource: navigation.openTraceSource,
     restoreTraceQuestion: navigation.restoreTraceQuestion,
+    stageActivity,
   });
   const { shellDataTrace, sliceCone, navigateToStage, tracingRail } = traceSession;
   const traceCursorRuntimeStageId = activeSnapshots[safeIdx]?.runtimeStageId ?? null;
@@ -690,11 +709,18 @@ export function ExplainableShell({
     traceSession.traceWalk, activeSnapshots, traceCursorRuntimeStageId,
   ), [traceSession.traceWalk, activeSnapshots, traceCursorRuntimeStageId]);
 
-  // While drilled in, feed the Story the subflow-scoped, subflow-renumbered
-  // narrative (Bug 3) so it reveals to the subflow-local cursor — not the
-  // whole-run-numbered per-stage fallback text (which is why it used to start
-  // at "Step 24" instead of step 1).
-  const activeNarrativeEntries = isInSubflow ? currentLevel.narrative : narrativeEntries;
+  const latestActivity = useRef({ view: stageActivity, sourceChanged: navigation.sourceChanged,
+    trace: traceSession.handleTraceStageVariable });
+  latestActivity.current = { view: stageActivity, sourceChanged: navigation.sourceChanged,
+    trace: traceSession.handleTraceStageVariable };
+  const handleTraceActivityVariable = useCallback((target: StageActivityTraceTarget) => {
+    const current = latestActivity.current;
+    if (current.sourceChanged || !current.view.availability.ok) return;
+    // A retained button from another run/visit cannot revive a names-equal
+    // address: accept only targets from the currently admitted projection.
+    if (![...current.view.reads, ...current.view.writes].some(variable => variable.traceTarget === target)) return;
+    current.trace(target);
+  }, []);
 
   // Which subflow the Story is showing. Every entry in a drilled list carries
   // a `subflowId`, so without this the Story would hide the whole level as
@@ -979,6 +1005,9 @@ export function ExplainableShell({
                 {(traceGraph || renderFlowchart) && effectiveRenderFlowchart?.({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx, onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey, onSubflowChange: handleChartSubflowChange, traceWorkflow, ...(sliceCone && { sliceCone }) })}
               </TraceDependencyView>
               {missingChart && <MissingChartNote unstyled />}
+              <StageActivityPanel activity={stageActivity} onTraceVariable={handleTraceActivityVariable}
+                onNavigateToStage={navigateToStage} size={size} unstyled />
+              {traceSession.tracing && traceTabContent}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
               {companionNarrativeMissing ? <StoryUnavailableNote /> : <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} scopeSubflowId={narrativeScopeSubflowId} unstyled />}
               <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
@@ -999,8 +1028,24 @@ export function ExplainableShell({
   // test/component/ExplainableShellDrill.test.tsx.
   const showTopology = !!traceSession.traceWalk || showExecutionChart;
 
-  const detailsPanel = <ShellDetailTabs tabs={allTabs} activeTab={activeTab} onTabChange={handleTabChange}>
-    {renderTabBody(activeTab, false)}
+  // Keep the narrow layout's existing recorder tabs and give its developer
+  // Inspector the same selected visit and trace controller as desktop.
+  let mobileInspectorId = "__fp_stage_inspector";
+  while (allTabs.some(tab => tab.id === mobileInspectorId)) mobileInspectorId += "_";
+  const mobileTabs = [{ id: mobileInspectorId, name: "Inspector", description: "Recorded stage activity, state and data trace" }, ...allTabs];
+  const detailsPanel = <ShellDetailTabs tabs={mobileTabs} activeTab={mobileInspectorSelected ? mobileInspectorId : activeTab}
+    onTabChange={tab => {
+      if (tab === mobileInspectorId) { setMobileInspectorSelected(true); return; }
+      setMobileInspectorSelected(false);
+      setActiveTab(tab);
+    }}>
+    {mobileInspectorSelected ? <InspectorPanel snapshots={activeSnapshots} selectedIndex={safeIdx}
+      dataTraceFrames={shellDataTrace.frames}
+      dataTraceNote={shellDataTrace.readsAvailable ? undefined : "Reads were not recorded; dependencies remain unknown."}
+      selectedStageId={activeSnapshots[safeIdx]?.runtimeStageId} onNavigateToStage={navigateToStage}
+      tab={inspectorTab} onTabChange={handleInspectorTabChange} traceContent={traceTabContent}
+      activity={stageActivity} activitySelected={activitySelected} onActivitySelect={handleActivitySelect}
+      onTraceActivityVariable={handleTraceActivityVariable} size={size} /> : renderTabBody(activeTab, false)}
   </ShellDetailTabs>;
 
   // Safe to hand back the diagnosis instead of chrome wrapped around nothing
@@ -1036,8 +1081,10 @@ export function ExplainableShell({
         doneStages={rootOverlay.doneStages} onNodeSelect={handleTreeNodeSelect} />,
       mobileDetails: detailsPanel,
       desktopDetails: <RightPanel mode={rightPanelMode} onModeChange={setRightPanelMode}
-        dataTrace={shellDataTrace} onInspectorTabChange={setInspectorTab} inspectorTab={inspectorTab}
+        dataTrace={shellDataTrace} onInspectorTabChange={handleInspectorTabChange} inspectorTab={inspectorTab}
         traceContent={traceTabContent} snapshots={activeSnapshots} selectedIndex={safeIdx}
+        activity={stageActivity} activitySelected={activitySelected} onActivitySelect={handleActivitySelect}
+        onTraceActivityVariable={handleTraceActivityVariable}
         activeTab={activeTab} allTabs={allTabs} renderTabBody={renderTabBody} size={size}
         onNavigateToStage={navigateToStage} />,
       gantt: <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />,

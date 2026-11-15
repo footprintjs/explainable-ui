@@ -1,7 +1,7 @@
 /**
  * InspectorPanel — Node-specific debug view.
  *
- * Two tabs:
+ * Optional Activity plus the existing two tabs:
  * - State: scope values at the selected step (time-travel synced)
  * - Data Trace: backward causal chain from the selected node
  *
@@ -13,6 +13,8 @@ import { fontSize, theme } from "../../theme";
 import type { BaseComponentProps, Size, StageSnapshot } from "../../types";
 import { MemoryPanel } from "../MemoryPanel";
 import { DataTracePanel, type CausalFrame } from "../DataTracePanel/DataTracePanel";
+import { StageActivityPanel } from "../StageActivityPanel";
+import type { StageActivityTraceTarget, StageActivityView } from "../../trace/stageActivity";
 
 export interface InspectorPanelProps extends BaseComponentProps {
   snapshots: StageSnapshot[];
@@ -34,6 +36,15 @@ export interface InspectorPanelProps extends BaseComponentProps {
   /** Replaces the Data Trace tab body (the shell swaps in the Same-Rail
    *  Rewind stop card / entry chips); default = the classic frames list. */
   traceContent?: ReactNode;
+  /** Add the exact-visit Activity lens. Its presence selects Activity by default
+   *  unless activitySelected is controlled. Legacy instances remain unchanged. */
+  activity?: StageActivityView;
+  /** Controls the Activity lens separately, preserving the legacy tab union. */
+  activitySelected?: boolean;
+  /** Called when Activity is selected. State/Trace still use onTabChange. */
+  onActivitySelect?: () => void;
+  /** Reuse the host's validated trace controller for this exact read or write. */
+  onTraceActivityVariable?: (target: StageActivityTraceTarget) => void;
 }
 
 type InspectorTab = "state" | "trace";
@@ -48,14 +59,21 @@ export const InspectorPanel = memo(function InspectorPanel({
   onTabChange,
   tab: controlledTab,
   traceContent,
+  activity,
+  activitySelected,
+  onActivitySelect,
+  onTraceActivityVariable,
   size = "default",
   unstyled = false,
   className,
   style,
 }: InspectorPanelProps) {
   const [internalTab, setTabState] = useState<InspectorTab>("state");
+  const [internalActivitySelected, setInternalActivitySelected] = useState(true);
   const tab = controlledTab ?? internalTab;
+  const showActivity = !!activity && (activitySelected ?? internalActivitySelected);
   const setTab = (t: InspectorTab) => {
+    setInternalActivitySelected(false);
     setTabState(t);
     onTabChange?.(t);
   };
@@ -86,15 +104,22 @@ export const InspectorPanel = memo(function InspectorPanel({
           flexShrink: 0,
         })}
       >
+        {activity && <TabButton
+          active={showActivity}
+          onClick={() => { setInternalActivitySelected(true); onActivitySelect?.(); }}
+          label="Activity"
+          size={size}
+          unstyled={unstyled}
+        />}
         <TabButton
-          active={tab === "state"}
+          active={!showActivity && tab === "state"}
           onClick={() => setTab("state")}
           label="State"
           size={size}
           unstyled={unstyled}
         />
         <TabButton
-          active={tab === "trace"}
+          active={!showActivity && tab === "trace"}
           onClick={() => setTab("trace")}
           label="Data Trace"
           badge={dataTraceFrames.length > 0 ? String(dataTraceFrames.length) : undefined}
@@ -105,7 +130,9 @@ export const InspectorPanel = memo(function InspectorPanel({
 
       {/* Tab content */}
       <div data-fp="inspector-body" style={sx({ flex: 1, overflow: "auto" })}>
-        {tab === "state" && (
+        {showActivity && activity && <StageActivityPanel activity={activity} onTraceVariable={onTraceActivityVariable}
+          onNavigateToStage={onNavigateToStage} size={size} unstyled={unstyled} />}
+        {!showActivity && tab === "state" && (
           <MemoryPanel
             snapshots={snapshots}
             selectedIndex={selectedIndex}
@@ -113,7 +140,7 @@ export const InspectorPanel = memo(function InspectorPanel({
             unstyled={unstyled}
           />
         )}
-        {tab === "trace" &&
+        {!showActivity && tab === "trace" &&
           (traceContent ?? (
             <DataTracePanel
               frames={dataTraceFrames}
@@ -149,7 +176,9 @@ function TabButton({
   const sx = (s: CSSProperties): CSSProperties | undefined => (unstyled ? undefined : s);
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-pressed={active}
       data-fp="inspector-tab"
       data-active={active || undefined}
       style={sx({

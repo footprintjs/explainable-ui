@@ -8,6 +8,7 @@ import { subflowHandoffSources, type SubflowHandoffSource } from "../../../trace
 import { projectTraceInvocation } from "../../../trace/projectTraceInvocation";
 import { ownDataField } from "../../../trace/safeRecordRead";
 import { rootMountLabels, runHasRecordedReads, sourceRunKey } from "../../../trace/traceScope";
+import type { StageActivityTraceTarget, StageActivityView } from "../../../trace/stageActivity";
 
 interface TraceAnchor {
   key: string;
@@ -118,6 +119,8 @@ interface TraceSessionControllerOptions {
   runtimeSnapshot?: unknown;
   openTraceSource?: (mountRuntimeStageId: string, invocationPath: readonly string[], targetRuntimeStageId?: string) => boolean;
   restoreTraceQuestion?: (invocationPath: readonly string[], targetRuntimeStageId: string) => boolean;
+  /** Current exact-visit addresses admitted for the Activity surface. */
+  stageActivity?: StageActivityView;
 }
 
 const samePath = (left: readonly string[], right: readonly string[]) =>
@@ -167,6 +170,7 @@ export function useTraceSessionController({
   runtimeSnapshot,
   openTraceSource,
   restoreTraceQuestion,
+  stageActivity,
 }: TraceSessionControllerOptions) {
   const { tracing, history, forkChooserOpen, traceSearch, setTraceSearch, dispatch } = session;
   const source = runtimeSnapshot === undefined ? activeTraceScope : sourceRunKey(runtimeSnapshot);
@@ -336,6 +340,44 @@ export function useTraceSessionController({
     jumpToAnchor(buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, key, { beforeCommitIdx }));
   }, [activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, dispatch, onStartInspector, jumpToAnchor]);
 
+  // Activity supplies an admitted read/write address, never a value. Read
+  // questions stop before the visit; write questions include its commit.
+  const latestActivityTrace = useRef({ activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, stageActivity,
+    sourceChanged, onStartInspector, jumpToAnchor });
+  latestActivityTrace.current = { activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, stageActivity,
+    sourceChanged, onStartInspector, jumpToAnchor };
+  const handleTraceStageVariable = useCallback((target: StageActivityTraceTarget) => {
+    const latest = latestActivityTrace.current;
+    if (latest.sourceChanged || !latest.activeTraceScope.availability.ok || !latest.stageActivity?.availability.ok ||
+      ![...latest.stageActivity.reads, ...latest.stageActivity.writes].some(variable => variable.traceTarget === target)) return;
+    try {
+      const key = ownDataField(target, "key");
+      const kind = ownDataField(target, "kind");
+      const runtimeStageId = ownDataField(target, "runtimeStageId");
+      const cutoff = ownDataField(target, "beforeCommitIdx");
+      const path = ownDataField(target, "invocationPath");
+      if (typeof key !== "string" || !key.length || key.length > 4_096 ||
+        (kind !== "read" && kind !== "write") || typeof runtimeStageId !== "string" ||
+        typeof cutoff !== "number" || !Number.isSafeInteger(cutoff) || cutoff < 0 ||
+        latest.activeSnapshots[latest.safeIdx]?.runtimeStageId !== runtimeStageId ||
+        !Array.isArray(path) || path.length > 128 || !samePath(path, latest.activeTraceScope.invocationPath)) return;
+      const log = latest.activeTraceScope.commitLog;
+      if (log.length > 100_000) return;
+      const commitIdx = cutoff - (kind === "write" ? 1 : 0);
+      // The projection distinguishes primary commits from explicit empty phase
+      // rows. Keep its raw address rather than choosing another same-named row.
+      if (commitIdx < 0 || commitIdx >= log.length || ownDataField(log[commitIdx], "runtimeStageId") !== runtimeStageId) return;
+      if (kind === "write") {
+        const writes = ownDataField(log[commitIdx], "trace");
+        if (!Array.isArray(writes) || !writes.some(write => ownDataField(write, "path") === key)) return;
+      }
+      const walk = buildTraceWalk(log, latest.activeTraceScope.executionTree, key, { beforeCommitIdx: cutoff });
+      dispatch({ type: "start", question: { scope: latest.activeTraceKey, key, beforeCommitIdx: cutoff, via: [] } });
+      latest.onStartInspector();
+      latest.jumpToAnchor(walk);
+    } catch { /* A changed or unreadable address cannot start a new question. */ }
+  }, [dispatch]);
+
   const handleFollowIngredient = useCallback((ingredient: TraceIngredient) => {
     const previous = saveCurrentQuestion();
     if (!previous || !tracing || !activeTraceScope.availability.ok || ingredient.writerCommitIdx === null ||
@@ -414,7 +456,7 @@ export function useTraceSessionController({
     tracing, forkChooserOpen, traceSearch, setTraceSearch,
     shellDataTrace, allTracedKeys, traceWalk, traceStopIndices, sliceCone,
     navigateToStage, activeViaKey, stepNumberOf, tracingRail,
-    handleStartTracing, handleFollowIngredient, handleShowAllIngredients,
+    handleStartTracing, handleTraceStageVariable, handleFollowIngredient, handleShowAllIngredients,
     handleFollowHandoff,
     questionTrail, handleReturnToQuestion,
     handleExitTracing, handleForkPrompt, handleContinueTimeOrder,

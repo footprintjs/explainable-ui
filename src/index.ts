@@ -85,9 +85,21 @@ export type { EntryRangeIndex } from "./utils/narrativeSync";
 
 // ── New components (v2 layout) ──────────────────────────────────────
 
-// Inspector: State + Data Trace
+// Inspector: exact-visit Activity, State and Data Trace.
 export { InspectorPanel } from "./components/InspectorPanel/InspectorPanel";
 export type { InspectorPanelProps } from "./components/InspectorPanel/InspectorPanel";
+export { StageActivityPanel } from "./components/StageActivityPanel";
+export type { StageActivityPanelProps } from "./components/StageActivityPanel";
+export { projectStageActivity, formatStageActivitySummary } from "./trace/stageActivity";
+export type {
+  StageActivityInput,
+  StageActivityView,
+  StageActivityEvent,
+  StageActivityVariable,
+  StageActivityValue,
+  StageActivityWriter,
+  StageActivityTraceTarget,
+} from "./trace/stageActivity";
 
 // Data Trace: backward causal chain visualization
 export { DataTracePanel } from "./components/DataTracePanel/DataTracePanel";

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Inspector **Activity** combines one exact visit's recorded narrative, read
+  keys, committed state changes and decisions. Variable inspection preserves
+  stage context and can enter the existing backtracking rail with distinct
+  read/write cutoffs. Root exports include `StageActivityPanel`,
+  `projectStageActivity`, `formatStageActivitySummary` and their types.
+- Activity reports narrative operation labels, writer-end value previews,
+  unknown before-values and stage-linked log coverage explicitly; it does not
+  infer read-time values, every intermediate assignment or predicate source.
+  Reads reported after an in-stage write remain unresolved instead of pointing
+  to a different pre-stage value. Proven value-free exit/repeat bookkeeping
+  rows preserve raw trace cutoffs without becoming extra visits or writes.
 - Optional `FailureExplanationView` displays a host-admitted problem, recorded
   cause and suggested next step. Canonical text and uncertainty remain visible
   beside clearly labelled business guidance; references are text only, and no
