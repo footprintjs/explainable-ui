@@ -201,9 +201,14 @@ export function ExplainableProvider({
 }
 
 export function useExplainableRun(): ExplainableRunContextValue {
-  const value = useContext(ExplainableRunContext);
+  const value = useOptionalExplainableRun();
   if (!value) {
     throw new Error("Explainable components must be rendered inside <ExplainableProvider>.");
   }
   return value;
+}
+
+/** Internal bridge for surfaces that also accept the complete Lens owner. */
+export function useOptionalExplainableRun(): ExplainableRunContextValue | null {
+  return useContext(ExplainableRunContext);
 }

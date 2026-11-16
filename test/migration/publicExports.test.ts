@@ -91,7 +91,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...stageActivityExports,
         ...themePrimitiveExports,
         { name: "useLensWorkbench", kind: "value" },
-        ...["LensTheme", "LensWorkbenchContextValue", "LensWorkbenchActions", "LensWorkbenchSurfaces", "LensWorkbenchLayout"]
+        ...["LensTheme", "LensView", "LensCommentaryOptions", "ReplayControlsOptions", "LensLayoutDefinition", "LensLayoutSurface", "LensWorkbenchContextValue", "LensWorkbenchActions", "LensWorkbenchSurfaces", "LensWorkbenchLayout"]
           .map(name => ({ name, kind: "type" })),
       ].sort((a, b) => a.name.localeCompare(b.name)),
       "./flowchart": [

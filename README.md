@@ -16,6 +16,13 @@
 visualizing [footprintjs](https://github.com/footprintjs/footPrint) pipeline execution —
 time-travel debugging, flowchart overlays, subflow drill-down, and collapsible detail panels.
 
+The details pane has **Developer** and **Commentary** buttons. Developer opens
+inspection and backtracking; Commentary shows a scrolling transcript of the
+recorded narrative through the selected stage. The flowchart, time controls and
+drill scope stay in place. Start on Commentary with `defaultView="story"`.
+[See Developer and Commentary details](#developer-and-commentary-details).
+Arrange or hide the optional panes with a [JSON layout](#arrange-the-full-lens-from-json).
+
 > Part of the **[footprintjs ecosystem](https://footprintjs.github.io/)** — the self-explaining stack.
 >
 > One causal trace. Replay it as every step (**Flow Lens**), grouped steps
@@ -52,7 +59,7 @@ and read the last column before you skip one.
 | If your run is… | Mount | It gives you | It costs you |
 |---|---|---|---|
 | an **agentfootprint agent run** you recorded (`recordRun` → `{ snapshot, events, structure }`) | [`footprint-viewer`](https://www.npmjs.com/package/footprint-viewer) — a separate package | The whole experience with zero config: Story, Why, Flow, Skill Graph and Data as five tabs over **one shared cursor**, wired for you — or refused in a sentence that names what you passed | Three more packages (`agentfootprint`, `agentfootprint-lens`, and `agentthinkingui` for the Story tab), and a layout that is the viewer's rather than yours |
-| a **footprintjs pipeline run**, live in your app (`executor.getSnapshot()` + a `TraceGraph`) | `ExplainableShell` — this library | Chart + topology tree + inspector + story + timeline + the value-tracing rail, from two props | The agent readings. There is no Story / Why / Skill Graph here: this is the commit-trace lens. (The viewer refuses a bare footprintjs snapshot for exactly that reason — and names this shell as where to go) |
+| a **footprintjs pipeline run**, live in your app (`executor.getSnapshot()` + a `TraceGraph`) | `ExplainableShell` — this library | Chart + topology tree + details + timeline + the value-tracing rail, from two props. The details pane switches between Developer and Commentary | The separate agent Story / Why / Skill Graph readings. Commentary presents the recorded pipeline; it does not reconstruct agent reasoning |
 | a **saved footprintjs run** on disk (`{ snapshot, structure }`) | `TraceViewer` | The same shell from one prop, with parse errors and honest gaps stated on screen instead of an empty frame | Nothing the shell has — it *is* the shell plus the file-reading |
 | a footprintjs run whose **full Lens layout must be yours** | `ExplainableShell` with `renderLayout`, optionally `unstyled` | Ready-made surfaces and actions for the same cursor, exact invocation, drill-down and backtracking | You supply the layout and, in unstyled mode, its presentation |
 | a saved run needing **basic composable panels** | `ExplainableProvider` + the surfaces (or `ExplainableView` with a `layout`) | Basic surfaces moving one cursor; presets, CSS-grid areas and per-surface `slots` | These surfaces do not re-implement the shell's richer topology, subflow drill-down and tracing chrome |
@@ -124,13 +131,241 @@ Pass them as `snapshots` instead.
 This gives you:
 - **Flowchart** (center) — execution path overlay, click subflow nodes to drill-down
 - **Topology panel** (left) — subflow tree navigator, collapsible via VLinePill handle
-- **Details panel** (right) — three modes: Insights (the story and any
-  recorder views), Inspector (stage activity, state and data trace), and Result (the run's
-  output and console lines). Collapsible.
+- **Details panel** (right) — Developer and Commentary buttons. Developer keeps
+  Insights (the story and recorder views), Inspector (stage activity, state and
+  data trace), and Result (output and console lines). Commentary shows the
+  accumulated narrative through the selected stage and follows the cursor. Collapsible.
 - **Timeline** (bottom) — Gantt-style stage durations, collapsible
 - **Time-travel slider** — scrub through execution steps
 - **Breadcrumbs** — navigate back from subflow drill-down
 - **Mobile responsive** — auto-stacks vertically below 640px
+
+### Arrange the full Lens from JSON
+
+`ExplainableShell.layout` arranges five surfaces over the same run and cursor:
+
+| Area name | Surface | Required in `areas`? |
+|---|---|---|
+| `timeTravel` | Shared time and stage-selection controls | Yes |
+| `flowchart` | Execution chart with the existing drill and trace behavior | Yes |
+| `developer` | Developer technical details | No; omit to hide |
+| `commentary` | Accumulated scrolling commentary transcript | No; omit to hide |
+| `timeline` | Recorded execution timeline | No; omit to hide |
+
+The definition is plain JSON-compatible data. Store it separately from the run,
+then pass the restored object to `layout`. `columns` and optional `rows` are
+CSS grid track strings; optional `minHeight` and `gap` accept numbers or CSS
+size strings:
+
+```tsx
+import { ExplainableShell, type LensLayoutDefinition } from "footprint-explainable-ui";
+
+const savedLayoutJson = JSON.stringify({
+  columns: "minmax(0, 1.6fr) minmax(300px, 1fr)",
+  rows: "auto minmax(420px, 1fr) minmax(200px, 0.6fr)",
+  areas: [
+    ["timeTravel", "timeTravel"],
+    ["flowchart", "commentary"],
+    ["timeline", "developer"],
+  ],
+  minHeight: 760,
+  gap: 12,
+});
+const layout: LensLayoutDefinition = JSON.parse(savedLayoutJson);
+
+<ExplainableShell
+  runtimeSnapshot={snapshot}
+  traceGraph={graph}
+  layout={layout}
+/>;
+```
+
+Omitting an optional area hides that surface; repeating its name spans cells.
+Use `"."` for an empty cell. The matrix must be rectangular, each named area
+must form one rectangle, and both `timeTravel` and `flowchart` must be present.
+On narrow screens, surfaces stack in first-appearance order from `areas`.
+Invalid definitions throw a clear `Invalid Lens layout: …` validation error.
+
+Use the additional `details` area when you want the combined Developer /
+Commentary pane with its two buttons. A layout containing `details` cannot also
+contain separate `developer` or `commentary` areas. For example, this retains
+the combined details switch beside the chart:
+
+```tsx
+const combinedDetailsLayout: LensLayoutDefinition = {
+  columns: "minmax(0, 1.6fr) minmax(300px, 1fr)",
+  areas: [
+    ["timeTravel", "timeTravel"],
+    ["flowchart", "details"],
+    ["timeline", "timeline"],
+  ],
+};
+```
+
+Omit `layout` to retain the existing shell arrangement and its Developer /
+Commentary details buttons. `renderLayout` takes precedence when both are
+provided and gives the consumer complete ownership of the arrangement; the
+required core areas apply to the JSON `layout` contract. `TraceViewer` forwards
+the same `layout` option for saved run JSON.
+This full Lens API uses `developer` for technical details; the basic
+`ExplainableView.layout` API keeps its own `inspector` area and existing preset
+names. The two layout types are distinct.
+
+### Developer and Commentary details
+
+Start with Commentary selected and let the reader switch in the details pane:
+
+```tsx
+<ExplainableShell
+  runtimeSnapshot={executor.getSnapshot()}
+  traceGraph={trace.getGraph()}
+  defaultView="story"
+/>
+```
+
+Only the details content switches. The flowchart geometry, time controls,
+selected visit, topology, timeline and drill scope remain shared. Developer
+retains stage Activity, state inspection and backtracking. Commentary reuses the
+recorded transcript, progressively revealed through the cursor. Changing the
+audience does not execute the pipeline again.
+
+| Behavior | Developer (default) | Commentary |
+|---|---|---|
+| `LensView` value | `"developer"` | `"story"` |
+| Details content | Stage inspection and debugging | Scrolling transcript through the selected stage |
+| Commentary surface title | `"What happened"` when composed in a custom layout | `"What happened"` |
+| Commentary surface presentation | `"log"` when composed in a custom layout | `"log"`: the recorded prefix through the cursor |
+| Commentary follows cursor / shows entry-type badges | `true` / `false` for the composed surface | `true` / `false` |
+| Chart and selected stage | Shared | Shared |
+| Previous / next, play / pause, slider | All visible | All visible |
+| Replay interval | Existing proportional stage timing | 2,000 ms between stages |
+| Automatic playback | Off | Off |
+| Recording, cursor and drill scope | The supplied run | The same supplied run |
+
+`defaultView` selects the initial audience for the built-in buttons and defaults
+to `"developer"`. For controlled state, pass `view` with `onViewChange` inside
+your React component:
+
+```tsx
+import { useState } from "react";
+import { ExplainableShell, type LensView } from "footprint-explainable-ui";
+
+const [view, setView] = useState<LensView>("story");
+
+<ExplainableShell
+  runtimeSnapshot={snapshot}
+  traceGraph={graph}
+  view={view}
+  onViewChange={setView}
+/>;
+```
+
+A controlled `view` without `onViewChange` fixes the audience; the header shows
+its label instead of switch buttons. Custom `renderLayout` implementations own
+their audience navigation.
+
+Commentary and replay configuration is optional; explicit values override the
+audience defaults:
+
+```tsx
+<ExplainableShell
+  runtimeSnapshot={snapshot}
+  traceGraph={graph}
+  defaultView="story"
+  autoPlay={false}
+  commentary={{
+    title: "How we reached this result",
+    presentation: "log", // or "current" for only the selected exact visit
+    followCursor: true, // set false to opt out of automatic scrolling
+    showEntryTypes: false,
+    maxLines: 100,
+    emptyMessage: "No commentary was recorded through this step.",
+    renderEntry: (entry, { current }) => (
+      <p style={{ fontWeight: current ? 600 : 400 }}>{entry.text}</p>
+    ),
+  }}
+  replayControls={{
+    previousNext: true,
+    playPause: false,
+    slider: true,
+    intervalMs: 2400,
+  }}
+/>
+```
+
+`replayControls` is also accepted by `TimeTravelControls`, `TimeTravelBar` and
+`ExplainableView`. Each visibility flag defaults to `true`; `intervalMs` sets a
+fixed replay interval, clamped to 200–10,000 ms. `playPause: false` also disables
+manual and automatic playback; `previousNext: false` disables the toolbar's
+arrow shortcuts. These options do not change the recorded sequence. `autoPlay`
+remains a separate, opt-in behavior.
+
+`CommentaryPanel` works inside either `ExplainableProvider` or a full shell's
+`renderLayout`. On its own it defaults to `presentation="log"`,
+`followCursor={false}`, `showEntryTypes={true}`, `maxLines={200}` and the title
+`"Commentary"`. The log shows the recorded prefix through the cursor; `"current"` shows the selected
+visit as an optional alternative. Full Lens commentary defaults to the scrolling
+log with `followCursor={true}` and `showEntryTypes={false}`; set `followCursor`
+to `false` to opt out. It uses exact visits in the active invocation, so a
+loop iteration or repeated subflow does not borrow a sibling's lines. Missing
+or ambiguous identity is reported rather than guessed. Entry-type badges can be
+enabled with `showEntryTypes={true}`. Automatic following respects reduced motion.
+
+Rendering and recording are separate choices. `renderEntry` returns React
+content for an existing `NarrativeEntry`; its `index` and `current` context help
+style a line. It does not change the stored narrative or determine causal
+relationships. To customize the words at capture time, attach FootprintJS's
+narrative recorder before execution:
+
+```ts
+import { narrative } from "footprintjs/recorders";
+
+const story = narrative({
+  renderer: {
+    renderOp: ({ type, key, valueSummary }) =>
+      `${type === "read" ? "Read" : "Wrote"} ${key}: ${valueSummary}`,
+  },
+});
+executor.attachCombinedRecorder(story);
+await executor.run();
+
+// Save JSON, then replay it elsewhere. No executor is needed by the viewer.
+const recording = {
+  snapshot: executor.getSnapshot(),
+  structure: chart.buildTimeStructure,
+  narrativeEntries: story.getEntries(),
+};
+const json = JSON.stringify(recording);
+```
+
+```tsx
+import { TraceViewer } from "footprint-explainable-ui";
+
+<TraceViewer
+  recording={json}
+  defaultView="story"
+  replayControls={{ previousNext: true, playPause: true, slider: true }}
+/>;
+```
+
+The snapshot may already carry the narrative recorder; the separate
+`narrativeEntries` field is an explicit saved override using the existing
+`NarrativeEntry[]` format. Keep its `runtimeStageId` values intact for exact
+visit synchronization. There is no new commentary JSON format. Agentfootprint
+has its own JSON-compatible key-to-string map with `{{vars}}` for rendering
+typed agent events; this package does not evaluate a second template language.
+
+Commentary displays what the recording says. It cannot supply a missing read
+value, expression, branch reason or source-code line. Authored descriptions and
+custom wording remain authored descriptions; recorded state and decision
+evidence remain in Activity and backtracking. Scrubbing, playing and switching
+views read the saved run and never rerun its stages.
+
+For a complete consumer component with matching static snapshots and narrative,
+see [`examples/story-commentary`](./examples/story-commentary/). Existing
+`defaultTab`, recorder tabs, `renderLayout` and the basic `ExplainableView`
+layout presets remain supported. `view` selects the details audience;
+`ExplainableView.layout` still selects the basic composition's geometry.
 
 ### Compose the surfaces from external JSON
 
@@ -351,6 +586,12 @@ what it wanted instead of rendering empty chrome.
 | `traceTheme` | `TraceTheme` | — | Existing mode shorthand and `visited` / `current` node-colour overrides |
 | `theme` | `LensTheme` | inherited | `{ mode, tokens, components }` maps the core Lens to your design system; explicit tokens override the selected mode |
 | `narrativeEntries` | `NarrativeEntry[]` | read from the snapshot | Structured narrative. Only needed to override the story the recording carries |
+| `defaultView` | `LensView` | `"developer"` | Initial details audience for the built-in Developer / Commentary buttons |
+| `view` | `LensView` | uncontrolled | Controlled details audience: `"developer"` or `"story"` (Commentary); pair with `onViewChange` for switching |
+| `onViewChange` | `(view: LensView) => void` | — | Receive audience changes; without it, a controlled `view` fixes the audience |
+| `commentary` | `LensCommentaryOptions` | log, follow cursor, no entry-type badges | Commentary `title`, `presentation`, `followCursor`, `showEntryTypes`, `maxLines`, `emptyMessage` and `renderEntry` overrides |
+| `replayControls` | `ReplayControlsOptions` | visibility on; interval from view | Configure previous/next, play/pause, slider and an optional fixed `intervalMs` |
+| `layout` | `LensLayoutDefinition` | existing shell arrangement | JSON-compatible named areas over the shared cursor; core `timeTravel` and `flowchart` are required |
 | `title` | `string` | `"Flowchart"` | Breadcrumb root label |
 | `resultData` | `Record<string, unknown>` | `snapshot.sharedState` | Final output shown on the Result view |
 | `logs` | `string[]` | `[]` | Console lines shown under the result |
@@ -361,7 +602,7 @@ what it wanted instead of rendering empty chrome.
 | `panelLabels` | `PanelLabels` | `{ topology: "Topology", details: "Details", timeline: "Timeline" }` | Collapsible pill labels |
 | `defaultExpanded` | `DefaultExpanded` | `{ details: true }` | Which panels start open |
 | `renderFlowchart` | `(props) => ReactNode` | `<TracedFlow>` | Replace the execution chart renderer; it remains mounted when switching between Execution and Variables |
-| `renderLayout` | `LensWorkbenchLayout` | built-in responsive layout | Arrange the full shell's surfaces while retaining its selection, drill-down and backtracking owners |
+| `renderLayout` | `LensWorkbenchLayout` | built-in responsive layout | Arrange the full shell's surfaces while retaining its selection, drill-down and backtracking owners; takes precedence over `layout` |
 | `showStageId` | `boolean` | `false` | Print each node's stable `stageId` under its label (teaching aid) |
 | `autoPlay` | `boolean` | `false` | Play the run by itself when it opens, once per recording. Anything the reader does stops it |
 | `size` | `"compact" \| "default" \| "detailed"` | `"default"` | Size variant |
@@ -369,7 +610,8 @@ what it wanted instead of rendering empty chrome.
 
 ### Default template and existing tab IDs
 
-Without a valid `defaultTab`, the shell opens **Inspector → Activity**.
+In Developer view, without a valid `defaultTab`, the shell opens
+**Inspector → Activity**.
 `defaultTab="result"` opens Result; `"memory"` opens Inspector → State;
 `"narrative"` or an available recorder ID opens Run data. Hidden or unavailable
 IDs do not select an initial lens. In unstyled mode, the default **Explainable**
@@ -385,33 +627,56 @@ and recorder integrations.
 inside it can read the same value with `useLensWorkbench`:
 
 ```tsx
-import { ExplainableShell, useLensWorkbench } from "footprint-explainable-ui";
+import { useState } from "react";
+import { ExplainableShell, useLensWorkbench, type LensView } from "footprint-explainable-ui";
 
-function CustomerWorkbench() {
+function CustomerWorkbench({ view, onViewChange }: {
+  view: LensView;
+  onViewChange: (view: LensView) => void;
+}) {
   const { surfaces } = useLensWorkbench();
   return (
     <section className="customer-lens">
       <header>{surfaces.breadcrumb}{surfaces.timeTravel}</header>
       <div className="customer-lens-columns">
         <main>{surfaces.chart}</main>
-        <aside>{surfaces.inspector}</aside>
+        <aside>
+          <nav aria-label="Details audience">
+            <button onClick={() => onViewChange("developer")} aria-pressed={view === "developer"}>Developer</button>
+            <button onClick={() => onViewChange("story")} aria-pressed={view === "story"}>Commentary</button>
+          </nav>
+          {view === "story" ? surfaces.commentary : surfaces.developer}
+        </aside>
       </div>
       {surfaces.navigation}
     </section>
   );
 }
 
-<ExplainableShell
-  runtimeSnapshot={snapshot}
-  traceGraph={graph}
-  theme={{ mode: "light" }}
-  renderLayout={() => <CustomerWorkbench />}
-/>;
+function CustomerLens() {
+  const [view, setView] = useState<LensView>("developer");
+  return (
+    <ExplainableShell
+      runtimeSnapshot={snapshot}
+      traceGraph={graph}
+      theme={{ mode: "light" }}
+      view={view}
+      onViewChange={setView}
+      renderLayout={() => <CustomerWorkbench view={view} onViewChange={setView} />}
+    />
+  );
+}
 ```
 
 Give the chart container a height in your layout. These supplied surfaces keep
 the same backtracking, selected visit and subflow drill-down behavior as the
-default shell. Additional surfaces are `topology`, `runData`, `result`,
+default shell. `surfaces.commentary` retains cursor and scope synchronization;
+use it directly or mount a `CommentaryPanel` with `presentation="log"`,
+`followCursor` and `showEntryTypes={false}` inside the layout to supply local
+rendering props. Custom layouts own their audience
+buttons, as above, or reuse `surfaces.details` for the combined two-choice pane.
+`surfaces.developer` is the whole technical details panel; `surfaces.inspector`
+remains available for a focused inspector. Additional surfaces are `topology`, `runData`, `result`,
 `timeline` and `compactTimeline`. The context exposes `snapshots`,
 `selectedIndex`, `selectedSnapshot`, `invocationPath`, `activity`,
 `selectedActivityVariableId`, `traceWalk`, `questionTrail` and `activityOrigin`.
@@ -946,7 +1211,7 @@ style. A custom child must forward `className` and `style` to its DOM root.
 
 | Component | Description |
 |---|---|
-| `ExplainableShell` | All-in-one orchestrator with collapsible panels and responsive layout |
+| `ExplainableShell` | Full Lens with Developer / Commentary details, collapsible panels and responsive layout |
 | `useLensWorkbench` | Read the full shell's surfaces, state and validated actions inside its custom layout; root entry point |
 | `TimeTravelControls` | Play/pause, prev/next, scrubber timeline |
 | `MemoryPanel` | Memory state + scope diff (composite right-panel view) |
@@ -959,7 +1224,7 @@ style. A custom child must forward `className` and `style` to its DOM root.
 | `MemoryInspector` | Accumulated memory state viewer |
 | `GanttTimeline` | Horizontal duration timeline (collapsible) |
 | `SnapshotPanel` | All-in-one inspector (scrubber + memory + narrative + Gantt) |
-| `TraceViewer` | Renders a saved `{ snapshot, structure }` recording — parse, diagnose, draw |
+| `TraceViewer` | Renders a saved `{ snapshot, structure }` recording — parse, diagnose, draw; forwards the full Lens audience, commentary, replay options, JSON layout and custom layout callback |
 | `StageDetailPanel` | Stage description and narrative, or an accumulated-memory change ledger |
 | `InspectorPanel` | Activity when supplied, plus State and Data Trace, time-travel synced |
 | `StageActivityPanel` | Exact-visit narrative, recorded reads, committed changes and variable inspection |
@@ -985,7 +1250,7 @@ reads and moves the same index — that is what the provider is for.
 | `TimelinePanel` | The vertical stage rail |
 | `FlowchartPanel` | The chart surface, already wired to the cursor |
 | `ValueInspector` | State + changes at the cursor's moment |
-| `CommentaryPanel` | The story, revealed up to the cursor |
+| `CommentaryPanel` | Recorded-prefix or selected-visit commentary; works in the basic provider and full Lens custom layout |
 | `CompactTimelinePanel` | The provider-wired `CompactTimeline` — no data props |
 | `SurfaceCollapseHandle` | The line + pill handle, for collapsing a surface of your own |
 
@@ -1128,6 +1393,11 @@ experimental; the ones you will actually reach for are in the first table.
 |---|---|
 | `PanelLabels` | `{ topology?, details?, timeline? }` — pill label customization |
 | `DefaultExpanded` | `{ topology?, details?, timeline? }` — initial panel state |
+| `LensView` | `"developer" \| "story"` — details audience; `"story"` is labelled Commentary in the UI |
+| `LensLayoutDefinition` | JSON-compatible full Lens `columns`, optional `rows`, named `areas`, optional `minHeight` and `gap` |
+| `LensLayoutSurface` | Full Lens area names: `timeTravel`, `flowchart`, `developer`, `commentary`, `timeline`, or combined `details` |
+| `LensCommentaryOptions` | Optional commentary title, presentation, follow-cursor, entry-type badges, line limit, empty text and entry renderer |
+| `ReplayControlsOptions` | Optional `previousNext`, `playPause`, `slider` and fixed `intervalMs` replay settings |
 | `StageSnapshot` | Core snapshot type for all components |
 | `NarrativeEntry` | Structured narrative entry with type/depth/stageName |
 | `Recording` | `{ snapshot, structure, events }` — one saved run, read by `<TraceViewer>` and by lens's `observeRecording` |

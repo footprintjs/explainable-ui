@@ -4,6 +4,15 @@ import type { StageActivityTraceTarget, StageActivityView } from "../../trace/st
 import type { TraceIngredient, TraceWalk } from "../../trace/traceWalk";
 import type { SubflowHandoffSource } from "../../trace/subflowHandoff";
 import type { FootprintComponents, ThemeMode, ThemeTokens } from "../../theme";
+import type { CommentaryPanelProps } from "../ExplainableView/CommentaryPanel";
+
+/** Two presentations of the same recorded run and selected visit. */
+export type LensView = "developer" | "story";
+
+/** Recorded prose presentation; text and values still come from the recording. */
+export type LensCommentaryOptions = Pick<CommentaryPanelProps,
+  "title" | "maxLines" | "renderEntry" | "emptyMessage" | "presentation" | "followCursor" | "showEntryTypes"
+>;
 
 /** One design-system mapping for the complete Lens, including custom layouts. */
 export interface LensTheme {
@@ -18,8 +27,11 @@ export interface LensWorkbenchSurfaces {
   navigation: ReactNode;
   breadcrumb: ReactNode;
   chart: ReactNode;
+  commentary: ReactNode;
   topology: ReactNode;
   inspector: ReactNode;
+  developer: ReactNode;
+  details: ReactNode;
   runData: ReactNode;
   result: ReactNode;
   timeline: ReactNode;
@@ -50,6 +62,10 @@ export interface LensWorkbenchContextValue {
   readonly selectedActivityVariableId: string | undefined;
   /** The current scope's supplied recording; custom logs own cursor filtering. */
   readonly narrativeEntries: readonly NarrativeEntry[];
+  /** False while a recording's known stale companion is withheld. */
+  readonly narrativeAvailable?: boolean;
+  /** The admitted narrative scope at the selected subflow level. */
+  readonly narrativeScopeSubflowId?: string;
   readonly traceWalk: TraceWalk | null;
   readonly questionTrail: readonly { key: string; invocationPath: readonly string[] }[];
   readonly activityOrigin: {

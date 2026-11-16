@@ -1,6 +1,7 @@
 // Types
 export { useLensWorkbench } from "./components/ExplainableShell/LensWorkbench";
-export type { LensTheme, LensWorkbenchContextValue, LensWorkbenchActions, LensWorkbenchSurfaces, LensWorkbenchLayout } from "./components/ExplainableShell/LensWorkbench";
+export type { LensTheme, LensView, LensCommentaryOptions, LensWorkbenchContextValue, LensWorkbenchActions, LensWorkbenchSurfaces, LensWorkbenchLayout } from "./components/ExplainableShell/LensWorkbench";
+export type { LensLayoutDefinition, LensLayoutSurface } from "./model/lensLayout";
 export * from "./components/GroupedFlowDiagram";
 export type { StageSnapshot, Size, BaseComponentProps, NarrativeEntry } from "./types";
 
@@ -48,7 +49,7 @@ export { StageDetailPanel, DEFAULT_EXCLUDED_KEYS } from "./components/StageDetai
 export type { StageDetailPanelProps, StageDetailMode, MemoryChange } from "./components/StageDetailPanel";
 
 export { TimeTravelControls } from "./components/TimeTravelControls";
-export type { TimeTravelControlsProps, TracingRail } from "./components/TimeTravelControls";
+export type { TimeTravelControlsProps, TracingRail, ReplayControlsOptions } from "./components/TimeTravelControls";
 
 export { ExplainableShell } from "./components/ExplainableShell";
 export type { ExplainableShellProps, TraceTheme, RuntimeSnapshotInput, RecorderView, ShellTab, PanelLabels, DefaultExpanded } from "./components/ExplainableShell";

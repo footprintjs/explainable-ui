@@ -14,6 +14,7 @@ import { FlowchartPanel } from "./FlowchartPanel";
 import { ValueInspector } from "./ValueInspector";
 import { CommentaryPanel } from "./CommentaryPanel";
 import { TimeTravelBar } from "./TimeTravelBar";
+import type { ReplayControlsOptions } from "../TimeTravelControls";
 import { CompactTimelinePanel } from "./CompactTimelinePanel";
 import { SurfaceCollapseHandle } from "./SurfaceCollapseHandle";
 
@@ -64,6 +65,7 @@ export interface ExplainableViewProps
   readonly defaultDetailsExpanded?: boolean;
   readonly onDetailsExpandedChange?: (expanded: boolean) => void;
   readonly detailsLabel?: string;
+  readonly replayControls?: ReplayControlsOptions;
 }
 
 const layoutPresets: Record<ExplainableViewPreset, ExplainableLayoutDefinition> = {
@@ -164,6 +166,7 @@ function ViewContents({
   defaultDetailsExpanded = true,
   onDetailsExpandedChange,
   detailsLabel = "Details",
+  replayControls,
   unstyled,
   className,
   style,
@@ -177,6 +180,7 @@ function ViewContents({
     | "defaultDetailsExpanded"
     | "onDetailsExpandedChange"
     | "detailsLabel"
+    | "replayControls"
     | "unstyled"
     | "className"
     | "style"
@@ -203,7 +207,7 @@ function ViewContents({
     .join(" ");
   const renderSurface = (surface: ExplainableSurface) => {
     const fallback = {
-      timeTravel: <TimeTravelBar unstyled={unstyled} />,
+      timeTravel: <TimeTravelBar unstyled={unstyled} replayControls={replayControls} />,
       timeline: <CompactTimelinePanel unstyled={unstyled} />,
       stageRail: <TimelinePanel unstyled={unstyled} />,
       flowchart: <FlowchartPanel unstyled={unstyled} />,
@@ -379,6 +383,7 @@ export function ExplainableView({
   defaultDetailsExpanded,
   onDetailsExpandedChange,
   detailsLabel,
+  replayControls,
   unstyled = false,
   className,
   style,
@@ -399,6 +404,7 @@ export function ExplainableView({
         defaultDetailsExpanded={defaultDetailsExpanded}
         onDetailsExpandedChange={onDetailsExpandedChange}
         detailsLabel={detailsLabel}
+        replayControls={replayControls}
         unstyled={unstyled}
         className={className}
         style={style}

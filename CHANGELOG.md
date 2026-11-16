@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- `ExplainableShell.layout` and `TraceViewer.layout` accept a JSON-compatible
+  `LensLayoutDefinition` for arranging the shared time controls, flowchart,
+  developer details, commentary and timeline. Time controls and flowchart remain
+  required; optional surfaces hide when omitted, repeated areas span cells and
+  narrow screens stack in first-appearance order. A combined `details` area
+  retains the Developer / Commentary buttons and cannot mix with separate
+  developer/commentary areas. The default arrangement is unchanged, and
+  `renderLayout` takes precedence. Root types include `LensLayoutDefinition`
+  and `LensLayoutSurface`.
+- The details pane switches between **Developer** and **Commentary** while
+  retaining the same chart, selected stage, time controls and drill scope.
+  `ExplainableShell.defaultView` defaults to `"developer"`; `"story"` opens
+  Commentary. Controlled `view` and `onViewChange` support host state; a
+  controlled value without a callback fixes the audience and shows its label.
+  Commentary defaults to a readable 2,000 ms replay interval with automatic
+  playback still off. `TraceViewer` forwards the same audience options.
+- `commentary` configures the full Lens commentary title, entry renderer, empty text,
+  line limit, entry-type badges, prefix or current-visit presentation and cursor
+  following. The full Lens defaults to the existing accumulated transcript,
+  scrolling with the cursor and hiding entry-type badges; hosts may opt out of
+  following or explicitly select current-visit prose. Standalone/basic
+  `CommentaryPanel` keeps its log, no-follow and visible-badge defaults.
+  `surfaces.commentary` and the public `CommentaryPanel` also work inside a
+  full Lens custom layout without a second cursor or narrative recording.
+- Shared `replayControls` options configure previous/next, play/pause, slider
+  visibility and a fixed interval on `ExplainableShell`, `TimeTravelControls`,
+  `TimeTravelBar` and `ExplainableView`. Visibility defaults remain on.
+  Root types include `LensView`, `LensCommentaryOptions` and
+  `ReplayControlsOptions`. A public `examples/story-commentary` consumer
+  demonstrates details switching and customized commentary.
 - Inspector **Activity** combines one exact visit's recorded narrative, read
   keys, committed state changes and decisions. Variable inspection preserves
   stage context and can enter the existing backtracking rail with distinct
