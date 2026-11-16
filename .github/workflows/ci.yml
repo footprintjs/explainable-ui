@@ -32,6 +32,10 @@ jobs:
       - run: npm run build
       - run: npm test
 
+      - name: Build seven-workflow preview
+        if: matrix.node-version == 22
+        run: npx vite build --config examples/local-playground/vite.config.ts
+
       # Non-shipping source pilot. Foottrace's development tests require Node 22;
       # the existing package entries and their Node 20 lane stay unchanged.
       - name: Verify isolated record source pilot
