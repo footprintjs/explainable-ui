@@ -1,0 +1,16 @@
+{
+  "name": "explainable-ui-local-playground",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "record": "node record.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "footprintjs": "12.2.0"
+  }
+}

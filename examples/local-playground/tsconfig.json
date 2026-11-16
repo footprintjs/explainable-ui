@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "footprint-explainable-ui": ["../../src/index.ts"],
+      "footprint-explainable-ui/flowchart": ["../../src/flowchart.ts"]
+    }
+  },
+  "include": ["App.tsx", "main.tsx", "PlaygroundChart.tsx", "vite.config.ts"]
+}

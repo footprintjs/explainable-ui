@@ -92,6 +92,12 @@ MyPane, drops: ['tracing'] } }`). Silence there is a decision, not an accident.
 
 ## Quick Start
 
+To explore seven recorded workflows with replay, Developer / Commentary details,
+layouts and a Recorded / Built-in / Custom SVG node-icon selector, run the
+[local playground](examples/local-playground/README.md). Custom SVG icons are
+selected by default. The preview replays bundled recordings using this checkout's
+source and requires no workflow services.
+
 ### 1. Capture the chart while it is built
 
 The chart is the one thing a run does not leave behind, so collect it at BUILD
