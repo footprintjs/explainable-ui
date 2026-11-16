@@ -1,13 +1,14 @@
 name: Deploy demo to GitHub Pages
 
-# Builds the flowchart demo (demo/) as a static site and deploys it to
-# https://footprintjs.github.io/explainable-ui/. The demo imports the library
-# from source, so the deployed page always reflects the current components.
+# Builds the gallery at /explainable-ui/ and the seven-workflow preview at
+# /explainable-ui/local-playground/. Both import the library from source.
 on:
   push:
     branches: [main]
     paths:
       - 'demo/**'
+      - 'examples/local-playground/**'
+      - 'examples/node-icons/**'
       - 'src/**'
       - 'vite.config.ts'
       - 'package.json'
@@ -34,6 +35,9 @@ jobs:
       # Keep the demo's unlocked resolution on the same installer as CI.
       - run: npx --yes npm@11.21.0 install
       - run: npm run demo:build
+      # Build second: the gallery clears demo-dist; this clears only its child.
+      - name: Build seven-workflow preview
+        run: npx vite build --config examples/local-playground/vite.config.ts
       - uses: actions/upload-pages-artifact@v3
         with:
           path: demo-dist

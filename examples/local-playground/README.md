@@ -1,5 +1,8 @@
 # Local Flow Lens playground
 
+[Open the hosted preview](https://footprintjs.github.io/explainable-ui/local-playground/).
+GitHub Pages builds both this preview and the existing gallery from `main`.
+
 Seven real FootprintJS executions presented in the current `ExplainableShell`:
 
 - **Simple:** follow a sequence of recorded steps and state changes.
