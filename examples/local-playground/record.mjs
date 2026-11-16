@@ -1,16 +1,47 @@
 /** Run local FootprintJS applications and save their actual recorder output. */
 import assert from 'node:assert/strict';
-import { writeFileSync, readFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, realpathSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { resolve, dirname } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
-import { flowChart, FlowChartExecutor, decide, select } from 'footprintjs';
-import { narrative, metrics } from 'footprintjs/recorders';
 import { createTraceBundle } from '../../dist/flowchart.js';
 
 const require = createRequire(import.meta.url);
-const engineVersion = JSON.parse(readFileSync(require.resolve('footprintjs/package.json'), 'utf8')).version;
+// Optional development capture through the engine's built public entry points.
+// Saved recordings identify this source build; it is not a published-package claim.
+const engineCheckout = process.env.FOOTPRINT_ENGINE_CHECKOUT && resolve(process.env.FOOTPRINT_ENGINE_CHECKOUT);
+const enginePackage = JSON.parse(readFileSync(engineCheckout
+  ? resolve(engineCheckout, 'package.json') : require.resolve('footprintjs/package.json'), 'utf8'));
+assert.equal(enginePackage.name, 'footprintjs');
+const loadEngine = (entry) => import(engineCheckout
+  ? pathToFileURL(resolve(engineCheckout, enginePackage.exports[entry].import.default)).href
+  : entry === '.' ? 'footprintjs' : `footprintjs/${entry.slice(2)}`);
+const { flowChart, FlowChartExecutor, decide, select } = await loadEngine('.');
+const { narrative, metrics } = await loadEngine('./recorders');
+const engineVersion = enginePackage.version;
 const expectedEngineVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).dependencies.footprintjs;
-assert.equal(engineVersion, expectedEngineVersion, 'Install the playground dependencies before recording: npm install --prefix examples/local-playground');
+if (!engineCheckout) assert.equal(engineVersion, expectedEngineVersion, 'Install the playground dependencies before recording: npm install --prefix examples/local-playground');
+const revision = directory => execFileSync('git', ['-C', directory, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+function recordLayerSource() {
+  const recordPackagePath = realpathSync(createRequire(resolve(engineCheckout, 'package.json')).resolve('foottrace/package.json'));
+  const directory = dirname(recordPackagePath);
+  const version = JSON.parse(readFileSync(recordPackagePath, 'utf8')).version;
+  try {
+    const gitRoot = execFileSync('git', ['-C', directory, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    return { version, ...(gitRoot === directory && { revision: revision(directory) }) };
+  } catch {
+    // An installed package can live outside a Git checkout.
+    return { version };
+  }
+}
+const sourceBuild = engineCheckout ? {
+  engineRevision: revision(engineCheckout),
+  recordLayer: recordLayerSource(),
+  nestedReadTracking: true,
+  released: false,
+} : undefined;
 
 // Consumer-owned voice: the engine saves these sentences in its normal
 // narrativeEntries JSON. Both Lens audiences replay that same recording.
@@ -42,13 +73,15 @@ const outcome = (scope, message) => scope.$emit('example.outcome', { message: `R
 async function record(meta, build, verify) {
   const bundle = createTraceBundle();
   const chart = build(bundle.structure.recorder);
-  const executor = new FlowChartExecutor(chart, { readTracking: 'full', writeProvenance: 'reads-prefix', captureOutputHandoff: true });
+  const executor = new FlowChartExecutor(chart, { readTracking: 'full', writeProvenance: 'reads-prefix', captureOutputHandoff: true,
+    ...(sourceBuild && { nestedReadTracking: true }) });
   const story = narrative({ renderer: commentaryFormatter });
   executor.attachCombinedRecorder(story);
   executor.attachScopeRecorder(metrics());
   bundle.attachTo(executor);
   await executor.run();
   const runtimeSnapshot = executor.getSnapshot();
+  if (sourceBuild) assert.equal(runtimeSnapshot.nestedReadTracking, true, 'Build an engine checkout with canonical nested-read capture before recording.');
   const overlay = bundle.runtimeOverlay.getOverlay();
   const traceGraph = bundle.structure.getGraph();
   const narrativeEntries = story.getEntries();
@@ -266,10 +299,18 @@ const parallel = await record({
     scope.total = total;
     outcome(scope, `The combined item and delivery total is ${total}.`);
   }, 'combine', 'Combine the two branch results')
-  .build(), (state, overlay, { traceGraph }) => {
+  .build(), (state, overlay, { traceGraph, runtimeSnapshot }) => {
     assert.equal(state.runs.items.amount, 30);
     assert.equal(state.runs.delivery.amount, 5);
     assert.equal(state.total, 35);
+    if (sourceBuild) {
+      const branchPaths = runtimeSnapshot.commitLog
+        .filter(bundle => bundle.stageId === 'items' || bundle.stageId === 'delivery')
+        .flatMap(bundle => bundle.trace.map(write => write.path));
+      const totalWrite = runtimeSnapshot.commitLog.flatMap(bundle => bundle.trace).find(write => write.path === 'total');
+      assert.equal(branchPaths.length, 2);
+      for (const path of branchPaths) assert.ok(totalWrite.readKeys.includes(path), `total must retain its actual recorded read of ${path}`);
+    }
     for (const stageId of ['items', 'delivery', 'combine']) {
       assert.equal(overlay.executionOrder.filter((step) => step.stageId === stageId).length, 1);
     }
@@ -411,6 +452,7 @@ const destination = new URL('./recordings.json', import.meta.url);
 writeFileSync(destination, JSON.stringify({
   generatedAt: new Date().toISOString(),
   engineVersion,
+  ...(sourceBuild && { sourceBuild }),
   scenarios: [linear, pricing, shipping, parallel, loop, retry, subflows],
 }, null, 2));
 console.log(`Saved ${destination.pathname}`);
