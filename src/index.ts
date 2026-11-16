@@ -16,7 +16,7 @@ export type { FootprintThemeProps, FootprintComponents, FootprintPrimitiveOption
   FootprintIconProps, FootprintIconAdapterProps,
 } from "./theme";
 export { tokensToCSSVars, defaultTokens, rawDefaults } from "./theme";
-export { themePresets, coolDark, coolLight, warmDark, warmLight } from "./theme";
+export { themePresets, coolDark, coolLight, warmDark, warmLight, paperLight, paperDark } from "./theme";
 export { useDarkModeTokens } from "./theme";
 // The one-word light/dark switch: `theme="light"` on a standalone component,
 // `themeModeVars(mode)` to stamp the same variables on your own wrapper.

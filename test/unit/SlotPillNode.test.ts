@@ -36,8 +36,8 @@ describe("SlotPillNode", () => {
     expect(html).toContain('title="tools"');
   });
 
-  // The lit glow is `box-shadow:0 0 0 2px ...`; unlit is `box-shadow:none`.
-  const GLOW = "box-shadow:0 0 0 2px";
+  // The shared shadow override retains the lit halo and unlit "none" as fallbacks.
+  const GLOW = "box-shadow:var(--fp-node-shadow, 0 0 0 2px";
 
   it("unit: LIT when active — primary border + glow (box-shadow)", () => {
     const html = render({ label: "messages", active: true });
@@ -61,7 +61,7 @@ describe("SlotPillNode", () => {
   it("unit: UNLIT (neither active nor selected) — muted border, no glow", () => {
     const html = render({ label: "messages" });
     expect(html).toContain(C.border); // muted border, not primary
-    expect(html).toContain("box-shadow:none"); // explicitly no lit glow
+    expect(html).toContain("box-shadow:var(--fp-node-shadow, none)"); // explicitly no lit glow
     expect(html).not.toContain(GLOW);
   });
 

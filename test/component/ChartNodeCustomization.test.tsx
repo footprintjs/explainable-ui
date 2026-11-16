@@ -46,6 +46,107 @@ describe("chart design-system rendering", () => {
     expect(view.container.querySelector<HTMLElement>(".fp-theme-root")!.style.getPropertyValue("--fp-on-node-cursor")).toBe("#eee");
   });
 
+  it.each([
+    [{}, "--fp-border", "2px"],
+    [{ active: true }, "--fp-node-cursor", "2px"],
+    [{ done: true }, "--fp-node-visited", "2px"],
+    [{ error: true }, "--fp-color-error", "2px"],
+    [{ done: true, emphasis: "hero" }, "--fp-node-main", "2.5px"],
+    [{ emphasis: "muted" }, "--fp-border", "1px"],
+  ] as const)("can outline and lift each recorded state independently of its fill: %j", (status, legacyOutline, legacyWidth) => {
+    const flags = status as Partial<StageNodeData>;
+    const view = render(<FootprintTheme tokens={{ nodes: {
+      borderColor: "#35332f", borderWidth: "1px", radius: "5px", shadow: "2px 3px 0 #35332f",
+    } }}>{stage(status)}</FootprintTheme>);
+    const body = view.container.querySelector<HTMLElement>('[data-fp="stage-node-body"]')!;
+    const node = view.container.querySelector<HTMLElement>('[data-fp="stage-node"]')!;
+    const declarations = view.container.querySelector<HTMLElement>(".fp-theme-root")!.style;
+    expect(declarations.getPropertyValue("--fp-node-border-color")).toBe("#35332f");
+    expect(declarations.getPropertyValue("--fp-node-shadow")).toBe("2px 3px 0 #35332f");
+    expect(body.style.border).toContain("--fp-node-border-color");
+    expect(body.style.border).toContain(legacyOutline);
+    expect(body.style.border).toContain(`var(--fp-node-border-width, ${legacyWidth})`);
+    expect(body.style.borderRadius).toContain("--fp-node-radius");
+    expect(body.style.boxShadow).toContain("--fp-node-shadow");
+    expect(body.style.background).not.toContain("--fp-node-border-color");
+    expect(node.dataset.active).toBe(flags.active ? "true" : undefined);
+    expect(node.dataset.done).toBe(flags.done ? "true" : undefined);
+    expect(node.dataset.error).toBe(flags.error ? "true" : undefined);
+    expect(view.getByText("Recorded work")).toBeTruthy();
+    expect(view.container.querySelectorAll(".react-flow__handle")).toHaveLength(2);
+  });
+
+  it("uses the same outline and shadow overrides for decision shapes without changing the recorded cursor", () => {
+    const view = render(<FootprintTheme tokens={{ nodes: {
+      borderColor: "#35332f", borderWidth: "1px", shadow: "2px 3px 0 #35332f", badgeShadow: "none", pulseOpacity: "0",
+      shapeShadow: "drop-shadow(2px 3px 0 #35332f)",
+    } }}>{stage({ isDecider: true, active: true, stepNumbers: [2] })}</FootprintTheme>);
+    const body = view.container.querySelector<HTMLElement>('[data-fp="stage-node-body"]')!;
+    const layers = [...body.querySelectorAll<HTMLElement>("[style]")];
+    const outline = layers.find(layer => layer.style.background.includes("--fp-node-border-color"))!;
+    const shape = layers.find(layer => layer.style.boxShadow.includes("--fp-node-shadow"))!;
+    expect(outline.style.inset).toContain("--fp-node-border-width");
+    expect(outline.style.clipPath).toContain("polygon");
+    expect(shape.style.background).toContain("--fp-node-cursor");
+    expect(shape.style.clipPath).toContain("polygon");
+    expect(body.style.filter).toContain("--fp-node-shape-shadow");
+    const badge = view.container.querySelector<HTMLElement>('[data-fp="stage-cursor-badge"]')!;
+    expect(badge.textContent).toBe("NOW");
+    expect(badge.style.boxShadow).toContain("--fp-node-badge-shadow");
+    expect(view.container.querySelector('[data-fp="stage-node"]')?.getAttribute("data-active")).toBe("true");
+    expect(view.container.querySelectorAll(".react-flow__handle")).toHaveLength(2);
+    view.rerender(<FootprintTheme tokens={{ nodes: { shapeShadow: "drop-shadow(2px 3px 0 #35332f)" } }}>
+      {stage({ isDecider: true, active: true, stepNumbers: [2], unstyled: true })}
+    </FootprintTheme>);
+    expect(view.container.querySelector<HTMLElement>('[data-fp="stage-node-body"]')!.style.filter).toBe("");
+    expect(view.container.querySelectorAll(".react-flow__handle")).toHaveLength(2);
+  });
+
+  it.each([
+    [{ active: true }, "Selected"],
+    [{ done: true }, "Visited"],
+    [{ error: true, done: true }, "Failed"],
+  ] as const)("keeps group status explicit with a fixed outline: %j", (status, label) => {
+    const props = { data: { label: "Recorded group", ...status } } as unknown as Parameters<typeof GroupContainerNode>[0];
+    const view = render(<FootprintTheme tokens={{ nodes: { borderColor: "#35332f", groupStatusDisplay: "inline-flex" } }}>
+      {createElement(ReactFlowProvider, null, createElement(GroupContainerNode, props))}
+    </FootprintTheme>);
+    const badge = view.container.querySelector<HTMLElement>('[data-fp="group-status-badge"]')!;
+    expect(badge.textContent).toBe(label);
+    expect(badge.style.display).toContain("--fp-node-group-status-display");
+    // A visited container is an execution position, not a completion claim.
+    expect(badge.textContent).not.toMatch(/complet|success/i);
+    expect(view.container.querySelectorAll(".react-flow__handle")).toHaveLength(2);
+    view.rerender(<FootprintTheme tokens={{ nodes: { groupStatusDisplay: "inline-flex" } }}>
+      {createElement(ReactFlowProvider, null, createElement(GroupContainerNode, {
+        ...props, data: { ...props.data, unstyled: true },
+      }))}
+    </FootprintTheme>);
+    expect(view.container.querySelector('[data-fp="group-status-badge"]')).toBeNull();
+  });
+
+  it.each([
+    [GroupContainerNode, "group-container-node"],
+    [SlotPillNode, "slot-pill-node"],
+  ] as const)("shares node paint with %s while retaining its footprint and recorded status", (Component, part) => {
+    const props = { data: { label: "Recorded group", active: true, done: true } } as unknown as Parameters<typeof Component>[0];
+    const view = render(<FootprintTheme tokens={{ nodes: {
+      borderColor: "#35332f", borderWidth: "1px", borderStyle: "solid", radius: "5px", shadow: "2px 3px 0 #35332f",
+    } }}>{createElement(ReactFlowProvider, null, createElement(Component, props))}</FootprintTheme>);
+    const card = view.container.querySelector<HTMLElement>(`[data-fp="${part}"]`)!;
+    expect(card.style.border).toContain("--fp-node-border-color");
+    expect(card.style.border).toContain("--fp-node-border-width");
+    expect(card.style.border).toContain("--fp-node-border-style");
+    expect(card.style.borderRadius).toContain("--fp-node-radius");
+    expect(card.style.boxShadow).toContain("--fp-node-shadow");
+    expect(card.style.width).toBe("100%");
+    expect(card.style.height).toBe("100%");
+    expect(card.dataset.active).toBe("true");
+    expect(card.dataset.done).toBe("true");
+    expect(view.getByText("Recorded group")).toBeTruthy();
+    expect(view.container.querySelectorAll(".react-flow__handle")).toHaveLength(2);
+  });
+
   it("retains content, statuses and ports while stripping StageNode paint", () => {
     const data: Partial<StageNodeData> = { active: true, retryAttempts: 3, stepNumbers: [1], traceWorkflow: {
       color: "purple", role: "question", values: [{ key: "answer", preview: "7", color: "teal" }],

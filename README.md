@@ -1146,6 +1146,7 @@ weights and durations; for example `"0.875rem"`, `"600"` and `"120ms"`.
 | `elevation` | `panel`, `popover`, `focus` |
 | `motion` | `duration`, `fastDuration`, `easing` |
 | `controls` | `height`, `paddingX`, `gap`, `iconSize` |
+| `nodes` | `borderColor`, `borderWidth`, `borderStyle`, `radius`, `shadow`, `shapeShadow`, `badgeShadow`, `pulseOpacity`, `groupStatusDisplay` |
 | `colors` foreground pairs | `onPrimary`, `onSuccess`, `onError`, `onWarning`, `onTracing`, `onNodeCursor`, `onNodeVisited`, `onNodeMain` |
 
 Set each foreground with its corresponding fill when adapting contrast to your
@@ -1154,6 +1155,25 @@ available. Legacy `radius` seeds all three component radii; an explicit
 `radii.control`, `radii.panel` or `radii.badge` overrides its corresponding value.
 `componentStyles(size)` exports the CSS-variable recipes for custom surfaces;
 the existing numeric font-size and padding helpers remain available for math.
+
+The `nodes` group and Paper presets are unreleased additions; they are not in
+the published `footprint-explainable-ui@0.45.0` package yet.
+
+The optional `nodes` group controls chart-card paint independently from the
+state fill colors and panel recipes. For example, a dark outline and a small
+offset shadow can surround pastel current/visited nodes. Omitted overrides
+retain the existing per-state appearance; these tokens do not change recorded
+status, selection or playback.
+
+`radius` and `borderStyle` style rectangular, pill and group cards; decision
+nodes keep their diamond shape. `shadow` uses CSS `box-shadow` syntax.
+`shapeShadow` uses a CSS filter value for clipped decision shapes, for example
+`"drop-shadow(2px 3px 0 #35332f)"` or `"none"`. A drop shadow does not accept
+box-shadow spread or `inset` values.
+
+`groupStatusDisplay` controls the small Selected / Visited / Failed cue in group
+headers. It defaults to `"none"`; Paper uses `"inline-flex"` so a fixed outline
+can coexist with visible cursor and recorded-state cues.
 
 ```tsx
 <ExplainableShell
@@ -1245,6 +1265,25 @@ style. A custom child must forward `className` and `style` to its DOM root.
 | `warmDark` | Charcoal-purple with warm text |
 | `warmLight` | Cream/peach light theme |
 | `coolLight` | Light indigo theme |
+| `paperLight` | Warm paper surfaces, pastel nodes, thin outlines and offset shadows |
+| `paperDark` | Dark paper palette with the same restrained outlines and shadows |
+
+Use Paper as an additional theme, or override individual tokens:
+
+```tsx
+import { ExplainableShell, paperLight } from "footprint-explainable-ui";
+
+<ExplainableShell
+  runtimeSnapshot={snapshot}
+  traceGraph={graph}
+  theme={{ mode: "light", tokens: paperLight }}
+/>;
+```
+
+The [seven-workflow playground](examples/local-playground/README.md) includes a
+Paper choice alongside its existing themes. This preset takes visual cues from
+[Designed to Scale](https://designed-to-scale.vercel.app/#/design-chat/12); it
+styles the existing flat chart and does not add 3D geometry.
 
 ---
 
@@ -1328,7 +1367,7 @@ from both `footprint-explainable-ui` and `footprint-explainable-ui/flowchart`.
 | `tokensToCSSVars` | Turn a token object into that variable map yourself |
 | `defaultTokens` | The shipped default token set (dark) |
 | `rawDefaults` | The same defaults as plain values, with no `var()` indirection |
-| `themePresets` | All four built-in presets, by name |
+| `themePresets` | All six built-in presets, by name |
 
 ### Utilities
 

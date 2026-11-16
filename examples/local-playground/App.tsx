@@ -1,6 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type CSSProperties } from "react";
 import {
   ExplainableShell,
+  paperLight,
+  paperDark,
+  tokensToCSSVars,
   type ExplainableShellProps,
   type RuntimeOverlay,
   type LensTheme,
@@ -60,7 +63,7 @@ const NO_GROUPS: string[] = [];
 
 export default function App() {
   const [mode, setMode] = useState<"light" | "dark">("light");
-  const [skin, setSkin] = useState<"standard" | "forest" | "graphite">("standard");
+  const [skin, setSkin] = useState<"standard" | "forest" | "graphite" | "paper">("standard");
   const [lensView, setLensView] = useState<"story" | "developer">("story");
   const [iconMode, setIconMode] = useState<NodeIconMode>("custom");
   const [replayControls, setReplayControls] = useState({ previousNext: true, playPause: true, slider: true });
@@ -75,10 +78,11 @@ export default function App() {
       areas: [["timeTravel", "timeTravel"], ["flowchart", "developer"], ["commentary", "timeline"]] };
     return undefined;
   }, [arrangement]);
+  const paperTokens = mode === "dark" ? paperDark : paperLight;
   const lensTheme: LensTheme = {
     mode,
     components: iconMode === "custom" ? { Icon: ExampleStageIcon } : undefined,
-    tokens: skin === "forest" ? {
+    tokens: skin === "paper" ? paperTokens : skin === "forest" ? {
       colors: { primary: mode === "dark" ? "#b9dbc7" : "#21634a", accent: mode === "dark" ? "#b9dbc7" : "#21634a", accentBg: "rgba(33,99,74,0.12)",
         nodeCursor: mode === "dark" ? "#b9dbc7" : "#153f35", onNodeCursor: mode === "dark" ? "#10271a" : "#ffffff", nodeVisited: mode === "dark" ? "#153f35" : "#b9dbc7", onNodeVisited: mode === "dark" ? "#ffffff" : "#10271a",
         nodeMain: "#245c45", onNodeMain: "#ffffff", tracing: mode === "dark" ? "#b9dbc7" : "#21634a", onTracing: mode === "dark" ? "#10271a" : "#ffffff" },
@@ -139,7 +143,8 @@ export default function App() {
     ? groupedSubflows.filter((groupId) => groupId !== id)
     : [...groupedSubflows, id]);
 
-  return <div className="playground" data-theme={mode}>
+  return <div className="playground" data-theme={mode} data-skin={skin}
+    style={skin === "paper" ? tokensToCSSVars(paperTokens) as CSSProperties : undefined}>
     <div className="page-wrap">
       <header className="page-header">
         <a className="brand" href="#workflow-preview" aria-label="Flow Lens local preview">
@@ -201,7 +206,7 @@ export default function App() {
             </label>
             <label className="layout-control"><span className="context-label">Lens theme</span>
               <select aria-label="Lens theme" value={skin} onChange={event => setSkin(event.target.value as typeof skin)}>
-                <option value="standard">Standard</option><option value="forest">Forest / serif</option><option value="graphite">Graphite / compact</option>
+                <option value="standard">Standard</option><option value="forest">Forest / serif</option><option value="graphite">Graphite / compact</option><option value="paper">Paper</option>
               </select>
             </label>
             <label className="layout-control"><span className="context-label">Chart layout</span>

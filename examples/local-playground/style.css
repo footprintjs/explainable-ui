@@ -35,6 +35,19 @@ button:focus-visible, a:focus-visible { outline: 3px solid #7c6ee7; outline-offs
   --accent-border: #6f62aa;
   color-scheme: dark;
 }
+/* The surrounding preview reads the same exported palette as the Lens. */
+.playground[data-skin="paper"] {
+  --page-bg: var(--fp-bg-primary);
+  --surface: var(--fp-bg-elevated);
+  --surface-muted: var(--fp-bg-secondary);
+  --text: var(--fp-text-primary);
+  --muted: var(--fp-text-secondary);
+  --border: var(--fp-border);
+  --accent: var(--fp-accent);
+  --accent-soft: var(--fp-accent-bg);
+  --accent-border: var(--fp-border);
+  font-family: var(--fp-font-sans);
+}
 .page-wrap { max-width: 1600px; margin: 0 auto; }
 .page-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 92px; border-bottom: 1px solid var(--border); }
 .brand { display: inline-flex; align-items: center; gap: 13px; color: var(--text); text-decoration: none; font-size: 14px; font-weight: 720; letter-spacing: -.02em; }
@@ -253,4 +266,38 @@ summary:focus-visible, select:focus-visible { outline: 3px solid #7c6ee7; outlin
   .scenario-button { min-height: 57px; padding-top: 8px; padding-bottom: 8px; }
   .run-heading h2 { font-size: 17px; }
   .run-section { padding-top: 9px; gap: 6px; }
+}
+
+/* Paper changes paint only; layout and the mounted replay controller stay put. */
+.playground[data-skin="paper"] :is(.button, .scenario-number, .layout-control select, .run-guide) {
+  border-radius: var(--fp-radius-control);
+}
+.playground[data-skin="paper"] :is(.scenario-button, .shell-frame) {
+  border-radius: var(--fp-radius-panel);
+}
+.playground[data-skin="paper"] :is(.button, .scenario-button, .scenario-number, .shell-frame, .run-guide, .layout-control select) {
+  border-width: var(--fp-border-width);
+}
+.playground[data-skin="paper"] .button-primary {
+  background: var(--fp-color-primary);
+  color: var(--fp-on-primary);
+  border-color: var(--fp-border);
+  box-shadow: var(--fp-shadow-panel);
+}
+.playground[data-skin="paper"] .button-primary:hover {
+  background: var(--fp-color-primary);
+  filter: brightness(.97);
+}
+.playground[data-skin="paper"] :is(.scenario-button.is-active, .shell-frame) {
+  box-shadow: var(--fp-shadow-panel);
+}
+.playground[data-skin="paper"] .status-dot {
+  background: var(--fp-color-success);
+}
+.playground[data-skin="paper"] .checkbox-control input {
+  accent-color: var(--fp-accent);
+}
+.playground[data-skin="paper"] :is(button, a, summary, select, input):focus-visible {
+  outline: var(--fp-focus-width) solid var(--fp-accent);
+  outline-offset: 3px;
 }

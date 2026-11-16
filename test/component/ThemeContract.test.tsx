@@ -28,8 +28,11 @@ describe("consumer theme and primitive contract", () => {
   it("emits only local overrides while nested contexts inherit fields and adapters", () => {
     render(<FootprintTheme components={{ Button: HostButton }} tokens={{
       colors: { primary: "navy", onPrimary: "white" }, typography: { body: "16px", lineHeight: "1.8" }, controls: { height: "40px" },
+      nodes: { borderColor: "#35332f", borderWidth: "1px", shadow: "2px 3px 0 #35332f" },
     }}>
-      <FootprintTheme components={{ Button: undefined }} tokens={{ colors: { warning: "orange", primary: undefined }, typography: { small: "12px" } }}>
+      <FootprintTheme components={{ Button: undefined }} tokens={{ colors: { warning: "orange", primary: undefined }, typography: { small: "12px" },
+        nodes: { borderColor: undefined, shadow: "none" },
+      }}>
         <ThemeReadout /><FootprintButton data-fp-part="kept">Nested</FootprintButton>
       </FootprintTheme>
     </FootprintTheme>);
@@ -38,10 +41,15 @@ describe("consumer theme and primitive contract", () => {
     expect(wrappers[1].style.getPropertyValue("--fp-font-size-body")).toBe("");
     expect(wrappers[1].style.getPropertyValue("--fp-color-primary")).toBe("");
     expect(wrappers[1].style.getPropertyValue("--fp-color-warning")).toBe("orange");
+    expect(wrappers[0].style.getPropertyValue("--fp-node-border-color")).toBe("#35332f");
+    expect(wrappers[1].style.getPropertyValue("--fp-node-border-color")).toBe("");
+    expect(wrappers[1].style.getPropertyValue("--fp-node-border-width")).toBe("");
+    expect(wrappers[1].style.getPropertyValue("--fp-node-shadow")).toBe("none");
     const context = JSON.parse(screen.getByRole("status").textContent!);
     expect(context.tokens.colors).toMatchObject({ primary: "navy", onPrimary: "white", warning: "orange" });
     expect(context.tokens.typography).toMatchObject({ body: "16px", lineHeight: "1.8", small: "12px" });
     expect(context.tokens.controls.height).toBe("40px");
+    expect(context.tokens.nodes).toMatchObject({ borderColor: "#35332f", borderWidth: "1px", shadow: "none" });
     expect(context.buttonInherited).toBe(true);
     expect(screen.getByRole("button", { name: "Nested" }).getAttribute("data-fp-part")).toBe("kept");
   });

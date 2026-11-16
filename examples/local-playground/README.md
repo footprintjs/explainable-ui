@@ -42,6 +42,28 @@ Use **Chart layout** to compare **Default** and **Straight trunk** layouts. **Ou
 
 Layout, grouping and theme changes update the memoized chart renderer without remounting the shell or resetting its cursor. The chart integration uses the shell's existing `renderFlowchart` prop; no library API changes are required.
 
+**Lens theme → Paper** applies a paper-and-pastel palette, thin node outlines and small offset shadows inspired by the [Designed to Scale reference](https://designed-to-scale.vercel.app/#/design-chat/12). The existing light/dark toggle selects `paperLight` or `paperDark`. The surrounding preview and the Lens use the same exported tokens. Standard, Forest and Graphite remain available, and Standard remains the initial choice.
+
+Paper presets and `tokens.nodes` are unreleased source additions, not part of the published 0.45.0 package yet.
+
+Consumers can use the preset directly, without the preview:
+
+```tsx
+import { ExplainableShell, paperLight } from "footprint-explainable-ui";
+
+<ExplainableShell
+  runtimeSnapshot={snapshot}
+  traceGraph={graph}
+  theme={{ mode: "light", tokens: paperLight }}
+/>;
+```
+
+The optional `tokens.nodes` fields control chart-card paint: `borderColor`, `borderWidth`, `borderStyle`, `radius`, `shadow`, `shapeShadow`, `badgeShadow`, `pulseOpacity` and `groupStatusDisplay`. They can also be supplied as a partial override on another palette. Omitted fields retain the existing node appearance, including its per-state styling.
+
+`radius` and `borderStyle` apply to rectangular, pill and group cards; decisions retain their diamond shape. `shadow` uses box-shadow syntax. For clipped decisions, `shapeShadow` takes a CSS filter value such as `"drop-shadow(2px 3px 0 #35332f)"` or `"none"`; drop shadows do not accept spread or `inset`. `groupStatusDisplay` defaults to `"none"`; Paper uses `"inline-flex"` to show a small Selected / Visited / Failed group-header cue alongside its fixed dark outlines. These cues reflect the shared cursor and recorded state.
+
+Changing the theme changes presentation; it keeps the recording, selection and replay cursor. Paper uses the current flat flowchart; it does not add an isometric renderer.
+
 **Node icons** compares the saved recording's icon names, the library's built-in icons and custom inline SVG icons on the actual execution nodes. Custom SVG icons are selected initially. The preview imports the [public consumer example](../node-icons/README.md); the display graph is decorated on a copy, keeping the saved recording, node IDs, runtime overlay and execution cursor intact. Group headers and pill nodes retain their own separate icon mechanisms.
 
 The **Straight trunk** alternative subscribes to rendered node measurements through the public xyflow store hook and passes the same measured footprints to its layout and snap resolver. **Default** retains the library's measured content-size layout pipeline. Neither mode forces an arbitrary card size. Repeated subflow labels show their distinct mount paths beside the checkboxes so each recorded instance can be selected separately.
