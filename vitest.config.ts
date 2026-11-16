@@ -8,11 +8,12 @@ export default defineConfig({
     setupFiles: ['test/setup.ts'],
   },
   resolve: {
-    alias: {
+    alias: [
       // `examples/` imports the library BY NAME, so its source reads exactly
       // as a consumer would copy it. Point that name at src so the example
       // test runs against the code in this working tree, not a stale build.
-      'footprint-explainable-ui': fileURLToPath(new URL('./src/index.ts', import.meta.url)),
-    },
+      { find: /^footprint-explainable-ui\/flowchart$/, replacement: fileURLToPath(new URL('./src/flowchart.ts', import.meta.url)) },
+      { find: /^footprint-explainable-ui$/, replacement: fileURLToPath(new URL('./src/index.ts', import.meta.url)) },
+    ],
   },
 });

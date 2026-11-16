@@ -62,8 +62,10 @@ const scenarioKinds: Record<string, string> = {
 const NO_GROUPS: string[] = [];
 
 export default function App() {
+  const [isometricEntry] = useState(() => typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).get("look") === "isometric");
   const [mode, setMode] = useState<"light" | "dark">("light");
-  const [skin, setSkin] = useState<"standard" | "forest" | "graphite" | "paper">("standard");
+  const [skin, setSkin] = useState<"standard" | "forest" | "graphite" | "paper">(isometricEntry ? "paper" : "standard");
   const [lensView, setLensView] = useState<"story" | "developer">("story");
   const [iconMode, setIconMode] = useState<NodeIconMode>("custom");
   const [replayControls, setReplayControls] = useState({ previousNext: true, playPause: true, slider: true });
@@ -100,7 +102,7 @@ export default function App() {
       borders: { width: "1px" }, controls: { height: "26px" }, elevation: { panel: "none", popover: "none" },
     } : undefined,
   };
-  const [layout, setLayout] = useState<"default" | "straight">("default");
+  const [layout, setLayout] = useState<"default" | "straight" | "isometric">(isometricEntry ? "isometric" : "default");
   const [outerBox, setOuterBox] = useState(false);
   const [groupsByScenario, setGroupsByScenario] = useState<Record<string, string[]>>({});
   const [selection, setSelection] = useState({
@@ -136,6 +138,11 @@ export default function App() {
   const replay = () => setSelection((current) => ({
     ...current, replay: current.replay + 1, autoPlay: true,
   }));
+  const tryIsometricView = () => {
+    setSkin("paper");
+    setLayout("isometric");
+    setArrangement("default");
+  };
   const setScenarioGroups = (ids: string[]) => setGroupsByScenario((current) => ({
     ...current, [active.id]: ids,
   }));
@@ -183,7 +190,14 @@ export default function App() {
         <main className="run-section" id="workflow-preview" aria-labelledby="run-title">
           <div className="run-heading">
             <div><p className="eyebrow">Selected recording</p><h2 id="run-title">{active.title}</h2><p className="run-description">{active.description}</p></div>
-            <button className="button button-primary" type="button" onClick={replay}><span aria-hidden="true">↻</span> Replay from start</button>
+            <div className="run-actions">
+              <button className="button isometric-cta" type="button" onClick={tryIsometricView}
+                aria-pressed={layout === "isometric" && skin === "paper" && arrangement === "default"}
+                title="Show the illustrated view with Paper theme and Details beside the chart.">
+                <span aria-hidden="true">◇</span> Try isometric view
+              </button>
+              <button className="button button-primary" type="button" onClick={replay}><span aria-hidden="true">↻</span> Replay from start</button>
+            </div>
           </div>
 
           <details className="run-guide" key={active.id}>
@@ -196,7 +210,7 @@ export default function App() {
 
           <div className="shell-frame">
             <details className="display-options">
-              <summary><span>Display options</span><span className="disclosure-caption">{layout === "default" ? "Default layout" : "Straight trunk"} · {iconMode === "custom" ? "Custom SVG icons" : iconMode === "builtin" ? "Built-in icons" : "Recorded icons"} · {groupedSubflows.length} groups{outerBox ? " · outer box" : ""}</span></summary>
+              <summary><span>Display options</span><span className="disclosure-caption">{layout === "default" ? "Default layout" : layout === "isometric" ? "Isometric" : "Straight trunk"} · {iconMode === "custom" ? "Custom SVG icons" : iconMode === "builtin" ? "Built-in icons" : "Recorded icons"} · {groupedSubflows.length} groups{outerBox ? " · outer box" : ""}</span></summary>
           <div className="chart-options" role="group" aria-label="Chart display options">
             <label className="layout-control"><span className="context-label">Lens arrangement</span>
               <select aria-label="Lens arrangement" value={arrangement} onChange={event => setArrangement(event.target.value)}>
@@ -210,9 +224,10 @@ export default function App() {
               </select>
             </label>
             <label className="layout-control"><span className="context-label">Chart layout</span>
-              <select value={layout} onChange={(event) => setLayout(event.target.value as "default" | "straight")}>
+              <select aria-label="Chart layout" value={layout} onChange={(event) => setLayout(event.target.value as typeof layout)}>
                 <option value="default">Default</option>
                 <option value="straight">Straight trunk</option>
+                <option value="isometric">Isometric</option>
               </select>
             </label>
             <label className="layout-control"><span className="context-label">Node icons</span>

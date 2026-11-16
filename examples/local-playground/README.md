@@ -2,6 +2,8 @@
 
 [Open the hosted preview](https://footprintjs.github.io/explainable-ui/local-playground/).
 GitHub Pages builds both this preview and the existing gallery from `main`.
+Or [open the isometric view](https://footprintjs.github.io/explainable-ui/local-playground/?look=isometric)
+with Paper styling and Details beside the chart.
 
 Seven real FootprintJS executions presented in the current `ExplainableShell`:
 
@@ -38,7 +40,11 @@ Select a scenario to inspect it manually. **Replay from start** remounts that sc
 
 The preview fills one viewport. Scenarios scroll in their own sidebar (a horizontal strip on narrow screens), while the workbench stays in view. **Outcome & instructions** and **Display options** are closed initially; expand either to read or adjust it without scrolling the whole page.
 
-Use **Chart layout** to compare **Default** and **Straight trunk** layouts. **Outer workflow box** adds or removes the surrounding workflow container. Each native subflow has a checkbox: checked renders a group box, unchecked renders a drill card. The initial view uses drill cards and no outer box. **All groups** and **Clear groups** select or clear the active scenario's native subflow IDs; the renderer applies those selections only at the current drill level. Group boxes expand sibling subflows at that level; drill into a nested subflow to explore deeper levels. Workflows without native subflows explain that limitation while still allowing the outer box. Group choices are remembered separately for each scenario.
+Use **Chart layout** to compare **Default**, **Straight trunk** and **Isometric** layouts. **Outer workflow box** adds or removes the surrounding workflow container. Each native subflow has a checkbox: checked renders a group box, unchecked renders a drill card. The initial view uses drill cards and no outer box. **All groups** and **Clear groups** select or clear the active scenario's native subflow IDs; the renderer applies those selections only at the current drill level. Group boxes expand sibling subflows at that level; drill into a nested subflow to explore deeper levels. Workflows without native subflows explain that limitation while still allowing the outer box. Group choices are remembered separately for each scenario.
+
+**Try isometric view** is a shortcut to the Isometric layout, Paper theme and default **Details beside the chart** arrangement. It changes only these presentation choices, keeping the current recording, stage and replay cursor. The direct `?look=isometric` link initializes the same choices for sharing; the plain preview URL still starts with Standard, Default layout and the existing Details arrangement. Node icons remain Custom SVG by default in both views.
+
+The isometric example uses fixed-angle SVG illustrations to add depth to the same recorded workflow. Labels stay upright; there is no orbit camera. Illustrations do not assert infrastructure resources, deployment state or relationships beyond the supplied recording. Developer, Commentary and Timeline continue to inspect the same selection and replay cursor; use **Lens arrangement** to choose the panels shown.
 
 Layout, grouping and theme changes update the memoized chart renderer without remounting the shell or resetting its cursor. The chart integration uses the shell's existing `renderFlowchart` prop; no library API changes are required.
 
@@ -62,7 +68,7 @@ The optional `tokens.nodes` fields control chart-card paint: `borderColor`, `bor
 
 `radius` and `borderStyle` apply to rectangular, pill and group cards; decisions retain their diamond shape. `shadow` uses box-shadow syntax. For clipped decisions, `shapeShadow` takes a CSS filter value such as `"drop-shadow(2px 3px 0 #35332f)"` or `"none"`; drop shadows do not accept spread or `inset`. `groupStatusDisplay` defaults to `"none"`; Paper uses `"inline-flex"` to show a small Selected / Visited / Failed group-header cue alongside its fixed dark outlines. These cues reflect the shared cursor and recorded state.
 
-Changing the theme changes presentation; it keeps the recording, selection and replay cursor. Paper uses the current flat flowchart; it does not add an isometric renderer.
+Changing the theme changes presentation; it keeps the recording, selection and replay cursor. Paper can style any chart layout. The separate Isometric layout supplies the illustrated geometry.
 
 **Node icons** compares the saved recording's icon names, the library's built-in icons and custom inline SVG icons on the actual execution nodes. Custom SVG icons are selected initially. The preview imports the [public consumer example](../node-icons/README.md); the display graph is decorated on a copy, keeping the saved recording, node IDs, runtime overlay and execution cursor intact. Group headers and pill nodes retain their own separate icon mechanisms.
 

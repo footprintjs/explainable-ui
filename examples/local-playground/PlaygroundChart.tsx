@@ -12,11 +12,17 @@ import {
   type TraceGraph,
 } from 'footprint-explainable-ui/flowchart';
 import { ExampleGroupContainerNode, type NodeIconMode } from '../node-icons/NodeIcons';
+import { isometricLayout } from './isometricLayout';
+import { IsometricStageNode, IsometricEdge, IsometricGrid } from './IsometricView';
 
 const exampleIconNodeTypes = { [GROUP_CONTAINER_NODE_TYPE]: ExampleGroupContainerNode };
+const isometricNodeTypes = { stageNode: IsometricStageNode };
+const isometricIconNodeTypes = { ...isometricNodeTypes, ...exampleIconNodeTypes };
+const isometricEdgeTypes = { isometric: IsometricEdge };
+const isometricAutoFit = { padding: 0.06 };
 
 export interface PlaygroundChartOptions {
-  layout: 'default' | 'straight';
+  layout: 'default' | 'straight' | 'isometric';
   groupedSubflows: string[];
   outerBox: boolean;
   mode: 'light' | 'dark';
@@ -143,9 +149,21 @@ function PlaygroundChart({ recording, chartGraph, options, view }: {
       ? recording.traceGraph.nodes.find((node) => node.id === currentSubflowId)?.data.label ?? recording.title
       : recording.title;
 
+    const isometric = options.layout === 'isometric';
+    const displayGraph = useMemo(() => isometric ? {
+      ...chartGraph,
+      edges: chartGraph.edges.map(edge => edge.data?.kind === 'loop' || edge.type === 'recordedRead'
+        ? edge : { ...edge, type: 'isometric' }),
+    } : chartGraph, [chartGraph, isometric]);
+
     return <TracedFlow
-      graph={chartGraph}
-      nodeTypes={options.iconMode === 'recorded' ? undefined : exampleIconNodeTypes}
+      graph={displayGraph}
+      nodeTypes={isometric
+        ? options.iconMode === 'recorded' ? isometricNodeTypes : isometricIconNodeTypes
+        : options.iconMode === 'recorded' ? undefined : exampleIconNodeTypes}
+      edgeTypes={isometric ? isometricEdgeTypes : undefined}
+      background={isometric ? false : undefined}
+      autoFit={isometric ? isometricAutoFit : undefined}
       overlay={recording.runtimeOverlay}
       scrubIndex={overlayIndex >= 0 ? overlayIndex : selectedIndex}
       currentSubflowId={currentSubflowId ?? null}
@@ -155,11 +173,11 @@ function PlaygroundChart({ recording, chartGraph, options, view }: {
       traceWorkflow={traceWorkflow}
       groupedSubflows={grouped}
       mainChartBox={options.outerBox ? { label: scopeLabel, kind: 'Workflow' } : undefined}
-      {...(options.layout === 'straight' ? { layout: straightLayout } : {})}
+      {...(isometric ? { layout: isometricLayout } : options.layout === 'straight' ? { layout: straightLayout } : {})}
       unstyled={view.unstyled}
       style={{ minHeight: 0 }}
     >
       <Controls showInteractive={false} />
-      <LayoutMeasurements onReady={acceptMeasurements} />
+      {isometric ? <IsometricGrid unstyled={view.unstyled} /> : <LayoutMeasurements onReady={acceptMeasurements} />}
     </TracedFlow>;
 }
