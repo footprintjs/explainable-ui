@@ -1,0 +1,28 @@
+import { createRequire } from 'node:module';
+import { renameSync, writeFileSync } from 'node:fs';
+const require = createRequire(new URL('./engine/package.json', import.meta.url));
+const { flowChart, FlowChartExecutor, select } = require('./dist/index.js');
+
+// Public built entry, unchanged property expression, no post-capture path edits.
+const chart = flowChart('LoadOrder', (scope) => {
+  scope.unitPrice = 10; scope.quantity = 3; scope.deliveryFee = 5;
+}, 'load-order')
+  .addSelectorFunction('RunCalculations', (scope) => select(scope, [
+    { when: () => true, then: 'items' }, { when: () => true, then: 'delivery' },
+  ]), 'run-calculations')
+  .addFunctionBranch('items', 'Items', (scope) => { scope.amount = scope.unitPrice * scope.quantity; })
+  .addFunctionBranch('delivery', 'Delivery', (scope) => { scope.amount = scope.deliveryFee; })
+  .end()
+  .addFunction('Combine', (scope) => {
+    scope.total = scope.runs.items.amount + scope.runs.delivery.amount;
+  }, 'combine')
+  .build();
+const executor = new FlowChartExecutor(chart, { nestedReadTracking: true, writeProvenance: 'reads-prefix' });
+await executor.run();
+const snapshot = executor.getSnapshot();
+if (snapshot.sharedState.total !== 35) throw new Error('unexpected total');
+const target = new URL('./parallel35-canonical.snapshot.json', import.meta.url);
+const temporary = new URL('./parallel35-canonical.snapshot.json.tmp', import.meta.url);
+writeFileSync(temporary, JSON.stringify(snapshot, null, 2) + '\n');
+renameSync(temporary, target);
+process.stdout.write(JSON.stringify({ total: snapshot.sharedState.total, readKeys: snapshot.commitLog.find((bundle) => bundle.stageId === 'combine')?.trace[0].readKeys }) + '\n');

@@ -100,7 +100,7 @@ export function TraceDependencyView({
     });
   };
   const note = (node: TraceDependencyNode) => node.kind === "unresolved"
-    ? inputSentence(walk?.scope, node.key)
+    ? inputSentence(walk?.scope, node.key, node.unresolvedReason)
     : node.kind === "outside-view" ? "Earlier reads outside this view" : node.stageName ?? "Recorded write";
 
   const sources = walk?.stops.find(stop => stop.runtimeStageId === cursorRuntimeStageId)?.handoffSources ?? [];
@@ -198,7 +198,7 @@ export function TraceDependencyView({
               animationDelay: motion ? `calc(${ui.fastDuration} * ${Math.min(nodeIndex, 4)} / 6)` : undefined,
             });
             return <FootprintButton unstyled={unstyled} densitySize={size} part="trace-variable-node" key={node.id} data-fp="trace-variable-node" data-variable={node.key} data-kind={node.kind} data-current={selected || undefined} data-anchor={node.isAnchor || undefined}
-              type="button" disabled={!enabled} onClick={() => follow(node)} title={`${node.key}: ${value ?? "value not recorded"}. ${note(node)}`}
+              type="button" disabled={!enabled} onClick={() => follow(node)} title={`${recordedPathLabel(node.key)}: ${value ?? "value not recorded"}. ${note(node)}`}
               aria-label={enabled ? `${node.isAnchor ? "Show" : "Follow"} ${recordedPathLabel(node.key)} at ${node.stageName}` : `${recordedPathLabel(node.key)}: ${note(node)}`}
               aria-describedby={`${markerId}-node-${nodeIndex}`}
               style={geometry} defaultStyle={box}>{nodeText}</FootprintButton>;

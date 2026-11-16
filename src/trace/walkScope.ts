@@ -37,11 +37,14 @@ export function snapshotWalkScope(value: TraceWalkScope): TraceWalkScope {
     const readsAvailable = optionalOwnDataField(value, "readsAvailable");
     if (readsAvailable !== undefined && typeof readsAvailable !== "boolean")
       throw new Error();
+    const nestedReadTracking = optionalOwnDataField(value, "nestedReadTracking");
+    if (nestedReadTracking !== undefined && typeof nestedReadTracking !== "boolean") throw new Error();
     return Object.freeze({
       invocationPath: Object.freeze(invocationPath),
       ...(mountLabels === undefined ? {} : { mountLabels }),
       ...(startKeys === undefined ? {} : { startKeys }),
       ...(readsAvailable === undefined ? {} : { readsAvailable }),
+      ...(nestedReadTracking === true ? { nestedReadTracking: true as const } : {}),
     });
   } catch {
     throw new TypeError(

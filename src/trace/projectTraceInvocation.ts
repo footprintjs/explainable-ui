@@ -74,6 +74,7 @@ export function projectTraceInvocation(
     );
     if (!root.availability.ok) return unavailable(root.availability);
     const readsAvailable = root.hasTree && runHasRecordedReads(snapshot);
+    const nestedReadTracking = ownDataField(snapshot, "nestedReadTracking") === true;
     let parents = root.labels;
     for (let index = 0; index < path.length; index++) {
       // Only a supplied ancestry chain makes an ancestor claim. A direct
@@ -92,7 +93,8 @@ export function projectTraceInvocation(
       const selected = childTraceScope(
         result,
         path.slice(0, index + 1),
-        readsAvailable
+        readsAvailable,
+        nestedReadTracking,
       );
       if (!selected.availability.ok) return unavailable(selected.availability);
       parents = selected.mountLabels;
@@ -107,6 +109,7 @@ export function projectTraceInvocation(
               Object.fromEntries(selected.mountLabels)
             ),
             readsAvailable: selected.readsAvailable,
+            ...(selected.nestedReadTracking === true ? { nestedReadTracking: true as const } : {}),
             startKeys: selected.startKeys,
           }),
         };

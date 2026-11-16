@@ -1,5 +1,6 @@
 /** A bounded variable view of recorded stage reads, not expression-level derivation. */
 import type { TraceIngredient, TraceStop, TraceWalk } from "./traceWalk";
+import { ownDataField } from "./safeRecordRead";
 
 export interface TraceDependencyNode {
   id: string;
@@ -9,6 +10,7 @@ export interface TraceDependencyNode {
   commitIdx: number | null;
   kind: "recorded" | "unresolved" | "outside-view";
   isAnchor: boolean;
+  unresolvedReason?: TraceIngredient["unresolvedReason"];
 }
 
 export interface TraceDependencyEdge {
@@ -104,9 +106,11 @@ export function buildTraceDependencyGraph(walk: TraceWalk): TraceDependencyGraph
     if (!known) {
       return {
         node: {
-          id: JSON.stringify(["unresolved", reader.runtimeStageId, reader.commitIdx, ingredient.key]),
+          id: JSON.stringify(["unresolved", reader.runtimeStageId, reader.commitIdx, ingredient.key,
+            ...(ingredient.unresolvedReason ? [ingredient.unresolvedReason] : [])]),
           key: ingredient.key, runtimeStageId: null, stageName: null, commitIdx: null,
           kind: "unresolved" as const, isAnchor: false,
+          ...(ingredient.unresolvedReason ? { unresolvedReason: ingredient.unresolvedReason } : {}),
         },
       };
     }
@@ -128,9 +132,12 @@ export function buildTraceDependencyGraph(walk: TraceWalk): TraceDependencyGraph
 
   for (let at = 0; at < queue.length; at++) {
     const { node: target, stop } = queue[at];
-    for (let index = 0; index < stop.ingredients.length; index++) {
+    const perKey = ownDataField(stop, "ingredientsByKey");
+    const selected = perKey === undefined ? stop.ingredients : ownDataField(perKey, target.key);
+    if (!Array.isArray(selected)) { truncated = true; continue; }
+    for (let index = 0; index < selected.length; index++) {
       if (!inspect()) return { nodes, edges, truncated };
-      const ingredient = stop.ingredients[index];
+      const ingredient: TraceIngredient = selected[index];
       if (!name(ingredient.key)) {
         truncated = true;
         continue;

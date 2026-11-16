@@ -34,6 +34,7 @@ interface RecordedScenario {
 const data = recordings as unknown as {
   generatedAt: string;
   engineVersion: string;
+  sourceBuild?: { engineRevision: string; nestedReadTracking: true; released: false };
   scenarios: RecordedScenario[];
 };
 
@@ -159,7 +160,7 @@ export default function App() {
           <span>Flow Lens <span className="brand-divider">/</span> <span className="brand-secondary">Local preview</span></span>
         </a>
         <span className="header-caption">Read the run. Follow the evidence.</span>
-        <span className="engine-badge" title={`Generated ${new Date(data.generatedAt).toLocaleString()}`}><span className="status-dot" /> FootprintJS {data.engineVersion}</span>
+        <span className="engine-badge" title={`Generated ${new Date(data.generatedAt).toLocaleString()}${data.sourceBuild ? ` · Unreleased engine source ${data.sourceBuild.engineRevision.slice(0, 8)}` : ''}`}><span className="status-dot" /> FootprintJS {data.engineVersion}{data.sourceBuild ? ' · source build' : ''}</span>
         <button className="button button-quiet theme-toggle" type="button"
           aria-label={`Switch to ${mode === "light" ? "dark" : "light"} theme`}
           onClick={() => setMode((current) => current === "light" ? "dark" : "light")}>
@@ -269,6 +270,7 @@ export default function App() {
               traceGraph={displayScenario?.traceGraph ?? active.traceGraph}
               runtimeOverlay={active.runtimeOverlay}
               renderFlowchart={renderFlowchart}
+              flowchart={{ renderer: layout === "isometric" ? "isometric" : "flat" }}
               title={active.title}
               defaultExpanded={{ topology: availableGroupIds.length > 0, details: true, timeline: false }}
               theme={lensTheme}

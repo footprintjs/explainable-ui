@@ -4,16 +4,14 @@ import { render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Position, ReactFlowProvider, type EdgeProps } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
-import { FootprintTheme, type FootprintIconAdapterProps } from "footprint-explainable-ui";
-import type { StageNodeData } from "footprint-explainable-ui/flowchart";
-import { IsometricEdge, IsometricStageNode } from "../../examples/local-playground/IsometricView";
+import { FootprintTheme, IsometricEdge, IsometricStageNode, type FootprintIconAdapterProps, type StageNodeData } from "footprint-explainable-ui/flowchart";
 
 function stage(data: Partial<StageNodeData>) {
   const props = { data: { label: "Combine", description: "Combine the recorded amounts", ...data } } as unknown as Parameters<typeof IsometricStageNode>[0];
   return createElement(ReactFlowProvider, null, createElement(IsometricStageNode, props));
 }
 
-describe("isometric consumer rendering", () => {
+describe("built-in isometric rendering", () => {
   it("keeps the recorded label, description, selection and native connection directions accessible", () => {
     const view = render(stage({ active: true, stepNumbers: [5] }));
     const node = view.getByRole("group", { name: /Combine\. Combine the recorded amounts\. Selected step\. Execution steps 5/ });
@@ -45,6 +43,15 @@ describe("isometric consumer rendering", () => {
     expect(view.getByRole("img", { name: "retried, attempt 3 of 3 failed" })).toBeTruthy();
   });
 
+  it("displays recorded nested trace-value paths without exposing the canonical separator", () => {
+    const key = "runs\u001fitems\u001famount";
+    const view = render(stage({ traceWorkflow: { color: "teal", role: "input", values: [{ key, preview: "30", color: "teal" }] } }));
+    const node = view.getByRole("group", { name: /Recorded input: runs › items › amount = 30/ });
+    expect(node.textContent).toContain("runs › items › amount = 30");
+    expect(node.textContent).not.toContain("\u001f");
+    expect(node.getAttribute("aria-label")).not.toContain("\u001f");
+  });
+
   it("passes the recorded semantic icon name through the consumer Icon adapter", () => {
     const Icon = forwardRef<HTMLSpanElement, FootprintIconAdapterProps>(function Icon({ name, children: _children, ...props }, ref) {
       return <span {...props} ref={ref} data-consumer-icon={name}>Consumer icon</span>;
@@ -58,7 +65,11 @@ describe("isometric consumer rendering", () => {
     const view = render(stage({ active: true, error: true, retryAttempts: 2, unstyled: true }));
     const node = view.getByRole("group", { name: /Selected step\. Recorded failure/ });
     expect(node.getAttribute("data-unstyled")).toBe("true");
-    expect(node.getAttribute("style")).toBeNull();
+    expect(node.style.width).toBe("168px");
+    expect(node.style.height).toBe("116px");
+    expect(node.style.fontFamily).toBe("");
+    expect(node.style.color).toBe("");
+    expect(node.style.boxShadow).toBe("");
     expect(node.querySelector<SVGElement>(".iso-stage__slab")!.style.filter).toBe("");
     expect(node.querySelectorAll(".react-flow__handle")).toHaveLength(2);
     expect(view.getByRole("img", { name: "retried, attempt 2 of 2 failed" })).toBeTruthy();

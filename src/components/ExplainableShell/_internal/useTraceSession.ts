@@ -158,11 +158,13 @@ function questionProof(walk: TraceWalk): string | undefined {
   };
   try {
     return JSON.stringify([
-      walk.missing, walk.readsAvailable, walk.truncated,
+      walk.missing, walk.readsAvailable, walk.truncated, walk.scope?.nestedReadTracking === true,
       walk.inputTermini.map(name),
       walk.stops.map(stop => [name(stop.runtimeStageId), stop.commitIdx,
         stop.contributedKeys.map(name), stop.keysWritten.map(name),
-        stop.ingredients.map(input => [name(input.key), name(input.writerRuntimeStageId), input.writerCommitIdx]),
+        stop.ingredients.map(input => [name(input.key), name(input.writerRuntimeStageId), input.writerCommitIdx, input.unresolvedReason]),
+        stop.ingredientsByKey === undefined ? null : Object.entries(stop.ingredientsByKey).map(([key, inputs]) =>
+          [name(key), inputs.map(input => [name(input.key), name(input.writerRuntimeStageId), input.writerCommitIdx, input.unresolvedReason])]),
       ]),
     ]);
   } catch { return undefined; }
@@ -206,7 +208,7 @@ export function useTraceSessionController({
   useEffect(() => { if (sourceChanged) dispatch({ type: "reset" }); }, [sourceChanged, dispatch]);
   const shellDataTrace = useMemo<DataTraceResult>(() => {
     const trace = activeTraceScope.availability.ok && traceHistoryAvailable
-      ? buildDataTrace(activeTraceScope.commitLog, activeTraceScope.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "")
+      ? buildDataTrace(activeTraceScope.commitLog, activeTraceScope.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "", undefined, undefined, undefined, { nestedReadTracking: activeTraceScope.nestedReadTracking })
       : { frames: [], readsAvailable: false };
     return { ...trace, readsAvailable: activeTraceScope.readsAvailable };
   }, [activeTraceScope, traceHistoryAvailable, activeSnapshots, safeIdx]);
@@ -235,6 +237,7 @@ export function useTraceSessionController({
         invocationPath: activeTraceScope.invocationPath,
         mountLabels: Object.fromEntries(activeTraceScope.mountLabels),
         readsAvailable: activeTraceScope.readsAvailable,
+        ...(activeTraceScope.nestedReadTracking ? { nestedReadTracking: true as const } : {}),
         startKeys: activeTraceScope.startKeys,
       },
     });
@@ -292,6 +295,7 @@ export function useTraceSessionController({
       log = activeTraceScope.commitLog;
       tree = activeTraceScope.executionTree;
       scope = { invocationPath, readsAvailable: activeTraceScope.readsAvailable,
+        ...(activeTraceScope.nestedReadTracking ? { nestedReadTracking: true as const } : {}),
         mountLabels: Object.fromEntries(activeTraceScope.mountLabels), startKeys: activeTraceScope.startKeys };
     } else if (invocationPath.length) {
       const selected = projectTraceInvocation(runtimeSnapshot, invocationPath.at(-1)!, { invocationPath });
@@ -305,6 +309,7 @@ export function useTraceSessionController({
       if (!root.availability.ok) return undefined;
       log = rawLog;
       scope = { invocationPath: [], readsAvailable: root.hasTree && runHasRecordedReads(runtimeSnapshot),
+        ...(ownDataField(runtimeSnapshot, "nestedReadTracking") === true ? { nestedReadTracking: true as const } : {}),
         mountLabels: Object.fromEntries(root.labels) };
     }
     return { log, tree, scope };

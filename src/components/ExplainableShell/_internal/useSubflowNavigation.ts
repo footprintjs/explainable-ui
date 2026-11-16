@@ -15,6 +15,7 @@ interface NavigationOptions {
   snapshots: StageSnapshot[];
   sourceRunId: unknown;
   readsAvailable: boolean;
+  nestedReadTracking?: boolean;
   exactResults: Record<string, unknown> | undefined;
   narrativeEntries: NarrativeEntry[] | undefined;
   traceGraph?: TraceGraph | null;
@@ -27,7 +28,7 @@ interface NavigationOptions {
 export function useSubflowNavigation({
   snapshots,
   sourceRunId,
-  readsAvailable,
+  readsAvailable, nestedReadTracking,
   exactResults,
   narrativeEntries,
   traceGraph,
@@ -62,7 +63,7 @@ export function useSubflowNavigation({
         key: previous.subflowId,
         parentPath: resolved.at(-1)?.traceScope.invocationPath ?? [],
         sourceRunId,
-        readsAvailable,
+        readsAvailable, nestedReadTracking,
         results: exactResults,
         narrative: narrativeEntries,
         requestedId: previous.mountRuntimeStageId,
@@ -76,7 +77,7 @@ export function useSubflowNavigation({
     drillDownStack,
     sourceRunId,
     snapshots,
-    readsAvailable,
+    readsAvailable, nestedReadTracking,
     exactResults,
     narrativeEntries,
   ]);
@@ -164,7 +165,7 @@ export function useSubflowNavigation({
               : parent[cursorIdx]?.runtimeStageId,
           parentPath,
           sourceRunId,
-          readsAvailable,
+          readsAvailable, nestedReadTracking,
           results: exactResults,
           narrative: narrativeEntries,
           requestedId,
@@ -182,7 +183,7 @@ export function useSubflowNavigation({
       snapshots,
       snapshotIdx,
       sourceRunId,
-      readsAvailable,
+      readsAvailable, nestedReadTracking,
       exactResults,
       narrativeEntries,
     ]
@@ -236,7 +237,7 @@ export function useSubflowNavigation({
     const found = resolveSubflowLevel({
       parent, key: mount.subflowId ?? mountRuntimeStageId.split("#")[0],
       requestedId: mountRuntimeStageId, parentPath, sourceRunId,
-      readsAvailable, results: exactResults, narrative: narrativeEntries,
+      readsAvailable, nestedReadTracking, results: exactResults, narrative: narrativeEntries,
     });
     if (found.kind !== "found" || !found.entry.traceScope.availability.ok) return false;
     const index = targetRuntimeStageId
@@ -248,7 +249,7 @@ export function useSubflowNavigation({
     setDrillDownStack([...selectedStack, found.entry]);
     setSnapshotIdxRaw(index);
     return true;
-  }, [selectedStack, snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
+  }, [selectedStack, snapshots, sourceRunId, readsAvailable, nestedReadTracking, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
   /** Restore a saved trace location only after resolving it against this source. */
   const restoreTraceQuestion = useCallback((
     invocationPath: readonly string[],
@@ -265,7 +266,7 @@ export function useSubflowNavigation({
         key: matches[0].subflowId ?? mountRuntimeStageId.split("#")[0],
         requestedId: mountRuntimeStageId,
         parentPath: stack.at(-1)?.traceScope.invocationPath ?? [],
-        sourceRunId, readsAvailable, results: exactResults, narrative: narrativeEntries,
+        sourceRunId, readsAvailable, nestedReadTracking, results: exactResults, narrative: narrativeEntries,
       });
       if (found.kind !== "found" || !found.entry.traceScope.availability.ok) return false;
       stack.push(found.entry);
@@ -279,7 +280,7 @@ export function useSubflowNavigation({
     setDrillDownStack(stack);
     setSnapshotIdxRaw(matches[0]);
     return true;
-  }, [sourceChanged, snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
+  }, [sourceChanged, snapshots, sourceRunId, readsAvailable, nestedReadTracking, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
   const handleBreadcrumbNavigate = useCallback(
     (level: number) => {
       onScopeReset();

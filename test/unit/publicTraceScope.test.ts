@@ -157,6 +157,23 @@ describe("public scoped trace explanations", () => {
     );
     expect(calls).toBe(0);
   });
+  it("carries only an explicit true data flag into a detached child scope", () => {
+    for (const flag of [true, false, "true", undefined]) {
+      const source = { ...nested, nestedReadTracking: flag };
+      const projection = api.projectTraceInvocation(source, childId);
+      expect(projection.availability.ok).toBe(true);
+      expect(projection.scope.nestedReadTracking).toBe(flag === true ? true : undefined);
+    }
+    const inherited = Object.assign(Object.create({ nestedReadTracking: true }), nested);
+    expect(api.projectTraceInvocation(inherited, childId).scope.nestedReadTracking).toBeUndefined();
+    let calls = 0;
+    const accessor = Object.defineProperty({ ...nested }, "nestedReadTracking", { get() { calls++; return true; } });
+    expect(api.projectTraceInvocation(accessor, childId).scope.nestedReadTracking).toBeUndefined();
+    expect(calls).toBe(0);
+    const scope = Object.defineProperty({ invocationPath: [] }, "nestedReadTracking", { get() { calls++; return true; } });
+    expect(() => api.buildTraceWalk([], undefined, "total", { scope })).toThrow("Trace scope must contain only bounded recorded names and flags.");
+    expect(calls).toBe(0);
+  });
   it("validates an explicitly supplied exact ancestry chain", () => {
     const projected = api.projectTraceInvocation(nested, childId, {
       invocationPath: ["pipeline#6", childId],

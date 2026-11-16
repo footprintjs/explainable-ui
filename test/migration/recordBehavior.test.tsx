@@ -17,7 +17,7 @@ const stepOf = (id: string) => {
 };
 
 describe("M1 — real saved Flow display interactions", () => {
-  it("preserves ingredient reanchor and itinerary callbacks without running the producer", () => {
+  it("withholds an ambiguous legacy nested ingredient while preserving itinerary callbacks", () => {
     const onFollowIngredient = vi.fn();
     const onJumpToStop = vi.fn();
     const walk = buildTraceWalk(fork.commitLog, fork.executionTree, key, {
@@ -32,20 +32,17 @@ describe("M1 — real saved Flow display interactions", () => {
         onJumpToStop={onJumpToStop}
       />
     );
-    expect(screen.getByText(/stop 1 of 2/i)).toBeTruthy();
-    fireEvent.click(screen.getByTitle(/Follow runs/));
-    expect(onFollowIngredient).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        key: "runs",
-        writerRuntimeStageId: "seed#0",
-        writerCommitIdx: 0,
-      })
-    );
+    expect(screen.getByText(/stop 1 of 1/i)).toBeTruthy();
+    const ingredient = container.querySelector('[data-fp="twc-ingredient"]') as HTMLButtonElement;
+    expect(ingredient.disabled).toBe(true);
+    expect(ingredient.textContent).toContain("legacy read address is unknown; source unknown");
+    fireEvent.click(ingredient);
+    expect(onFollowIngredient).not.toHaveBeenCalled();
     const rows = container.querySelectorAll('[data-fp="twc-itinerary-row"]');
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(1);
     expect(rows[0].getAttribute("data-current")).toBe("true");
-    fireEvent.click(rows[1]);
-    expect(onJumpToStop).toHaveBeenCalledExactlyOnceWith("seed#0");
+    fireEvent.click(rows[0]);
+    expect(onJumpToStop).toHaveBeenCalledExactlyOnceWith("a#1");
     // Controlled selection: callbacks do not move the owner's cursor.
     expect(rows[0].getAttribute("data-current")).toBe("true");
   });
@@ -87,12 +84,18 @@ describe("M1 — real saved Flow display interactions", () => {
       />
     );
     const buttons = container.querySelectorAll('[data-fp="data-trace-frame"]');
-    expect(buttons).toHaveLength(2);
+    expect(buttons).toHaveLength(1);
     expect(buttons[0].getAttribute("data-selected")).toBe("true");
-    fireEvent.click(buttons[1]);
-    expect(onFrameClick).toHaveBeenCalledExactlyOnceWith("seed#0");
+    fireEvent.click(buttons[0]);
+    expect(onFrameClick).toHaveBeenCalledExactlyOnceWith("a#1");
+    // Prefix coverage remains present; its legacy names still omit scope addresses.
+    expect(buildDataTrace(fork.commitLog.slice(0, 2), undefined, "a#1").readsAvailable).toBe(true);
+    // Withhold both read-evidence sources for the unknown-coverage case.
+    const withoutReadEvidence = fork.commitLog.slice(0, 2).map(commit => ({ ...commit,
+      trace: commit.trace.map(write => ({ path: write.path })),
+    }));
     const noReads = buildDataTrace(
-      fork.commitLog.slice(0, 2),
+      withoutReadEvidence,
       undefined,
       "a#1"
     );

@@ -26,10 +26,12 @@
  */
 
 import { rootMountLabels } from "./traceScope";
-import { ownDataField, readOwnArray, readName, WorkBudget } from "./safeRecordRead";
+import { ownDataField, readOwnArray, WorkBudget } from "./safeRecordRead";
 import { snapshotWalkScope } from "./walkScope";
 import { buildDataTrace } from "./dataTrace";
+import { indexReadAddresses, indexTraceWrites, indexWriterCommits, readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, writerBefore, type RecordedTraceWrite, type ReadPathUncertainty } from "./readProvenance";
 import { handoffSentence, type SubflowHandoffSource } from "./subflowHandoff";
+import { recordedPathLabel } from "./recordedValuePreview";
 import {
   scopeSentence,
   START_SENTENCE,
@@ -43,6 +45,8 @@ export interface TraceWalkScope {
   readonly invocationPath: readonly string[];
   readonly mountLabels?: Readonly<Record<string, string>>;
   readonly readsAvailable?: boolean;
+  /** Explicit producer discriminator for canonical per-write read paths. */
+  readonly nestedReadTracking?: true;
   /** Recorded non-undefined starting keys, without their values or inferred origin. */
   readonly startKeys?: readonly string[];
 }
@@ -55,10 +59,12 @@ export interface TraceWalkOptions {
 /** One read key of a stop, resolved to the commit that wrote it. */
 export interface TraceIngredient {
   key: string;
-  /** null = no commit before this stop wrote the key (an unresolved local-writer terminus). */
+  /** null = no safely bound prior local writer, including ambiguous legacy paths. */
   writerRuntimeStageId: string | null;
   writerStageName: string | null;
   writerCommitIdx: number | null;
+  /** A legacy read name may omit its namespace or canonical path encoding. */
+  unresolvedReason?: ReadPathUncertainty;
 }
 
 /** One stop on the rewind rail — a slice frame with its rail position. */
@@ -74,6 +80,8 @@ export interface TraceStop {
   contributedKeys: string[];
   keysWritten: string[];
   ingredients: TraceIngredient[];
+  /** Exact per-output read prefixes. Older caller-supplied walks may omit it. */
+  ingredientsByKey?: Readonly<Record<string, readonly TraceIngredient[]>>;
   /** BFS hop distance from the anchor (tooltip-grade info, NOT the walk
    *  order — the walk order is time). */
   depth: number;
@@ -101,7 +109,7 @@ export interface TraceWalk {
   stops: TraceStop[];
   /** Non-null ⇒ zero stops: the honest-absence card, not an empty chain. */
   missing: TraceWalkMissing | null;
-  /** Read keys with no recorded local writer, deduped in encounter order.
+  /** Read keys with no safely bound local writer, deduped in encounter order.
    * Their earlier origin requires separate starting-state evidence. */
   inputTermini: string[];
   /** False when the snapshot recorded no reads anywhere — the chain is
@@ -117,7 +125,7 @@ interface CommitEntry {
   stage: string;
   stageId: string;
   runtimeStageId: string;
-  trace: Array<{ path: string }>;
+  trace: RecordedTraceWrite[];
 }
 
 const DEFAULT_MAX_DEPTH = 10;
@@ -147,7 +155,7 @@ export function buildTraceWalk(
   const scope =
     selectedScope === undefined ? undefined : snapshotWalkScope(selectedScope);
   const scoped = scope === undefined ? {} : { scope };
-  let log: CommitEntry[];
+  let log: CommitEntry[], readsOf: Map<string, string[]>;
   try {
     if (root && !root.availability.ok) throw new Error("Unavailable tree evidence");
     const budget = new WorkBudget();
@@ -155,10 +163,9 @@ export function buildTraceWalk(
       stage: ownDataField(entry, "stage") as string,
       stageId: ownDataField(entry, "stageId") as string,
       runtimeStageId: ownDataField(entry, "runtimeStageId") as string,
-      trace: readOwnArray(ownDataField(entry, "trace"), budget).map((write) => ({
-        path: readName(ownDataField(write, "path")),
-      })),
+      trace: readTraceWrites(ownDataField(entry, "trace"), budget),
     }));
+    readsOf = stageReadKeys(executionTree, budget);
   } catch {
     return {
       key,
@@ -174,12 +181,12 @@ export function buildTraceWalk(
   const maxDepth = opts?.maxDepth ?? DEFAULT_MAX_DEPTH;
   const maxFrames = opts?.maxFrames ?? DEFAULT_MAX_FRAMES;
 
-  const writerOf = (k: string, beforeIdx: number): number => {
-    for (let i = Math.min(beforeIdx, log.length) - 1; i >= 0; i--) {
-      if (log[i].trace.some((t) => t.path === k)) return i;
-    }
-    return -1;
-  };
+  const writers = indexWriterCommits(log);
+  const writesByKey = log.map(commit => indexTraceWrites(commit.trace));
+  const stageReadNames = new Map([...readsOf].map(([id, keys]) => [id, new Set(keys)]));
+  const noStageReads = new Set<string>();
+  const readAddresses = writesByKey.map((writes, index) => indexReadAddresses(writes, stageReadNames.get(log[index].runtimeStageId) ?? noStageReads, scope?.nestedReadTracking === true));
+  const writerOf = (k: string, beforeIdx: number): number => writerBefore(writers, k, Math.min(beforeIdx, log.length));
 
   // ── Anchor: the last writer of `key` within the cutoff ──
   const anchorIdx = writerOf(key, cutoff);
@@ -215,67 +222,70 @@ export function buildTraceWalk(
     executionTree,
     log[anchorIdx].runtimeStageId,
     maxDepth,
-    maxFrames + 1
+    maxFrames + 1,
+    key,
+    { nestedReadTracking: scope?.nestedReadTracking },
   );
   const truncated = slice.frames.length > maxFrames;
   const frames = truncated ? slice.frames.slice(0, maxFrames) : slice.frames;
 
-  // ── Per-stop ingredients + run-input termini ──
-  const idxOf = new Map<string, number>();
-  for (let i = 0; i < log.length; i++) idxOf.set(log[i].runtimeStageId, i);
-  const readsOf = readKeysByStep(executionTree);
-  const inputTermini: string[] = [];
-  const terminiSeen = new Set<string>();
-
-  const stops: TraceStop[] = frames.map((f) => {
-    const commitIdx = idxOf.get(f.runtimeStageId) ?? -1;
-    const ingredients: TraceIngredient[] = (
-      readsOf.get(f.runtimeStageId) ?? []
-    ).map((k) => {
-      const w = writerOf(k, commitIdx);
-      if (w < 0 && !terminiSeen.has(k)) {
-        terminiSeen.add(k);
-        inputTermini.push(k);
+  // ── Per-output ingredients, then their visit-level presentation union ──
+  const stops: TraceStop[] = frames.map(frame => ({
+    runtimeStageId: frame.runtimeStageId, stageId: frame.stageId, stageName: frame.stageName,
+    commitIdx: frame.commitIdx!, keysWritten: frame.keysWritten,
+    contributedKeys: [], ingredients: [], depth: frame.depth, loopPass: 0,
+  }));
+  const stopAt = new Map(stops.map(stop => [stop.commitIdx, stop]));
+  const outputs = new Map<number, Map<string, TraceIngredient[]>>();
+  const legacyInputs = new Map<number, TraceIngredient[]>();
+  const questions: Array<[number, string]> = [[anchorIdx, key]];
+  for (let cursor = 0; cursor < questions.length; cursor++) {
+    const [commitIdx, writtenKey] = questions[cursor];
+    const stop = stopAt.get(commitIdx);
+    if (!stop) continue; // A known writer beyond the slice remains a boundary.
+    let byKey = outputs.get(commitIdx);
+    if (!byKey) { byKey = new Map(); outputs.set(commitIdx, byKey); }
+    if (byKey.has(writtenKey)) continue;
+    const writes = writesByKey[commitIdx];
+    const stageReads = readsOf.get(stop.runtimeStageId) ?? [];
+    const resolve = (readKey: string): TraceIngredient => {
+      const uncertainty = readPathUncertainty(readKey, writes, writtenKey, readAddresses[commitIdx]);
+      if (uncertainty) {
+        return { key: readKey, writerRuntimeStageId: null, writerStageName: null,
+          writerCommitIdx: null, unresolvedReason: uncertainty };
       }
-      return {
-        key: k,
-        writerRuntimeStageId: w >= 0 ? log[w].runtimeStageId : null,
-        writerStageName: w >= 0 ? log[w].stage : null,
-        writerCommitIdx: w >= 0 ? w : null,
-      };
-    });
-    return {
-      runtimeStageId: f.runtimeStageId,
-      stageId: f.stageId,
-      stageName: f.stageName,
-      commitIdx,
-      contributedKeys: [] as string[],
-      keysWritten: f.keysWritten,
-      ingredients,
-      depth: f.depth,
-      loopPass: 0,
+      const writer = writerOf(readKey, commitIdx);
+      return { key: readKey, writerRuntimeStageId: writer >= 0 ? log[writer].runtimeStageId : null,
+        writerStageName: writer >= 0 ? log[writer].stage : null, writerCommitIdx: writer >= 0 ? writer : null };
     };
-  });
-
-  // contributedKeys — derived from the INGREDIENT edges (not the BFS's
-  // first-link `linkedBy`, which records only one path into a shared
-  // ancestor): a stop contributed key K when some slice member's K
-  // ingredient resolves to it. The anchor contributed the traced key.
-  const stopById = new Map(stops.map((s) => [s.runtimeStageId, s]));
-  const contributed = new Map<string, Set<string>>();
-  contributed.set(log[anchorIdx].runtimeStageId, new Set([key]));
-  for (const s of stops) {
-    for (const ing of s.ingredients) {
-      if (!ing.writerRuntimeStageId || !stopById.has(ing.writerRuntimeStageId))
-        continue;
-      const set =
-        contributed.get(ing.writerRuntimeStageId) ?? new Set<string>();
-      set.add(ing.key);
-      contributed.set(ing.writerRuntimeStageId, set);
+    const legacy = writes.get(writtenKey)?.readKeys === undefined;
+    let ingredients = legacy ? legacyInputs.get(commitIdx) : undefined;
+    if (!ingredients) {
+      ingredients = readsForWrittenKey(writes, stageReads, writtenKey).map(resolve);
+      if (legacy) legacyInputs.set(commitIdx, ingredients);
+    }
+    byKey.set(writtenKey, ingredients);
+    for (const ingredient of ingredients) {
+      if (ingredient.writerCommitIdx !== null && stopAt.has(ingredient.writerCommitIdx))
+        questions.push([ingredient.writerCommitIdx, ingredient.key]);
     }
   }
-  for (const s of stops)
-    s.contributedKeys = [...(contributed.get(s.runtimeStageId) ?? [])];
+  const inputTermini: string[] = [];
+  const terminiSeen = new Set<string>();
+  for (const stop of stops) {
+    const byKey = outputs.get(stop.commitIdx) ?? new Map<string, TraceIngredient[]>();
+    stop.contributedKeys = [...byKey.keys()];
+    stop.ingredientsByKey = Object.fromEntries(byKey);
+    const seen = new Set<string>();
+    for (const ingredients of byKey.values()) for (const ingredient of ingredients) {
+      const identity = JSON.stringify([ingredient.key, ingredient.writerCommitIdx, ingredient.unresolvedReason ?? null]);
+      if (seen.has(identity)) continue;
+      seen.add(identity); stop.ingredients.push(ingredient);
+      if (ingredient.writerCommitIdx === null && !terminiSeen.has(ingredient.key)) {
+        terminiSeen.add(ingredient.key); inputTermini.push(ingredient.key);
+      }
+    }
+  }
 
   // ── Walk order: reverse time (the topological linearization) ──
   stops.sort((a, b) => b.commitIdx - a.commitIdx);
@@ -306,35 +316,6 @@ export function buildTraceWalk(
   };
 }
 
-/** Duck-typed execution-tree node — mirrors dataTrace.ts's private walker
- *  (kept separate so dataTrace's contract stays untouched). */
-interface TreeNode {
-  runtimeStageId?: string;
-  stageReads?: Record<string, unknown>;
-  next?: TreeNode;
-  children?: TreeNode[];
-}
-
-function readKeysByStep(tree: unknown): Map<string, string[]> {
-  const byStep = new Map<string, string[]>();
-  const root = tree as TreeNode | undefined;
-  if (!root) return byStep;
-  const visited = new Set<TreeNode>();
-  const stack: TreeNode[] = [root];
-  while (stack.length > 0) {
-    const node = stack.pop()!;
-    if (visited.has(node)) continue;
-    visited.add(node);
-    if (node.runtimeStageId && node.stageReads) {
-      const keys = Object.keys(node.stageReads);
-      if (keys.length > 0) byStep.set(node.runtimeStageId, keys);
-    }
-    if (node.next) stack.push(node.next);
-    if (node.children) for (const c of node.children) stack.push(c);
-  }
-  return byStep;
-}
-
 /**
  * formatTraceWalk — THE parity artifact: the [Copy story] button and any
  * LLM backtrack tool emit THIS string, so the human's board and the
@@ -357,15 +338,15 @@ export function formatTraceWalk(
   const lines: string[] = scope ? [scope] : [];
   if (walk.missing) {
     if (walk.missing.reason === "evidence-unavailable") {
-      lines.push(`\`${walk.key}\`: write evidence is unavailable; value origin unknown.`);
+      lines.push(`\`${recordedPathLabel(walk.key)}\`: write evidence is unavailable; value origin unknown.`);
     } else if (walk.missing.reason === "never-written") {
-      lines.push(`\`${walk.key}\`: ${inputSentence(presentation, walk.key)}.`);
+      lines.push(`\`${recordedPathLabel(walk.key)}\`: ${inputSentence(presentation, walk.key)}.`);
     } else {
       const at = walk.missing.firstWriterRuntimeStageId
         ? stepNumberOf(walk.missing.firstWriterRuntimeStageId)
         : null;
       lines.push(
-        `\`${walk.key}\` has not been written yet at this moment — its first write happens later` +
+        `\`${recordedPathLabel(walk.key)}\` has not been written yet at this moment — its first write happens later` +
           (walk.missing.firstWriterStageName
             ? `, at ${walk.missing.firstWriterStageName}${
                 at ? ` (step ${at})` : ""
@@ -377,7 +358,7 @@ export function formatTraceWalk(
   }
 
   lines.push(
-    `Tracing \`${walk.key}\` — ${walk.stops.length} stops, newest first.`
+    `Tracing \`${recordedPathLabel(walk.key)}\` — ${walk.stops.length} stops, newest first.`
   );
   walk.stops.forEach((stop, i) => {
     const step = stepNumberOf(stop.runtimeStageId);
@@ -391,12 +372,12 @@ export function formatTraceWalk(
       ? ` · recorded state reads: ${stop.ingredients
           .map((ing) =>
             ing.writerRuntimeStageId
-              ? `${ing.key} (← ${ing.writerStageName}${
+              ? `${recordedPathLabel(ing.key)} (← ${ing.writerStageName}${
                   stepNumberOf(ing.writerRuntimeStageId)
                     ? `, step ${stepNumberOf(ing.writerRuntimeStageId)}`
                     : ""
                 })`
-              : `${ing.key} (${inputSentence(presentation, ing.key)})`
+              : `${recordedPathLabel(ing.key)} (${inputSentence(presentation, ing.key, ing.unresolvedReason)})`
           )
           .join(", ")}`
       : readsAvailable
@@ -405,12 +386,13 @@ export function formatTraceWalk(
     lines.push(
       `stop ${i + 1}/${walk.stops.length} · ${step ? `step ${step} · ` : ""}${
         stop.stageName
-      }${pass} wrote \`${stop.contributedKeys.join("`, `")}\`${readEvidence}`
+      }${pass} wrote \`${stop.contributedKeys.map(recordedPathLabel).join("`, `")}\`${readEvidence}`
     );
     if (stop.handoffSources?.length) lines.push(handoffSentence(stop.handoffSources));
   });
   if (walk.inputTermini.length > 0) {
-    lines.push(`No local writer: ${walk.inputTermini.map(key => `${key} (${inputSentence(presentation, key)})`).join(", ")}`);
+    const ambiguous = new Map(walk.stops.flatMap(stop => stop.ingredients.filter(input => input.unresolvedReason).map(input => [input.key, input.unresolvedReason] as const)));
+    lines.push(`${ambiguous.size ? "Unresolved reads" : "No local writer"}: ${walk.inputTermini.map(key => `${recordedPathLabel(key)} (${inputSentence(presentation, key, ambiguous.get(key))})`).join(", ")}`);
   }
   if (!readsAvailable) {
     lines.push(

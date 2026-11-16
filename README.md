@@ -626,6 +626,7 @@ what it wanted instead of rendering empty chrome.
 | `traceGraph` | `TraceGraph \| null` | — | The execution chart. From `createTraceStructureRecorder()` live, or `graphFromStructure(saved.structure)` for a recording. It stays available while tracing; Variables offers a separate recorded-read view |
 | `runtimeOverlay` | `RuntimeOverlay \| null` | derived from `runtimeSnapshot` | The executed-path colouring. Usually omit — pass one only for a live `createTraceRuntimeOverlay` handle |
 | `traceTheme` | `TraceTheme` | — | Existing mode shorthand and `visited` / `current` node-colour overrides |
+| `flowchart` | `FlowchartOptions` | `{ renderer: "flat" }` | Choose built-in `"flat"` or `"isometric"` chart geometry; explicit options override `layout.flowchart` |
 | `theme` | `LensTheme` | inherited | `{ mode, tokens, components }` maps the core Lens to your design system; explicit tokens override the selected mode |
 | `narrativeEntries` | `NarrativeEntry[]` | read from the snapshot | Structured narrative. Only needed to override the story the recording carries |
 | `defaultView` | `LensView` | `"developer"` | Initial details audience for the built-in Developer / Commentary buttons |
@@ -649,6 +650,63 @@ what it wanted instead of rendering empty chrome.
 | `autoPlay` | `boolean` | `false` | Play the run by itself when it opens, once per recording. Anything the reader does stops it |
 | `size` | `"compact" \| "default" \| "detailed"` | `"default"` | Size variant |
 | `unstyled` | `boolean` | `false` | Remove built-in core Lens paint and retain semantic `data-fp` hooks; the default becomes the composite Explainable surface |
+
+### Choose chart geometry
+
+Choose the illustrated renderer with a prop; the same recording, replay cursor,
+Backtrack question and drilled invocation stay selected:
+
+```tsx
+import { ExplainableShell, TraceViewer } from "footprint-explainable-ui";
+import { TraceFlow, TracedFlow, FootprintTheme as FlowchartTheme } from "footprint-explainable-ui/flowchart";
+
+<ExplainableShell runtimeSnapshot={snapshot} traceGraph={graph}
+  flowchart={{ renderer: "isometric" }} />
+<TraceViewer recording={recording} flowchart={{ renderer: "isometric" }} />
+
+// Low-level chart consumers use the renderer prop directly.
+<TraceFlow graph={graph} renderer="isometric" />
+<TracedFlow graph={graph} overlay={overlay} renderer="isometric" />
+
+// A standalone low-level chart uses the provider from the same entry point.
+<FlowchartTheme components={{ Icon: CompanyIcon }}>
+  <TracedFlow graph={graph} overlay={overlay} renderer="isometric" />
+</FlowchartTheme>
+```
+
+A JSON Lens layout can carry the same choice:
+
+```json
+{
+  "columns": "minmax(0, 2fr) minmax(280px, 1fr)",
+  "rows": "auto minmax(0, 1fr)",
+  "areas": [["timeTravel", "timeTravel"], ["flowchart", "details"]],
+  "flowchart": { "renderer": "isometric" }
+}
+```
+
+Flat remains the default. An explicit `flowchart.renderer` prop overrides the
+JSON value. `renderLayout` keeps its existing precedence over the JSON layout.
+A custom `renderFlowchart` remains the final chart replacement and receives the
+resolved `renderer` value; forward it to `TracedFlow` when that replacement
+should honor the built-in choice. Changing renderer does not select the Paper
+theme; palettes and geometry are independent.
+
+The built-in isometric view uses SVG slabs, upright labels and a world-space
+vector floor. It needs no additional isometric stylesheet, WebGL or orbit
+camera. Recorded labels, semantic icons, selection, failures, retries and read
+links retain their recorded meanings; shapes do not infer infrastructure types
+from stage names. Existing xyflow setup still applies. The Icon adapter and
+semantic node/theme tokens style both renderers. In unstyled mode the component
+keeps its drawing geometry and ports while omitting built-in paint.
+
+Low-level `layout` functions and `layout="passthrough"` keep precedence over the
+renderer’s default positioning. Consumer `nodeTypes` and authored `edgeTypes`
+remain available, including replacements for the default `stageNode` renderer.
+Loop-back and recorded-read edges retain their specialized renderers.
+`IsometricStageNode`, `IsometricEdge` and `IsometricGrid` are also exported from
+`footprint-explainable-ui/flowchart` for consumers composing their own chart.
+These source additions are not yet part of published package 0.45.0.
 
 ### Default template and existing tab IDs
 
@@ -843,11 +901,31 @@ While tracing, execution nodes remain readable as workflow context. A
 stage is running now or that a later stage has already completed. Recorded
 relationships and execution status retain their separate meanings.
 
-- **Recorded stage reads**: the variable map shows recorded read links to
-  earlier local writers. This is conservative stage-level evidence, not
-  exact per-write derivation. A step that read two keys and wrote two outputs
-  can associate both recorded reads with both outputs. Its arrows do not
-  establish how an expression computed one output.
+- **Recorded read prefixes**: when a written trace entry supplies `readKeys`,
+  backtracking follows that exact write's captured read prefix. An explicit
+  empty list means no reads were captured before that write; it does not borrow
+  later reads from another output in the same step. These links describe
+  recorded state usage, not how an expression computed an output.
+- **Legacy evidence stays coarse**: when `readKeys` is absent, recorded stage
+  reads remain the fallback. A stage's two outputs can then share its read
+  union. Nested writer paths are matched exactly as recorded; dot-joined labels
+  are not converted into canonical paths. An old recording that captured only
+  `runs` cannot acquire links to `runs › items › amount` or
+  `runs › delivery › amount` by updating the UI. New precise links require a
+  new producer capture. Root and intermediate reads without exact local writers
+  remain explicitly unresolved alongside any recorded leaf links.
+- **Path encoding stays explicit**: new captures with
+  `nestedReadTracking: true` attest canonical per-write `readKeys`, including
+  literal dots in key names. The shell carries that flag into the selected
+  scope; detached callers can pass it in `buildTraceWalk`'s `scope` only for
+  an attested capture. Without the flag, a dotted read name remains unresolved
+  because a legacy nested label can collide with a different literal-dot key.
+  Tree `stageReads` dotted labels remain ambiguous even when the snapshot has
+  the flag. Legacy reads on a nested written path also lack a reliable scope
+  address: a local `x` may collide with a different root `x`, including when
+  its name has no dots. Such reads stay unresolved. Legacy records without
+  nested address evidence keep their historical root-key interpretation;
+  this compatibility fallback does not establish global provenance.
 - **Choose a source explicitly**: branches remain visible in the variable
   map and the recorded-read chips. Select a variable or chip to follow its
   recorded writer. The rail's **Earlier recorded step** and **Later recorded
@@ -1287,7 +1365,7 @@ import { ExplainableShell, paperLight } from "footprint-explainable-ui";
 The [seven-workflow playground](examples/local-playground/README.md) includes a
 Paper choice alongside its existing themes. This preset takes visual cues from
 [Designed to Scale](https://designed-to-scale.vercel.app/#/design-chat/12); it
-changes chart paint. The playground's separate **Isometric** layout adds
+changes chart paint. The built-in **Isometric** renderer adds
 fixed-angle SVG illustrations; it shares recorded selection and playback with
 the existing panels and does not provide an orbit camera or infer infrastructure
 facts from stage names.
@@ -1403,7 +1481,10 @@ experimental; the ones you will actually reach for are in the first table.
 |---|---|
 | `TracedFlow` | The chart plus the run — overlay colouring, drill-down, breadcrumb, auto-fitView |
 | `TraceFlow` | Build-time chart only (no overlay) |
-| `StageNode` | The node renderer: state-aware colouring, step badges, retry-attempt chip, pulse rings |
+| `StageNode` | The flat node renderer: state-aware colouring, step badges, retry-attempt chip, pulse rings |
+| `IsometricStageNode` | Illustrated SVG stage renderer with the same recorded facts, semantic icons and native connection ports |
+| `IsometricEdge` | Straight SVG connector preserving authored labels, markers, paint and interaction width |
+| `IsometricGrid` | Viewport-clipped vector floor in chart world coordinates; included by the isometric renderer |
 | `SubflowTree` | Tree view of all subflows (the shell's left panel) |
 | `NodeInspector` | What one node is and where it sits, from a `NodeView` index |
 | `CommitInspector` | What one commit wrote, and what it read to write it |
@@ -1439,7 +1520,11 @@ experimental; the ones you will actually reach for are in the first table.
 |---|---|
 | `dagreTraceLayout` | The default structure-derived layout |
 | `createDagreTraceLayout` | The same, with your options |
-| `defaultTraceFlowLayout` | The layout `TraceFlow` uses when you pass none |
+| `defaultTraceFlowLayout` | The default flat positioning used by `TraceFlow` |
+| `isometricTraceLayout` | Default fixed-angle positioning with a 168×116 built-in stage footprint |
+| `createIsometricTraceLayout` | Configure isometric positioning with a `nodeSize` resolver or `fixedStageNodes: false` for custom stage renderers |
+| `ISOMETRIC_NODE_WIDTH` | Built-in isometric stage footprint width: 168 CSS pixels |
+| `ISOMETRIC_NODE_HEIGHT` | Built-in isometric stage footprint height: 116 CSS pixels |
 | `snapLinearSuccessors` | Post-dagre pass: snap linear successors onto their predecessor's centre-x |
 | `createSnappedDagreLayout` | Dagre + that snap pass, composed |
 | `traceGroupLayout` | Rank bands + span-centred merges, for staggered structured charts |

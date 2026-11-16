@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { theme } from "../../theme";
 import { useTimeTravelPlayback } from "./useTimeTravelPlayback";
+import { recordedPathLabel } from "../../trace/recordedValuePreview";
 
 /**
  * Same-Rail Rewind (tracing mode) — the rail's AXIS never changes, only its
@@ -120,6 +121,8 @@ export function TimeTravelRail({
     autoPlay, autoPlayKey, replayControls, offered,
   });
 
+  const tracedLabel = tracing ? recordedPathLabel(tracing.tracedKey) : "";
+  const viaLabel = tracing?.viaKey ? recordedPathLabel(tracing.viaKey) : "";
   const ui = componentStyles(size);
   // F3: tracing chrome uses its OWN token — teal by default, distinct from
   // the violet accent, green done-ticks, and the orange NOW ring — so a
@@ -175,16 +178,16 @@ export function TimeTravelRail({
         data-fp="time-travel-controls"
         data-tracing={isTracing || undefined}
         role="toolbar"
-        aria-label={isTracing ? `Tracing ${tracing!.tracedKey}` : "Time travel controls"}
+        aria-label={isTracing ? `Tracing ${tracedLabel}` : "Time travel controls"}
         tabIndex={0}
         onKeyDown={handleKeyDown}
       >
         {isTracing && (
           <span data-fp="tt-tracing-header">
-            <FootprintBadge unstyled={unstyled} densitySize={size} part="time-travel-tracing-badge" defaultStyle={undefined}>Tracing</FootprintBadge>{" "}{tracing!.tracedKey}
+            <FootprintBadge unstyled={unstyled} densitySize={size} part="time-travel-tracing-badge" defaultStyle={undefined}>Tracing</FootprintBadge>{" "}{tracedLabel}
             {tracing!.viaKey && (
               <>
-                {" "}▸ via {tracing!.viaKey}{" "}
+                {" "}▸ via {viaLabel}{" "}
                 <FootprintButton unstyled={unstyled} densitySize={size} part="time-travel-show-all" type="button" data-fp="tt-show-all" onClick={tracing!.onShowAll} defaultStyle={undefined}>show all</FootprintButton>
               </>
             )}
@@ -283,7 +286,7 @@ export function TimeTravelRail({
       data-fp="time-travel-controls"
       data-tracing={isTracing || undefined}
       role="toolbar"
-      aria-label={isTracing ? `Tracing ${tracing!.tracedKey}` : "Time travel controls"}
+      aria-label={isTracing ? `Tracing ${tracedLabel}` : "Time travel controls"}
       tabIndex={0}
       onKeyDown={handleKeyDown}
     >
@@ -319,13 +322,13 @@ export function TimeTravelRail({
             Tracing
           </FootprintBadge>
           <span style={{ fontFamily: theme.fontMono, fontWeight: ui.weightMedium, color: tracingColor }}>
-            {tracing!.tracedKey}
+            {tracedLabel}
           </span>
           {tracing!.viaKey && (
             <span style={{ color: theme.textMuted }}>
               ▸ via{" "}
               <span style={{ fontFamily: theme.fontMono, color: theme.textSecondary }}>
-                {tracing!.viaKey}
+                {viaLabel}
               </span>{" "}
               <FootprintButton
                 unstyled={unstyled} densitySize={size} part="time-travel-show-all"

@@ -186,3 +186,8 @@ export type {
 // L8.5 — time-travel cursor slider (ONE-CURSOR model)
 export { RunSlider } from "./RunSlider";
 export type { RunSliderProps } from "./RunSlider";
+
+// Fixed-angle illustrated SVG presentation; replay and recording semantics stay shared.
+export { IsometricStageNode, IsometricEdge, IsometricGrid } from "../IsometricFlow";
+export { createIsometricTraceLayout, isometricTraceLayout, ISOMETRIC_NODE_WIDTH, ISOMETRIC_NODE_HEIGHT } from "./_internal/isometricTraceLayout";
+export type { IsometricTraceLayoutOptions } from "./_internal/isometricTraceLayout";

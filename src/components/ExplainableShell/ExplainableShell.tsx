@@ -23,7 +23,8 @@ import { ShellLayout, ShellDetailTabs, UnstyledShellLayout } from "./_internal/S
 import { LensDetailsPanel } from "./_internal/LensDetailsPanel";
 // The JSON arrangement composes these same mounted Lens surfaces.
 import { LensGridLayout } from "./_internal/LensGridLayout";
-import type { LensLayoutDefinition } from "../../model/lensLayout";
+import { resolveLensLayout, type LensLayoutDefinition } from "../../model/lensLayout";
+import { resolveFlowchartOptions, type FlowchartOptions, type FlowchartRenderer } from "../../model/flowchart";
 import { TraceSessionPanel } from "./_internal/TraceSessionPanel";
 import { TraceDependencyView } from "../DataTracePanel/TraceDependencyView";
 import { SubflowNavigationStatus } from "./_internal/SubflowNavigationStatus";
@@ -278,6 +279,8 @@ export interface ExplainableShellProps extends BaseComponentProps {
     unstyled?: boolean;
     onNodeClick?: (indexOrId: number | string) => void;
     showStageId?: boolean;
+    /** Resolved built-in geometry; custom renderers may honor or replace it. */
+    renderer?: FlowchartRenderer;
     /** Dependency-cone overlay (chart node id → BFS depth) — painted while
      *  the Inspector's Data Trace tab is open. Custom renderers may ignore it. */
     sliceCone?: ReadonlyMap<string, number>;
@@ -301,6 +304,8 @@ export interface ExplainableShellProps extends BaseComponentProps {
    * Default false.
    */
   showStageId?: boolean;
+  /** Built-in chart geometry. Explicit values override JSON layout.flowchart; flat is the default. */
+  flowchart?: FlowchartOptions;
   /**
    * Play the run by itself when it opens, once: the cursor goes to the first
    * stage and walks to the last on the Play loop, then stops. A new run (a new
@@ -344,6 +349,7 @@ export function ExplainableShell({
   defaultExpanded,
   recorderViews,
   renderFlowchart,
+  flowchart,
   theme: consumerTheme,
   renderLayout,
   layout,
@@ -474,6 +480,10 @@ export function ExplainableShell({
   // recorder gained convergence-edge expansion (post-fork `next`
   // fires N edges, one per branch child) — the recorder graph is now
   // the single source of truth.
+  const resolvedLayout = useMemo(() => layout && !renderLayout && snapshots.length > 0
+    ? resolveLensLayout(layout).definition : undefined, [layout, renderLayout, snapshots.length]);
+  const flowchartRenderer = useMemo(() => resolveFlowchartOptions(flowchart).renderer
+    ?? resolvedLayout?.flowchart?.renderer ?? "flat", [flowchart, resolvedLayout]);
   const tracedFlowRenderer = useMemo(() => {
     if (!traceGraph) return undefined;
     return ({ selectedIndex, snapshots, onNodeClick, sliceCone, traceWorkflow, currentSubflowId, onSubflowChange, unstyled: chartUnstyled }: {
@@ -481,6 +491,7 @@ export function ExplainableShell({
       unstyled?: boolean;
       onNodeClick?: (indexOrId: number | string) => void;
       showStageId?: boolean;
+      renderer?: FlowchartRenderer;
       sliceCone?: ReadonlyMap<string, number>;
       traceWorkflow?: TraceWorkflowOverlay | null;
       currentSubflowId?: string | null;
@@ -527,6 +538,7 @@ export function ExplainableShell({
       };
       return (
         <TracedFlow
+          renderer={flowchartRenderer}
           graph={traceGraph}
           overlay={runtimeOverlay ?? undefined}
           sliceCone={sliceCone ?? undefined}
@@ -544,7 +556,7 @@ export function ExplainableShell({
         />
       );
     };
-  }, [traceGraph, runtimeOverlay, traceTheme]);
+  }, [traceGraph, runtimeOverlay, traceTheme, flowchartRenderer]);
   const effectiveRenderFlowchart = renderFlowchart ?? tracedFlowRenderer;
   const showExecutionChart = !!effectiveRenderFlowchart && (!!renderFlowchart || !!traceGraph);
   const leftLabel = panelLabels?.topology ?? "Topology";
@@ -694,8 +706,9 @@ export function ExplainableShell({
       ),
     [runtimeSnapshot, snapshots],
   );
+  const nestedReadTracking = ownDataField(runtimeSnapshot, "nestedReadTracking") === true;
   const navigation = useSubflowNavigation({
-    snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries,
+    snapshots, sourceRunId, readsAvailable, nestedReadTracking, exactResults, narrativeEntries,
     traceGraph, snapshotIdx, setSnapshotIdxRaw,
     activeTab: JSON.stringify([activeTab, rightPanelMode, inspectorTab, activitySelected, mobileInspectorSelected]),
     onScopeReset: traceSessionState.reset,
@@ -743,9 +756,10 @@ export function ExplainableShell({
       executionTree: metadata.availability.ok ? runtimeSnapshot?.executionTree : undefined,
       availability: metadata.availability,
       readsAvailable: readsAvailable && metadata.hasTree,
+      ...(nestedReadTracking ? { nestedReadTracking: true as const } : {}),
       mountLabels: metadata.labels,
     };
-  }, [currentLevel.traceScope, runtimeSnapshot, readsAvailable]);
+  }, [currentLevel.traceScope, runtimeSnapshot, readsAvailable, nestedReadTracking]);
   const activeTraceKey = isInSubflow
     ? JSON.stringify(activeTraceScope.invocationPath)
     : null;
@@ -1144,7 +1158,7 @@ export function ExplainableShell({
     activityOrigin={traceSession.activityOrigin ?? undefined}>
     {showExecutionChart ? <MountedChart render={() => effectiveRenderFlowchart!({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx,
       onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey,
-      onSubflowChange: handleChartSubflowChange, traceWorkflow, unstyled, ...(sliceCone && { sliceCone }) })} /> : null}
+      onSubflowChange: handleChartSubflowChange, traceWorkflow, renderer: flowchartRenderer, unstyled, ...(sliceCone && { sliceCone }) })} /> : null}
   </TraceDependencyView>;
   const commentarySurface = <CommentaryPanel title="What happened" presentation="log" groupByStage followCursor showEntryTypes={false}
     {...commentary} size={size} unstyled={unstyled} />;
@@ -1207,8 +1221,8 @@ export function ExplainableShell({
       className={className} style={{ ...shellThemeVars, ...style }}>{renderLayout(workbench)}</div>);
   }
 
-  if (layout && snapshots.length > 0) {
-    return withWorkbench(<LensGridLayout layout={layout}
+  if (resolvedLayout && snapshots.length > 0) {
+    return withWorkbench(<LensGridLayout layout={resolvedLayout}
       containerRef={unstyled ? setUnstyledShellElement : setShellElement} onKeyDown={handleShellKeyDown}
       className={className} style={style} themeStyle={shellThemeVars} isNarrow={isNarrow}
       size={size} unstyled={unstyled} surfaces={{

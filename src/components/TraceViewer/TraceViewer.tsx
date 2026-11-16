@@ -81,7 +81,7 @@ export type TraceParseError =
 export interface TraceViewerProps
   extends Pick<
     ExplainableShellProps,
-    'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'traceTheme' | 'autoPlay' | 'view' | 'defaultView' | 'onViewChange' | 'commentary' | 'replayControls' | 'renderLayout' | 'layout'
+    'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'flowchart' | 'traceTheme' | 'autoPlay' | 'view' | 'defaultView' | 'onViewChange' | 'commentary' | 'replayControls' | 'renderLayout' | 'layout'
     >,
     ThemeModeProps {
   /**
@@ -214,6 +214,7 @@ export function TraceViewer({
   panelLabels,
   recorderViews,
   renderFlowchart,
+  flowchart,
   traceTheme,
   autoPlay,
   view,
@@ -276,6 +277,7 @@ export function TraceViewer({
       panelLabels={panelLabels}
       recorderViews={recorderViews}
       renderFlowchart={renderFlowchart}
+      flowchart={flowchart}
       autoPlay={autoPlay}
       view={view}
       defaultView={defaultView}

@@ -6,6 +6,8 @@ export interface RuntimeSnapshotInput {
   sharedState: Record<string, unknown>;
   executionTree: unknown;
   commitLog: unknown[];
+  /** Producer attestation that per-write readKeys use canonical nested paths. */
+  nestedReadTracking?: boolean;
   subflowResults?: Record<string, unknown>;
   /** Recorder snapshots from toSnapshot() — auto-generates detail tabs. */
   recorders?: Array<{

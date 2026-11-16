@@ -1,0 +1,285 @@
+{
+  "sharedState": {
+    "unitPrice": 10,
+    "quantity": 3,
+    "deliveryFee": 5,
+    "runs": {
+      "items": {
+        "amount": 30
+      },
+      "delivery": {
+        "amount": 5
+      }
+    },
+    "total": 35
+  },
+  "executionTree": {
+    "id": "load-order",
+    "runtimeStageId": "load-order#0",
+    "name": "LoadOrder",
+    "isDecider": false,
+    "isFork": false,
+    "logs": {},
+    "errors": {},
+    "metrics": {},
+    "evals": {},
+    "stageWrites": {
+      "unitPrice": 10,
+      "quantity": 3,
+      "deliveryFee": 5
+    },
+    "flowMessages": [
+      {
+        "type": "next",
+        "description": "Moving to RunCalculations stage",
+        "timestamp": 1794868369035,
+        "targetStage": "RunCalculations"
+      }
+    ],
+    "next": {
+      "id": "run-calculations",
+      "runtimeStageId": "run-calculations#1",
+      "name": "RunCalculations",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {
+        "selectedChildIds": [
+          "items",
+          "delivery"
+        ],
+        "selectorPattern": "scope-based-multi-choice"
+      },
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "flowMessages": [
+        {
+          "type": "selected",
+          "description": "Running Items, Delivery (2 of 2 matched)",
+          "timestamp": 1794868369036,
+          "count": 2,
+          "targetStage": [
+            "Items",
+            "Delivery"
+          ]
+        }
+      ],
+      "next": {
+        "id": "combine",
+        "runtimeStageId": "combine#4",
+        "name": "Combine",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "total": 35
+        },
+        "stageReads": {
+          "runs": {
+            "items": {
+              "amount": 30
+            },
+            "delivery": {
+              "amount": 5
+            }
+          },
+          "runs.items": {
+            "amount": 30
+          },
+          "runs.items.amount": 30,
+          "runs.delivery": {
+            "amount": 5
+          },
+          "runs.delivery.amount": 5
+        }
+      },
+      "children": [
+        {
+          "id": "items",
+          "runtimeStageId": "items#2",
+          "name": "Items",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "amount": 30
+          },
+          "stageReads": {
+            "unitPrice": 10,
+            "quantity": 3
+          }
+        },
+        {
+          "id": "delivery",
+          "runtimeStageId": "delivery#3",
+          "name": "Delivery",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "amount": 5
+          },
+          "stageReads": {
+            "deliveryFee": 5
+          }
+        }
+      ]
+    }
+  },
+  "initialState": {},
+  "commitLog": [
+    {
+      "overwrite": {
+        "unitPrice": 10,
+        "quantity": 3,
+        "deliveryFee": 5
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "unitPrice",
+          "verb": "set",
+          "readKeys": []
+        },
+        {
+          "path": "quantity",
+          "verb": "set",
+          "readKeys": []
+        },
+        {
+          "path": "deliveryFee",
+          "verb": "set",
+          "readKeys": []
+        }
+      ],
+      "stage": "LoadOrder",
+      "stageId": "load-order",
+      "runtimeStageId": "load-order#0",
+      "idx": 0
+    },
+    {
+      "overwrite": {},
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [],
+      "stage": "RunCalculations",
+      "stageId": "run-calculations",
+      "runtimeStageId": "run-calculations#1",
+      "idx": 1
+    },
+    {
+      "overwrite": {
+        "runs": {
+          "items": {
+            "amount": 30
+          }
+        }
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "runs\u001fitems\u001famount",
+          "verb": "set",
+          "readKeys": [
+            "unitPrice",
+            "quantity"
+          ]
+        }
+      ],
+      "stage": "Items",
+      "stageId": "items",
+      "runtimeStageId": "items#2",
+      "idx": 2
+    },
+    {
+      "overwrite": {
+        "runs": {
+          "delivery": {
+            "amount": 5
+          }
+        }
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "runs\u001fdelivery\u001famount",
+          "verb": "set",
+          "readKeys": [
+            "deliveryFee"
+          ]
+        }
+      ],
+      "stage": "Delivery",
+      "stageId": "delivery",
+      "runtimeStageId": "delivery#3",
+      "beganAt": 2,
+      "idx": 3
+    },
+    {
+      "overwrite": {},
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [],
+      "stage": "Items",
+      "stageId": "items",
+      "runtimeStageId": "items#2",
+      "phase": "repeat",
+      "idx": 4
+    },
+    {
+      "overwrite": {},
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [],
+      "stage": "Delivery",
+      "stageId": "delivery",
+      "runtimeStageId": "delivery#3",
+      "phase": "repeat",
+      "idx": 5
+    },
+    {
+      "overwrite": {
+        "total": 35
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "total",
+          "verb": "set",
+          "readKeys": [
+            "runs",
+            "runs\u001fitems",
+            "runs\u001fitems\u001famount",
+            "runs\u001fdelivery",
+            "runs\u001fdelivery\u001famount"
+          ]
+        }
+      ],
+      "stage": "Combine",
+      "stageId": "combine",
+      "runtimeStageId": "combine#4",
+      "idx": 6
+    }
+  ],
+  "logAddress": {
+    "logRunId": "1794868369033-0000000001",
+    "drillPath": []
+  },
+  "commitValues": "full",
+  "writeProvenance": "reads-prefix",
+  "nestedReadTracking": true,
+  "runId": "1794868369033-0000000001"
+}

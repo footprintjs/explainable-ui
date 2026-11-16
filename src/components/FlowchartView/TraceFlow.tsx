@@ -38,7 +38,7 @@
  */
 
 import type * as React from "react";
-import { useMemo, useCallback, useRef, useSyncExternalStore } from "react";
+import { useMemo, useCallback, useRef, useState, useSyncExternalStore } from "react";
 import {
   ReactFlow,
   Background,
@@ -52,7 +52,6 @@ import type {
   TraceEdge,
   TraceStructureRecorderHandle,
 } from "./traceStructureRecorder";
-import { StageNode } from "../StageNode";
 import type { StageNodeData } from "../StageNode";
 import { LoopBackEdge } from "../LoopBackEdge";
 import { SmartStepEdge } from "../SmartStepEdge";
@@ -61,6 +60,15 @@ import type { BaseComponentProps } from "../../types";
 import { dagreTraceLayout } from "./_internal/dagreTraceLayout";
 import { ChartAutoRefit } from "./_internal/useChartAutoRefit";
 import { chartLayoutKey } from "./_internal/chartFitGeometry";
+import { resolveFlowchartRenderer, type FlowchartRenderer } from "../../model/flowchart";
+import { IsometricEdge, IsometricGrid } from "../IsometricFlow";
+import { RendererContext, DefaultStageNode } from "../IsometricFlow/RendererContext";
+import { RendererGeometry } from "../IsometricFlow/RendererGeometry";
+import { createIsometricTraceLayout } from "./_internal/isometricTraceLayout";
+import { MeasuredNodeSizes } from "./_internal/MeasuredNodeSizes";
+import type { NodeFootprint } from "./_internal/dagreTraceLayout";
+import { GroupContainerNode } from "../GroupContainerNode";
+import { RecordedReadEdge } from "./RecordedReadEdge";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Layout
@@ -233,7 +241,7 @@ const DEFAULT_EDGE_COLORS: TraceFlowEdgeColors = {
   loop: rawDefaults.colors.warning,
 };
 
-function styleEdge(edge: TraceEdge, colors: TraceFlowEdgeColors): Edge {
+function styleEdge(edge: TraceEdge, colors: TraceFlowEdgeColors, renderer: FlowchartRenderer, unstyled: boolean): Edge {
   const kind = edge.data?.kind ?? "next";
   const color =
     kind === "loop"
@@ -249,14 +257,13 @@ function styleEdge(edge: TraceEdge, colors: TraceFlowEdgeColors): Edge {
     // right margin (clear of the spine) instead of a straight/step center line.
     // Every other edge uses `smartStep`: a smoothstep superset that routes a
     // RANK-SKIPPING edge around the node it skips (else identical to smoothstep).
-    type: kind === "loop" ? "loopBack" : "smartStep",
-    animated: false,
-    style: { stroke: color, strokeWidth: 1.5 },
-    markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16 },
+    type: edge.type ?? (kind === "loop" ? "loopBack" : renderer === "isometric" ? "isometric" : "smartStep"),
+    animated: edge.animated ?? false,
+    style: { ...(!unstyled && { stroke: color, strokeWidth: 1.5, ...(kind === "loop" && { strokeDasharray: "4 3" }) }), ...edge.style },
+    markerEnd: edge.markerEnd !== undefined ? edge.markerEnd : unstyled ? undefined
+      : { type: MarkerType.ArrowClosed, color: typeof edge.style?.stroke === "string" ? edge.style.stroke : color, width: 16, height: 16 },
+    ...(unstyled && { data: { ...edge.data, unstyled: true } }),
   };
-  if (kind === "loop") {
-    styled.style = { ...styled.style, strokeDasharray: "4 3" };
-  }
   return styled;
 }
 
@@ -270,6 +277,8 @@ type TraceFlowSource =
 
 export type TraceFlowProps = BaseComponentProps &
   TraceFlowSource & {
+    /** Built-in drawing and default geometry. Explicit layout and custom registries retain priority. */
+    renderer?: FlowchartRenderer;
     /** Layout function. Default: BFS tree walk. Pass the literal
      *  `"passthrough"` to skip layout when nodes already carry positions. */
     layout?: TraceFlowLayout | "passthrough";
@@ -279,7 +288,7 @@ export type TraceFlowProps = BaseComponentProps &
     onNodeClick?: (id: string) => void;
     /**
      * Consumer-supplied xyflow node types. Merged with the built-in
-     * `{ stageNode: StageNode }` registry — keys you supply OVERRIDE
+     * `stageNode` registry — keys you supply OVERRIDE
      * the default for that node type. Pass `{ stageNode: MyNode }` to
      * replace the default stage renderer entirely, or add new keys
      * for nodes you build yourself (any nodes you push into the
@@ -287,8 +296,8 @@ export type TraceFlowProps = BaseComponentProps &
      */
     nodeTypes?: NodeTypes;
     /**
-     * Consumer-supplied xyflow edge types. Merged with no built-in
-     * defaults — pass `{ myEdge: MyEdge }` to register custom edge
+     * Consumer-supplied xyflow edge types override built-ins. Pass
+     * `{ myEdge: MyEdge }` to register custom edge
      * components for nodes/edges you build with `type: 'myEdge'`.
      */
     edgeTypes?: EdgeTypes;
@@ -310,12 +319,12 @@ export type TraceFlowProps = BaseComponentProps &
     children?: React.ReactNode;
   };
 
-const DEFAULT_NODE_TYPES: NodeTypes = { stageNode: StageNode };
+const DEFAULT_NODE_TYPES: NodeTypes = { stageNode: DefaultStageNode, groupContainer: GroupContainerNode };
 
 // Built-in edge types. `loopBack` curves loop-back edges along the right margin
 // (see LoopBackEdge). Always registered so every consumer gets the curve;
 // merged UNDER any consumer-supplied `edgeTypes` (consumer keys win).
-const DEFAULT_EDGE_TYPES: EdgeTypes = { loopBack: LoopBackEdge, smartStep: SmartStepEdge };
+const DEFAULT_EDGE_TYPES: EdgeTypes = { loopBack: LoopBackEdge, smartStep: SmartStepEdge, recordedRead: RecordedReadEdge, isometric: IsometricEdge };
 
 /**
  * Convert a `TraceNode` (with `TraceNodeData`) to the `StageNode`-typed
@@ -401,7 +410,16 @@ export function TraceFlow(props: TraceFlowProps) {
   // Dagre is the default — structure-derived spacing (fork fan-out by subtree
   // width, rank-depth ranking, centered merges). Pass `layout` to override
   // (e.g. the legacy `defaultTraceFlowLayout` BFS, or `"passthrough"`).
-  const layout = props.layout ?? dagreTraceLayout;
+  const renderer = resolveFlowchartRenderer(props.renderer);
+  const [measurement, setMeasurement] = useState<{ renderer: FlowchartRenderer; sizes: Map<string, NodeFootprint> } | null>(null);
+  const measuredSizes = measurement?.renderer === renderer ? measurement.sizes : null;
+  const acceptMeasurements = useCallback((sizes: Map<string, NodeFootprint>) => setMeasurement({ renderer, sizes }), [renderer]);
+  const fixedStageNodes = !props.nodeTypes?.stageNode;
+  const isometricLayout = useMemo(() => createIsometricTraceLayout({
+    nodeSize: measuredSizes ? node => measuredSizes.get(node.id) : undefined,
+    fixedStageNodes,
+  }), [measuredSizes, fixedStageNodes]);
+  const layout = props.layout ?? (renderer === "isometric" ? isometricLayout : dagreTraceLayout);
   const edgeColors = useMemo<TraceFlowEdgeColors>(
     () => ({ ...DEFAULT_EDGE_COLORS, ...(props.edgeColors ?? {}) }),
     [props.edgeColors],
@@ -437,12 +455,15 @@ export function TraceFlow(props: TraceFlowProps) {
   }, [graph, layout]);
 
   const reactFlowNodes = useMemo<Node[]>(
-    () => positioned.nodes.map(toStageNode),
-    [positioned.nodes],
+    () => positioned.nodes.map(source => {
+      const node = toStageNode(source);
+      return props.unstyled ? { ...node, data: { ...node.data, unstyled: true } } : node;
+    }),
+    [positioned.nodes, props.unstyled],
   );
   const reactFlowEdges = useMemo<Edge[]>(
-    () => positioned.edges.map((e) => styleEdge(e, edgeColors)),
-    [positioned.edges, edgeColors],
+    () => positioned.edges.map((e) => styleEdge(e, edgeColors, renderer, !!props.unstyled)),
+    [positioned.edges, edgeColors, renderer, props.unstyled],
   );
 
   const onNodeClickRef = props.onNodeClick;
@@ -455,7 +476,7 @@ export function TraceFlow(props: TraceFlowProps) {
 
   const { nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes } = props;
   const mergedNodeTypes = useMemo<NodeTypes>(
-    () => (userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES),
+    () => userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES,
     [userNodeTypes],
   );
   const mergedEdgeTypes = useMemo<EdgeTypes>(
@@ -464,11 +485,15 @@ export function TraceFlow(props: TraceFlowProps) {
   );
 
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const refitKey = chartLayoutKey(positioned.nodes);
+  const geometryKey = chartLayoutKey(positioned.nodes);
+  const refitKey = renderer === "isometric" ? JSON.stringify([renderer, geometryKey]) : geometryKey;
 
   return (
     <div
       ref={wrapperRef}
+      data-fp="trace-flow"
+      data-fp-renderer={renderer}
+      data-unstyled={props.unstyled || undefined}
       className={props.className}
       style={{
         width: "100%",
@@ -477,7 +502,7 @@ export function TraceFlow(props: TraceFlowProps) {
         ...props.style,
       }}
     >
-      <ReactFlow
+      <RendererContext.Provider value={renderer}><ReactFlow
         nodes={reactFlowNodes}
         edges={reactFlowEdges}
         nodeTypes={mergedNodeTypes}
@@ -486,9 +511,11 @@ export function TraceFlow(props: TraceFlowProps) {
         proOptions={{ hideAttribution: true }}
       >
         <ChartAutoRefit wrapperRef={wrapperRef} refitKey={refitKey} />
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+        <RendererGeometry renderer={renderer} nodeIds={positioned.nodes.map(node => node.id)} />
+        {renderer === "isometric" && props.layout === undefined && <MeasuredNodeSizes onSizes={acceptMeasurements} />}
+        {!props.unstyled && (renderer === "isometric" ? <IsometricGrid /> : <Background variant={BackgroundVariant.Dots} gap={20} size={1} />)}
         {props.children}
-      </ReactFlow>
+      </ReactFlow></RendererContext.Provider>
     </div>
   );
 }

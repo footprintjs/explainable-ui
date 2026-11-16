@@ -1,6 +1,15 @@
 {
-  "generatedAt": "2026-11-16T04:18:56.161Z",
-  "engineVersion": "12.2.0",
+  "generatedAt": "2026-11-16T22:33:09.286Z",
+  "engineVersion": "12.3.0",
+  "sourceBuild": {
+    "engineRevision": "7cf1ad9e9be48b87518a0207392de2f1789eef5f",
+    "recordLayer": {
+      "version": "1.16.0",
+      "revision": "042c815071043ad51244d0fb4f6d5a19545fe3dc"
+    },
+    "nestedReadTracking": true,
+    "released": false
+  },
   "scenarios": [
     {
       "id": "linear",
@@ -46,7 +55,7 @@
             {
               "type": "next",
               "description": "Moving to Sum stage",
-              "timestamp": 1794802736143,
+              "timestamp": 1794868389279,
               "targetStage": "Sum"
             }
           ],
@@ -75,7 +84,7 @@
               {
                 "type": "next",
                 "description": "Moving to FormatResult stage",
-                "timestamp": 1794802736144,
+                "timestamp": 1794868389280,
                 "targetStage": "FormatResult"
               }
             ],
@@ -165,13 +174,14 @@
           }
         ],
         "logAddress": {
-          "logRunId": "1794802736143-0000000004",
+          "logRunId": "1794868389279-0000000004",
           "drillPath": []
         },
         "commitValues": "full",
         "writeProvenance": "reads-prefix",
         "captureOutputHandoff": true,
-        "runId": "1794802736143-0000000004",
+        "nestedReadTracking": true,
+        "runId": "1794868389279-0000000004",
         "recorders": [
           {
             "id": "combined-narrative-7",
@@ -531,19 +541,19 @@
             "runtimeStageId": "load-numbers#0",
             "stageId": "load-numbers",
             "stageName": "LoadNumbers",
-            "timestampMs": 0.8878750000000082
+            "timestampMs": 0.38945799999999053
           },
           {
             "runtimeStageId": "sum#1",
             "stageId": "sum",
             "stageName": "Sum",
-            "timestampMs": 1.3703749999999673
+            "timestampMs": 0.5445829999999887
           },
           {
             "runtimeStageId": "format-result#2",
             "stageId": "format-result",
             "stageName": "FormatResult",
-            "timestampMs": 1.7580829999999423
+            "timestampMs": 0.6273750000000291
           }
         ],
         "errors": [],
@@ -597,7 +607,7 @@
             {
               "type": "next",
               "description": "Moving to PickBase stage",
-              "timestamp": 1794802736006,
+              "timestamp": 1794868389152,
               "targetStage": "PickBase"
             }
           ],
@@ -619,14 +629,16 @@
                 3.1,
                 3.4,
                 9.9
-              ]
+              ],
+              "rates.length": 3,
+              "rates.2": 9.9
             },
             "description": "Select the last rate (intentional example bug)",
             "flowMessages": [
               {
                 "type": "next",
                 "description": "Moving to Audit stage",
-                "timestamp": 1794802736008,
+                "timestamp": 1794868389152,
                 "targetStage": "Audit"
               }
             ],
@@ -648,7 +660,7 @@
                 {
                   "type": "next",
                   "description": "Moving to AssessRisk stage",
-                  "timestamp": 1794802736008,
+                  "timestamp": 1794868389153,
                   "targetStage": "AssessRisk"
                 }
               ],
@@ -670,7 +682,7 @@
                   {
                     "type": "next",
                     "description": "Moving to Quote stage",
-                    "timestamp": 1794802736024,
+                    "timestamp": 1794868389168,
                     "targetStage": "Quote"
                   }
                 ],
@@ -732,7 +744,9 @@
                 "path": "baseRate",
                 "verb": "set",
                 "readKeys": [
-                  "rates"
+                  "rates",
+                  "rates\u001flength",
+                  "rates\u001f2"
                 ]
               }
             ],
@@ -800,13 +814,14 @@
           }
         ],
         "logAddress": {
-          "logRunId": "1794802735969-0000000001",
+          "logRunId": "1794868389118-0000000001",
           "drillPath": []
         },
         "commitValues": "full",
         "writeProvenance": "reads-prefix",
         "captureOutputHandoff": true,
-        "runId": "1794802735969-0000000001",
+        "nestedReadTracking": true,
+        "runId": "1794868389118-0000000001",
         "recorders": [
           {
             "id": "combined-narrative-1",
@@ -871,12 +886,32 @@
               },
               {
                 "type": "step",
-                "text": "Recorded base price: 9.9.",
+                "text": "Used rates.length: 3.",
                 "depth": 1,
                 "stageName": "PickBase",
                 "stageId": "pick-base",
                 "runtimeStageId": "pick-base#1",
                 "stepNumber": 3,
+                "key": "rates.length"
+              },
+              {
+                "type": "step",
+                "text": "Used rates.2: 9.9.",
+                "depth": 1,
+                "stageName": "PickBase",
+                "stageId": "pick-base",
+                "runtimeStageId": "pick-base#1",
+                "stepNumber": 4,
+                "key": "rates.2"
+              },
+              {
+                "type": "step",
+                "text": "Recorded base price: 9.9.",
+                "depth": 1,
+                "stageName": "PickBase",
+                "stageId": "pick-base",
+                "runtimeStageId": "pick-base#1",
+                "stepNumber": 5,
                 "key": "baseRate"
               },
               {
@@ -886,7 +921,7 @@
                 "stageName": "PickBase",
                 "stageId": "pick-base",
                 "runtimeStageId": "pick-base#1",
-                "stepNumber": 4
+                "stepNumber": 6
               },
               {
                 "type": "stage",
@@ -998,9 +1033,9 @@
             "preferredOperation": "aggregate",
             "data": {
               "numericField": "readCount",
-              "grandTotal": 4,
-              "totalDuration": 49,
-              "totalReads": 4,
+              "grandTotal": 6,
+              "totalDuration": 47,
+              "totalReads": 6,
               "totalWrites": 5,
               "totalCommits": 5,
               "totalPauses": 0,
@@ -1011,11 +1046,11 @@
                   "writeCount": 1,
                   "commitCount": 1,
                   "pauseCount": 0,
-                  "duration": 33
+                  "duration": 32
                 },
                 "pick-base#1": {
                   "stageName": "PickBase",
-                  "readCount": 2,
+                  "readCount": 4,
                   "writeCount": 1,
                   "commitCount": 1,
                   "pauseCount": 0,
@@ -1035,7 +1070,7 @@
                   "writeCount": 1,
                   "commitCount": 1,
                   "pauseCount": 0,
-                  "duration": 16
+                  "duration": 15
                 },
                 "quote#4": {
                   "stageName": "Quote",
@@ -1123,12 +1158,34 @@
         },
         {
           "type": "step",
-          "text": "Recorded base price: 9.9.",
+          "text": "Used rates.length: 3.",
           "depth": 1,
           "stageName": "PickBase",
           "stageId": "pick-base",
           "runtimeStageId": "pick-base#1",
           "stepNumber": 3,
+          "key": "rates.length",
+          "rawValue": 3
+        },
+        {
+          "type": "step",
+          "text": "Used rates.2: 9.9.",
+          "depth": 1,
+          "stageName": "PickBase",
+          "stageId": "pick-base",
+          "runtimeStageId": "pick-base#1",
+          "stepNumber": 4,
+          "key": "rates.2",
+          "rawValue": 9.9
+        },
+        {
+          "type": "step",
+          "text": "Recorded base price: 9.9.",
+          "depth": 1,
+          "stageName": "PickBase",
+          "stageId": "pick-base",
+          "runtimeStageId": "pick-base#1",
+          "stepNumber": 5,
           "key": "baseRate",
           "rawValue": 9.9
         },
@@ -1139,7 +1196,7 @@
           "stageName": "PickBase",
           "stageId": "pick-base",
           "runtimeStageId": "pick-base#1",
-          "stepNumber": 4
+          "stepNumber": 6
         },
         {
           "type": "stage",
@@ -1398,31 +1455,31 @@
             "runtimeStageId": "load-rates#0",
             "stageId": "load-rates",
             "stageName": "LoadRates",
-            "timestampMs": 40.57466699999998
+            "timestampMs": 35.518708000000004
           },
           {
             "runtimeStageId": "pick-base#1",
             "stageId": "pick-base",
             "stageName": "PickBase",
-            "timestampMs": 41.92279199999996
+            "timestampMs": 36.369291000000004
           },
           {
             "runtimeStageId": "audit#2",
             "stageId": "audit",
             "stageName": "Audit",
-            "timestampMs": 42.21712500000001
+            "timestampMs": 36.536541
           },
           {
             "runtimeStageId": "assess-risk#3",
             "stageId": "assess-risk",
             "stageName": "AssessRisk",
-            "timestampMs": 58.26125000000002
+            "timestampMs": 51.88050000000001
           },
           {
             "runtimeStageId": "quote#4",
             "stageId": "quote",
             "stageName": "Quote",
-            "timestampMs": 58.71154200000001
+            "timestampMs": 52.135583
           }
         ],
         "errors": [],
@@ -1476,7 +1533,7 @@
             {
               "type": "next",
               "description": "Moving to FetchShippingRates stage",
-              "timestamp": 1794802736028,
+              "timestamp": 1794868389170,
               "targetStage": "FetchShippingRates"
             }
           ],
@@ -1499,14 +1556,15 @@
                 "id": "ORDER-1042",
                 "destination": "example destination",
                 "weightKg": 2
-              }
+              },
+              "order.id": "ORDER-1042"
             },
             "description": "Simulate a carrier returning no shipping rates",
             "flowMessages": [
               {
                 "type": "next",
                 "description": "Moving to ChooseShipping stage",
-                "timestamp": 1794802736069,
+                "timestamp": 1794868389211,
                 "targetStage": "ChooseShipping"
               }
             ],
@@ -1521,14 +1579,15 @@
               "metrics": {},
               "evals": {},
               "stageReads": {
-                "shippingRates": []
+                "shippingRates": [],
+                "shippingRates.length": 0
               },
               "description": "Choose a label or manual review",
               "flowMessages": [
                 {
                   "type": "branch",
                   "description": "Evaluated scope and returned 'manual' → chose QueueManualReview path.",
-                  "timestamp": 1794802736070,
+                  "timestamp": 1794868389212,
                   "targetStage": "QueueManualReview",
                   "rationale": "returned branchId: manual"
                 }
@@ -1590,14 +1649,16 @@
                 "path": "requestedOrderId",
                 "verb": "set",
                 "readKeys": [
-                  "order"
+                  "order",
+                  "order\u001fid"
                 ]
               },
               {
                 "path": "shippingRates",
                 "verb": "set",
                 "readKeys": [
-                  "order"
+                  "order",
+                  "order\u001fid"
                 ]
               }
             ],
@@ -1642,13 +1703,14 @@
           }
         ],
         "logAddress": {
-          "logRunId": "1794802736027-0000000002",
+          "logRunId": "1794868389170-0000000002",
           "drillPath": []
         },
         "commitValues": "full",
         "writeProvenance": "reads-prefix",
         "captureOutputHandoff": true,
-        "runId": "1794802736027-0000000002",
+        "nestedReadTracking": true,
+        "runId": "1794868389170-0000000002",
         "recorders": [
           {
             "id": "combined-narrative-3",
@@ -1703,12 +1765,22 @@
               },
               {
                 "type": "step",
-                "text": "Recorded requested order id: ORDER-1042.",
+                "text": "Used order.id: ORDER-1042.",
                 "depth": 1,
                 "stageName": "FetchShippingRates",
                 "stageId": "fetch-rates",
                 "runtimeStageId": "fetch-rates#1",
                 "stepNumber": 2,
+                "key": "order.id"
+              },
+              {
+                "type": "step",
+                "text": "Recorded requested order id: ORDER-1042.",
+                "depth": 1,
+                "stageName": "FetchShippingRates",
+                "stageId": "fetch-rates",
+                "runtimeStageId": "fetch-rates#1",
+                "stepNumber": 3,
                 "key": "requestedOrderId"
               },
               {
@@ -1718,7 +1790,7 @@
                 "stageName": "FetchShippingRates",
                 "stageId": "fetch-rates",
                 "runtimeStageId": "fetch-rates#1",
-                "stepNumber": 3,
+                "stepNumber": 4,
                 "key": "shippingRates"
               },
               {
@@ -1728,7 +1800,7 @@
                 "stageName": "FetchShippingRates",
                 "stageId": "fetch-rates",
                 "runtimeStageId": "fetch-rates#1",
-                "stepNumber": 4
+                "stepNumber": 5
               },
               {
                 "type": "stage",
@@ -1747,6 +1819,16 @@
                 "runtimeStageId": "choose-shipping#2",
                 "stepNumber": 1,
                 "key": "shippingRates"
+              },
+              {
+                "type": "step",
+                "text": "Used shipping rates.length: 0.",
+                "depth": 1,
+                "stageName": "ChooseShipping",
+                "stageId": "choose-shipping",
+                "runtimeStageId": "choose-shipping#2",
+                "stepNumber": 2,
+                "key": "shippingRates.length"
               },
               {
                 "type": "condition",
@@ -1802,9 +1884,9 @@
             "preferredOperation": "aggregate",
             "data": {
               "numericField": "readCount",
-              "grandTotal": 2,
+              "grandTotal": 4,
               "totalDuration": 42,
-              "totalReads": 2,
+              "totalReads": 4,
               "totalWrites": 5,
               "totalCommits": 4,
               "totalPauses": 0,
@@ -1819,7 +1901,7 @@
                 },
                 "fetch-rates#1": {
                   "stageName": "FetchShippingRates",
-                  "readCount": 1,
+                  "readCount": 2,
                   "writeCount": 2,
                   "commitCount": 1,
                   "pauseCount": 0,
@@ -1827,7 +1909,7 @@
                 },
                 "choose-shipping#2": {
                   "stageName": "ChooseShipping",
-                  "readCount": 1,
+                  "readCount": 2,
                   "writeCount": 0,
                   "commitCount": 1,
                   "pauseCount": 0,
@@ -1904,12 +1986,23 @@
         },
         {
           "type": "step",
-          "text": "Recorded requested order id: ORDER-1042.",
+          "text": "Used order.id: ORDER-1042.",
           "depth": 1,
           "stageName": "FetchShippingRates",
           "stageId": "fetch-rates",
           "runtimeStageId": "fetch-rates#1",
           "stepNumber": 2,
+          "key": "order.id",
+          "rawValue": "ORDER-1042"
+        },
+        {
+          "type": "step",
+          "text": "Recorded requested order id: ORDER-1042.",
+          "depth": 1,
+          "stageName": "FetchShippingRates",
+          "stageId": "fetch-rates",
+          "runtimeStageId": "fetch-rates#1",
+          "stepNumber": 3,
           "key": "requestedOrderId",
           "rawValue": "ORDER-1042"
         },
@@ -1920,7 +2013,7 @@
           "stageName": "FetchShippingRates",
           "stageId": "fetch-rates",
           "runtimeStageId": "fetch-rates#1",
-          "stepNumber": 3,
+          "stepNumber": 4,
           "key": "shippingRates",
           "rawValue": []
         },
@@ -1931,7 +2024,7 @@
           "stageName": "FetchShippingRates",
           "stageId": "fetch-rates",
           "runtimeStageId": "fetch-rates#1",
-          "stepNumber": 4
+          "stepNumber": 5
         },
         {
           "type": "stage",
@@ -1951,6 +2044,17 @@
           "stepNumber": 1,
           "key": "shippingRates",
           "rawValue": []
+        },
+        {
+          "type": "step",
+          "text": "Used shipping rates.length: 0.",
+          "depth": 1,
+          "stageName": "ChooseShipping",
+          "stageId": "choose-shipping",
+          "runtimeStageId": "choose-shipping#2",
+          "stepNumber": 2,
+          "key": "shippingRates.length",
+          "rawValue": 0
         },
         {
           "type": "condition",
@@ -2158,25 +2262,25 @@
             "runtimeStageId": "load-order#0",
             "stageId": "load-order",
             "stageName": "LoadOrder",
-            "timestampMs": 1.6046250000000555
+            "timestampMs": 0.7682080000000155
           },
           {
             "runtimeStageId": "fetch-rates#1",
             "stageId": "fetch-rates",
             "stageName": "FetchShippingRates",
-            "timestampMs": 42.91366700000003
+            "timestampMs": 41.83966700000002
           },
           {
             "runtimeStageId": "choose-shipping#2",
             "stageId": "choose-shipping",
             "stageName": "ChooseShipping",
-            "timestampMs": 43.803709000000026
+            "timestampMs": 42.57083300000002
           },
           {
             "runtimeStageId": "manual#3",
             "stageId": "manual",
             "stageName": "QueueManualReview",
-            "timestampMs": 44.32299999999998
+            "timestampMs": 42.831500000000005
           }
         ],
         "errors": [],
@@ -2231,7 +2335,7 @@
             {
               "type": "next",
               "description": "Moving to RunCalculations stage",
-              "timestamp": 1794802736146,
+              "timestamp": 1794868389280,
               "targetStage": "RunCalculations"
             }
           ],
@@ -2256,7 +2360,7 @@
               {
                 "type": "selected",
                 "description": "Running Items, Delivery (2 of 2 matched)",
-                "timestamp": 1794802736147,
+                "timestamp": 1794868389281,
                 "count": 2,
                 "targetStage": [
                   "Items",
@@ -2285,7 +2389,15 @@
                   "delivery": {
                     "amount": 5
                   }
-                }
+                },
+                "runs.items": {
+                  "amount": 30
+                },
+                "runs.items.amount": 30,
+                "runs.delivery": {
+                  "amount": 5
+                },
+                "runs.delivery.amount": 5
               },
               "description": "Combine the two branch results"
             },
@@ -2455,7 +2567,11 @@
                 "path": "total",
                 "verb": "set",
                 "readKeys": [
-                  "runs"
+                  "runs",
+                  "runs\u001fitems",
+                  "runs\u001fitems\u001famount",
+                  "runs\u001fdelivery",
+                  "runs\u001fdelivery\u001famount"
                 ]
               }
             ],
@@ -2466,13 +2582,14 @@
           }
         ],
         "logAddress": {
-          "logRunId": "1794802736145-0000000005",
+          "logRunId": "1794868389280-0000000005",
           "drillPath": []
         },
         "commitValues": "full",
         "writeProvenance": "reads-prefix",
         "captureOutputHandoff": true,
-        "runId": "1794802736145-0000000005",
+        "nestedReadTracking": true,
+        "runId": "1794868389280-0000000005",
         "recorders": [
           {
             "id": "combined-narrative-9",
@@ -2645,13 +2762,53 @@
               },
               {
                 "type": "step",
-                "text": "Used runs: the recorded details.",
+                "text": "Used runs.items: the recorded details.",
                 "depth": 1,
                 "stageName": "Combine",
                 "stageId": "combine",
                 "runtimeStageId": "combine#4",
                 "stepNumber": 2,
+                "key": "runs.items"
+              },
+              {
+                "type": "step",
+                "text": "Used runs.items.amount: 30.",
+                "depth": 1,
+                "stageName": "Combine",
+                "stageId": "combine",
+                "runtimeStageId": "combine#4",
+                "stepNumber": 3,
+                "key": "runs.items.amount"
+              },
+              {
+                "type": "step",
+                "text": "Used runs: the recorded details.",
+                "depth": 1,
+                "stageName": "Combine",
+                "stageId": "combine",
+                "runtimeStageId": "combine#4",
+                "stepNumber": 4,
                 "key": "runs"
+              },
+              {
+                "type": "step",
+                "text": "Used runs.delivery: the recorded details.",
+                "depth": 1,
+                "stageName": "Combine",
+                "stageId": "combine",
+                "runtimeStageId": "combine#4",
+                "stepNumber": 5,
+                "key": "runs.delivery"
+              },
+              {
+                "type": "step",
+                "text": "Used runs.delivery.amount: 5.",
+                "depth": 1,
+                "stageName": "Combine",
+                "stageId": "combine",
+                "runtimeStageId": "combine#4",
+                "stepNumber": 6,
+                "key": "runs.delivery.amount"
               },
               {
                 "type": "step",
@@ -2660,7 +2817,7 @@
                 "stageName": "Combine",
                 "stageId": "combine",
                 "runtimeStageId": "combine#4",
-                "stepNumber": 3,
+                "stepNumber": 7,
                 "key": "total"
               },
               {
@@ -2670,7 +2827,7 @@
                 "stageName": "Combine",
                 "stageId": "combine",
                 "runtimeStageId": "combine#4",
-                "stepNumber": 4
+                "stepNumber": 8
               }
             ]
           },
@@ -2681,9 +2838,9 @@
             "preferredOperation": "aggregate",
             "data": {
               "numericField": "readCount",
-              "grandTotal": 5,
-              "totalDuration": 3,
-              "totalReads": 5,
+              "grandTotal": 9,
+              "totalDuration": 0,
+              "totalReads": 9,
               "totalWrites": 6,
               "totalCommits": 7,
               "totalPauses": 0,
@@ -2694,7 +2851,7 @@
                   "writeCount": 3,
                   "commitCount": 1,
                   "pauseCount": 0,
-                  "duration": 1
+                  "duration": 0
                 },
                 "run-calculations#1": {
                   "stageName": "RunCalculations",
@@ -2702,7 +2859,7 @@
                   "writeCount": 0,
                   "commitCount": 1,
                   "pauseCount": 0,
-                  "duration": 1
+                  "duration": 0
                 },
                 "items#2": {
                   "stageName": "Items",
@@ -2710,7 +2867,7 @@
                   "writeCount": 1,
                   "commitCount": 2,
                   "pauseCount": 0,
-                  "duration": 1
+                  "duration": 0
                 },
                 "delivery#3": {
                   "stageName": "Delivery",
@@ -2722,7 +2879,7 @@
                 },
                 "combine#4": {
                   "stageName": "Combine",
-                  "readCount": 2,
+                  "readCount": 6,
                   "writeCount": 1,
                   "commitCount": 1,
                   "pauseCount": 0,
@@ -2915,12 +3072,36 @@
         },
         {
           "type": "step",
-          "text": "Used runs: the recorded details.",
+          "text": "Used runs.items: the recorded details.",
           "depth": 1,
           "stageName": "Combine",
           "stageId": "combine",
           "runtimeStageId": "combine#4",
           "stepNumber": 2,
+          "key": "runs.items",
+          "rawValue": {
+            "amount": 30
+          }
+        },
+        {
+          "type": "step",
+          "text": "Used runs.items.amount: 30.",
+          "depth": 1,
+          "stageName": "Combine",
+          "stageId": "combine",
+          "runtimeStageId": "combine#4",
+          "stepNumber": 3,
+          "key": "runs.items.amount",
+          "rawValue": 30
+        },
+        {
+          "type": "step",
+          "text": "Used runs: the recorded details.",
+          "depth": 1,
+          "stageName": "Combine",
+          "stageId": "combine",
+          "runtimeStageId": "combine#4",
+          "stepNumber": 4,
           "key": "runs",
           "rawValue": {
             "items": {
@@ -2933,12 +3114,36 @@
         },
         {
           "type": "step",
+          "text": "Used runs.delivery: the recorded details.",
+          "depth": 1,
+          "stageName": "Combine",
+          "stageId": "combine",
+          "runtimeStageId": "combine#4",
+          "stepNumber": 5,
+          "key": "runs.delivery",
+          "rawValue": {
+            "amount": 5
+          }
+        },
+        {
+          "type": "step",
+          "text": "Used runs.delivery.amount: 5.",
+          "depth": 1,
+          "stageName": "Combine",
+          "stageId": "combine",
+          "runtimeStageId": "combine#4",
+          "stepNumber": 6,
+          "key": "runs.delivery.amount",
+          "rawValue": 5
+        },
+        {
+          "type": "step",
           "text": "Recorded total: 35.",
           "depth": 1,
           "stageName": "Combine",
           "stageId": "combine",
           "runtimeStageId": "combine#4",
-          "stepNumber": 3,
+          "stepNumber": 7,
           "key": "total",
           "rawValue": 35
         },
@@ -2949,7 +3154,7 @@
           "stageName": "Combine",
           "stageId": "combine",
           "runtimeStageId": "combine#4",
-          "stepNumber": 4
+          "stepNumber": 8
         }
       ],
       "traceGraph": {
@@ -3120,31 +3325,31 @@
             "runtimeStageId": "load-order#0",
             "stageId": "load-order",
             "stageName": "LoadOrder",
-            "timestampMs": 1.4606249999999363
+            "timestampMs": 0.4985409999999888
           },
           {
             "runtimeStageId": "run-calculations#1",
             "stageId": "run-calculations",
             "stageName": "RunCalculations",
-            "timestampMs": 2.574999999999932
+            "timestampMs": 0.9966249999999945
           },
           {
             "runtimeStageId": "items#2",
             "stageId": "items",
             "stageName": "Items",
-            "timestampMs": 3.295749999999998
+            "timestampMs": 1.3668749999999932
           },
           {
             "runtimeStageId": "delivery#3",
             "stageId": "delivery",
             "stageName": "Delivery",
-            "timestampMs": 3.380790999999931
+            "timestampMs": 1.401707999999985
           },
           {
             "runtimeStageId": "combine#4",
             "stageId": "combine",
             "stageName": "Combine",
-            "timestampMs": 3.826999999999998
+            "timestampMs": 1.6307499999999777
           }
         ],
         "errors": [],
@@ -3189,7 +3394,7 @@
             {
               "type": "next",
               "description": "Moving to Refine stage",
-              "timestamp": 1794802736149,
+              "timestamp": 1794868389282,
               "targetStage": "Refine"
             }
           ],
@@ -3216,7 +3421,7 @@
               {
                 "type": "next",
                 "description": "Moving to Review stage",
-                "timestamp": 1794802736149,
+                "timestamp": 1794868389282,
                 "targetStage": "Review"
               }
             ],
@@ -3245,7 +3450,7 @@
                 {
                   "type": "loop",
                   "description": "Looping back to Refine (iteration 1)",
-                  "timestamp": 1794802736150,
+                  "timestamp": 1794868389282,
                   "targetStage": "Refine",
                   "iteration": 1
                 }
@@ -3273,7 +3478,7 @@
                   {
                     "type": "next",
                     "description": "Moving to Review stage",
-                    "timestamp": 1794802736150,
+                    "timestamp": 1794868389282,
                     "targetStage": "Review"
                   }
                 ],
@@ -3302,7 +3507,7 @@
                     {
                       "type": "loop",
                       "description": "Looping back to Refine (iteration 2)",
-                      "timestamp": 1794802736150,
+                      "timestamp": 1794868389282,
                       "targetStage": "Refine",
                       "iteration": 2
                     }
@@ -3330,7 +3535,7 @@
                       {
                         "type": "next",
                         "description": "Moving to Review stage",
-                        "timestamp": 1794802736150,
+                        "timestamp": 1794868389282,
                         "targetStage": "Review"
                       }
                     ],
@@ -3524,13 +3729,14 @@
           }
         ],
         "logAddress": {
-          "logRunId": "1794802736149-0000000006",
+          "logRunId": "1794868389282-0000000006",
           "drillPath": []
         },
         "commitValues": "full",
         "writeProvenance": "reads-prefix",
         "captureOutputHandoff": true,
-        "runId": "1794802736149-0000000006",
+        "nestedReadTracking": true,
+        "runId": "1794868389282-0000000006",
         "recorders": [
           {
             "id": "combined-narrative-11",
@@ -3919,7 +4125,7 @@
             "data": {
               "numericField": "readCount",
               "grandTotal": 12,
-              "totalDuration": 2,
+              "totalDuration": 0,
               "totalReads": 12,
               "totalWrites": 11,
               "totalCommits": 7,
@@ -3947,7 +4153,7 @@
                   "writeCount": 1,
                   "commitCount": 1,
                   "pauseCount": 0,
-                  "duration": 1
+                  "duration": 0
                 },
                 "refine#3": {
                   "stageName": "Refine",
@@ -3979,7 +4185,7 @@
                   "writeCount": 1,
                   "commitCount": 1,
                   "pauseCount": 0,
-                  "duration": 1
+                  "duration": 0
                 }
               }
             }
@@ -4480,43 +4686,43 @@
             "runtimeStageId": "seed#0",
             "stageId": "seed",
             "stageName": "Seed",
-            "timestampMs": 0.6430410000000393
+            "timestampMs": 0.31341599999996106
           },
           {
             "runtimeStageId": "refine#1",
             "stageId": "refine",
             "stageName": "Refine",
-            "timestampMs": 0.7732500000000755
+            "timestampMs": 0.38904099999996333
           },
           {
             "runtimeStageId": "review#2",
             "stageId": "review",
             "stageName": "Review",
-            "timestampMs": 0.87175000000002
+            "timestampMs": 0.44641599999999926
           },
           {
             "runtimeStageId": "refine#3",
             "stageId": "refine",
             "stageName": "Refine",
-            "timestampMs": 1.2207080000000587
+            "timestampMs": 0.6314160000000015
           },
           {
             "runtimeStageId": "review#4",
             "stageId": "review",
             "stageName": "Review",
-            "timestampMs": 1.2933330000000751
+            "timestampMs": 0.6726249999999823
           },
           {
             "runtimeStageId": "refine#5",
             "stageId": "refine",
             "stageName": "Refine",
-            "timestampMs": 1.6119580000000724
+            "timestampMs": 0.7321660000000065
           },
           {
             "runtimeStageId": "review#6",
             "stageId": "review",
             "stageName": "Review",
-            "timestampMs": 1.9677910000000338
+            "timestampMs": 0.8074159999999893
           }
         ],
         "errors": [],
@@ -4569,7 +4775,7 @@
             {
               "type": "next",
               "description": "Moving to FetchQuote stage",
-              "timestamp": 1794802736073,
+              "timestamp": 1794868389213,
               "targetStage": "FetchQuote"
             }
           ],
@@ -4598,7 +4804,7 @@
               {
                 "type": "next",
                 "description": "Moving to Settle stage",
-                "timestamp": 1794802736141,
+                "timestamp": 1794868389278,
                 "targetStage": "Settle"
               }
             ],
@@ -4608,7 +4814,7 @@
                 "kind": "stage",
                 "attempt": 1,
                 "of": 3,
-                "startedAt": 1794802736073,
+                "startedAt": 1794868389213,
                 "durationMs": 21,
                 "outcome": "failed",
                 "category": "unknown",
@@ -4731,7 +4937,7 @@
                 "kind": "stage",
                 "attempt": 2,
                 "of": 3,
-                "startedAt": 1794802736096,
+                "startedAt": 1794868389236,
                 "durationMs": 21,
                 "outcome": "failed",
                 "category": "unknown",
@@ -4854,8 +5060,8 @@
                 "kind": "stage",
                 "attempt": 3,
                 "of": 3,
-                "startedAt": 1794802736117,
-                "durationMs": 23,
+                "startedAt": 1794868389257,
+                "durationMs": 21,
                 "outcome": "ok",
                 "decision": {
                   "rules": [
@@ -4929,6 +5135,8 @@
                   "symbol": "ACME",
                   "price": 41.5
                 },
+                "quote.symbol": "ACME",
+                "quote.price": 41.5,
                 "quantity": 100
               },
               "description": "Calculate the settlement",
@@ -4938,7 +5146,7 @@
                   "kind": "stage",
                   "attempt": 1,
                   "of": 2,
-                  "startedAt": 1794802736141,
+                  "startedAt": 1794868389279,
                   "durationMs": 0,
                   "outcome": "ok",
                   "decision": {
@@ -5054,6 +5262,8 @@
                 "verb": "set",
                 "readKeys": [
                   "quote",
+                  "quote\u001fsymbol",
+                  "quote\u001fprice",
                   "quantity"
                 ]
               }
@@ -5065,13 +5275,14 @@
           }
         ],
         "logAddress": {
-          "logRunId": "1794802736072-0000000003",
+          "logRunId": "1794868389213-0000000003",
           "drillPath": []
         },
         "commitValues": "full",
         "writeProvenance": "reads-prefix",
         "captureOutputHandoff": true,
-        "runId": "1794802736072-0000000003",
+        "nestedReadTracking": true,
+        "runId": "1794868389213-0000000003",
         "recorders": [
           {
             "id": "combined-narrative-5",
@@ -5183,7 +5394,7 @@
               },
               {
                 "type": "attempt",
-                "text": "Attempt 3 of 3 at FetchQuote answered in 23ms.",
+                "text": "Attempt 3 of 3 at FetchQuote answered in 21ms.",
                 "depth": 1,
                 "stageName": "FetchQuote",
                 "stageId": "fetch-quote",
@@ -5210,13 +5421,33 @@
               },
               {
                 "type": "step",
-                "text": "Used final price: the recorded details.",
+                "text": "Used quote.symbol: ACME.",
                 "depth": 1,
                 "stageName": "Settle",
                 "stageId": "settle",
                 "runtimeStageId": "settle#2",
                 "stepNumber": 2,
+                "key": "quote.symbol"
+              },
+              {
+                "type": "step",
+                "text": "Used final price: the recorded details.",
+                "depth": 1,
+                "stageName": "Settle",
+                "stageId": "settle",
+                "runtimeStageId": "settle#2",
+                "stepNumber": 3,
                 "key": "quote"
+              },
+              {
+                "type": "step",
+                "text": "Used quote.price: 41.5.",
+                "depth": 1,
+                "stageName": "Settle",
+                "stageId": "settle",
+                "runtimeStageId": "settle#2",
+                "stepNumber": 4,
+                "key": "quote.price"
               },
               {
                 "type": "step",
@@ -5225,7 +5456,7 @@
                 "stageName": "Settle",
                 "stageId": "settle",
                 "runtimeStageId": "settle#2",
-                "stepNumber": 3,
+                "stepNumber": 5,
                 "key": "quantity"
               },
               {
@@ -5235,7 +5466,7 @@
                 "stageName": "Settle",
                 "stageId": "settle",
                 "runtimeStageId": "settle#2",
-                "stepNumber": 4,
+                "stepNumber": 6,
                 "key": "settlement"
               },
               {
@@ -5245,7 +5476,7 @@
                 "stageName": "Settle",
                 "stageId": "settle",
                 "runtimeStageId": "settle#2",
-                "stepNumber": 5
+                "stepNumber": 7
               },
               {
                 "type": "attempt",
@@ -5254,7 +5485,7 @@
                 "stageName": "Settle",
                 "stageId": "settle",
                 "runtimeStageId": "settle#2",
-                "stepNumber": 6
+                "stepNumber": 8
               }
             ]
           },
@@ -5265,9 +5496,9 @@
             "preferredOperation": "aggregate",
             "data": {
               "numericField": "readCount",
-              "grandTotal": 4,
-              "totalDuration": 68,
-              "totalReads": 4,
+              "grandTotal": 6,
+              "totalDuration": 64,
+              "totalReads": 6,
               "totalWrites": 5,
               "totalCommits": 3,
               "totalPauses": 0,
@@ -5278,7 +5509,7 @@
                   "writeCount": 2,
                   "commitCount": 1,
                   "pauseCount": 0,
-                  "duration": 1
+                  "duration": 0
                 },
                 "fetch-quote#1": {
                   "stageName": "FetchQuote",
@@ -5286,12 +5517,12 @@
                   "writeCount": 2,
                   "commitCount": 1,
                   "pauseCount": 0,
-                  "duration": 67,
+                  "duration": 64,
                   "attempts": 3
                 },
                 "settle#2": {
                   "stageName": "Settle",
-                  "readCount": 3,
+                  "readCount": 5,
                   "writeCount": 1,
                   "commitCount": 1,
                   "pauseCount": 0,
@@ -5415,7 +5646,7 @@
         },
         {
           "type": "attempt",
-          "text": "Attempt 3 of 3 at FetchQuote answered in 23ms.",
+          "text": "Attempt 3 of 3 at FetchQuote answered in 21ms.",
           "depth": 1,
           "stageName": "FetchQuote",
           "stageId": "fetch-quote",
@@ -5446,12 +5677,23 @@
         },
         {
           "type": "step",
-          "text": "Used final price: the recorded details.",
+          "text": "Used quote.symbol: ACME.",
           "depth": 1,
           "stageName": "Settle",
           "stageId": "settle",
           "runtimeStageId": "settle#2",
           "stepNumber": 2,
+          "key": "quote.symbol",
+          "rawValue": "ACME"
+        },
+        {
+          "type": "step",
+          "text": "Used final price: the recorded details.",
+          "depth": 1,
+          "stageName": "Settle",
+          "stageId": "settle",
+          "runtimeStageId": "settle#2",
+          "stepNumber": 3,
           "key": "quote",
           "rawValue": {
             "symbol": "ACME",
@@ -5460,12 +5702,23 @@
         },
         {
           "type": "step",
+          "text": "Used quote.price: 41.5.",
+          "depth": 1,
+          "stageName": "Settle",
+          "stageId": "settle",
+          "runtimeStageId": "settle#2",
+          "stepNumber": 4,
+          "key": "quote.price",
+          "rawValue": 41.5
+        },
+        {
+          "type": "step",
           "text": "Used quantity: 100.",
           "depth": 1,
           "stageName": "Settle",
           "stageId": "settle",
           "runtimeStageId": "settle#2",
-          "stepNumber": 3,
+          "stepNumber": 5,
           "key": "quantity",
           "rawValue": 100
         },
@@ -5476,7 +5729,7 @@
           "stageName": "Settle",
           "stageId": "settle",
           "runtimeStageId": "settle#2",
-          "stepNumber": 4,
+          "stepNumber": 6,
           "key": "settlement",
           "rawValue": {
             "symbol": "ACME",
@@ -5490,7 +5743,7 @@
           "stageName": "Settle",
           "stageId": "settle",
           "runtimeStageId": "settle#2",
-          "stepNumber": 5
+          "stepNumber": 7
         },
         {
           "type": "attempt",
@@ -5499,7 +5752,7 @@
           "stageName": "Settle",
           "stageId": "settle",
           "runtimeStageId": "settle#2",
-          "stepNumber": 6
+          "stepNumber": 8
         }
       ],
       "traceGraph": {
@@ -5592,19 +5845,19 @@
             "runtimeStageId": "load-symbol#0",
             "stageId": "load-symbol",
             "stageName": "LoadSymbol",
-            "timestampMs": 1.6234170000000177
+            "timestampMs": 0.6796669999999949
           },
           {
             "runtimeStageId": "fetch-quote#1",
             "stageId": "fetch-quote",
             "stageName": "FetchQuote",
-            "timestampMs": 69.45687500000008
+            "timestampMs": 65.94599999999997
           },
           {
             "runtimeStageId": "settle#2",
             "stageId": "settle",
             "stageName": "Settle",
-            "timestampMs": 70.22987499999999
+            "timestampMs": 66.23250000000002
           }
         ],
         "errors": [],
@@ -5668,7 +5921,7 @@
             {
               "type": "next",
               "description": "Moving to Prepare stage",
-              "timestamp": 1794802736154,
+              "timestamp": 1794868389283,
               "targetStage": "Prepare"
             }
           ],
@@ -5694,13 +5947,13 @@
               {
                 "type": "subflow",
                 "description": "Entering Prepare subflow",
-                "timestamp": 1794802736154,
+                "timestamp": 1794868389284,
                 "targetStage": "first"
               },
               {
                 "type": "subflow",
                 "description": "Exiting Prepare subflow",
-                "timestamp": 1794802736158,
+                "timestamp": 1794868389285,
                 "targetStage": "first"
               }
             ],
@@ -5719,13 +5972,13 @@
                 {
                   "type": "subflow",
                   "description": "Entering Prepare subflow",
-                  "timestamp": 1794802736158,
+                  "timestamp": 1794868389285,
                   "targetStage": "second"
                 },
                 {
                   "type": "subflow",
                   "description": "Exiting Prepare subflow",
-                  "timestamp": 1794802736159,
+                  "timestamp": 1794868389285,
                   "targetStage": "second"
                 }
               ],
@@ -5744,13 +5997,13 @@
                   {
                     "type": "subflow",
                     "description": "Entering Pipeline subflow",
-                    "timestamp": 1794802736159,
+                    "timestamp": 1794868389285,
                     "targetStage": "pipeline"
                   },
                   {
                     "type": "subflow",
                     "description": "Exiting Pipeline subflow",
-                    "timestamp": 1794802736160,
+                    "timestamp": 1794868389286,
                     "targetStage": "pipeline"
                   }
                 ],
@@ -5915,13 +6168,14 @@
           }
         ],
         "logAddress": {
-          "logRunId": "1794802736153-0000000007",
+          "logRunId": "1794868389283-0000000007",
           "drillPath": []
         },
         "commitValues": "full",
         "writeProvenance": "reads-prefix",
         "captureOutputHandoff": true,
-        "runId": "1794802736153-0000000007",
+        "nestedReadTracking": true,
+        "runId": "1794868389283-0000000007",
         "subflowResults": {
           "first": {
             "subflowId": "first",
@@ -5971,7 +6225,7 @@
                   {
                     "type": "next",
                     "description": "Moving to first/Scale stage",
-                    "timestamp": 1794802736156,
+                    "timestamp": 1794868389284,
                     "targetStage": "first/Scale"
                   }
                 ],
@@ -6002,7 +6256,7 @@
                     {
                       "type": "next",
                       "description": "Moving to first/Sum stage",
-                      "timestamp": 1794802736157,
+                      "timestamp": 1794868389284,
                       "targetStage": "first/Sum"
                     }
                   ],
@@ -6120,7 +6374,7 @@
                 }
               ],
               "logAddress": {
-                "logRunId": "1794802736153-0000000007",
+                "logRunId": "1794868389283-0000000007",
                 "drillPath": [
                   "first#1"
                 ]
@@ -6133,7 +6387,7 @@
               "attribution": "observed-read-prefix",
               "parent": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": []
                 },
                 "runtimeStageId": "first#1",
@@ -6141,7 +6395,7 @@
               },
               "child": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": [
                     "first#1"
                   ]
@@ -6208,7 +6462,7 @@
                   {
                     "type": "next",
                     "description": "Moving to first/Scale stage",
-                    "timestamp": 1794802736156,
+                    "timestamp": 1794868389284,
                     "targetStage": "first/Scale"
                   }
                 ],
@@ -6239,7 +6493,7 @@
                     {
                       "type": "next",
                       "description": "Moving to first/Sum stage",
-                      "timestamp": 1794802736157,
+                      "timestamp": 1794868389284,
                       "targetStage": "first/Sum"
                     }
                   ],
@@ -6357,7 +6611,7 @@
                 }
               ],
               "logAddress": {
-                "logRunId": "1794802736153-0000000007",
+                "logRunId": "1794868389283-0000000007",
                 "drillPath": [
                   "first#1"
                 ]
@@ -6370,7 +6624,7 @@
               "attribution": "observed-read-prefix",
               "parent": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": []
                 },
                 "runtimeStageId": "first#1",
@@ -6378,7 +6632,7 @@
               },
               "child": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": [
                     "first#1"
                   ]
@@ -6443,7 +6697,7 @@
                   {
                     "type": "next",
                     "description": "Moving to second/Scale stage",
-                    "timestamp": 1794802736158,
+                    "timestamp": 1794868389285,
                     "targetStage": "second/Scale"
                   }
                 ],
@@ -6474,7 +6728,7 @@
                     {
                       "type": "next",
                       "description": "Moving to second/Sum stage",
-                      "timestamp": 1794802736159,
+                      "timestamp": 1794868389285,
                       "targetStage": "second/Sum"
                     }
                   ],
@@ -6591,7 +6845,7 @@
                 }
               ],
               "logAddress": {
-                "logRunId": "1794802736153-0000000007",
+                "logRunId": "1794868389283-0000000007",
                 "drillPath": [
                   "second#5"
                 ]
@@ -6604,7 +6858,7 @@
               "attribution": "observed-read-prefix",
               "parent": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": []
                 },
                 "runtimeStageId": "second#5",
@@ -6612,7 +6866,7 @@
               },
               "child": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": [
                     "second#5"
                   ]
@@ -6677,7 +6931,7 @@
                   {
                     "type": "next",
                     "description": "Moving to second/Scale stage",
-                    "timestamp": 1794802736158,
+                    "timestamp": 1794868389285,
                     "targetStage": "second/Scale"
                   }
                 ],
@@ -6708,7 +6962,7 @@
                     {
                       "type": "next",
                       "description": "Moving to second/Sum stage",
-                      "timestamp": 1794802736159,
+                      "timestamp": 1794868389285,
                       "targetStage": "second/Sum"
                     }
                   ],
@@ -6825,7 +7079,7 @@
                 }
               ],
               "logAddress": {
-                "logRunId": "1794802736153-0000000007",
+                "logRunId": "1794868389283-0000000007",
                 "drillPath": [
                   "second#5"
                 ]
@@ -6838,7 +7092,7 @@
               "attribution": "observed-read-prefix",
               "parent": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": []
                 },
                 "runtimeStageId": "second#5",
@@ -6846,7 +7100,7 @@
               },
               "child": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": [
                     "second#5"
                   ]
@@ -6911,7 +7165,7 @@
                   {
                     "type": "next",
                     "description": "Moving to pipeline/prepare/Scale stage",
-                    "timestamp": 1794802736159,
+                    "timestamp": 1794868389285,
                     "targetStage": "pipeline/prepare/Scale"
                   }
                 ],
@@ -6942,7 +7196,7 @@
                     {
                       "type": "next",
                       "description": "Moving to pipeline/prepare/Sum stage",
-                      "timestamp": 1794802736159,
+                      "timestamp": 1794868389285,
                       "targetStage": "pipeline/prepare/Sum"
                     }
                   ],
@@ -7059,7 +7313,7 @@
                 }
               ],
               "logAddress": {
-                "logRunId": "1794802736153-0000000007",
+                "logRunId": "1794868389283-0000000007",
                 "drillPath": [
                   "pipeline#9",
                   "pipeline/prepare#11"
@@ -7073,7 +7327,7 @@
               "attribution": "observed-read-prefix",
               "parent": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": [
                     "pipeline#9"
                   ]
@@ -7083,7 +7337,7 @@
               },
               "child": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": [
                     "pipeline#9",
                     "pipeline/prepare#11"
@@ -7149,7 +7403,7 @@
                   {
                     "type": "next",
                     "description": "Moving to pipeline/prepare/Scale stage",
-                    "timestamp": 1794802736159,
+                    "timestamp": 1794868389285,
                     "targetStage": "pipeline/prepare/Scale"
                   }
                 ],
@@ -7180,7 +7434,7 @@
                     {
                       "type": "next",
                       "description": "Moving to pipeline/prepare/Sum stage",
-                      "timestamp": 1794802736159,
+                      "timestamp": 1794868389285,
                       "targetStage": "pipeline/prepare/Sum"
                     }
                   ],
@@ -7297,7 +7551,7 @@
                 }
               ],
               "logAddress": {
-                "logRunId": "1794802736153-0000000007",
+                "logRunId": "1794868389283-0000000007",
                 "drillPath": [
                   "pipeline#9",
                   "pipeline/prepare#11"
@@ -7311,7 +7565,7 @@
               "attribution": "observed-read-prefix",
               "parent": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": [
                     "pipeline#9"
                   ]
@@ -7321,7 +7575,7 @@
               },
               "child": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": [
                     "pipeline#9",
                     "pipeline/prepare#11"
@@ -7374,7 +7628,7 @@
                   {
                     "type": "next",
                     "description": "Moving to pipeline/Prepare stage",
-                    "timestamp": 1794802736159,
+                    "timestamp": 1794868389285,
                     "targetStage": "pipeline/Prepare"
                   }
                 ],
@@ -7399,13 +7653,13 @@
                     {
                       "type": "subflow",
                       "description": "Entering Prepare subflow",
-                      "timestamp": 1794802736159,
+                      "timestamp": 1794868389285,
                       "targetStage": "pipeline/prepare"
                     },
                     {
                       "type": "subflow",
                       "description": "Exiting Prepare subflow",
-                      "timestamp": 1794802736160,
+                      "timestamp": 1794868389286,
                       "targetStage": "pipeline/prepare"
                     }
                   ],
@@ -7504,7 +7758,7 @@
                 }
               ],
               "logAddress": {
-                "logRunId": "1794802736153-0000000007",
+                "logRunId": "1794868389283-0000000007",
                 "drillPath": [
                   "pipeline#9"
                 ]
@@ -7517,7 +7771,7 @@
               "attribution": "observed-read-prefix",
               "parent": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": []
                 },
                 "runtimeStageId": "pipeline#9",
@@ -7525,7 +7779,7 @@
               },
               "child": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": [
                     "pipeline#9"
                   ]
@@ -7577,7 +7831,7 @@
                   {
                     "type": "next",
                     "description": "Moving to pipeline/Prepare stage",
-                    "timestamp": 1794802736159,
+                    "timestamp": 1794868389285,
                     "targetStage": "pipeline/Prepare"
                   }
                 ],
@@ -7602,13 +7856,13 @@
                     {
                       "type": "subflow",
                       "description": "Entering Prepare subflow",
-                      "timestamp": 1794802736159,
+                      "timestamp": 1794868389285,
                       "targetStage": "pipeline/prepare"
                     },
                     {
                       "type": "subflow",
                       "description": "Exiting Prepare subflow",
-                      "timestamp": 1794802736160,
+                      "timestamp": 1794868389286,
                       "targetStage": "pipeline/prepare"
                     }
                   ],
@@ -7707,7 +7961,7 @@
                 }
               ],
               "logAddress": {
-                "logRunId": "1794802736153-0000000007",
+                "logRunId": "1794868389283-0000000007",
                 "drillPath": [
                   "pipeline#9"
                 ]
@@ -7720,7 +7974,7 @@
               "attribution": "observed-read-prefix",
               "parent": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": []
                 },
                 "runtimeStageId": "pipeline#9",
@@ -7728,7 +7982,7 @@
               },
               "child": {
                 "address": {
-                  "logRunId": "1794802736153-0000000007",
+                  "logRunId": "1794868389283-0000000007",
                   "drillPath": [
                     "pipeline#9"
                   ]
@@ -8399,7 +8653,7 @@
             "data": {
               "numericField": "readCount",
               "grandTotal": 13,
-              "totalDuration": 1,
+              "totalDuration": 0,
               "totalReads": 13,
               "totalWrites": 13,
               "totalCommits": 13,
@@ -8491,7 +8745,7 @@
                   "writeCount": 1,
                   "commitCount": 1,
                   "pauseCount": 0,
-                  "duration": 1
+                  "duration": 0
                 },
                 "pipeline/summarize#15": {
                   "stageName": "pipeline/Summarize",
@@ -9708,103 +9962,103 @@
             "runtimeStageId": "seed#0",
             "stageId": "seed",
             "stageName": "Seed",
-            "timestampMs": 2.5825829999999996
+            "timestampMs": 0.8212499999999636
           },
           {
             "runtimeStageId": "first#1",
             "stageId": "first",
             "stageName": "first/Clean",
-            "timestampMs": 3.849542000000042
+            "timestampMs": 1.3196249999999736
           },
           {
             "runtimeStageId": "first/clean#2",
             "stageId": "first/clean",
             "stageName": "first/Clean",
-            "timestampMs": 5.055707999999981
+            "timestampMs": 1.6764579999999683
           },
           {
             "runtimeStageId": "first/scale#3",
             "stageId": "first/scale",
             "stageName": "first/Scale",
-            "timestampMs": 5.29220799999996
+            "timestampMs": 1.771792000000005
           },
           {
             "runtimeStageId": "first/sum#4",
             "stageId": "first/sum",
             "stageName": "first/Sum",
-            "timestampMs": 5.445375000000013
+            "timestampMs": 1.8414169999999785
           },
           {
             "runtimeStageId": "second#5",
             "stageId": "second",
             "stageName": "second/Clean",
-            "timestampMs": 6.644625000000019
+            "timestampMs": 2.2231669999999895
           },
           {
             "runtimeStageId": "second/clean#6",
             "stageId": "second/clean",
             "stageName": "second/Clean",
-            "timestampMs": 6.9995420000000195
+            "timestampMs": 2.3724169999999845
           },
           {
             "runtimeStageId": "second/scale#7",
             "stageId": "second/scale",
             "stageName": "second/Scale",
-            "timestampMs": 7.314041999999972
+            "timestampMs": 2.436667
           },
           {
             "runtimeStageId": "second/sum#8",
             "stageId": "second/sum",
             "stageName": "second/Sum",
-            "timestampMs": 7.44399999999996
+            "timestampMs": 2.5025420000000054
           },
           {
             "runtimeStageId": "pipeline#9",
             "stageId": "pipeline",
             "stageName": "pipeline/LoadInput",
-            "timestampMs": 7.6825000000000045
+            "timestampMs": 2.641832999999963
           },
           {
             "runtimeStageId": "pipeline/load-input#10",
             "stageId": "pipeline/load-input",
             "stageName": "pipeline/LoadInput",
-            "timestampMs": 7.859000000000037
+            "timestampMs": 2.7199999999999704
           },
           {
             "runtimeStageId": "pipeline/prepare#11",
             "stageId": "pipeline/prepare",
             "stageName": "pipeline/prepare/Clean",
-            "timestampMs": 7.957499999999982
+            "timestampMs": 2.7719169999999735
           },
           {
             "runtimeStageId": "pipeline/prepare/clean#12",
             "stageId": "pipeline/prepare/clean",
             "stageName": "pipeline/prepare/Clean",
-            "timestampMs": 8.144708000000037
+            "timestampMs": 2.8808329999999955
           },
           {
             "runtimeStageId": "pipeline/prepare/scale#13",
             "stageId": "pipeline/prepare/scale",
             "stageName": "pipeline/prepare/Scale",
-            "timestampMs": 8.230000000000018
+            "timestampMs": 2.929124999999999
           },
           {
             "runtimeStageId": "pipeline/prepare/sum#14",
             "stageId": "pipeline/prepare/sum",
             "stageName": "pipeline/prepare/Sum",
-            "timestampMs": 8.33095800000001
+            "timestampMs": 2.977958000000001
           },
           {
             "runtimeStageId": "pipeline/summarize#15",
             "stageId": "pipeline/summarize",
             "stageName": "pipeline/Summarize",
-            "timestampMs": 8.568208000000027
+            "timestampMs": 3.103916999999967
           },
           {
             "runtimeStageId": "report#16",
             "stageId": "report",
             "stageName": "Report",
-            "timestampMs": 8.799417000000062
+            "timestampMs": 3.2250829999999837
           }
         ],
         "errors": [],

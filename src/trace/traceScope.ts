@@ -9,6 +9,7 @@ import {
   TraceAdmissionError,
   classifyAdmissionFailure,
 } from "./safeRecordRead";
+import { readTraceWrites } from "./readProvenance";
 export type TraceAvailability =
   | { ok: true }
   | {
@@ -22,6 +23,8 @@ export interface TraceScope {
   executionTree: unknown;
   availability: TraceAvailability;
   readsAvailable: boolean;
+  /** Inherited only from an explicit canonical producer snapshot. */
+  nestedReadTracking?: true;
   mountLabels: ReadonlyMap<string, string>;
   /** Names only; a start snapshot does not attest input-mapping versus resume origin. */
   startKeys?: readonly string[];
@@ -35,10 +38,13 @@ export function runHasRecordedReads(
     const budget = new WorkBudget();
     const seen = new Set<unknown>();
     const queue = [ownDataField(snapshot, "executionTree")];
-    for (const result of additionalResults)
+    const histories = [ownDataField(snapshot, "commitLog")];
+    for (const result of additionalResults) {
       queue.push(
         ownDataField(ownDataField(result, "treeContext"), "stageContexts")
       );
+      histories.push(ownDataField(ownDataField(result, "treeContext"), "history"));
+    }
     const results = ownDataField(snapshot, "subflowResults");
     if (isPlainRecord(results))
       for (const key of Object.keys(results)) {
@@ -49,7 +55,15 @@ export function runHasRecordedReads(
             "stageContexts"
           )
         );
+        histories.push(ownDataField(ownDataField(ownDataField(results, key), "treeContext"), "history"));
       }
+    for (const history of histories) {
+      if (history === undefined) continue;
+      for (const entry of readOwnArray(history, budget)) {
+        const writes = readTraceWrites(optionalOwnDataField(entry, "trace"), budget, true);
+        if (writes.some(write => write.readKeys !== undefined)) return true;
+      }
+    }
     for (let index = 0; index < queue.length; index++) {
       budget.spend(1);
       const node = queue[index];
@@ -102,7 +116,8 @@ function emptyVisitPhase(entry: unknown, traceLength: number, budget: WorkBudget
 export function childTraceScope(
   result: unknown,
   invocationPath: readonly string[],
-  readsAvailable?: boolean
+  readsAvailable?: boolean,
+  nestedReadTracking?: boolean,
 ): TraceScope {
   const unavailable = (
     reason: "no-history" | "malformed" | "too-large",
@@ -117,6 +132,7 @@ export function childTraceScope(
       ...(items === undefined ? {} : { items }),
     },
     readsAvailable: readsAvailable ?? false,
+    ...(nestedReadTracking === true ? { nestedReadTracking: true as const } : {}),
     mountLabels: new Map(),
   });
   try {
@@ -159,9 +175,7 @@ export function childTraceScope(
         (runtimeStageId === "" || runtimeStageId === mountInvocation)
       )
         return null;
-      const trace = readOwnArray(ownDataField(entry, "trace"), budget).map(
-        (write) => ({ path: readName(ownDataField(write, "path")) })
-      );
+      const trace = readTraceWrites(ownDataField(entry, "trace"), budget);
       const phase = emptyVisitPhase(entry, trace.length, budget);
       return {
         stage: readName(ownDataField(entry, "stage")),
@@ -245,7 +259,8 @@ export function childTraceScope(
       commitLog,
       executionTree,
       availability: { ok: true },
-      readsAvailable: readsAvailable ?? ownReads,
+      readsAvailable: readsAvailable ?? (ownReads || commitLog.some(entry => entry.trace.some(write => write.readKeys !== undefined))),
+      ...(nestedReadTracking === true ? { nestedReadTracking: true as const } : {}),
       mountLabels,
       startKeys: Object.freeze(startKeys),
     };

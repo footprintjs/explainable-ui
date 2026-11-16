@@ -233,3 +233,7 @@ export type { GroupedFlowInvestigationProps } from "./components/GroupedFlowInve
 
 // Recorded-read presentation for custom workflow renderers.
 export type { TraceWorkflowOverlay, TraceWorkflowStage, TraceWorkflowRead } from "./trace/traceWorkflowOverlay";
+
+export { IsometricStageNode, IsometricEdge, IsometricGrid, createIsometricTraceLayout, isometricTraceLayout, ISOMETRIC_NODE_WIDTH, ISOMETRIC_NODE_HEIGHT } from "./components/FlowchartView";
+export type { IsometricTraceLayoutOptions } from "./components/FlowchartView";
+export type { FlowchartRenderer, FlowchartOptions } from "./model/flowchart";

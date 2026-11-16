@@ -1,0 +1,537 @@
+{
+  "sharedState": {
+    "unitPrice": 10,
+    "quantity": 3,
+    "deliveryFee": 5,
+    "runs": {
+      "items": {
+        "amount": 30
+      },
+      "delivery": {
+        "amount": 5
+      }
+    },
+    "total": 35
+  },
+  "executionTree": {
+    "id": "load-order",
+    "runtimeStageId": "load-order#0",
+    "name": "LoadOrder",
+    "isDecider": false,
+    "isFork": false,
+    "logs": {},
+    "errors": {},
+    "metrics": {},
+    "evals": {},
+    "stageWrites": {
+      "unitPrice": 10,
+      "quantity": 3,
+      "deliveryFee": 5
+    },
+    "description": "Load item and delivery inputs",
+    "flowMessages": [
+      {
+        "type": "next",
+        "description": "Moving to RunCalculations stage",
+        "timestamp": 1794802736146,
+        "targetStage": "RunCalculations"
+      }
+    ],
+    "next": {
+      "id": "run-calculations",
+      "runtimeStageId": "run-calculations#1",
+      "name": "RunCalculations",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {
+        "selectedChildIds": [
+          "items",
+          "delivery"
+        ],
+        "selectorPattern": "scope-based-multi-choice"
+      },
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "description": "Run both independent calculations",
+      "flowMessages": [
+        {
+          "type": "selected",
+          "description": "Running Items, Delivery (2 of 2 matched)",
+          "timestamp": 1794802736147,
+          "count": 2,
+          "targetStage": [
+            "Items",
+            "Delivery"
+          ]
+        }
+      ],
+      "next": {
+        "id": "combine",
+        "runtimeStageId": "combine#4",
+        "name": "Combine",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "total": 35
+        },
+        "stageReads": {
+          "runs": {
+            "items": {
+              "amount": 30
+            },
+            "delivery": {
+              "amount": 5
+            }
+          }
+        },
+        "description": "Combine the two branch results"
+      },
+      "children": [
+        {
+          "id": "items",
+          "runtimeStageId": "items#2",
+          "name": "Items",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "amount": 30
+          },
+          "stageReads": {
+            "unitPrice": 10,
+            "quantity": 3
+          },
+          "description": "Calculate the item subtotal"
+        },
+        {
+          "id": "delivery",
+          "runtimeStageId": "delivery#3",
+          "name": "Delivery",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "amount": 5
+          },
+          "stageReads": {
+            "deliveryFee": 5
+          },
+          "description": "Calculate the delivery charge"
+        }
+      ]
+    }
+  },
+  "initialState": {},
+  "commitLog": [
+    {
+      "overwrite": {
+        "unitPrice": 10,
+        "quantity": 3,
+        "deliveryFee": 5
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "unitPrice",
+          "verb": "set",
+          "readKeys": []
+        },
+        {
+          "path": "quantity",
+          "verb": "set",
+          "readKeys": []
+        },
+        {
+          "path": "deliveryFee",
+          "verb": "set",
+          "readKeys": []
+        }
+      ],
+      "stage": "LoadOrder",
+      "stageId": "load-order",
+      "runtimeStageId": "load-order#0",
+      "idx": 0
+    },
+    {
+      "overwrite": {},
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [],
+      "stage": "RunCalculations",
+      "stageId": "run-calculations",
+      "runtimeStageId": "run-calculations#1",
+      "idx": 1
+    },
+    {
+      "overwrite": {
+        "runs": {
+          "items": {
+            "amount": 30
+          }
+        }
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "runs\u001fitems\u001famount",
+          "verb": "set",
+          "readKeys": [
+            "unitPrice",
+            "quantity"
+          ]
+        }
+      ],
+      "stage": "Items",
+      "stageId": "items",
+      "runtimeStageId": "items#2",
+      "idx": 2
+    },
+    {
+      "overwrite": {
+        "runs": {
+          "delivery": {
+            "amount": 5
+          }
+        }
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "runs\u001fdelivery\u001famount",
+          "verb": "set",
+          "readKeys": [
+            "deliveryFee"
+          ]
+        }
+      ],
+      "stage": "Delivery",
+      "stageId": "delivery",
+      "runtimeStageId": "delivery#3",
+      "beganAt": 2,
+      "idx": 3
+    },
+    {
+      "overwrite": {},
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [],
+      "stage": "Items",
+      "stageId": "items",
+      "runtimeStageId": "items#2",
+      "phase": "repeat",
+      "idx": 4
+    },
+    {
+      "overwrite": {},
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [],
+      "stage": "Delivery",
+      "stageId": "delivery",
+      "runtimeStageId": "delivery#3",
+      "phase": "repeat",
+      "idx": 5
+    },
+    {
+      "overwrite": {
+        "total": 35
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "total",
+          "verb": "set",
+          "readKeys": [
+            "runs"
+          ]
+        }
+      ],
+      "stage": "Combine",
+      "stageId": "combine",
+      "runtimeStageId": "combine#4",
+      "idx": 6
+    }
+  ],
+  "logAddress": {
+    "logRunId": "1794802736145-0000000005",
+    "drillPath": []
+  },
+  "commitValues": "full",
+  "writeProvenance": "reads-prefix",
+  "captureOutputHandoff": true,
+  "runId": "1794802736145-0000000005",
+  "recorders": [
+    {
+      "id": "combined-narrative-9",
+      "name": "Narrative",
+      "description": "Translator (SequenceStore) \u2014 plain-English trace merged from flow + data events",
+      "preferredOperation": "translate",
+      "data": [
+        {
+          "type": "stage",
+          "text": "This step: Load item and delivery inputs.",
+          "depth": 0,
+          "stageName": "LoadOrder",
+          "stageId": "load-order",
+          "runtimeStageId": "load-order#0"
+        },
+        {
+          "type": "step",
+          "text": "Recorded unit price: 10.",
+          "depth": 1,
+          "stageName": "LoadOrder",
+          "stageId": "load-order",
+          "runtimeStageId": "load-order#0",
+          "stepNumber": 1,
+          "key": "unitPrice"
+        },
+        {
+          "type": "step",
+          "text": "Recorded quantity: 3.",
+          "depth": 1,
+          "stageName": "LoadOrder",
+          "stageId": "load-order",
+          "runtimeStageId": "load-order#0",
+          "stepNumber": 2,
+          "key": "quantity"
+        },
+        {
+          "type": "step",
+          "text": "Recorded delivery fee: 5.",
+          "depth": 1,
+          "stageName": "LoadOrder",
+          "stageId": "load-order",
+          "runtimeStageId": "load-order#0",
+          "stepNumber": 3,
+          "key": "deliveryFee"
+        },
+        {
+          "type": "emit",
+          "text": "Loaded an item price of 10, a quantity of 3 and a delivery fee of 5.",
+          "depth": 1,
+          "stageName": "LoadOrder",
+          "stageId": "load-order",
+          "runtimeStageId": "load-order#0",
+          "stepNumber": 4
+        },
+        {
+          "type": "selector",
+          "text": "[Selected]: 2 of 2 paths selected: items \"Calculate the item amount\" (); delivery \"Calculate the delivery amount\" ().",
+          "depth": 0,
+          "stageId": "run-calculations",
+          "runtimeStageId": "run-calculations#1"
+        },
+        {
+          "type": "fork",
+          "text": "The process split into these branches: Items, Delivery.",
+          "depth": 0,
+          "stageId": "run-calculations",
+          "runtimeStageId": "run-calculations#1"
+        },
+        {
+          "type": "stage",
+          "text": "This step: Calculate the item subtotal.",
+          "depth": 0,
+          "stageName": "Items",
+          "stageId": "items",
+          "runtimeStageId": "items#2"
+        },
+        {
+          "type": "step",
+          "text": "Used unit price: 10.",
+          "depth": 1,
+          "stageName": "Items",
+          "stageId": "items",
+          "runtimeStageId": "items#2",
+          "stepNumber": 1,
+          "key": "unitPrice"
+        },
+        {
+          "type": "step",
+          "text": "Used quantity: 3.",
+          "depth": 1,
+          "stageName": "Items",
+          "stageId": "items",
+          "runtimeStageId": "items#2",
+          "stepNumber": 2,
+          "key": "quantity"
+        },
+        {
+          "type": "step",
+          "text": "Recorded amount: 30.",
+          "depth": 1,
+          "stageName": "Items",
+          "stageId": "items",
+          "runtimeStageId": "items#2",
+          "stepNumber": 3,
+          "key": "amount"
+        },
+        {
+          "type": "emit",
+          "text": "The item calculation produced 30.",
+          "depth": 1,
+          "stageName": "Items",
+          "stageId": "items",
+          "runtimeStageId": "items#2",
+          "stepNumber": 4
+        },
+        {
+          "type": "stage",
+          "text": "This step: Calculate the delivery charge.",
+          "depth": 0,
+          "stageName": "Delivery",
+          "stageId": "delivery",
+          "runtimeStageId": "delivery#3"
+        },
+        {
+          "type": "step",
+          "text": "Used delivery fee: 5.",
+          "depth": 1,
+          "stageName": "Delivery",
+          "stageId": "delivery",
+          "runtimeStageId": "delivery#3",
+          "stepNumber": 1,
+          "key": "deliveryFee"
+        },
+        {
+          "type": "step",
+          "text": "Recorded amount: 5.",
+          "depth": 1,
+          "stageName": "Delivery",
+          "stageId": "delivery",
+          "runtimeStageId": "delivery#3",
+          "stepNumber": 2,
+          "key": "amount"
+        },
+        {
+          "type": "emit",
+          "text": "The delivery calculation produced 5.",
+          "depth": 1,
+          "stageName": "Delivery",
+          "stageId": "delivery",
+          "runtimeStageId": "delivery#3",
+          "stepNumber": 3
+        },
+        {
+          "type": "stage",
+          "text": "This step: Combine the two branch results.",
+          "depth": 0,
+          "stageName": "Combine",
+          "stageId": "combine",
+          "runtimeStageId": "combine#4"
+        },
+        {
+          "type": "step",
+          "text": "Used runs: the recorded details.",
+          "depth": 1,
+          "stageName": "Combine",
+          "stageId": "combine",
+          "runtimeStageId": "combine#4",
+          "stepNumber": 1,
+          "key": "runs"
+        },
+        {
+          "type": "step",
+          "text": "Used runs: the recorded details.",
+          "depth": 1,
+          "stageName": "Combine",
+          "stageId": "combine",
+          "runtimeStageId": "combine#4",
+          "stepNumber": 2,
+          "key": "runs"
+        },
+        {
+          "type": "step",
+          "text": "Recorded total: 35.",
+          "depth": 1,
+          "stageName": "Combine",
+          "stageId": "combine",
+          "runtimeStageId": "combine#4",
+          "stepNumber": 3,
+          "key": "total"
+        },
+        {
+          "type": "emit",
+          "text": "Result: The combined item and delivery total is 35.",
+          "depth": 1,
+          "stageName": "Combine",
+          "stageId": "combine",
+          "runtimeStageId": "combine#4",
+          "stepNumber": 4
+        }
+      ]
+    },
+    {
+      "id": "metrics-5",
+      "name": "Metrics",
+      "description": "Aggregator (KeyedStore) \u2014 per-step timing and I/O counts",
+      "preferredOperation": "aggregate",
+      "data": {
+        "numericField": "readCount",
+        "grandTotal": 5,
+        "totalDuration": 3,
+        "totalReads": 5,
+        "totalWrites": 6,
+        "totalCommits": 7,
+        "totalPauses": 0,
+        "steps": {
+          "load-order#0": {
+            "stageName": "LoadOrder",
+            "readCount": 0,
+            "writeCount": 3,
+            "commitCount": 1,
+            "pauseCount": 0,
+            "duration": 1
+          },
+          "run-calculations#1": {
+            "stageName": "RunCalculations",
+            "readCount": 0,
+            "writeCount": 0,
+            "commitCount": 1,
+            "pauseCount": 0,
+            "duration": 1
+          },
+          "items#2": {
+            "stageName": "Items",
+            "readCount": 2,
+            "writeCount": 1,
+            "commitCount": 2,
+            "pauseCount": 0,
+            "duration": 1
+          },
+          "delivery#3": {
+            "stageName": "Delivery",
+            "readCount": 1,
+            "writeCount": 1,
+            "commitCount": 2,
+            "pauseCount": 0,
+            "duration": 0
+          },
+          "combine#4": {
+            "stageName": "Combine",
+            "readCount": 2,
+            "writeCount": 1,
+            "commitCount": 1,
+            "pauseCount": 0,
+            "duration": 0
+          }
+        }
+      }
+    }
+  ]
+}
