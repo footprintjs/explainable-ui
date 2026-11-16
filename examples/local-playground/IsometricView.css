@@ -1,0 +1,106 @@
+.iso-stage {
+  position: relative;
+  width: 168px;
+  height: 116px;
+  overflow: visible;
+  box-sizing: border-box;
+}
+.iso-stage__slab {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 168px;
+  height: 100px;
+  overflow: visible;
+  pointer-events: none;
+}
+.iso-stage__icon {
+  position: absolute;
+  left: 77px;
+  top: 41px;
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.iso-stage__steps {
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  display: flex;
+  gap: 2px;
+  max-width: 112px;
+  flex-wrap: wrap;
+  pointer-events: none;
+}
+.iso-stage__step {
+  display: inline-flex;
+  min-width: 14px;
+  height: 15px;
+  padding: 0 2px;
+  align-items: center;
+  justify-content: center;
+}
+.iso-stage__status {
+  position: absolute;
+  right: 0;
+  top: 2px;
+  padding: 2px 4px;
+  pointer-events: none;
+}
+.iso-stage__retry {
+  position: absolute;
+  right: 0;
+  top: 82px;
+  padding: 2px 4px;
+}
+.iso-stage__label {
+  position: absolute;
+  left: 0;
+  top: 99px;
+  width: 168px;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.iso-stage__trace {
+  position: absolute;
+  left: 50%;
+  top: 118px;
+  transform: translateX(-50%);
+  display: block;
+  width: max-content;
+  max-width: 220px;
+  overflow: hidden;
+  padding: 2px 5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  z-index: 2;
+}
+.iso-floor { pointer-events: none; }
+.iso-stage:not([data-unstyled="true"]) :is(.iso-stage__step, .iso-stage__status, .iso-stage__retry, .iso-stage__trace) {
+  border-radius: 4px;
+}
+.iso-stage:not([data-unstyled="true"]) :is(.iso-stage__step, .iso-stage__retry) {
+  font-size: 9px;
+  line-height: 1;
+}
+.iso-stage:not([data-unstyled="true"]) .iso-stage__status {
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: .03em;
+}
+.iso-stage:not([data-unstyled="true"]) .iso-stage__label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 17px;
+}
+.iso-stage:not([data-unstyled="true"]) .iso-stage__trace {
+  font-size: 9px;
+  line-height: 13px;
+}

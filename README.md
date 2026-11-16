@@ -98,6 +98,10 @@ layouts and a Recorded / Built-in / Custom SVG node-icon selector, run the
 selected by default. The preview replays bundled recordings using this checkout's
 source and requires no workflow services.
 Or open the [hosted seven-workflow preview](https://footprintjs.github.io/explainable-ui/local-playground/).
+The [isometric preview](https://footprintjs.github.io/explainable-ui/local-playground/?look=isometric)
+opens the same recordings with illustrated depth, Paper styling and Details
+beside the chart. Use **Try isometric view** in the preview to switch presentation
+without resetting the replay cursor.
 
 ### 1. Capture the chart while it is built
 
@@ -1283,7 +1287,10 @@ import { ExplainableShell, paperLight } from "footprint-explainable-ui";
 The [seven-workflow playground](examples/local-playground/README.md) includes a
 Paper choice alongside its existing themes. This preset takes visual cues from
 [Designed to Scale](https://designed-to-scale.vercel.app/#/design-chat/12); it
-styles the existing flat chart and does not add 3D geometry.
+changes chart paint. The playground's separate **Isometric** layout adds
+fixed-angle SVG illustrations; it shares recorded selection and playback with
+the existing panels and does not provide an orbit camera or infer infrastructure
+facts from stage names.
 
 ---
 

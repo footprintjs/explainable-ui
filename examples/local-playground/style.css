@@ -301,3 +301,29 @@ summary:focus-visible, select:focus-visible { outline: 3px solid #7c6ee7; outlin
   outline: var(--fp-focus-width) solid var(--fp-accent);
   outline-offset: 3px;
 }
+
+/* The view shortcut changes presentation without remounting the workbench. */
+.run-heading > .run-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.isometric-cta {
+  border-color: var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.isometric-cta:hover { border-color: var(--accent); }
+.isometric-cta[aria-pressed="true"] { border-color: var(--accent); }
+.playground[data-skin="paper"] .isometric-cta {
+  border-color: var(--fp-border);
+  box-shadow: var(--fp-shadow-panel);
+}
+@media (max-width: 560px) {
+  .run-heading { flex-wrap: wrap; }
+  .run-heading > .run-actions { flex: 1 1 100%; justify-content: flex-start; gap: 7px; }
+  .run-actions .button { flex: 1 1 auto; justify-content: center; }
+}
