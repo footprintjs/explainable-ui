@@ -1196,6 +1196,11 @@ recipe. Nested providers merge token groups and component registries: omitted
 or undefined fields inherit. They emit only local CSS overrides, so a nested
 provider does not reset the host palette to a preset.
 
+For custom icons on actual execution nodes, see the
+[node icon consumer examples](examples/node-icons/README.md). They compare saved
+icon names, built-in icons and application SVGs using the existing `Icon`
+adapter, with examples for both `ExplainableShell` and `TraceViewer`.
+
 Shared recipes and control adapters cover the core shell chrome, Inspector,
 Activity, backtracking, time controls, run log, metrics and built-in stage-node
 surfaces, plus the shell's breadcrumb, tree, memory, diff, result and timeline.
