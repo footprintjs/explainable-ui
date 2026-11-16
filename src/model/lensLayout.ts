@@ -1,4 +1,5 @@
 /** JSON layout for the existing Lens surfaces; validation also works during SSR. */
+import { resolveFlowchartOptions, type FlowchartOptions } from "./flowchart";
 export type LensLayoutSurface =
   | "timeTravel"
   | "flowchart"
@@ -13,6 +14,8 @@ export interface LensLayoutDefinition {
   readonly areas: readonly (readonly (LensLayoutSurface | ".")[])[];
   readonly minHeight?: number | string;
   readonly gap?: number | string;
+  /** Optional built-in geometry; an explicit Shell flowchart prop takes precedence. */
+  readonly flowchart?: FlowchartOptions;
 }
 
 const SURFACES: ReadonlySet<string> = new Set([
@@ -69,6 +72,8 @@ export function resolveLensLayout(layout: unknown): {
   const rows = own(layout, "rows");
   if (rows !== undefined) css(rows, "rows");
   const minHeight = own(layout, "minHeight"), gap = own(layout, "gap");
+  const rawFlowchart = own(layout, "flowchart");
+  const flowchart = rawFlowchart === undefined ? undefined : resolveFlowchartOptions(rawFlowchart);
   if (minHeight !== undefined) size(minHeight, "minHeight");
   if (gap !== undefined) size(gap, "gap");
   const matrix = array(own(layout, "areas"), "areas").map((row, index) => array(row, `areas[${index}]`));
@@ -101,6 +106,7 @@ export function resolveLensLayout(layout: unknown): {
       areas: matrix as (LensLayoutSurface | ".")[][],
       minHeight: minHeight as number | string | undefined,
       gap: gap as number | string | undefined,
+      ...(flowchart !== undefined && { flowchart }),
     },
     order: [...bounds.keys()],
   };

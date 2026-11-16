@@ -10,8 +10,9 @@ import recordings from "../../examples/local-playground/recordings.json";
 import {
   ISOMETRIC_NODE_HEIGHT,
   ISOMETRIC_NODE_WIDTH,
-  isometricLayout,
-} from "../../examples/local-playground/isometricLayout";
+  isometricTraceLayout as isometricLayout,
+  createIsometricTraceLayout,
+} from "../../src/components/FlowchartView/_internal/isometricTraceLayout";
 
 const scenarios = recordings.scenarios as unknown as { id: string; traceGraph: TraceGraph }[];
 
@@ -66,7 +67,7 @@ function expectContained(graph: TraceGraph): void {
   }
 }
 
-describe("consumer isometric layout", () => {
+describe("built-in isometric layout", () => {
   it("returns an empty graph unchanged", () => {
     const graph: TraceGraph = { nodes: [], edges: [] };
     expect(isometricLayout(graph)).toBe(graph);
@@ -163,4 +164,157 @@ describe("consumer isometric layout", () => {
       expect(repositioned.nodes.find(candidate => candidate.id === node.id)!.position).toEqual(node.position);
     }
   });
+
+  it("keeps custom node styles and intrinsic dimensions while using measured footprints only for placement", () => {
+    const template = scenarios[0].traceGraph.nodes[0];
+    const graph = freeze({
+      nodes: [
+        { ...template, id: "measured", type: "custom", style: { width: "auto", color: "red" } },
+        { ...template, id: "intrinsic", type: "custom", style: undefined, width: 350, height: 200 },
+        { ...template, id: "styled", type: "custom", style: { width: 95, height: 45 } },
+      ],
+      edges: [
+        { id: "a", source: "measured", target: "intrinsic", data: { kind: "next" as const } },
+        { id: "b", source: "intrinsic", target: "styled", data: { kind: "next" as const } },
+      ],
+    } as TraceGraph);
+    let calls = 0;
+    const result = createIsometricTraceLayout({ nodeSize: node => {
+      calls++;
+      return node.id === "measured" ? { width: 420, height: 160 } : undefined;
+    } })(graph);
+    expect(calls).toBe(3);
+    for (let i = 0; i < result.nodes.length; i++) {
+      expect(result.nodes[i].style).toBe(graph.nodes[i].style);
+      expect(result.nodes[i].width).toBe(graph.nodes[i].width);
+      expect(result.nodes[i].height).toBe(graph.nodes[i].height);
+      expect(result.nodes[i].data).toBe(graph.nodes[i].data);
+    }
+    const footprints = [{ width: 420, height: 160 }, { width: 350, height: 200 }, { width: 95, height: 45 }];
+    for (let i = 0; i < result.nodes.length; i++) for (let j = i + 1; j < result.nodes.length; j++) {
+      const a = result.nodes[i], b = result.nodes[j];
+      expect(a.position.x + footprints[i].width <= b.position.x || b.position.x + footprints[j].width <= a.position.x ||
+        a.position.y + footprints[i].height <= b.position.y || b.position.y + footprints[j].height <= a.position.y).toBe(true);
+    }
+  });
+
+  it("keeps replacement stage cards measurable and responds to later measurement changes", () => {
+    const template = scenarios[0].traceGraph.nodes[0];
+    const graph = freeze({ nodes: [
+      { ...template, id: "a", type: "stage", style: undefined },
+      { ...template, id: "b", type: undefined, style: { color: "red" } },
+    ], edges: [{ id: "ab", source: "a", target: "b", data: { kind: "next" as const } }] } as TraceGraph);
+    const measured = new Map<string, { width: number; height: number }>();
+    const layout = createIsometricTraceLayout({ fixedStageNodes: false, nodeSize: node => measured.get(node.id) });
+    const initial = layout(graph);
+    measured.set("a", { width: 500, height: 150 });
+    measured.set("b", { width: 320, height: 240 });
+    const resized = layout(graph);
+    expect(resized.nodes.map(node => node.position)).not.toEqual(initial.nodes.map(node => node.position));
+    for (let i = 0; i < resized.nodes.length; i++) {
+      expect(resized.nodes[i].style).toBe(graph.nodes[i].style);
+      expect(resized.nodes[i].style?.width).toBeUndefined();
+      expect(resized.nodes[i].style?.height).toBeUndefined();
+      expect(resized.nodes[i].measured).toBe(graph.nodes[i].measured);
+    }
+    const [a, b] = resized.nodes;
+    expect(a.position.x + 500 <= b.position.x || a.position.y + 150 <= b.position.y).toBe(true);
+  });
+
+  it("keeps fixed built-in geometry and authoritative container sizes ahead of a resolver", () => {
+    const template = scenarios[0].traceGraph.nodes[0];
+    const graph = freeze({ nodes: [
+      { ...template, id: "box", type: GROUP_CONTAINER_NODE_TYPE, style: { width: 720, height: 440 },
+        data: { ...template.data, isGroupContainer: true } },
+      { ...template, id: "child", parentId: "box", extent: "parent" as const, position: { x: 40, y: 80 } },
+      { ...template, id: "next" },
+    ], edges: [{ id: "out", source: "box", target: "next", data: { kind: "next" as const } }] } as TraceGraph);
+    let calls = 0;
+    const result = createIsometricTraceLayout({ nodeSize: () => { calls++; return { width: 1, height: 1 }; } })(graph);
+    expect(calls).toBe(0);
+    expect(result.nodes[0].style).toBe(graph.nodes[0].style);
+    expect(size(result.nodes[0])).toEqual({ width: 720, height: 440 });
+    expect(size(result.nodes[1])).toEqual({ width: ISOMETRIC_NODE_WIDTH, height: ISOMETRIC_NODE_HEIGHT });
+    expect(result.nodes[1].position).toBe(graph.nodes[1].position);
+    expectContained(result);
+    expectNoSiblingOverlap(result);
+  });
+
+  it("contains measured custom children in native groups and the main box without forcing their styles", () => {
+    const template = scenarios[0].traceGraph.nodes[0];
+    const graph = freeze({ nodes: [
+      { ...template, id: "mount", data: { ...template.data, isSubflow: true, subflowId: "sf" } },
+      { ...template, id: "wide-child", type: "custom", style: undefined, data: { ...template.data, subflowOf: "sf" } },
+      { ...template, id: "next", type: "custom", style: { color: "red" } },
+    ], edges: [{ id: "out", source: "mount", target: "next", data: { kind: "next" as const } }] } as TraceGraph);
+    const measured = new Map([
+      ["wide-child", { width: 420, height: 240 }],
+      ["next", { width: 380, height: 220 }],
+    ]);
+    const nodeSize = (node: TraceNode) => measured.get(node.id) ?? { width: 1, height: 1 };
+    const layout = createIsometricTraceLayout({ fixedStageNodes: false, nodeSize });
+    const grouped = applyGroupLayout(graph, { groupedSubflowIds: ["sf"], baseLayout: layout, nodeSize });
+    const child = grouped.nodes.find(node => node.id === "wide-child")!;
+    const group = grouped.nodes.find(node => node.id === "mount")!;
+    expect(child.style).toBeUndefined();
+    expect(child.position.x + 420).toBeLessThanOrEqual(size(group).width);
+    expect(child.position.y + 240).toBeLessThanOrEqual(size(group).height);
+    const wrapped = wrapInMainChartBox(grouped, { baseLayout: graph => graph, nodeSize });
+    const outer = wrapped.nodes[0];
+    for (const node of wrapped.nodes.filter(node => node.parentId === outer.id)) {
+      const footprint = node.data.isGroupContainer ? size(node) : measured.get(node.id)!;
+      expect(node.position.x + footprint.width).toBeLessThanOrEqual(size(outer).width);
+      expect(node.position.y + footprint.height).toBeLessThanOrEqual(size(outer).height);
+    }
+    expect(wrapped.nodes.find(node => node.id === "wide-child")!.style).toBeUndefined();
+    expect(wrapped.nodes.find(node => node.id === "next")!.style).toBe(graph.nodes[2].style);
+    expect(wrapped.edges).toBe(graph.edges);
+  });
+
+  it("honors existing container stamps over stale resolver bounds and ignores invalid custom measurements", () => {
+    const template = scenarios[0].traceGraph.nodes[0];
+    const graph = freeze({ nodes: [
+      { ...template, id: "box", type: GROUP_CONTAINER_NODE_TYPE, style: { width: 720, height: 440 },
+        data: { ...template.data, isGroupContainer: true } },
+      { ...template, id: "next", type: "custom", position: { x: 760, y: 0 }, style: { width: 90, height: 50 } },
+    ], edges: [] } as TraceGraph);
+    const result = wrapInMainChartBox(graph, { baseLayout: graph => graph,
+      nodeSize: node => node.id === "box" ? { width: 1, height: 1 } : { width: NaN, height: 0 } });
+    expect(result.nodes[0].style).toMatchObject({ width: 882, height: 516 });
+    expect(result.nodes[1].style).toBe(graph.nodes[0].style);
+    expect(result.nodes[2].style).toBe(graph.nodes[1].style);
+    expectContained(result);
+  });
+
+  it("preserves loop/custom edges and external parent links without feeding them into local placement", () => {
+    const graph = structuredClone(scenarios.find(scenario => scenario.id === "loop")!.traceGraph);
+    const external = { ...graph.nodes[0], parentId: "outside-this-scope" };
+    graph.nodes[0] = external;
+    const original = freeze(graph);
+    const result = isometricLayout(original);
+    const noLoop = isometricLayout({ ...original, edges: original.edges.filter(edge => edge.data?.kind !== "loop") });
+    expect(result.nodes.map(node => node.position)).toEqual(noLoop.nodes.map(node => node.position));
+    expect(result.nodes[0].parentId).toBe("outside-this-scope");
+    expect(result.edges).toBe(original.edges);
+    expect(result.edges.some(edge => edge.data?.kind === "loop")).toBe(true);
+  });
+
+  it("lays out a large disconnected recording with finite separated tiles", () => {
+    const template = scenarios[0].traceGraph.nodes[0];
+    const graph: TraceGraph = { nodes: Array.from({ length: 2_000 }, (_, index) => ({
+      ...template, id: `stage-${index}`, position: { x: 0, y: 0 },
+    })), edges: [] };
+    const result = isometricLayout(graph);
+    expect(result.nodes).toHaveLength(graph.nodes.length);
+    expect(result.edges).toBe(graph.edges);
+    expectFinite(result);
+    // Disconnected dagre vertices share one rank. Their projected centers
+    // stay on one line, so separated neighbors also separate farther pairs.
+    const ordered = [...result.nodes].sort((a, b) => a.position.y - b.position.y);
+    for (let i = 1; i < ordered.length; i++) {
+      const a = ordered[i - 1], b = ordered[i];
+      expect(Math.abs(a.position.x - b.position.x) >= ISOMETRIC_NODE_WIDTH ||
+        Math.abs(a.position.y - b.position.y) >= ISOMETRIC_NODE_HEIGHT).toBe(true);
+    }
+  }, 20_000);
 });

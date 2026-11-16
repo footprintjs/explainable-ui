@@ -42,6 +42,7 @@
 
 import type { TraceGraph, TraceNode } from "../traceStructureRecorder";
 import type { TraceFlowLayout } from "../TraceFlow";
+import type { NodeSizeResolver } from "./dagreTraceLayout";
 import { LOOP_LANE_GAP } from "./loopRouting";
 
 /** xyflow node type used for the container box. Consumers register a
@@ -61,6 +62,8 @@ export interface GroupLayoutOptions {
    *  sizes). Defaults match the bundled `StageNode` footprint. */
   readonly nodeWidth?: number;
   readonly nodeHeight?: number;
+  /** Optional measured/custom footprints for bounds only; never stamps child styles. */
+  readonly nodeSize?: NodeSizeResolver;
 }
 
 const DEFAULT_PADDING = 16;
@@ -85,11 +88,30 @@ function footprintOf(
   node: TraceNode,
   fallbackW: number,
   fallbackH: number,
+  resolver?: NodeSizeResolver,
 ): { width: number; height: number } {
   const style = (node.style ?? {}) as { width?: unknown; height?: unknown };
   const w = typeof style.width === "number" ? style.width : fallbackW;
   const h = typeof style.height === "number" ? style.height : fallbackH;
-  return { width: w, height: h };
+  // Existing callers keep their established style/default sizing. Opt-in
+  // measurement lets layouts preserve intrinsic custom styles without making
+  // the surrounding box forget the node's real extent.
+  if (!resolver) return { width: w, height: h };
+  const positive = (value: unknown, fallback: number): number =>
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
+  const styleW = positive(style.width, NaN), styleH = positive(style.height, NaN);
+  const container = node.type === GROUP_CONTAINER_NODE_TYPE || node.data?.isGroupContainer === true;
+  if (container && Number.isFinite(styleW) && Number.isFinite(styleH)) return { width: styleW, height: styleH };
+  const resolved = resolver(node);
+  const intrinsicW = positive(node.measured?.width, positive(node.width, fallbackW));
+  const intrinsicH = positive(node.measured?.height, positive(node.height, fallbackH));
+  return container ? {
+    width: positive(styleW, positive(resolved?.width, intrinsicW)),
+    height: positive(styleH, positive(resolved?.height, intrinsicH)),
+  } : {
+    width: positive(resolved?.width, positive(styleW, intrinsicW)),
+    height: positive(resolved?.height, positive(styleH, intrinsicH)),
+  };
 }
 
 /**
@@ -173,7 +195,7 @@ export function applyGroupLayout(graph: TraceGraph, opts: GroupLayoutOptions): T
     let maxY = -Infinity;
     for (const m of innerPositioned.nodes) {
       const p = m.position;
-      const { width, height } = footprintOf(m, nodeW, nodeH);
+      const { width, height } = footprintOf(m, nodeW, nodeH, opts.nodeSize);
       if (p.x < minX) minX = p.x;
       if (p.y < minY) minY = p.y;
       if (p.x + width > maxX) maxX = p.x + width;
@@ -306,6 +328,8 @@ export interface MainChartBoxOptions {
   readonly headerHeight?: number;
   readonly nodeWidth?: number;
   readonly nodeHeight?: number;
+  /** Optional measured/custom footprints for bounds only; container stamps win. */
+  readonly nodeSize?: NodeSizeResolver;
 }
 
 /**
@@ -342,7 +366,7 @@ export function wrapInMainChartBox(graph: TraceGraph, opts: MainChartBoxOptions)
   let maxY = -Infinity;
   for (const n of topLevel) {
     const p = n.position;
-    const { width, height } = footprintOf(n, nodeW, nodeH);
+    const { width, height } = footprintOf(n, nodeW, nodeH, opts.nodeSize);
     if (p.x < minX) minX = p.x;
     if (p.y < minY) minY = p.y;
     if (p.x + width > maxX) maxX = p.x + width;

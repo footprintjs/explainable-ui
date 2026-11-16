@@ -1,19 +1,11 @@
-import { useId, type CSSProperties, type ReactNode } from "react";
-import {
-  BaseEdge, Handle, Position, ViewportPortal, useStore, useViewport,
-  type EdgeProps, type NodeProps,
-} from "@xyflow/react";
-import { FootprintIcon, defaultTokens, useFootprintTheme } from "footprint-explainable-ui";
-import type { StageNodeData } from "footprint-explainable-ui/flowchart";
-import "./IsometricView.css";
+import type { CSSProperties, ReactNode } from "react";
+import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { FootprintIcon, useFootprintTheme, theme, v } from "../../theme";
+import type { StageNodeData } from "../StageNode";
+import { isoStyles, isoPaint } from "./styles";
+import { recordedPathLabel } from "../../trace/recordedValuePreview";
 
-// Use the public CSS-variable defaults; no library-internal styling imports.
-const theme = { ...defaultTokens.colors, fontSans: defaultTokens.fontFamily.sans,
-  fontMono: defaultTokens.fontFamily.mono, onNodeError: defaultTokens.colors.onError };
-const v = (name: string, fallback: string) => `var(${name}, ${fallback})`;
-
-
-// This example owns its drawing, not the recording or replay state. These
+// Drawing changes geometry only; recording and replay state stay with the chart. These
 // points are also the layout's connection contract; no CSS perspective moves
 // the visual ports away from xyflow's measured coordinates.
 const TOP = "M26 50 82 22Q88 19 94 22L150 50Q156 53 150 56L94 84Q88 87 82 84L26 56Q20 53 26 50Z";
@@ -73,7 +65,7 @@ export function IsometricStageNode({ data: input }: NodeProps) {
   const steps = data.stepNumbers?.filter(Number.isFinite) ?? [];
   const icon = typeof data.icon === "string" ? data.icon : isSubflow ? "agent" : isDecider ? "decision" : isFork ? "parallel" : "stage";
   const role = traceWorkflow?.role === "question" ? "Question" : traceWorkflow?.role === "input" ? "Recorded input" : "Upstream read";
-  const traceValues = traceWorkflow?.values.map(value => `${value.key}${value.preview === null ? " · preview unavailable" : ` = ${value.preview}`}`).join("; ");
+  const traceValues = traceWorkflow?.values.map(value => `${recordedPathLabel(value.key)}${value.preview === null ? " · preview unavailable" : ` = ${value.preview}`}`).join("; ");
   const facts = [label, description, isSubflow && "Subflow", isDecider && "Decision step", isFork && "Parallel branch point",
     active && "Selected step", done && "Recorded executed step", error && "Recorded failure", retryLabel,
     steps.length > 0 && `Execution steps ${steps.join(", ")}`,
@@ -83,16 +75,16 @@ export function IsometricStageNode({ data: input }: NodeProps) {
   const badgePaint: CSSProperties = unstyled ? {} : { color: foreground, background: fill, border: `1px solid ${outline}`,
     boxShadow: v("--fp-node-badge-shadow", "none"), fontFamily: theme.fontMono };
 
-  return <div className="iso-stage" data-fp="isometric-stage-node" data-active={active || undefined}
+  return <div className="fp-isometric-stage iso-stage" data-fp="isometric-stage-node" data-active={active || undefined}
     data-done={done || undefined} data-error={error || undefined} data-dimmed={data.dimmed || undefined}
     data-unstyled={unstyled || undefined} data-trace-role={traceWorkflow?.role} data-trace-context={traceContext}
-    style={rootPaint} role="group" aria-label={facts} title={facts}>
+    style={{ ...isoStyles.root, ...rootPaint }} role="group" aria-label={facts} title={facts}>
     <Handle type="target" position={Position.Left} className="iso-stage__handle"
       style={{ left: 46, top: 40, width: 0, height: 0, minWidth: 0, minHeight: 0, border: 0, transform: "none", opacity: 0 }} />
     <Handle type="source" position={Position.Right} className="iso-stage__handle"
       style={{ left: 122, right: "auto", top: 78, width: 0, height: 0, minWidth: 0, minHeight: 0, border: 0, transform: "none", opacity: 0 }} />
     <svg className="iso-stage__slab" viewBox="0 0 168 100" aria-hidden="true" focusable="false"
-      style={unstyled ? undefined : { filter: v("--fp-node-shape-shadow", `drop-shadow(1px 3px 1px color-mix(in srgb, ${theme.border} 20%, transparent))`) }}>
+      style={{ ...isoStyles.slab, ...(!unstyled && { filter: v("--fp-node-shape-shadow", `drop-shadow(1px 3px 1px color-mix(in srgb, ${theme.border} 20%, transparent))`) }) }}>
       <g stroke={unstyled ? "currentColor" : outline} strokeWidth={unstyled ? undefined : outlineWidth}
         strokeLinejoin="round" strokeDasharray={unstyled ? undefined : dash}>
         <path d={LEFT_SIDE} fill={unstyled ? "none" : `color-mix(in srgb, ${fill} 88%, ${outline})`} />
@@ -104,58 +96,25 @@ export function IsometricStageNode({ data: input }: NodeProps) {
       <circle cx="46" cy="40" r="2.2" fill={unstyled ? "currentColor" : outline} />
       <circle cx="122" cy="78" r="2.2" fill={unstyled ? "currentColor" : outline} />
     </svg>
-    <div className="iso-stage__icon" aria-hidden="true">
-      <FootprintIcon name={icon} unstyled={unstyled} defaultStyle={undefined}
+    <div className="iso-stage__icon" aria-hidden="true" style={isoStyles.icon}>
+      <FootprintIcon part="stage-icon" name={icon} unstyled={unstyled} defaultStyle={undefined}
         style={{ display: "inline-flex", width: 22, height: 22 }}><FallbackIcon name={icon} data={data} /></FootprintIcon>
     </div>
-    {steps.length > 0 && (active || done) && <div className="iso-stage__steps" aria-hidden="true">
-      {steps.map((step, index) => <span key={`${index}:${step}`} className="iso-stage__step" style={badgePaint}>{step}</span>)}
+    {steps.length > 0 && (active || done) && <div className="iso-stage__steps" aria-hidden="true" style={isoStyles.steps}>
+      {steps.map((step, index) => <span key={`${index}:${step}`} className="iso-stage__step" style={{ ...isoStyles.step, ...badgePaint, ...(!unstyled && isoPaint.step) }}>{step}</span>)}
     </div>}
-    {status && <span className="iso-stage__status" style={badgePaint} aria-hidden="true">{status}</span>}
-    {retries && <span className="iso-stage__retry" style={unstyled ? undefined : { color: theme.warning, background: theme.bgSecondary,
-      border: `1px solid ${theme.warning}`, boxShadow: v("--fp-node-badge-shadow", "none") }}
+    {status && <span className="iso-stage__status" style={{ ...isoStyles.status, ...badgePaint, ...(!unstyled && isoPaint.status) }} aria-hidden="true">{status}</span>}
+    {retries && <span className="iso-stage__retry" style={{ ...isoStyles.retry, ...(!unstyled && { ...isoPaint.step, color: theme.warning, background: theme.bgSecondary,
+      border: `1px solid ${theme.warning}`, boxShadow: v("--fp-node-badge-shadow", "none") }) }}
       role="img" aria-label={retryLabel} title={retryLabel}>↻ ×{retries}</span>}
-    <span className="iso-stage__label" style={unstyled ? undefined : { color: theme.textPrimary }} aria-hidden="true">{label}</span>
+    <span className="iso-stage__label" style={{ ...isoStyles.label, ...(!unstyled && { ...isoPaint.label, color: theme.textPrimary }) }} aria-hidden="true">{label}</span>
     {traceWorkflow && <span className="iso-stage__trace" data-fp="trace-workflow-caption" title={`${role}${traceValues ? `: ${traceValues}` : ""}`}
-      style={unstyled ? undefined : { color: traceWorkflow.color, background: theme.bgSecondary, border: `1px solid ${traceWorkflow.color}`, fontFamily: theme.fontMono }}>
+      style={{ ...isoStyles.trace, ...(!unstyled && { ...isoPaint.trace, color: traceWorkflow.color, background: theme.bgSecondary, border: `1px solid ${traceWorkflow.color}`, fontFamily: theme.fontMono }) }}>
       <strong>{role}</strong>{traceValues && ` · ${traceValues}`}
     </span>}
     {traceContext === "outside" && <span className="iso-stage__trace" data-fp="trace-context-caption"
-      style={unstyled ? undefined : { color: theme.textSecondary, background: theme.bgSecondary, border: `1px solid ${theme.border}`, fontFamily: theme.fontMono }}>
+      style={{ ...isoStyles.trace, ...(!unstyled && { ...isoPaint.trace, color: theme.textSecondary, background: theme.bgSecondary, border: `1px solid ${theme.border}`, fontFamily: theme.fontMono }) }}>
       Outside displayed trace
     </span>}
   </div>;
-}
-
-/** The layout projects the endpoints; a straight segment stays in that plane. */
-export function IsometricEdge({ id, sourceX, sourceY, targetX, targetY, markerStart, markerEnd, style, data,
-  label, labelStyle, labelShowBg, labelBgStyle, labelBgPadding, labelBgBorderRadius, interactionWidth }: EdgeProps) {
-  const unstyled = data?.unstyled === true;
-  return <BaseEdge id={id} path={`M${sourceX} ${sourceY}L${targetX} ${targetY}`}
-    markerStart={markerStart} markerEnd={markerEnd} interactionWidth={interactionWidth}
-    style={unstyled ? style : { stroke: theme.border, strokeWidth: 1.25, ...style }}
-    label={label} labelX={(sourceX + targetX) / 2} labelY={(sourceY + targetY) / 2}
-    labelStyle={unstyled ? labelStyle : { fill: theme.textPrimary, fontFamily: theme.fontMono, fontSize: 10, ...labelStyle }}
-    labelShowBg={labelShowBg} labelBgStyle={unstyled ? labelBgStyle : { fill: theme.bgSecondary, ...labelBgStyle }}
-    labelBgPadding={labelBgPadding} labelBgBorderRadius={labelBgBorderRadius} />;
-}
-
-/** A small vector pattern, clipped to the visible world rectangle as it pans. */
-export function IsometricGrid({ unstyled = false }: { unstyled?: boolean }) {
-  const patternId = `isometric-floor-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
-  const { x, y, zoom } = useViewport();
-  const width = useStore(state => state.width);
-  const height = useStore(state => state.height);
-  if (unstyled || width <= 0 || height <= 0) return null;
-  const scale = Math.max(zoom, 0.01);
-  const left = -x / scale - 64, top = -y / scale - 32;
-  const worldWidth = width / scale + 128, worldHeight = height / scale + 64;
-  return <ViewportPortal><svg aria-hidden="true" focusable="false" className="iso-floor"
-    width={worldWidth} height={worldHeight} viewBox={`${left} ${top} ${worldWidth} ${worldHeight}`}
-    style={{ position: "absolute", left, top, width: worldWidth, height: worldHeight, pointerEvents: "none", zIndex: -1 }}>
-    <defs><pattern id={patternId} width="64" height="32" patternUnits="userSpaceOnUse">
-      <path d="M0 0 64 32M0 32 64 0" fill="none" stroke={theme.border} strokeWidth="0.7" opacity="0.16" />
-    </pattern></defs>
-    <rect x={left} y={top} width={worldWidth} height={worldHeight} fill={`url(#${patternId})`} />
-  </svg></ViewportPortal>;
 }

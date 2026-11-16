@@ -52,9 +52,29 @@ Use **Chart layout** to compare **Default**, **Straight trunk** and **Isometric*
 
 **Try isometric view** is a shortcut to the Isometric layout, Paper theme and default **Details beside the chart** arrangement. It changes only these presentation choices, keeping the current recording, stage and replay cursor. The direct `?look=isometric` link initializes the same choices for sharing; the plain preview URL still starts with Standard, Default layout and the existing Details arrangement. Node icons remain Custom SVG by default in both views.
 
-The isometric example uses fixed-angle SVG illustrations to add depth to the same recorded workflow. Labels stay upright; there is no orbit camera. Illustrations do not assert infrastructure resources, deployment state or relationships beyond the supplied recording. Developer, Commentary and Timeline continue to inspect the same selection and replay cursor; use **Lens arrangement** to choose the panels shown.
+The built-in isometric renderer uses fixed-angle SVG illustrations to add depth to the same recorded workflow. Labels stay upright; there is no orbit camera. Illustrations do not assert infrastructure resources, deployment state or relationships beyond the supplied recording. Developer, Commentary and Timeline continue to inspect the same selection and replay cursor; use **Lens arrangement** to choose the panels shown.
 
-Layout, grouping and theme changes update the memoized chart renderer without remounting the shell or resetting its cursor. The chart integration uses the shell's existing `renderFlowchart` prop; no library API changes are required.
+Layout, grouping and theme changes update the chart without remounting the shell or resetting its cursor. The preview selects the built-in renderer through `ExplainableShell`'s `flowchart={{ renderer: "isometric" }}` prop. Its `renderFlowchart` callback forwards the resolved `renderer` to `TracedFlow`; that callback still owns the preview's group checkboxes, custom group icons and Straight trunk alternative. Isometric SVG nodes, connectors, floor and default positioning come from the library, with no copied geometry or separate isometric CSS file.
+
+Consumers can select the same geometry directly:
+
+```tsx
+<TraceViewer recording={recording} flowchart={{ renderer: "isometric" }} />
+<TracedFlow graph={graph} overlay={overlay} renderer="isometric" />
+```
+
+Or include it in JSON alongside the named panel areas:
+
+```json
+{
+  "columns": "2fr 1fr",
+  "rows": "auto minmax(0, 1fr)",
+  "areas": [["timeTravel", "timeTravel"], ["flowchart", "details"]],
+  "flowchart": { "renderer": "isometric" }
+}
+```
+
+`flowchart.renderer` supplied as a prop wins over the JSON value. Flat remains the library default. Custom chart renderers keep final control; low-level custom layouts and `layout="passthrough"` retain their positions. Paper styling is independent of this choice. The renderer, theme presets and node paint controls are unreleased source additions; the published 0.45.0 package does not include them yet.
 
 **Lens theme → Paper** applies a paper-and-pastel palette, thin node outlines and small offset shadows inspired by the [Designed to Scale reference](https://designed-to-scale.vercel.app/#/design-chat/12). The existing light/dark toggle selects `paperLight` or `paperDark`. The surrounding preview and the Lens use the same exported tokens. Standard, Forest and Graphite remain available, and Standard remains the initial choice.
 
@@ -76,7 +96,7 @@ The optional `tokens.nodes` fields control chart-card paint: `borderColor`, `bor
 
 `radius` and `borderStyle` apply to rectangular, pill and group cards; decisions retain their diamond shape. `shadow` uses box-shadow syntax. For clipped decisions, `shapeShadow` takes a CSS filter value such as `"drop-shadow(2px 3px 0 #35332f)"` or `"none"`; drop shadows do not accept spread or `inset`. `groupStatusDisplay` defaults to `"none"`; Paper uses `"inline-flex"` to show a small Selected / Visited / Failed group-header cue alongside its fixed dark outlines. These cues reflect the shared cursor and recorded state.
 
-Changing the theme changes presentation; it keeps the recording, selection and replay cursor. Paper can style any chart layout. The separate Isometric layout supplies the illustrated geometry.
+Changing the theme changes presentation; it keeps the recording, selection and replay cursor. Paper can style any chart layout. The Isometric renderer supplies the illustrated geometry.
 
 **Node icons** compares the saved recording's icon names, the library's built-in icons and custom inline SVG icons on the actual execution nodes. Custom SVG icons are selected initially. The preview imports the [public consumer example](../node-icons/README.md); the display graph is decorated on a copy, keeping the saved recording, node IDs, runtime overlay and execution cursor intact. Group headers and pill nodes retain their own separate icon mechanisms.
 

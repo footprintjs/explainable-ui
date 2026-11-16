@@ -2,6 +2,7 @@
 export { useLensWorkbench } from "./components/ExplainableShell/LensWorkbench";
 export type { LensTheme, LensView, LensCommentaryOptions, LensWorkbenchContextValue, LensWorkbenchActions, LensWorkbenchSurfaces, LensWorkbenchLayout } from "./components/ExplainableShell/LensWorkbench";
 export type { LensLayoutDefinition, LensLayoutSurface } from "./model/lensLayout";
+export type { FlowchartRenderer, FlowchartOptions } from "./model/flowchart";
 export * from "./components/GroupedFlowDiagram";
 export type { StageSnapshot, Size, BaseComponentProps, NarrativeEntry } from "./types";
 

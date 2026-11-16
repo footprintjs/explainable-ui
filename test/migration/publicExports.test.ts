@@ -35,6 +35,16 @@ const groupedFlowExports = [
   ].map(name => ({ name, kind: "type" })),
 ];
 
+const flowchartOptionExports = ["FlowchartOptions", "FlowchartRenderer"]
+  .map(name => ({ name, kind: "type" }));
+
+const isometricExports = [
+  ...["IsometricStageNode", "IsometricEdge", "IsometricGrid", "createIsometricTraceLayout",
+    "isometricTraceLayout", "ISOMETRIC_NODE_WIDTH", "ISOMETRIC_NODE_HEIGHT",
+  ].map(name => ({ name, kind: "value" })),
+  { name: "IsometricTraceLayoutOptions", kind: "type" },
+];
+
 const traceWorkflowExports = [
   { name: "TraceWorkflowOverlay", kind: "type" },
   { name: "TraceWorkflowStage", kind: "type" },
@@ -90,6 +100,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...traceWorkflowExports,
         ...stageActivityExports,
         ...themePrimitiveExports,
+        ...flowchartOptionExports,
         ...["paperLight", "paperDark"].map(name => ({ name, kind: "value" })),
         { name: "useLensWorkbench", kind: "value" },
         ...["LensTheme", "LensView", "LensCommentaryOptions", "ReplayControlsOptions", "LensLayoutDefinition", "LensLayoutSurface", "LensWorkbenchContextValue", "LensWorkbenchActions", "LensWorkbenchSurfaces", "LensWorkbenchLayout"]
@@ -100,6 +111,8 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...groupedFlowExports,
         ...traceWorkflowExports,
         ...themePrimitiveExports,
+        ...flowchartOptionExports,
+        ...isometricExports,
         ...["FootprintTheme", "useFootprintTheme", "tokensToCSSVars", "themeModeVars"].map(name => ({ name, kind: "value" })),
         ...["ThemeTokens", "ThemeMode"].map(name => ({ name, kind: "type" })),
       ].sort((a, b) => a.name.localeCompare(b.name)),

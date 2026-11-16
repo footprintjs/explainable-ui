@@ -53,7 +53,6 @@ import { createSnappedDagreLayout } from "./_internal/snapLinearSuccessors";
 import { withForkCentering } from "./_internal/centerForkParents";
 import type { RuntimeOverlay } from "./createTraceRuntimeOverlay";
 import { sliceOverlay } from "./createTraceRuntimeOverlay";
-import { StageNode } from "../StageNode";
 import type { StageNodeData } from "../StageNode";
 import { theme, componentStyles } from "../../theme/styles";
 import { themeModeVars } from "../../theme/mode";
@@ -76,6 +75,11 @@ import type { TraceWorkflowOverlay } from "../../trace/traceWorkflowOverlay";
 import { projectTraceWorkflow } from "./_internal/traceWorkflowProjection";
 import { RecordedReadEdge } from "./RecordedReadEdge";
 import { TRACE_MOTION_MS, useTraceMotion } from "../../_internal/useTraceMotion";
+import { resolveFlowchartRenderer, type FlowchartRenderer } from "../../model/flowchart";
+import { IsometricEdge, IsometricGrid } from "../IsometricFlow";
+import { RendererContext, DefaultStageNode } from "../IsometricFlow/RendererContext";
+import { RendererGeometry } from "../IsometricFlow/RendererGeometry";
+import { createIsometricTraceLayout, ISOMETRIC_NODE_WIDTH, ISOMETRIC_NODE_HEIGHT } from "./_internal/isometricTraceLayout";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Theming
@@ -291,6 +295,7 @@ function styleEdgeWithOverlay(
   errors: ReadonlyMap<string, string> = new Map(),
   unstyled = false,
   errorColorEnabled = false,
+  renderer: FlowchartRenderer = "flat",
 ): Edge {
   const kind = edge.data?.kind ?? "next";
   const sourceExecuted = doneStageIds.has(edge.source) || activeStageId === edge.source;
@@ -320,7 +325,7 @@ function styleEdgeWithOverlay(
     // on the node (the old approach broke for any node missing them).
     // Every other edge uses `smartStep`: a smoothstep superset that routes a
     // RANK-SKIPPING edge around the node it skips (else identical to smoothstep).
-    type: edge.type ?? (kind === "loop" ? "loopBack" : "smartStep"),
+    type: edge.type ?? (kind === "loop" ? "loopBack" : renderer === "isometric" ? "isometric" : "smartStep"),
     animated: !suppressMotion && (edge.animated ?? isLeadingEdge),
     style: {
       ...(!unstyled && { stroke: color, strokeWidth: kind === "loop" ? 1.5 : traversed || carriesCursor ? 2 : 1.5,
@@ -339,15 +344,17 @@ function styleEdgeWithOverlay(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
+  /** Built-in drawing and default geometry. Explicit layout and custom registries retain priority. */
+  renderer?: FlowchartRenderer;
   /** Build-time graph from `createTraceStructureRecorder().getGraph()`. */
   graph: TraceGraph;
   /** Runtime overlay from `createTraceRuntimeOverlay().getOverlay()`. */
   overlay?: RuntimeOverlay;
   /** Time-travel scrub index. Defaults to the last step (latest state). */
   scrubIndex?: number;
-  /** Layout function. Default: BFS tree walk over the recorder graph. */
+  /** Override the renderer's default geometry; "passthrough" keeps authored positions. */
   layout?: TraceFlowLayout | "passthrough";
-  /** Tune the measured top-to-bottom pipeline without replacing it. Ignored with a custom layout. */
+  /** Tune the flat measured pipeline; nodeSize also resolves custom isometric footprints. Ignored with a custom layout. */
   layoutOptions?: Omit<DagreTraceLayoutOptions, "direction">;
   /** Color overrides. */
   colors?: Partial<TracedFlowColors>;
@@ -374,7 +381,7 @@ export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
   currentSubflowId?: string | null;
   /**
    * Consumer-supplied xyflow node types. Merged with the built-in
-   * `{ stageNode: StageNode }` registry — keys you supply OVERRIDE
+   * `stageNode` registry — keys you supply OVERRIDE
    * the default for that node type. Pass `{ stageNode: MyNode }` to
    * replace the default stage renderer entirely, or add new keys
    * for custom node components you push into the graph.
@@ -463,17 +470,19 @@ export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
 }
 
 const DEFAULT_NODE_TYPES: NodeTypes = {
-  stageNode: StageNode,
+  stageNode: DefaultStageNode,
   groupContainer: GroupContainerNode,
 };
+
 
 // Built-in edge types. `loopBack` curves loop-back edges along the right margin
 // (see LoopBackEdge); `smartStep` routes rank-skipping edges around the node
 // they skip (see SmartStepEdge). Always registered; merged UNDER consumer
 // `edgeTypes` (consumer keys win).
-const DEFAULT_EDGE_TYPES: EdgeTypes = { loopBack: LoopBackEdge, smartStep: SmartStepEdge, recordedRead: RecordedReadEdge };
+const DEFAULT_EDGE_TYPES: EdgeTypes = { loopBack: LoopBackEdge, smartStep: SmartStepEdge, recordedRead: RecordedReadEdge, isometric: IsometricEdge };
 
 export function TracedFlow({
+  renderer: rendererProp,
   graph,
   overlay,
   scrubIndex,
@@ -505,13 +514,14 @@ export function TracedFlow({
   className,
   style,
 }: TracedFlowProps) {
+  const renderer = resolveFlowchartRenderer(rendererProp);
   const motionEnabled = useTraceMotion();
   const suppressMotion = unstyled || !!traceWorkflow || !motionEnabled;
   const errorColorEnabled = colorOverrides?.error !== undefined;
   // Investigation chrome changes size on entry and exit; neither is permission to reclaim a user's camera.
   const investigationSeen = useRef(false);
   if (traceWorkflow) investigationSeen.current = true;
-  // Dagre is the default (structure-derived spacing); override via `layout`.
+  // The renderer chooses default geometry; an explicit layout retains priority.
   const layout = layoutProp ?? dagreTraceLayout;
 
   // Dev guardrail (integration-drift, not version-drift): passing the BARE
@@ -540,7 +550,7 @@ export function TracedFlow({
     [colorOverrides],
   );
   const mergedNodeTypes = useMemo<NodeTypes>(
-    () => (userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES),
+    () => userNodeTypes ? { ...DEFAULT_NODE_TYPES, ...userNodeTypes } : DEFAULT_NODE_TYPES,
     [userNodeTypes],
   );
   const mergedEdgeTypes = useMemo<EdgeTypes>(
@@ -585,7 +595,10 @@ export function TracedFlow({
   // Real rendered node sizes, captured by the <MeasuredNodeSizes> probe once
   // xyflow has measured them — fed into the dagre `nodeSize` resolver below so
   // the layout re-runs with content-exact spacing (measure-then-layout).
-  const [measuredSizes, setMeasuredSizes] = useState<Map<string, NodeFootprint> | null>(null);
+  const [measurement, setMeasurement] = useState<{ renderer: FlowchartRenderer; sizes: Map<string, NodeFootprint> } | null>(null);
+  const measuredSizes = measurement?.renderer === renderer ? measurement.sizes : null;
+  const acceptMeasurements = useCallback((sizes: Map<string, NodeFootprint>) => setMeasurement({ renderer, sizes }), [renderer]);
+  const fixedStageNodes = !userNodeTypes?.stageNode;
 
   const positioned = useMemo<TraceGraph>(() => {
     // Default layout = dagre (measured content-exact sizes + tighter pro
@@ -608,11 +621,17 @@ export function TracedFlow({
       ),
       { ...sizeOpts, nodeSep }, // same nodeSep → clamp preserves dagre's reserved gap
     );
+    const isometricNodeSize: NodeSizeResolver = node => fixedStageNodes &&
+      !node.data.isGroupContainer && (node.type === undefined || node.type === "stage")
+      ? { width: ISOMETRIC_NODE_WIDTH, height: ISOMETRIC_NODE_HEIGHT }
+      : nodeSize?.(node);
+    const isometricBase = createIsometricTraceLayout({ nodeSize: isometricNodeSize, fixedStageNodes });
+    const isometricBounds = renderer === "isometric" && layoutProp === undefined ? { nodeSize: isometricNodeSize } : {};
     const realBase: TraceFlowLayout =
       layout === "passthrough"
         ? (g: TraceGraph) => g
         : layoutProp === undefined
-          ? dagreBase
+          ? renderer === "isometric" ? isometricBase : dagreBase
           : (layout as TraceFlowLayout);
 
     // Per-subflow group boxes (granular; not the main-chart model).
@@ -620,21 +639,22 @@ export function TracedFlow({
       const grouped = applyGroupLayout(filteredGraph, {
         groupedSubflowIds: [...groupedSet],
         baseLayout: realBase,
+        ...isometricBounds,
       });
       // Main box can still wrap the grouped result if both are requested.
       return mainChartBox
-        ? wrapInMainChartBox(grouped, { baseLayout: (g) => g, ...mainChartBox })
+        ? wrapInMainChartBox(grouped, { baseLayout: (g) => g, ...isometricBounds, ...mainChartBox })
         : grouped;
     }
 
     // Main-chart box: wrap the whole (drill-filtered) chart in ONE box.
     // The base layout positions the contents; the box frames them.
     if (mainChartBox) {
-      return wrapInMainChartBox(filteredGraph, { baseLayout: realBase, ...mainChartBox });
+      return wrapInMainChartBox(filteredGraph, { baseLayout: realBase, ...isometricBounds, ...mainChartBox });
     }
 
     return realBase(filteredGraph);
-  }, [filteredGraph, layout, layoutProp, layoutOptions, groupedSet, mainChartBox, measuredSizes]);
+  }, [filteredGraph, layout, layoutProp, layoutOptions, groupedSet, mainChartBox, measuredSizes, renderer, fixedStageNodes]);
 
   // ── Runtime overlay slice → mount aggregation ────
   // Overlay stage ids are path-qualified (`subflowPath/stageId`, parsed
@@ -681,9 +701,9 @@ export function TracedFlow({
   const reactFlowEdges = useMemo<Edge[]>(
     () =>
       positioned.edges.map((e) =>
-        styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns, suppressMotion, slice.errors, unstyled, errorColorEnabled),
+        styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns, suppressMotion, slice.errors, unstyled, errorColorEnabled, renderer),
       ),
-    [positioned.edges, slice, colors, cursorStandIns, suppressMotion, unstyled, errorColorEnabled],
+    [positioned.edges, slice, colors, cursorStandIns, suppressMotion, unstyled, errorColorEnabled, renderer],
   );
 
   const workflowProjection = useMemo(() => projectTraceWorkflow(traceWorkflow, positioned.nodes), [traceWorkflow, positioned.nodes]);
@@ -791,12 +811,14 @@ export function TracedFlow({
     // A custom layout is an authored layout. Default measured-layout settling
     // must not take camera ownership back after a manual pan/zoom.
     layoutProp !== undefined ? layoutKey : null,
+    ...(renderer === "isometric" ? [renderer] : []),
   ]);
 
   return (
     <div
       ref={wrapperRef}
       data-fp="traced-flow"
+      data-fp-renderer={renderer}
       data-unstyled={unstyled || undefined}
       className={className}
       style={{
@@ -816,7 +838,7 @@ export function TracedFlow({
         ? renderBreadcrumb({ entries: breadcrumb, onNavigate: drill.setCurrentSubflowId, unstyled })
         : <SubflowBreadcrumbBar entries={breadcrumb} onNavigate={drill.setCurrentSubflowId} unstyled={unstyled} />)}
       <div style={{ flex: 1, minHeight: 0 }}>
-        <ReactFlow
+        <RendererContext.Provider value={renderer}><ReactFlow
           nodes={conedNodes}
           edges={conedEdges}
           nodeTypes={mergedNodeTypes}
@@ -833,10 +855,12 @@ export function TracedFlow({
             refitKey={refitKey} layoutKey={layoutKey} padding={typeof autoFit === "object" ? autoFit.padding ?? 0.18 : 0.18}
             maxAutoZoom={typeof autoFit === "object" ? autoFit.maxZoom : undefined}
             preserveViewport={investigationSeen.current} stages={workflowProjection.stages} reads={workflowProjection.reads} />}
-          <MeasuredNodeSizes onSizes={setMeasuredSizes} />
-          {background !== false && (!unstyled || background !== undefined) && <Background variant={BackgroundVariant.Dots} gap={20} size={1} {...background} />}
+          <RendererGeometry renderer={renderer} nodeIds={positioned.nodes.map(node => node.id)} />
+          <MeasuredNodeSizes onSizes={acceptMeasurements} />
+          {background !== false && (!unstyled || background !== undefined) && (renderer === "isometric" && background === undefined
+            ? <IsometricGrid /> : <Background variant={BackgroundVariant.Dots} gap={20} size={1} {...background} />)}
           {children}
-        </ReactFlow>
+        </ReactFlow></RendererContext.Provider>
       </div>
     </div>
   );

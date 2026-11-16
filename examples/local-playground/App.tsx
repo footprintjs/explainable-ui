@@ -270,6 +270,7 @@ export default function App() {
               traceGraph={displayScenario?.traceGraph ?? active.traceGraph}
               runtimeOverlay={active.runtimeOverlay}
               renderFlowchart={renderFlowchart}
+              flowchart={{ renderer: layout === "isometric" ? "isometric" : "flat" }}
               title={active.title}
               defaultExpanded={{ topology: availableGroupIds.length > 0, details: true, timeline: false }}
               theme={lensTheme}
