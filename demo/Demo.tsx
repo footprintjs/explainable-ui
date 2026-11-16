@@ -81,6 +81,10 @@ export function Demo() {
   return (
     <div style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 1200, margin: "0 auto" }}>
       <h1 style={{ fontSize: 20, margin: "0 0 4px" }}>explainable-ui — flowchart gallery</h1>
+      <p style={{ margin: "0 0 20px" }}>
+        <a href="https://footprintjs.github.io/explainable-ui/local-playground/">Explore seven recorded workflows</a>
+        {" — replay, Developer / Commentary details, and configurable node icons."}
+      </p>
 
       {/* THE full shell on a REAL generated run (demo/generate-run.ts) —
           exercise the Data Trace tab: scrub to Quote, open Inspector →

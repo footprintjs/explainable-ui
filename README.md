@@ -97,6 +97,7 @@ layouts and a Recorded / Built-in / Custom SVG node-icon selector, run the
 [local playground](examples/local-playground/README.md). Custom SVG icons are
 selected by default. The preview replays bundled recordings using this checkout's
 source and requires no workflow services.
+Or open the [hosted seven-workflow preview](https://footprintjs.github.io/explainable-ui/local-playground/).
 
 ### 1. Capture the chart while it is built
 

@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
+  // Relative assets work at the Pages subdirectory and in local static builds.
+  base: "./",
   plugins: [react()],
   // Preview consumer APIs from source, including layouts and node-icon examples.
   resolve: {
