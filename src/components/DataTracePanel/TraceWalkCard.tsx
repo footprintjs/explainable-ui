@@ -180,6 +180,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
 
   if (!current) return null;
 
+  const ambiguousTermini = new Set(walk.stops.flatMap(stop => stop.ingredients.filter(input => input.unresolvedReason).map(input => input.key)));
   const step = stepNumberOf(current.runtimeStageId);
   const preview = previewValueOf ? recordedValuePreview(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
 
@@ -266,14 +267,14 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           <div style={sx({ display: "flex", flexWrap: "wrap", gap: ui.controlGap, marginTop: ui.spaceSm })}>
             {current.ingredients.map(ing => (
               <IngredientChip
-                key={ing.key}
+                key={JSON.stringify([ing.key, ing.writerCommitIdx, ing.unresolvedReason])}
                 ing={ing}
                 color={traceIngredientColor(dependencyGraph, ingredientColors, ing)}
                 step={ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null}
                 onFollow={onFollowIngredient}
                 sx={sx}
                 ui={ui} size={size} unstyled={unstyled}
-                inputLabel={inputSentence(presentation, ing.key)}
+                inputLabel={inputSentence(presentation, ing.key, ing.unresolvedReason)}
               />
             ))}
           </div>
@@ -316,14 +317,14 @@ export const TraceWalkCard = memo(function TraceWalkCard({
             <div style={sx({ display: "flex", flexWrap: "wrap", gap: ui.controlGap, marginTop: ui.controlGap })}>
               {current.ingredients.map(ing => (
                 <IngredientChip
-                  key={ing.key}
+                  key={JSON.stringify([ing.key, ing.writerCommitIdx, ing.unresolvedReason])}
                   ing={ing}
                   color={traceIngredientColor(dependencyGraph, ingredientColors, ing)}
                   step={ing.writerRuntimeStageId ? stepNumberOf(ing.writerRuntimeStageId) : null}
                   onFollow={onFollowIngredient}
                   sx={sx}
                   ui={ui} size={size} unstyled={unstyled}
-                  inputLabel={inputSentence(presentation, ing.key)}
+                  inputLabel={inputSentence(presentation, ing.key, ing.unresolvedReason)}
                 />
               ))}
             </div>
@@ -398,8 +399,8 @@ export const TraceWalkCard = memo(function TraceWalkCard({
       <div style={sx({ marginTop: ui.spaceMd, display: "flex", flexDirection: "column", gap: ui.spaceXs })}>
         {walk.inputTermini.length > 0 && (
           <div data-fp="twc-run-inputs" style={sx({ fontSize: ui.label, color: theme.textMuted })}>
-            ⚑ No local writer: {walk.inputTermini.map((k, i) => (
-              <span key={k}>{i > 0 && ", "}<FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{k}</FootprintCode> ({inputSentence(presentation, k)})</span>
+            ⚑ {ambiguousTermini.size ? "Unresolved reads" : "No local writer"}: {walk.inputTermini.map((k, i) => (
+              <span key={k}>{i > 0 && ", "}<FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(k)}</FootprintCode> ({inputSentence(presentation, k, ambiguousTermini.has(k) ? "ambiguous-read-path" : undefined)})</span>
             ))}
           </div>
         )}
@@ -528,7 +529,7 @@ function IngredientChip({
 }) {
   const controls = { unstyled, densitySize: size };
   const terminus = !ing.writerRuntimeStageId;
-  const tooltip = terminus ? `${ing.key}: ${inputLabel}` : `Follow ${ing.key} — re-anchor the walk on its writer`;
+  const tooltip = terminus ? `${recordedPathLabel(ing.key)}: ${inputLabel}` : `Follow ${recordedPathLabel(ing.key)} — re-anchor the walk on its writer`;
   return (
     <FootprintTooltip {...controls} part="trace-ingredient-tooltip" content={tooltip} title="">
     <FootprintButton {...controls}

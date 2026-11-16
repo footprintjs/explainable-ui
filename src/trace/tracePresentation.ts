@@ -10,8 +10,10 @@ export function scopeSentence(
     : undefined;
 }
 export const START_SENTENCE = "recorded at invocation start; earlier origin unknown";
-export function inputSentence(scope: TraceWalkScope | undefined, key: string): string {
-  return scope?.startKeys?.includes(key)
+export function inputSentence(scope: TraceWalkScope | undefined, key: string, reason?: "ambiguous-read-path"): string {
+  return reason === "ambiguous-read-path"
+    ? "read path encoding is ambiguous; source unknown"
+    : scope?.startKeys?.includes(key)
     ? START_SENTENCE
     : "no recorded write; value unknown";
 }

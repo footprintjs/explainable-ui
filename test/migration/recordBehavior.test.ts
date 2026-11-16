@@ -194,7 +194,7 @@ describe("M1 — diagnostic observations, NOT approved future answers", () => {
     expect(JSON.stringify(fork)).toBe(before);
   });
 
-  it("R2 separates the own write's address from the old repeated-ID stop label", () => {
+  it("R2 keeps the own write's address instead of the historical empty-repeat label", () => {
     const ownIndex = fork.commitLog.findIndex(
       (row) => row.runtimeStageId === "a#1" && row.phase === undefined
     );
@@ -208,9 +208,12 @@ describe("M1 — diagnostic observations, NOT approved future answers", () => {
     expect(fork.commitLog[3].trace).toEqual([]);
     expect(walk.stops[0]).toMatchObject({
       runtimeStageId: "a#1",
-      commitIdx: 3,
+      commitIdx: 1,
     });
-    expect(walk.stops[0].commitIdx).not.toBe(ownIndex);
+    expect(walk.stops[0].commitIdx).toBe(ownIndex);
+    expect(walk.stops[0].commitIdx).toBeLessThan(2); // The question's exclusive cutoff.
+    // Keep the historical defect observation separate from the corrected UI.
+    expect(corrections.find(row => row.id === "R2")!.observed).toContain("commitIdx3");
     expect(walk.stops[0].ingredients).toContainEqual({
       key: "runs",
       writerRuntimeStageId: "seed#0",

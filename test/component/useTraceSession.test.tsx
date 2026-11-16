@@ -295,6 +295,44 @@ describe("trace session controller", () => {
     expect(result.current.questionTrail).toEqual([]);
   });
 
+  it("invalidates saved evidence when per-output prefixes change but the stage read union does not", () => {
+    const makeScope = (readRateBeforeSubtotal: boolean): TraceScope => {
+      const scope = scopeWithReads();
+      scope.commitLog = [
+        { stage: "seed", stageId: "seed", runtimeStageId: "seed#0", trace: [{ path: "items", readKeys: [] }, { path: "rate", readKeys: [] }] },
+        { stage: "sum", stageId: "sum", runtimeStageId: "sum#1", trace: [
+          { path: "subtotal", readKeys: readRateBeforeSubtotal ? ["items", "rate"] : ["items"] },
+          { path: "other", readKeys: ["items", "rate"] },
+        ] },
+        { stage: "total", stageId: "total", runtimeStageId: "total#4", trace: [{ path: "total", readKeys: ["subtotal", "other"] }] },
+      ];
+      return scope;
+    };
+    const { result, rerender, options } = renderSession(makeScope(false));
+    act(() => result.current.handleStartTracing("total"));
+    const input = result.current.traceWalk!.stops[0].ingredients.find(ingredient => ingredient.key === "subtotal")!;
+    act(() => result.current.handleFollowIngredient(input));
+    expect(result.current.questionTrail.map(question => question.key)).toEqual(["total", "subtotal"]);
+    const oldReturn = result.current.handleReturnToQuestion;
+    rerender({ ...options, scope: makeScope(true) });
+    expect(result.current.questionTrail).toEqual([]);
+    act(() => oldReturn(0));
+    expect(result.current.activeViaKey).toBe("subtotal");
+  });
+
+  it("binds saved questions to the canonical-read discriminator even when their visible flat links match", () => {
+    const { result, rerender, options } = renderSession();
+    act(() => result.current.handleStartTracing("total"));
+    const subtotal = result.current.traceWalk!.stops[0].ingredients.find(input => input.key === "subtotal")!;
+    act(() => result.current.handleFollowIngredient(subtotal));
+    expect(result.current.questionTrail.map(question => question.key)).toEqual(["total", "subtotal"]);
+    const oldReturn = result.current.handleReturnToQuestion;
+    rerender({ ...options, scope: { ...scopeWithReads(), nestedReadTracking: true } });
+    expect(result.current.questionTrail).toEqual([]);
+    act(() => oldReturn(0));
+    expect(result.current.activeViaKey).toBe("subtotal");
+  });
+
   it("restores root read coverage from the root record when the selected child has no local reads", () => {
     const address = (drillPath: string[] = []) => ({ logRunId: "coverage-run", drillPath });
     const commit = (id: string, path?: string) => ({ stage: id, stageId: id.split("#")[0], runtimeStageId: id,

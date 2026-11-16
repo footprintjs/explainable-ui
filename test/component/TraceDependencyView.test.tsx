@@ -174,6 +174,26 @@ describe("variable dependency investigation view", () => {
     expect(onReturn).toHaveBeenCalledWith(0);
   });
 
+  it("keeps a legacy dotted collision unresolved without displaying a literal writer's value", () => {
+    const collisionLog = [
+      { stage: "Literal", stageId: "literal", runtimeStageId: "literal#0", trace: [{ path: "a.b", readKeys: [] }] },
+      { stage: "Nested", stageId: "nested", runtimeStageId: "nested#1", trace: [{ path: "a\u001fb", readKeys: [] }] },
+      { stage: "Use", stageId: "use", runtimeStageId: "use#2", trace: [{ path: "answer", readKeys: ["a.b"] }] },
+    ];
+    const collisionWalk = buildTraceWalk(collisionLog, undefined, "answer");
+    const follow = vi.fn();
+    const { container } = render(<TraceDependencyView hasWorkflow={false} walk={collisionWalk} cursorRuntimeStageId="use#2"
+      snapshots={[{ ...snapshots[0], runtimeStageId: "literal#0", memory: { "a.b": "WRONG_LITERAL_VALUE" } }]}
+      onFollowIngredient={follow}><div /></TraceDependencyView>);
+    const node = container.querySelector('[data-variable="a.b"]')!;
+    expect(node.textContent).toContain("read path encoding is ambiguous; source unknown");
+    expect(node.textContent).not.toContain("WRONG_LITERAL_VALUE");
+    expect(node.textContent).not.toContain("no recorded write");
+    expect((node as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(node);
+    expect(follow).not.toHaveBeenCalled();
+  });
+
   it("withholds previews for duplicate writer snapshots instead of choosing a later value", () => {
     const ownSnapshots = [...snapshots, { ...snapshots[1], memory: { baseRate: "wrong" } }];
     const { container } = render(<TraceDependencyView hasWorkflow={false} walk={walk} cursorRuntimeStageId="quote#5" snapshots={ownSnapshots}><div /></TraceDependencyView>);
@@ -184,7 +204,8 @@ describe("variable dependency investigation view", () => {
 
   it("withholds one snapshot reused by different writer commits", () => {
     const latest = { ...walk.stops[0], runtimeStageId: "same#0", stageName: "Update", commitIdx: 1,
-      contributedKeys: ["score"], keysWritten: ["score"], ingredients: [{ key: "score", writerRuntimeStageId: "same#0", writerStageName: "Seed", writerCommitIdx: 0 }] };
+      contributedKeys: ["score"], keysWritten: ["score"], ingredientsByKey: undefined,
+      ingredients: [{ key: "score", writerRuntimeStageId: "same#0", writerStageName: "Seed", writerCommitIdx: 0 }] };
     const earlier = { ...latest, stageName: "Seed", commitIdx: 0, ingredients: [] };
     const ambiguous: TraceWalk = { ...walk, key: "score", stops: [latest, earlier] };
     const { container } = render(<TraceDependencyView hasWorkflow={false} walk={ambiguous} cursorRuntimeStageId="same#0"

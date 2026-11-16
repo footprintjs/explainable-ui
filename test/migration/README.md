@@ -23,8 +23,13 @@ outside this change.
 
 For example, the real fork snapshot ends with both A's `y = 2` and B's `x = 9`.
 The old tree-based view instead shows Join with Seed's `x = 1`. R1 asserts both
-facts and their disagreement. R2 similarly distinguishes A's own row 1 from the
-old historical label pointing at empty repeat row 3. R4 retains the historical
+facts and their disagreement. R2's historical ledger distinguishes A's own row 1
+from the old label pointing at empty repeat row 3. The current UI backtracking
+regression now requires row 1: the slice carries the actual writer's commit
+position through its exclusive cutoff instead of re-resolving the visit stamp
+against the full log. Original producer fixtures and the historical ledger stay
+unchanged; this narrow display correction does not publish the record pilot or
+approve its broader migration. R4 retains the historical
 Foottrace 1.0.0 defect observation in the ledger, while its regression now
 requires the corrected answer from the 1.0.1 development reader. The producer
 fixtures and their version metadata remain unchanged. No Lens workaround or

@@ -1,0 +1,37 @@
+{
+  "purpose": "Actual runtime snapshot for unchanged parallel Items30 + Delivery5 -> Combine35 expression",
+  "published": false,
+  "engine": {
+    "repository": "footprintjs/footPrint",
+    "sourceBuildSHA": "7cf1ad9e9be48b87518a0207392de2f1789eef5f",
+    "base": "66763fde64a5fe86848796a6b197b69d3c72a970",
+    "sourceEntry": "engine/dist/index.js",
+    "workingTreeClean": true,
+    "changedFileSha256": {
+      "src/lib/builder/typedFlowChart.ts": "08ddbdf741b21be67f61126e51508935fde7ffc3d96e5580b7906118671a7381",
+      "src/lib/memory/StageContext.ts": "5977d1ec4763a3d09e14df4b196c09b8e6652823e567ae890b5b1ed7f897496b",
+      "src/lib/memory/runPolicy.ts": "434a6f7ae2bb80eda3a5a94a823da7ec0ac865c08476615c9ad02eddb4ed1f14",
+      "src/lib/reactive/README.md": "77ab4cacb8080aab5ecb83d44e8c7f492ff11c6ece4510a15e0c7d9edc72c976",
+      "src/lib/reactive/arrayTraps.ts": "9b4055cf2437354ae685f5605bec2b429a7cb6eff94f5f3f402edc7074056e80",
+      "src/lib/reactive/createTypedScope.ts": "5655ac93a9ea97cc458912ad621cfb04cb819e5eef196b9da143ccee8cac599d",
+      "src/lib/reactive/liveView.ts": "2e991e49f9ed806698608c3d5caab2b45ba8ad97606dd51dbeb2d5f8de30c029",
+      "src/lib/reactive/nestedReads.ts": "08a9b16b6002bc61a8ccfbff2e2c090bfbb8f2f6d59341216c1c106962ccd7f9",
+      "src/lib/reactive/types.ts": "70e4ec1d963395ace71995098dc1e50246483658a5d581e3fa3a1a2d2408eb66",
+      "src/lib/reactive/writeTraps.ts": "1f5d743a264f4248d5f6b83fc21abb0cbe5b07846f27fcb349da71d850c1e4e0",
+      "src/lib/runner/ExecutionRuntime.ts": "9992c984930a7037121135d91aed8209bdbb248160be1d0ce0445038357fed49",
+      "test/lib/engine/scenario/nested-read-provenance.test.ts": "ca365dd2674511fb901252bc1abdb81d5cc60e7d4be951baab10365f86dc2f62"
+    }
+  },
+  "foottrace": {
+    "repository": "footprintjs/foottrace",
+    "sourceBuildSHA": "042c815071043ad51244d0fb4f6d5a19545fe3dc",
+    "source": "isolated patched source public CJS doors; no npm release",
+    "workingTreeClean": true
+  },
+  "options": {
+    "nestedReadTracking": true,
+    "writeProvenance": "reads-prefix"
+  },
+  "snapshotSha256": "4136da4101727569a68b9c4e61834cd85005e9bd99fb639ccf6b00f159379141",
+  "generator": "capture-parallel.mjs"
+}

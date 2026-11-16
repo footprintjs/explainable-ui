@@ -694,8 +694,9 @@ export function ExplainableShell({
       ),
     [runtimeSnapshot, snapshots],
   );
+  const nestedReadTracking = ownDataField(runtimeSnapshot, "nestedReadTracking") === true;
   const navigation = useSubflowNavigation({
-    snapshots, sourceRunId, readsAvailable, exactResults, narrativeEntries,
+    snapshots, sourceRunId, readsAvailable, nestedReadTracking, exactResults, narrativeEntries,
     traceGraph, snapshotIdx, setSnapshotIdxRaw,
     activeTab: JSON.stringify([activeTab, rightPanelMode, inspectorTab, activitySelected, mobileInspectorSelected]),
     onScopeReset: traceSessionState.reset,
@@ -743,9 +744,10 @@ export function ExplainableShell({
       executionTree: metadata.availability.ok ? runtimeSnapshot?.executionTree : undefined,
       availability: metadata.availability,
       readsAvailable: readsAvailable && metadata.hasTree,
+      ...(nestedReadTracking ? { nestedReadTracking: true as const } : {}),
       mountLabels: metadata.labels,
     };
-  }, [currentLevel.traceScope, runtimeSnapshot, readsAvailable]);
+  }, [currentLevel.traceScope, runtimeSnapshot, readsAvailable, nestedReadTracking]);
   const activeTraceKey = isInSubflow
     ? JSON.stringify(activeTraceScope.invocationPath)
     : null;

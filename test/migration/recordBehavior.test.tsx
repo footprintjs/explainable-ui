@@ -91,8 +91,14 @@ describe("M1 — real saved Flow display interactions", () => {
     expect(buttons[0].getAttribute("data-selected")).toBe("true");
     fireEvent.click(buttons[1]);
     expect(onFrameClick).toHaveBeenCalledExactlyOnceWith("seed#0");
+    // The stored write prefixes are usable even when the tree is withheld.
+    expect(buildDataTrace(fork.commitLog.slice(0, 2), undefined, "a#1").readsAvailable).toBe(true);
+    // Withhold both read-evidence sources for the unknown-coverage case.
+    const withoutReadEvidence = fork.commitLog.slice(0, 2).map(commit => ({ ...commit,
+      trace: commit.trace.map(write => ({ path: write.path })),
+    }));
     const noReads = buildDataTrace(
-      fork.commitLog.slice(0, 2),
+      withoutReadEvidence,
       undefined,
       "a#1"
     );

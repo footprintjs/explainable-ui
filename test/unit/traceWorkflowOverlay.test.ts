@@ -5,15 +5,15 @@ import { buildTraceDependencyGraph } from "../../src/trace/traceDependencyGraph"
 import { buildTraceWalk, type TraceIngredient, type TraceStop, type TraceWalk } from "../../src/trace/traceWalk";
 import { buildTraceWorkflowOverlay, traceIngredientColor, traceNodeColors } from "../../src/trace/traceWorkflowOverlay";
 
-function recording(steps: { id: string; writes: string[]; reads?: string[] }[], key = "total") {
+function recording(steps: { id: string; writes: string[]; reads?: string[] }[], key = "total", canonical = false) {
   const log = steps.map(step => ({ stage: step.id, stageId: step.id.split("#")[0],
-    runtimeStageId: step.id, trace: step.writes.map(path => ({ path })) }));
+    runtimeStageId: step.id, trace: step.writes.map(path => ({ path, ...(canonical ? { readKeys: step.reads ?? [] } : {}) })) }));
   let tree: Record<string, unknown> | undefined;
   for (const step of [...steps].reverse()) tree = {
     runtimeStageId: step.id, stageReads: Object.fromEntries((step.reads ?? []).map(key => [key, true])),
     ...(tree && { next: tree }),
   };
-  return buildTraceWalk(log, tree, key);
+  return buildTraceWalk(log, tree, key, canonical ? { scope: { invocationPath: [], nestedReadTracking: true } } : undefined);
 }
 const snapshot = (id: string, memory: Record<string, unknown>): StageSnapshot => ({
   stageName: id.split("#")[0], stageLabel: id, runtimeStageId: id, memory,
@@ -102,7 +102,7 @@ describe("buildTraceWorkflowOverlay", () => {
     const path = "profile\u001fzip", walk = recording([
       { id: "seed#0", writes: [path, "literal.dot", "accessor", "inherited"] },
       { id: "join#1", reads: [path, "literal.dot", "accessor", "inherited"], writes: ["total"] },
-    ]);
+    ], "total", true);
     const getter = vi.fn(() => "PRIVATE"), memory = Object.create({ inherited: "PRIVATE" });
     Object.assign(memory, { profile: { zip: 12345 }, "literal.dot": false });
     Object.defineProperty(memory, "accessor", { enumerable: true, get: getter });

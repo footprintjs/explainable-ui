@@ -843,11 +843,26 @@ While tracing, execution nodes remain readable as workflow context. A
 stage is running now or that a later stage has already completed. Recorded
 relationships and execution status retain their separate meanings.
 
-- **Recorded stage reads**: the variable map shows recorded read links to
-  earlier local writers. This is conservative stage-level evidence, not
-  exact per-write derivation. A step that read two keys and wrote two outputs
-  can associate both recorded reads with both outputs. Its arrows do not
-  establish how an expression computed one output.
+- **Recorded read prefixes**: when a written trace entry supplies `readKeys`,
+  backtracking follows that exact write's captured read prefix. An explicit
+  empty list means no reads were captured before that write; it does not borrow
+  later reads from another output in the same step. These links describe
+  recorded state usage, not how an expression computed an output.
+- **Legacy evidence stays coarse**: when `readKeys` is absent, recorded stage
+  reads remain the fallback. A stage's two outputs can then share its read
+  union. Nested writer paths are matched exactly as recorded; dot-joined labels
+  are not converted into canonical paths. An old recording that captured only
+  `runs` cannot acquire links to `runs › items › amount` or
+  `runs › delivery › amount` by updating the UI. New precise links require a
+  new producer capture. Root and intermediate reads without exact local writers
+  remain explicitly unresolved alongside any recorded leaf links.
+- **Path encoding stays explicit**: new captures with
+  `nestedReadTracking: true` attest canonical per-write `readKeys`, including
+  literal dots in key names. The shell carries that flag into the selected
+  scope; detached callers can pass it in `buildTraceWalk`'s `scope` only for
+  an attested capture. Without the flag, a dotted read name remains unresolved
+  because a legacy nested label can collide with a different literal-dot key.
+  Tree `stageReads` labels remain ambiguous even when the snapshot has the flag.
 - **Choose a source explicitly**: branches remain visible in the variable
   map and the recorded-read chips. Select a variable or chip to follow its
   recorded writer. The rail's **Earlier recorded step** and **Later recorded

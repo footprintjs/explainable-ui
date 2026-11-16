@@ -46,6 +46,7 @@ export interface SubflowLevelOptions {
   parentPath: readonly string[];
   sourceRunId: unknown;
   readsAvailable: boolean;
+  nestedReadTracking?: boolean;
   results?: Record<string, unknown>;
   narrative?: NarrativeEntry[];
   requestedId?: string;
@@ -57,6 +58,7 @@ export function resolveSubflowLevel({
   parentPath,
   sourceRunId,
   readsAvailable,
+  nestedReadTracking,
   results,
   narrative,
   requestedId,
@@ -79,10 +81,10 @@ export function resolveSubflowLevel({
     cached = new Map();
     cache.set(result, cached);
   }
-  const cacheKey = JSON.stringify([invocationPath, readsAvailable]);
+  const cacheKey = JSON.stringify([invocationPath, readsAvailable, nestedReadTracking === true]);
   let projection = cached.get(cacheKey);
   if (!projection) {
-    const scope = childTraceScope(result, invocationPath, readsAvailable);
+    const scope = childTraceScope(result, invocationPath, readsAvailable, nestedReadTracking);
     // Admission and conversion share one selected record. Refused evidence
     // never feeds a trace walker; the existing adapter supplies rail values.
     let snapshots: StageSnapshot[] = [];

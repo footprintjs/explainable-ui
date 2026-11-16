@@ -100,7 +100,7 @@ export function TraceDependencyView({
     });
   };
   const note = (node: TraceDependencyNode) => node.kind === "unresolved"
-    ? inputSentence(walk?.scope, node.key)
+    ? inputSentence(walk?.scope, node.key, node.unresolvedReason)
     : node.kind === "outside-view" ? "Earlier reads outside this view" : node.stageName ?? "Recorded write";
 
   const sources = walk?.stops.find(stop => stop.runtimeStageId === cursorRuntimeStageId)?.handoffSources ?? [];

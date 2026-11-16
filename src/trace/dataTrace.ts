@@ -7,10 +7,9 @@
  * WHY a mirror and not the import: eui renders snapshots from ANY footprintjs
  * version (and stored/offline traces); a runtime dependency would couple the
  * two release lines. The algorithm is small and the shapes are stable — the
- * commit log's `trace[].path` (writes) and the execution tree's `stageReads`
- * keys (reads) are all it needs. Parity note: this mirror expands each stage
- * through ALL its reads (fp's 'stage' attribution — the safe ceiling); fp's
- * per-write refinement ('per-write') stays engine-side.
+ * commit log's `trace[].path` and optional per-write `readKeys`, plus legacy
+ * execution-tree `stageReads`, are sufficient. Canonical paths are compared
+ * exactly; coarse parent reads never become invented descendant links.
  *
  * HISTORY (why this file exists): the previous inline implementation walked
  * the commit log LINEARLY backwards (`idx--`) and labeled each hop with the
@@ -23,7 +22,10 @@
  * instead of implying independence.
  */
 
-/** The frame shape DataTracePanel renders (unchanged public contract). */
+import { optionalOwnDataField, readOwnArray, WorkBudget } from "./safeRecordRead";
+import { indexTraceWrites, indexWriterCommits, readPathIsUnambiguous, readTraceWrites, readsForWrittenKey, stageReadKeys, writerBefore, type RecordedTraceWrite } from "./readProvenance";
+
+/** The frame shape DataTracePanel renders. New evidence fields are optional. */
 export interface DataTraceFrame {
   runtimeStageId: string;
   stageId: string;
@@ -32,12 +34,21 @@ export interface DataTraceFrame {
   /** The read key whose write linked this frame to its child ('' = target). */
   linkedBy: string;
   depth: number;
+  /** Exact commit position, including when a runtime stamp has an empty bookend. */
+  commitIdx?: number;
+  /** Union of the selected writes' read prefixes, with legacy fallback only where absent. */
+  readKeys?: string[];
 }
 
 export interface DataTraceResult {
   frames: DataTraceFrame[];
   /** False when NO step in the tree recorded reads — edges unknowable. */
   readsAvailable: boolean;
+}
+
+export interface DataTraceProvenanceOptions {
+  /** Explicit producer discriminator for canonical per-write readKeys. */
+  nestedReadTracking?: boolean;
 }
 
 /** Duck-typed commit bundle (the stable snapshot shape). */
@@ -47,35 +58,7 @@ interface CommitEntry {
   runtimeStageId: string;
   /** Optional: present on every bundle the current engine writes, absent on
    *  older or hand-assembled recordings. See `tracedPaths`. */
-  trace?: Array<{ path: string }>;
-}
-
-/** Duck-typed execution-tree node (stageReads keys are the read record). */
-interface TreeNode {
-  runtimeStageId?: string;
-  stageReads?: Record<string, unknown>;
-  next?: TreeNode;
-  children?: TreeNode[];
-}
-
-/** Collect per-step read keys from the execution tree (visited-set safe). */
-function readsByStep(tree: TreeNode | undefined): Map<string, string[]> {
-  const byStep = new Map<string, string[]>();
-  if (!tree) return byStep;
-  const visited = new Set<TreeNode>();
-  const stack: TreeNode[] = [tree];
-  while (stack.length > 0) {
-    const node = stack.pop()!;
-    if (visited.has(node)) continue;
-    visited.add(node);
-    if (node.runtimeStageId && node.stageReads) {
-      const keys = Object.keys(node.stageReads);
-      if (keys.length > 0) byStep.set(node.runtimeStageId, keys);
-    }
-    if (node.next) stack.push(node.next);
-    if (node.children) for (const c of node.children) stack.push(c);
-  }
-  return byStep;
+  trace?: RecordedTraceWrite[];
 }
 
 /**
@@ -88,56 +71,77 @@ export function buildDataTrace(
   executionTree: unknown,
   targetRuntimeStageId: string,
   maxDepth = 10,
-  maxFrames = 50
+  maxFrames = 50,
+  /** Omit for a stage inspection; supply for the value of one exact write. */
+  targetPath?: string,
+  provenance?: DataTraceProvenanceOptions,
 ): DataTraceResult {
-  const log = (commitLog ?? []) as CommitEntry[];
-  const reads = readsByStep(executionTree as TreeNode | undefined);
-  const readsAvailable = reads.size > 0;
+  let log: CommitEntry[], reads: Map<string, string[]>;
+  try {
+    const budget = new WorkBudget();
+    log = readOwnArray(commitLog ?? [], budget).map(entry => ({
+      stage: optionalOwnDataField(entry, "stage") as string,
+      stageId: optionalOwnDataField(entry, "stageId") as string,
+      runtimeStageId: optionalOwnDataField(entry, "runtimeStageId") as string,
+      trace: readTraceWrites(optionalOwnDataField(entry, "trace"), budget, true),
+    }));
+    reads = stageReadKeys(executionTree, budget);
+  } catch { return { frames: [], readsAvailable: false }; }
+  const readsAvailable = reads.size > 0 || log.some(commit => commit.trace?.some(write => write.readKeys !== undefined));
   if (!log.length) return { frames: [], readsAvailable };
 
   const idxOf = new Map<string, number>();
   for (let i = 0; i < log.length; i++) idxOf.set(log[i].runtimeStageId, i);
-  const startIdx = idxOf.get(targetRuntimeStageId);
+  let startIdx = idxOf.get(targetRuntimeStageId);
+  if (targetPath !== undefined) {
+    startIdx = undefined;
+    for (let i = log.length - 1; i >= 0; i--) {
+      if (log[i].runtimeStageId === targetRuntimeStageId && log[i].trace?.some(write => write.path === targetPath)) {
+        startIdx = i; break;
+      }
+    }
+  }
   if (startIdx === undefined) return { frames: [], readsAvailable };
 
   // `trace` is what the engine records per commit; a bundle that arrives
   // without it (an older engine, a hand-assembled recording) means "wrote
   // nothing traceable", not "crash the whole shell".
-  const tracedPaths = (entry: CommitEntry): { path: string }[] =>
+  const tracedPaths = (entry: CommitEntry): RecordedTraceWrite[] =>
     entry.trace ?? [];
 
-  const findLastWriter = (key: string, beforeIdx: number): number => {
-    for (let i = beforeIdx - 1; i >= 0; i--) {
-      if (tracedPaths(log[i]).some((t) => t.path === key)) return i;
-    }
-    return -1;
-  };
+  const writesByKey = log.map(commit => indexTraceWrites(tracedPaths(commit)));
+  const writers = indexWriterCommits(log);
 
   const frames: DataTraceFrame[] = [];
+  const frameAt = new Map<number, DataTraceFrame>();
   const visited = new Set<string>();
-  // BFS queue: [commit array idx, depth, the read key that linked it]
-  const queue: Array<[number, number, string]> = [[startIdx, 0, ""]];
+  // Questions are per written path, even when two paths share one stage visit.
+  const queue: Array<[number, number, string, string | undefined]> = [[startIdx, 0, "", targetPath]];
 
-  while (queue.length > 0 && frames.length < maxFrames) {
-    const [idx, depth, linkedBy] = queue.shift()!;
+  for (let cursor = 0; cursor < queue.length && frames.length < maxFrames; cursor++) {
+    const [idx, depth, linkedBy, path] = queue[cursor];
     const commit = log[idx];
-    if (visited.has(commit.runtimeStageId)) continue;
-    visited.add(commit.runtimeStageId);
+    const write = path === undefined ? undefined : writesByKey[idx].get(path);
+    const question = JSON.stringify([idx, write?.readKeys === undefined ? null : path]);
+    if (visited.has(question)) continue;
+    visited.add(question);
 
-    frames.push({
-      runtimeStageId: commit.runtimeStageId,
-      stageId: commit.stageId,
-      stageName: commit.stage,
-      keysWritten: tracedPaths(commit).map((t) => t.path),
-      linkedBy,
-      depth,
-    });
+    let frame = frameAt.get(idx);
+    if (!frame) {
+      frame = { runtimeStageId: commit.runtimeStageId, stageId: commit.stageId,
+        stageName: commit.stage, keysWritten: tracedPaths(commit).map(t => t.path),
+        linkedBy, depth, commitIdx: idx, readKeys: [] };
+      frames.push(frame); frameAt.set(idx, frame);
+    }
+    const selectedReads = readsForWrittenKey(writesByKey[idx], reads.get(commit.runtimeStageId) ?? [], path);
+    frame.readKeys = [...new Set([...frame.readKeys!, ...selectedReads])];
 
     if (depth >= maxDepth) continue;
-    for (const key of reads.get(commit.runtimeStageId) ?? []) {
-      const writerIdx = findLastWriter(key, idx);
-      if (writerIdx >= 0 && !visited.has(log[writerIdx].runtimeStageId)) {
-        queue.push([writerIdx, depth + 1, key]);
+    for (const key of selectedReads) {
+      if (!readPathIsUnambiguous(key, writesByKey[idx], reads.get(commit.runtimeStageId) ?? [], path, provenance?.nestedReadTracking === true)) continue;
+      const writerIdx = writerBefore(writers, key, idx);
+      if (writerIdx >= 0) {
+        queue.push([writerIdx, depth + 1, key, key]);
       }
     }
   }
