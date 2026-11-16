@@ -17,7 +17,7 @@
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import type { ReactNode } from "react";
-import { theme, componentStyles } from "../../theme";
+import { theme, componentStyles, v } from "../../theme";
 
 export interface GroupContainerNodeData {
   label: string;
@@ -57,6 +57,8 @@ export function GroupContainerNode({ data }: NodeProps) {
         ? theme.nodeVisited
         : theme.border;
 
+  const recordedStatus = d.error ? "Failed" : d.active ? "Selected" : d.done ? "Visited" : undefined;
+
   return (
     <div
       data-fp="group-container-node"
@@ -69,8 +71,9 @@ export function GroupContainerNode({ data }: NodeProps) {
         height: "100%",
         boxSizing: "border-box",
         position: "relative",
-        ...(!unstyled && { border: `calc(${ui.borderWidth} + 0.5px) ${d.active || d.done || d.error ? "solid" : "dashed"} ${borderColor}`,
-        borderRadius: `calc(${ui.radiusPanel} + 4px)`,
+        ...(!unstyled && { border: `${v("--fp-node-border-width", `calc(${ui.borderWidth} + 0.5px)`)} ${v("--fp-node-border-style", d.active || d.done || d.error ? "solid" : "dashed")} ${v("--fp-node-border-color", borderColor)}`,
+        borderRadius: v("--fp-node-radius", `calc(${ui.radiusPanel} + 4px)`),
+        boxShadow: v("--fp-node-shadow", "none"),
         // Translucent (theme-derived) so the dotted background + nested children
         // read clearly, while still following dark/light.
         background: `color-mix(in srgb, ${theme.textMuted} 7%, transparent)`,
@@ -92,6 +95,15 @@ export function GroupContainerNode({ data }: NodeProps) {
       >
         {(expandable ? d.iconContent : undefined) ?? (d.icon ? <span aria-hidden>{d.icon}</span> : null)}
         <span title={d.label} style={expandable && d.compactHeader ? { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } : undefined}>{d.label}</span>
+        {!unstyled && recordedStatus && <span
+          data-fp="group-status-badge"
+          style={{ display: v("--fp-node-group-status-display", "none"), alignItems: "center", gap: 4,
+            marginLeft: "auto", flexShrink: 0, fontFamily: theme.fontSans, fontSize: ui.small,
+            color: theme.textPrimary }}
+        >
+          <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: borderColor }} />
+          {recordedStatus}
+        </span>}
         {expandable && d.headerAction ? <span style={{ marginLeft: "auto", flexShrink: 0 }}>{d.headerAction}</span> : null}
       </div>
       {expandable && d.statusLabel ? <div id={d.statusLabelId} title={d.statusLabel} style={{ ...(!unstyled && { padding: `0 ${ui.spaceMd}`, fontSize: ui.label, color: theme.textSecondary }), ...(d.compactHeader ? { maxHeight: 32, lineHeight: unstyled ? undefined : "16px", overflow: "hidden" } : {}) }}>{d.statusLabel}</div> : null}

@@ -57,6 +57,22 @@ export interface ThemeTokens {
   radii?: { control?: string; panel?: string; badge?: string };
   borders?: { width?: string; focusWidth?: string };
   elevation?: { panel?: string; popover?: string; focus?: string };
+  /** Chart-card paint overrides. Omitted fields retain each renderer's
+   *  existing status-dependent appearance. `initial` restores that fallback. */
+  nodes?: {
+    borderColor?: string;
+    borderWidth?: string;
+    borderStyle?: string;
+    radius?: string;
+    shadow?: string;
+    /** CSS filter for clipped shapes, such as none or drop-shadow(...).
+     *  Unlike a box shadow, drop-shadow() accepts no spread or inset. */
+    shapeShadow?: string;
+    badgeShadow?: string;
+    pulseOpacity?: string;
+    /** Display value for the group header's recorded-state cue. Default none. */
+    groupStatusDisplay?: string;
+  };
   motion?: { duration?: string; fastDuration?: string; easing?: string };
   controls?: { height?: string; paddingX?: string; gap?: string; iconSize?: string };
   fontFamily?: {
@@ -136,6 +152,11 @@ export function tokensToCSSVars(tokens: ThemeTokens): Record<string, string> {
   write(tokens.radii, { control: "--fp-radius-control", panel: "--fp-radius-panel", badge: "--fp-radius-badge" });
   write(tokens.borders, { width: "--fp-border-width", focusWidth: "--fp-focus-width" });
   write(tokens.elevation, { panel: "--fp-shadow-panel", popover: "--fp-shadow-popover", focus: "--fp-shadow-focus" });
+  write(tokens.nodes, {
+    borderColor: "--fp-node-border-color", borderWidth: "--fp-node-border-width", borderStyle: "--fp-node-border-style",
+    radius: "--fp-node-radius", shadow: "--fp-node-shadow", shapeShadow: "--fp-node-shape-shadow",
+    badgeShadow: "--fp-node-badge-shadow", pulseOpacity: "--fp-node-pulse-opacity", groupStatusDisplay: "--fp-node-group-status-display",
+  });
   write(tokens.motion, { duration: "--fp-motion-duration", fastDuration: "--fp-motion-fast-duration", easing: "--fp-motion-easing" });
   write(tokens.controls, { height: "--fp-control-height", paddingX: "--fp-control-padding-x", gap: "--fp-control-gap", iconSize: "--fp-icon-size" });
   if (tokens.fontFamily?.sans) vars["--fp-font-sans"] = tokens.fontFamily.sans;
@@ -181,6 +202,13 @@ export const rawDefaults = {
   radii: { control: "6px", panel: "8px", badge: "12px" },
   borders: { width: "1px", focusWidth: "2px" },
   elevation: { panel: "0 2px 8px rgba(0,0,0,0.15)", popover: "0 6px 24px rgba(0,0,0,0.2)", focus: "none" },
+  // CSS-wide initial makes a custom property guaranteed-invalid, so var()
+  // selects the renderer's existing status-dependent fallback recipe.
+  // Group status cues remain hidden unless a theme explicitly opts in.
+  nodes: {
+    borderColor: "initial", borderWidth: "initial", borderStyle: "initial", radius: "initial",
+    shadow: "initial", shapeShadow: "initial", badgeShadow: "initial", pulseOpacity: "initial", groupStatusDisplay: "none",
+  },
   motion: { duration: "240ms", fastDuration: "120ms", easing: "ease" },
   controls: { height: "28px", paddingX: "8px", gap: "6px", iconSize: "14px" },
   fontFamily: {
@@ -247,6 +275,17 @@ export const defaultTokens: Required<{
   radii: { control: `var(--fp-radius-control, ${rawDefaults.radii.control})`, panel: `var(--fp-radius-panel, ${rawDefaults.radii.panel})`, badge: `var(--fp-radius-badge, ${rawDefaults.radii.badge})` },
   borders: { width: `var(--fp-border-width, ${rawDefaults.borders.width})`, focusWidth: `var(--fp-focus-width, ${rawDefaults.borders.focusWidth})` },
   elevation: { panel: `var(--fp-shadow-panel, ${rawDefaults.elevation.panel})`, popover: `var(--fp-shadow-popover, ${rawDefaults.elevation.popover})`, focus: `var(--fp-shadow-focus, ${rawDefaults.elevation.focus})` },
+  nodes: {
+    borderColor: `var(--fp-node-border-color, ${rawDefaults.nodes.borderColor})`,
+    borderWidth: `var(--fp-node-border-width, ${rawDefaults.nodes.borderWidth})`,
+    borderStyle: `var(--fp-node-border-style, ${rawDefaults.nodes.borderStyle})`,
+    radius: `var(--fp-node-radius, ${rawDefaults.nodes.radius})`,
+    shadow: `var(--fp-node-shadow, ${rawDefaults.nodes.shadow})`,
+    shapeShadow: `var(--fp-node-shape-shadow, ${rawDefaults.nodes.shapeShadow})`,
+    badgeShadow: `var(--fp-node-badge-shadow, ${rawDefaults.nodes.badgeShadow})`,
+    pulseOpacity: `var(--fp-node-pulse-opacity, ${rawDefaults.nodes.pulseOpacity})`,
+    groupStatusDisplay: `var(--fp-node-group-status-display, ${rawDefaults.nodes.groupStatusDisplay})`,
+  },
   motion: { duration: `var(--fp-motion-duration, ${rawDefaults.motion.duration})`, fastDuration: `var(--fp-motion-fast-duration, ${rawDefaults.motion.fastDuration})`, easing: `var(--fp-motion-easing, ${rawDefaults.motion.easing})` },
   controls: { height: `var(--fp-control-height, ${rawDefaults.controls.height})`, paddingX: `var(--fp-control-padding-x, ${rawDefaults.controls.paddingX})`, gap: `var(--fp-control-gap, ${rawDefaults.controls.gap})`, iconSize: `var(--fp-icon-size, ${rawDefaults.controls.iconSize})` },
   fontFamily: {

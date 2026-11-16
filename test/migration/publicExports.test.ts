@@ -90,6 +90,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...traceWorkflowExports,
         ...stageActivityExports,
         ...themePrimitiveExports,
+        ...["paperLight", "paperDark"].map(name => ({ name, kind: "value" })),
         { name: "useLensWorkbench", kind: "value" },
         ...["LensTheme", "LensView", "LensCommentaryOptions", "ReplayControlsOptions", "LensLayoutDefinition", "LensLayoutSurface", "LensWorkbenchContextValue", "LensWorkbenchActions", "LensWorkbenchSurfaces", "LensWorkbenchLayout"]
           .map(name => ({ name, kind: "type" })),

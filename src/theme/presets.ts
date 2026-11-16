@@ -159,12 +159,62 @@ export const coolLight: ThemeTokens = {
   },
 };
 
+const paperMono = "'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace";
+
+/** Paper light — cream surfaces, pastel recorded states and ink outlines. */
+export const paperLight: ThemeTokens = {
+  ...rawDefaults,
+  colors: {
+    ...rawDefaults.colors,
+    primary: "#465d50", success: "#4f7054", error: "#a4473e", warning: "#8d602c",
+    onPrimary: "#fffdf6", onSuccess: "#fffdf6", onError: "#fffdf6", onWarning: "#fffdf6", onTracing: "#fffdf6",
+    nodeCursor: "#edc5a9", nodeVisited: "#cbd9ba", nodeMain: "#d7d0e5",
+    onNodeCursor: "#34382f", onNodeVisited: "#34382f", onNodeMain: "#34382f",
+    accent: "#465d50", accentBg: "#e4e8d9", tracing: "#536b58",
+    chip1: "#536b58", chip2: "#8d602c", chip3: "#75638b", chip4: "#a05d55",
+    bg: "#f6f2e9", bgElevated: "#fffdf6", bgPrimary: "#f6f2e9", bgSecondary: "#fffdf6", bgTertiary: "#e8e4d8",
+    textPrimary: "#34382f", textSecondary: "#616657", textMuted: "#686d5d", border: "#4e5148",
+  },
+  radius: "5px",
+  radii: { control: "5px", panel: "5px", badge: "5px" },
+  borders: { width: "1px", focusWidth: "2px" },
+  elevation: { panel: "2px 3px 0 #4e5148", popover: "3px 4px 0 #4e5148", focus: "none" },
+  nodes: { borderColor: "#34382f", borderWidth: "1px", borderStyle: "solid", radius: "5px",
+    shadow: "2px 3px 0 #34382f", shapeShadow: "drop-shadow(2px 3px 0 #34382f)", badgeShadow: "none", pulseOpacity: "0", groupStatusDisplay: "inline-flex" },
+  fontFamily: { sans: paperMono, mono: paperMono },
+};
+
+/** Paper dark — warm charcoal surfaces with the same readable pastel states. */
+export const paperDark: ThemeTokens = {
+  ...rawDefaults,
+  colors: {
+    ...rawDefaults.colors,
+    primary: "#cbd9ba", success: "#c0d0aa", error: "#ecaca0", warning: "#e7c391",
+    onPrimary: "#34382f", onSuccess: "#34382f", onError: "#34382f", onWarning: "#34382f", onTracing: "#34382f",
+    nodeCursor: "#edc5a9", nodeVisited: "#cbd9ba", nodeMain: "#d7d0e5",
+    onNodeCursor: "#34382f", onNodeVisited: "#34382f", onNodeMain: "#34382f",
+    accent: "#cbd9ba", accentBg: "#3e4937", tracing: "#c0d0aa",
+    chip1: "#c0d0aa", chip2: "#e7c391", chip3: "#d7d0e5", chip4: "#ecaca0",
+    bg: "#252923", bgElevated: "#3a4035", bgPrimary: "#252923", bgSecondary: "#32372f", bgTertiary: "#454b3d",
+    textPrimary: "#f2eedf", textSecondary: "#cbcbb7", textMuted: "#a8ad9a", border: "#a5aa97",
+  },
+  radius: "5px",
+  radii: { control: "5px", panel: "5px", badge: "5px" },
+  borders: { width: "1px", focusWidth: "2px" },
+  elevation: { panel: "2px 3px 0 #10160f", popover: "3px 4px 0 #10160f", focus: "none" },
+  nodes: { borderColor: "#171d16", borderWidth: "1px", borderStyle: "solid", radius: "5px",
+    shadow: "2px 3px 0 #10160f", shapeShadow: "drop-shadow(2px 3px 0 #10160f)", badgeShadow: "none", pulseOpacity: "0", groupStatusDisplay: "inline-flex" },
+  fontFamily: { sans: paperMono, mono: paperMono },
+};
+
 /** All built-in theme presets */
 export const themePresets = {
   coolDark,
   coolLight,
   warmDark,
   warmLight,
+  paperLight,
+  paperDark,
 } as const;
 
 export type ThemePresetName = keyof typeof themePresets;

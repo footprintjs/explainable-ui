@@ -21,7 +21,7 @@
 
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { theme, componentStyles } from "../../theme";
+import { theme, componentStyles, v } from "../../theme";
 
 export interface SlotPillNodeData {
   label: string;
@@ -64,15 +64,15 @@ export function SlotPillNode({ data }: NodeProps) {
         overflow: "hidden",
         ...(!unstyled && { gap: ui.spaceSm,
         padding: `0 ${ui.spaceMd}`,
-        borderRadius: 999, // full pill
-        border: `calc(${ui.borderWidth} + 0.5px) solid ${lit ? theme.primary : theme.border}`,
+        borderRadius: v("--fp-node-radius", "999px"), // full pill unless explicitly themed
+        border: `${v("--fp-node-border-width", `calc(${ui.borderWidth} + 0.5px)`)} ${v("--fp-node-border-style", "solid")} ${v("--fp-node-border-color", lit ? theme.primary : theme.border)}`,
         // Fills derive from the theme so the pill follows dark/light — the lit
         // state is a faint primary tint over the resting node bg, unlit is the
         // resting bg itself (visible against the canvas via the border).
         background: lit
           ? `color-mix(in srgb, ${theme.primary} 14%, ${theme.bgSecondary})`
           : theme.bgSecondary,
-        boxShadow: lit ? `0 0 0 2px color-mix(in srgb, ${theme.primary} 25%, transparent)` : "none",
+        boxShadow: v("--fp-node-shadow", lit ? `0 0 0 2px color-mix(in srgb, ${theme.primary} 25%, transparent)` : "none"),
         opacity,
         fontSize: ui.body,
         fontWeight: `calc(${ui.weightStrong} - 100)`,

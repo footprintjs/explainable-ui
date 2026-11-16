@@ -2,15 +2,15 @@ import { memo, useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
-import { theme, componentStyles, fontSize, FootprintIcon, useFootprintComponents } from "../../theme";
+import { theme, componentStyles, fontSize, FootprintIcon, useFootprintComponents, v } from "../../theme";
 import { recordedPathLabel } from "../../trace/recordedValuePreview";
 
 const KEYFRAMES_ID = "fp-stage-node-keyframes";
 const KEYFRAMES_CSS = `
 @media (prefers-reduced-motion: no-preference) {
   @keyframes fp-pulse {
-    0%, 100% { opacity: 0.4; transform: scale(1); }
-    50% { opacity: 0.15; transform: scale(1.06); }
+    0%, 100% { opacity: var(--fp-node-pulse-opacity, 0.4); transform: scale(1); }
+    50% { opacity: calc(var(--fp-node-pulse-opacity, 0.4) * 0.375); transform: scale(1.06); }
   }
   @keyframes fp-blink {
     0%, 100% { opacity: 1; }
@@ -431,7 +431,7 @@ export const StageNode = memo(function StageNode({
           ? theme.error
           : restingBg;
 
-  const borderColor = active
+  const legacyBorderColor = active
     ? theme.nodeCursor
     : isHero && done
       ? theme.nodeMain
@@ -441,7 +441,7 @@ export const StageNode = memo(function StageNode({
           ? theme.error
           : restingBorder;
 
-  const shadow = active
+  const legacyShadow = active
     ? `0 0 22px color-mix(in srgb, ${theme.nodeCursor} 55%, transparent)`
     : isHero && done
       ? `0 0 12px color-mix(in srgb, ${theme.nodeMain} 30%, transparent)`
@@ -450,6 +450,14 @@ export const StageNode = memo(function StageNode({
         : error
           ? `0 0 12px color-mix(in srgb, ${theme.error} 30%, transparent)`
           : restingShadow;
+
+  // Optional chart-paint overrides keep the per-state recipes below as their
+  // fallbacks. A preset's `initial` reset selects those original recipes.
+  const borderColor = v("--fp-node-border-color", legacyBorderColor);
+  const borderWidth = v("--fp-node-border-width", isHero ? "2.5px" : isMuted ? "1px" : "2px");
+  const borderStyle = isLazyUnresolved ? "dashed" : v("--fp-node-border-style", "solid");
+  const nodeRadius = v("--fp-node-radius", theme.radius);
+  const shadow = v("--fp-node-shadow", legacyShadow);
 
   // Text contrast per state. The CURSOR color (nodeCursor) is a light amber by
   // design, so it needs DARK text (white washes out on amber — that's the "Final
@@ -507,7 +515,7 @@ export const StageNode = memo(function StageNode({
             ><polygon points="50,0 100,50 50,100 0,50" fill="none" stroke={unstyled ? "currentColor" : traceWorkflow.color} strokeWidth={unstyled ? undefined : 3} vectorEffect="non-scaling-stroke" /></svg> : <div
               data-fp="trace-workflow-ring"
               aria-hidden="true"
-              style={sx({ position: "absolute", inset: -8, border: `3px solid ${traceWorkflow.color}`, borderRadius: `calc(${theme.radius} + 6px)`, pointerEvents: "none", zIndex: 3 })}
+              style={sx({ position: "absolute", inset: -8, border: `3px solid ${traceWorkflow.color}`, borderRadius: `calc(${nodeRadius} + 6px)`, pointerEvents: "none", zIndex: 3 })}
             />}
             <div
               data-fp="trace-workflow-caption"
@@ -569,7 +577,7 @@ export const StageNode = memo(function StageNode({
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      boxShadow: `0 0 8px ${glow}`,
+                      boxShadow: v("--fp-node-badge-shadow", `0 0 8px ${glow}`),
                     })}
                   >
                     {num}
@@ -585,10 +593,10 @@ export const StageNode = memo(function StageNode({
               style={sx({
                 position: "absolute",
                 inset: -6,
-                borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
+                borderRadius: isDecider ? 0 : `calc(${nodeRadius} + 4px)`,
                 clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : undefined,
                 border: `2px solid ${theme.primary}`,
-                opacity: 0.4,
+                opacity: v("--fp-node-pulse-opacity", "0.4"),
                 animation: suppressMotion ? "none" : "fp-pulse 2s ease-in-out infinite",
               })}
             />
@@ -600,10 +608,10 @@ export const StageNode = memo(function StageNode({
               style={sx({
                 position: "absolute",
                 inset: -6,
-                borderRadius: isDecider ? 0 : `calc(${theme.radius} + 4px)`,
+                borderRadius: isDecider ? 0 : `calc(${nodeRadius} + 4px)`,
                 clipPath: isDecider ? "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)" : undefined,
                 border: `2px solid ${theme.nodeCursor}`,
-                opacity: 0.3,
+                opacity: v("--fp-node-pulse-opacity", "0.3"),
                 animation: suppressMotion ? "none" : "fp-pulse 1.5s ease-out infinite",
               })}
             />
@@ -626,7 +634,7 @@ export const StageNode = memo(function StageNode({
                 letterSpacing: 0.6,
                 padding: "2px 6px",
                 borderRadius: 10,
-                boxShadow: `0 0 10px color-mix(in srgb, ${theme.nodeCursor} 60%, transparent)`,
+                boxShadow: v("--fp-node-badge-shadow", `0 0 10px color-mix(in srgb, ${theme.nodeCursor} 60%, transparent)`),
               })}
             >
               {viewingTrace ? "VIEWING" : "NOW"}
@@ -673,7 +681,7 @@ export const StageNode = memo(function StageNode({
 
           {/* Diamond for decider nodes — proper diamond via clip-path */}
           {isDecider ? (
-            <div data-fp="stage-node-body" style={sx({ position: "relative", width: 120, height: 72, color: textColor })}>
+            <div data-fp="stage-node-body" style={sx({ position: "relative", width: 120, height: 72, color: textColor, filter: v("--fp-node-shape-shadow", "none") })}>
               {/* Diamond shape layer */}
               <div
                 style={sx({
@@ -690,7 +698,7 @@ export const StageNode = memo(function StageNode({
               <div
                 style={sx({
                   position: "absolute",
-                  inset: -2,
+                  inset: `calc(-1 * ${v("--fp-node-border-width", "2px")})`,
                   clipPath: "polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)",
                   background: borderColor,
                   zIndex: -1,
@@ -772,8 +780,8 @@ export const StageNode = memo(function StageNode({
               style={sx({
                 background: bg,
                 color: textColor,
-                border: `${isHero ? "2.5px" : isMuted ? "1px" : "2px"} ${isLazyUnresolved ? "dashed" : "solid"} ${borderColor}`,
-                borderRadius: theme.radius,
+                border: `${borderWidth} ${borderStyle} ${borderColor}`,
+                borderRadius: nodeRadius,
                 padding: description
                   ? `${Math.round(6 * sizeScale)}px ${Math.round(12 * sizeScale)}px`
                   : `${Math.round(7 * sizeScale)}px ${Math.round(14 * sizeScale)}px`,

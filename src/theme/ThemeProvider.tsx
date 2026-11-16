@@ -58,6 +58,7 @@ export function FootprintTheme({ tokens = {}, components, children, asChild = fa
       radii: merge(parent.radii, tokens.radii),
       borders: merge(parent.borders, tokens.borders),
       elevation: merge(parent.elevation, tokens.elevation),
+      nodes: merge(parent.nodes, tokens.nodes),
       motion: merge(parent.motion, tokens.motion),
       controls: merge(parent.controls, tokens.controls),
     };
