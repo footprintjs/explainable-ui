@@ -36,8 +36,9 @@ import { readMeasuredFootprints, sameFootprints, type MeasuredFootprintState } f
  * It renders nothing.
  */
 export interface MeasuredNodeSizesProps {
-  /** Called with `id -> {width,height}` once all nodes are measured (and again
-   *  whenever a footprint changes). */
+  /** Called with intrinsic `id -> {width,height}` once all nodes are measured
+   *  (and again whenever a footprint changes). Layout-sized group containers
+   *  are omitted so their mount ids can return to content-sized drill cards. */
   readonly onSizes: (sizes: Map<string, import("./dagreTraceLayout").NodeFootprint>) => void;
   /** Include hidden nodes in the readiness check (default false). */
   readonly includeHiddenNodes?: boolean;

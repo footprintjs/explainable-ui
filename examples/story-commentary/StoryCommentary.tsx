@@ -55,12 +55,16 @@ export const snapshots: StageSnapshot[] = [
   },
 ];
 
-/** Existing JSON-compatible NarrativeEntry[]; no UI template language. */
+/**
+ * Existing JSON-compatible NarrativeEntry[]. Inner comments and the outcome
+ * are explicitly authored emit entries, rather than inferred from memory.
+ */
 export const narrativeEntries: NarrativeEntry[] = [
   {
     type: "stage",
     text: "Load request",
     depth: 0,
+    stageName: "Load request",
     stageId: "load-request",
     runtimeStageId: "load-request#0",
   },
@@ -68,15 +72,33 @@ export const narrativeEntries: NarrativeEntry[] = [
     type: "step",
     text: "Wrote requestedAmount: 1200",
     depth: 1,
+    stageName: "Load request",
     stageId: "load-request",
     runtimeStageId: "load-request#0",
     key: "requestedAmount",
     rawValue: 1200,
   },
   {
+    type: "emit",
+    text: "Loaded the amount requested for review.",
+    depth: 1,
+    stageName: "Load request",
+    stageId: "load-request",
+    runtimeStageId: "load-request#0",
+  },
+  {
     type: "stage",
     text: "Check limit",
     depth: 0,
+    stageName: "Check limit",
+    stageId: "check-limit",
+    runtimeStageId: "check-limit#1",
+  },
+  {
+    type: "emit",
+    text: "Checking the request against the available limit.",
+    depth: 1,
+    stageName: "Check limit",
     stageId: "check-limit",
     runtimeStageId: "check-limit#1",
   },
@@ -84,6 +106,7 @@ export const narrativeEntries: NarrativeEntry[] = [
     type: "condition",
     text: "The recorded limit check passed: 1,200 is within the 1,500 limit.",
     depth: 1,
+    stageName: "Check limit",
     stageId: "check-limit",
     runtimeStageId: "check-limit#1",
   },
@@ -91,13 +114,15 @@ export const narrativeEntries: NarrativeEntry[] = [
     type: "stage",
     text: "Prepare result",
     depth: 0,
+    stageName: "Prepare result",
     stageId: "prepare-result",
     runtimeStageId: "prepare-result#2",
   },
   {
     type: "emit",
-    text: "The result is ready for review.",
+    text: "Outcome: the review packet is ready.",
     depth: 1,
+    stageName: "Prepare result",
     stageId: "prepare-result",
     runtimeStageId: "prepare-result#2",
   },
@@ -140,7 +165,7 @@ export function JsonLayoutStoryCommentary() {
         narrativeEntries={narrativeEntries}
         layout={restoredCustomerLayout}
         theme={{ mode: "light" }}
-        commentary={{ presentation: "log", followCursor: true, showEntryTypes: false }}
+        commentary={{ presentation: "log", groupByStage: true, followCursor: true, showEntryTypes: false }}
         replayControls={{ previousNext: true, playPause: true, slider: true, intervalMs: 2400 }}
       />
     </div>
@@ -166,6 +191,7 @@ export function StoryCommentary() {
           commentary={{
             title: "What happened",
             presentation: "log",
+            groupByStage: true,
             followCursor: true,
             showEntryTypes: false,
             maxLines: 100,
@@ -238,7 +264,7 @@ export function CustomStoryCommentary() {
         narrativeEntries={narrativeEntries}
         view={view}
         onViewChange={setView}
-        commentary={{ title: "Request diary", presentation: "log", followCursor: true, showEntryTypes: false }}
+        commentary={{ title: "Request diary", presentation: "log", groupByStage: true, followCursor: true, showEntryTypes: false }}
         renderLayout={() => <CustomerLayout view={view} onViewChange={setView} />}
       />
     </div>
@@ -255,6 +281,7 @@ export function LocallyStyledCommentary() {
     <CommentaryPanel
       title="Request diary"
       presentation="log"
+      groupByStage
       followCursor
       showEntryTypes={false}
       renderEntry={(entry) => <p style={{ margin: 0 }}>{entry.text}</p>}
@@ -270,7 +297,7 @@ export function SavedStory({ json, layout }: { json: string; layout?: LensLayout
         recording={json}
         layout={layout}
         defaultView="story"
-        commentary={{ title: "What happened", presentation: "log", followCursor: true, showEntryTypes: false }}
+        commentary={{ title: "What happened", presentation: "log", groupByStage: true, followCursor: true, showEntryTypes: false }}
         replayControls={{ previousNext: true, playPause: true, slider: true }}
       />
     </div>

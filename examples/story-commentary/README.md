@@ -65,12 +65,15 @@ the saved cursor every 2,400 ms because the example explicitly overrides the
 Commentary audience's 2,000 ms default. `autoPlay` is off.
 
 Commentary reuses the accumulated scrolling transcript. The recorded prefix
-grows through the selected stage, follows the cursor and hides entry-type
-badges. These are the full Lens defaults: `presentation="log"`,
-`followCursor={true}` and `showEntryTypes={false}`. Set `followCursor={false}`
+grows through the selected stage, groups each visit under a stage heading,
+follows the cursor and hides entry-type badges. These are the full Lens
+defaults: `presentation="log"`, `groupByStage={true}`, `followCursor={true}`
+and `showEntryTypes={false}`. Set `followCursor={false}`
 to stop automatic scrolling, or explicitly choose `presentation="current"`
 to show only the selected visit. The standalone/basic panel retains its
-existing log, no-follow and visible-badge defaults.
+existing log, ungrouped, no-follow and visible-badge defaults. Recorded data
+operations remain expandable beneath their visit; comments, decisions, errors
+and emitted outcomes stay with the stage that recorded them.
 
 `ControlledStoryCommentary` demonstrates `view={view}` with
 `onViewChange={setView}`. A controlled `view` without a callback fixes the
@@ -80,7 +83,9 @@ The fixture is authored presentation data. Its commentary, values and durations
 demonstrate rendering; they are not evidence from an actual execution. It has no
 commit log or causal chain, so provenance features cannot recover an original
 read or writer from it. Use a real runtime snapshot to demonstrate those
-features.
+features. Each narrative entry supplies a `stageName` and exact visit ID; the
+inner comments and final outcome are explicit authored `emit` entries. The UI
+does not derive that outcome from the last memory write or a function return.
 
 `CustomStoryCommentary` shows a full Lens `renderLayout` using
 `useLensWorkbench().surfaces.commentary`, the chart and replay controls. A
@@ -107,6 +112,7 @@ import { TraceViewer } from "footprint-explainable-ui";
   commentary={{
     title: "What happened",
     presentation: "log",
+    groupByStage: true,
     followCursor: true,
     showEntryTypes: false,
   }}
@@ -121,5 +127,12 @@ snapshot or be saved as the existing `narrativeEntries` override. See the
 
 `commentary.renderEntry` changes React rendering of saved entries. To change
 the recorded words, use FootprintJS's upstream `narrative({ renderer })` at
-capture time. This viewer does not infer formulas or evaluate text templates.
+capture time. Inside a stage, emit named domain comments and outcomes with
+`scope.$emit("review.comment", { message: "…" })` or
+`scope.$emit("review.outcome", { message: "…" })`; `renderer.renderEmit` can
+turn those payloads into the producer's own wording before saving the narrative.
+`$log` diagnostics are producer-version-dependent, so named emits are the
+portable path for these messages. Explicit recorded messages or a host-owned
+`renderEntry` supply domain outcome wording. This viewer does not infer a
+return value, formula or branch reason, and does not evaluate text templates.
 See the [audience API and defaults](../../README.md#developer-and-commentary-details).

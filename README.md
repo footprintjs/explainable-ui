@@ -17,8 +17,8 @@ visualizing [footprintjs](https://github.com/footprintjs/footPrint) pipeline exe
 time-travel debugging, flowchart overlays, subflow drill-down, and collapsible detail panels.
 
 The details pane has **Developer** and **Commentary** buttons. Developer opens
-inspection and backtracking; Commentary shows a scrolling transcript of the
-recorded narrative through the selected stage. The flowchart, time controls and
+inspection and backtracking; Commentary shows a scrolling transcript with stage
+headings and recorded messages through the selected stage. The flowchart, time controls and
 drill scope stay in place. Start on Commentary with `defaultView="story"`.
 [See Developer and Commentary details](#developer-and-commentary-details).
 Arrange or hide the optional panes with a [JSON layout](#arrange-the-full-lens-from-json).
@@ -149,7 +149,7 @@ This gives you:
 | `timeTravel` | Shared time and stage-selection controls | Yes |
 | `flowchart` | Execution chart with the existing drill and trace behavior | Yes |
 | `developer` | Developer technical details | No; omit to hide |
-| `commentary` | Accumulated scrolling commentary transcript | No; omit to hide |
+| `commentary` | Accumulated scrolling transcript grouped by stage visit | No; omit to hide |
 | `timeline` | Recorded execution timeline | No; omit to hide |
 
 The definition is plain JSON-compatible data. Store it separately from the run,
@@ -235,6 +235,7 @@ audience does not execute the pipeline again.
 | Details content | Stage inspection and debugging | Scrolling transcript through the selected stage |
 | Commentary surface title | `"What happened"` when composed in a custom layout | `"What happened"` |
 | Commentary surface presentation | `"log"` when composed in a custom layout | `"log"`: the recorded prefix through the cursor |
+| Commentary groups by stage | `true` for the composed surface | `true` |
 | Commentary follows cursor / shows entry-type badges | `true` / `false` for the composed surface | `true` / `false` |
 | Chart and selected stage | Shared | Shared |
 | Previous / next, play / pause, slider | All visible | All visible |
@@ -276,6 +277,7 @@ audience defaults:
   commentary={{
     title: "How we reached this result",
     presentation: "log", // or "current" for only the selected exact visit
+    groupByStage: true,
     followCursor: true, // set false to opt out of automatic scrolling
     showEntryTypes: false,
     maxLines: 100,
@@ -302,14 +304,20 @@ remains a separate, opt-in behavior.
 
 `CommentaryPanel` works inside either `ExplainableProvider` or a full shell's
 `renderLayout`. On its own it defaults to `presentation="log"`,
-`followCursor={false}`, `showEntryTypes={true}`, `maxLines={200}` and the title
+`groupByStage={false}`, `followCursor={false}`, `showEntryTypes={true}`, `maxLines={200}` and the title
 `"Commentary"`. The log shows the recorded prefix through the cursor; `"current"` shows the selected
 visit as an optional alternative. Full Lens commentary defaults to the scrolling
-log with `followCursor={true}` and `showEntryTypes={false}`; set `followCursor`
+log with `groupByStage={true}`, `followCursor={true}` and `showEntryTypes={false}`; set `followCursor`
 to `false` to opt out. It uses exact visits in the active invocation, so a
 loop iteration or repeated subflow does not borrow a sibling's lines. Missing
 or ambiguous identity is reported rather than guessed. Entry-type badges can be
 enabled with `showEntryTypes={true}`. Automatic following respects reduced motion.
+
+Grouping restores the stage-visit headings used by the Run log. Each heading
+keeps its recorded comments, decisions, errors and emitted outcomes together;
+recorded data operations remain available in a disclosure. Loop visits and
+repeated subflows retain their own identities. Set `groupByStage={false}` to
+render the individual transcript rows instead.
 
 Rendering and recording are separate choices. `renderEntry` returns React
 content for an existing `NarrativeEntry`; its `index` and `current` context help
@@ -324,6 +332,14 @@ const story = narrative({
   renderer: {
     renderOp: ({ type, key, valueSummary }) =>
       `${type === "read" ? "Read" : "Wrote"} ${key}: ${valueSummary}`,
+    renderEmit: ({ name, payload }) => {
+      if ((name === "review.comment" || name === "review.outcome") &&
+          payload && typeof payload === "object" &&
+          "message" in payload && typeof payload.message === "string") {
+        return payload.message;
+      }
+      return undefined; // keep the default formatter for other event names
+    },
   },
 });
 executor.attachCombinedRecorder(story);
@@ -337,6 +353,21 @@ const recording = {
 };
 const json = JSON.stringify(recording);
 ```
+
+The stage code supplies its own domain voice. For example, inside a stage:
+
+```ts
+scope.$log("Preparing the review packet."); // producer debug log
+scope.$emit("review.comment", { message: "Checking the request against the limit." });
+scope.$emit("review.outcome", { message: "The result is ready for review." });
+```
+
+`$emit` feeds `renderer.renderEmit` above and saves those words in the narrative.
+`$log` diagnostics are producer-version-dependent; use named `$emit` events for
+portable domain comments and outcomes. A domain outcome must be explicitly recorded or
+supplied by a host's `renderEntry`. The UI does not label the last state write
+as a function's return value or invent a reason for its result.
+A viewer cannot reconstruct application messages that were not captured in the saved run.
 
 ```tsx
 import { TraceViewer } from "footprint-explainable-ui";
@@ -589,7 +620,7 @@ what it wanted instead of rendering empty chrome.
 | `defaultView` | `LensView` | `"developer"` | Initial details audience for the built-in Developer / Commentary buttons |
 | `view` | `LensView` | uncontrolled | Controlled details audience: `"developer"` or `"story"` (Commentary); pair with `onViewChange` for switching |
 | `onViewChange` | `(view: LensView) => void` | — | Receive audience changes; without it, a controlled `view` fixes the audience |
-| `commentary` | `LensCommentaryOptions` | log, follow cursor, no entry-type badges | Commentary `title`, `presentation`, `followCursor`, `showEntryTypes`, `maxLines`, `emptyMessage` and `renderEntry` overrides |
+| `commentary` | `LensCommentaryOptions` | grouped log, follow cursor, no entry-type badges | Commentary `title`, `presentation`, `groupByStage`, `followCursor`, `showEntryTypes`, `maxLines`, `emptyMessage` and `renderEntry` overrides |
 | `replayControls` | `ReplayControlsOptions` | visibility on; interval from view | Configure previous/next, play/pause, slider and an optional fixed `intervalMs` |
 | `layout` | `LensLayoutDefinition` | existing shell arrangement | JSON-compatible named areas over the shared cursor; core `timeTravel` and `flowchart` are required |
 | `title` | `string` | `"Flowchart"` | Breadcrumb root label |
@@ -672,7 +703,7 @@ Give the chart container a height in your layout. These supplied surfaces keep
 the same backtracking, selected visit and subflow drill-down behavior as the
 default shell. `surfaces.commentary` retains cursor and scope synchronization;
 use it directly or mount a `CommentaryPanel` with `presentation="log"`,
-`followCursor` and `showEntryTypes={false}` inside the layout to supply local
+`groupByStage`, `followCursor` and `showEntryTypes={false}` inside the layout to supply local
 rendering props. Custom layouts own their audience
 buttons, as above, or reuse `surfaces.details` for the combined two-choice pane.
 `surfaces.developer` is the whole technical details panel; `surfaces.inspector`
@@ -1396,7 +1427,7 @@ experimental; the ones you will actually reach for are in the first table.
 | `LensView` | `"developer" \| "story"` — details audience; `"story"` is labelled Commentary in the UI |
 | `LensLayoutDefinition` | JSON-compatible full Lens `columns`, optional `rows`, named `areas`, optional `minHeight` and `gap` |
 | `LensLayoutSurface` | Full Lens area names: `timeTravel`, `flowchart`, `developer`, `commentary`, `timeline`, or combined `details` |
-| `LensCommentaryOptions` | Optional commentary title, presentation, follow-cursor, entry-type badges, line limit, empty text and entry renderer |
+| `LensCommentaryOptions` | Optional commentary title, presentation, stage grouping, follow-cursor, entry-type badges, line limit, empty text and entry renderer |
 | `ReplayControlsOptions` | Optional `previousNext`, `playPause`, `slider` and fixed `intervalMs` replay settings |
 | `StageSnapshot` | Core snapshot type for all components |
 | `NarrativeEntry` | Structured narrative entry with type/depth/stageName |

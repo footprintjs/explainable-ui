@@ -11,7 +11,7 @@ export type LensView = "developer" | "story";
 
 /** Recorded prose presentation; text and values still come from the recording. */
 export type LensCommentaryOptions = Pick<CommentaryPanelProps,
-  "title" | "maxLines" | "renderEntry" | "emptyMessage" | "presentation" | "followCursor" | "showEntryTypes"
+  "title" | "maxLines" | "renderEntry" | "emptyMessage" | "presentation" | "followCursor" | "showEntryTypes" | "groupByStage"
 >;
 
 /** One design-system mapping for the complete Lens, including custom layouts. */

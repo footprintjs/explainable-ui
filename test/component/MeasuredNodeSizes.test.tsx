@@ -38,6 +38,30 @@ function mountProbe(initialNodes = nodes, includeHiddenNodes = false) {
 }
 
 describe("MeasuredNodeSizes with controlled ReactFlow internals", () => {
+  it("keeps layout-owned container dimensions out of the card cache through collapse and regrouping", () => {
+    const mount = { ...nodes[0], data: { isGroupContainer: true } };
+    const { store, measure, onSizes } = mountProbe([mount, nodes[1]]);
+    measure({ load: { width: 320, height: 540 }, sum: { width: 80, height: 52 } });
+    expect([...onSizes.mock.calls.at(-1)![0]]).toEqual([["sum", { width: 80, height: 52 }]]);
+
+    act(() => {
+      const node = store.getState().nodeLookup.get("load")!;
+      store.getState().nodeLookup.set("load", { ...node, data: {}, measured: {} });
+      store.setState({});
+    });
+    measure({ load: { width: 132, height: 44 } });
+    expect(onSizes.mock.calls.at(-1)![0].get("load")).toEqual({ width: 132, height: 44 });
+
+    act(() => {
+      const node = store.getState().nodeLookup.get("load")!;
+      store.getState().nodeLookup.set("load", { ...node, data: { isGroupContainer: true }, measured: {} });
+      store.setState({});
+    });
+    measure({ load: { width: 440, height: 700 } });
+    expect(onSizes.mock.calls.at(-1)![0].has("load")).toBe(false);
+    expect(onSizes.mock.calls.at(-1)![0].get("sum")).toEqual({ width: 80, height: 52 });
+  });
+
   it("publishes complete internal footprints even while cached nodesInitialized stays false", () => {
     const { store, measure, onSizes } = mountProbe();
     expect(store.getState().nodesInitialized).toBe(false);

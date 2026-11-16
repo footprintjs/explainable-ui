@@ -26,11 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   Commentary defaults to a readable 2,000 ms replay interval with automatic
   playback still off. `TraceViewer` forwards the same audience options.
 - `commentary` configures the full Lens commentary title, entry renderer, empty text,
-  line limit, entry-type badges, prefix or current-visit presentation and cursor
-  following. The full Lens defaults to the existing accumulated transcript,
-  scrolling with the cursor and hiding entry-type badges; hosts may opt out of
+  line limit, stage grouping, entry-type badges, prefix or current-visit presentation
+  and cursor following. The full Lens defaults to the existing accumulated transcript,
+  grouped by stage, scrolling with the cursor and hiding entry-type badges; hosts may opt out of
   following or explicitly select current-visit prose. Standalone/basic
-  `CommentaryPanel` keeps its log, no-follow and visible-badge defaults.
+  `CommentaryPanel` keeps its log, ungrouped, no-follow and visible-badge defaults.
   `surfaces.commentary` and the public `CommentaryPanel` also work inside a
   full Lens custom layout without a second cursor or narrative recording.
 - Shared `replayControls` options configure previous/next, play/pause, slider
@@ -80,6 +80,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Restore stage headings in the Commentary transcript, keeping recorded inner
+  comments, decisions, errors and explicitly emitted outcomes with their visit.
+  Recorded operations remain expandable, and existing narrative JSON, visit
+  IDs and invocation scopes are preserved. `groupByStage` defaults to `true`
+  in the full Lens and `false` in standalone/basic `CommentaryPanel`.
+- Restore ordinary chart geometry after checking and unchecking the grouping
+  checkbox; stale grouped measurements no longer compress the returned chart.
 - Keep traced execution nodes readable as workflow context and identify the
   recorded cursor with a VIEWING badge without asserting future completion.
 - Metrics separates selected-visit, through-cursor and current-flow values,

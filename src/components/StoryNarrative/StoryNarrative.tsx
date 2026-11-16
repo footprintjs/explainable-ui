@@ -9,10 +9,11 @@
  *
  * Data source: FlowRecorder (fires AFTER stage execution)
  */
-import { useMemo, useRef, useEffect, useState, type CSSProperties } from "react";
+import { useMemo, useRef, useEffect, type CSSProperties } from "react";
 import type { NarrativeEntry, BaseComponentProps, KnownNarrativeEntryType } from "../../types";
-import { theme, componentStyles, FootprintButton } from "../../theme";
+import { theme, componentStyles } from "../../theme";
 import { useTraceMotion } from "../../_internal/useTraceMotion";
+import { RecordedText, RecordedVisit, recordedTextStyle } from "./_internal/RecordedVisit";
 
 export interface StoryNarrativeProps extends BaseComponentProps {
   /** Structured narrative entries from CombinedNarrativeRecorder */
@@ -147,8 +148,6 @@ export function StoryNarrative({
   const renderEntry = (entry: NarrativeEntry, index: number) => {
     const badge = badgeOf(entry.type);
     const heading = entry.type === "stage" || entry.type === "subflow";
-    const emphasis = entry.type === "condition" || entry.type === "retry" || entry.type === "attempt";
-    const failed = entry.type === "error" || entry.type === "break";
     return <div key={index} data-fp="narrative-entry" data-type={entry.type}
       style={sx({ display: "flex", gap: chrome.spaceSm, padding: `${heading ? chrome.spaceSm : chrome.spaceXs} 0`,
         marginLeft: presentation === "visits" ? 0 : `calc(${chrome.spaceMd} * ${Math.min(3, Math.max(0, entry.depth))})`,
@@ -156,9 +155,7 @@ export function StoryNarrative({
       <span title={badge.label} aria-label={badge.label} style={sx({ color: badge.color, fontWeight: chrome.weightStrong,
         width: chrome.iconSize, flexShrink: 0, textAlign: "center", fontSize: chrome.body })}>{badge.icon}</span>
       <span data-fp="narrative-text" style={sx({ minWidth: 0, fontSize: chrome.body, lineHeight: chrome.lineHeight,
-        fontWeight: heading ? chrome.weightStrong : chrome.weightNormal,
-        color: failed ? theme.error : emphasis ? theme.warning : theme.textPrimary,
-        fontFamily: entry.type === "step" ? theme.fontMono : theme.fontSans,
+        ...recordedTextStyle(entry, chrome),
         whiteSpace: "pre-wrap", overflowWrap: "anywhere" })}>
         <RecordedText text={entry.text} size={size} unstyled={unstyled} />
       </span>
@@ -166,31 +163,11 @@ export function StoryNarrative({
   };
   const renderVisit = (group: typeof groups[number]) => {
     const current = !!group.id && group.id === selectedRuntimeStageId;
-    const blocks: { operations: boolean; entries: NarrativeEntry[]; start: number }[] = [];
-    for (const [offset, entry] of group.entries.entries()) {
-      const operations = entry.type === "step", previous = blocks[blocks.length - 1];
-      if (previous?.operations === operations) previous.entries.push(entry);
-      else blocks.push({ operations, entries: [entry], start: offset });
-    }
-    return <section key={`${group.id ?? "unbound"}:${group.start}`} data-fp="narrative-visit"
-      data-runtime-stage-id={group.id} data-current={current || undefined}
-      aria-label={group.id ? `Recorded visit ${group.id}` : "Unbound recorded entries"}
-      style={sx({ border: `${chrome.borderWidth} solid ${current ? theme.accent : theme.border}`,
-        borderRadius: chrome.radiusPanel, padding: chrome.padding, marginBottom: chrome.spaceMd,
-        background: current ? theme.accentBg : theme.bgPrimary, minWidth: 0 })}>
-      {group.id && <header style={sx({ marginBottom: chrome.spaceSm, overflowWrap: "anywhere" })}>
-        <strong style={sx({ fontSize: chrome.body })}>{group.entries.find(entry => entry.stageName)?.stageName ?? "Recorded visit"}</strong>
-        {current && <span style={sx({ color: theme.accent, marginLeft: chrome.spaceSm, fontSize: chrome.small })}>Selected step</span>}
-        <code style={sx({ display: "block", fontFamily: theme.fontMono, fontSize: chrome.small, color: theme.textSecondary, marginTop: chrome.spaceXs })}>{group.id}</code>
-      </header>}
-      {blocks.map(block => block.operations ? <details key={block.start} data-fp="narrative-operations"
-        style={sx({ margin: `${chrome.spaceXs} 0`, overflowWrap: "anywhere" })}>
-        <summary style={sx({ cursor: "pointer", fontSize: chrome.body, color: theme.textSecondary })}>
-          Recorded operations ({block.entries.length})
-        </summary>
-        <div style={sx({ marginTop: chrome.spaceSm })}>{block.entries.map((entry, offset) => renderEntry(entry, block.start + offset))}</div>
-      </details> : <div key={block.start}>{block.entries.map((entry, offset) => renderEntry(entry, block.start + offset))}</div>)}
-    </section>;
+    return <RecordedVisit key={`${group.id ?? "unbound"}:${group.start}`} id={group.id}
+      label={group.entries.find(entry => entry.stageName)?.stageName ?? "Recorded visit"}
+      items={group.entries.map((entry, offset) => ({ entry, index: group.start + offset }))}
+      current={current} showRuntimeId prefix="narrative" renderItem={({ entry, index }) => renderEntry(entry, index)}
+      size={size} unstyled={unstyled} />;
   };
 
   return <div className={className} data-fp="story-narrative" data-presentation={presentation}
@@ -203,22 +180,4 @@ export function StoryNarrative({
     </div>}
     <div ref={latestRef} data-fp="narrative-follow-target" />
   </div>;
-}
-
-function RecordedText({ text, size, unstyled }: { text: string; size: NonNullable<BaseComponentProps["size"]>; unstyled: boolean }) {
-  const [expandedText, setExpandedText] = useState<string | null>(null);
-  const expanded = expandedText === text;
-  const limit = 600;
-  const chrome = componentStyles(size);
-  if (text.length <= limit) return text;
-  return <>
-    <span>{expanded ? text : `${text.slice(0, limit)}…`}</span>
-    <FootprintButton unstyled={unstyled} densitySize={size} part="narrative-text-toggle"
-      aria-expanded={expanded} onClick={() => setExpandedText(value => value === text ? null : text)}
-      defaultStyle={{ display: "block", marginTop: chrome.spaceXs, border: `${chrome.borderWidth} solid ${theme.border}`,
-        borderRadius: chrome.radiusControl, padding: chrome.controlPadding, color: theme.textPrimary,
-        background: theme.bgSecondary, fontSize: chrome.small, cursor: "pointer", fontFamily: theme.fontSans }}>
-      {expanded ? "Show less recorded text" : `Show full recorded text (${text.length} characters)`}
-    </FootprintButton>
-  </>;
 }
