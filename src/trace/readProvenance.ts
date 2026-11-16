@@ -68,18 +68,45 @@ export function indexTraceWrites(writes: readonly RecordedTraceWrite[]): Readonl
   return new Map(writes.map(write => [write.path, write]));
 }
 
-/** Old dot-joined read labels can collide with a different literal-dot key. */
-export function readPathIsUnambiguous(
-  key: string, writes: ReadonlyMap<string, RecordedTraceWrite>, stageReads: readonly string[],
-  selectedPath: string | undefined, nestedReadTracking: boolean,
-): boolean {
-  if (!key.includes(".")) return true;
-  if (!nestedReadTracking) return false;
-  if (selectedPath !== undefined) return writes.get(selectedPath)?.readKeys !== undefined;
-  // The snapshot discriminator describes per-write readKeys, never the older
-  // stageReads display labels. Mixed stage evidence stays conservative.
-  if (!writes.size || [...writes.values()].some(write => write.readKeys === undefined && stageReads.includes(key))) return false;
-  return [...writes.values()].some(write => write.readKeys?.includes(key));
+export type ReadPathUncertainty = "ambiguous-read-path" | "legacy-address-unknown";
+
+interface ReadAddressEvidence {
+  nestedReadTracking: boolean;
+  nestedWrites: boolean;
+  canonicalReads: ReadonlySet<string>;
+  legacyStageReads: ReadonlySet<string>;
+}
+
+/** Index stage inspection evidence once; each read query then stays constant time. */
+export function indexReadAddresses(
+  writes: ReadonlyMap<string, RecordedTraceWrite>, stageReads: ReadonlySet<string>, nestedReadTracking: boolean,
+): ReadAddressEvidence {
+  const canonicalReads = new Set<string>();
+  let nestedWrites = false, stageFallback = !writes.size;
+  for (const write of writes.values()) {
+    if (write.path.includes("\u001f")) nestedWrites = true;
+    if (write.readKeys === undefined) stageFallback = true;
+    else if (nestedReadTracking) for (const key of write.readKeys) canonicalReads.add(key);
+  }
+  return { nestedReadTracking, nestedWrites, canonicalReads,
+    legacyStageReads: nestedReadTracking && stageFallback ? stageReads : new Set() };
+}
+
+/** Old read names omitted namespace addresses and dot-joined nested segments. */
+export function readPathUncertainty(
+  key: string, writes: ReadonlyMap<string, RecordedTraceWrite>, selectedPath: string | undefined,
+  evidence: ReadAddressEvidence,
+): ReadPathUncertainty | undefined {
+  // The discriminator attests per-write readKeys, never legacy stage labels.
+  const canonicalRead = evidence.nestedReadTracking && (selectedPath === undefined
+    ? evidence.canonicalReads.has(key) && !evidence.legacyStageReads.has(key)
+    : writes.get(selectedPath)?.readKeys !== undefined);
+  // Legacy scope-local `x` can collide with a different root writer `x`.
+  // A nested write is evidence of a namespace boundary, never an address map.
+  const nestedWriter = selectedPath === undefined ? evidence.nestedWrites : selectedPath.includes("\u001f");
+  if (!canonicalRead && nestedWriter) return "legacy-address-unknown";
+  if (key.includes(".") && !canonicalRead) return "ambiguous-read-path";
+  return undefined;
 }
 
 /** Exact path lookup only; a prior parent or sibling write is not a leaf writer. */

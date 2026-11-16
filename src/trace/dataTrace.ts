@@ -23,7 +23,7 @@
  */
 
 import { optionalOwnDataField, readOwnArray, WorkBudget } from "./safeRecordRead";
-import { indexTraceWrites, indexWriterCommits, readPathIsUnambiguous, readTraceWrites, readsForWrittenKey, stageReadKeys, writerBefore, type RecordedTraceWrite } from "./readProvenance";
+import { indexReadAddresses, indexTraceWrites, indexWriterCommits, readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, writerBefore, type RecordedTraceWrite } from "./readProvenance";
 
 /** The frame shape DataTracePanel renders. New evidence fields are optional. */
 export interface DataTraceFrame {
@@ -111,9 +111,13 @@ export function buildDataTrace(
 
   const writesByKey = log.map(commit => indexTraceWrites(tracedPaths(commit)));
   const writers = indexWriterCommits(log);
+  const stageReadNames = new Map([...reads].map(([id, keys]) => [id, new Set(keys)]));
+  const noStageReads = new Set<string>();
+  const readAddresses = writesByKey.map((writes, index) => indexReadAddresses(writes, stageReadNames.get(log[index].runtimeStageId) ?? noStageReads, provenance?.nestedReadTracking === true));
 
   const frames: DataTraceFrame[] = [];
   const frameAt = new Map<number, DataTraceFrame>();
+  const frameReads = new Map<number, Set<string>>();
   const visited = new Set<string>();
   // Questions are per written path, even when two paths share one stage visit.
   const queue: Array<[number, number, string, string | undefined]> = [[startIdx, 0, "", targetPath]];
@@ -131,14 +135,14 @@ export function buildDataTrace(
       frame = { runtimeStageId: commit.runtimeStageId, stageId: commit.stageId,
         stageName: commit.stage, keysWritten: tracedPaths(commit).map(t => t.path),
         linkedBy, depth, commitIdx: idx, readKeys: [] };
-      frames.push(frame); frameAt.set(idx, frame);
+      frames.push(frame); frameAt.set(idx, frame); frameReads.set(idx, new Set());
     }
     const selectedReads = readsForWrittenKey(writesByKey[idx], reads.get(commit.runtimeStageId) ?? [], path);
-    frame.readKeys = [...new Set([...frame.readKeys!, ...selectedReads])];
+    for (const key of selectedReads) frameReads.get(idx)!.add(key);
 
     if (depth >= maxDepth) continue;
     for (const key of selectedReads) {
-      if (!readPathIsUnambiguous(key, writesByKey[idx], reads.get(commit.runtimeStageId) ?? [], path, provenance?.nestedReadTracking === true)) continue;
+      if (readPathUncertainty(key, writesByKey[idx], path, readAddresses[idx])) continue;
       const writerIdx = writerBefore(writers, key, idx);
       if (writerIdx >= 0) {
         queue.push([writerIdx, depth + 1, key, key]);
@@ -146,5 +150,6 @@ export function buildDataTrace(
     }
   }
 
+  for (const frame of frames) frame.readKeys = [...frameReads.get(frame.commitIdx!)!];
   return { frames, readsAvailable };
 }

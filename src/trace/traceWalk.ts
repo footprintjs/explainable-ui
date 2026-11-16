@@ -29,7 +29,7 @@ import { rootMountLabels } from "./traceScope";
 import { ownDataField, readOwnArray, WorkBudget } from "./safeRecordRead";
 import { snapshotWalkScope } from "./walkScope";
 import { buildDataTrace } from "./dataTrace";
-import { indexTraceWrites, indexWriterCommits, readPathIsUnambiguous, readTraceWrites, readsForWrittenKey, stageReadKeys, writerBefore, type RecordedTraceWrite } from "./readProvenance";
+import { indexReadAddresses, indexTraceWrites, indexWriterCommits, readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, writerBefore, type RecordedTraceWrite, type ReadPathUncertainty } from "./readProvenance";
 import { handoffSentence, type SubflowHandoffSource } from "./subflowHandoff";
 import { recordedPathLabel } from "./recordedValuePreview";
 import {
@@ -63,8 +63,8 @@ export interface TraceIngredient {
   writerRuntimeStageId: string | null;
   writerStageName: string | null;
   writerCommitIdx: number | null;
-  /** A legacy dotted read cannot be bound safely to a same-labelled write. */
-  unresolvedReason?: "ambiguous-read-path";
+  /** A legacy read name may omit its namespace or canonical path encoding. */
+  unresolvedReason?: ReadPathUncertainty;
 }
 
 /** One stop on the rewind rail — a slice frame with its rail position. */
@@ -183,6 +183,9 @@ export function buildTraceWalk(
 
   const writers = indexWriterCommits(log);
   const writesByKey = log.map(commit => indexTraceWrites(commit.trace));
+  const stageReadNames = new Map([...readsOf].map(([id, keys]) => [id, new Set(keys)]));
+  const noStageReads = new Set<string>();
+  const readAddresses = writesByKey.map((writes, index) => indexReadAddresses(writes, stageReadNames.get(log[index].runtimeStageId) ?? noStageReads, scope?.nestedReadTracking === true));
   const writerOf = (k: string, beforeIdx: number): number => writerBefore(writers, k, Math.min(beforeIdx, log.length));
 
   // ── Anchor: the last writer of `key` within the cutoff ──
@@ -246,9 +249,10 @@ export function buildTraceWalk(
     const writes = writesByKey[commitIdx];
     const stageReads = readsOf.get(stop.runtimeStageId) ?? [];
     const resolve = (readKey: string): TraceIngredient => {
-      if (!readPathIsUnambiguous(readKey, writes, stageReads, writtenKey, scope?.nestedReadTracking === true)) {
+      const uncertainty = readPathUncertainty(readKey, writes, writtenKey, readAddresses[commitIdx]);
+      if (uncertainty) {
         return { key: readKey, writerRuntimeStageId: null, writerStageName: null,
-          writerCommitIdx: null, unresolvedReason: "ambiguous-read-path" };
+          writerCommitIdx: null, unresolvedReason: uncertainty };
       }
       const writer = writerOf(readKey, commitIdx);
       return { key: readKey, writerRuntimeStageId: writer >= 0 ? log[writer].runtimeStageId : null,
@@ -387,8 +391,8 @@ export function formatTraceWalk(
     if (stop.handoffSources?.length) lines.push(handoffSentence(stop.handoffSources));
   });
   if (walk.inputTermini.length > 0) {
-    const ambiguous = new Set(walk.stops.flatMap(stop => stop.ingredients.filter(input => input.unresolvedReason).map(input => input.key)));
-    lines.push(`${ambiguous.size ? "Unresolved reads" : "No local writer"}: ${walk.inputTermini.map(key => `${recordedPathLabel(key)} (${inputSentence(presentation, key, ambiguous.has(key) ? "ambiguous-read-path" : undefined)})`).join(", ")}`);
+    const ambiguous = new Map(walk.stops.flatMap(stop => stop.ingredients.filter(input => input.unresolvedReason).map(input => [input.key, input.unresolvedReason] as const)));
+    lines.push(`${ambiguous.size ? "Unresolved reads" : "No local writer"}: ${walk.inputTermini.map(key => `${recordedPathLabel(key)} (${inputSentence(presentation, key, ambiguous.get(key))})`).join(", ")}`);
   }
   if (!readsAvailable) {
     lines.push(

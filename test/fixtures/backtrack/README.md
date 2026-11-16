@@ -28,4 +28,6 @@ reads as well as exact leaf reads. Backtrack may follow exact leaf writers,
 but those links are recorded prior reads, not expression-level taint or proof
 of complete derivation. Root/intermediate reads without an exact writer stay
 unresolved. UI changes cannot repair missing evidence in immutable historical
-recordings. Dot-joined `stageReads` labels never establish canonical paths.
+recordings. Dot-joined `stageReads` labels never establish canonical paths. Legacy flat
+read names on nested written paths also omit the scope address, so the UI
+cannot choose between a local writer and a root fallback from those names.

@@ -149,17 +149,17 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         data-missing={walk.missing.reason}
         style={{ ...sx({ padding: `calc(${ui.padding} + 2px)`, fontSize: `calc(${ui.body} + 1px)`, lineHeight: ui.lineHeight, fontFamily: theme.fontSans, fontWeight: ui.weightNormal }), ...style }}
       >
-        <CardHeader label={`Why this value — \`${walk.key}\``} onExit={onExit} exitLabel={exitLabel} exitAriaLabel={exitAriaLabel} sx={sx} ui={ui} size={size} unstyled={unstyled} />
+        <CardHeader label={`Why this value — \`${recordedPathLabel(walk.key)}\``} onExit={onExit} exitLabel={exitLabel} exitAriaLabel={exitAriaLabel} sx={sx} ui={ui} size={size} unstyled={unstyled} />
         <QuestionTrail entries={questionTrail} onReturn={onReturnToQuestion} sx={sx} ui={ui} size={size} unstyled={unstyled} />
         {scopeSentence(presentation) && <div data-fp="trace-scope-note">{scopeSentence(presentation)}</div>}
         <div style={sx({ color: theme.textPrimary, marginTop: ui.spaceSm })}>
           {walk.missing.reason === "evidence-unavailable" ? (
-            <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{walk.key}</FootprintCode>: write evidence is unavailable; value origin unknown.</>
+            <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(walk.key)}</FootprintCode>: write evidence is unavailable; value origin unknown.</>
           ) : walk.missing.reason === "never-written" ? (
-            <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{walk.key}</FootprintCode>: {inputLabel}.</>
+            <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{recordedPathLabel(walk.key)}</FootprintCode>: {inputLabel}.</>
           ) : (
             <>
-              <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{walk.key}</FootprintCode> has <b>not been written yet at this
+              <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{recordedPathLabel(walk.key)}</FootprintCode> has <b>not been written yet at this
               moment</b> — its first write happens later
               {walk.missing.firstWriterStageName && (
                 <>
@@ -180,7 +180,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
 
   if (!current) return null;
 
-  const ambiguousTermini = new Set(walk.stops.flatMap(stop => stop.ingredients.filter(input => input.unresolvedReason).map(input => input.key)));
+  const ambiguousTermini = new Map(walk.stops.flatMap(stop => stop.ingredients.filter(input => input.unresolvedReason).map(input => [input.key, input.unresolvedReason] as const)));
   const step = stepNumberOf(current.runtimeStageId);
   const preview = previewValueOf ? recordedValuePreview(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
 
@@ -206,7 +206,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
 
       {viaKey && !questionTrail?.length && (
         <div data-fp="twc-breadcrumb" style={sx({ fontSize: ui.label, color: theme.textMuted, marginTop: ui.spaceXs })}>
-              <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{walk.key}</FootprintCode> ▸ via <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{viaKey}</FootprintCode>
+              <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{recordedPathLabel(walk.key)}</FootprintCode> ▸ via <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(viaKey)}</FootprintCode>
           {onShowAll && (
             <>
               {" · "}
@@ -346,10 +346,10 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           key={source.key}
           type="button"
           data-fp="twc-handoff-source" part="trace-handoff"
-          aria-label={`Follow child source ${source.key} in ${source.mountRuntimeStageId}`}
+          aria-label={`Follow child source ${recordedPathLabel(source.key)} in ${source.mountRuntimeStageId}`}
           onClick={() => onFollowHandoff(source)}
           defaultStyle={sx({ marginTop: ui.controlGap, marginRight: ui.controlGap, border: `${ui.borderWidth} solid ${accent}`, borderRadius: ui.radiusBadge, background: "transparent", color: accent, padding: `calc(${ui.spaceXs} - 1px) calc(${ui.controlPaddingX} + 2px)`, minHeight: ui.controlHeight, cursor: "pointer", fontSize: ui.label })}
-        >Follow child source <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{source.key}</FootprintCode></FootprintButton>)}
+        >Follow child source <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(source.key)}</FootprintCode></FootprintButton>)}
       </div>}
 
       {/* ── Itinerary (the whole walk; current row highlighted) ── */}
@@ -400,7 +400,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         {walk.inputTermini.length > 0 && (
           <div data-fp="twc-run-inputs" style={sx({ fontSize: ui.label, color: theme.textMuted })}>
             ⚑ {ambiguousTermini.size ? "Unresolved reads" : "No local writer"}: {walk.inputTermini.map((k, i) => (
-              <span key={k}>{i > 0 && ", "}<FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(k)}</FootprintCode> ({inputSentence(presentation, k, ambiguousTermini.has(k) ? "ambiguous-read-path" : undefined)})</span>
+              <span key={k}>{i > 0 && ", "}<FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(k)}</FootprintCode> ({inputSentence(presentation, k, ambiguousTermini.get(k))})</span>
             ))}
           </div>
         )}
@@ -491,8 +491,8 @@ function QuestionTrail({ entries, onReturn, sx, ui, size, unstyled }: {
       {entries.map((entry, index) => <span key={`${index}:${entry.key}`} style={sx({ display: "inline-flex", alignItems: "center", gap: ui.controlGap })}>
         {index > 0 && <span aria-hidden="true">›</span>}
         {index === entries.length - 1 ? <span aria-current="step"><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(entry.key)}</FootprintCode></span> : <FootprintButton {...controls} part="trace-question-return" type="button" onClick={() => onReturn?.(index)} disabled={!onReturn}
-          aria-label={`Return to ${entry.key} in ${entry.invocationPath.join(" → ") || "root"}`}
-          title={`${entry.invocationPath.length ? entry.invocationPath.join(" → ") : "Root"}: ${entry.key}`}
+          aria-label={`Return to ${recordedPathLabel(entry.key)} in ${entry.invocationPath.join(" → ") || "root"}`}
+          title={`${entry.invocationPath.length ? entry.invocationPath.join(" → ") : "Root"}: ${recordedPathLabel(entry.key)}`}
           defaultStyle={sx({ padding: 0, border: "none", background: "transparent", color: theme.accent, cursor: "pointer", textDecoration: "underline", fontSize: ui.label, minHeight: ui.controlHeight })}>
           <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(entry.key)}</FootprintCode>
         </FootprintButton>}

@@ -27,7 +27,11 @@ facts and their disagreement. R2's historical ledger distinguishes A's own row 1
 from the old label pointing at empty repeat row 3. The current UI backtracking
 regression now requires row 1: the slice carries the actual writer's commit
 position through its exclusive cutoff instead of re-resolving the visit stamp
-against the full log. Original producer fixtures and the historical ledger stay
+against the full log. Its legacy read name `runs` does not identify a scope
+address for nested writer `runs › a › y`; the current UI keeps that ingredient
+unresolved instead of borrowing Seed's same-labelled root writer. The real
+saved-fixture interaction tests now require that disabled unknown chip and the
+remaining local itinerary callback. Original producer fixtures and the historical ledger stay
 unchanged; this narrow display correction does not publish the record pilot or
 approve its broader migration. R4 retains the historical
 Foottrace 1.0.0 defect observation in the ledger, while its regression now

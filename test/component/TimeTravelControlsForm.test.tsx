@@ -103,6 +103,22 @@ describe.each([false, true])(
       expect(view.onSubmit).not.toHaveBeenCalled();
     });
 
+    it("renders canonical tracing and via paths as readable labels without changing actions", () => {
+      const tracedKey = "runs\u001fitems\u001famount", viaKey = "input\u001fliteral.dot";
+      const onShowAll = vi.fn();
+      const view = renderInForm(unstyled, {
+        tracedKey, viaKey, stopIndices: [0, 1, 2], stopOrdinal: 2, totalStops: 3,
+        onExit: vi.fn(), onShowAll,
+      });
+      const toolbar = view.getByRole("toolbar", { name: "Tracing runs › items › amount" });
+      expect(toolbar.textContent).toContain("runs › items › amount");
+      expect(toolbar.textContent).toContain("via input › literal.dot");
+      expect(toolbar.textContent).not.toContain("\u001f");
+      expect(toolbar.getAttribute("aria-label")).not.toContain("\u001f");
+      fireEvent.click(view.getByRole("button", { name: "show all" }));
+      expect(onShowAll).toHaveBeenCalledOnce();
+    });
+
     it("opens the cause chooser without submitting the host form", () => {
       const onForkPrompt = vi.fn();
       const view = renderInForm(

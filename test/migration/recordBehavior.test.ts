@@ -216,9 +216,10 @@ describe("M1 — diagnostic observations, NOT approved future answers", () => {
     expect(corrections.find(row => row.id === "R2")!.observed).toContain("commitIdx3");
     expect(walk.stops[0].ingredients).toContainEqual({
       key: "runs",
-      writerRuntimeStageId: "seed#0",
-      writerStageName: "Seed",
-      writerCommitIdx: 0,
+      writerRuntimeStageId: null,
+      writerStageName: null,
+      writerCommitIdx: null,
+      unresolvedReason: "legacy-address-unknown",
     });
   });
 });

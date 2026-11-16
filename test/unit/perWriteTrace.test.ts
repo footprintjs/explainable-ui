@@ -69,13 +69,13 @@ describe("exact per-write read prefixes", () => {
     const snapshot = parallel();
     expect(snapshot.sharedState).toMatchObject({ total: 35, runs: { items: { amount: 30 }, delivery: { amount: 5 } } });
     setTotalReads(snapshot, [items, delivery]);
-    const walk = buildTraceWalk(snapshot.commitLog, snapshot.executionTree, "total");
+    const walk = buildTraceWalk(snapshot.commitLog, snapshot.executionTree, "total", { scope: { invocationPath: [], nestedReadTracking: true } });
     expect(walk.stops.map(stop => stop.stageName)).toEqual(["Combine", "Delivery", "Items", "LoadOrder"]);
     expect(walk.stops[0].ingredients.map(input => [input.key, input.writerStageName])).toEqual([[items, "Items"], [delivery, "Delivery"]]);
     expect(walk.stops.find(stop => stop.stageName === "Items")!.commitIdx).toBe(2); // Empty repeat bookend is at 4.
     expect(walk.stops.find(stop => stop.stageName === "Delivery")!.commitIdx).toBe(3); // Empty repeat bookend is at 5.
     const itemVisit = snapshot.commitLog.find(commit => commit.stage === "Items" && commit.trace.length)!.runtimeStageId;
-    expect(buildDataTrace(snapshot.commitLog, snapshot.executionTree, itemVisit, 10, 50, items).frames[0])
+    expect(buildDataTrace(snapshot.commitLog, snapshot.executionTree, itemVisit, 10, 50, items, { nestedReadTracking: true }).frames[0])
       .toMatchObject({ commitIdx: 2, keysWritten: [items], readKeys: ["unitPrice", "quantity"] });
     expect(links(walk)).toEqual(expect.arrayContaining([
       { from: items, to: "total", writer: "Items", kind: "recorded" },
@@ -94,7 +94,7 @@ describe("exact per-write read prefixes", () => {
     const snapshot = parallel();
     const intermediate = ["runs", path("runs", "items"), path("runs", "delivery")];
     setTotalReads(snapshot, [intermediate[0], intermediate[1], items, intermediate[2], delivery]);
-    const walk = buildTraceWalk(snapshot.commitLog, snapshot.executionTree, "total");
+    const walk = buildTraceWalk(snapshot.commitLog, snapshot.executionTree, "total", { scope: { invocationPath: [], nestedReadTracking: true } });
     expect(walk.inputTermini).toEqual(intermediate);
     expect(walk.stops[0].ingredients.filter(input => input.writerRuntimeStageId === null).map(input => input.key)).toEqual(intermediate);
     expect(links(walk).filter(link => link.kind === "unresolved").map(link => link.from)).toEqual(intermediate);
@@ -147,6 +147,42 @@ describe("exact per-write read prefixes", () => {
       { from: "a.b", to: "second", writer: null, kind: "unresolved" },
     ]));
     expect(links(walk).some(link => link.to === "second" && link.writer === "Literal")).toBe(false);
+  });
+
+  it("withholds a legacy scope-local flat read instead of choosing an unrelated root writer", () => {
+    const local = path("runs", "items", "x"), total = path("runs", "items", "total");
+    const log = [commit("Global", [{ path: "x", readKeys: [] }]),
+      commit("Local", [{ path: local, readKeys: [] }]),
+      commit("Use", [{ path: total, readKeys: ["x"] }])];
+    Object.assign(log[0], { overwrite: { x: 1 } });
+    Object.assign(log[1], { overwrite: { runs: { items: { x: 30 } } } });
+    // Actual legacy read value is 30, but its label `x` cannot identify that writer.
+    const executionTree = { runtimeStageId: "global#0", next: { runtimeStageId: "local#0",
+      next: { runtimeStageId: "use#0", stageReads: { x: 30 } } } };
+    const legacy = buildTraceWalk(log, executionTree, total);
+    expect(legacy.stops.map(stop => stop.stageName)).toEqual(["Use"]);
+    expect(legacy.stops[0].ingredients[0]).toMatchObject({ key: "x", writerRuntimeStageId: null,
+      unresolvedReason: "legacy-address-unknown" });
+    expect(formatTraceWalk(legacy, () => null)).toContain("legacy read address is unknown; source unknown");
+    expect(buildDataTrace(log, executionTree, "use#0").frames.map(frame => frame.stageName)).toEqual(["Use"]);
+    delete log[2].trace[0].readKeys;
+    expect(buildTraceWalk(log, executionTree, total).stops[0].ingredients[0].unresolvedReason).toBe("legacy-address-unknown");
+    expect(buildTraceWalk(log, executionTree, total, { scope: { invocationPath: [], nestedReadTracking: true } })
+      .stops[0].ingredients[0].unresolvedReason).toBe("legacy-address-unknown");
+    log[2].trace[0].readKeys = [local];
+    const canonical = buildTraceWalk(log, executionTree, total, { scope: { invocationPath: [], nestedReadTracking: true } });
+    expect(canonical.stops.map(stop => stop.stageName)).toEqual(["Use", "Local"]);
+    expect(canonical.stops[0].ingredients[0].key).toBe(local);
+  });
+
+  it("keeps a legacy root fallback unknown across a nested writer boundary until capture attests the address", () => {
+    const total = path("runs", "items", "total");
+    const log = [commit("Global", [{ path: "x", readKeys: [] }]), commit("Use", [{ path: total, readKeys: ["x"] }])];
+    const legacy = buildTraceWalk(log, tree(log, { Use: ["x"] }), total);
+    expect(legacy.stops.map(stop => stop.stageName)).toEqual(["Use"]);
+    expect(legacy.stops[0].ingredients[0].unresolvedReason).toBe("legacy-address-unknown");
+    const canonical = buildTraceWalk(log, tree(log), total, { scope: { invocationPath: [], nestedReadTracking: true } });
+    expect(canonical.stops.map(stop => stop.stageName)).toEqual(["Use", "Global"]);
   });
 
   it("distinguishes a captured empty prefix from absent legacy readKeys", () => {

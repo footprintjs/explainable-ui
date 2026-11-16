@@ -1,4 +1,4 @@
-import type { TraceWalkScope } from "./traceWalk";
+import type { TraceWalkScope, TraceIngredient } from "./traceWalk";
 /** Scope is explicit serializable data, shared by cards and plain-text clients. */
 export function scopeSentence(
   scope: TraceWalkScope | undefined
@@ -10,9 +10,11 @@ export function scopeSentence(
     : undefined;
 }
 export const START_SENTENCE = "recorded at invocation start; earlier origin unknown";
-export function inputSentence(scope: TraceWalkScope | undefined, key: string, reason?: "ambiguous-read-path"): string {
+export function inputSentence(scope: TraceWalkScope | undefined, key: string, reason?: TraceIngredient["unresolvedReason"]): string {
   return reason === "ambiguous-read-path"
     ? "read path encoding is ambiguous; source unknown"
+    : reason === "legacy-address-unknown"
+    ? "legacy read address is unknown; source unknown"
     : scope?.startKeys?.includes(key)
     ? START_SENTENCE
     : "no recorded write; value unknown";

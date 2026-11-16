@@ -10,7 +10,7 @@ export interface TraceDependencyNode {
   commitIdx: number | null;
   kind: "recorded" | "unresolved" | "outside-view";
   isAnchor: boolean;
-  unresolvedReason?: "ambiguous-read-path";
+  unresolvedReason?: TraceIngredient["unresolvedReason"];
 }
 
 export interface TraceDependencyEdge {

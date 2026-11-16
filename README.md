@@ -862,7 +862,12 @@ relationships and execution status retain their separate meanings.
   scope; detached callers can pass it in `buildTraceWalk`'s `scope` only for
   an attested capture. Without the flag, a dotted read name remains unresolved
   because a legacy nested label can collide with a different literal-dot key.
-  Tree `stageReads` labels remain ambiguous even when the snapshot has the flag.
+  Tree `stageReads` dotted labels remain ambiguous even when the snapshot has
+  the flag. Legacy reads on a nested written path also lack a reliable scope
+  address: a local `x` may collide with a different root `x`, including when
+  its name has no dots. Such reads stay unresolved. Legacy records without
+  nested address evidence keep their historical root-key interpretation;
+  this compatibility fallback does not establish global provenance.
 - **Choose a source explicitly**: branches remain visible in the variable
   map and the recorded-read chips. Select a variable or chip to follow its
   recorded writer. The rail's **Earlier recorded step** and **Later recorded
