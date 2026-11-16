@@ -16,7 +16,7 @@ import { isometricLayout } from './isometricLayout';
 import { IsometricStageNode, IsometricEdge, IsometricGrid } from './IsometricView';
 
 const exampleIconNodeTypes = { [GROUP_CONTAINER_NODE_TYPE]: ExampleGroupContainerNode };
-const isometricNodeTypes = { stageNode: IsometricStageNode };
+const isometricNodeTypes = { isometricStage: IsometricStageNode };
 const isometricIconNodeTypes = { ...isometricNodeTypes, ...exampleIconNodeTypes };
 const isometricEdgeTypes = { isometric: IsometricEdge };
 const isometricAutoFit = { padding: 0.06 };
@@ -152,16 +152,17 @@ function PlaygroundChart({ recording, chartGraph, options, view }: {
     const isometric = options.layout === 'isometric';
     const displayGraph = useMemo(() => isometric ? {
       ...chartGraph,
+      nodes: chartGraph.nodes.map(node => node.type === undefined || node.type === 'stage'
+        ? { ...node, type: 'isometricStage' } : node),
       edges: chartGraph.edges.map(edge => edge.data?.kind === 'loop' || edge.type === 'recordedRead'
         ? edge : { ...edge, type: 'isometric' }),
     } : chartGraph, [chartGraph, isometric]);
 
     return <TracedFlow
       graph={displayGraph}
-      nodeTypes={isometric
-        ? options.iconMode === 'recorded' ? isometricNodeTypes : isometricIconNodeTypes
-        : options.iconMode === 'recorded' ? undefined : exampleIconNodeTypes}
-      edgeTypes={isometric ? isometricEdgeTypes : undefined}
+      nodeTypes={options.iconMode === 'recorded' ? isometricNodeTypes : isometricIconNodeTypes}
+      // Keep registered types stable while xyflow reconciles a view change.
+      edgeTypes={isometricEdgeTypes}
       background={isometric ? false : undefined}
       autoFit={isometric ? isometricAutoFit : undefined}
       overlay={recording.runtimeOverlay}
