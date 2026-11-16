@@ -48,6 +48,18 @@ const RECORDING: ExplainableRecording = {
 afterEach(cleanup);
 
 describe("ExplainableView composable recording UI", () => {
+  it("forwards replay visibility and scrubbing to the provider's shared cursor", () => {
+    const view = render(<ExplainableView recording={RECORDING} layout="linear"
+      replayControls={{ previousNext: false, playPause: false, slider: true, intervalMs: 2_000 }} />);
+    expect(view.queryByRole("button", { name: "Previous stage" })).toBeNull();
+    expect(view.queryByRole("button", { name: "Next stage" })).toBeNull();
+    expect(view.queryByRole("button", { name: "Play" })).toBeNull();
+    const slider = view.getByRole("slider", { name: "Replay position" });
+    fireEvent.change(slider, { target: { value: "1" } });
+    expect(view.container.querySelector('[data-fp="value-inspector"]')?.textContent).toContain("beta");
+    expect(slider.getAttribute("aria-valuetext")).toBe("Step 2 of 2: beta");
+  });
+
   it("parses external JSON and synchronizes timeline, inspector, and commentary", async () => {
     const { container, getByRole, queryByText, getByText } = render(
       <ExplainableView

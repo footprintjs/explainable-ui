@@ -1,15 +1,17 @@
 import * as React from "react";
 
 import type { BaseComponentProps } from "../../types";
-import { TimeTravelControls } from "../TimeTravelControls";
+import { TimeTravelControls, type ReplayControlsOptions } from "../TimeTravelControls";
 import { useExplainableRun } from "./ExplainableContext";
 
 export interface TimeTravelBarProps extends BaseComponentProps {
   readonly autoPlayable?: boolean;
+  readonly replayControls?: ReplayControlsOptions;
 }
 
 export function TimeTravelBar({
   autoPlayable = true,
+  replayControls,
   size,
   unstyled = false,
   className,
@@ -23,6 +25,7 @@ export function TimeTravelBar({
       selectedIndex={selectedIndex}
       onIndexChange={selectIndex}
       autoPlayable={autoPlayable}
+      replayControls={replayControls}
       size={size}
       unstyled={unstyled}
       className={className}

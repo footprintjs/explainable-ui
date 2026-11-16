@@ -20,6 +20,10 @@ import { EmptyShell, MissingChartNote } from "./_internal/ShellChrome";
 import { KeyedRecorderView } from "./_internal/KeyedRecorderView";
 import { RightPanel, type RightPanelMode } from "./_internal/RightPanel";
 import { ShellLayout, ShellDetailTabs, UnstyledShellLayout } from "./_internal/ShellLayout";
+import { LensDetailsPanel } from "./_internal/LensDetailsPanel";
+// The JSON arrangement composes these same mounted Lens surfaces.
+import { LensGridLayout } from "./_internal/LensGridLayout";
+import type { LensLayoutDefinition } from "../../model/lensLayout";
 import { TraceSessionPanel } from "./_internal/TraceSessionPanel";
 import { TraceDependencyView } from "../DataTracePanel/TraceDependencyView";
 import { SubflowNavigationStatus } from "./_internal/SubflowNavigationStatus";
@@ -34,13 +38,15 @@ import { buildTraceWorkflowOverlay, type TraceWorkflowOverlay } from "../../trac
 import { projectStageActivity, type StageActivityTraceTarget } from "../../trace/stageActivity";
 import { StageActivityPanel } from "../StageActivityPanel";
 import { InspectorPanel } from "../InspectorPanel/InspectorPanel";
-import { LensWorkbenchContext, type LensTheme, type LensWorkbenchContextValue, type LensWorkbenchLayout } from "./LensWorkbench";
+import { LensWorkbenchContext, type LensTheme, type LensWorkbenchContextValue, type LensWorkbenchLayout, type LensView, type LensCommentaryOptions } from "./LensWorkbench";
+import { CommentaryPanel } from "../ExplainableView/CommentaryPanel";
 import { InsightPanel } from "../InsightPanel/InsightPanel";
 import { insightName } from "../../model/recorderView";
 import { devWarn } from "../FlowchartView/_internal/devWarn";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
 import { TimeTravelRail } from "../TimeTravelControls/TimeTravelControls";
+import type { ReplayControlsOptions } from "../TimeTravelControls";
 import { prefersReducedMotion } from "../TimeTravelControls/prefersReducedMotion";
 import { MemoryPanel } from "../MemoryPanel";
 import { NarrativePanel } from "../NarrativePanel";
@@ -305,10 +311,22 @@ export interface ExplainableShellProps extends BaseComponentProps {
    * tracing, or with fewer than two stages. Default false.
    */
   autoPlay?: boolean;
+  /** Controlled details audience. Both views keep the same chart, selection and subflow. */
+  view?: LensView;
+  /** Initial details audience when view is uncontrolled. Default developer. */
+  defaultView?: LensView;
+  /** Request an audience change from the two Details buttons. */
+  onViewChange?: (view: LensView) => void;
+  /** Configure recorded prose in Story and the custom-layout commentary surface. */
+  commentary?: LensCommentaryOptions;
+  /** Choose replay controls and an optional reading interval without creating a second cursor. */
+  replayControls?: ReplayControlsOptions;
   /** Brand tokens and native-control adapters; explicit tokens override mode. */
   theme?: LensTheme;
   /** Own the layout while retaining the complete Lens selection, drill and backtrack behavior. */
   renderLayout?: LensWorkbenchLayout;
+  /** Serializable named-area layout. Omitted optional surfaces stay hidden. renderLayout takes precedence. */
+  layout?: LensLayoutDefinition;
 }
 
 export function ExplainableShell({
@@ -328,6 +346,12 @@ export function ExplainableShell({
   renderFlowchart,
   theme: consumerTheme,
   renderLayout,
+  layout,
+  view: controlledView,
+  defaultView = "developer",
+  onViewChange,
+  commentary,
+  replayControls,
   showStageId = false,
   autoPlay = false,
   traceGraph,
@@ -338,6 +362,14 @@ export function ExplainableShell({
   className,
   style,
 }: ExplainableShellProps) {
+  const [uncontrolledView, setUncontrolledView] = useState<LensView>(defaultView);
+  const view = controlledView ?? uncontrolledView;
+  const handleViewChange = useCallback((next: LensView) => {
+    if (controlledView === undefined) setUncontrolledView(next);
+    onViewChange?.(next);
+  }, [controlledView, onViewChange]);
+  // Fixed controlled views show an audience label, never inert toggle buttons.
+  const changeDetailsView = controlledView === undefined || onViewChange ? handleViewChange : undefined;
   // A run recorded WITH footprintjs's narrative recorder carries its story
   // inside the snapshot, so a replayed recording tells the same story the
   // live run did — no executor left to call getNarrativeEntries() on. The
@@ -679,7 +711,7 @@ export function ExplainableShell({
   const autoPlayRun = sourceRunId ?? snapshots;
   // A new run plays from its own first stage, so it leaves the drill. During
   // render, so the rail never sees the new run from inside the old subflow.
-  if (autoPlay && navigation.sourceChanged && navigation.isDrilled && !prefersReducedMotion()) {
+  if (autoPlay && replayControls?.playPause !== false && snapshots.length >= 2 && navigation.sourceChanged && navigation.isDrilled && !prefersReducedMotion()) {
     navigation.resetRoot();
   }
   // Each run is offered to autoPlay once. The shell holds that memory because
@@ -687,6 +719,9 @@ export function ExplainableShell({
   // remounts it, and a fresh rail must not rewind over a person's Pause.
   const offeredRun = useRef<unknown>(undefined);
   const railAutoPlay = autoPlay && !isInSubflow;
+  const effectiveReplayControls = view === "story"
+    ? { intervalMs: 2000, ...replayControls }
+    : replayControls;
   const currentLevel = useMemo(() => {
     const top = selectedStack.at(-1);
     return (
@@ -1111,11 +1146,30 @@ export function ExplainableShell({
       onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey,
       onSubflowChange: handleChartSubflowChange, traceWorkflow, unstyled, ...(sliceCone && { sliceCone }) })} /> : null}
   </TraceDependencyView>;
+  const commentarySurface = <CommentaryPanel title="What happened" presentation="log" followCursor showEntryTypes={false}
+    {...commentary} size={size} unstyled={unstyled} />;
+  const runDataSurface = <InsightPanel mode="tabs" expandedId={activeTab} size={size} unstyled={unstyled}
+    insights={allTabs.filter(tab => tab.id !== "result" && tab.id !== "memory").map(tab => ({
+      id: tab.id, name: insightName(tab.name), render: () => renderTabBody(tab.id, unstyled),
+    }))} />;
+  const resultSurface = allTabs.some(tab => tab.id === "result") ? renderTabBody("result", unstyled) : null;
+  const developerSurface = unstyled ? <>{inspectorSurface}{runDataSurface}{resultSurface}</> : <RightPanel mode={rightPanelMode} onModeChange={setRightPanelMode}
+    dataTrace={shellDataTrace} onInspectorTabChange={handleInspectorTabChange} inspectorTab={inspectorTab}
+    traceContent={traceTabContent} snapshots={activeSnapshots} selectedIndex={safeIdx}
+    activity={stageActivity} activitySelected={activitySelected} onActivitySelect={handleActivitySelect}
+    selectedActivityVariableId={selectedActivityVariableId} onActivityVariableSelect={handleActivityVariableSelect}
+    onTraceActivityVariable={handleTraceActivityVariable}
+    activeTab={activeTab} allTabs={allTabs} renderTabBody={renderTabBody} size={size}
+    onNavigateToStage={navigateToStage} />;
+  const detailsSurface = <LensDetailsPanel view={view} onViewChange={changeDetailsView} size={size} unstyled={unstyled}
+    commentary={commentarySurface} developer={developerSurface} />;
   const workbench: LensWorkbenchContextValue = {
     snapshots: activeSnapshots, selectedIndex: safeIdx, selectedSnapshot: activeSnapshots[safeIdx],
     invocationPath: activeTraceScope.invocationPath, activity: stageActivity,
     selectedActivityVariableId: selectedActivityVariableId ?? stageActivity.writes[0]?.id ?? stageActivity.reads[0]?.id,
-    narrativeEntries: activeNarrativeEntries ?? [], traceWalk: traceSession.traceWalk,
+    narrativeEntries: activeNarrativeEntries ?? [],
+    narrativeAvailable: !companionNarrativeMissing && !navigation.sourceChanged,
+    narrativeScopeSubflowId, traceWalk: traceSession.traceWalk,
     questionTrail: traceSession.questionTrail, activityOrigin: traceSession.activityOrigin,
     actions: {
       selectIndex: handleSnapshotChange, selectStage: navigateToStage, drillDown: handleDrillDown,
@@ -1129,18 +1183,18 @@ export function ExplainableShell({
     },
     surfaces: {
       timeTravel: <TimeTravelRail snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange}
-        size={size} unstyled={unstyled} tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} />,
+        size={size} unstyled={unstyled} tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} replayControls={effectiveReplayControls} />,
       navigation: navigationStatus,
       breadcrumb: isInSubflow ? <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} unstyled={unstyled} /> : null,
       chart: chartSurface,
+      commentary: commentarySurface,
       topology: <SubflowTree graph={traceGraph ?? { nodes: [], edges: [] }} activeStage={rootOverlay.activeStage}
         doneStages={rootOverlay.doneStages} onNodeSelect={handleTreeNodeSelect} unstyled={unstyled} />,
       inspector: inspectorSurface,
-      runData: <InsightPanel mode="tabs" expandedId={activeTab} size={size} unstyled={unstyled}
-        insights={allTabs.filter(tab => tab.id !== "result" && tab.id !== "memory").map(tab => ({
-          id: tab.id, name: insightName(tab.name), render: () => renderTabBody(tab.id, unstyled),
-        }))} />,
-      result: allTabs.some(tab => tab.id === "result") ? renderTabBody("result", unstyled) : null,
+      developer: developerSurface,
+      details: detailsSurface,
+      runData: runDataSurface,
+      result: resultSurface,
       timeline: <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} unstyled={unstyled} />,
       compactTimeline: <CompactTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} defaultExpanded={timelineExpanded} label={bottomLabel} size={size} unstyled={unstyled} />,
     },
@@ -1153,6 +1207,21 @@ export function ExplainableShell({
       className={className} style={{ ...shellThemeVars, ...style }}>{renderLayout(workbench)}</div>);
   }
 
+  if (layout && snapshots.length > 0) {
+    return withWorkbench(<LensGridLayout layout={layout}
+      containerRef={unstyled ? setUnstyledShellElement : setShellElement} onKeyDown={handleShellKeyDown}
+      className={className} style={style} themeStyle={shellThemeVars} isNarrow={isNarrow}
+      size={size} unstyled={unstyled} surfaces={{
+        timeTravel: workbench.surfaces.timeTravel,
+        flowchart: <div style={unstyled ? undefined : { display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+          {navigationStatus}{workbench.surfaces.breadcrumb}
+          <div style={unstyled ? undefined : { flex: 1, minHeight: 0, overflow: "hidden" }}>{showExecutionChart || traceSession.traceWalk ? chartSurface : <MissingChartNote unstyled={unstyled} />}</div>
+        </div>,
+        developer: developerSurface, commentary: commentarySurface,
+        details: detailsSurface, timeline: workbench.surfaces.timeline,
+      }} />);
+  }
+
   // ── Unstyled mode ──
   if (unstyled) {
     if (snapshots.length === 0) return withTheme(renderEmptyState({}));
@@ -1163,21 +1232,25 @@ export function ExplainableShell({
     >
           {isExplainableTab(activeTab) ? (
             <>
-              <TimeTravelRail snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} />
+              <TimeTravelRail snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange} unstyled tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} replayControls={effectiveReplayControls} />
               {navigationStatus}
               {isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} unstyled={unstyled} />}
               {chartSurface}
               {missingChart && <MissingChartNote unstyled />}
+              <LensDetailsPanel view={view} onViewChange={changeDetailsView} size={size} unstyled
+                commentary={commentarySurface} developer={<>
               <StageActivityPanel activity={stageActivity} onTraceVariable={handleTraceActivityVariable}
                 selectedVariableId={selectedActivityVariableId} onVariableSelect={handleActivityVariableSelect}
                 onNavigateToStage={navigateToStage} size={size} unstyled />
               {traceSession.tracing && traceTabContent}
               <MemoryPanel snapshots={activeSnapshots} selectedIndex={safeIdx} unstyled />
               {companionNarrativeMissing ? <StoryUnavailableNote /> : <NarrativePanel snapshots={activeSnapshots} selectedIndex={safeIdx} narrativeEntries={activeNarrativeEntries} scopeSubflowId={narrativeScopeSubflowId} presentation="visits" unstyled />}
+                </>} />
               <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} unstyled />
             </>
           ) : (
-            renderTabBody(activeTab, true)
+            <LensDetailsPanel view={view} onViewChange={changeDetailsView} size={size} unstyled
+              commentary={commentarySurface} developer={renderTabBody(activeTab, true)} />
           )}
     </UnstyledShellLayout>);
   }
@@ -1226,22 +1299,16 @@ export function ExplainableShell({
     timeline={{ label: bottomLabel, expanded: timelineExpanded, onChange: toggleTimeline }}
     slots={{
       rail: <TimeTravelRail snapshots={activeSnapshots} selectedIndex={safeIdx} onIndexChange={handleSnapshotChange}
-        size={size} tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} />,
+        size={size} tracing={tracingRail} autoPlay={railAutoPlay} autoPlayKey={autoPlayRun} offered={offeredRun} replayControls={effectiveReplayControls} />,
       navigation: navigationStatus,
       breadcrumb: isInSubflow && <SubflowBreadcrumb breadcrumbs={breadcrumbs} onNavigate={handleBreadcrumbNavigate} unstyled={unstyled} />,
       chart: chartSurface,
       missingChart: missingChart && <MissingChartNote />,
       tree: <SubflowTree graph={traceGraph ?? { nodes: [], edges: [] }} activeStage={rootOverlay.activeStage}
         doneStages={rootOverlay.doneStages} onNodeSelect={handleTreeNodeSelect} unstyled={unstyled} />,
-      mobileDetails: detailsPanel,
-      desktopDetails: <RightPanel mode={rightPanelMode} onModeChange={setRightPanelMode}
-        dataTrace={shellDataTrace} onInspectorTabChange={handleInspectorTabChange} inspectorTab={inspectorTab}
-        traceContent={traceTabContent} snapshots={activeSnapshots} selectedIndex={safeIdx}
-        activity={stageActivity} activitySelected={activitySelected} onActivitySelect={handleActivitySelect}
-        selectedActivityVariableId={selectedActivityVariableId} onActivityVariableSelect={handleActivityVariableSelect}
-        onTraceActivityVariable={handleTraceActivityVariable}
-        activeTab={activeTab} allTabs={allTabs} renderTabBody={renderTabBody} size={size}
-        onNavigateToStage={navigateToStage} />,
+      mobileDetails: <LensDetailsPanel view={view} onViewChange={changeDetailsView} size={size}
+        commentary={commentarySurface} developer={detailsPanel} />,
+      desktopDetails: detailsSurface,
       gantt: <GanttTimeline snapshots={activeSnapshots} selectedIndex={safeIdx} onSelect={handleSnapshotChange} size={size} />,
       compactTimeline: <CompactTimeline snapshots={activeSnapshots} selectedIndex={safeIdx}
         defaultExpanded={timelineExpanded} label={bottomLabel} size={size} unstyled={unstyled} />,

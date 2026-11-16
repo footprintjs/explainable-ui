@@ -81,7 +81,7 @@ export type TraceParseError =
 export interface TraceViewerProps
   extends Pick<
     ExplainableShellProps,
-    'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'traceTheme' | 'autoPlay'
+    'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'traceTheme' | 'autoPlay' | 'view' | 'defaultView' | 'onViewChange' | 'commentary' | 'replayControls' | 'renderLayout' | 'layout'
     >,
     ThemeModeProps {
   /**
@@ -216,6 +216,13 @@ export function TraceViewer({
   renderFlowchart,
   traceTheme,
   autoPlay,
+  view,
+  defaultView,
+  onViewChange,
+  commentary,
+  replayControls,
+  renderLayout,
+  layout,
   theme: themeMode,
 }: TraceViewerProps): React.ReactElement | null {
   const input = recording ?? trace;
@@ -270,6 +277,13 @@ export function TraceViewer({
       recorderViews={recorderViews}
       renderFlowchart={renderFlowchart}
       autoPlay={autoPlay}
+      view={view}
+      defaultView={defaultView}
+      onViewChange={onViewChange}
+      commentary={commentary}
+      replayControls={replayControls}
+      renderLayout={renderLayout}
+      layout={layout}
       // One word re-themes the whole viewer; `traceTheme` stays the finer
       // control (it also carries the two node-state colours).
       traceTheme={traceTheme ?? (themeMode ? { mode: themeMode } : undefined)}
