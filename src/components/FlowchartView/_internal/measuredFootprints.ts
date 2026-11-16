@@ -31,6 +31,7 @@ import type { NodeFootprint } from "./dagreTraceLayout";
 export interface MeasuredLike {
   readonly measured?: { readonly width?: number; readonly height?: number };
   readonly hidden?: boolean;
+  readonly data?: { readonly isGroupContainer?: unknown };
 }
 
 /**
@@ -66,6 +67,9 @@ export interface MeasuredFootprintState {
  * ReactFlow nodes can have measured internals while the user-node-based
  * `nodesInitialized` flag remains false. Hidden nodes are optional constraints,
  * but an empty or entirely hidden view never supplies a drawable measurement.
+ * Layout-generated containers participate in readiness but not the intrinsic
+ * size cache. They already carry authoritative box dimensions on their style;
+ * a mount id can later become a content-sized drill card again.
  */
 export function readMeasuredFootprints(
   entries: Iterable<readonly [string, MeasuredLike]>,
@@ -78,7 +82,11 @@ export function readMeasuredFootprints(
     if (includeHiddenNodes || !entry[1].hidden) relevant.push(entry);
   }
   const sizes = extractMeasuredFootprints(relevant);
-  return { sizes, ready: visibleCount > 0 && sizes.size === relevant.length };
+  const ready = visibleCount > 0 && sizes.size === relevant.length;
+  for (const [id, node] of relevant) {
+    if (node.data?.isGroupContainer === true) sizes.delete(id);
+  }
+  return { sizes, ready };
 }
 
 /**

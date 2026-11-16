@@ -1146,7 +1146,7 @@ export function ExplainableShell({
       onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey,
       onSubflowChange: handleChartSubflowChange, traceWorkflow, unstyled, ...(sliceCone && { sliceCone }) })} /> : null}
   </TraceDependencyView>;
-  const commentarySurface = <CommentaryPanel title="What happened" presentation="log" followCursor showEntryTypes={false}
+  const commentarySurface = <CommentaryPanel title="What happened" presentation="log" groupByStage followCursor showEntryTypes={false}
     {...commentary} size={size} unstyled={unstyled} />;
   const runDataSurface = <InsightPanel mode="tabs" expandedId={activeTab} size={size} unstyled={unstyled}
     insights={allTabs.filter(tab => tab.id !== "result" && tab.id !== "memory").map(tab => ({
