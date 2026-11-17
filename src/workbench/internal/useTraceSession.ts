@@ -250,22 +250,12 @@ export function useTraceSessionController({
     if (sourceChanged || !tracing || tracing.scope !== activeTraceKey || !activeTraceScope.availability.ok) return null;
     const anchor = tracing.via.at(-1) ?? tracing;
     if (!readerStillRecorded(anchor, activeTraceScope.commitLog)) return null;
-    const walk = buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, anchor.key, {
+    return buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, anchor.key, {
       beforeCommitIdx: anchor.beforeCommitIdx,
       readerCommitIdx: anchor.readerCommitIdx,
       scope: walkScope(activeTraceScope),
+      runtimeSnapshot,
     });
-    return {
-      ...walk,
-      stops: walk.stops.map(stop => {
-        const sources = subflowHandoffSources({
-          snapshot: runtimeSnapshot, invocationPath: activeTraceScope.invocationPath,
-          mountRuntimeStageId: stop.runtimeStageId, writtenKeys: stop.contributedKeys,
-          beforeCommitIdx: Math.min(stop.commitIdx + 1, anchor.beforeCommitIdx ?? activeTraceScope.commitLog.length),
-        });
-        return sources.length ? { ...stop, handoffSources: sources } : stop;
-      }),
-    };
   }, [tracing, activeTraceScope, activeTraceKey, sourceChanged, runtimeSnapshot]);
 
   const traceStopIndices = useMemo(() => {

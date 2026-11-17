@@ -1,5 +1,5 @@
 import * as react from 'react';
-import { ElementType, ButtonHTMLAttributes, RefAttributes, InputHTMLAttributes, HTMLAttributes, ReactNode, CSSProperties } from 'react';
+import { ReactNode, ElementType, HTMLAttributes, RefAttributes, ButtonHTMLAttributes, InputHTMLAttributes, CSSProperties } from 'react';
 import { Node, Edge } from '@xyflow/react';
 
 /** Snapshot of a single pipeline stage — the core data shape for all components. */
@@ -90,6 +90,65 @@ interface BaseComponentProps {
     style?: React.CSSProperties;
 }
 
+/**
+ * Same-Rail Rewind (tracing mode) — the rail's AXIS never changes, only its
+ * stops do: every dependency was committed earlier than the value it fed, so
+ * a backward slice is a sub-sequence of this same timeline. When `tracing`
+ * is set, slice members stay landable ("stops"), everything else fades to
+ * unlandable ticks, and prev/next walk stop-to-stop ("◀ earlier recorded step").
+ * The cursor stays the ONE `selectedIndex` — no second position exists.
+ *
+ * THEMING: tracing mode recolors its chrome with ONE token, `--fp-tracing`
+ * (default #0d9488 teal) — the TRACING badge, the rail's bottom border, the
+ * stop ticks, the walk buttons, and Done — so the tracing rail is
+ * unmistakably not normal time-travel. Consumers retheme by setting
+ * `--fp-tracing` on any ancestor. Normal mode never reads the token.
+ */
+interface TracingRail {
+    /** The traced variable — rendered in the mode header. */
+    tracedKey: string;
+    /** Set while an ingredient filter is active ("▸ via key"). */
+    viaKey?: string | null;
+    /** Snapshot indices that are stops, ASCENDING. All other ticks become
+     *  faint and unlandable (context, not destinations). */
+    stopIndices: number[];
+    /** 1-based position of the cursor in WALK order (newest first) + total —
+     *  the "stop 2 of 6" label. */
+    stopOrdinal: number;
+    totalStops: number;
+    /** Exit tracing (button / Escape). The host decides where to return. */
+    onExit: () => void;
+    /** Optional return destination; defaults to the legacy Done label. */
+    exitLabel?: string;
+    /** Accessible return action; defaults to Exit tracing. */
+    exitAriaLabel?: string;
+    /** Clear the via filter back to the full walk (breadcrumb's "show all"). */
+    onShowAll?: () => void;
+    /** Ingredient count at the CURRENT stop. At the earliest landable stop,
+     *  >= 2 together with `onForkPrompt` offers "choose cause…" instead of a
+     *  disabled button. Earlier recorded steps otherwise remain reachable in
+     *  time order; following a particular input is a separate action. */
+    forkCount?: number;
+    /** Open the fork chooser at the earliest landable stop when `forkCount >= 2`
+     *  (click or ArrowLeft on the walk-back control). */
+    onForkPrompt?: () => void;
+}
+interface ReplayControlsOptions {
+    /** Native thumb or per-stage segments over the same discrete cursor. Default segmented. */
+    presentation?: 'segmented' | 'range';
+    /** Segment spacing by step, recorded duration, or log1p(duration in ms). Default steps.
+     * This changes geometry, never playback pace or the selected recorded step. */
+    scale?: 'steps' | 'duration' | 'log-duration';
+    /** Show previous/next actions and enable their toolbar arrow shortcuts. Default true. */
+    previousNext?: boolean;
+    /** Show Play/Pause and allow manual or automatic playback. Default true. */
+    playPause?: boolean;
+    /** Show the position rail and its native range scrubbing control. Default true. */
+    slider?: boolean;
+    /** Fixed milliseconds per replay step, clamped to 200–10,000. Omit for proportional timing. */
+    intervalMs?: number;
+}
+
 /** Scope admission only. Existing dataTrace / traceWalk own traversal. */
 
 type TraceAvailability = {
@@ -111,6 +170,124 @@ interface TraceScope {
     /** Names only; a start snapshot does not attest input-mapping versus resume origin. */
     startKeys?: readonly string[];
 }
+
+/** Names-only read evidence. Canonical paths stay opaque: no dot/prefix aliases. */
+
+type ReadPathUncertainty = "ambiguous-read-path" | "legacy-address-unknown" | "read-window-ambiguous" | "related-write";
+
+/** A navigation target, never a foreign key inserted into the parent's read set. */
+interface SubflowHandoffSource {
+    readonly key: string;
+    readonly mountRuntimeStageId: string;
+    readonly invocationPath: readonly string[];
+    /** Exclusive position on the child's displayed history, without its seed bookend. */
+    readonly beforeCommitIdx: number;
+}
+
+/** Explicit, serializable presentation and recording scope. Child ancestry stays unknown. */
+interface TraceWalkScope {
+    readonly invocationPath: readonly string[];
+    readonly mountLabels?: Readonly<Record<string, string>>;
+    readonly readsAvailable?: boolean;
+    /** Explicit producer discriminator for canonical per-write read paths. */
+    readonly nestedReadTracking?: true;
+    /** Recorded non-undefined starting keys, without their values or inferred origin. */
+    readonly startKeys?: readonly string[];
+}
+interface TraceWalkOptions {
+    beforeCommitIdx?: number;
+    /** ARRAY index of a recorded reader; binds the selected read using its native window. */
+    readerCommitIdx?: number;
+    maxDepth?: number;
+    maxFrames?: number;
+    scope?: TraceWalkScope;
+    /** Optional matching native snapshot, containing only currently admitted child
+     * units. Captured output handoffs add exact child targets, never child stops. */
+    runtimeSnapshot?: unknown;
+}
+/** One read key of a stop, resolved to the commit that wrote it. */
+interface TraceIngredient {
+    key: string;
+    /** null = no safely bound prior local writer, including ambiguous legacy paths. */
+    writerRuntimeStageId: string | null;
+    writerStageName: string | null;
+    writerCommitIdx: number | null;
+    /** A legacy read name may omit its namespace or canonical path encoding. */
+    unresolvedReason?: ReadPathUncertainty;
+}
+/** One stop on the rewind rail — a slice frame with its rail position. */
+interface TraceStop {
+    runtimeStageId: string;
+    stageId: string;
+    stageName: string;
+    /** Position in the commit log — the stop's place on the time rail. */
+    commitIdx: number;
+    /** The slice keys DOWNSTREAM members read from this stop (what it
+     *  contributed to the traced value). The anchor contributes the traced
+     *  key itself. */
+    contributedKeys: string[];
+    keysWritten: string[];
+    ingredients: TraceIngredient[];
+    /** Exact per-output read prefixes. Older caller-supplied walks may omit it. */
+    ingredientsByKey?: Readonly<Record<string, readonly TraceIngredient[]>>;
+    /** BFS hop distance from the anchor (tooltip-grade info, NOT the walk
+     *  order — the walk order is time). */
+    depth: number;
+    /** 1-based pass number when the same stage appears more than once in
+     *  the walk (loop iterations); 0 = appears once. */
+    loopPass: number;
+    /** Admitted child targets; their histories remain on their own cursor rail. */
+    handoffSources?: readonly SubflowHandoffSource[];
+}
+interface TraceWalkMissing {
+    /** A supplied read may be recorded without one certain source. */
+    unresolvedReason?: ReadPathUncertainty;
+    reason: "never-written" | "not-yet-written" | "evidence-unavailable";
+    /** For 'not-yet-written': where the FIRST write actually happens. */
+    firstWriteCommitIdx?: number;
+    firstWriterRuntimeStageId?: string;
+    firstWriterStageName?: string;
+}
+interface TraceWalk {
+    /** Detached scope, including root mount labels derived from recorded metadata. */
+    readonly scope?: TraceWalkScope;
+    key: string;
+    /** Stops in WALK ORDER: commitIdx DESCENDING. stops[0] is the anchor
+     *  (the last writer of `key` within the cutoff). */
+    stops: TraceStop[];
+    /** Non-null ⇒ zero stops: the honest-absence card, not an empty chain. */
+    missing: TraceWalkMissing | null;
+    /** Read keys with no safely bound local writer, deduped in encounter order.
+     * Their earlier origin requires separate starting-state evidence. */
+    inputTermini: string[];
+    /** False when the snapshot recorded no reads anywhere — the chain is
+     *  UNKNOWABLE (not absent) beyond the anchor. */
+    readsAvailable: boolean;
+    /** True when the underlying slice hit its frame/depth budget — the
+     *  earliest stop may not be the true origin. */
+    truncated: boolean;
+}
+/**
+ * Build the rewind walk for `key`.
+ *
+ * `beforeCommitIdx` (EXCLUSIVE) scopes the question to "the value as it
+ * stood before that moment" — it is also how ingredient-following works:
+ * follow ingredient K at stop S = buildTraceWalk(K, { beforeCommitIdx:
+ * S.commitIdx }) — one function, no traversal modes.
+ */
+declare function buildTraceWalk(commitLog: unknown[], executionTree: unknown, key: string, opts?: TraceWalkOptions): TraceWalk;
+/**
+ * formatTraceWalk — THE parity artifact: the [Copy story] button and any
+ * LLM backtrack tool emit THIS string, so the human's board and the
+ * agent's answer are the same text, not two translations.
+ *
+ * `stepNumberOf` maps a runtimeStageId to the 1-based step number shown on
+ * the rail (null = not on the rail); walk order and wording match the
+ * stop cards exactly.
+ */
+declare function formatTraceWalk(walk: TraceWalk, stepNumberOf: (runtimeStageId: string) => number | null, options?: {
+    scope?: TraceWalkScope;
+}): string;
 
 /** Names and the original visit address only: never a retained snapshot value.
  * For reads, beforeCommitIdx identifies the reader for TraceWalkOptions.readerCommitIdx;
@@ -198,120 +375,555 @@ declare function projectStageActivity(input: StageActivityInput): StageActivityV
 /** Copy/export uses the same bounded projection shown by the panel. */
 declare function formatStageActivitySummary(view: StageActivityView): string;
 
-/** Names-only read evidence. Canonical paths stay opaque: no dot/prefix aliases. */
-
-type ReadPathUncertainty = "ambiguous-read-path" | "legacy-address-unknown" | "read-window-ambiguous" | "related-write";
-
-/** A navigation target, never a foreign key inserted into the parent's read set. */
-interface SubflowHandoffSource {
-    readonly key: string;
-    readonly mountRuntimeStageId: string;
-    readonly invocationPath: readonly string[];
-    /** Exclusive position on the child's displayed history, without its seed bookend. */
-    readonly beforeCommitIdx: number;
-}
-
-/** Explicit, serializable presentation and recording scope. Child ancestry stays unknown. */
-interface TraceWalkScope {
-    readonly invocationPath: readonly string[];
-    readonly mountLabels?: Readonly<Record<string, string>>;
-    readonly readsAvailable?: boolean;
-    /** Explicit producer discriminator for canonical per-write read paths. */
-    readonly nestedReadTracking?: true;
-    /** Recorded non-undefined starting keys, without their values or inferred origin. */
-    readonly startKeys?: readonly string[];
-}
-interface TraceWalkOptions {
-    beforeCommitIdx?: number;
-    /** ARRAY index of a recorded reader; binds the selected read using its native window. */
-    readerCommitIdx?: number;
-    maxDepth?: number;
-    maxFrames?: number;
-    scope?: TraceWalkScope;
-}
-/** One read key of a stop, resolved to the commit that wrote it. */
-interface TraceIngredient {
+/** A UI return address only. Recorded values and rendered projections stay live. */
+interface ActivityTraceOrigin {
+    invocationPath: readonly string[];
+    runtimeStageId: string;
+    beforeCommitIdx: number;
     key: string;
-    /** null = no safely bound prior local writer, including ambiguous legacy paths. */
-    writerRuntimeStageId: string | null;
-    writerStageName: string | null;
-    writerCommitIdx: number | null;
-    /** A legacy read name may omit its namespace or canonical path encoding. */
-    unresolvedReason?: ReadPathUncertainty;
+    kind: "read" | "write";
+    variableId: string;
+    stageLabel: string;
 }
-/** One stop on the rewind rail — a slice frame with its rail position. */
-interface TraceStop {
+
+/** Raw runtime snapshot consumed by the recording views, without an engine dependency. */
+interface RuntimeSnapshotInput {
+    /** Recorded engine run identity; an unstarted engine may supply an empty string. */
+    runId?: unknown;
+    sharedState: Record<string, unknown>;
+    executionTree: unknown;
+    commitLog: unknown[];
+    /** Producer attestation that per-write readKeys use canonical nested paths. */
+    nestedReadTracking?: boolean;
+    subflowResults?: Record<string, unknown>;
+    /** Recorder snapshots from toSnapshot() — auto-generates detail tabs. */
+    recorders?: Array<{
+        id: string;
+        name: string;
+        description?: string;
+        preferredOperation?: "translate" | "accumulate" | "aggregate";
+        data: unknown;
+    }>;
+}
+
+/**
+ * Branded types for translator key discipline.
+ *
+ * The footprintjs/trace contract uses two distinct identity strings:
+ *
+ *   - **StageId**: the stable identifier the user picks at build time
+ *     (e.g. `'load-order'`, `'check-inventory'`). Identity per chart spec.
+ *
+ *   - **RuntimeStageId**: `[subflowPath/]stageId#executionIndex` — the
+ *     per-execution identity. A loop visiting the same stage 3 times
+ *     produces 3 distinct RuntimeStageIds with the same StageId base.
+ *
+ * Translator outputs index per-stage data by StageId (`Map<StageId, ...>`)
+ * AND per-execution data by RuntimeStageId (`Map<RuntimeStageId, ...>`).
+ * Both are `string` at runtime — TypeScript can't distinguish them
+ * without help. Branded types make `byStageId.get(runtimeStageId)` a
+ * **compile-time error** instead of a silent `undefined` at runtime.
+ *
+ * Why branded types over wrapper classes
+ * ──────────────────────────────────────
+ *   - Zero runtime cost (the brand exists only at the type level)
+ *   - JSON-serializable as-is (no `toJSON` glue needed)
+ *   - Interop with consumer code that uses raw `string` is one cast
+ *     (`stageId as StageId`) when the consumer is sure of the source.
+ *
+ * Usage pattern
+ * ─────────────
+ * ```ts
+ * import type { StageId, RuntimeStageId } from './_internal/keys';
+ *
+ * // In a translator, when accepting input from a footprintjs event:
+ * const sid = event.stageId as StageId;
+ * const rsid = event.traversalContext.runtimeStageId as RuntimeStageId;
+ *
+ * // In a consumer reading from the index:
+ * const node = index.byStageId.get(stageId);          // typechecks
+ * const node = index.byStageId.get(runtimeStageId);   // TS ERROR ✓
+ * ```
+ *
+ * Helper to derive a StageId from a RuntimeStageId — strips `#N` suffix
+ * and optional subflow path. **Use only for DISPLAY**, NEVER for matching
+ * commitLog stageIds (see invariant I3 in `traceStructureRecorder.ts`).
+ */
+/** Stable per-spec identifier (e.g. `'load-order'`). */
+type StageId = string & {
+    readonly __brand: "StageId";
+};
+
+/**
+ * traceStructureRecorder — event-driven xyflow Node[] + Edge[] collector.
+ *
+ * Implements footprintjs v6.0+ `StructureRecorder` interface. Accumulates
+ * an unpositioned graph (xyflow node + edge shape) as the chart is being
+ * built — no spec tree walk required.
+ *
+ * Why event-driven
+ * ────────────────
+ *   The recorder fires SYNCHRONOUSLY at every spec-mutation moment during
+ *   construction. By the time `.build()` returns, the recorder's
+ *   `getGraph()` returns the complete graph — zero extra walking
+ *   (the "collect during traversal, never post-process" rule footprintjs
+ *   documents in its core principle).
+ *
+ *   Bonus: the same recorder shape can drive incremental UI updates if
+ *   the builder is constructed asynchronously (e.g., a UI builder where
+ *   each "add stage" click re-renders the live graph).
+ *
+ * Layout is a separate concern
+ * ────────────────────────────
+ *   This module produces UNPOSITIONED nodes (no `position` field set;
+ *   xyflow defaults to `{x: 0, y: 0}`). Apply a layout algorithm
+ *   downstream — either:
+ *
+ *     - a graph algorithm (dagre / elk / d3-force)
+ *     - manual positioning via your own walk over `recorder.getGraph()`
+ *
+ *   The `<TraceFlow>` component wires a default BFS layout.
+ *
+ * @example
+ * ```ts
+ * import { flowChart } from 'footprintjs';
+ * import { createTraceStructureRecorder } from 'footprint-explainable-ui/flowchart';
+ *
+ * const trace = createTraceStructureRecorder();
+ * const chart = flowChart('seed', fn, 'seed', {
+ *   structureRecorders: [trace.recorder],
+ * })
+ *   .addFunction('a', fnA, 'a')
+ *   .build();
+ *
+ * const { nodes, edges } = trace.getGraph();
+ * // → nodes: [{ id: 'seed', data: { label: 'seed', ... } }, { id: 'a', ... }]
+ * // → edges: [{ id: 'seed->a', source: 'seed', target: 'a', data: { kind: 'next' } }]
+ *
+ * <ReactFlow nodes={layout(nodes)} edges={edges} />
+ * ```
+ */
+
+type EdgeKind = "next" | "fork-branch" | "decision-branch";
+/**
+ * Per-node data attached to the xyflow `Node`. The built-in `StageNode`
+ * renderer reads the named fields below.
+ *
+ * Consumer extension: this type EXTENDS `Record<string, unknown>` so
+ * you can attach custom fields without TypeScript fighting you. Pair
+ * this with `<TraceFlow nodeTypes={{ stageNode: MyNode }} />` (or push
+ * nodes with `type: 'myCustomKind'`) to render those custom fields
+ * however you want. The built-in `StageNode` ignores fields it doesn't
+ * recognize, so adding consumer fields is non-breaking even if you
+ * keep the default renderer.
+ */
+interface TraceNodeData extends Record<string, unknown> {
+    label: string;
+    isDecider: boolean;
+    isFork: boolean;
+    isSubflow: boolean;
+    /** True when the event carried `type: 'streaming'` (the spec was added
+     *  via `addStreamingFunction`). Renderers that style streaming stages
+     *  distinctly key on this flag. */
+    isStreaming: boolean;
+    description?: string;
+    icon?: string;
+    subflowId?: string;
+    isLazy?: boolean;
+    isPausable?: boolean;
+    /** Visual emphasis hint — `hero` (prominent) / `muted` (recedes). Set by
+     *  the consumer's graph builder from its own semantics; the renderer styles
+     *  off it without any domain knowledge. */
+    emphasis?: "hero" | "muted";
+    /** Size tier — scales the card; must match the layout's node-size resolver. */
+    size?: "sm" | "md" | "lg";
+    /** Set later by `onDeciderComplete` when the decider's branch list is
+     *  sealed. Useful for renderers that want to render decider with a
+     *  branch-count badge. */
+    branchIds?: readonly string[];
+    defaultBranch?: string;
+    /**
+     * The subflow this node belongs to, OR `undefined` for top-level
+     * parent-chart stages. Tracked via a stack-based heuristic during
+     * event ingestion:
+     *
+     *   - Push on `onSubflowMounted({subflowId, rootStageId})` →
+     *     top-of-stack = `{subflowId, mountStageId}`
+     *   - `onStageAdded` tags new nodes with the top-of-stack `subflowId`
+     *     (the mount node itself stays UNtagged — it's part of the parent
+     *     chain)
+     *   - Pop on `onEdgeAdded` where `from === mount.id` (a mount's
+     *     outgoing edge to a sibling means the parent chain has resumed);
+     *     the wrongly-tagged target node is re-tagged to the parent scope
+     *
+     * Mount nodes (where `isSubflow=true`) have `subflowOf` reflecting
+     * their OWN parent context, NOT the subflow they mount. So a parent's
+     * mount node has `subflowOf=undefined` (top-level parent), and the
+     * subflow's INTERNAL stages have `subflowOf=<mount.subflowId>`.
+     *
+     * Renderers use this to filter the chart by drill-down level: show
+     * only nodes where `subflowOf === currentDrillSubflowId` (undefined
+     * for top-level view, mount.subflowId after drilling in).
+     */
+    subflowOf?: string;
+    /**
+     * **L8.0 — STRUCTURAL prev/next**: stage ids that lead into / out of
+     * this node, derived live from incoming/outgoing edges. Excludes
+     * `loop` back-edges (visual only — per invariant I1).
+     *
+     * Convergence-correct: a fork-join node carries an ENTRY per branch
+     * child (e.g., `FinalizeOrder.prevIds = ['CheckInventory', 'RunFraudCheck']`).
+     *
+     * "Structural" qualifier: this is the chart-SHAPE prev/next, not
+     * runtime execution order. For runtime ancestry use `CommitView`
+     * fields on `CommitFlowIndex` (L8.2).
+     */
+    prevIds: StageId[];
+    nextIds: StageId[];
+}
+/**
+ * Per-edge data attached to the xyflow `Edge`. The default edge
+ * renderer reads `kind` (and `label`).
+ *
+ * Consumer extension: same pattern as `TraceNodeData` — extra fields
+ * pass through unchanged. Pair with `<TraceFlow edgeTypes={...} />`
+ * to render custom edges (e.g., a "retried" edge with a count badge).
+ */
+interface TraceEdgeData extends Record<string, unknown> {
+    kind: EdgeKind | "loop";
+    label?: string;
+    /**
+     * Node ids this edge CONTRACTED THROUGH — stamped by `collapseTraceGraph`
+     * when hidden nodes are removed and their paths re-connected. Lets a
+     * renderer keep a time cursor visible when it stands on a hidden node:
+     * the edge that stands in for that node lights instead (see
+     * `edgeCarriesCursor`). Absent on ordinary edges.
+     */
+    via?: readonly string[];
+}
+type TraceNode = Node<TraceNodeData>;
+type TraceEdge = Edge<TraceEdgeData>;
+interface TraceGraph {
+    nodes: TraceNode[];
+    edges: TraceEdge[];
+}
+
+/** Serializable presentation and optional-background-work policy. Functions stay in props. */
+interface ProgressiveRenderingOptions {
+    readonly loadingIndicator?: 'skeleton' | 'spinner' | 'text';
+    readonly prefetch?: 'none' | 'idle';
+}
+interface SubflowLoadRequest {
+    readonly invocationPath: readonly string[];
+    readonly mountRuntimeStageId: string;
+    readonly subflowId: string;
+    /** Recorded identity when present; never synthesized for a legacy recording. */
+    readonly runId?: string;
+}
+/** A complete recorded child unit. Graph IDs must be qualified below request.subflowId/. */
+interface LoadedSubflow {
+    readonly result: unknown;
+    readonly graph?: TraceGraph;
+    readonly narrativeEntries?: readonly NarrativeEntry[];
+}
+interface PreparedSubflow extends LoadedSubflow {
+    readonly snapshots: StageSnapshot[];
+}
+type SubflowLoadState = {
+    readonly status: 'loading' | 'preparing';
+    readonly request: SubflowLoadRequest;
+} | {
+    readonly status: 'ready';
+    readonly request: SubflowLoadRequest;
+    readonly value: PreparedSubflow;
+} | {
+    readonly status: 'error';
+    readonly request: SubflowLoadRequest;
+    readonly message: string;
+};
+interface RecordingSourceSnapshot {
+    readonly revision: number;
+    /** Changes only when a cumulative root cohort publishes, including narrative-only updates. */
+    readonly rootRevision: number;
+    /** Immutable logical view: original root fields plus admitted exact child results. */
+    readonly snapshot: RuntimeSnapshotInput;
+    readonly narrativeEntries: NarrativeEntry[];
+    readonly scopes: ReadonlyMap<string, SubflowLoadState>;
+}
+/** Complete cumulative live cohort for the same run; event history must not be truncated. */
+interface RecordingSourceUpdate {
+    readonly snapshot: RuntimeSnapshotInput;
+    readonly graph: TraceGraph;
+    readonly narrativeEntries?: readonly NarrativeEntry[];
+}
+interface RecordingSourceOptions {
+    readonly snapshot: RuntimeSnapshotInput;
+    readonly graph: TraceGraph;
+    readonly narrativeEntries?: readonly NarrativeEntry[];
+    readonly loadSubflow?: (request: SubflowLoadRequest, options: {
+        signal: AbortSignal;
+    }) => LoadedSubflow | Promise<LoadedSubflow>;
+    /** Optional host worker/preparation adapter. Cancellation and stale-result guards remain owned by the source. */
+    readonly prepareSubflow?: (value: LoadedSubflow, request: SubflowLoadRequest, options: {
+        signal: AbortSignal;
+    }) => PreparedSubflow | Promise<PreparedSubflow>;
+    /** Bound retained evidence without evicting a Backtrack return location. Default64; new requests refuse when full. */
+    readonly maxCachedSubflows?: number;
+}
+interface RecordingSource {
+    readonly rootSnapshot: RuntimeSnapshotInput;
+    readonly rootGraph: TraceGraph;
+    readonly canLoadSubflows: boolean;
+    /** Queue a complete cumulative live cohort. Publication is batched; does not move the replay cursor. */
+    update(value: RecordingSourceUpdate): void;
+    getSnapshot(): RecordingSourceSnapshot;
+    subscribe(listener: () => void): () => void;
+    /** Exact-path key; labels and local array indices are never identities. */
+    getKey(path: readonly string[]): string;
+    /** Requests deduplicate per exact invocation. A caller abort only cancels that caller's interest. */
+    load(request: SubflowLoadRequest, options?: {
+        signal?: AbortSignal;
+        background?: boolean;
+    }): Promise<PreparedSubflow>;
+    /** Graph for one exact selected ancestry; another visit cannot overwrite its geometry. */
+    getGraph(path: readonly string[]): TraceGraph;
+    /** Owned by the creator, never automatically called when one view unmounts. */
+    dispose(): void;
+}
+interface PreparationWorker {
+    postMessage(message: unknown): void;
+    addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
+    addEventListener(type: 'error' | 'messageerror', listener: (event: Event) => void): void;
+    removeEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
+    removeEventListener(type: 'error' | 'messageerror', listener: (event: Event) => void): void;
+}
+
+/** One creator-owned recording cohort. View unmount releases only its own
+ * subscription and request signal; it must not dispose another view's source. */
+declare function createRecordingSource(options: RecordingSourceOptions): RecordingSource;
+
+/** Canonical per-scope projection. The converter itself is one synchronous unit;
+ * the task boundary lets pending paint first, not subdivide a large conversion. */
+declare function prepareSubflow(value: LoadedSubflow, request: SubflowLoadRequest, options: {
+    signal: AbortSignal;
+}): Promise<PreparedSubflow>;
+
+type SubflowWorkerPreparation = ((value: LoadedSubflow, request: SubflowLoadRequest, options: {
+    signal: AbortSignal;
+}) => Promise<PreparedSubflow>) & {
+    readonly dispose: () => void;
+};
+/** The supplied worker is a trusted preparation port; the source retains evidence admission. */
+declare function createSubflowWorkerPreparation(worker: PreparationWorker): SubflowWorkerPreparation;
+
+/** Install inside the host's worker. Uses the same canonical converter as default preparation. */
+declare function attachSubflowWorker(port: PreparationWorker): () => void;
+
+declare function resolveProgressiveRenderingOptions(input: unknown): ProgressiveRenderingOptions;
+
+/**
+ * One entry in the execution timeline. `<TracedFlow>` keys time-travel
+ * scrubbing on the index into this array — at index `i`, all entries
+ * `0..i-1` are "done", entry `i` is "active".
+ */
+interface RuntimeExecutionStep {
+    /** `[subflowPath/]stageId#executionIndex` — universal key. */
+    readonly runtimeStageId: string;
+    /** Base stage id (without `#N`) — matches the `TraceGraph` node id. */
+    readonly stageId: string;
+    /** Human-readable label (from event.stageName). */
+    readonly stageName: string;
+    /** When this step recorded, in ms since recorder start. */
+    readonly timestampMs: number;
+}
+interface RuntimeOverlay {
+    /** Ordered execution history — drives time-travel scrubbing. */
+    readonly executionOrder: readonly RuntimeExecutionStep[];
+    /** Per-base-stageId error message (most-recent wins). */
+    readonly errors: ReadonlyMap<string, string>;
+    /** True after `onRunStart` until `onRunEnd` — useful for "still running" indicators. */
+    readonly running: boolean;
+    /**
+     * How many times each stage EXECUTION was attempted, keyed by
+     * `runtimeStageId` — present only for executions that took more than one
+     * attempt (a declared `retry` policy that actually fired).
+     *
+     * NOT a new axis. footprintjs runs every attempt of a stage under ONE
+     * runtimeStageId and commits ONE bundle for it, so a retried stage is one
+     * stop on the rail, not three. This map is per-NODE state hanging off that
+     * single stop — read it to paint an attempt badge, never to add a step.
+     *
+     * Optional so an overlay hand-built by a consumer (or produced by an older
+     * version of this library) stays type-valid; absent means "nothing known
+     * about attempts", which is exactly how a run with no retry policy looks.
+     */
+    readonly retryAttempts?: ReadonlyMap<string, number>;
+}
+
+/** Presentation of recorded stage reads; never expression-level output derivation. */
+
+interface TraceWorkflowStage {
     runtimeStageId: string;
     stageId: string;
-    stageName: string;
-    /** Position in the commit log — the stop's place on the time rail. */
-    commitIdx: number;
-    /** The slice keys DOWNSTREAM members read from this stop (what it
-     *  contributed to the traced value). The anchor contributes the traced
-     *  key itself. */
-    contributedKeys: string[];
-    keysWritten: string[];
-    ingredients: TraceIngredient[];
-    /** Exact per-output read prefixes. Older caller-supplied walks may omit it. */
-    ingredientsByKey?: Readonly<Record<string, readonly TraceIngredient[]>>;
-    /** BFS hop distance from the anchor (tooltip-grade info, NOT the walk
-     *  order — the walk order is time). */
-    depth: number;
-    /** 1-based pass number when the same stage appears more than once in
-     *  the walk (loop iterations); 0 = appears once. */
-    loopPass: number;
-    /** Admitted child targets; their histories remain on their own cursor rail. */
-    handoffSources?: readonly SubflowHandoffSource[];
+    color: string;
+    role: "question" | "input" | "upstream";
+    values: readonly {
+        key: string;
+        preview: string | null;
+        color: string;
+    }[];
 }
-interface TraceWalkMissing {
-    /** A supplied read may be recorded without one certain source. */
-    unresolvedReason?: ReadPathUncertainty;
-    reason: "never-written" | "not-yet-written" | "evidence-unavailable";
-    /** For 'not-yet-written': where the FIRST write actually happens. */
-    firstWriteCommitIdx?: number;
-    firstWriterRuntimeStageId?: string;
-    firstWriterStageName?: string;
-}
-interface TraceWalk {
-    /** Detached scope, including root mount labels derived from recorded metadata. */
-    readonly scope?: TraceWalkScope;
+interface TraceWorkflowRead {
     key: string;
-    /** Stops in WALK ORDER: commitIdx DESCENDING. stops[0] is the anchor
-     *  (the last writer of `key` within the cutoff). */
-    stops: TraceStop[];
-    /** Non-null ⇒ zero stops: the honest-absence card, not an empty chain. */
-    missing: TraceWalkMissing | null;
-    /** Read keys with no safely bound local writer, deduped in encounter order.
-     * Their earlier origin requires separate starting-state evidence. */
-    inputTermini: string[];
-    /** False when the snapshot recorded no reads anywhere — the chain is
-     *  UNKNOWABLE (not absent) beyond the anchor. */
-    readsAvailable: boolean;
-    /** True when the underlying slice hit its frame/depth budget — the
-     *  earliest stop may not be the true origin. */
-    truncated: boolean;
+    sourceRuntimeStageId: string;
+    targetRuntimeStageId: string;
+    color: string;
 }
-/**
- * Build the rewind walk for `key`.
- *
- * `beforeCommitIdx` (EXCLUSIVE) scopes the question to "the value as it
- * stood before that moment" — it is also how ingredient-following works:
- * follow ingredient K at stop S = buildTraceWalk(K, { beforeCommitIdx:
- * S.commitIdx }) — one function, no traversal modes.
- */
-declare function buildTraceWalk(commitLog: unknown[], executionTree: unknown, key: string, opts?: TraceWalkOptions): TraceWalk;
-/**
- * formatTraceWalk — THE parity artifact: the [Copy story] button and any
- * LLM backtrack tool emit THIS string, so the human's board and the
- * agent's answer are the same text, not two translations.
- *
- * `stepNumberOf` maps a runtimeStageId to the 1-based step number shown on
- * the rail (null = not on the rail); walk order and wording match the
- * stop cards exactly.
- */
-declare function formatTraceWalk(walk: TraceWalk, stepNumberOf: (runtimeStageId: string) => number | null, options?: {
-    scope?: TraceWalkScope;
-}): string;
+interface TraceWorkflowOverlay {
+    questionKey: string;
+    scopeKey: string;
+    focusRuntimeStageId: string | null;
+    stages: readonly TraceWorkflowStage[];
+    reads: readonly TraceWorkflowRead[];
+}
+
+/** A recorded-duration axis is presentation geometry, never another replay cursor. */
+type ReplayAxisScale = 'steps' | 'duration' | 'log-duration';
+interface ReplayAxis {
+    readonly scale: ReplayAxisScale;
+    readonly availability: 'equal' | 'recorded' | 'partial' | 'fallback';
+    readonly fallbackReason?: 'no-positive-duration';
+    readonly positiveDurationCount: number;
+    /** A zero may be recorded or an adapter's missing-timing default; it proves neither. */
+    readonly zeroDurationCount: number;
+    readonly unavailableDurationCount: number;
+    /** Weights below the geometric floor are raised only to retain selectable stages. */
+    readonly clampedWeightCount: number;
+    /** Admitted own-data milliseconds, shared by geometry and presentation labels. Zero remains ambiguous. */
+    readonly durations: readonly (number | undefined)[];
+    /** Positive relative flex weights, bounded to [0.000001, 1]. */
+    readonly weights: readonly number[];
+    /** Centers within the full weighted segmented bar, including its end half-segments. */
+    readonly centers: readonly number[];
+    /** Centers rescaled from first..last to 0..1 for the native input's coordinate range. */
+    readonly positions: readonly number[];
+    readonly firstCenter: number;
+    readonly lastCenter: number;
+    /** Painted segment at a normalized input coordinate; boundary ties choose the earlier stage. */
+    indexAt(position: number): number;
+    /** Invalid semantic indexes have no coordinate. */
+    positionAt(index: number): number | undefined;
+}
+
+/** Recording inputs shared by the renderless controller and the default Shell. */
+interface LensRecordingInput {
+    source?: RecordingSource;
+    runtimeSnapshot?: RuntimeSnapshotInput | null;
+    snapshots?: StageSnapshot[];
+    narrativeEntries?: NarrativeEntry[];
+    traceGraph?: TraceGraph | null;
+    runtimeOverlay?: RuntimeOverlay | null;
+    resultData?: Record<string, unknown> | null;
+}
+interface LensControllerOptions extends LensRecordingInput {
+    autoPlay?: boolean;
+    replayControls?: ReplayControlsOptions;
+    rendering?: ProgressiveRenderingOptions;
+}
+/** A semantic request; a view chooses its own panel expansion and DOM focus. */
+interface LensPresentationRequest {
+    readonly id: number;
+    readonly kind: 'trace' | 'activity';
+    readonly origin?: ActivityTraceOrigin;
+}
+interface LensControllerActions {
+    /** Explicit context selection, independent of hidden transport controls. */
+    selectIndex(index: number): void;
+    selectStage(runtimeStageId: string): void;
+    drillDown(mountStageId: string): void;
+    returnToRoot(): void;
+    chooseInvocation(runtimeStageId: string): void;
+    backtrack(target: StageActivityTraceTarget): void;
+    exitBacktrack(): void;
+    followIngredient(ingredient: TraceIngredient): void;
+    followHandoff(source: SubflowHandoffSource): void;
+    returnToQuestion(index: number): void;
+    showAllIngredients(): void;
+    openForkChooser(): void;
+    continueTimeOrder(): void;
+    setTraceSearch(value: string): void;
+    selectActivityVariable(variableId: string): void;
+    previous(): void;
+    next(): void;
+    play(): void;
+    pause(): void;
+    togglePlay(): void;
+    /** Transport scrub: applies the same landable-stop policy as the stock range. */
+    scrubTo(index: number): void;
+    cancelPending(): void;
+    retryPending(): void;
+    loadEvidence(mountRuntimeStageId: string): void;
+}
+interface LensRecordingStatus {
+    readonly status: 'waiting' | 'empty' | 'ready' | 'error';
+    readonly reason?: 'no-recording' | 'no-stages' | 'unreadable' | 'identity-unavailable';
+}
+/** Public headless React model: data and commands, without rendered surfaces. */
+interface LensController {
+    readonly replayAxis: ReplayAxis;
+    readonly recordingStatus: LensRecordingStatus;
+    readonly resultData: Readonly<Record<string, unknown>> | null;
+    readonly snapshots: readonly StageSnapshot[];
+    readonly selectedIndex: number;
+    readonly selectedSnapshot: StageSnapshot | undefined;
+    readonly invocationPath: readonly string[];
+    readonly activity: StageActivityView;
+    readonly selectedActivityVariableId: string | undefined;
+    readonly narrativeEntries: readonly NarrativeEntry[];
+    readonly narrativeAvailable: boolean;
+    readonly narrativeScopeSubflowId: string | undefined;
+    readonly traceWalk: TraceWalk | null;
+    readonly forkChooserOpen: boolean;
+    readonly traceSearch: string;
+    readonly questionTrail: readonly {
+        key: string;
+        invocationPath: readonly string[];
+    }[];
+    readonly activityOrigin: ActivityTraceOrigin | null;
+    readonly graph: TraceGraph | null | undefined;
+    readonly overlay: RuntimeOverlay | null | undefined;
+    readonly traceWorkflow: TraceWorkflowOverlay | null;
+    readonly tracingRail: TracingRail | null;
+    readonly pendingLoad: {
+        readonly request: SubflowLoadRequest;
+        readonly status: 'loading' | 'preparing' | 'error';
+    } | null;
+    readonly visitChoice: {
+        readonly mountStageId: string;
+        readonly visits: readonly {
+            runtimeStageId: string;
+            step: number;
+            visit: number;
+            total: number;
+        }[];
+    } | null;
+    readonly navigationNotice: string;
+    readonly presentationRequest: LensPresentationRequest | null;
+    readonly playback: {
+        readonly playing: boolean;
+        readonly canPlay: boolean;
+        readonly canPrevious: boolean;
+        readonly canNext: boolean;
+    };
+    readonly actions: LensControllerActions;
+}
+
+interface LensControllerProviderProps extends LensControllerOptions {
+    children?: ReactNode;
+}
+/** One renderless React owner for every participating view. Source disposal stays with its creator. */
+declare function LensControllerProvider({ children, ...options }: LensControllerProviderProps): react.JSX.Element;
+declare function useLensController(): LensController;
 
 /** Default theme tokens — consumers override via CSS variables or ThemeProvider. */
 interface ThemeTokens {
@@ -551,6 +1163,7 @@ declare const defaultTokens: Required<{
  * and data attributes. The registry changes presentation, not Lens actions.
  */
 interface FootprintComponents {
+    LoadStatus?: ElementType<FootprintLoadStatusAdapterProps & RefAttributes<HTMLDivElement>>;
     Button?: ElementType<ButtonHTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>>;
     Tab?: ElementType<ButtonHTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>>;
     Input?: ElementType<InputHTMLAttributes<HTMLInputElement> & RefAttributes<HTMLInputElement>>;
@@ -559,6 +1172,11 @@ interface FootprintComponents {
     Code?: ElementType<HTMLAttributes<HTMLElement> & RefAttributes<HTMLElement>>;
     Tooltip?: ElementType<FootprintTooltipAdapterProps & RefAttributes<HTMLSpanElement>>;
     Icon?: ElementType<FootprintIconAdapterProps & RefAttributes<HTMLSpanElement>>;
+}
+interface FootprintLoadStatusAdapterProps extends HTMLAttributes<HTMLDivElement> {
+    state: 'loading' | 'preparing' | 'error';
+    indicator?: 'skeleton' | 'spinner' | 'text';
+    label: string;
 }
 declare function useFootprintComponents(): FootprintComponents;
 interface FootprintPrimitiveOptions {
@@ -797,6 +1415,11 @@ interface ThemeModeProps {
  */
 declare function themeModeVars(mode?: ThemeMode): CSSProperties;
 
+interface FootprintLoadStatusProps extends FootprintLoadStatusAdapterProps, FootprintPrimitiveOptions {
+}
+/** Presentation only: placeholders never become graph nodes or recorded evidence. */
+declare const FootprintLoadStatus: react.ForwardRefExoticComponent<FootprintLoadStatusProps & react.RefAttributes<HTMLDivElement>>;
+
 interface CommentaryRenderContext {
     readonly index: number;
     /** The last displayed comment from the exact selected visit. */
@@ -896,8 +1519,6 @@ interface FlowchartOptions {
     readonly renderer?: FlowchartRenderer;
 }
 
-/** JSON layout for the existing Lens surfaces; validation also works during SSR. */
-
 type LensLayoutSurface = "timeTravel" | "flowchart" | "developer" | "commentary" | "timeline" | "details";
 interface LensLayoutDefinition {
     readonly columns: string;
@@ -907,6 +1528,9 @@ interface LensLayoutDefinition {
     readonly gap?: number | string;
     /** Optional built-in geometry; an explicit Shell flowchart prop takes precedence. */
     readonly flowchart?: FlowchartOptions;
+    readonly rendering?: ProgressiveRenderingOptions;
+    /** Serializable transport presentation and pacing; explicit props override individual fields. */
+    readonly replayControls?: ReplayControlsOptions;
 }
 
 /** One display contract shared by the two independent relationship admission boundaries. */
@@ -1215,59 +1839,9 @@ interface StageDetailPanelProps extends BaseComponentProps {
 }
 declare function StageDetailPanel({ snapshots, selectedIndex, mode: controlledMode, showToggle, onModeChange, excludeKeys, size, unstyled, className, style, }: StageDetailPanelProps): react.JSX.Element;
 
-/**
- * Same-Rail Rewind (tracing mode) — the rail's AXIS never changes, only its
- * stops do: every dependency was committed earlier than the value it fed, so
- * a backward slice is a sub-sequence of this same timeline. When `tracing`
- * is set, slice members stay landable ("stops"), everything else fades to
- * unlandable ticks, and prev/next walk stop-to-stop ("◀ earlier recorded step").
- * The cursor stays the ONE `selectedIndex` — no second position exists.
- *
- * THEMING: tracing mode recolors its chrome with ONE token, `--fp-tracing`
- * (default #0d9488 teal) — the TRACING badge, the rail's bottom border, the
- * stop ticks, the walk buttons, and Done — so the tracing rail is
- * unmistakably not normal time-travel. Consumers retheme by setting
- * `--fp-tracing` on any ancestor. Normal mode never reads the token.
- */
-interface TracingRail {
-    /** The traced variable — rendered in the mode header. */
-    tracedKey: string;
-    /** Set while an ingredient filter is active ("▸ via key"). */
-    viaKey?: string | null;
-    /** Snapshot indices that are stops, ASCENDING. All other ticks become
-     *  faint and unlandable (context, not destinations). */
-    stopIndices: number[];
-    /** 1-based position of the cursor in WALK order (newest first) + total —
-     *  the "stop 2 of 6" label. */
-    stopOrdinal: number;
-    totalStops: number;
-    /** Exit tracing (button / Escape). The host decides where to return. */
-    onExit: () => void;
-    /** Optional return destination; defaults to the legacy Done label. */
-    exitLabel?: string;
-    /** Accessible return action; defaults to Exit tracing. */
-    exitAriaLabel?: string;
-    /** Clear the via filter back to the full walk (breadcrumb's "show all"). */
-    onShowAll?: () => void;
-    /** Ingredient count at the CURRENT stop. At the earliest landable stop,
-     *  >= 2 together with `onForkPrompt` offers "choose cause…" instead of a
-     *  disabled button. Earlier recorded steps otherwise remain reachable in
-     *  time order; following a particular input is a separate action. */
-    forkCount?: number;
-    /** Open the fork chooser at the earliest landable stop when `forkCount >= 2`
-     *  (click or ArrowLeft on the walk-back control). */
-    onForkPrompt?: () => void;
-}
-interface ReplayControlsOptions {
-    /** Show previous/next actions and enable their toolbar arrow shortcuts. Default true. */
-    previousNext?: boolean;
-    /** Show Play/Pause and allow manual or automatic playback. Default true. */
-    playPause?: boolean;
-    /** Show the position rail and its native range scrubbing control. Default true. */
-    slider?: boolean;
-    /** Fixed milliseconds per replay step, clamped to 200–10,000. Omit for proportional timing. */
-    intervalMs?: number;
-}
+/** Stock transport presentation over an existing Lens controller; never creates another clock. */
+declare function LensReplayControls(props: BaseComponentProps): react.JSX.Element;
+
 interface TimeTravelControlsProps extends BaseComponentProps {
     /** Stage snapshots */
     snapshots: StageSnapshot[];
@@ -1295,303 +1869,9 @@ interface TimeTravelControlsProps extends BaseComponentProps {
     /** Optional transport visibility and readable replay pacing over the same cursor. */
     replayControls?: ReplayControlsOptions;
 }
+
 declare function TimeTravelControls(props: TimeTravelControlsProps): react.JSX.Element;
 
-/**
- * One entry in the execution timeline. `<TracedFlow>` keys time-travel
- * scrubbing on the index into this array — at index `i`, all entries
- * `0..i-1` are "done", entry `i` is "active".
- */
-interface RuntimeExecutionStep {
-    /** `[subflowPath/]stageId#executionIndex` — universal key. */
-    readonly runtimeStageId: string;
-    /** Base stage id (without `#N`) — matches the `TraceGraph` node id. */
-    readonly stageId: string;
-    /** Human-readable label (from event.stageName). */
-    readonly stageName: string;
-    /** When this step recorded, in ms since recorder start. */
-    readonly timestampMs: number;
-}
-interface RuntimeOverlay {
-    /** Ordered execution history — drives time-travel scrubbing. */
-    readonly executionOrder: readonly RuntimeExecutionStep[];
-    /** Per-base-stageId error message (most-recent wins). */
-    readonly errors: ReadonlyMap<string, string>;
-    /** True after `onRunStart` until `onRunEnd` — useful for "still running" indicators. */
-    readonly running: boolean;
-    /**
-     * How many times each stage EXECUTION was attempted, keyed by
-     * `runtimeStageId` — present only for executions that took more than one
-     * attempt (a declared `retry` policy that actually fired).
-     *
-     * NOT a new axis. footprintjs runs every attempt of a stage under ONE
-     * runtimeStageId and commits ONE bundle for it, so a retried stage is one
-     * stop on the rail, not three. This map is per-NODE state hanging off that
-     * single stop — read it to paint an attempt badge, never to add a step.
-     *
-     * Optional so an overlay hand-built by a consumer (or produced by an older
-     * version of this library) stays type-valid; absent means "nothing known
-     * about attempts", which is exactly how a run with no retry policy looks.
-     */
-    readonly retryAttempts?: ReadonlyMap<string, number>;
-}
-
-/**
- * Branded types for translator key discipline.
- *
- * The footprintjs/trace contract uses two distinct identity strings:
- *
- *   - **StageId**: the stable identifier the user picks at build time
- *     (e.g. `'load-order'`, `'check-inventory'`). Identity per chart spec.
- *
- *   - **RuntimeStageId**: `[subflowPath/]stageId#executionIndex` — the
- *     per-execution identity. A loop visiting the same stage 3 times
- *     produces 3 distinct RuntimeStageIds with the same StageId base.
- *
- * Translator outputs index per-stage data by StageId (`Map<StageId, ...>`)
- * AND per-execution data by RuntimeStageId (`Map<RuntimeStageId, ...>`).
- * Both are `string` at runtime — TypeScript can't distinguish them
- * without help. Branded types make `byStageId.get(runtimeStageId)` a
- * **compile-time error** instead of a silent `undefined` at runtime.
- *
- * Why branded types over wrapper classes
- * ──────────────────────────────────────
- *   - Zero runtime cost (the brand exists only at the type level)
- *   - JSON-serializable as-is (no `toJSON` glue needed)
- *   - Interop with consumer code that uses raw `string` is one cast
- *     (`stageId as StageId`) when the consumer is sure of the source.
- *
- * Usage pattern
- * ─────────────
- * ```ts
- * import type { StageId, RuntimeStageId } from './_internal/keys';
- *
- * // In a translator, when accepting input from a footprintjs event:
- * const sid = event.stageId as StageId;
- * const rsid = event.traversalContext.runtimeStageId as RuntimeStageId;
- *
- * // In a consumer reading from the index:
- * const node = index.byStageId.get(stageId);          // typechecks
- * const node = index.byStageId.get(runtimeStageId);   // TS ERROR ✓
- * ```
- *
- * Helper to derive a StageId from a RuntimeStageId — strips `#N` suffix
- * and optional subflow path. **Use only for DISPLAY**, NEVER for matching
- * commitLog stageIds (see invariant I3 in `traceStructureRecorder.ts`).
- */
-/** Stable per-spec identifier (e.g. `'load-order'`). */
-type StageId = string & {
-    readonly __brand: "StageId";
-};
-
-/**
- * traceStructureRecorder — event-driven xyflow Node[] + Edge[] collector.
- *
- * Implements footprintjs v6.0+ `StructureRecorder` interface. Accumulates
- * an unpositioned graph (xyflow node + edge shape) as the chart is being
- * built — no spec tree walk required.
- *
- * Why event-driven
- * ────────────────
- *   The recorder fires SYNCHRONOUSLY at every spec-mutation moment during
- *   construction. By the time `.build()` returns, the recorder's
- *   `getGraph()` returns the complete graph — zero extra walking
- *   (the "collect during traversal, never post-process" rule footprintjs
- *   documents in its core principle).
- *
- *   Bonus: the same recorder shape can drive incremental UI updates if
- *   the builder is constructed asynchronously (e.g., a UI builder where
- *   each "add stage" click re-renders the live graph).
- *
- * Layout is a separate concern
- * ────────────────────────────
- *   This module produces UNPOSITIONED nodes (no `position` field set;
- *   xyflow defaults to `{x: 0, y: 0}`). Apply a layout algorithm
- *   downstream — either:
- *
- *     - a graph algorithm (dagre / elk / d3-force)
- *     - manual positioning via your own walk over `recorder.getGraph()`
- *
- *   The `<TraceFlow>` component wires a default BFS layout.
- *
- * @example
- * ```ts
- * import { flowChart } from 'footprintjs';
- * import { createTraceStructureRecorder } from 'footprint-explainable-ui/flowchart';
- *
- * const trace = createTraceStructureRecorder();
- * const chart = flowChart('seed', fn, 'seed', {
- *   structureRecorders: [trace.recorder],
- * })
- *   .addFunction('a', fnA, 'a')
- *   .build();
- *
- * const { nodes, edges } = trace.getGraph();
- * // → nodes: [{ id: 'seed', data: { label: 'seed', ... } }, { id: 'a', ... }]
- * // → edges: [{ id: 'seed->a', source: 'seed', target: 'a', data: { kind: 'next' } }]
- *
- * <ReactFlow nodes={layout(nodes)} edges={edges} />
- * ```
- */
-
-type EdgeKind = "next" | "fork-branch" | "decision-branch";
-/**
- * Per-node data attached to the xyflow `Node`. The built-in `StageNode`
- * renderer reads the named fields below.
- *
- * Consumer extension: this type EXTENDS `Record<string, unknown>` so
- * you can attach custom fields without TypeScript fighting you. Pair
- * this with `<TraceFlow nodeTypes={{ stageNode: MyNode }} />` (or push
- * nodes with `type: 'myCustomKind'`) to render those custom fields
- * however you want. The built-in `StageNode` ignores fields it doesn't
- * recognize, so adding consumer fields is non-breaking even if you
- * keep the default renderer.
- */
-interface TraceNodeData extends Record<string, unknown> {
-    label: string;
-    isDecider: boolean;
-    isFork: boolean;
-    isSubflow: boolean;
-    /** True when the event carried `type: 'streaming'` (the spec was added
-     *  via `addStreamingFunction`). Renderers that style streaming stages
-     *  distinctly key on this flag. */
-    isStreaming: boolean;
-    description?: string;
-    icon?: string;
-    subflowId?: string;
-    isLazy?: boolean;
-    isPausable?: boolean;
-    /** Visual emphasis hint — `hero` (prominent) / `muted` (recedes). Set by
-     *  the consumer's graph builder from its own semantics; the renderer styles
-     *  off it without any domain knowledge. */
-    emphasis?: "hero" | "muted";
-    /** Size tier — scales the card; must match the layout's node-size resolver. */
-    size?: "sm" | "md" | "lg";
-    /** Set later by `onDeciderComplete` when the decider's branch list is
-     *  sealed. Useful for renderers that want to render decider with a
-     *  branch-count badge. */
-    branchIds?: readonly string[];
-    defaultBranch?: string;
-    /**
-     * The subflow this node belongs to, OR `undefined` for top-level
-     * parent-chart stages. Tracked via a stack-based heuristic during
-     * event ingestion:
-     *
-     *   - Push on `onSubflowMounted({subflowId, rootStageId})` →
-     *     top-of-stack = `{subflowId, mountStageId}`
-     *   - `onStageAdded` tags new nodes with the top-of-stack `subflowId`
-     *     (the mount node itself stays UNtagged — it's part of the parent
-     *     chain)
-     *   - Pop on `onEdgeAdded` where `from === mount.id` (a mount's
-     *     outgoing edge to a sibling means the parent chain has resumed);
-     *     the wrongly-tagged target node is re-tagged to the parent scope
-     *
-     * Mount nodes (where `isSubflow=true`) have `subflowOf` reflecting
-     * their OWN parent context, NOT the subflow they mount. So a parent's
-     * mount node has `subflowOf=undefined` (top-level parent), and the
-     * subflow's INTERNAL stages have `subflowOf=<mount.subflowId>`.
-     *
-     * Renderers use this to filter the chart by drill-down level: show
-     * only nodes where `subflowOf === currentDrillSubflowId` (undefined
-     * for top-level view, mount.subflowId after drilling in).
-     */
-    subflowOf?: string;
-    /**
-     * **L8.0 — STRUCTURAL prev/next**: stage ids that lead into / out of
-     * this node, derived live from incoming/outgoing edges. Excludes
-     * `loop` back-edges (visual only — per invariant I1).
-     *
-     * Convergence-correct: a fork-join node carries an ENTRY per branch
-     * child (e.g., `FinalizeOrder.prevIds = ['CheckInventory', 'RunFraudCheck']`).
-     *
-     * "Structural" qualifier: this is the chart-SHAPE prev/next, not
-     * runtime execution order. For runtime ancestry use `CommitView`
-     * fields on `CommitFlowIndex` (L8.2).
-     */
-    prevIds: StageId[];
-    nextIds: StageId[];
-}
-/**
- * Per-edge data attached to the xyflow `Edge`. The default edge
- * renderer reads `kind` (and `label`).
- *
- * Consumer extension: same pattern as `TraceNodeData` — extra fields
- * pass through unchanged. Pair with `<TraceFlow edgeTypes={...} />`
- * to render custom edges (e.g., a "retried" edge with a count badge).
- */
-interface TraceEdgeData extends Record<string, unknown> {
-    kind: EdgeKind | "loop";
-    label?: string;
-    /**
-     * Node ids this edge CONTRACTED THROUGH — stamped by `collapseTraceGraph`
-     * when hidden nodes are removed and their paths re-connected. Lets a
-     * renderer keep a time cursor visible when it stands on a hidden node:
-     * the edge that stands in for that node lights instead (see
-     * `edgeCarriesCursor`). Absent on ordinary edges.
-     */
-    via?: readonly string[];
-}
-type TraceNode = Node<TraceNodeData>;
-type TraceEdge = Edge<TraceEdgeData>;
-interface TraceGraph {
-    nodes: TraceNode[];
-    edges: TraceEdge[];
-}
-
-/** Raw runtime snapshot consumed by the recording views, without an engine dependency. */
-interface RuntimeSnapshotInput {
-    sharedState: Record<string, unknown>;
-    executionTree: unknown;
-    commitLog: unknown[];
-    /** Producer attestation that per-write readKeys use canonical nested paths. */
-    nestedReadTracking?: boolean;
-    subflowResults?: Record<string, unknown>;
-    /** Recorder snapshots from toSnapshot() — auto-generates detail tabs. */
-    recorders?: Array<{
-        id: string;
-        name: string;
-        description?: string;
-        preferredOperation?: "translate" | "accumulate" | "aggregate";
-        data: unknown;
-    }>;
-}
-
-/** Presentation of recorded stage reads; never expression-level output derivation. */
-
-interface TraceWorkflowStage {
-    runtimeStageId: string;
-    stageId: string;
-    color: string;
-    role: "question" | "input" | "upstream";
-    values: readonly {
-        key: string;
-        preview: string | null;
-        color: string;
-    }[];
-}
-interface TraceWorkflowRead {
-    key: string;
-    sourceRuntimeStageId: string;
-    targetRuntimeStageId: string;
-    color: string;
-}
-interface TraceWorkflowOverlay {
-    questionKey: string;
-    scopeKey: string;
-    focusRuntimeStageId: string | null;
-    stages: readonly TraceWorkflowStage[];
-    reads: readonly TraceWorkflowRead[];
-}
-
-/**
- * Minimal subflow-walking spec shape. Used INTERNALLY by drill-down
- * resolution (which navigates `subflowStructure` to find a child chart
- * inside the parent's serialized structure). No longer used for chart
- * rendering — that happens via `traceGraph` + `<TracedFlow>` exclusively.
- *
- * Kept as a local type so the file no longer depends on any legacy
- * spec-walk module.
- */
 interface SpecNode {
     name: string;
     id?: string;
@@ -1603,7 +1883,6 @@ interface SpecNode {
     subflowName?: string;
     subflowStructure?: SpecNode;
 }
-/** Tab ID — "result", "memory", "narrative", or any custom recorder view ID. */
 type ShellTab = string;
 interface PanelLabels {
     /** Left panel pill label (subflow tree). Default: "Topology" */
@@ -1640,7 +1919,7 @@ interface RecorderView {
     render: (props: {
         snapshots: StageSnapshot[];
         selectedIndex: number;
-    }) => React.ReactNode;
+    }) => react.ReactNode;
 }
 /**
  * The Trace flowchart's two-colour theme (footprintjs level).
@@ -1662,7 +1941,7 @@ interface TraceTheme {
     /** The node at the current cursor position ("now"). */
     current?: string;
 }
-interface ExplainableShellProps extends BaseComponentProps {
+interface ExplainableShellProps extends BaseComponentProps, LensControllerOptions {
     /**
      * Pre-converted visualization snapshots. Use when you've already called
      * toVisualizationSnapshots() yourself.
@@ -1793,7 +2072,7 @@ interface ExplainableShellProps extends BaseComponentProps {
         /** Call to MOVE the shell's drill: a mount node's id to drill in, `null`
          *  to pop back to the top. */
         onSubflowChange?: (mountStageId: string | null) => void;
-    }) => React.ReactNode;
+    }) => react.ReactNode;
     /**
      * When true, render each node's stable `stageId` as a small monospace
      * caption beneath the label in the default flowchart renderer.
@@ -1831,8 +2110,14 @@ interface ExplainableShellProps extends BaseComponentProps {
     renderLayout?: LensWorkbenchLayout;
     /** Serializable named-area layout. Omitted optional surfaces stay hidden. renderLayout takes precedence. */
     layout?: LensLayoutDefinition;
+    /** Opt into exact recorded child loading; this source owns the recording/graph cohort. */
+    source?: RecordingSource;
+    /** Explicit presentation/background policy overrides JSON layout.rendering. */
+    rendering?: ProgressiveRenderingOptions;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs: deprecatedTabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, flowchart, theme: consumerTheme, renderLayout, layout, view: controlledView, defaultView, onViewChange, commentary, replayControls, showStageId, autoPlay, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
+
+/** Default presentation facade over one shared renderless React controller. */
+declare function ExplainableShell(props: ExplainableShellProps): react.JSX.Element;
 
 /**
  * TraceViewer — renders a saved recording. No live executor, no re-run.
@@ -1917,7 +2202,7 @@ type TraceParseError = {
     kind: 'no-stages';
     message: string;
 };
-interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'flowchart' | 'traceTheme' | 'autoPlay' | 'view' | 'defaultView' | 'onViewChange' | 'commentary' | 'replayControls' | 'renderLayout' | 'layout'>, ThemeModeProps {
+interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'flowchart' | 'traceTheme' | 'autoPlay' | 'view' | 'defaultView' | 'onViewChange' | 'commentary' | 'replayControls' | 'renderLayout' | 'layout' | 'source' | 'rendering'>, ThemeModeProps {
     /**
      * The recording to render — a parsed object or a raw JSON string.
      * `null` / `undefined` / empty-string render the `fallback`.
@@ -1934,7 +2219,7 @@ interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'default
     /** Element rendered when no valid recording is available. */
     readonly fallback?: react.ReactNode;
 }
-declare function TraceViewer({ recording, trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, flowchart, traceTheme, autoPlay, view, defaultView, onViewChange, commentary, replayControls, renderLayout, layout, theme: themeMode, }: TraceViewerProps): react.ReactElement | null;
+declare function TraceViewer({ source, rendering, recording, trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, flowchart, traceTheme, autoPlay, view, defaultView, onViewChange, commentary, replayControls, renderLayout, layout, theme: themeMode, }: TraceViewerProps): react.ReactElement | null;
 
 interface MemoryPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
@@ -3031,4 +3316,4 @@ declare function checkFailureExplanationDisplay(value: unknown): DisplayCheckRes
 /** Exact canonical sentence only; unknown/runtime nonstring inputs have no sentence. */
 declare function investigationGapMessage(code: string): string | undefined;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type DisplayCheckResult, type DisplayDiagnostic, type DisplayDiagnosticCode, type DisplayLimitName, type DisplayPath, type DisplaySchemaField, type DisplayUsage, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, type FailureExplanationDisplay, type FailureExplanationDisplayFinding, type FailureExplanationDisplaySection, FailureExplanationView, type FailureExplanationViewProps, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, type FlowchartOptions, FlowchartPanel, type FlowchartPanelProps, type FlowchartRenderer, FootprintBadge, type FootprintBadgeProps, FootprintButton, type FootprintButtonProps, FootprintCheckbox, type FootprintCheckboxProps, FootprintCode, type FootprintCodeProps, type FootprintComponents, FootprintIcon, type FootprintIconAdapterProps, type FootprintIconProps, FootprintInput, type FootprintInputProps, type FootprintPrimitiveOptions, FootprintTab, FootprintTheme, type FootprintThemeProps, FootprintTooltip, type FootprintTooltipAdapterProps, type FootprintTooltipProps, GanttTimeline, type GanttTimelineProps, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type InvestigationAttentionDisplay, InvestigationPanel, type InvestigationPanelProps, type InvestigationPort, type InvestigationRelationshipDisplay, type InvestigationResult, type InvestigationTextDisplay, type LensCommentaryOptions, type LensLayoutDefinition, type LensLayoutSurface, type LensTheme, type LensView, type LensWorkbenchActions, type LensWorkbenchContextValue, type LensWorkbenchLayout, type LensWorkbenchSurfaces, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, type RecorderView, type Recording, type ReplayControlsOptions, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageActivityEvent, type StageActivityInput, StageActivityPanel, type StageActivityPanelProps, type StageActivityTraceTarget, type StageActivityValue, type StageActivityVariable, type StageActivityView, type StageActivityWriter, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceInvocationOptions, type TraceInvocationProjection, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TraceWalkOptions, type TraceWalkScope, type TraceWorkflowOverlay, type TraceWorkflowRead, type TraceWorkflowStage, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, checkFailureExplanationDisplay, checkInvestigationAttention, checkInvestigationExplanation, componentStyles, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, failureExplanationDisplayLimits, formatStageActivitySummary, formatTraceWalk, getFlowDiagramAncestors, graphFromStructure, investigationDisplayLimits, investigationGapMessage, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, paperDark, paperLight, projectGroupedFlowDiagram, projectStageActivity, projectTraceInvocation, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintComponents, useFootprintTheme, useLensWorkbench, warmDark, warmLight };
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type DisplayCheckResult, type DisplayDiagnostic, type DisplayDiagnosticCode, type DisplayLimitName, type DisplayPath, type DisplaySchemaField, type DisplayUsage, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, type FailureExplanationDisplay, type FailureExplanationDisplayFinding, type FailureExplanationDisplaySection, FailureExplanationView, type FailureExplanationViewProps, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, type FlowchartOptions, FlowchartPanel, type FlowchartPanelProps, type FlowchartRenderer, FootprintBadge, type FootprintBadgeProps, FootprintButton, type FootprintButtonProps, FootprintCheckbox, type FootprintCheckboxProps, FootprintCode, type FootprintCodeProps, type FootprintComponents, FootprintIcon, type FootprintIconAdapterProps, type FootprintIconProps, FootprintInput, type FootprintInputProps, FootprintLoadStatus, type FootprintLoadStatusAdapterProps, type FootprintLoadStatusProps, type FootprintPrimitiveOptions, FootprintTab, FootprintTheme, type FootprintThemeProps, FootprintTooltip, type FootprintTooltipAdapterProps, type FootprintTooltipProps, GanttTimeline, type GanttTimelineProps, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type InvestigationAttentionDisplay, InvestigationPanel, type InvestigationPanelProps, type InvestigationPort, type InvestigationRelationshipDisplay, type InvestigationResult, type InvestigationTextDisplay, type LensCommentaryOptions, type LensController, type LensControllerActions, type LensControllerOptions, LensControllerProvider, type LensControllerProviderProps, type LensLayoutDefinition, type LensLayoutSurface, type LensPresentationRequest, type LensRecordingInput, type LensRecordingStatus, LensReplayControls, type LensTheme, type LensView, type LensWorkbenchActions, type LensWorkbenchContextValue, type LensWorkbenchLayout, type LensWorkbenchSurfaces, type LoadedSubflow, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, type PreparationWorker, type PreparedSubflow, type ProgressiveRenderingOptions, type RecorderView, type Recording, type RecordingSource, type RecordingSourceOptions, type RecordingSourceSnapshot, type RecordingSourceUpdate, type ReplayAxis, type ReplayAxisScale, type ReplayControlsOptions, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageActivityEvent, type StageActivityInput, StageActivityPanel, type StageActivityPanelProps, type StageActivityTraceTarget, type StageActivityValue, type StageActivityVariable, type StageActivityView, type StageActivityWriter, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, type SubflowLoadRequest, type SubflowLoadState, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type SubflowWorkerPreparation, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceInvocationOptions, type TraceInvocationProjection, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TraceWalkOptions, type TraceWalkScope, type TraceWorkflowOverlay, type TraceWorkflowRead, type TraceWorkflowStage, type TracingRail, ValueInspector, type ValueInspectorProps, attachSubflowWorker, buildEntryRangeIndex, buildTraceWalk, checkFailureExplanationDisplay, checkInvestigationAttention, checkInvestigationExplanation, componentStyles, computeRevealedEntryCount, coolDark, coolLight, createRecordingSource, createSnapshots, createSubflowWorkerPreparation, defaultTokens, extractSubflowNarrative, failureExplanationDisplayLimits, formatStageActivitySummary, formatTraceWalk, getFlowDiagramAncestors, graphFromStructure, investigationDisplayLimits, investigationGapMessage, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, paperDark, paperLight, prepareSubflow, projectGroupedFlowDiagram, projectStageActivity, projectTraceInvocation, rawDefaults, resolveProgressiveRenderingOptions, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintComponents, useFootprintTheme, useLensController, useLensWorkbench, warmDark, warmLight };

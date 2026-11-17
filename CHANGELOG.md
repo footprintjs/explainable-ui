@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-11-17
+
+### Fixed
+
+- Let public `buildTraceWalk` consumers supply the currently admitted native
+  runtime snapshot to receive captured child-output handoff targets. The shared
+  controller delegates to the same reader; exact scope and read cutoffs remain
+  intact, and cold or missing child evidence stays unknown. No extra cursor or
+  inferred output mapping is introduced.
+
 ## [1.1.0] - 2026-11-17
 
 ### Added
