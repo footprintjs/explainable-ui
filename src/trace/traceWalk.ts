@@ -31,7 +31,7 @@ import { ownDataField, readOwnArray, WorkBudget } from "./safeRecordRead";
 import { snapshotWalkScope } from "./walkScope";
 import { buildDataTrace } from "./dataTrace";
 import { indexReadAddresses, indexTraceWrites, indexWriterCommits, readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, indexRelatedWrites, resolveReadWriter, type RelatedWriteIndex, type RecordedTraceWrite, type ReadPathUncertainty } from "./readProvenance";
-import { handoffSentence, type SubflowHandoffSource } from "./subflowHandoff";
+import { handoffSentence, subflowHandoffSources, type SubflowHandoffSource } from "./subflowHandoff";
 import { recordedPathLabel } from "./recordedValuePreview";
 import {
   scopeSentence,
@@ -58,6 +58,9 @@ export interface TraceWalkOptions {
   maxDepth?: number;
   maxFrames?: number;
   scope?: TraceWalkScope;
+  /** Optional matching native snapshot, containing only currently admitted child
+   * units. Captured output handoffs add exact child targets, never child stops. */
+  runtimeSnapshot?: unknown;
 }
 /** One read key of a stop, resolved to the commit that wrote it. */
 export interface TraceIngredient {
@@ -340,6 +343,17 @@ export function buildTraceWalk(
     if (arr.length < 2) continue;
     // arr is in reverse time; pass numbers count forward in time.
     for (let i = 0; i < arr.length; i++) arr[i].loopPass = arr.length - i;
+  }
+
+  if (opts?.runtimeSnapshot !== undefined) {
+    for (const stop of stops) {
+      const sources = subflowHandoffSources({
+        snapshot: opts.runtimeSnapshot, invocationPath: scope?.invocationPath ?? [],
+        mountRuntimeStageId: stop.runtimeStageId, writtenKeys: stop.contributedKeys,
+        beforeCommitIdx: Math.min(stop.commitIdx + 1, cutoff),
+      });
+      if (sources.length) stop.handoffSources = sources;
+    }
   }
 
   return {

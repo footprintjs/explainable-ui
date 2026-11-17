@@ -230,6 +230,16 @@ scope and re-anchors the question there. Raw cutoffs account for the child's
 excluded seed bookend. No child key or commit is inserted into the parent's
 rail. The card and copied story format the same admitted source names;
 standalone `buildTraceWalk` continues to walk only its supplied scope.
+Its optional `runtimeSnapshot` option applies the same native handoff admission
+and per-stop cutoff as the shared controller. This adds detached, immutable
+`handoffSources` targets, without adding child stops or joining histories. A
+missing child unit, path-only alias, manifest entry or partial metadata cannot
+supply a source. Without the option, the existing local-only result is unchanged.
+Hosts must pair the snapshot with the supplied scope's log and execution tree;
+the option does not authenticate or fetch a recording. Keep a frozen agent
+question's input snapshot and returned walk together. Loading more evidence
+does not mutate that walk; a new question may explicitly use the newly admitted
+snapshot. The provider's existing fresh-evidence validation remains separate.
 Foottrace's `causalChain` likewise does not automatically cross this boundary;
 the host selects a child record explicitly instead of flattening its history
 into the parent's log.
@@ -310,6 +320,7 @@ const selected = projectTraceInvocation(snapshot, "pipeline/prepare#8", {
 if (selected.availability.ok) {
   const walk = buildTraceWalk(selected.commitLog, selected.executionTree, "total", {
     scope: selected.scope,
+    runtimeSnapshot: snapshot, // optional captured output handoffs, not a log join
   });
   const text = formatTraceWalk(walk, () => null);
 }
@@ -353,3 +364,5 @@ and deletes only its private scratch directory. Do not run full suites, fresh
 installs/build comparisons, record pilot or installed-type packaging checks
 while a shared-host storage measurement is active. Focused development tests
 use one worker, no file parallelism and low scheduling priority.
+The packed check also replays the detached handoff suite through both public
+module formats, using the unchanged real repeated/nested handoff recording.

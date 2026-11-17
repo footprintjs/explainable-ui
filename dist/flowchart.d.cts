@@ -153,6 +153,55 @@ interface StageSnapshot {
     /** Subflow execution result — present on stages that ran a subflow. */
     subflowResult?: unknown;
 }
+/**
+ * The narrative entry kinds this package renders with a badge of its own.
+ * Closed on purpose: `StoryNarrative` keys its badge map by this union, so a
+ * kind added here without a badge is a compile error.
+ */
+type KnownNarrativeEntryType = 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume' | 'emit'
+/** One failed attempt at a stage that declares a `retry` policy — the
+ *  stage is about to run again. Attempt telemetry, not an outcome: the
+ *  stage may still succeed, so this is warning-weight, not error-weight.
+ *  Emitted by footprintjs 9.15–10.0, nested inside its own stage; later
+ *  releases narrate `attempt` lines instead. */
+ | 'retry'
+/** One attempt of a stage that declares a `retry` policy — its outcome,
+ *  how long it took, its cause and the retry-or-stop decision, one line per
+ *  attempt. Emitted by footprintjs >= 10.1, nested inside its own stage
+ *  (beneath the `error` line when the stage failed for good). */
+ | 'attempt';
+/**
+ * A narrative entry's kind: one this package knows, or ANY other string.
+ *
+ * Open on purpose. footprintjs adds entry kinds in minor releases (`retry` in
+ * 9.15, `attempt` in 10.1); while this type was a closed union, each addition
+ * made every app that hands `executor.getNarrativeEntries()` to a component
+ * here fail to compile. A kind this release does not know renders with a plain
+ * generic badge and its text as written. `(string & {})` keeps editor
+ * completion for the known kinds.
+ */
+type NarrativeEntryType = KnownNarrativeEntryType | (string & {});
+/** Structured narrative entry — preserves type info for semantic rendering. */
+interface NarrativeEntry {
+    type: NarrativeEntryType;
+    text: string;
+    depth: number;
+    stageName?: string;
+    /** Stable stage identifier (matches spec node id). Primary key for UI sync. */
+    stageId?: string;
+    /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex.
+     *  Used for exact time-travel sync (preferred over stageId for progressive reveal). */
+    runtimeStageId?: string;
+    /** Subflow ID when this entry was generated inside a subflow. */
+    subflowId?: string;
+    /** Direction for subflow entries: 'entry' when entering, 'exit' when leaving. */
+    direction?: 'entry' | 'exit';
+    stepNumber?: number;
+    /** Scope key that was read or written. Only present on 'step' entries. */
+    key?: string;
+    /** Raw value from the scope event. Only present on 'step' entries. */
+    rawValue?: unknown;
+}
 /** Component size variants */
 type Size = "compact" | "default" | "detailed";
 /** Common props shared by all visualization components */
@@ -172,6 +221,7 @@ interface BaseComponentProps {
  * and data attributes. The registry changes presentation, not Lens actions.
  */
 interface FootprintComponents {
+    LoadStatus?: ElementType<FootprintLoadStatusAdapterProps & RefAttributes<HTMLDivElement>>;
     Button?: ElementType<ButtonHTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>>;
     Tab?: ElementType<ButtonHTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>>;
     Input?: ElementType<InputHTMLAttributes<HTMLInputElement> & RefAttributes<HTMLInputElement>>;
@@ -180,6 +230,11 @@ interface FootprintComponents {
     Code?: ElementType<HTMLAttributes<HTMLElement> & RefAttributes<HTMLElement>>;
     Tooltip?: ElementType<FootprintTooltipAdapterProps & RefAttributes<HTMLSpanElement>>;
     Icon?: ElementType<FootprintIconAdapterProps & RefAttributes<HTMLSpanElement>>;
+}
+interface FootprintLoadStatusAdapterProps extends HTMLAttributes<HTMLDivElement> {
+    state: 'loading' | 'preparing' | 'error';
+    indicator?: 'skeleton' | 'spinner' | 'text';
+    label: string;
 }
 declare function useFootprintComponents(): FootprintComponents;
 interface FootprintPrimitiveOptions {
@@ -332,6 +387,11 @@ interface ThemeModeProps {
  * how it rendered before the prop existed.
  */
 declare function themeModeVars(mode?: ThemeMode): CSSProperties;
+
+interface FootprintLoadStatusProps extends FootprintLoadStatusAdapterProps, FootprintPrimitiveOptions {
+}
+/** Presentation only: placeholders never become graph nodes or recorded evidence. */
+declare const FootprintLoadStatus: react.ForwardRefExoticComponent<FootprintLoadStatusProps & react.RefAttributes<HTMLDivElement>>;
 
 /** One display contract shared by the two independent relationship admission boundaries. */
 declare const attributions: Readonly<{
@@ -584,7 +644,7 @@ interface StageNodeData {
  * All colors and fonts come from `--fp-*` CSS variables (via theme).
  * Shows execution state via color, icon, step badge, and pulse animation.
  */
-declare const StageNode: react.NamedExoticComponent<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "width" | "height" | "data" | "id" | "sourcePosition" | "targetPosition" | "dragHandle" | "parentId"> & Required<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "type" | "draggable" | "selected" | "dragging" | "selectable" | "deletable" | "zIndex">> & {
+declare const StageNode: react.NamedExoticComponent<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "width" | "height" | "data" | "id" | "sourcePosition" | "targetPosition" | "dragHandle" | "parentId"> & Required<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "draggable" | "type" | "selected" | "dragging" | "selectable" | "deletable" | "zIndex">> & {
     isConnectable: boolean;
     positionAbsoluteX: number;
     positionAbsoluteY: number;
@@ -3593,4 +3653,137 @@ interface GroupedFlowInvestigationProps {
 /** User-initiated investigation over one host-bound recording. No graph storage or causal search lives here. */
 declare function GroupedFlowInvestigation(props: GroupedFlowInvestigationProps): react.JSX.Element;
 
-export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, type FlowchartOptions, type FlowchartRenderer, FootprintBadge, type FootprintBadgeProps, FootprintButton, type FootprintButtonProps, FootprintCheckbox, type FootprintCheckboxProps, FootprintCode, type FootprintCodeProps, type FootprintComponents, FootprintIcon, type FootprintIconAdapterProps, type FootprintIconProps, FootprintInput, type FootprintInputProps, type FootprintPrimitiveOptions, FootprintTab, FootprintTheme, type FootprintThemeProps, FootprintTooltip, type FootprintTooltipAdapterProps, type FootprintTooltipProps, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, ISOMETRIC_NODE_HEIGHT, ISOMETRIC_NODE_WIDTH, IsometricEdge, IsometricGrid, IsometricStageNode, type IsometricTraceLayoutOptions, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, type OverlayFromSnapshotOptions, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemeMode, type ThemeTokens, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, type TraceWorkflowOverlay, type TraceWorkflowRead, type TraceWorkflowStage, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, componentStyles, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createIsometricTraceLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, getFlowDiagramAncestors, graphFromStructure, isometricTraceLayout, overlayFromSnapshot, projectGroupedFlowDiagram, sliceOverlay, snapLinearSuccessors, structureAsChainTree, themeModeVars, tokensToCSSVars, traceGroupLayout, useFootprintComponents, useFootprintTheme, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };
+/** Raw runtime snapshot consumed by the recording views, without an engine dependency. */
+interface RuntimeSnapshotInput {
+    /** Recorded engine run identity; an unstarted engine may supply an empty string. */
+    runId?: unknown;
+    sharedState: Record<string, unknown>;
+    executionTree: unknown;
+    commitLog: unknown[];
+    /** Producer attestation that per-write readKeys use canonical nested paths. */
+    nestedReadTracking?: boolean;
+    subflowResults?: Record<string, unknown>;
+    /** Recorder snapshots from toSnapshot() — auto-generates detail tabs. */
+    recorders?: Array<{
+        id: string;
+        name: string;
+        description?: string;
+        preferredOperation?: "translate" | "accumulate" | "aggregate";
+        data: unknown;
+    }>;
+}
+
+/** Serializable presentation and optional-background-work policy. Functions stay in props. */
+interface ProgressiveRenderingOptions {
+    readonly loadingIndicator?: 'skeleton' | 'spinner' | 'text';
+    readonly prefetch?: 'none' | 'idle';
+}
+interface SubflowLoadRequest {
+    readonly invocationPath: readonly string[];
+    readonly mountRuntimeStageId: string;
+    readonly subflowId: string;
+    /** Recorded identity when present; never synthesized for a legacy recording. */
+    readonly runId?: string;
+}
+/** A complete recorded child unit. Graph IDs must be qualified below request.subflowId/. */
+interface LoadedSubflow {
+    readonly result: unknown;
+    readonly graph?: TraceGraph;
+    readonly narrativeEntries?: readonly NarrativeEntry[];
+}
+interface PreparedSubflow extends LoadedSubflow {
+    readonly snapshots: StageSnapshot[];
+}
+type SubflowLoadState = {
+    readonly status: 'loading' | 'preparing';
+    readonly request: SubflowLoadRequest;
+} | {
+    readonly status: 'ready';
+    readonly request: SubflowLoadRequest;
+    readonly value: PreparedSubflow;
+} | {
+    readonly status: 'error';
+    readonly request: SubflowLoadRequest;
+    readonly message: string;
+};
+interface RecordingSourceSnapshot {
+    readonly revision: number;
+    /** Changes only when a cumulative root cohort publishes, including narrative-only updates. */
+    readonly rootRevision: number;
+    /** Immutable logical view: original root fields plus admitted exact child results. */
+    readonly snapshot: RuntimeSnapshotInput;
+    readonly narrativeEntries: NarrativeEntry[];
+    readonly scopes: ReadonlyMap<string, SubflowLoadState>;
+}
+/** Complete cumulative live cohort for the same run; event history must not be truncated. */
+interface RecordingSourceUpdate {
+    readonly snapshot: RuntimeSnapshotInput;
+    readonly graph: TraceGraph;
+    readonly narrativeEntries?: readonly NarrativeEntry[];
+}
+interface RecordingSourceOptions {
+    readonly snapshot: RuntimeSnapshotInput;
+    readonly graph: TraceGraph;
+    readonly narrativeEntries?: readonly NarrativeEntry[];
+    readonly loadSubflow?: (request: SubflowLoadRequest, options: {
+        signal: AbortSignal;
+    }) => LoadedSubflow | Promise<LoadedSubflow>;
+    /** Optional host worker/preparation adapter. Cancellation and stale-result guards remain owned by the source. */
+    readonly prepareSubflow?: (value: LoadedSubflow, request: SubflowLoadRequest, options: {
+        signal: AbortSignal;
+    }) => PreparedSubflow | Promise<PreparedSubflow>;
+    /** Bound retained evidence without evicting a Backtrack return location. Default64; new requests refuse when full. */
+    readonly maxCachedSubflows?: number;
+}
+interface RecordingSource {
+    readonly rootSnapshot: RuntimeSnapshotInput;
+    readonly rootGraph: TraceGraph;
+    readonly canLoadSubflows: boolean;
+    /** Queue a complete cumulative live cohort. Publication is batched; does not move the replay cursor. */
+    update(value: RecordingSourceUpdate): void;
+    getSnapshot(): RecordingSourceSnapshot;
+    subscribe(listener: () => void): () => void;
+    /** Exact-path key; labels and local array indices are never identities. */
+    getKey(path: readonly string[]): string;
+    /** Requests deduplicate per exact invocation. A caller abort only cancels that caller's interest. */
+    load(request: SubflowLoadRequest, options?: {
+        signal?: AbortSignal;
+        background?: boolean;
+    }): Promise<PreparedSubflow>;
+    /** Graph for one exact selected ancestry; another visit cannot overwrite its geometry. */
+    getGraph(path: readonly string[]): TraceGraph;
+    /** Owned by the creator, never automatically called when one view unmounts. */
+    dispose(): void;
+}
+interface PreparationWorker {
+    postMessage(message: unknown): void;
+    addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
+    addEventListener(type: 'error' | 'messageerror', listener: (event: Event) => void): void;
+    removeEventListener(type: 'message', listener: (event: MessageEvent) => void): void;
+    removeEventListener(type: 'error' | 'messageerror', listener: (event: Event) => void): void;
+}
+
+/** One creator-owned recording cohort. View unmount releases only its own
+ * subscription and request signal; it must not dispose another view's source. */
+declare function createRecordingSource(options: RecordingSourceOptions): RecordingSource;
+
+/** Canonical per-scope projection. The converter itself is one synchronous unit;
+ * the task boundary lets pending paint first, not subdivide a large conversion. */
+declare function prepareSubflow(value: LoadedSubflow, request: SubflowLoadRequest, options: {
+    signal: AbortSignal;
+}): Promise<PreparedSubflow>;
+
+type SubflowWorkerPreparation = ((value: LoadedSubflow, request: SubflowLoadRequest, options: {
+    signal: AbortSignal;
+}) => Promise<PreparedSubflow>) & {
+    readonly dispose: () => void;
+};
+/** The supplied worker is a trusted preparation port; the source retains evidence admission. */
+declare function createSubflowWorkerPreparation(worker: PreparationWorker): SubflowWorkerPreparation;
+
+/** Install inside the host's worker. Uses the same canonical converter as default preparation. */
+declare function attachSubflowWorker(port: PreparationWorker): () => void;
+
+declare function resolveProgressiveRenderingOptions(input: unknown): ProgressiveRenderingOptions;
+
+export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, type FlowchartOptions, type FlowchartRenderer, FootprintBadge, type FootprintBadgeProps, FootprintButton, type FootprintButtonProps, FootprintCheckbox, type FootprintCheckboxProps, FootprintCode, type FootprintCodeProps, type FootprintComponents, FootprintIcon, type FootprintIconAdapterProps, type FootprintIconProps, FootprintInput, type FootprintInputProps, FootprintLoadStatus, type FootprintLoadStatusAdapterProps, type FootprintLoadStatusProps, type FootprintPrimitiveOptions, FootprintTab, FootprintTheme, type FootprintThemeProps, FootprintTooltip, type FootprintTooltipAdapterProps, type FootprintTooltipProps, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, ISOMETRIC_NODE_HEIGHT, ISOMETRIC_NODE_WIDTH, IsometricEdge, IsometricGrid, IsometricStageNode, type IsometricTraceLayoutOptions, type LoadedSubflow, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, type OverlayFromSnapshotOptions, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, type PreparationWorker, type PreparedSubflow, type ProgressiveRenderingOptions, type RecordingSource, type RecordingSourceOptions, type RecordingSourceSnapshot, type RecordingSourceUpdate, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowLoadRequest, type SubflowLoadState, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type SubflowWorkerPreparation, type ThemeMode, type ThemeTokens, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, type TraceWorkflowOverlay, type TraceWorkflowRead, type TraceWorkflowStage, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, attachSubflowWorker, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, componentStyles, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createIsometricTraceLayout, createMainChartBoxLayout, createNodeViewRecorder, createRecordingSource, createSnappedDagreLayout, createSubflowWorkerPreparation, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, getFlowDiagramAncestors, graphFromStructure, isometricTraceLayout, overlayFromSnapshot, prepareSubflow, projectGroupedFlowDiagram, resolveProgressiveRenderingOptions, sliceOverlay, snapLinearSuccessors, structureAsChainTree, themeModeVars, tokensToCSSVars, traceGroupLayout, useFootprintComponents, useFootprintTheme, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };
