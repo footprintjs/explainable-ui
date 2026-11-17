@@ -9,7 +9,7 @@ import type {
 } from "foottrace/cause";
 
 /** Canonical display projection: unused graph edges stay with the host and may evolve independently. */
-export interface InvestigationResult {
+export type InvestigationResult = {
   readonly nodeId: NodeId;
   readonly attention: MarkedNode["attention"];
   /** Present only for one supported candidate and complete backward coverage. Not provider-internal proof. */
@@ -24,7 +24,7 @@ export interface InvestigationResult {
   };
   readonly confidence: Confidence;
   readonly gaps: readonly Gap[];
-}
+};
 
 /** The host binds authorization, run, tenant, storage, exact invocation/attempt/visit, and query budgets. */
 export interface InvestigationPort {
