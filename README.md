@@ -1417,6 +1417,9 @@ facts from stage names.
 | Component | Description |
 |---|---|
 | `ExplainableShell` | Full Lens with Developer / Commentary details, collapsible panels and responsive layout |
+| `LensControllerProvider` | Next-release shared React owner for recorded data, exact scope, cursor, playback and Backtrack; renders only its children |
+| `useLensController` | Next-release hook for that owner's current data and semantic commands; root entry point |
+| `LensReplayControls` | Next-release stock transport bound to the shared controller, retaining its clock, axis and Backtrack stops |
 | `useLensWorkbench` | Read the full shell's surfaces, state and validated actions inside its custom layout; root entry point |
 | `TimeTravelControls` | Play/pause, prev/next, scrubber timeline |
 | `MemoryPanel` | Memory state + scope diff (composite right-panel view) |

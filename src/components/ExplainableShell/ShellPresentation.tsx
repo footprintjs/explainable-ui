@@ -214,6 +214,12 @@ export function ShellPresentation(props: ExplainableShellProps) {
     activeSnapshots, safeIdx, activeNarrativeEntries, narrativeScopeSubflowId, stageActivity,
     selectedActivityVariableId, traceSession, traceWorkflow, playback, offered, renderingOptions, isInSubflow } = model;
   const { selectedStack, setSnapshotIdx } = navigation;
+  const priorUnstyled = useRef(unstyled);
+  useEffect(() => {
+    if (priorUnstyled.current === unstyled) return;
+    priorUnstyled.current = unstyled;
+    playback.stopPlaying();
+  }, [unstyled, playback.stopPlaying]);
   const handleDrillDown = model.value.actions.drillDown;
   const handleBreadcrumbNavigate = useCallback((level: number) => {
     playback.stopPlaying(); navigation.handleBreadcrumbNavigate(level);
@@ -311,10 +317,11 @@ export function ShellPresentation(props: ExplainableShellProps) {
 
   // ── Handlers ──
   const handleTabChange = useCallback((tab: ShellTab) => {
+    if (tab === activeTab) return;
     playback.stopPlaying();
     setActiveTab(tab);
     navigation.resetRoot();
-  }, [navigation.resetRoot, playback.stopPlaying]);
+  }, [activeTab, navigation.resetRoot, playback.stopPlaying]);
 
   const handleSnapshotChange = model.value.actions.selectIndex;
 

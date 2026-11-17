@@ -38,6 +38,17 @@ const groupedFlowExports = [
 const flowchartOptionExports = ["FlowchartOptions", "FlowchartRenderer"]
   .map(name => ({ name, kind: "type" }));
 
+// Twelve reviewed additions at the root only. The historical fixture and
+// every previous export/home/kind remain exact; private helpers stay private.
+const headlessControllerExports = [
+  ...["LensControllerProvider", "useLensController", "LensReplayControls"]
+    .map(name => ({ name, kind: "value" })),
+  ...["LensControllerProviderProps", "LensRecordingInput", "LensControllerOptions",
+    "LensController", "LensControllerActions", "LensPresentationRequest",
+    "LensRecordingStatus", "ReplayAxis", "ReplayAxisScale",
+  ].map(name => ({ name, kind: "type" })),
+];
+
 const progressiveRenderingExports = [
   ...["createRecordingSource", "prepareSubflow", "createSubflowWorkerPreparation",
     "attachSubflowWorker", "resolveProgressiveRenderingOptions", "FootprintLoadStatus",
@@ -133,6 +144,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...flowchartOptionExports,
         ...displayPreflightExports,
         ...progressiveRenderingExports,
+        ...headlessControllerExports,
         { name: "investigationGapMessage", kind: "value" },
         ...["paperLight", "paperDark"].map(name => ({ name, kind: "value" })),
         { name: "useLensWorkbench", kind: "value" },
