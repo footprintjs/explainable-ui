@@ -71,6 +71,10 @@ for (const entry of entries) {
       }
       const diff = renderToStaticMarkup(React.createElement(entry.ScopeDiff, { previous: { values: new Map([['items', 29n]]) }, current: { values: memory.values }, hideUnchanged: true, unstyled: true }));
       assert(diff.includes('data-type="changed"')); assert(diff.includes('29n')); assert(diff.includes('30n'));
+      let calls = 0;
+      const unsafe = {}; Object.defineProperty(unsafe, 'secret', { enumerable: true, get() { calls++; return 1; } });
+      const unavailable = renderToStaticMarkup(React.createElement(entry.ScopeDiff, { previous: { nested: unsafe }, current: { nested: unsafe }, unstyled: true }));
+      assert(unavailable.includes('[Unavailable]')); assert(!unavailable.includes('data-fp="diff-entry"')); assert.equal(calls, 0);
     } finally { displaySource.dispose(); }
   }
   const html = renderToStaticMarkup(React.createElement(entry.FootprintLoadStatus, { state: 'loading', label: 'Loading recorded scope', indicator: 'skeleton' }));

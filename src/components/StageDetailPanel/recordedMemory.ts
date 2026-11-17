@@ -1,4 +1,4 @@
-import { sameOwnedData } from '../../recordedValues';
+import { compareRecordedValues } from '../../recordedValues';
 
 interface Change { key: string; type: 'added' | 'updated' | 'removed'; oldValue?: unknown; newValue?: unknown }
 type MemoryRow = { kind: 'change'; change: Change } | { kind: 'unchanged'; key: string; value: unknown } | { kind: 'unavailable'; key: string };
@@ -19,9 +19,11 @@ export function compareMemory(previous: Record<string, unknown> | null, current:
       const before = previous ? Object.getOwnPropertyDescriptor(previous, key) : undefined;
       const after = Object.getOwnPropertyDescriptor(current, key);
       if ((before && !('value' in before)) || (after && !('value' in after))) { unavailable.add(key); continue; }
+      const comparison = compareRecordedValues(before?.value, after?.value);
+      if (comparison === 'unavailable') { unavailable.add(key); continue; }
       if (!before && after) changes.push({ key, type: 'added', newValue: after.value });
       else if (before && !after) changes.push({ key, type: 'removed', oldValue: before.value });
-      else if (!sameOwnedData(before?.value, after?.value)) changes.push({ key, type: 'updated', oldValue: before?.value, newValue: after?.value });
+      else if (comparison === 'different') changes.push({ key, type: 'updated', oldValue: before?.value, newValue: after?.value });
     }
   } catch { return { changes: [], unavailable: new Set(['Memory comparison']) }; }
   const order = { added: 0, updated: 1, removed: 2 }; changes.sort((a, b) => order[a.type] - order[b.type]);

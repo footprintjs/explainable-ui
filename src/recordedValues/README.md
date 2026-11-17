@@ -24,3 +24,11 @@ its type/size plus `[Truncated]`. Character truncation is explicit and may leave
 an incomplete JSON-like preview; never parse it or replace canonical evidence
 with it. This bounds preview work; it does not make synchronous admission or
 arbitrarily large input inspection nonblocking.
+
+`compareRecordedValues` is the display-only three-way comparison. It validates
+both complete input graphs using bounded detached copies before reporting
+`equal` or `different`; unsupported nested data reports `unavailable` even when
+an earlier primitive field differs. Each copy keeps the existing 100,000-item
+work allowance. This allocates temporary bounded copies; it is not an incremental
+or nonblocking comparison. `sameOwnedData` retains its existing admitted-data
+boolean semantics for cumulative source history.

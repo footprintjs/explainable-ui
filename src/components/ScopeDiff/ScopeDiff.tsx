@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { BaseComponentProps } from "../../types";
 import { theme, componentStyles } from "../../theme";
-import { formatRecordedValue, sameOwnedData } from "../../recordedValues";
+import { formatRecordedValue, compareRecordedValues } from "../../recordedValues";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,12 +42,14 @@ function computeDiff(
     if ((before && !('value' in before)) || (after && !('value' in after))) { unavailable = true; continue; }
     const inPrev = before !== undefined, inCurr = after !== undefined;
     const oldVal = before?.value, newVal = after?.value;
+    const comparison = compareRecordedValues(oldVal, newVal);
+    if (comparison === 'unavailable') { unavailable = true; continue; }
 
     if (!inPrev && inCurr) {
       entries.push({ key, type: "added", newValue: newVal });
     } else if (inPrev && !inCurr) {
       entries.push({ key, type: "removed", oldValue: oldVal });
-    } else if (!sameOwnedData(oldVal, newVal)) {
+    } else if (comparison === 'different') {
       entries.push({ key, type: "changed", oldValue: oldVal, newValue: newVal });
     } else {
       entries.push({ key, type: "unchanged", newValue: newVal });

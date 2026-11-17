@@ -79,6 +79,24 @@ describe('accepted recorded native values in consumer panels', () => {
     expect(view.container.querySelectorAll('[data-fp="diff-entry"]')).toHaveLength(0);
   });
 
+  it.each(['nested getter', 'custom prototype'])('keeps %s comparisons unknown while still showing a separate native change', kind => {
+    let reads = 0;
+    const unsupported = (visible: number) => {
+      if (kind === 'custom prototype') return Object.assign(Object.create({ inherited: true }), { visible });
+      const hidden = {}; Object.defineProperty(hidden, 'secret', { enumerable: true, get() { reads++; throw Error('private'); } });
+      // The known difference comes first: it cannot override deeper unknowns.
+      return { visible, hidden };
+    };
+    const previous = { nested: unsupported(1), native: new Map([['v', 1n]]) };
+    const current = { nested: unsupported(2), native: new Map([['v', 2n]]) };
+    const view = render(<><ScopeDiff previous={previous} current={current} unstyled />
+      <StageDetailPanel snapshots={[snapshot(previous), snapshot(current)]} selectedIndex={1} mode="dev" unstyled /></>);
+    expect(Array.from(view.container.querySelectorAll('[data-fp="diff-entry"] [data-fp="diff-key"]'), node => node.textContent)).toEqual(['native']);
+    expect(Array.from(view.container.querySelectorAll('[data-fp="memory-change"] [data-fp="change-key"]'), node => node.textContent)).toEqual(['native']);
+    expect(view.container.querySelector('[data-fp="memory-unavailable"]')?.textContent).toBe('nested: [Unavailable]');
+    expect(view.container.querySelector('[data-fp="memory-unchanged"]')).toBeNull(); expect(reads).toBe(0);
+  });
+
   it('shows unavailable stage ledger fields without executing getters or inventing a change', () => {
     let reads = 0; const before: Record<string, unknown> = {}, after: Record<string, unknown> = { secret: 1n };
     Object.defineProperty(before, 'secret', { enumerable: true, get() { reads++; throw Error('private'); } });
