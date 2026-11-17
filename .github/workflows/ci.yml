@@ -45,6 +45,12 @@ jobs:
         if: matrix.node-version == 22
         run: npx vite build --config examples/local-playground/vite.config.ts
 
+      - name: Build deployment shapes example
+        if: matrix.node-version == 22
+        run: |
+          npx tsc -p examples/deployment-shapes/tsconfig.json
+          npx vite build --config examples/deployment-shapes/vite.config.ts
+
       # Non-shipping source pilot. Foottrace's development tests require Node 22;
       # the existing package entries and their Node 20 lane stay unchanged.
       - name: Verify isolated record source pilot

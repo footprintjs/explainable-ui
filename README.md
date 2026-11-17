@@ -98,6 +98,8 @@ layouts and a Recorded / Built-in / Custom SVG node-icon selector, run the
 selected by default. The preview replays bundled recordings using this checkout's
 source and requires no workflow services.
 Or open the [hosted seven-workflow preview](https://footprintjs.github.io/explainable-ui/local-playground/).
+For custom server, router and switch shapes with details fetched on demand, see the
+[deployment simulation example](examples/deployment-shapes/README.md).
 The [isometric preview](https://footprintjs.github.io/explainable-ui/local-playground/?look=isometric)
 opens the same recordings with illustrated depth, Paper styling and Details
 beside the chart. Use **Try isometric view** in the preview to switch presentation

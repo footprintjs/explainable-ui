@@ -1,0 +1,995 @@
+{
+  "snapshot": {
+    "sharedState": {
+      "artifactId": "simulation-build-42",
+      "healthProbeA": true,
+      "healthProbeB": true,
+      "routerReady": true,
+      "switchReady": true,
+      "serverAHealthy": true,
+      "serverBHealthy": true,
+      "deploymentReady": true,
+      "deploymentOutcome": "simulated-ready"
+    },
+    "executionTree": {
+      "id": "build-release",
+      "runtimeStageId": "build-release#0",
+      "name": "BuildRelease",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageWrites": {
+        "artifactId": "simulation-build-42",
+        "healthProbeA": true,
+        "healthProbeB": true
+      },
+      "description": "Build the simulation artifact",
+      "flowMessages": [
+        {
+          "type": "next",
+          "description": "Moving to ConfigureRouter stage",
+          "timestamp": 1794949435555,
+          "targetStage": "ConfigureRouter"
+        }
+      ],
+      "next": {
+        "id": "router",
+        "runtimeStageId": "router#1",
+        "name": "ConfigureRouter",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "routerReady": true
+        },
+        "stageReads": {
+          "artifactId": "simulation-build-42"
+        },
+        "description": "Simulate configuring the router",
+        "flowMessages": [
+          {
+            "type": "next",
+            "description": "Moving to ConfigureSwitch stage",
+            "timestamp": 1794949435555,
+            "targetStage": "ConfigureSwitch"
+          }
+        ],
+        "next": {
+          "id": "switch",
+          "runtimeStageId": "switch#2",
+          "name": "ConfigureSwitch",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {
+            "selectedChildIds": [
+              "server-a",
+              "server-b"
+            ],
+            "selectorPattern": "scope-based-multi-choice"
+          },
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "switchReady": true
+          },
+          "stageReads": {
+            "routerReady": true,
+            "switchReady": true
+          },
+          "description": "Simulate connecting both server branches",
+          "flowMessages": [
+            {
+              "type": "selected",
+              "description": "Running Server A, Server B (2 of 2 matched)",
+              "timestamp": 1794949435556,
+              "count": 2,
+              "targetStage": [
+                "Server A",
+                "Server B"
+              ]
+            }
+          ],
+          "next": {
+            "id": "health",
+            "runtimeStageId": "health#11",
+            "name": "CheckHealth",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "deploymentReady": true
+            },
+            "stageReads": {
+              "serverAHealthy": true,
+              "serverBHealthy": true
+            },
+            "description": "Combine both recorded server health results",
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to Complete stage",
+                "timestamp": 1794949435559,
+                "targetStage": "Complete"
+              }
+            ],
+            "next": {
+              "id": "complete",
+              "runtimeStageId": "complete#12",
+              "name": "Complete",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "deploymentOutcome": "simulated-ready"
+              },
+              "stageReads": {
+                "deploymentReady": true
+              },
+              "description": "Record the deployment simulation outcome"
+            }
+          },
+          "children": [
+            {
+              "id": "server-a",
+              "runtimeStageId": "server-a#3",
+              "name": "Server A",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageReads": {
+                "artifactId": "simulation-build-42",
+                "switchReady": true,
+                "healthProbeA": true
+              },
+              "subflowId": "server-a",
+              "flowMessages": [
+                {
+                  "type": "subflow",
+                  "description": "Entering Server A subflow",
+                  "timestamp": 1794949435556,
+                  "targetStage": "server-a"
+                },
+                {
+                  "type": "subflow",
+                  "description": "Exiting Server A subflow",
+                  "timestamp": 1794949435558,
+                  "targetStage": "server-a"
+                }
+              ]
+            },
+            {
+              "id": "server-b",
+              "runtimeStageId": "server-b#5",
+              "name": "Server B",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageReads": {
+                "artifactId": "simulation-build-42",
+                "switchReady": true,
+                "healthProbeB": true
+              },
+              "subflowId": "server-b",
+              "flowMessages": [
+                {
+                  "type": "subflow",
+                  "description": "Entering Server B subflow",
+                  "timestamp": 1794949435557,
+                  "targetStage": "server-b"
+                },
+                {
+                  "type": "subflow",
+                  "description": "Exiting Server B subflow",
+                  "timestamp": 1794949435558,
+                  "targetStage": "server-b"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "initialState": {},
+    "commitLog": [
+      {
+        "overwrite": {
+          "artifactId": "simulation-build-42",
+          "healthProbeA": true,
+          "healthProbeB": true
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "artifactId",
+            "verb": "set",
+            "readKeys": []
+          },
+          {
+            "path": "healthProbeA",
+            "verb": "set",
+            "readKeys": []
+          },
+          {
+            "path": "healthProbeB",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "BuildRelease",
+        "stageId": "build-release",
+        "runtimeStageId": "build-release#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "routerReady": true
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "routerReady",
+            "verb": "set",
+            "readKeys": [
+              "artifactId"
+            ]
+          }
+        ],
+        "stage": "ConfigureRouter",
+        "stageId": "router",
+        "runtimeStageId": "router#1",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "switchReady": true
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "switchReady",
+            "verb": "set",
+            "readKeys": [
+              "routerReady"
+            ]
+          }
+        ],
+        "stage": "ConfigureSwitch",
+        "stageId": "switch",
+        "runtimeStageId": "switch#2",
+        "idx": 2
+      },
+      {
+        "overwrite": {
+          "serverAHealthy": true
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "serverAHealthy",
+            "verb": "set",
+            "readKeys": [
+              "artifactId",
+              "switchReady",
+              "healthProbeA"
+            ]
+          }
+        ],
+        "stage": "Server A",
+        "stageId": "server-a",
+        "runtimeStageId": "server-a#3",
+        "idx": 3
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Server A",
+        "stageId": "server-a",
+        "runtimeStageId": "server-a#3",
+        "phase": "exit",
+        "idx": 4
+      },
+      {
+        "overwrite": {
+          "serverBHealthy": true
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "serverBHealthy",
+            "verb": "set",
+            "readKeys": [
+              "artifactId",
+              "switchReady",
+              "healthProbeB"
+            ]
+          }
+        ],
+        "stage": "Server B",
+        "stageId": "server-b",
+        "runtimeStageId": "server-b#5",
+        "beganAt": 3,
+        "idx": 5
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Server B",
+        "stageId": "server-b",
+        "runtimeStageId": "server-b#5",
+        "phase": "exit",
+        "idx": 6
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Server A",
+        "stageId": "server-a",
+        "runtimeStageId": "server-a#3",
+        "phase": "repeat",
+        "idx": 7
+      },
+      {
+        "overwrite": {},
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [],
+        "stage": "Server B",
+        "stageId": "server-b",
+        "runtimeStageId": "server-b#5",
+        "phase": "repeat",
+        "idx": 8
+      },
+      {
+        "overwrite": {
+          "deploymentReady": true
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "deploymentReady",
+            "verb": "set",
+            "readKeys": [
+              "serverAHealthy",
+              "serverBHealthy"
+            ]
+          }
+        ],
+        "stage": "CheckHealth",
+        "stageId": "health",
+        "runtimeStageId": "health#11",
+        "idx": 9
+      },
+      {
+        "overwrite": {
+          "deploymentOutcome": "simulated-ready"
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "deploymentOutcome",
+            "verb": "set",
+            "readKeys": [
+              "deploymentReady"
+            ]
+          }
+        ],
+        "stage": "Complete",
+        "stageId": "complete",
+        "runtimeStageId": "complete#12",
+        "idx": 10
+      }
+    ],
+    "logAddress": {
+      "logRunId": "1794949435552-0000000001",
+      "drillPath": []
+    },
+    "commitValues": "full",
+    "writeProvenance": "reads-prefix",
+    "captureOutputHandoff": true,
+    "nestedReadTracking": true,
+    "runId": "1794949435552-0000000001"
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "build-release",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "BuildRelease",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [],
+          "nextIds": [
+            "router"
+          ],
+          "description": "Build the simulation artifact"
+        }
+      },
+      {
+        "id": "router",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "ConfigureRouter",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "build-release"
+          ],
+          "nextIds": [
+            "switch"
+          ],
+          "description": "Simulate configuring the router"
+        }
+      },
+      {
+        "id": "switch",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "ConfigureSwitch",
+          "isDecider": true,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "router"
+          ],
+          "nextIds": [
+            "server-a",
+            "server-b"
+          ],
+          "description": "Simulate connecting both server branches",
+          "branchIds": [
+            "server-a",
+            "server-b"
+          ]
+        }
+      },
+      {
+        "id": "server-a",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Server A",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": true,
+          "prevIds": [
+            "switch"
+          ],
+          "nextIds": [
+            "health"
+          ],
+          "subflowId": "server-a"
+        }
+      },
+      {
+        "id": "server-b",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Server B",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": true,
+          "prevIds": [
+            "switch"
+          ],
+          "nextIds": [
+            "health"
+          ],
+          "subflowId": "server-b"
+        }
+      },
+      {
+        "id": "health",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "CheckHealth",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "server-a",
+            "server-b"
+          ],
+          "nextIds": [
+            "complete"
+          ],
+          "description": "Combine both recorded server health results"
+        }
+      },
+      {
+        "id": "complete",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "Complete",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "prevIds": [
+            "health"
+          ],
+          "nextIds": [],
+          "description": "Record the deployment simulation outcome"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "build-release->router:next",
+        "source": "build-release",
+        "target": "router",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "router->switch:next",
+        "source": "router",
+        "target": "switch",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "switch->server-a:decision-branch:server-a",
+        "source": "switch",
+        "target": "server-a",
+        "data": {
+          "kind": "decision-branch",
+          "label": "server-a"
+        },
+        "label": "server-a"
+      },
+      {
+        "id": "switch->server-b:decision-branch:server-b",
+        "source": "switch",
+        "target": "server-b",
+        "data": {
+          "kind": "decision-branch",
+          "label": "server-b"
+        },
+        "label": "server-b"
+      },
+      {
+        "id": "server-a->health:next",
+        "source": "server-a",
+        "target": "health",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "server-b->health:next",
+        "source": "server-b",
+        "target": "health",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "health->complete:next",
+        "source": "health",
+        "target": "complete",
+        "data": {
+          "kind": "next"
+        }
+      }
+    ]
+  },
+  "narrativeEntries": [
+    {
+      "type": "stage",
+      "text": "Build the simulation artifact",
+      "depth": 0,
+      "stageName": "BuildRelease",
+      "stageId": "build-release",
+      "runtimeStageId": "build-release#0"
+    },
+    {
+      "type": "step",
+      "text": "Recorded artifactId.",
+      "depth": 1,
+      "stageName": "BuildRelease",
+      "stageId": "build-release",
+      "runtimeStageId": "build-release#0",
+      "stepNumber": 1,
+      "key": "artifactId",
+      "rawValue": "simulation-build-42"
+    },
+    {
+      "type": "step",
+      "text": "Recorded healthProbeA.",
+      "depth": 1,
+      "stageName": "BuildRelease",
+      "stageId": "build-release",
+      "runtimeStageId": "build-release#0",
+      "stepNumber": 2,
+      "key": "healthProbeA",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Recorded healthProbeB.",
+      "depth": 1,
+      "stageName": "BuildRelease",
+      "stageId": "build-release",
+      "runtimeStageId": "build-release#0",
+      "stepNumber": 3,
+      "key": "healthProbeB",
+      "rawValue": true
+    },
+    {
+      "type": "emit",
+      "text": "Built the deterministic local simulation artifact; no deployment request was sent.",
+      "depth": 1,
+      "stageName": "BuildRelease",
+      "stageId": "build-release",
+      "runtimeStageId": "build-release#0",
+      "stepNumber": 4
+    },
+    {
+      "type": "stage",
+      "text": "Simulate configuring the router",
+      "depth": 0,
+      "stageName": "ConfigureRouter",
+      "stageId": "router",
+      "runtimeStageId": "router#1"
+    },
+    {
+      "type": "step",
+      "text": "Used artifactId.",
+      "depth": 1,
+      "stageName": "ConfigureRouter",
+      "stageId": "router",
+      "runtimeStageId": "router#1",
+      "stepNumber": 1,
+      "key": "artifactId",
+      "rawValue": "simulation-build-42"
+    },
+    {
+      "type": "step",
+      "text": "Recorded routerReady.",
+      "depth": 1,
+      "stageName": "ConfigureRouter",
+      "stageId": "router",
+      "runtimeStageId": "router#1",
+      "stepNumber": 2,
+      "key": "routerReady",
+      "rawValue": true
+    },
+    {
+      "type": "emit",
+      "text": "Recorded a simulated router route for simulation-build-42; no router was changed.",
+      "depth": 1,
+      "stageName": "ConfigureRouter",
+      "stageId": "router",
+      "runtimeStageId": "router#1",
+      "stepNumber": 3
+    },
+    {
+      "type": "selector",
+      "text": "[Selected]: 2 of 2 paths selected: server-a \"Simulate deployment to Server A\" (switchReady=true); server-b \"Simulate deployment to Server B\" (switchReady=true).",
+      "depth": 0,
+      "stageId": "switch",
+      "runtimeStageId": "switch#2"
+    },
+    {
+      "type": "fork",
+      "text": "Selected recorded branches: Server A, Server B.",
+      "depth": 0,
+      "stageId": "switch",
+      "runtimeStageId": "switch#2"
+    },
+    {
+      "type": "subflow",
+      "text": "Entered Server A.",
+      "depth": 0,
+      "stageName": "Server A",
+      "stageId": "server-a",
+      "runtimeStageId": "server-a#3",
+      "subflowId": "server-a",
+      "direction": "entry"
+    },
+    {
+      "type": "step",
+      "text": "Recorded artifactId.",
+      "depth": 1,
+      "stageName": "Server A",
+      "stageId": "server-a",
+      "runtimeStageId": "server-a#3",
+      "subflowId": "server-a",
+      "key": "artifactId",
+      "rawValue": "simulation-build-42"
+    },
+    {
+      "type": "step",
+      "text": "Recorded switchReady.",
+      "depth": 1,
+      "stageName": "Server A",
+      "stageId": "server-a",
+      "runtimeStageId": "server-a#3",
+      "subflowId": "server-a",
+      "key": "switchReady",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Recorded simulatedHealth.",
+      "depth": 1,
+      "stageName": "Server A",
+      "stageId": "server-a",
+      "runtimeStageId": "server-a#3",
+      "subflowId": "server-a",
+      "key": "simulatedHealth",
+      "rawValue": true
+    },
+    {
+      "type": "subflow",
+      "text": "Entered Server B.",
+      "depth": 0,
+      "stageName": "Server B",
+      "stageId": "server-b",
+      "runtimeStageId": "server-b#5",
+      "subflowId": "server-b",
+      "direction": "entry"
+    },
+    {
+      "type": "step",
+      "text": "Recorded artifactId.",
+      "depth": 1,
+      "stageName": "Server B",
+      "stageId": "server-b",
+      "runtimeStageId": "server-b#5",
+      "subflowId": "server-b",
+      "key": "artifactId",
+      "rawValue": "simulation-build-42"
+    },
+    {
+      "type": "step",
+      "text": "Recorded switchReady.",
+      "depth": 1,
+      "stageName": "Server B",
+      "stageId": "server-b",
+      "runtimeStageId": "server-b#5",
+      "subflowId": "server-b",
+      "key": "switchReady",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Recorded simulatedHealth.",
+      "depth": 1,
+      "stageName": "Server B",
+      "stageId": "server-b",
+      "runtimeStageId": "server-b#5",
+      "subflowId": "server-b",
+      "key": "simulatedHealth",
+      "rawValue": true
+    },
+    {
+      "type": "subflow",
+      "text": "Returned from Server A.",
+      "depth": 0,
+      "stageName": "Server A",
+      "stageId": "server-a",
+      "runtimeStageId": "server-a#3",
+      "subflowId": "server-a",
+      "direction": "exit"
+    },
+    {
+      "type": "subflow",
+      "text": "Returned from Server B.",
+      "depth": 0,
+      "stageName": "Server B",
+      "stageId": "server-b",
+      "runtimeStageId": "server-b#5",
+      "subflowId": "server-b",
+      "direction": "exit"
+    },
+    {
+      "type": "stage",
+      "text": "Combine both recorded server health results",
+      "depth": 0,
+      "stageName": "CheckHealth",
+      "stageId": "health",
+      "runtimeStageId": "health#11"
+    },
+    {
+      "type": "step",
+      "text": "Used serverAHealthy.",
+      "depth": 1,
+      "stageName": "CheckHealth",
+      "stageId": "health",
+      "runtimeStageId": "health#11",
+      "stepNumber": 1,
+      "key": "serverAHealthy",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Used serverBHealthy.",
+      "depth": 1,
+      "stageName": "CheckHealth",
+      "stageId": "health",
+      "runtimeStageId": "health#11",
+      "stepNumber": 2,
+      "key": "serverBHealthy",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Recorded deploymentReady.",
+      "depth": 1,
+      "stageName": "CheckHealth",
+      "stageId": "health",
+      "runtimeStageId": "health#11",
+      "stepNumber": 3,
+      "key": "deploymentReady",
+      "rawValue": true
+    },
+    {
+      "type": "emit",
+      "text": "Recorded server results: A healthy, B healthy.",
+      "depth": 1,
+      "stageName": "CheckHealth",
+      "stageId": "health",
+      "runtimeStageId": "health#11",
+      "stepNumber": 4
+    },
+    {
+      "type": "stage",
+      "text": "Record the deployment simulation outcome",
+      "depth": 0,
+      "stageName": "Complete",
+      "stageId": "complete",
+      "runtimeStageId": "complete#12"
+    },
+    {
+      "type": "step",
+      "text": "Used deploymentReady.",
+      "depth": 1,
+      "stageName": "Complete",
+      "stageId": "complete",
+      "runtimeStageId": "complete#12",
+      "stepNumber": 1,
+      "key": "deploymentReady",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Recorded deploymentOutcome.",
+      "depth": 1,
+      "stageName": "Complete",
+      "stageId": "complete",
+      "runtimeStageId": "complete#12",
+      "stepNumber": 2,
+      "key": "deploymentOutcome",
+      "rawValue": "simulated-ready"
+    },
+    {
+      "type": "emit",
+      "text": "Deployment simulation ready. No infrastructure was deployed.",
+      "depth": 1,
+      "stageName": "Complete",
+      "stageId": "complete",
+      "runtimeStageId": "complete#12",
+      "stepNumber": 3
+    }
+  ],
+  "runtimeOverlay": {
+    "executionOrder": [
+      {
+        "runtimeStageId": "build-release#0",
+        "stageId": "build-release",
+        "stageName": "BuildRelease",
+        "timestampMs": 4.440625000000011
+      },
+      {
+        "runtimeStageId": "router#1",
+        "stageId": "router",
+        "stageName": "ConfigureRouter",
+        "timestampMs": 4.8850419999999986
+      },
+      {
+        "runtimeStageId": "switch#2",
+        "stageId": "switch",
+        "stageName": "ConfigureSwitch",
+        "timestampMs": 5.478582999999986
+      },
+      {
+        "runtimeStageId": "server-a#3",
+        "stageId": "server-a",
+        "stageName": "server-a/DeployArtifact",
+        "timestampMs": 6.1518330000000105
+      },
+      {
+        "runtimeStageId": "server-b#5",
+        "stageId": "server-b",
+        "stageName": "server-b/DeployArtifact",
+        "timestampMs": 6.587541999999985
+      },
+      {
+        "runtimeStageId": "health#11",
+        "stageId": "health",
+        "stageName": "CheckHealth",
+        "timestampMs": 8.116958000000011
+      },
+      {
+        "runtimeStageId": "complete#12",
+        "stageId": "complete",
+        "stageName": "Complete",
+        "timestampMs": 8.200375000000008
+      }
+    ],
+    "errors": [],
+    "running": false,
+    "retryAttempts": []
+  }
+}
