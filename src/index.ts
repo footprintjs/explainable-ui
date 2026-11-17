@@ -189,3 +189,6 @@ export type { DisplayCheckResult, DisplayDiagnostic, DisplayDiagnosticCode, Disp
 
 // Recorded-read presentation for custom workflow renderers.
 export type { TraceWorkflowOverlay, TraceWorkflowStage, TraceWorkflowRead } from "./trace/traceWorkflowOverlay";
+
+// Canonical investigation wording; host labels remain component presentation data.
+export { investigationGapMessage } from "./components/InvestigationPanel/wording";
