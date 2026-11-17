@@ -39,7 +39,7 @@ export function useShellRecording(props: ExplainableShellProps) {
   // Root projection is cached against the original recording. Child publication
   // attaches exact results without walking and indexing the root execution again.
   const projectionSnapshot = source ? originalSnapshot : runtimeSnapshot;
-  const rootNarrative = useMemo(() => source?.getSnapshot().narrativeEntries, [source]);
+  const rootNarrative = useMemo(() => source?.getSnapshot().narrativeEntries, [source, sourceState?.rootRevision]);
   const projectionNarrative = source ? rootNarrative : narrativeEntries;
   const projectionResults = useMemo(() => exactSubflowResults(ownDataField(projectionSnapshot, "subflowResults")), [projectionSnapshot]);
   // Convert runtimeSnapshot → visualization snapshots (zero-boilerplate mode).
@@ -76,7 +76,7 @@ export function useShellRecording(props: ExplainableShellProps) {
   const snapshots = useMemo(() => {
     const base = companions.values.snapshots ?? derivedFromRuntime?.snapshots ?? [];
     if (!source) return base;
-    return base.map(stage => {
+    return base.filter(stage => typeof stage.runtimeStageId === "string" && stage.runtimeStageId.length > 0).map(stage => {
       const result = stage.runtimeStageId ? ownDataField(exactResults, stage.runtimeStageId) : undefined;
       return result && result !== stage.subflowResult ? { ...stage, subflowResult: result } : stage;
     });

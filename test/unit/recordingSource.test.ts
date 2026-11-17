@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { createRecordingSource } from '../../src/progressiveRendering/source';
-import type { LoadedSubflow, RecordingSource, RecordingSourceOptions, SubflowLoadRequest } from '../../src/progressiveRendering/types';
+import { createRecordingSource } from '../../src/progressiveRendering';
+import type { LoadedSubflow, RecordingSource, RecordingSourceOptions, SubflowLoadRequest } from '../../src/progressiveRendering';
 import type { TraceGraph } from '../../src/components/FlowchartView/traceStructureRecorder';
 
 const sources: RecordingSource[] = [];
@@ -44,7 +44,7 @@ describe('recording source delivery and exact evidence ownership', () => {
     expect(source.getSnapshot().narrativeEntries).toBe(first.narrativeEntries);
     delivery.resolve(child()); const value = await pending;
     expect(value.snapshots[0].memory.total).toBe(35);
-    expect(source.rootSnapshot).toBe(snapshot);
+    expect(source.rootSnapshot).not.toBe(snapshot); expect(source.rootSnapshot).toEqual(snapshot); expect(Object.isFrozen(source.rootSnapshot)).toBe(true);
     expect(snapshot).not.toHaveProperty('subflowResults');
     expect(source.getSnapshot().snapshot.subflowResults?.['child#1']).toBe(value.result);
     expect(first.snapshot).not.toHaveProperty('subflowResults.child#1');
@@ -198,7 +198,7 @@ describe('recording source delivery and exact evidence ownership', () => {
     const loader = vi.fn(() => child()); const source = createRecordingSource({ snapshot, graph: graph(['child']), loadSubflow: loader }); sources.push(source);
     const req = request(); delete (req as { runId?: string }).runId;
     await source.load(req);
-    expect(source.rootSnapshot).toBe(snapshot);
+    expect(source.rootSnapshot).not.toBe(snapshot); expect(source.rootSnapshot).toEqual(snapshot); expect(Object.isFrozen(source.rootSnapshot)).toBe(true);
     expect(source.getSnapshot().snapshot).not.toHaveProperty('runId');
     expect(loader.mock.calls[0]).toBeDefined();
     expect((source.getSnapshot().scopes.get(source.getKey(['child#1']))!.request)).not.toHaveProperty('runId');

@@ -42,7 +42,7 @@ export function useSubflowNavigation({
   activeTab,
   onScopeReset,
 }: NavigationOptions) {
-  const lazy = useLazySubflowRequest(source, sourceState ?? null, JSON.stringify([activeTab, snapshotIdx, sourceRunId && typeof sourceRunId === "string" ? sourceRunId : null]));
+  const lazy = useLazySubflowRequest(source, sourceState ?? null, JSON.stringify([activeTab, sourceRunId && typeof sourceRunId === "string" ? sourceRunId : null]));
   const latestApply = useRef<(mountKey: string, choices: ReadonlyMap<string, string>) => void>(() => {});
   const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
   const [navigationNotice, setNavigationNotice] = useState("");

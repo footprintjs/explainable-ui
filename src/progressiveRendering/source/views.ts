@@ -14,12 +14,20 @@ export function rootFields(snapshot: RuntimeSnapshotInput): Record<string, unkno
     // Unused stored accessors are not evaluated or copied into the cohort.
     if (descriptor && 'value' in descriptor) result[field] = descriptor.value;
   }
-  for (const field of ['sharedState', 'executionTree', 'commitLog', 'runId', 'nestedReadTracking', 'subflowResults', 'recorders']) own(snapshot, field);
+  // Enumeration is not an admission boundary. Recognized own facts retain
+  // their values even when the host deliberately made them non-enumerable.
+  for (const field of ['sharedState', 'executionTree', 'commitLog', 'runId', 'logAddress', 'nestedReadTracking',
+    'subflowResults', 'recorders', 'initialState', 'commitValues', 'writeProvenance']) {
+    const descriptor = Object.getOwnPropertyDescriptor(snapshot, field);
+    if (!descriptor) continue;
+    if (!('value' in descriptor)) throw invalid();
+    result[field] = descriptor.value;
+  }
   if (!isPlainRecord(result.sharedState) || !Array.isArray(result.commitLog)) throw invalid();
   return Object.freeze(result);
 }
-export function sourceView(root: Record<string, unknown>, narrative: readonly NarrativeEntry[], states: ReadonlyMap<string, SubflowLoadState>, revision: number, previous?: RecordingSourceSnapshot) {
-  if (previous) return Object.freeze({ revision, snapshot: previous.snapshot, narrativeEntries: previous.narrativeEntries, scopes: readonlyMap(states) });
+export function sourceView(root: Record<string, unknown>, narrative: readonly NarrativeEntry[], states: ReadonlyMap<string, SubflowLoadState>, revision: number, previous?: RecordingSourceSnapshot, rootRevision = 0) {
+  if (previous) return Object.freeze({ revision, rootRevision, snapshot: previous.snapshot, narrativeEntries: previous.narrativeEntries, scopes: readonlyMap(states) });
   const results: Record<string, unknown> = Object.create(null);
   if (root.subflowResults !== undefined) {
     if (!isPlainRecord(root.subflowResults)) throw invalid();
@@ -30,7 +38,7 @@ export function sourceView(root: Record<string, unknown>, narrative: readonly Na
     results[state.request.mountRuntimeStageId] = state.value.result;
     if (state.value.narrativeEntries) entries.push(...state.value.narrativeEntries);
   }
-  return Object.freeze({ revision, snapshot: Object.freeze({ ...root, subflowResults: Object.freeze(results) }) as unknown as RuntimeSnapshotInput,
+  return Object.freeze({ revision, rootRevision, snapshot: Object.freeze({ ...root, subflowResults: Object.freeze(results) }) as unknown as RuntimeSnapshotInput,
     narrativeEntries: Object.freeze(entries) as unknown as NarrativeEntry[], scopes: readonlyMap(states) });
 }
 export function scopedGraph(root: TraceGraph, path: readonly string[], states: ReadonlyMap<string, SubflowLoadState>): TraceGraph {

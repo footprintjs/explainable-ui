@@ -20,3 +20,18 @@ than silently overwritten in the flat engine map.
 Root/source records are supplied immutable host facts. No host object is frozen
 or mutated. A view unmount removes its subscription and request interest only;
 the creator calls `dispose()` when the whole source is no longer needed.
+
+`update()` accepts a complete cumulative same-run root cohort. `live.ts` detaches
+bounded own data and compares all prior commit rows/values/order against the
+latest accepted pending cohort, also retaining earlier tree runtime IDs without
+requiring unchanged branch preorder. Earlier inline child history cannot vanish
+or be rewritten. These are supplied-data consistency checks, not proof that the
+host supplied the whole execution or that its claims are true. Deltas are not
+accepted. Root/graph getters and `rootRevision` change only on atomic visual
+publication. All admission and logical-view assembly happen before that callback.
+
+Separately loaded child evidence stays cached across unrelated root appends.
+When a root supplies changed authoritative child evidence, stale preparation and
+geometry are removed and old jobs cancelled; the existing inline converter uses
+the new raw record. A source can have no loader: live updates still work, inline
+children can be prepared, and missing child loads explicitly refuse.

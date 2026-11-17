@@ -2253,4 +2253,33 @@ saved-history transport changes are separate work.
 
 ### Lazy subflows and progressive presentation
 
-Use `createRecordingSource` with `<ExplainableShell source={source} />` or `<TraceViewer source={source} />` to load exact recorded child scopes on demand. Props and JSON layouts configure themed skeleton/spinner/text loading and optional idle prefetch; one cursor and Backtrack remain shared. Ready updates are frame-batched, with an optional host-owned worker preparation bridge. See [the lazy subflow consumer example](examples/lazy-subflows/README.md) for lifecycle, error/retry, source limits and performance boundaries.
+Use `createRecordingSource` with `<ExplainableShell source={source} />` or `<TraceViewer source={source} />` for live cumulative recording updates and optional on-demand recorded child scopes. Keep one source stable for one run; call `source.update({ snapshot, graph, narrativeEntries })` with each complete cumulative cohort. Preserve every prior commit in its original order; these are not deltas. Publication batches the latest full cohort per frame without advancing the inspection/Backtrack cursor. Changed recorded run IDs (including appearing/disappearing IDs), rewritten/shrinking commit prefixes and removed recorded runtime visits are refused, including regressions within one pending frame. These supplied-data consistency checks do not establish the recording's truth or completeness. Create a new source for a different run.
+
+Pure live use needs only `createRecordingSource({ snapshot, graph })`; a child loader is optional, and `source.canLoadSubflows` reports whether one was supplied. Props and JSON layouts configure themed skeleton/spinner/text loading and optional idle prefetch. Admission still runs synchronously before frame publication, and legacy root projection runs once per published cohort; frame batching does not make arbitrary input processing nonblocking. See [the consumer example](examples/lazy-subflows/README.md) for recorder subscriptions, cleanup, error/retry, source limits and optional worker preparation.
+
+These exports are available from both the root and `/flowchart` entries:
+
+| Export | Description |
+|---|---|
+| `createRecordingSource` | Create one shared source per run from its recording/graph, with an optional child loader; the creator owns disposal. [Source example](examples/lazy-subflows/README.md) |
+| `prepareSubflow` | Canonical child admission and snapshot projection after a task boundary; one conversion remains synchronous in the main-thread fallback. |
+| `createSubflowWorkerPreparation` | Adapt a host-owned worker to the source's preparation callback; the returned callable owns a `dispose()` method. [Worker example](examples/lazy-subflows/README.md#optional-worker-preparation) |
+| `attachSubflowWorker` | Install the matching canonical preparation handler inside that worker; returns listener/job cleanup, without terminating the host's worker. |
+| `resolveProgressiveRenderingOptions` | Validate the JSON-only loading-indicator and prefetch choices; does not fetch, prepare or render recordings. |
+| `FootprintLoadStatus` | Themed loading/preparing/error surface with accessible status/alert roles; replace it through `FootprintTheme.components.LoadStatus`. |
+
+| Public type | Consumer contract |
+|---|---|
+| `ProgressiveRenderingOptions` | JSON-safe `loadingIndicator` and `prefetch` choices; functions remain in source props. |
+| `SubflowLoadRequest` | Exact invocation ancestry, mount runtime ID and subflow ID, with the recorded run ID when present. |
+| `LoadedSubflow` | Complete recorded child result with optional qualified graph and recorded narrative. |
+| `PreparedSubflow` | That child unit plus projected replay snapshots. |
+| `SubflowLoadState` | Loading, preparing, ready or error state for one exact request. |
+| `RecordingSourceSnapshot` | Source revision, coherent logical recording/narrative and read-only scope-state map. |
+| `RecordingSourceOptions` | Root cohort, optional host loader/preparation callback and retained-scope resource bound. |
+| `RecordingSourceUpdate` | Complete cumulative same-run snapshot, graph and optional narrative; the host preserves the prior history prefix. |
+| `RecordingSource` | Shared subscription, live `update`, optional child-loading capability, exact-path graph lookup and creator-owned disposal. |
+| `PreparationWorker` | Explicit message/error port supplied by the host; no automatic worker URL or lifetime. |
+| `SubflowWorkerPreparation` | Callable worker-backed preparation adapter with owner-controlled disposal. |
+| `FootprintLoadStatusProps` | Loading surface state, indicator, label and existing primitive styling options. |
+| `FootprintLoadStatusAdapterProps` | Host `LoadStatus` adapter fields and native div attributes; see the [theme API](#theme-api). |

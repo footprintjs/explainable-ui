@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { attachSubflowWorker, createSubflowWorkerPreparation } from '../../src/progressiveRendering/worker';
-import type { LoadedSubflow, PreparationWorker, PreparedSubflow, SubflowLoadRequest } from '../../src/progressiveRendering/types';
+import { attachSubflowWorker, createSubflowWorkerPreparation } from '../../src/progressiveRendering';
+import type { LoadedSubflow, PreparationWorker, PreparedSubflow, SubflowLoadRequest } from '../../src/progressiveRendering';
 
 type PortListener = ((event: MessageEvent) => void) | ((event: Event) => void);
 class Port implements PreparationWorker {

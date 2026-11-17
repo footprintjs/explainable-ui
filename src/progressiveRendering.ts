@@ -5,4 +5,4 @@ export type { SubflowWorkerPreparation } from './progressiveRendering/worker';
 export { createSubflowWorkerPreparation, attachSubflowWorker } from './progressiveRendering/worker';
 export { resolveProgressiveRenderingOptions } from './progressiveRendering/options';
 export type { ProgressiveRenderingOptions, SubflowLoadRequest, LoadedSubflow, PreparedSubflow,
-  SubflowLoadState, RecordingSourceSnapshot, RecordingSourceOptions, RecordingSource, PreparationWorker } from './progressiveRendering/types';
+  SubflowLoadState, RecordingSourceSnapshot, RecordingSourceOptions, RecordingSourceUpdate, RecordingSource, PreparationWorker } from './progressiveRendering/types';

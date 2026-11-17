@@ -17,7 +17,7 @@ export function LazyTraceEvidence({ source, path, mounts, pending, load, size, u
   load: (request: { invocationPath: string[]; mountRuntimeStageId: string; subflowId: string }) => void;
   size?: Size; unstyled?: boolean;
 }) {
-  if (!source || pending) return null;
+  if (!source?.canLoadSubflows || pending) return null;
   return <>{mounts.filter(id => source.getSnapshot().scopes.get(source.getKey([...path, id]))?.status !== 'ready').map(id =>
     <FootprintButton key={id} unstyled={unstyled} densitySize={size} part="trace-load-evidence"
       onClick={() => load({ invocationPath: [...path, id], mountRuntimeStageId: id, subflowId: id.split('#')[0] })}>

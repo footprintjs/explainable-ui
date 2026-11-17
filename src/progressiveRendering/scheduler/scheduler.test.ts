@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { scheduleTask, scheduleVisual, yieldToHost } from '../../src/progressiveRendering/scheduler';
+import { scheduleTask, scheduleVisual, yieldToHost } from '../scheduler';
 
 beforeEach(() => { vi.useFakeTimers(); vi.stubGlobal('scheduler', undefined); vi.stubGlobal('requestIdleCallback', undefined); vi.stubGlobal('cancelIdleCallback', undefined); vi.stubGlobal('requestAnimationFrame', undefined); vi.stubGlobal('cancelAnimationFrame', undefined); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });

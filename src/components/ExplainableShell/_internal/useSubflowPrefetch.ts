@@ -8,7 +8,7 @@ export function useSubflowPrefetch(source: RecordingSource | undefined, options:
   const latestSnapshots = useRef(snapshots);
   latestSnapshots.current = snapshots;
   useEffect(() => {
-    if (!source || options.prefetch !== 'idle') return;
+    if (!source?.canLoadSubflows || options.prefetch !== 'idle') return;
     const stage = latestSnapshots.current.slice(index).find(stage => stage.subflowId && stage.runtimeStageId &&
       !stage.subflowResult && !source.getSnapshot().scopes.has(source.getKey([...path, stage.runtimeStageId])));
     if (!stage?.runtimeStageId || !stage.subflowId) return;

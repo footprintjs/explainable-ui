@@ -3,6 +3,8 @@ import type { NarrativeEntry, StageSnapshot } from "../types";
 
 /** Raw runtime snapshot consumed by the recording views, without an engine dependency. */
 export interface RuntimeSnapshotInput {
+  /** Recorded engine run identity; an unstarted engine may supply an empty string. */
+  runId?: unknown;
   sharedState: Record<string, unknown>;
   executionTree: unknown;
   commitLog: unknown[];

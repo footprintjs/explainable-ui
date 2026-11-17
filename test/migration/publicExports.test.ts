@@ -38,6 +38,16 @@ const groupedFlowExports = [
 const flowchartOptionExports = ["FlowchartOptions", "FlowchartRenderer"]
   .map(name => ({ name, kind: "type" }));
 
+const progressiveRenderingExports = [
+  ...["createRecordingSource", "prepareSubflow", "createSubflowWorkerPreparation",
+    "attachSubflowWorker", "resolveProgressiveRenderingOptions", "FootprintLoadStatus",
+  ].map(name => ({ name, kind: "value" })),
+  ...["ProgressiveRenderingOptions", "SubflowLoadRequest", "LoadedSubflow", "PreparedSubflow",
+    "SubflowLoadState", "RecordingSourceSnapshot", "RecordingSourceOptions", "RecordingSourceUpdate", "RecordingSource",
+    "PreparationWorker", "SubflowWorkerPreparation", "FootprintLoadStatusProps", "FootprintLoadStatusAdapterProps",
+  ].map(name => ({ name, kind: "type" })),
+];
+
 const isometricExports = [
   ...["IsometricStageNode", "IsometricEdge", "IsometricGrid", "createIsometricTraceLayout",
     "isometricTraceLayout", "ISOMETRIC_NODE_WIDTH", "ISOMETRIC_NODE_HEIGHT",
@@ -122,6 +132,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...themePrimitiveExports,
         ...flowchartOptionExports,
         ...displayPreflightExports,
+        ...progressiveRenderingExports,
         { name: "investigationGapMessage", kind: "value" },
         ...["paperLight", "paperDark"].map(name => ({ name, kind: "value" })),
         { name: "useLensWorkbench", kind: "value" },
@@ -135,6 +146,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...themePrimitiveExports,
         ...flowchartOptionExports,
         ...isometricExports,
+        ...progressiveRenderingExports,
         ...["FootprintTheme", "useFootprintTheme", "tokensToCSSVars", "themeModeVars"].map(name => ({ name, kind: "value" })),
         ...["ThemeTokens", "ThemeMode"].map(name => ({ name, kind: "type" })),
       ].sort((a, b) => a.name.localeCompare(b.name)),

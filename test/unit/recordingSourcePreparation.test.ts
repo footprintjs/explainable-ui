@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { prepareSubflow } from '../../src/progressiveRendering/prepare';
+import { prepareSubflow } from '../../src/progressiveRendering';
 
 it('projects a real-shaped raw engine child rather than treating it as a root RuntimeSnapshot', async () => {
   const result = { subflowId: 'child', treeContext: { globalContext: {},

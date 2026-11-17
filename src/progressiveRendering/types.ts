@@ -29,16 +29,24 @@ export type SubflowLoadState =
   | { readonly status: 'error'; readonly request: SubflowLoadRequest; readonly message: string };
 export interface RecordingSourceSnapshot {
   readonly revision: number;
+  /** Changes only when a cumulative root cohort publishes, including narrative-only updates. */
+  readonly rootRevision: number;
   /** Immutable logical view: original root fields plus admitted exact child results. */
   readonly snapshot: RuntimeSnapshotInput;
   readonly narrativeEntries: NarrativeEntry[];
   readonly scopes: ReadonlyMap<string, SubflowLoadState>;
 }
+/** Complete cumulative live cohort for the same run; event history must not be truncated. */
+export interface RecordingSourceUpdate {
+  readonly snapshot: RuntimeSnapshotInput;
+  readonly graph: TraceGraph;
+  readonly narrativeEntries?: readonly NarrativeEntry[];
+}
 export interface RecordingSourceOptions {
   readonly snapshot: RuntimeSnapshotInput;
   readonly graph: TraceGraph;
   readonly narrativeEntries?: readonly NarrativeEntry[];
-  readonly loadSubflow: (request: SubflowLoadRequest, options: { signal: AbortSignal }) => LoadedSubflow | Promise<LoadedSubflow>;
+  readonly loadSubflow?: (request: SubflowLoadRequest, options: { signal: AbortSignal }) => LoadedSubflow | Promise<LoadedSubflow>;
   /** Optional host worker/preparation adapter. Cancellation and stale-result guards remain owned by the source. */
   readonly prepareSubflow?: (value: LoadedSubflow, request: SubflowLoadRequest, options: { signal: AbortSignal }) => PreparedSubflow | Promise<PreparedSubflow>;
   /** Bound retained evidence without evicting a Backtrack return location. Default64; new requests refuse when full. */
@@ -47,6 +55,9 @@ export interface RecordingSourceOptions {
 export interface RecordingSource {
   readonly rootSnapshot: RuntimeSnapshotInput;
   readonly rootGraph: TraceGraph;
+  readonly canLoadSubflows: boolean;
+  /** Queue a complete cumulative live cohort. Publication is batched; does not move the replay cursor. */
+  update(value: RecordingSourceUpdate): void;
   getSnapshot(): RecordingSourceSnapshot;
   subscribe(listener: () => void): () => void;
   /** Exact-path key; labels and local array indices are never identities. */

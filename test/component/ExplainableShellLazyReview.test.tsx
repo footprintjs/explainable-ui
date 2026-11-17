@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ExplainableShell } from '../../src/components/ExplainableShell';
-import { createRecordingSource } from '../../src/progressiveRendering/source';
+import { createRecordingSource } from '../../src/progressiveRendering';
 import { toVisualizationSnapshots } from '../../src/adapters/fromRuntimeSnapshot';
-import type { RecordingSource, LoadedSubflow, SubflowLoadRequest } from '../../src/progressiveRendering/types';
+import type { RecordingSource, LoadedSubflow, SubflowLoadRequest } from '../../src/progressiveRendering';
 import type { TraceGraph } from '../../src/components/FlowchartView/traceStructureRecorder';
 
 const observations = vi.hoisted(() => ({ chart: null as any }));
@@ -100,7 +100,9 @@ describe('independent lazy-rendering navigation regressions', () => {
     await first.load({ invocationPath: ['child#2'], mountRuntimeStageId: 'child#2', subflowId: 'child' });
     const secondLoad = vi.fn(() => child());
     const second = sourceFor(snapshot, secondLoad);
-    expect(first.rootSnapshot).toBe(second.rootSnapshot);
+    expect(first.rootSnapshot).toEqual(second.rootSnapshot);
+    expect(first.rootSnapshot).not.toBe(snapshot);
+    expect(second.rootSnapshot).not.toBe(snapshot);
     const view = render(<ExplainableShell source={first} />);
     fireEvent.click(screen.getByText('Inspector'));
     fireEvent.click(screen.getByText('Data Trace'));

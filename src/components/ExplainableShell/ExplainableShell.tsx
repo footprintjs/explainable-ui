@@ -1,3 +1,4 @@
+import { useLiveSourceCursor } from "./_internal/useLiveSourceCursor";
 import { LazySubflowStatus, LazyTraceEvidence } from "./_internal/LazySubflowStatus";
 import { useSubflowPrefetch } from "./_internal/useSubflowPrefetch";
 import { resolveProgressiveRenderingOptions } from "../../progressiveRendering";
@@ -11,7 +12,7 @@ import { resolveProgressiveRenderingOptions } from "../../progressiveRendering";
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
 import type { StageSnapshot } from "../../types";
-import { theme, themeModeVars, tokensToCSSVars, FootprintTheme } from "../../theme";
+import { theme, themeModeVars, tokensToCSSVars, FootprintTheme, FootprintLoadStatus } from "../../theme";
 import { useContainerBreakpoints } from "../../_internal/useContainerBreakpoints";
 import { useShellRecording } from "./_internal/useShellRecording";
 import { runHasRecordedReads, sourceRunKey, rootMountLabels, type TraceScope } from "./_internal/traceScope";
@@ -147,8 +148,8 @@ export function ExplainableShell(props: ExplainableShellProps) {
   // recorder gained convergence-edge expansion (post-fork `next`
   // fires N edges, one per branch child) — the recorder graph is now
   // the single source of truth.
-  const resolvedLayout = useMemo(() => layout && !renderLayout && snapshots.length > 0
-    ? resolveLensLayout(layout).definition : undefined, [layout, renderLayout, snapshots.length]);
+  const resolvedLayout = useMemo(() => layout && !renderLayout && (source !== undefined || snapshots.length > 0)
+    ? resolveLensLayout(layout).definition : undefined, [layout, renderLayout, source, snapshots.length]);
   const flowchartRenderer = useMemo(() => resolveFlowchartOptions(flowchart).renderer
     ?? resolvedLayout?.flowchart?.renderer ?? "flat", [flowchart, resolvedLayout]);
   const leftLabel = panelLabels?.topology ?? "Topology";
@@ -439,9 +440,7 @@ export function ExplainableShell(props: ExplainableShellProps) {
     ? JSON.stringify(activeTraceScope.invocationPath)
     : null;
   const activeSnapshots = currentLevel.snapshots;
-  const safeIdx = activeSnapshots.length > 0
-    ? Math.max(0, Math.min(snapshotIdx, activeSnapshots.length - 1))
-    : 0;
+  const safeIdx = useLiveSourceCursor(source, activeTraceKey, activeSnapshots, snapshotIdx, setSnapshotIdxRaw);
   // Child narrative stays on the selected invocation's local cursor rail.
   const activeNarrativeEntries = isInSubflow ? currentLevel.narrative : narrativeEntries;
   const stageActivity = useMemo(() => projectStageActivity({
@@ -768,6 +767,10 @@ export function ExplainableShell(props: ExplainableShellProps) {
   const withTheme = (content: React.ReactElement) => <FootprintTheme asChild tokens={providerTokens} components={consumerTheme?.components}>{content}</FootprintTheme>;
 
   const renderEmptyState = (themeVars: React.CSSProperties): React.ReactElement => {
+    if (source && !derivedFromRuntime?.error) return <FootprintLoadStatus state={runtimeSnapshot?.commitLog.length ? "error" : "loading"}
+      label={runtimeSnapshot?.commitLog.length ? "Recorded stage identity is unavailable." : "Waiting for recorded execution…"}
+      indicator={renderingOptions.loadingIndicator} densitySize={size} unstyled={unstyled} className={className}
+      style={{ ...themeVars, ...style }} part="recording-waiting" />;
     const shellStyle = { ...themeVars, ...style } as React.CSSProperties;
     if (derivedFromRuntime?.error) {
       return (

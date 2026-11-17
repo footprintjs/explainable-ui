@@ -71,7 +71,8 @@ export function resolveSubflowLevel({
     parent,
     key,
     cursorId,
-    requestedId
+    requestedId,
+    { allowUnloaded: source !== undefined }
   );
   if (resolution.kind !== "found") return resolution;
   const snapshot = resolution.snapshot;
@@ -81,7 +82,7 @@ export function resolveSubflowLevel({
   const loaded = source?.getSnapshot().scopes.get(source.getKey(invocationPath));
   const prepared = loaded?.status === "ready" ? loaded.value : undefined;
   const result = prepared?.result ?? snapshot.subflowResult;
-  if (!result || typeof result !== "object") return source ? { kind: "unloaded", request: {
+  if (!result || typeof result !== "object") return source?.canLoadSubflows ? { kind: "unloaded", request: {
     invocationPath, mountRuntimeStageId, subflowId: key,
     ...(typeof sourceRunId === "string" ? { runId: sourceRunId } : {}),
   } } : { kind: "missing" };
