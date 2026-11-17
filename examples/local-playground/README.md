@@ -34,15 +34,17 @@ npm run record --prefix examples/local-playground
 
 Open <http://127.0.0.1:5314> and keep the Terminal window open. The server binds only to loopback and requires that exact port to be free. The equivalent Vite command is `npx vite --config examples/local-playground/vite.config.ts`.
 
-The normal generator installation pins **FootprintJS 12.2.0** for legacy compatibility. The bundled recordings currently use the unreleased engine source with canonical nested-read capture, so Backtrack can connect `total = 35` to the recorded Items `30` and Delivery `5` writes. The badge explicitly says **source build**, and `sourceBuild` metadata identifies the engine and record-layer revisions. This does not claim the option is available in the published engine. The repository's older engine pin remains the compatibility-test baseline.
+The generator pins published **FootprintJS 13.0.0** and explicitly enables canonical nested-read capture with per-write read prefixes. It checks the installed package version and the snapshot's canonical-capture flag before saving. The repository's older root engine pin remains the compatibility-test baseline.
 
-To regenerate those precise recordings, first build the coordinated FootprintJS and Foottrace source changes, with that engine checkout using the matching Foottrace build, then run:
+The seven bundled recordings were generated from published **FootprintJS 13.0.0** and **Foottrace 2.0.0**. Their `releasedPackages` metadata records the installed versions, registry tarballs and integrity values from the generator lock; they have no `sourceBuild` marker. Backtrack connects `total = 35` to the recorded Items `30` and Delivery `5` writes and then their original inputs.
+
+For a development capture instead, first build a compatible FootprintJS checkout using its matching Foottrace build, then run:
 
 ```sh
 FOOTPRINT_ENGINE_CHECKOUT=/path/to/footPrint npm run record --prefix examples/local-playground
 ```
 
-This override loads only the engine's built public entry points and enables `nestedReadTracking`. Without it, the normal pinned-package command retains legacy read capture. Updating the viewer cannot add missing reads to an older recording. Recorded read prefixes describe prior state usage; they do not prove expression-level derivation, and parent/container reads without exact writers remain unresolved.
+This override loads only the engine's built public entry points and marks its saved recordings as source builds. Both normal installed-package capture and this development override explicitly enable `nestedReadTracking`; the snapshot must attest it. Updating the viewer cannot add missing reads to an older recording. Recorded read prefixes describe prior state usage; they do not prove expression-level derivation, and parent/container reads without exact writers remain unresolved.
 
 Select a scenario to inspect it manually. **Replay from start** remounts that scenario's shell with autoplay enabled; theme changes keep the existing cursor and shell instance. Pause, scrubbing, tracing, and other manual navigation retain the shell's normal autoplay interruption behavior. Reduced-motion preferences are respected by the shell.
 

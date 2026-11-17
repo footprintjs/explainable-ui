@@ -42,6 +42,20 @@ const sourceBuild = engineCheckout ? {
   nestedReadTracking: true,
   released: false,
 } : undefined;
+function releasedPackageProvenance() {
+  const lock = JSON.parse(readFileSync(new URL('./package-lock.json', import.meta.url), 'utf8'));
+  const engineRequire = createRequire(require.resolve('footprintjs/package.json'));
+  const recordVersion = engineRequire('foottrace/package.json').version;
+  return Object.fromEntries([['footprintjs', engineVersion], ['foottrace', recordVersion]].map(([name, version]) => {
+    const installed = lock.packages?.[`node_modules/${name}`];
+    assert.equal(installed?.version, version, `${name}: installed version must match the generator lock`);
+    const tarball = `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`;
+    assert.equal(installed.resolved, tarball, `${name}: normal capture requires a registry installation`);
+    assert.match(installed.integrity, /^sha512-/);
+    return [name, { version, tarball, integrity: installed.integrity }];
+  }));
+}
+const releasedPackages = engineCheckout ? undefined : releasedPackageProvenance();
 
 // Consumer-owned voice: the engine saves these sentences in its normal
 // narrativeEntries JSON. Both Lens audiences replay that same recording.
@@ -73,15 +87,15 @@ const outcome = (scope, message) => scope.$emit('example.outcome', { message: `R
 async function record(meta, build, verify) {
   const bundle = createTraceBundle();
   const chart = build(bundle.structure.recorder);
-  const executor = new FlowChartExecutor(chart, { readTracking: 'full', writeProvenance: 'reads-prefix', captureOutputHandoff: true,
-    ...(sourceBuild && { nestedReadTracking: true }) });
+  const executor = new FlowChartExecutor(chart, { readTracking: 'full', writeProvenance: 'reads-prefix',
+    captureOutputHandoff: true, nestedReadTracking: true });
   const story = narrative({ renderer: commentaryFormatter });
   executor.attachCombinedRecorder(story);
   executor.attachScopeRecorder(metrics());
   bundle.attachTo(executor);
   await executor.run();
   const runtimeSnapshot = executor.getSnapshot();
-  if (sourceBuild) assert.equal(runtimeSnapshot.nestedReadTracking, true, 'Build an engine checkout with canonical nested-read capture before recording.');
+  assert.equal(runtimeSnapshot.nestedReadTracking, true, 'The installed engine must attest canonical nested-read capture before saving recordings.');
   const overlay = bundle.runtimeOverlay.getOverlay();
   const traceGraph = bundle.structure.getGraph();
   const narrativeEntries = story.getEntries();
@@ -453,6 +467,7 @@ writeFileSync(destination, JSON.stringify({
   generatedAt: new Date().toISOString(),
   engineVersion,
   ...(sourceBuild && { sourceBuild }),
+  ...(releasedPackages && { releasedPackages }),
   scenarios: [linear, pricing, shipping, parallel, loop, retry, subflows],
 }, null, 2));
 console.log(`Saved ${destination.pathname}`);

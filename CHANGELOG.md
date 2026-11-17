@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   cues. Theme and renderer choices remain independent.
 - Seven recorded workflow examples with Recorded / Built-in / Custom SVG node
   icon selection, with Custom SVG selected initially, and a hosted preview.
+  The recordings use published FootprintJS 13.0.0 and Foottrace 2.0.0 with
+  canonical read capture and retained registry integrity metadata.
 
 ### Fixed
 
@@ -41,6 +43,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   cannot silently move a stage's read time.
 - Legacy fan-in expands shared read ingredients once per commit, avoiding
   quadratic traversal when one stage writes many outputs.
+- `TraceViewer` no longer forwards an implicit deprecated `tabs` value, so
+  default saved-recording consumers avoid an unnecessary deprecation warning.
 - Switching Flat / Isometric retains the shared cursor, investigation and custom
   controls; grouped geometry and authored node/edge overrides remain respected.
 
