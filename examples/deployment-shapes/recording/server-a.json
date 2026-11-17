@@ -1,0 +1,484 @@
+{
+  "result": {
+    "subflowId": "server-a",
+    "subflowName": "Server A",
+    "treeContext": {
+      "globalContext": {
+        "artifactId": "simulation-build-42",
+        "switchReady": true,
+        "simulatedHealth": true,
+        "deployedArtifactId": "simulation-build-42",
+        "deployed": true,
+        "serviceRunning": true,
+        "healthy": true
+      },
+      "stageContexts": {
+        "id": "server-a/deploy",
+        "runtimeStageId": "server-a/deploy#4",
+        "name": "server-a/DeployArtifact",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "deployedArtifactId": "simulation-build-42",
+          "deployed": true
+        },
+        "stageReads": {
+          "artifactId": "simulation-build-42",
+          "switchReady": true
+        },
+        "description": "Simulate deploying the recorded artifact",
+        "flowMessages": [
+          {
+            "type": "next",
+            "description": "Moving to server-a/StartService stage",
+            "timestamp": 1794949435557,
+            "targetStage": "server-a/StartService"
+          }
+        ],
+        "next": {
+          "id": "server-a/start",
+          "runtimeStageId": "server-a/start#7",
+          "name": "server-a/StartService",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "serviceRunning": true
+          },
+          "stageReads": {
+            "deployed": true
+          },
+          "description": "Simulate starting the service",
+          "flowMessages": [
+            {
+              "type": "next",
+              "description": "Moving to server-a/HealthResult stage",
+              "timestamp": 1794949435557,
+              "targetStage": "server-a/HealthResult"
+            }
+          ],
+          "next": {
+            "id": "server-a/health-result",
+            "runtimeStageId": "server-a/health-result#9",
+            "name": "server-a/HealthResult",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "healthy": true
+            },
+            "stageReads": {
+              "serviceRunning": true,
+              "simulatedHealth": true
+            },
+            "description": "Record the simulated health result"
+          }
+        }
+      },
+      "history": [
+        {
+          "overwrite": {
+            "artifactId": "simulation-build-42",
+            "switchReady": true,
+            "simulatedHealth": true
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "artifactId",
+              "verb": "set",
+              "readKeys": []
+            },
+            {
+              "path": "switchReady",
+              "verb": "set",
+              "readKeys": []
+            },
+            {
+              "path": "simulatedHealth",
+              "verb": "set",
+              "readKeys": []
+            }
+          ],
+          "stage": "Server A",
+          "stageId": "server-a",
+          "runtimeStageId": "server-a#3",
+          "idx": 0
+        },
+        {
+          "overwrite": {
+            "deployedArtifactId": "simulation-build-42",
+            "deployed": true
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "deployedArtifactId",
+              "verb": "set",
+              "readKeys": [
+                "artifactId",
+                "switchReady"
+              ]
+            },
+            {
+              "path": "deployed",
+              "verb": "set",
+              "readKeys": [
+                "artifactId",
+                "switchReady"
+              ]
+            }
+          ],
+          "stage": "server-a/DeployArtifact",
+          "stageId": "server-a/deploy",
+          "runtimeStageId": "server-a/deploy#4",
+          "idx": 1
+        },
+        {
+          "overwrite": {
+            "serviceRunning": true
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "serviceRunning",
+              "verb": "set",
+              "readKeys": [
+                "deployed"
+              ]
+            }
+          ],
+          "stage": "server-a/StartService",
+          "stageId": "server-a/start",
+          "runtimeStageId": "server-a/start#7",
+          "idx": 2
+        },
+        {
+          "overwrite": {
+            "healthy": true
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "healthy",
+              "verb": "set",
+              "readKeys": [
+                "serviceRunning",
+                "simulatedHealth"
+              ]
+            }
+          ],
+          "stage": "server-a/HealthResult",
+          "stageId": "server-a/health-result",
+          "runtimeStageId": "server-a/health-result#9",
+          "idx": 3
+        }
+      ],
+      "logAddress": {
+        "logRunId": "1794949435552-0000000001",
+        "drillPath": [
+          "server-a#3"
+        ]
+      },
+      "initialState": {}
+    },
+    "parentStageId": "server-a.Server A",
+    "outputHandoff": {
+      "version": 1,
+      "attribution": "observed-read-prefix",
+      "parent": {
+        "address": {
+          "logRunId": "1794949435552-0000000001",
+          "drillPath": []
+        },
+        "runtimeStageId": "server-a#3",
+        "commitIdx": 3
+      },
+      "child": {
+        "address": {
+          "logRunId": "1794949435552-0000000001",
+          "drillPath": [
+            "server-a#3"
+          ]
+        },
+        "beforeCommitIdx": 4
+      },
+      "writes": [
+        {
+          "path": "serverAHealthy",
+          "reads": [
+            "healthy"
+          ]
+        }
+      ],
+      "status": "captured",
+      "limitations": []
+    }
+  },
+  "graph": {
+    "nodes": [
+      {
+        "id": "server-a/deploy",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "DeployArtifact",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "server-a",
+          "prevIds": [],
+          "nextIds": [
+            "server-a/start"
+          ],
+          "description": "Simulate deploying the recorded artifact"
+        }
+      },
+      {
+        "id": "server-a/start",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "StartService",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "server-a",
+          "prevIds": [
+            "server-a/deploy"
+          ],
+          "nextIds": [
+            "server-a/health-result"
+          ],
+          "description": "Simulate starting the service"
+        }
+      },
+      {
+        "id": "server-a/health-result",
+        "type": "stage",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "data": {
+          "label": "HealthResult",
+          "isDecider": false,
+          "isFork": false,
+          "isStreaming": false,
+          "isSubflow": false,
+          "subflowOf": "server-a",
+          "prevIds": [],
+          "nextIds": [],
+          "description": "Record the simulated health result"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "id": "server-a/deploy->server-a/start:next",
+        "source": "server-a/deploy",
+        "target": "server-a/start",
+        "data": {
+          "kind": "next"
+        }
+      },
+      {
+        "id": "server-a/start->server-a/health-result:next",
+        "source": "server-a/start",
+        "target": "server-a/health-result",
+        "data": {
+          "kind": "next"
+        }
+      }
+    ]
+  },
+  "narrativeEntries": [
+    {
+      "type": "stage",
+      "text": "Simulate deploying the recorded artifact",
+      "depth": 0,
+      "stageName": "server-a/DeployArtifact",
+      "stageId": "server-a/deploy",
+      "runtimeStageId": "server-a/deploy#4",
+      "subflowId": "server-a"
+    },
+    {
+      "type": "step",
+      "text": "Used artifactId.",
+      "depth": 1,
+      "stageName": "server-a/DeployArtifact",
+      "stageId": "server-a/deploy",
+      "runtimeStageId": "server-a/deploy#4",
+      "stepNumber": 1,
+      "subflowId": "server-a",
+      "key": "artifactId",
+      "rawValue": "simulation-build-42"
+    },
+    {
+      "type": "step",
+      "text": "Used switchReady.",
+      "depth": 1,
+      "stageName": "server-a/DeployArtifact",
+      "stageId": "server-a/deploy",
+      "runtimeStageId": "server-a/deploy#4",
+      "stepNumber": 2,
+      "subflowId": "server-a",
+      "key": "switchReady",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Recorded deployedArtifactId.",
+      "depth": 1,
+      "stageName": "server-a/DeployArtifact",
+      "stageId": "server-a/deploy",
+      "runtimeStageId": "server-a/deploy#4",
+      "stepNumber": 3,
+      "subflowId": "server-a",
+      "key": "deployedArtifactId",
+      "rawValue": "simulation-build-42"
+    },
+    {
+      "type": "step",
+      "text": "Recorded deployed.",
+      "depth": 1,
+      "stageName": "server-a/DeployArtifact",
+      "stageId": "server-a/deploy",
+      "runtimeStageId": "server-a/deploy#4",
+      "stepNumber": 4,
+      "subflowId": "server-a",
+      "key": "deployed",
+      "rawValue": true
+    },
+    {
+      "type": "emit",
+      "text": "Simulated copying simulation-build-42; no server was contacted.",
+      "depth": 1,
+      "stageName": "server-a/DeployArtifact",
+      "stageId": "server-a/deploy",
+      "runtimeStageId": "server-a/deploy#4",
+      "stepNumber": 5,
+      "subflowId": "server-a"
+    },
+    {
+      "type": "stage",
+      "text": "Simulate starting the service",
+      "depth": 0,
+      "stageName": "server-a/StartService",
+      "stageId": "server-a/start",
+      "runtimeStageId": "server-a/start#7",
+      "subflowId": "server-a"
+    },
+    {
+      "type": "step",
+      "text": "Used deployed.",
+      "depth": 1,
+      "stageName": "server-a/StartService",
+      "stageId": "server-a/start",
+      "runtimeStageId": "server-a/start#7",
+      "stepNumber": 1,
+      "subflowId": "server-a",
+      "key": "deployed",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Recorded serviceRunning.",
+      "depth": 1,
+      "stageName": "server-a/StartService",
+      "stageId": "server-a/start",
+      "runtimeStageId": "server-a/start#7",
+      "stepNumber": 2,
+      "subflowId": "server-a",
+      "key": "serviceRunning",
+      "rawValue": true
+    },
+    {
+      "type": "emit",
+      "text": "Simulated service start: ready.",
+      "depth": 1,
+      "stageName": "server-a/StartService",
+      "stageId": "server-a/start",
+      "runtimeStageId": "server-a/start#7",
+      "stepNumber": 3,
+      "subflowId": "server-a"
+    },
+    {
+      "type": "stage",
+      "text": "Record the simulated health result",
+      "depth": 0,
+      "stageName": "server-a/HealthResult",
+      "stageId": "server-a/health-result",
+      "runtimeStageId": "server-a/health-result#9",
+      "subflowId": "server-a"
+    },
+    {
+      "type": "step",
+      "text": "Used serviceRunning.",
+      "depth": 1,
+      "stageName": "server-a/HealthResult",
+      "stageId": "server-a/health-result",
+      "runtimeStageId": "server-a/health-result#9",
+      "stepNumber": 1,
+      "subflowId": "server-a",
+      "key": "serviceRunning",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Used simulatedHealth.",
+      "depth": 1,
+      "stageName": "server-a/HealthResult",
+      "stageId": "server-a/health-result",
+      "runtimeStageId": "server-a/health-result#9",
+      "stepNumber": 2,
+      "subflowId": "server-a",
+      "key": "simulatedHealth",
+      "rawValue": true
+    },
+    {
+      "type": "step",
+      "text": "Recorded healthy.",
+      "depth": 1,
+      "stageName": "server-a/HealthResult",
+      "stageId": "server-a/health-result",
+      "runtimeStageId": "server-a/health-result#9",
+      "stepNumber": 3,
+      "subflowId": "server-a",
+      "key": "healthy",
+      "rawValue": true
+    },
+    {
+      "type": "emit",
+      "text": "Simulated server health: healthy.",
+      "depth": 1,
+      "stageName": "server-a/HealthResult",
+      "stageId": "server-a/health-result",
+      "runtimeStageId": "server-a/health-result#9",
+      "stepNumber": 4,
+      "subflowId": "server-a"
+    }
+  ]
+}

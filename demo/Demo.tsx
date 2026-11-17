@@ -85,6 +85,7 @@ export function Demo() {
         <a href="https://footprintjs.github.io/explainable-ui/local-playground/">Explore seven recorded workflows</a>
         {" — replay, Developer / Commentary details, and configurable node icons."}
         {" "}<a href="https://footprintjs.github.io/explainable-ui/local-playground/?look=isometric">Try the isometric view</a>.
+        {" "}<a href="./deployment-shapes/">Deployment shapes and lazy server details</a>.
       </p>
 
       {/* THE full shell on a REAL generated run (demo/generate-run.ts) —
