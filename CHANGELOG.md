@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-## [1.0.1-rc.1] - 2026-11-17
+## [1.0.1] - 2026-11-17
 
 ### Added
 
@@ -74,6 +74,10 @@ Accepted level strings now consume their UTF-16 length under the existing aggreg
 
 - Documented finding-code grammar, standalone light-theme wrappers and the
   existing recorded-path versus grouped backward-graph composition.
+
+## [1.0.1-rc.1] - 2026-11-17
+
+- Release candidate on npm `next`. See the [prerelease notes](https://github.com/footprintjs/explainable-ui/releases/tag/v1.0.1-rc.1).
 
 ## [0.46.0] - 2026-11-16
 
