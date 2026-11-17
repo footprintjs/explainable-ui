@@ -7,15 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.1-rc.1] - 2026-11-17
+
 ### Added
 
 - Fixed semantic section hooks in `FailureExplanationView` for scoped host lookup,
   preserving unique accessible heading IDs and whole-view refusal.
 
-### Documentation
+- Add host preflight checks for the existing bounded attention,
+  text/relationship and failure-explanation display projections, with fixed
+  public limits and schema-only refusal diagnostics. Components and preflight
+  share the same parsers; reader-facing refusal and evidence semantics stay
+  unchanged.
 
-- Documented finding-code grammar, standalone light-theme wrappers and the
-  existing recorded-path versus grouped backward-graph composition.
+- Add optional directional coverage presentation to standalone and grouped
+  investigation panels, with separate source-reported coverage contexts and
+  lossless gap disclosures. Preserve default presentation, original display
+  limits, explicit query ownership and canonical evidence.
+
+- Expose `investigationGapMessage` for canonical gap sentences and optional host
+  mark labels in standalone and grouped investigation panels, preserving the
+  recorded enum, evidence and default wording.
+
+- Add cumulative same-run live recording updates and opt-in lazy recorded
+  subflows through a shared recording source, task/idle preparation,
+  frame-batched ready publication and an optional host-owned worker bridge.
+  ExplainableShell and TraceViewer expose themed loading/error/retry states
+  through props and JSON layout options while preserving exact invocation
+  identity and Backtrack evidence handling. Live updates retain the selected
+  runtime stage when parallel branches grow, publish complete cohorts without
+  dropping recorded events and refuse rewritten history.
+
+### Changed
+
+- Add optional host-declared HIGH, MEDIUM, LOW and UNVERIFIED finding levels, shown as neutral badges without inferring confidence, verification or ranking findings.
+
+Migration: `level` is now a recognized own data field on canonical display findings. An own invalid value or accessor that was previously ignored now refuses the whole explanation. Supply an exact supported host level, omit unsupported metadata or keep it outside this recognized field. Missing, own-undefined and inherited-only levels retain the previous unlabelled DTO, markup and usage.
+
+Accepted level strings now consume their UTF-16 length under the existing aggregate text budget, including repeated occurrences. A formerly accepted model near that limit may therefore refuse after adding a level that was previously ignored. Keep the complete model within the unchanged limits; this change does not raise budgets, truncate evidence or partially display a refused model.
 
 ### Fixed
 
@@ -27,6 +56,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   captions. Ancestor containers no longer pull unrelated items into the fit.
   Explicit one-card focus, deliberate folds and manual camera ownership remain
   available; existing routed self-links include their own paint bounds.
+
+- Show other candidates without a self-investigation entry in standalone and
+  grouped investigation panels. Preserve the selected item's supplied candidate
+  membership, canonical results, uncertainty, evidence and root decisions.
+
+- Built-in state, diff, result and debug views display accepted BigInt, Date,
+  Map and Set values through a shared bounded formatter. Unsafe or truncated
+  values have explicit markers; recorded getters and serialization methods are
+  not invoked.
+
+- Recorded-value comparisons report unavailable for unsupported nested data
+  instead of claiming a known change, without altering admitted-source history
+  equality.
+
+### Documentation
+
+- Documented finding-code grammar, standalone light-theme wrappers and the
+  existing recorded-path versus grouped backward-graph composition.
 
 ## [0.46.0] - 2026-11-16
 
