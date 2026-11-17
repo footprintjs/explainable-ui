@@ -1786,15 +1786,17 @@ than disappearing from the explanation or being relabelled as causes. Complete
 cause codes and references remain available in the cause details.
 
 ```tsx
-import { FailureExplanationView } from 'footprint-explainable-ui';
+import { FailureExplanationView, FootprintTheme, coolLight } from 'footprint-explainable-ui';
 
 // The host formats an admitted diagnosis and binds it to the exact selected
 // recording/item. Clear it whenever that selection changes.
-<FailureExplanationView explanation={selectedExplanation ?? null} />
+<FootprintTheme tokens={coolLight}>
+  <FailureExplanationView explanation={selectedExplanation ?? null} />
+</FootprintTheme>
 ```
 
-Blueprint's formatted explanation is structurally assignable; this UI component
-has no Blueprint runtime dependency. Evidence references are opaque text in
+Producer-formatted explanations are structurally assignable; this UI component
+has no runtime dependency on the producer. Evidence references are opaque text in
 disclosures, never links or selection authority. A malformed, accessor-backed or
 over-budget model refuses the whole view, with a message that the cause and
 outcome remain unknown. Display bounds are 262,144 UTF-16 text code units total,
@@ -1802,6 +1804,30 @@ outcome remain unknown. Display bounds are 262,144 UTF-16 text code units total,
 reference/unknown. All canonical finding text counts toward these limits. This is shape
 admission, not producer authentication or a JavaScript Proxy sandbox. Existing
 viewers and diagrams are unchanged until the host explicitly adds this component.
+
+Every canonical finding code must match `/^[A-Z][A-Z0-9_]{1,79}$/`: 2–80 ASCII
+characters, starting with an uppercase letter and followed only by uppercase
+letters, digits or underscores. Empty codes, lowercase and whitespace are invalid.
+An invalid code refuses the whole view.
+
+**Section hooks:** the outer section carries
+`data-fp="failure-explanation"` in admitted and refused states. Admitted section
+containers use fixed `data-section` values: `problem`, `recordedCause`,
+`suggestedNextStep`, `consequences`, `recording` and `unknowns`. Optional outcome
+and recording sections retain their existing presence rules; refusal has no
+admitted section markers. These values repeat between instances, so scope a
+lookup to a host container holding one explanation:
+
+```ts
+const view = hostElement.querySelector<HTMLElement>('[data-fp="failure-explanation"]');
+view?.querySelector<HTMLElement>('[data-section="recordedCause"]')?.scrollIntoView();
+```
+
+The markers support section lookup and scrolling only. Unique generated heading
+IDs and their `aria-labelledby` bindings remain intact; internal ID suffixes are
+not a lookup contract. A marker grants no recording selection, evidence authority
+or repair action. Both standalone panels inherit tokens from `FootprintTheme`;
+neither requires a new theme prop.
 
 ### Recorded cause and impact panel
 
@@ -1816,7 +1842,7 @@ following related items or opening an item beyond the first attention page.
 
 ```tsx
 import { useMemo } from "react";
-import { InvestigationPanel, type InvestigationPort } from "footprint-explainable-ui";
+import { FootprintTheme, InvestigationPanel, coolLight, type InvestigationPort } from "footprint-explainable-ui";
 import { explain } from "foottrace/cause";
 
 function RunInvestigation({ session }) {
@@ -1830,9 +1856,22 @@ function RunInvestigation({ session }) {
       signal, maxNodes: 128, maxEdges: 256, maxCalls: 512, timeoutMs: 2_000,
     }),
   }), [session]);
-  return <InvestigationPanel port={port} />;
+  return (
+    <FootprintTheme tokens={coolLight}>
+      <InvestigationPanel port={port} />
+    </FootprintTheme>
+  );
 }
 ```
+
+**Show recorded path** expands the accepted result's `path` reference list; it
+does not reconstruct dependency edges or make another query. For the richer
+recorded backward graph, use `GroupedFlowInvestigation`, which already includes
+its investigation panel. Its cause view uses supplied `backward.nodes` and
+`backward.edges`; without that data, path references do not establish missing
+connections. Use the same exact host-bound `InvestigationPort` contract and
+opaque node IDs for the diagram and query. Labels do not resolve identity. See
+[the grouped composition](#click-an-item-to-investigate-its-recorded-cause-unreleased).
 
 The host binds authorization, tenant, run, storage, exact selected scope and
 query/storage budgets before creating the port. A request contains only the

@@ -15,6 +15,47 @@ const explanation = () => ({
 const unavailable = () => expect(screen.getByRole('status').textContent).toContain('cause and outcome remain unknown');
 
 describe('optional plain-language explanation display', () => {
+  it('exposes fixed section hooks scoped to each instance with unique accessible headings', () => {
+    const model = explanation();
+    model.canonicalFindings.consequences.push({ code: 'OUTCOME_RECORDED', summary: 'An outcome was recorded.', evidenceRefs: [] });
+    model.canonicalFindings.diagnosticFailures.push({ code: 'RECORDING_FAILED', summary: 'Recording stopped.', evidenceRefs: [] });
+    render(<><FailureExplanationView explanation={model} /><FailureExplanationView explanation={model} /></>);
+    const views = screen.getAllByRole('region', { name: 'Recorded failure explanation' });
+    const sections = [
+      ['problem', 'Problem'], ['recordedCause', 'Recorded cause'],
+      ['suggestedNextStep', 'Suggested next step'], ['consequences', 'Other recorded outcomes'],
+      ['recording', 'Recording problems'], ['unknowns', 'Still unknown'],
+    ];
+    const headingIds: string[] = [];
+    for (const view of views) {
+      expect(view.getAttribute('data-fp')).toBe('failure-explanation');
+      expect(view.querySelectorAll('[data-section]')).toHaveLength(sections.length);
+      for (const [key, title] of sections) {
+        const section = within(view).getByRole('region', { name: title! });
+        expect(section.getAttribute('data-section')).toBe(key);
+        const heading = within(section).getByRole('heading', { name: title! });
+        expect(section.getAttribute('aria-labelledby')).toBe(heading.id);
+        expect(document.getElementById(heading.id)).toBe(heading);
+        headingIds.push(heading.id);
+      }
+    }
+    expect(new Set(headingIds).size).toBe(12);
+  });
+  it('removes optional section hooks on replacement and all admitted hooks on refusal', () => {
+    const model = explanation();
+    model.canonicalFindings.consequences.push({ code: 'OUTCOME_RECORDED', summary: 'An earlier outcome.', evidenceRefs: [] });
+    const { rerender } = render(<FailureExplanationView explanation={model} />);
+    const view = screen.getByRole('region', { name: 'Recorded failure explanation' });
+    expect(view.querySelector('[data-section="consequences"]')).not.toBeNull();
+    rerender(<FailureExplanationView explanation={explanation()} />);
+    expect(view.querySelector('[data-section="consequences"]')).toBeNull();
+    expect(view.querySelector('[data-section="recording"]')).toBeNull();
+    expect(view.querySelectorAll('[data-section]')).toHaveLength(4);
+    rerender(<FailureExplanationView explanation={null} />);
+    expect(view.getAttribute('data-fp')).toBe('failure-explanation');
+    expect(view.querySelectorAll('[data-section]')).toHaveLength(0);
+    unavailable();
+  });
   it('keeps complete canonical outcomes and recording failures distinct from causes', () => {
     const model = explanation();
     model.canonicalFindings.causes.push({ code: 'AUTH_REJECTION_RECORDED', summary: 'An access problem was reported.', evidenceRefs: ['source:auth'] });

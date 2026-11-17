@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Fixed semantic section hooks in `FailureExplanationView` for scoped host lookup,
+  preserving unique accessible heading IDs and whole-view refusal.
+
+### Documentation
+
+- Documented finding-code grammar, standalone light-theme wrappers and the
+  existing recorded-path versus grouped backward-graph composition.
+
 ## [0.46.0] - 2026-11-16
 
 ### Added

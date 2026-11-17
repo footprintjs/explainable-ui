@@ -14,6 +14,7 @@ const card: CSSProperties = {
   borderRadius: theme.radius, background: theme.bgElevated,
 };
 const titles = ['Problem', 'Recorded cause', 'Suggested next step'] as const;
+const sectionNames = ['problem', 'recordedCause', 'suggestedNextStep'] as const;
 
 function FindingList({ findings }: { findings: readonly FailureExplanationDisplayFinding[] }) {
   return <ul>{findings.map((finding, index) => (
@@ -33,16 +34,16 @@ export function FailureExplanationView(props: FailureExplanationViewProps) {
   const id = useId();
   const model = admitFailureExplanation(props.explanation);
   if (!model) return (
-    <section aria-label="Recorded failure explanation" className={props.className} style={{ ...box, ...props.style }}>
+    <section data-fp="failure-explanation" aria-label="Recorded failure explanation" className={props.className} style={{ ...box, ...props.style }}>
       <p role="status">Explanation is unavailable. The cause and outcome remain unknown. Reload the recording or ask an administrator to check it.</p>
     </section>
   );
-  const sections = [model.problem, model.recordedCause, model.suggestedNextStep];
   return (
-    <section aria-label="Recorded failure explanation" className={props.className} style={{ ...box, ...props.style }}>
+    <section data-fp="failure-explanation" aria-label="Recorded failure explanation" className={props.className} style={{ ...box, ...props.style }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 16rem), 1fr))', gap: 12 }}>
-        {sections.map((section, index) => (
-          <section key={index} aria-labelledby={`${id}-${index}`} style={card}>
+        {sectionNames.map((name, index) => {
+          const section = model[name];
+          return <section key={name} data-section={name} aria-labelledby={`${id}-${index}`} style={card}>
             <h3 id={`${id}-${index}`} style={{ marginBlockStart: 0, fontSize: 16 }}>{titles[index]}</h3>
             <p style={{ whiteSpace: 'pre-wrap' }}>{section.text}</p>
             {section.configuredText !== undefined && (
@@ -61,22 +62,22 @@ export function FailureExplanationView(props: FailureExplanationViewProps) {
               <summary>Recorded cause details</summary>
               <FindingList findings={model.canonicalFindings.causes} />
             </details>}
-          </section>
-        ))}
+          </section>;
+        })}
       </div>
       {model.canonicalFindings.consequences.length > 0 && (
-        <section aria-labelledby={`${id}-outcomes`} style={{ ...card, marginBlockStart: 12 }}>
+        <section data-section="consequences" aria-labelledby={`${id}-outcomes`} style={{ ...card, marginBlockStart: 12 }}>
           <h3 id={`${id}-outcomes`} style={{ marginBlockStart: 0, fontSize: 16 }}>Other recorded outcomes</h3>
           <FindingList findings={model.canonicalFindings.consequences} />
         </section>
       )}
       {model.canonicalFindings.diagnosticFailures.length > 0 && (
-        <section aria-labelledby={`${id}-recording`} style={{ ...card, marginBlockStart: 12, borderInlineStart: `3px solid ${theme.warning}` }}>
+        <section data-section="recording" aria-labelledby={`${id}-recording`} style={{ ...card, marginBlockStart: 12, borderInlineStart: `3px solid ${theme.warning}` }}>
           <h3 id={`${id}-recording`} style={{ marginBlockStart: 0, fontSize: 16 }}>Recording problems</h3>
           <FindingList findings={model.canonicalFindings.diagnosticFailures} />
         </section>
       )}
-      <section aria-labelledby={`${id}-unknowns`} style={{ ...card, marginBlockStart: 12, borderInlineStart: `3px solid ${theme.warning}` }}>
+      <section data-section="unknowns" aria-labelledby={`${id}-unknowns`} style={{ ...card, marginBlockStart: 12, borderInlineStart: `3px solid ${theme.warning}` }}>
         <h3 id={`${id}-unknowns`} style={{ marginBlockStart: 0, fontSize: 16 }}>Still unknown</h3>
         {model.unknowns.length > 0
           ? <ul>{model.unknowns.map((unknown, index) => <li key={index}>{unknown}</li>)}</ul>
