@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { toVisualizationSnapshots } from "../../src/adapters/fromRuntimeSnapshot";
-import { exactSubflowResults } from "../../src/components/ExplainableShell/_internal/subflowRecord";
-import { useSubflowNavigation } from "../../src/components/ExplainableShell/_internal/useSubflowNavigation";
+import { exactSubflowResults } from "../../src/workbench/internal/subflowRecord";
+import { useSubflowNavigation } from "../../src/workbench/internal/useSubflowNavigation";
 
 const recording = JSON.parse(readFileSync("test/fixtures/subflow-handoff/recording.json", "utf8"));
 
@@ -20,7 +20,7 @@ function setup() {
     const navigation = useSubflowNavigation({
       snapshots, sourceRunId: snapshot.runId, readsAvailable: true,
       exactResults, narrativeEntries: undefined, snapshotIdx: cursor,
-      setSnapshotIdxRaw: setCursor, activeTab: "explainable", onScopeReset: reset,
+      setSnapshotIdxRaw: setCursor, interactionKey: 0, onScopeReset: reset,
     });
     // A transition is refused before the reconciliation effect can clear history.
     if (probeTransition && navigation.sourceChanged)

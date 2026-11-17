@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { RecordingSource, RecordingSourceSnapshot, SubflowLoadRequest } from '../../../progressiveRendering';
+import type { RecordingSource, RecordingSourceSnapshot, SubflowLoadRequest } from '../../progressiveRendering';
 export interface PendingSubflow {
   request: SubflowLoadRequest;
   status: 'loading' | 'preparing' | 'error';

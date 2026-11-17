@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { sourceRunKey } from "./traceScope";
+import { sourceRunKey } from "../../trace/traceScope";
 /** A host owns cohort association. Only known unchanged references can be
  * quarantined; a freshly copied but wrongly paired input cannot be proven. */
 function hasPayload(value: unknown): boolean {

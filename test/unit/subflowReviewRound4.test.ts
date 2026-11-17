@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { childTraceScope } from "../../src/trace/traceScope";
 import { buildTraceWalk, formatTraceWalk } from "../../src/trace/traceWalk";
 import { toVisualizationSnapshots } from "../../src/adapters/fromRuntimeSnapshot";
-import { resolveSubflowInvocation } from "../../src/components/ExplainableShell/_internal/subflowInvocation";
+import { resolveSubflowInvocation } from "../../src/workbench/internal/subflowInvocation";
 
 const step = { stage: "Compute", stageId: "compute", runtimeStageId: "child/compute#2", trace: [{path:"total"}] };
 function selected(overwrite: Record<string, unknown>) {

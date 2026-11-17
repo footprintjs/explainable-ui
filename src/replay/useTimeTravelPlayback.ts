@@ -1,12 +1,21 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import type { TimeTravelControlsProps } from "./TimeTravelControls";
+import type { StageSnapshot } from "../types";
+import type { ReplayControlsOptions, TracingRail } from "../model/replayControls";
 import { prefersReducedMotion } from "./prefersReducedMotion";
 
-type PlaybackOptions = Pick<TimeTravelControlsProps,
-  "snapshots" | "selectedIndex" | "onIndexChange" | "autoPlayable" | "tracing" | "autoPlay" | "autoPlayKey" | "replayControls"
-> & {
+interface PlaybackOptions {
+  snapshots: StageSnapshot[];
+  selectedIndex: number;
+  onIndexChange(index: number): void;
+  autoPlayable?: boolean;
+  tracing?: TracingRail | null;
+  autoPlay?: boolean;
+  autoPlayKey?: unknown;
+  replayControls?: ReplayControlsOptions;
   /** Run-offer memory belongs to the owner that outlives a remounted rail. */
   offered: { current: unknown };
+  /** An empty live bootstrap has not presented a recording to its reader yet. */
+  offerReady?: boolean;
 };
 
 const validIndex = (index: number, total: number) => Number.isFinite(index) && Number.isInteger(index) && index >= 0 && index < total;
@@ -14,7 +23,7 @@ const validIndex = (index: number, total: number) => Number.isFinite(index) && N
 /** Playback and navigation commands over the host's one controlled cursor. */
 export function useTimeTravelPlayback({
   snapshots, selectedIndex, onIndexChange, autoPlayable = true, tracing = null,
-  autoPlay = false, autoPlayKey, replayControls, offered,
+  autoPlay = false, autoPlayKey, replayControls, offered, offerReady = true,
 }: PlaybackOptions) {
   const [playing, setPlaying] = useState(false);
   const playRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -104,14 +113,14 @@ export function useTimeTravelPlayback({
   // Every recording is offered once, including a hidden or disabled Play
   // control. Re-enabling it never takes the cursor away from the reader.
   useEffect(() => {
-    if (Object.is(offered.current, recording)) return;
+    if (!offerReady || Object.is(offered.current, recording)) return;
     offered.current = recording;
     if (playState.current.active) stopPlaying();
     if (!autoPlay || !canPlay || prefersReducedMotion()) return;
     autoRun.current = { asked: 0, seen: selectedIndex };
     if (selectedIndex !== 0) onIndexChange(0);
     startPlaying();
-  }, [recording, offered, autoPlay, canPlay, selectedIndex, onIndexChange, stopPlaying, startPlaying]);
+  }, [recording, offered, offerReady, autoPlay, canPlay, selectedIndex, onIndexChange, stopPlaying, startPlaying]);
 
   useEffect(() => {
     if (!playing || !canPlay || !playState.current.active) return;
@@ -143,15 +152,17 @@ export function useTimeTravelPlayback({
     };
   }, [playing, selectedIndex, snapshots, total, canPlay, intervalMs, recording, onIndexChange, stopPlaying]);
 
-  const togglePlay = useCallback(() => {
+  const play = useCallback(() => {
     const current = latest.current;
-    if (!current.canPlay) return;
+    if (!current.canPlay || playState.current.active) return;
+    if (!validIndex(current.selectedIndex, current.total) || current.selectedIndex >= current.total - 1) current.onIndexChange(0);
+    startPlaying();
+  }, [startPlaying]);
+  const togglePlay = useCallback(() => {
+    if (!latest.current.canPlay) return;
     if (playState.current.active) stopPlaying();
-    else {
-      if (!validIndex(current.selectedIndex, current.total) || current.selectedIndex >= current.total - 1) current.onIndexChange(0);
-      startPlaying();
-    }
-  }, [stopPlaying, startPlaying]);
+    else play();
+  }, [stopPlaying, play]);
 
   const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
     const current = latest.current;
@@ -189,5 +200,8 @@ export function useTimeTravelPlayback({
     current.onIndexChange(target);
   }, [stopPlaying]);
 
-  return { playing, isTracing, stopSet, forkPrompt, canPrev, canNext, goPrev, goNext, selectIndex, togglePlay, handleKeyDown };
+  return { playing, play, canPlay, isTracing, stopSet, forkPrompt, canPrev, canNext, goPrev, goNext, selectIndex, togglePlay, stopPlaying, handleKeyDown };
 }
+
+/** Internal shared transport/controller type; no second playback owner is required. */
+export type TimeTravelPlayback = ReturnType<typeof useTimeTravelPlayback>;

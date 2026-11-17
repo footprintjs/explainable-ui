@@ -3,7 +3,7 @@ import {
   toVisualizationSnapshots,
   subflowResultToSnapshots,
 } from "../../src/adapters/fromRuntimeSnapshot";
-import { exactSubflowResults } from "../../src/components/ExplainableShell/_internal/subflowRecord";
+import { exactSubflowResults } from "../../src/workbench/internal/subflowRecord";
 describe("recorded tree conversion regressions", () => {
   it("never treats inherited object names as subflow results", () => {
     const results = exactSubflowResults({ "prepare#1": {} })!;

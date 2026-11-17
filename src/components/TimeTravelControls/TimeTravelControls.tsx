@@ -1,92 +1,12 @@
-import { componentStyles, FootprintBadge, FootprintButton, FootprintIcon, FootprintInput } from "../../theme";
-import { useEffect, useRef, useState } from "react";
-import type { StageSnapshot, BaseComponentProps } from "../../types";
+import { componentStyles, FootprintBadge, FootprintButton, FootprintIcon } from "../../theme";
+import { useRef } from "react";
 import { theme } from "../../theme";
-import { useTimeTravelPlayback } from "./useTimeTravelPlayback";
+import { useTimeTravelPlayback, type TimeTravelPlayback } from "../../replay/useTimeTravelPlayback";
+import type { TimeTravelControlsProps } from "./types";
+import { resolveReplayControlsOptions } from "../../model/replayControlsOptions";
+import { ReplayPosition } from "./ReplayPosition";
 import { recordedPathLabel } from "../../trace/recordedValuePreview";
-
-/**
- * Same-Rail Rewind (tracing mode) — the rail's AXIS never changes, only its
- * stops do: every dependency was committed earlier than the value it fed, so
- * a backward slice is a sub-sequence of this same timeline. When `tracing`
- * is set, slice members stay landable ("stops"), everything else fades to
- * unlandable ticks, and prev/next walk stop-to-stop ("◀ earlier recorded step").
- * The cursor stays the ONE `selectedIndex` — no second position exists.
- *
- * THEMING: tracing mode recolors its chrome with ONE token, `--fp-tracing`
- * (default #0d9488 teal) — the TRACING badge, the rail's bottom border, the
- * stop ticks, the walk buttons, and Done — so the tracing rail is
- * unmistakably not normal time-travel. Consumers retheme by setting
- * `--fp-tracing` on any ancestor. Normal mode never reads the token.
- */
-export interface TracingRail {
-  /** The traced variable — rendered in the mode header. */
-  tracedKey: string;
-  /** Set while an ingredient filter is active ("▸ via key"). */
-  viaKey?: string | null;
-  /** Snapshot indices that are stops, ASCENDING. All other ticks become
-   *  faint and unlandable (context, not destinations). */
-  stopIndices: number[];
-  /** 1-based position of the cursor in WALK order (newest first) + total —
-   *  the "stop 2 of 6" label. */
-  stopOrdinal: number;
-  totalStops: number;
-  /** Exit tracing (button / Escape). The host decides where to return. */
-  onExit: () => void;
-  /** Optional return destination; defaults to the legacy Done label. */
-  exitLabel?: string;
-  /** Accessible return action; defaults to Exit tracing. */
-  exitAriaLabel?: string;
-  /** Clear the via filter back to the full walk (breadcrumb's "show all"). */
-  onShowAll?: () => void;
-  /** Ingredient count at the CURRENT stop. At the earliest landable stop,
-   *  >= 2 together with `onForkPrompt` offers "choose cause…" instead of a
-   *  disabled button. Earlier recorded steps otherwise remain reachable in
-   *  time order; following a particular input is a separate action. */
-  forkCount?: number;
-  /** Open the fork chooser at the earliest landable stop when `forkCount >= 2`
-   *  (click or ArrowLeft on the walk-back control). */
-  onForkPrompt?: () => void;
-}
-
-export interface ReplayControlsOptions {
-  /** Show previous/next actions and enable their toolbar arrow shortcuts. Default true. */
-  previousNext?: boolean;
-  /** Show Play/Pause and allow manual or automatic playback. Default true. */
-  playPause?: boolean;
-  /** Show the position rail and its native range scrubbing control. Default true. */
-  slider?: boolean;
-  /** Fixed milliseconds per replay step, clamped to 200–10,000. Omit for proportional timing. */
-  intervalMs?: number;
-}
-
-export interface TimeTravelControlsProps extends BaseComponentProps {
-  /** Stage snapshots */
-  snapshots: StageSnapshot[];
-  /** Currently selected stage index */
-  selectedIndex: number;
-  /** Callback when selected index changes */
-  onIndexChange: (index: number) => void;
-  /** Enable auto-play with Gantt-proportional timing */
-  autoPlayable?: boolean;
-  /** Same-Rail Rewind session — when set, the rail is in tracing mode. */
-  tracing?: TracingRail | null;
-  /**
-   * Play the recording by itself, once: the cursor goes to the first stage and
-   * walks to the last on the Play loop, then stops. Pause, scrubbing, arrow
-   * keys, space, or any other move of the cursor stop it for good. It does not
-   * start under `prefers-reduced-motion: reduce`, with `autoPlayable={false}`,
-   * in tracing mode, or with fewer than two stages. Default false.
-   */
-  autoPlay?: boolean;
-  /**
-   * What counts as a new recording for `autoPlay`. Default: the `snapshots`
-   * array itself, so keep it stable across renders or pass a run id here.
-   */
-  autoPlayKey?: unknown;
-  /** Optional transport visibility and readable replay pacing over the same cursor. */
-  replayControls?: ReplayControlsOptions;
-}
+export type { TimeTravelControlsProps, TracingRail, ReplayControlsOptions } from "./types";
 
 export function TimeTravelControls(props: TimeTravelControlsProps) {
   const offered = useRef<unknown>(undefined);
@@ -98,29 +18,31 @@ export function TimeTravelControls(props: TimeTravelControlsProps) {
  * autoPlay was offered, held by whoever outlives this rail: a shell can remount
  * its rail at any time, so the shell holds it.
  */
-export function TimeTravelRail({
-  snapshots,
-  selectedIndex,
-  onIndexChange,
-  autoPlayable = true,
-  tracing = null,
-  autoPlay = false,
-  autoPlayKey,
-  replayControls,
-  size = "default",
-  unstyled = false,
-  className,
-  style,
-  offered,
-}: TimeTravelControlsProps & { offered: { current: unknown } }) {
+export type TimeTravelRailProps = TimeTravelControlsProps & {
+  offered: { current: unknown };
+  /** Internal shared-clock path: the headless owner already called the hook. */
+  playback?: TimeTravelPlayback;
+};
+
+export function TimeTravelRail({ playback, ...props }: TimeTravelRailProps) {
+  return playback ? <TimeTravelRailView {...props} playback={playback} /> : <OwnedTimeTravelRail {...props} />;
+}
+
+function OwnedTimeTravelRail(props: Omit<TimeTravelRailProps, 'playback'>) {
+  const controls = resolveReplayControlsOptions(undefined, props.replayControls);
+  const playback = useTimeTravelPlayback({ ...props, replayControls: controls });
+  return <TimeTravelRailView {...props} replayControls={controls} playback={playback} />;
+}
+
+function TimeTravelRailView({
+  snapshots, selectedIndex, autoPlayable = true, tracing = null, replayControls,
+  size = "default", unstyled = false, className, style, playback,
+}: Omit<TimeTravelRailProps, 'playback'> & { playback: TimeTravelPlayback }) {
   const {
     playing, isTracing, stopSet, forkPrompt, canPrev, canNext,
     goPrev, goNext, selectIndex, togglePlay, handleKeyDown,
-  } = useTimeTravelPlayback({
-    snapshots, selectedIndex, onIndexChange, autoPlayable, tracing,
-    autoPlay, autoPlayKey, replayControls, offered,
-  });
-
+  } = playback;
+  const controls = resolveReplayControlsOptions(undefined, replayControls);
   const tracedLabel = tracing ? recordedPathLabel(tracing.tracedKey) : "";
   const viaLabel = tracing?.viaKey ? recordedPathLabel(tracing.viaKey) : "";
   const ui = componentStyles(size);
@@ -128,45 +50,11 @@ export function TimeTravelRail({
   // the violet accent, green done-ticks, and the orange NOW ring — so a
   // glance tells tracing from normal time-travel. Never read in normal mode.
   const tracingColor = theme.tracing;
-  const showPreviousNext = replayControls?.previousNext !== false;
-  const showPlay = autoPlayable && replayControls?.playPause !== false;
-  const showSlider = replayControls?.slider !== false;
-  const [rangeFocused, setRangeFocused] = useState(false);
-  const rangeKey = useRef<string | null>(null);
-  useEffect(() => { if (!showSlider) setRangeFocused(false); }, [showSlider]);
-  const position = Number.isSafeInteger(selectedIndex)
-    ? Math.max(0, Math.min(selectedIndex, Math.max(0, snapshots.length - 1))) : 0;
-  const allowedStops = tracing ? [...new Set(tracing.stopIndices.filter(index =>
-    Number.isSafeInteger(index) && index >= 0 && index < snapshots.length))].sort((left, right) => left - right) : [];
-  const range = (overlay: boolean) => <FootprintInput
-    unstyled={unstyled} densitySize={size} part="time-travel-slider" data-fp="tt-slider"
-    type="range" min={0} max={Math.max(0, snapshots.length - 1)} step={1} value={position}
-    disabled={snapshots.length < 2 || (isTracing && allowedStops.length === 0)}
-    aria-label={isTracing ? "Trace position" : "Replay position"}
-    aria-valuetext={snapshots.length ? `Step ${position + 1} of ${snapshots.length}: ${snapshots[position]?.stageLabel || snapshots[position]?.stageName || "Recorded stage"}` : "No recorded stages"}
-    onFocus={() => setRangeFocused(true)} onBlur={() => { setRangeFocused(false); rangeKey.current = null; }}
-    onKeyDown={event => {
-      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", " "].includes(event.key)) {
-        // Native range keys own this interaction; the toolbar must not step a
-        // second time. Preserve the browser's native keyboard range behavior.
-        event.stopPropagation(); rangeKey.current = event.key;
-      }
-    }}
-    onKeyUp={() => { rangeKey.current = null; }}
-    onChange={event => {
-      const requested = event.currentTarget.valueAsNumber;
-      if (isTracing && ["ArrowRight", "ArrowUp"].includes(rangeKey.current ?? "")) {
-        selectIndex(allowedStops.find(index => index > position) ?? position);
-      } else if (isTracing && ["ArrowLeft", "ArrowDown"].includes(rangeKey.current ?? "")) {
-        selectIndex([...allowedStops].reverse().find(index => index < position) ?? position);
-      } else selectIndex(requested);
-    }}
-    // The native range is the one interaction surface over the existing tick
-    // axis. Geometry and hiding its duplicate native track reach host Inputs.
-    style={overlay ? { position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0,
-      margin: 0, padding: 0, boxSizing: "border-box" } : undefined}
-    defaultStyle={unstyled ? undefined : { cursor: "pointer" }}
-  />;
+  const showPreviousNext = controls.previousNext !== false;
+  const showPlay = autoPlayable && controls.playPause !== false;
+  const showSlider = controls.slider !== false;
+  const positionControl = <ReplayPosition snapshots={snapshots} selectedIndex={selectedIndex} selectIndex={selectIndex}
+    stopSet={stopSet} tracing={tracing} presentation={controls.presentation ?? 'segmented'} scale={controls.scale ?? 'steps'} size={size} unstyled={unstyled} />;
 
   if (!isTracing && !showPreviousNext && !showPlay && !showSlider) return null;
 
@@ -220,26 +108,7 @@ export function TimeTravelRail({
         >
           {isTracing ? "Later recorded step" : "Next"}
         </FootprintButton>}
-        {showSlider && <>{range(false)}<div data-fp="tt-ticks" hidden aria-hidden="true">
-          {snapshots.map((snap, i) => {
-            const isStop = !stopSet || stopSet.has(i);
-            return (
-              <FootprintButton
-                unstyled={unstyled} densitySize={size} part="time-travel-tick"
-                type="button"
-                key={i}
-                data-fp="tt-tick"
-                data-active={i === selectedIndex}
-                data-done={i < selectedIndex}
-                data-stop={isTracing ? isStop : undefined}
-                tabIndex={-1} aria-hidden="true"
-                disabled={isTracing && !isStop}
-                onClick={() => selectIndex(i)}
-                title={snap.stageLabel} defaultStyle={undefined}
-              />
-            );
-          })}
-        </div></>}
+        {showSlider && positionControl}
       </div>
     );
   }
@@ -414,67 +283,7 @@ export function TimeTravelRail({
         {isTracing ? "later recorded step " : ""}<FootprintIcon unstyled={unstyled} densitySize={size} part="time-travel-next-icon" name="next" aria-hidden="true">▶</FootprintIcon>
       </FootprintButton>}
 
-      {/* Tick-mark timeline — in tracing mode non-stops fade to unlandable
-          ticks (context, not destinations); stops stay bright and clickable. */}
-      {showSlider && <div
-        data-fp="tt-position-axis"
-        style={{
-          position: "relative",
-          flex: 1,
-          minWidth: 0,
-          height: ui.controlHeight,
-          display: "flex",
-          alignItems: "center",
-          gap: `calc(${ui.spaceXs} / 2)`,
-          padding: `0 ${ui.spaceXs}`,
-          outline: rangeFocused ? `${ui.focusWidth} solid ${isTracing ? tracingColor : theme.accent}` : undefined,
-          outlineOffset: ui.spaceXs,
-        }}
-      >
-        {snapshots.map((snap, i) => {
-          const isActive = i === selectedIndex;
-          const isDone = i < selectedIndex;
-          const isStop = !stopSet || stopSet.has(i);
-          const unlandable = isTracing && !isStop;
-          return (
-            <FootprintButton
-              unstyled={unstyled} densitySize={size} part="time-travel-tick"
-              type="button"
-              key={i}
-              onClick={() => selectIndex(i)}
-              disabled={unlandable}
-              title={unlandable ? `${snap.stageLabel} (not part of this trace)` : snap.stageLabel}
-              data-fp="tt-tick"
-              data-stop={isTracing ? isStop : undefined}
-              data-active={isActive || undefined}
-              tabIndex={-1} aria-hidden="true"
-              style={{
-                flex: 1,
-                height: isActive ? ui.iconSize : unlandable ? ui.spaceXs : ui.spaceSm,
-              }}
-              defaultStyle={{
-                borderRadius: `calc(${ui.radiusControl} / 2)`,
-                border: "none",
-                cursor: unlandable ? "default" : "pointer",
-                background: isTracing
-                  ? isActive
-                    ? tracingColor
-                    : isStop
-                      ? "color-mix(in srgb, " + tracingColor + " 55%, transparent)"
-                      : theme.bgTertiary
-                  : isActive
-                    ? theme.primary
-                    : isDone
-                      ? theme.success
-                      : theme.bgTertiary,
-                opacity: unlandable ? 0.3 : isTracing || isDone || isActive ? 1 : 0.4,
-                transition: `all ${ui.fastDuration} ${ui.easing}`,
-              }}
-            />
-          );
-        })}
-        {range(true)}
-      </div>}
+      {showSlider && positionControl}
 
       {isTracing && (
         <FootprintButton

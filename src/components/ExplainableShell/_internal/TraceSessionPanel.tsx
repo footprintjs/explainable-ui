@@ -6,7 +6,7 @@ import { DataTracePanel } from "../../DataTracePanel/DataTracePanel";
 import { TraceWalkCard } from "../../DataTracePanel/TraceWalkCard";
 import { TraceUnavailableNote } from "./TraceUnavailableNote";
 import type { TraceScope } from "./traceScope";
-import type { useTraceSessionController } from "./useTraceSession";
+import type { TraceSessionView } from "../../../workbench";
 import { recordedValueAtPath } from "../../../trace/recordedValuePreview";
 
 interface TraceSessionPanelProps {
@@ -14,7 +14,7 @@ interface TraceSessionPanelProps {
   scopeLabel: "Root" | "Child";
   snapshot?: StageSnapshot;
   selectedIndex: number;
-  view: ReturnType<typeof useTraceSessionController>;
+  view: TraceSessionView;
   unstyled?: boolean;
   size?: Size;
 }

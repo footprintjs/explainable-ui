@@ -90,6 +90,30 @@ shipped pane had, and a pane that never uses one gets a named console line in
 dev — silenced only by writing the drop down (`slots: { detail: { component:
 MyPane, drops: ['tracing'] } }`). Silence there is a decision, not an accident.
 
+### Next release: one controller for custom and standard views
+
+The next-release source API adds `LensControllerProvider` and `useLensController`:
+React-headless recording, exact invocation, cursor, playback and Backtrack data
+and commands. Put custom controls and a presentation-only `ExplainableShell`
+under one provider to share that owner. `LensReplayControls` and `CommentaryPanel`
+also bind directly to it; `recordingStatus` lets custom views choose their own
+waiting, empty and error presentation. The controller is a React API, not a
+framework-independent store.
+
+`replayControls.presentation: "range"` shows a normal visible thumb without
+per-stage tick elements; `"segmented"` remains the default. Shell JSON layouts
+can supply `replayControls`, with explicit props overriding individual fields.
+Both presentations use discrete recorded steps and the same Backtrack stops;
+`scale` can use equal steps, recorded duration or `log-duration` geometry,
+with disclosed equal-spacing fallback when positive timing is unavailable.
+Custom controls share `controller.replayAxis`; duration widths are a stage
+sequence, not a reconstruction of parallel wall-clock time. `intervalMs` is
+separate reading pace. These additions are not
+in published `1.0.1`. See the [shared-controller example](examples/headless-controller/README.md)
+for genuine parallel 35 and measured-retry recordings, custom evidence previews and optional Shell
+remounting without another clock. Custom server/router/switch drawings remain
+consumer examples, not a built-in hardware symbol set.
+
 ## Quick Start
 
 To explore seven recorded workflows with replay, Developer / Commentary details,
@@ -1393,6 +1417,9 @@ facts from stage names.
 | Component | Description |
 |---|---|
 | `ExplainableShell` | Full Lens with Developer / Commentary details, collapsible panels and responsive layout |
+| `LensControllerProvider` | Next-release shared React owner for recorded data, exact scope, cursor, playback and Backtrack; renders only its children |
+| `useLensController` | Next-release hook for that owner's current data and semantic commands; root entry point |
+| `LensReplayControls` | Next-release stock transport bound to the shared controller, retaining its clock, axis and Backtrack stops |
 | `useLensWorkbench` | Read the full shell's surfaces, state and validated actions inside its custom layout; root entry point |
 | `TimeTravelControls` | Play/pause, prev/next, scrubber timeline |
 | `MemoryPanel` | Memory state + scope diff (composite right-panel view) |

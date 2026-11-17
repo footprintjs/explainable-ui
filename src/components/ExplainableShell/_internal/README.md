@@ -4,7 +4,7 @@ The shell selects one invocation chain. `subflowInvocation` resolves exact paths
 and runtime IDs and reports ambiguity; `subflowRecord` projects the chosen
 record once and caches its rail and trace names. It filters Story by selected
 runtime IDs. `useSubflowNavigation` owns drill resolution, source replacement and transient
-visit/notice state; the shell keeps the single timeline cursor.
+visit/notice state. These state owners now live in `src/workbench/internal`; the renderless provider keeps the single timeline cursor.
 `SubflowNavigationStatus` renders that feedback separately. The shared pure
 owners now live in `src/trace`; old shell-internal paths only re-export them.
 `TraceWalkScope` is explicit serializable data on the walk, shared by cards
@@ -19,9 +19,9 @@ unstyled default is the Explainable composite with Activity. Visible labels
 Run log, Metrics and State do not rename the public tab IDs. Initialization
 does not change the selected invocation or turn a tab click into a scope reset.
 
-`LensWorkbenchContextValue` is the complete shell layout contract. The shell
-still owns recording preparation, exact-scope navigation, playback, cursor and
-trace controllers. `renderLayout(workbench)` receives those owners' ready-made
+`LensWorkbenchContextValue` is the complete shell layout contract. The renderless `LensControllerProvider`
+owns recording preparation, exact-scope navigation, playback, cursor and
+trace controllers. Shell owns presentation and consumes that shared model. `renderLayout(workbench)` receives those owners' ready-made
 surfaces and actions; `useLensWorkbench` reads the same context below that
 layout. The surfaces are `timeTravel`, `navigation`, `breadcrumb`, `chart`,
 `topology`, `inspector`, `runData`, `result`, `timeline` and `compactTimeline`.
@@ -32,7 +32,7 @@ current scope's full supplied recording; custom logs own cursor filtering.
 Actions are `selectIndex`, `selectStage`, `drillDown`, `returnToRoot`,
 `backtrack`, `exitBacktrack`, `followIngredient`, `followHandoff`,
 `returnToQuestion`, `showAllIngredients` and `selectActivityVariable`.
-Trace target admission and Activity return validation remain with the shell.
+Trace target admission and Activity return validation remain with the shared controller.
 The basic `ExplainableProvider`/`ExplainableView` API is separate and does not
 promise this full shell feature set.
 

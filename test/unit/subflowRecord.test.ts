@@ -4,7 +4,7 @@ import { toVisualizationSnapshots } from "../../src/adapters/fromRuntimeSnapshot
 import {
   exactSubflowResults,
   resolveSubflowLevel,
-} from "../../src/components/ExplainableShell/_internal/subflowRecord";
+} from "../../src/workbench/internal/subflowRecord";
 import type { NarrativeEntry } from "../../src/types";
 const fixture = JSON.parse(
   readFileSync("test/fixtures/subflow-tracing/recordings.json", "utf8")

@@ -1,7 +1,7 @@
 import { FootprintButton, FootprintLoadStatus } from '../../../theme';
 import type { Size } from '../../../types';
 import type { ProgressiveRenderingOptions, RecordingSource } from '../../../progressiveRendering';
-import type { PendingSubflow } from './useLazySubflowRequest';
+import type { PendingSubflow } from '../../../workbench';
 export function LazySubflowStatus({ pending, options, size, unstyled }: { pending: PendingSubflow | null; options: ProgressiveRenderingOptions; size?: Size; unstyled?: boolean }) {
   if (!pending) return null;
   const label = pending.status === 'error' ? 'Could not load this recorded subflow. Its evidence remains unavailable.' :

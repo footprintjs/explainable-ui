@@ -51,6 +51,12 @@ jobs:
           npx tsc -p examples/deployment-shapes/tsconfig.json
           npx vite build --config examples/deployment-shapes/vite.config.ts
 
+      - name: Check and build shared controller example
+        if: matrix.node-version == 22
+        run: |
+          npx tsc -p examples/headless-controller/tsconfig.json
+          npx vite build --config examples/headless-controller/vite.config.ts
+
       # Non-shipping source pilot. Foottrace's development tests require Node 22;
       # the existing package entries and their Node 20 lane stay unchanged.
       - name: Verify isolated record source pilot
@@ -72,6 +78,10 @@ jobs:
       - name: Verify packed progressive rendering consumers
         if: matrix.node-version == 22
         run: node scripts/check-progressive-package.mjs
+
+      - name: Verify packed headless controller consumers
+        if: matrix.node-version == 22
+        run: node scripts/check-headless-package.mjs
 
       - name: Verify packed display preflight consumers
         if: matrix.node-version == 22
