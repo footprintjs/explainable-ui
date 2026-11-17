@@ -1,6 +1,6 @@
 import { LazySubflowStatus, LazyTraceEvidence } from "./_internal/LazySubflowStatus";
 import { useSubflowPrefetch } from "./_internal/useSubflowPrefetch";
-import { resolveProgressiveRenderingOptions } from "../../progressiveRendering/options";
+import { resolveProgressiveRenderingOptions } from "../../progressiveRendering";
 /**
  * Coordinates one selected run, cursor and subflow scope. Focused controllers
  * own tracing and playback; internal presentation components render the model

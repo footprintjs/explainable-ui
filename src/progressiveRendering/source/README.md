@@ -11,6 +11,9 @@ bounded cache; new work refuses instead of evicting Backtrack return evidence.
 while preserving `rootSnapshot` separately for source identity. Selected graph
 layers follow only that invocation's ancestors. Child graph IDs stay strictly
 below their requested mount's path and cannot replace unrelated root geometry.
+Replacement ownership follows recorded `subflowOf` ancestry through unique
+mount nodes, never an ID prefix alone. Unknown/cyclic ancestry stays retained;
+colliding child node or edge IDs refuse before the new cohort is published.
 An ambiguous repeated child stamp across distinct parents is refused rather
 than silently overwritten in the flat engine map.
 

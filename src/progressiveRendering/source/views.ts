@@ -3,7 +3,8 @@ import type { TraceGraph } from '../../components/FlowchartView/traceStructureRe
 import type { NarrativeEntry } from '../../types';
 import type { RecordingSourceSnapshot, SubflowLoadState } from '../types';
 import { isPlainRecord } from '../../trace/safeRecordRead';
-import { invalid, own, readonlyMap } from '../prepare/data';
+import { invalid, own, readonlyMap } from '../prepare';
+import { ownedGraphIds } from './ownership';
 
 export function rootFields(snapshot: RuntimeSnapshotInput): Record<string, unknown> {
   if (!isPlainRecord(snapshot)) throw invalid();
@@ -37,11 +38,13 @@ export function scopedGraph(root: TraceGraph, path: readonly string[], states: R
   for (let length = 1; length <= path.length; length++) {
     const scope = states.get(JSON.stringify(path.slice(0, length)));
     if (scope?.status !== 'ready' || !scope.value.graph) continue;
-    const prefix = `${scope.request.subflowId}/`;
-    const removed = new Set(nodes.filter(node => node.id.startsWith(prefix)).map(node => node.id));
+    const removed = ownedGraphIds(nodes, scope.request.subflowId);
     if (!removed.size && !scope.value.graph.nodes.length && !scope.value.graph.edges.length) continue;
     changed = true;
-    nodes = [...nodes.filter(node => !removed.has(node.id)), ...scope.value.graph.nodes];
+    const retainedNodes = nodes.filter(node => !removed.has(node.id));
+    const retainedNodeIds = new Set(retainedNodes.map(node => node.id));
+    if (scope.value.graph.nodes.some(node => retainedNodeIds.has(node.id))) throw invalid();
+    nodes = [...retainedNodes, ...scope.value.graph.nodes];
     const retainedEdges = edges.filter(edge => !removed.has(edge.source) && !removed.has(edge.target));
     const retainedIds = new Set(retainedEdges.map(edge => edge.id));
     if (scope.value.graph.edges.some(edge => retainedIds.has(edge.id))) throw invalid();

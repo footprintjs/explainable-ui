@@ -1,5 +1,5 @@
-import { resolveProgressiveRenderingOptions } from "../progressiveRendering/options";
-import type { ProgressiveRenderingOptions } from "../progressiveRendering/types";
+import { resolveProgressiveRenderingOptions } from "../progressiveRendering";
+import type { ProgressiveRenderingOptions } from "../progressiveRendering";
 /** JSON layout for the existing Lens surfaces; validation also works during SSR. */
 import { resolveFlowchartOptions, type FlowchartOptions } from "./flowchart";
 export type LensLayoutSurface =

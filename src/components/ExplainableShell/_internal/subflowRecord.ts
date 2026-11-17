@@ -1,4 +1,4 @@
-import type { RecordingSource, SubflowLoadRequest } from "../../../progressiveRendering/types";
+import type { RecordingSource, SubflowLoadRequest } from "../../../progressiveRendering";
 import type { StageSnapshot, NarrativeEntry } from "../../../types";
 import { subflowResultToSnapshots } from "../../../adapters/fromRuntimeSnapshot";
 import { childTraceScope, type TraceScope } from "./traceScope";

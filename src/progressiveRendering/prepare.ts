@@ -17,3 +17,7 @@ export async function prepareSubflow(value: LoadedSubflow, request: SubflowLoadR
     return admitPrepared({ ...loaded, snapshots }, request);
   } catch { throw options.signal.aborted ? abortError() : invalid(); }
 }
+
+// Internal sibling doors; the package facade exports only the public preparation API.
+export { admitGraph, admitLoaded, admitPrepared } from './prepare/admission';
+export { abortError, checkSignal, copyData, invalid, own, readonlyMap } from './prepare/data';

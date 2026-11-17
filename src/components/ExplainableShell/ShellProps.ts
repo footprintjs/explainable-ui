@@ -6,7 +6,7 @@ import type { FlowchartOptions, FlowchartRenderer } from "../../model/flowchart"
 import type { LensLayoutDefinition } from "../../model/lensLayout";
 import type { ReplayControlsOptions } from "../TimeTravelControls";
 import type { LensTheme, LensWorkbenchLayout, LensView, LensCommentaryOptions } from "./LensWorkbench";
-import type { RecordingSource, ProgressiveRenderingOptions } from "../../progressiveRendering/types";
+import type { RecordingSource, ProgressiveRenderingOptions } from "../../progressiveRendering";
 
 export interface SpecNode {
   name: string;

@@ -1,4 +1,4 @@
-import type { RecordingSource, RecordingSourceSnapshot } from "../../../progressiveRendering/types";
+import type { RecordingSource, RecordingSourceSnapshot } from "../../../progressiveRendering";
 import { useLazySubflowRequest } from "./useLazySubflowRequest";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";

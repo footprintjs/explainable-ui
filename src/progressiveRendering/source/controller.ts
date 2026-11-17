@@ -2,8 +2,8 @@ import type { RecordingSource, RecordingSourceOptions, PreparedSubflow, SubflowL
 import type { TraceGraph } from '../../components/FlowchartView/traceStructureRecorder';
 import { narrativeRecorderFromSnapshot } from '../../adapters/fromRuntimeSnapshot';
 import { prepareSubflow } from '../prepare';
-import { admitGraph, admitLoaded, admitPrepared } from '../prepare/admission';
-import { abortError, checkSignal, copyData, invalid, own } from '../prepare/data';
+import { admitGraph, admitLoaded, admitPrepared } from '../prepare';
+import { abortError, checkSignal, copyData, invalid, own } from '../prepare';
 import { scheduleTask, scheduleVisual, yieldToHost } from '../scheduler';
 import { normalizeRequest, pathKey, readPath } from './request';
 import { rootFields, scopedGraph, sourceView } from './views';

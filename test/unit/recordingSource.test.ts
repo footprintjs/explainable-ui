@@ -245,6 +245,34 @@ describe('recording source delivery and exact evidence ownership', () => {
     expect(source.getSnapshot().snapshot.subflowResults?.['child#1']).toBeUndefined();
   });
 
+  it('preserves unrelated path-shaped root IDs and their edges when a child arrives', async () => {
+    const rootGraph = graph(['child', 'child/group/sibling', 'unrelated']);
+    rootGraph.edges.push({ id: 'retained', source: 'child/group/sibling', target: 'unrelated' });
+    const { source } = setup(() => child(), { graph: rootGraph }); await source.load(request());
+    expect(source.getGraph(['child#1']).nodes.map(node => node.id)).toEqual(['child', 'child/group/sibling', 'unrelated', 'child/sum']);
+    expect(source.getGraph(['child#1']).edges).toEqual(rootGraph.edges);
+  });
+
+  it('refuses a loaded node ID colliding with unrelated retained root geometry', async () => {
+    const rootGraph = graph(['child', 'child/sum', 'unrelated']);
+    const { source } = setup(() => child(), { graph: rootGraph });
+    await expect(source.load(request())).rejects.toThrow();
+    expect(source.getGraph([])).toBe(source.rootGraph);
+    expect(source.getGraph(['child#1']).nodes).toEqual(rootGraph.nodes);
+    expect(source.getSnapshot().snapshot.subflowResults?.['child#1']).toBeUndefined();
+  });
+
+  it('replaces recorded nested ownership while retaining cyclic or unknown ancestry', async () => {
+    const rootGraph = graph(['child', 'child/branch', 'child/branch/old', 'child/cycleA', 'child/cycleB', 'child/unknown']);
+    Object.assign(rootGraph.nodes[1].data, { isSubflow: true, subflowOf: 'child' });
+    rootGraph.nodes[2].data.subflowOf = 'child/branch';
+    Object.assign(rootGraph.nodes[3].data, { isSubflow: true, subflowOf: 'child/cycleB' });
+    Object.assign(rootGraph.nodes[4].data, { isSubflow: true, subflowOf: 'child/cycleA' });
+    rootGraph.nodes[5].data.subflowOf = 'unknown-mount';
+    const { source } = setup(() => child(), { graph: rootGraph }); await source.load(request());
+    expect(source.getGraph(['child#1']).nodes.map(node => node.id)).toEqual(['child', 'child/cycleA', 'child/cycleB', 'child/unknown', 'child/sum']);
+  });
+
   it('keeps delivery and other subscribers working when a subscriber throws', async () => {
     const { source } = setup(() => child()); const observed = vi.fn();
     source.subscribe(() => { throw Error('host subscriber'); }); source.subscribe(observed);

@@ -1,6 +1,6 @@
 import { FootprintButton, FootprintLoadStatus } from '../../../theme';
 import type { Size } from '../../../types';
-import type { ProgressiveRenderingOptions, RecordingSource } from '../../../progressiveRendering/types';
+import type { ProgressiveRenderingOptions, RecordingSource } from '../../../progressiveRendering';
 import type { PendingSubflow } from './useLazySubflowRequest';
 export function LazySubflowStatus({ pending, options, size, unstyled }: { pending: PendingSubflow | null; options: ProgressiveRenderingOptions; size?: Size; unstyled?: boolean }) {
   if (!pending) return null;

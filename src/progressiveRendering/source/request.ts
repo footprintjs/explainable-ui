@@ -1,7 +1,7 @@
 import { isPlainRecord, readName, readOwnArray, WorkBudget } from '../../trace/safeRecordRead';
 import type { RuntimeSnapshotInput } from '../../model/recording';
 import type { SubflowLoadRequest, SubflowLoadState } from '../types';
-import { invalid, own } from '../prepare/data';
+import { invalid, own } from '../prepare';
 import { childTraceScope } from '../../trace/traceScope';
 
 export function readPath(input: unknown, empty = true): readonly string[] {
