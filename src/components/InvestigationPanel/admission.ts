@@ -1,7 +1,6 @@
 import type {
   AttentionListResult,
   AttentionReason,
-  CauseResult,
   Confidence,
   Gap,
   GapCode,
@@ -10,7 +9,7 @@ import type {
 import type { InvestigationResult } from "./types";
 import type { VisualInvestigationResult, VisualInvestigationEdge } from "./visualTypes";
 import { admitsRecordedAttribution } from "../../recordedRelationships/attribution";
-type Attention = CauseResult["attention"][number];
+type Attention = MarkedNode["attention"][number];
 
 // Display admission only. Foottrace and the host own graph traversal, storage admission and causal claims.
 const MAX_ITEMS = 256;

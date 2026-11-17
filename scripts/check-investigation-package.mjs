@@ -44,6 +44,18 @@ function declarationHygiene(file) {
   assert.equal(source.parseDiagnostics.length, 0, `${file} must parse as a declaration`);
   const matches = [];
   function visit(node) {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) &&
+        node.moduleSpecifier.text === "foottrace/cause" && node.importClause?.namedBindings &&
+        ts.isNamedImports(node.importClause.namedBindings)) {
+      for (const entry of node.importClause.namedBindings.elements) {
+        const imported = (entry.propertyName ?? entry.name).text;
+        if (["CauseResult", "ImpactResult", "TraversedEdge"].includes(imported)) matches.push({
+          name: imported,
+          line: source.getLineAndCharacterOfPosition(entry.getStart(source)).line + 1,
+          reason: "whole-upstream-import",
+        });
+      }
+    }
     if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
       const name = node.name.text;
       // Declaration rollups may disambiguate a name with a numeric suffix.
@@ -63,7 +75,7 @@ function declarationHygiene(file) {
     ts.forEachChild(node, visit);
   }
   visit(source);
-  return { file: file.slice(file.lastIndexOf("/dist/") + 1), sha256: createHash("sha256").update(bytes).digest("hex"), matches };
+  return { file: file.startsWith(repo) ? file.slice(repo.length) : file.slice(file.lastIndexOf("/dist/") + 1), sha256: createHash("sha256").update(bytes).digest("hex"), matches };
 }
 try {
   const npm = join(
@@ -120,7 +132,7 @@ try {
   }
   writeFileSync(join(peerOnly, "package.json"), JSON.stringify({ private: true, type: "module" }));
   assert(!existsSync(join(peerModules, "foottrace")));
-  const peerSource = `import { InvestigationPanel, GroupedFlowInvestigation, type InvestigationPort, type FlowDiagramRecordedRelationship as RootRelationship } from 'footprint-explainable-ui';
+  const peerSource = `import { InvestigationPanel, GroupedFlowInvestigation, type InvestigationPort, type InvestigationResult, type FlowDiagramRecordedRelationship as RootRelationship } from 'footprint-explainable-ui';
 import { GroupedFlowInvestigation as ChartInvestigation, type GroupedFlowInvestigationProps as ChartProps, type FlowDiagramRecordedRelationship as ChartRelationship } from 'footprint-explainable-ui/flowchart';
 const attributions = ['per-write','stage','recorded-control','recorded-read','recorded-write'] as const;
 const rootRelationships: readonly RootRelationship[] = attributions.map((attribution): RootRelationship => ({id:'r',source:'one',target:'two',kind:attribution === 'recorded-control' ? 'control' : 'data',attribution,evidence:[]}));
@@ -130,6 +142,21 @@ const unknownRoot: RootRelationship['attribution'] = 'unrecorded-guess';
 // @ts-expect-error Unknown attribution must remain outside the flowchart public relationship contract.
 const unknownChart: ChartRelationship['attribution'] = 'unrecorded-guess';
 void [rootRelationships,chartRelationships,unknownRoot,unknownChart];
+const display: InvestigationResult = {nodeId:'one',attention:[],path:['one'],alternatives:[],confidence:'complete',gaps:[],impact:{nodes:[],confidence:'complete',gaps:[]}};
+const openKind: InvestigationResult['attention'][number]['kind'] = 'host-signal';
+// @ts-expect-error The published display projection retains readonly node identifiers.
+display.nodeId = 'two';
+// @ts-expect-error Its attention list remains readonly.
+display.attention.push({kind:'error',reason:'ERROR_RECORDED',evidence:[]});
+// @ts-expect-error Attention reasons remain a closed vocabulary.
+const unknownReason: InvestigationResult['attention'][number]['reason'] = 'GUESSED';
+// @ts-expect-error Gap codes remain a closed vocabulary.
+const unknownGap: InvestigationResult['gaps'][number]['code'] = 'guessed';
+// @ts-expect-error Raw graph fields remain outside the public text projection.
+const rawImpact: InvestigationResult['impact'] = {...display.impact,edges:[]};
+// @ts-expect-error Private visual metadata is not a new public text-port field.
+const rawBackward: InvestigationResult = {...display,backward:{nodes:[],edges:[],confidence:'complete',gaps:[]}};
+void [display,openKind,unknownReason,unknownGap,rawImpact,rawBackward];
 const port: InvestigationPort = { binding:{}, attention:{nodes:[],confidence:'complete',gaps:[]}, explain:nodeId=>({nodeId,attention:[],path:[nodeId],alternatives:[],confidence:'incomplete',gaps:[],impact:{nodes:[],edges:[],confidence:'complete',gaps:[]}}) };
 const definition = {nodes:[{id:'one',label:'One'}],edges:[]};
 const chartProps: ChartProps = {definition,port};
@@ -150,6 +177,10 @@ GroupedFlowInvestigation({definition,port}); ChartInvestigation(chartProps);
     assert(!listing.includes(join(repo, "src")), "packed checks must not import UI source");
     noReaderTypeModes.push(`${mode} ${extension}`);
   }
+  const sourceProjectionProof = ["types.ts", "admission.ts"].map(file =>
+    declarationHygiene(join(repo, "src/components/InvestigationPanel", file)));
+  assert(sourceProjectionProof.every(({ matches }) => matches.length === 0),
+    `display sources depend on whole upstream graph contracts: ${JSON.stringify(sourceProjectionProof)}`);
   const declarationProof = [];
   for (const door of ["index", "flowchart"]) for (const extension of ["ts", "cts"]) {
     const file = join(destination, `dist/${door}.d.${extension}`);
@@ -159,7 +190,7 @@ GroupedFlowInvestigation({definition,port}); ChartInvestigation(chartProps);
   }
   // Compiler controls above must pass first. This is a separate declaration-hygiene failure,
   // not a claim that any of the already-supported five attribution values fails compilation.
-  console.log(JSON.stringify({ peerOnlyAttributionModes: noReaderTypeModes, declarationProof }));
+  console.log(JSON.stringify({ peerOnlyAttributionModes: noReaderTypeModes, sourceProjectionProof, declarationProof }));
   assert(declarationProof.every(({ matches }) => matches.length === 0),
     `packed declarations retain unused upstream graph contracts: ${JSON.stringify(declarationProof)}`);
   const noReaderRuntime = [];
@@ -329,6 +360,7 @@ render(<InvestigationPanel port={port}/>);expect(explain).not.toHaveBeenCalled()
       runtime: process.version,
       strictTypes: ["NodeNext ESM", "NodeNext CJS"],
       noReaderTypeModes,
+      sourceProjectionProof,
       declarationProof,
       noReaderRuntime,
       publicDoors: [".", "./flowchart"],

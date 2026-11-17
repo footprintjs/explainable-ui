@@ -1,16 +1,30 @@
 import type { CSSProperties } from "react";
 import type {
   AttentionListResult,
-  CauseResult,
+  Confidence,
+  Gap,
   GraphContext,
-  ImpactResult,
+  MarkedNode,
   NodeId,
 } from "foottrace/cause";
 
 /** Canonical display projection: unused graph edges stay with the host and may evolve independently. */
-export type InvestigationResult = Omit<CauseResult, "impact"> & {
-  readonly impact: Omit<ImpactResult, "edges">;
-};
+export interface InvestigationResult {
+  readonly nodeId: NodeId;
+  readonly attention: MarkedNode["attention"];
+  /** Present only for one supported candidate and complete backward coverage. Not provider-internal proof. */
+  readonly rootCause?: NodeId;
+  /** Selected node → candidate, following recorded dependency edges. */
+  readonly path: readonly NodeId[];
+  readonly alternatives: readonly NodeId[];
+  readonly impact: {
+    readonly nodes: readonly NodeId[];
+    readonly confidence: Confidence;
+    readonly gaps: readonly Gap[];
+  };
+  readonly confidence: Confidence;
+  readonly gaps: readonly Gap[];
+}
 
 /** The host binds authorization, run, tenant, storage, exact invocation/attempt/visit, and query budgets. */
 export interface InvestigationPort {
