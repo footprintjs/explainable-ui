@@ -123,7 +123,7 @@ export function HeadlessControllerExample(props: ExampleProps) {
   const [showShell, setShowShell] = useState(true), [dark, setDark] = useState(false);
   const [showBoundPanels, setShowBoundPanels] = useState(false);
   return <FootprintTheme asChild tokens={dark ? paperDark : paperLight}><main className={`headless-example${dark ? ' headless-dark' : ''}`}>
-    <header><p className="headless-eyebrow">NEXT-RELEASE SOURCE EXAMPLE · ONE REACT CONTROLLER</p>
+    <header><p className="headless-eyebrow">ONE REACT CONTROLLER</p>
       <h1>One recorded position, two interfaces</h1>
       <p>The custom controls and summary below share a controller with the optional standard workbench. This is an existing engine recording; nothing is executed or re-executed.</p>
       <div className="headless-configuration">

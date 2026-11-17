@@ -1,6 +1,6 @@
 # Shared React controller example
 
-This source example targets the **next library release**. The published `1.0.1` package does not yet provide these controller exports. The repository's Vite aliases resolve public package imports to this checkout for development; this example is not a published-package verification.
+The example uses controller APIs introduced in `footprint-explainable-ui@1.1.0`. The development preview resolves public imports to this checkout. [Try the hosted example](https://footprintjs.github.io/explainable-ui/headless-controller/).
 
 Run from the repository after its normal dependency setup:
 
