@@ -29,6 +29,15 @@ jobs:
       # npm 10's Arborist crashes resolving the current unlocked peer graph
       # (edgesOut of null). Pin the installer, without weakening peer checks.
       - run: npx --yes npm@11.21.0 install
+
+      # Collection success means complete evidence, not a clean audit. Known
+      # upstream findings keep their original nonzero audit status in the report.
+      - name: Collect full and production audit evidence
+        run: npx --yes npm@11.21.0 run audit:evidence
+
+      - name: Test audit evidence failure handling
+        run: npm run test:dependency-audit
+
       - run: npm run build
       - run: npm test
 
@@ -91,3 +100,16 @@ jobs:
       # broken subpath; publint on a packaging error.
       - run: npx publint
       - run: npx @arethetypeswrong/cli --pack
+
+      - name: Save built package for independent verification
+        if: matrix.node-version == 22
+        run: npm pack --ignore-scripts --json --pack-destination dependency-security > dependency-security/packed-review.json
+
+      - name: Retain actual dependency graph and security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-security-node-${{ matrix.node-version }}
+          path: dependency-security/
+          if-no-files-found: error
+          retention-days: 7

@@ -6,6 +6,7 @@ grouped-investigation-example-dist/
 *.tsbuildinfo
 # Generated reports live at the repository root; source modules may use this name.
 /coverage/
+/dependency-security/
 
 # Published library: the lockfile is dev-only (npm strips it on publish) and a
 # committed one can ONLY pin the build env to a stale internal dep. Resolve fresh.
