@@ -48,6 +48,7 @@ try {
   assert.equal(models[0].recordingStatus.status, 'ready');
   assert.equal(models[0].snapshots.length, 5);
   assert.equal(models[0].selectedSnapshot.runtimeStageId, 'load-order#0');
+  assert.equal(models[0].selectedSnapshot.stageLabel, 'load-order');
   assert.equal(models[0].playback.playing, false);
   assert.equal(models[0].traceWalk, null);
   assert.equal(models[0].replayAxis.scale, 'log-duration');
@@ -59,7 +60,7 @@ try {
     React.createElement(api.LensReplayControls, { unstyled: true }),
     React.createElement(api.CommentaryPanel, { presentation: 'current', unstyled: true })));
   assert.match(stock, /aria-label="Replay position"/);
-  assert.match(stock, /Step 1 of 5: LoadOrder/);
+  assert.match(stock, /Step 1 of 5: load-order/);
   assert(!stock.includes('data-fp="tt-tick"'), 'range presentation omits stage ticks');
   assert(stock.includes('No positive timing recorded'));
   assert(stock.includes('This step: Load item and delivery inputs.'));
