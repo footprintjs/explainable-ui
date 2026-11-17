@@ -12,3 +12,7 @@ export type { ThemeMode, ThemeModeProps } from "./mode";
 
 export { useFootprintComponents, FootprintButton, FootprintTab, FootprintInput, FootprintCheckbox, FootprintBadge, FootprintCode, FootprintTooltip, FootprintIcon } from "./components";
 export type { FootprintComponents, FootprintPrimitiveOptions, FootprintButtonProps, FootprintInputProps, FootprintCheckboxProps, FootprintBadgeProps, FootprintCodeProps, FootprintTooltipProps, FootprintTooltipAdapterProps, FootprintIconProps, FootprintIconAdapterProps } from "./components";
+
+export { FootprintLoadStatus } from "./loading";
+export type { FootprintLoadStatusProps } from "./loading";
+export type { FootprintLoadStatusAdapterProps } from "./components";

@@ -237,3 +237,7 @@ export type { TraceWorkflowOverlay, TraceWorkflowStage, TraceWorkflowRead } from
 export { IsometricStageNode, IsometricEdge, IsometricGrid, createIsometricTraceLayout, isometricTraceLayout, ISOMETRIC_NODE_WIDTH, ISOMETRIC_NODE_HEIGHT } from "./components/FlowchartView";
 export type { IsometricTraceLayoutOptions } from "./components/FlowchartView";
 export type { FlowchartRenderer, FlowchartOptions } from "./model/flowchart";
+
+export * from "./progressiveRendering";
+export { FootprintLoadStatus } from "./theme";
+export type { FootprintLoadStatusProps, FootprintLoadStatusAdapterProps } from "./theme";

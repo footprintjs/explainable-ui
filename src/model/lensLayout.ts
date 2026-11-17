@@ -1,3 +1,5 @@
+import { resolveProgressiveRenderingOptions } from "../progressiveRendering/options";
+import type { ProgressiveRenderingOptions } from "../progressiveRendering/types";
 /** JSON layout for the existing Lens surfaces; validation also works during SSR. */
 import { resolveFlowchartOptions, type FlowchartOptions } from "./flowchart";
 export type LensLayoutSurface =
@@ -16,6 +18,7 @@ export interface LensLayoutDefinition {
   readonly gap?: number | string;
   /** Optional built-in geometry; an explicit Shell flowchart prop takes precedence. */
   readonly flowchart?: FlowchartOptions;
+  readonly rendering?: ProgressiveRenderingOptions;
 }
 
 const SURFACES: ReadonlySet<string> = new Set([
@@ -72,6 +75,8 @@ export function resolveLensLayout(layout: unknown): {
   const rows = own(layout, "rows");
   if (rows !== undefined) css(rows, "rows");
   const minHeight = own(layout, "minHeight"), gap = own(layout, "gap");
+  const rawRendering = own(layout, "rendering");
+  const rendering = rawRendering === undefined ? undefined : resolveProgressiveRenderingOptions(rawRendering);
   const rawFlowchart = own(layout, "flowchart");
   const flowchart = rawFlowchart === undefined ? undefined : resolveFlowchartOptions(rawFlowchart);
   if (minHeight !== undefined) size(minHeight, "minHeight");
@@ -107,6 +112,7 @@ export function resolveLensLayout(layout: unknown): {
       minHeight: minHeight as number | string | undefined,
       gap: gap as number | string | undefined,
       ...(flowchart !== undefined && { flowchart }),
+      ...(rendering !== undefined && { rendering }),
     },
     order: [...bounds.keys()],
   };

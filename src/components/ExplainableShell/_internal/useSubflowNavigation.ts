@@ -1,3 +1,5 @@
+import type { RecordingSource, RecordingSourceSnapshot } from "../../../progressiveRendering/types";
+import { useLazySubflowRequest } from "./useLazySubflowRequest";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import type { StageSnapshot, NarrativeEntry } from "../../../types";
@@ -12,6 +14,8 @@ export interface VisitChoice {
   visits: Extract<InvocationResolution, { kind: "ambiguous" }>["visits"];
 }
 interface NavigationOptions {
+  source?: RecordingSource;
+  sourceState?: RecordingSourceSnapshot | null;
   snapshots: StageSnapshot[];
   sourceRunId: unknown;
   readsAvailable: boolean;
@@ -26,6 +30,7 @@ interface NavigationOptions {
 }
 /** One owner of drill identity, visit choice and transient navigation feedback. */
 export function useSubflowNavigation({
+  source, sourceState,
   snapshots,
   sourceRunId,
   readsAvailable, nestedReadTracking,
@@ -37,13 +42,16 @@ export function useSubflowNavigation({
   activeTab,
   onScopeReset,
 }: NavigationOptions) {
+  const lazy = useLazySubflowRequest(source, sourceState ?? null, JSON.stringify([activeTab, snapshotIdx, sourceRunId && typeof sourceRunId === "string" ? sourceRunId : null]));
+  const latestApply = useRef<(mountKey: string, choices: ReadonlyMap<string, string>) => void>(() => {});
   const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
   const [navigationNotice, setNavigationNotice] = useState("");
   const [visitChoice, setVisitChoice] = useState<VisitChoice | null>(null);
   const clearTransient = useCallback(() => {
+    lazy.cancel();
     setNavigationNotice("");
     setVisitChoice(null);
-  }, []);
+  }, [lazy.cancel]);
   const setSnapshotIdx = useCallback(
     (value: SetStateAction<number>) => {
       clearTransient();
@@ -59,6 +67,7 @@ export function useSubflowNavigation({
     let parent = snapshots;
     for (const previous of drillDownStack) {
       const found = resolveSubflowLevel({
+        source,
         parent,
         key: previous.subflowId,
         parentPath: resolved.at(-1)?.traceScope.invocationPath ?? [],
@@ -75,6 +84,7 @@ export function useSubflowNavigation({
     return resolved;
   }, [
     drillDownStack,
+    source, sourceState,
     sourceRunId,
     snapshots,
     readsAvailable, nestedReadTracking,
@@ -84,11 +94,11 @@ export function useSubflowNavigation({
   const priorRun = useRef(sourceRunId);
   const sourceChanged =
     priorRun.current !== sourceRunId &&
-    (typeof sourceRunId === "string" || drillDownStack.length > 0);
+    (source !== undefined || typeof sourceRunId === "string" || drillDownStack.length > 0);
   useEffect(() => {
     if (priorRun.current === sourceRunId) return;
     priorRun.current = sourceRunId;
-    if (!drillDownStack.length && typeof sourceRunId !== "string") return;
+    if (!source && !drillDownStack.length && typeof sourceRunId !== "string") return;
     onScopeReset();
     clearTransient();
     const moved = selectedStack.length !== drillDownStack.length;
@@ -121,8 +131,9 @@ export function useSubflowNavigation({
       mountKey: string,
       selectedInvocations: ReadonlyMap<string, string> = new Map()
     ) => {
-      const graphChain = traceGraph
-        ? buildSubflowBreadcrumb(traceGraph, mountKey)
+      const ancestryGraph = source?.getGraph(selectedStack.at(-1)?.traceScope.invocationPath ?? []) ?? traceGraph;
+      const graphChain = ancestryGraph
+        ? buildSubflowBreadcrumb(ancestryGraph, mountKey)
             .slice(1)
             .flatMap((entry) => (entry.subflowId ? [entry.subflowId] : []))
         : [];
@@ -157,6 +168,7 @@ export function useSubflowNavigation({
           ? snapshotIdx
           : undefined;
         const found = resolveSubflowLevel({
+        source,
           parent,
           key,
           cursorId:
@@ -178,7 +190,7 @@ export function useSubflowNavigation({
       return { kind: "found" as const, stack };
     },
     [
-      traceGraph,
+      traceGraph, source, sourceState,
       selectedStack,
       snapshots,
       snapshotIdx,
@@ -194,6 +206,12 @@ export function useSubflowNavigation({
       selectedInvocations: ReadonlyMap<string, string> = new Map()
     ) => {
       const resolution = buildDrillStack(mountKey, selectedInvocations);
+      if (resolution.kind === "unloaded") {
+        setVisitChoice(null);
+        lazy.load(resolution.request, () => latestApply.current(mountKey, selectedInvocations));
+        return;
+      }
+      lazy.cancel();
       if (resolution.kind === "ambiguous") {
         setVisitChoice({
           mountKey,
@@ -218,8 +236,9 @@ export function useSubflowNavigation({
       setDrillDownStack(resolution.stack);
       setSnapshotIdxRaw(0);
     },
-    [buildDrillStack, onScopeReset, setSnapshotIdxRaw]
+    [buildDrillStack, onScopeReset, setSnapshotIdxRaw, lazy.load, lazy.cancel]
   );
+  latestApply.current = applyDrill;
   const handleDrillDown = applyDrill;
   /** Follow only the direct recorded child of the current scope, never a path/label guess. */
   const openTraceSource = useCallback((
@@ -235,6 +254,7 @@ export function useSubflowNavigation({
     const mount = parent.find(stage => stage.runtimeStageId === mountRuntimeStageId);
     if (!mount) return false;
     const found = resolveSubflowLevel({
+        source,
       parent, key: mount.subflowId ?? mountRuntimeStageId.split("#")[0],
       requestedId: mountRuntimeStageId, parentPath, sourceRunId,
       readsAvailable, nestedReadTracking, results: exactResults, narrative: narrativeEntries,
@@ -249,7 +269,7 @@ export function useSubflowNavigation({
     setDrillDownStack([...selectedStack, found.entry]);
     setSnapshotIdxRaw(index);
     return true;
-  }, [selectedStack, snapshots, sourceRunId, readsAvailable, nestedReadTracking, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
+  }, [source, sourceState, selectedStack, snapshots, sourceRunId, readsAvailable, nestedReadTracking, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
   /** Restore a saved trace location only after resolving it against this source. */
   const restoreTraceQuestion = useCallback((
     invocationPath: readonly string[],
@@ -262,6 +282,7 @@ export function useSubflowNavigation({
       const matches = parent.filter(stage => stage.runtimeStageId === mountRuntimeStageId);
       if (matches.length !== 1) return false;
       const found = resolveSubflowLevel({
+        source,
         parent,
         key: matches[0].subflowId ?? mountRuntimeStageId.split("#")[0],
         requestedId: mountRuntimeStageId,
@@ -280,9 +301,10 @@ export function useSubflowNavigation({
     setDrillDownStack(stack);
     setSnapshotIdxRaw(matches[0]);
     return true;
-  }, [sourceChanged, snapshots, sourceRunId, readsAvailable, nestedReadTracking, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
+  }, [source, sourceState, sourceChanged, snapshots, sourceRunId, readsAvailable, nestedReadTracking, exactResults, narrativeEntries, onScopeReset, clearTransient, setSnapshotIdxRaw]);
   const handleBreadcrumbNavigate = useCallback(
     (level: number) => {
+      clearTransient();
       onScopeReset();
       setVisitChoice(null);
       const popped = level === 0 ? selectedStack[0] : selectedStack[level];
@@ -290,7 +312,7 @@ export function useSubflowNavigation({
       setNavigationNotice("");
       setDrillDownStack(level === 0 ? [] : selectedStack.slice(0, level));
     },
-    [selectedStack, onScopeReset, setSnapshotIdxRaw]
+    [selectedStack, onScopeReset, setSnapshotIdxRaw, clearTransient]
   );
   // TracedFlow sends scope change then node click in one event. Remember it
   // synchronously so the second callback never projects the same child twice.
@@ -344,8 +366,8 @@ export function useSubflowNavigation({
         );
       if (knownMount) {
         const exactId =
-          exactResults &&
-          Object.prototype.hasOwnProperty.call(exactResults, indexOrId)
+          activeSnapshots.some(stage => stage.runtimeStageId === indexOrId) || (exactResults &&
+          Object.prototype.hasOwnProperty.call(exactResults, indexOrId))
             ? indexOrId
             : undefined;
         const path = exactId ? exactId.split("#")[0] : indexOrId;
@@ -386,6 +408,8 @@ export function useSubflowNavigation({
     setDrillDownStack([]);
   }, [onScopeReset, clearTransient]);
   return {
+    pendingLoad: lazy.pending,
+    loadEvidence: lazy.load,
     sourceChanged,
     isDrilled: drillDownStack.length > 0,
     selectedStack,

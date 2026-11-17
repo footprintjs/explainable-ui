@@ -2250,3 +2250,7 @@ The [offline example](examples/grouped-investigation/README.md) uses the canonic
 record adapter and explain function from the accompanying candidate, rather than a
 prewritten root-cause answer. This API remains unreleased; application adoption and
 saved-history transport changes are separate work.
+
+### Lazy subflows and progressive presentation
+
+Use `createRecordingSource` with `<ExplainableShell source={source} />` or `<TraceViewer source={source} />` to load exact recorded child scopes on demand. Props and JSON layouts configure themed skeleton/spinner/text loading and optional idle prefetch; one cursor and Backtrack remain shared. Ready updates are frame-batched, with an optional host-owned worker preparation bridge. See [the lazy subflow consumer example](examples/lazy-subflows/README.md) for lifecycle, error/retry, source limits and performance boundaries.

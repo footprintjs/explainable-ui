@@ -18,6 +18,7 @@ import { componentStyles, theme } from "./styles";
  * and data attributes. The registry changes presentation, not Lens actions.
  */
 export interface FootprintComponents {
+  LoadStatus?: ElementType<FootprintLoadStatusAdapterProps & RefAttributes<HTMLDivElement>>;
   Button?: ElementType<ButtonHTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>>;
   Tab?: ElementType<ButtonHTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>>;
   Input?: ElementType<InputHTMLAttributes<HTMLInputElement> & RefAttributes<HTMLInputElement>>;
@@ -26,6 +27,12 @@ export interface FootprintComponents {
   Code?: ElementType<HTMLAttributes<HTMLElement> & RefAttributes<HTMLElement>>;
   Tooltip?: ElementType<FootprintTooltipAdapterProps & RefAttributes<HTMLSpanElement>>;
   Icon?: ElementType<FootprintIconAdapterProps & RefAttributes<HTMLSpanElement>>;
+}
+
+export interface FootprintLoadStatusAdapterProps extends HTMLAttributes<HTMLDivElement> {
+  state: 'loading' | 'preparing' | 'error';
+  indicator?: 'skeleton' | 'spinner' | 'text';
+  label: string;
 }
 
 export const FootprintComponentsContext = createContext<FootprintComponents>({});

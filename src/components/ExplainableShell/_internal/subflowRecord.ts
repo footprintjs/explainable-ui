@@ -1,3 +1,4 @@
+import type { RecordingSource, SubflowLoadRequest } from "../../../progressiveRendering/types";
 import type { StageSnapshot, NarrativeEntry } from "../../../types";
 import { subflowResultToSnapshots } from "../../../adapters/fromRuntimeSnapshot";
 import { childTraceScope, type TraceScope } from "./traceScope";
@@ -20,7 +21,8 @@ export interface DrillDownEntry {
 export type DrillResolution =
   | { kind: "found"; entry: DrillDownEntry }
   | Exclude<InvocationResolution, { kind: "found" }>
-  | { kind: "conversion-failed" };
+  | { kind: "conversion-failed" }
+  | { kind: "unloaded"; request: SubflowLoadRequest };
 /** Never let the adapter's legacy path alias pick the last repeated visit. */
 export function exactSubflowResults(
   results: unknown
@@ -40,6 +42,7 @@ const cache = new WeakMap<
   Map<string, { scope: TraceScope; snapshots: StageSnapshot[] }>
 >();
 export interface SubflowLevelOptions {
+  source?: RecordingSource;
   parent: StageSnapshot[];
   key: string;
   cursorId?: string;
@@ -52,6 +55,7 @@ export interface SubflowLevelOptions {
   requestedId?: string;
 }
 export function resolveSubflowLevel({
+  source,
   parent,
   key,
   cursorId,
@@ -74,8 +78,13 @@ export function resolveSubflowLevel({
   const mountRuntimeStageId = snapshot.runtimeStageId;
   if (!mountRuntimeStageId) return { kind: "missing" };
   const invocationPath = [...parentPath, mountRuntimeStageId];
-  const result = snapshot.subflowResult;
-  if (!result || typeof result !== "object") return { kind: "missing" };
+  const loaded = source?.getSnapshot().scopes.get(source.getKey(invocationPath));
+  const prepared = loaded?.status === "ready" ? loaded.value : undefined;
+  const result = prepared?.result ?? snapshot.subflowResult;
+  if (!result || typeof result !== "object") return source ? { kind: "unloaded", request: {
+    invocationPath, mountRuntimeStageId, subflowId: key,
+    ...(typeof sourceRunId === "string" ? { runId: sourceRunId } : {}),
+  } } : { kind: "missing" };
   let cached = cache.get(result);
   if (!cached) {
     cached = new Map();
@@ -89,7 +98,7 @@ export function resolveSubflowLevel({
     // never feeds a trace walker; the existing adapter supplies rail values.
     let snapshots: StageSnapshot[] = [];
     try {
-      snapshots = subflowResultToSnapshots(result);
+      snapshots = prepared?.snapshots ?? subflowResultToSnapshots(result);
     } catch {
       return { kind: "conversion-failed" };
     }

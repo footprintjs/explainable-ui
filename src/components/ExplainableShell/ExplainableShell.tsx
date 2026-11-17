@@ -1,3 +1,6 @@
+import { LazySubflowStatus, LazyTraceEvidence } from "./_internal/LazySubflowStatus";
+import { useSubflowPrefetch } from "./_internal/useSubflowPrefetch";
+import { resolveProgressiveRenderingOptions } from "../../progressiveRendering/options";
 /**
  * Coordinates one selected run, cursor and subflow scope. Focused controllers
  * own tracing and playback; internal presentation components render the model
@@ -7,13 +10,11 @@
  */
 import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from "react";
-import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
+import type { StageSnapshot } from "../../types";
 import { theme, themeModeVars, tokensToCSSVars, FootprintTheme } from "../../theme";
 import { useContainerBreakpoints } from "../../_internal/useContainerBreakpoints";
-import { projectRuntimeSnapshot } from "../../model/recording";
-import type { RuntimeSnapshotInput } from "../../model/recording";
+import { useShellRecording } from "./_internal/useShellRecording";
 import { runHasRecordedReads, sourceRunKey, rootMountLabels, type TraceScope } from "./_internal/traceScope";
-import { exactSubflowResults } from "./_internal/subflowRecord";
 import { useSubflowNavigation } from "./_internal/useSubflowNavigation";
 import { useTraceSessionState, useTraceSessionController, type ActivityTraceOrigin } from "./_internal/useTraceSession";
 import { EmptyShell, MissingChartNote } from "./_internal/ShellChrome";
@@ -23,23 +24,19 @@ import { ShellLayout, ShellDetailTabs, UnstyledShellLayout } from "./_internal/S
 import { LensDetailsPanel } from "./_internal/LensDetailsPanel";
 // The JSON arrangement composes these same mounted Lens surfaces.
 import { LensGridLayout } from "./_internal/LensGridLayout";
-import { resolveLensLayout, type LensLayoutDefinition } from "../../model/lensLayout";
-import { resolveFlowchartOptions, type FlowchartOptions, type FlowchartRenderer } from "../../model/flowchart";
+import { resolveLensLayout } from "../../model/lensLayout";
+import { resolveFlowchartOptions, type FlowchartRenderer } from "../../model/flowchart";
 import { TraceSessionPanel } from "./_internal/TraceSessionPanel";
 import { TraceDependencyView } from "../DataTracePanel/TraceDependencyView";
 import { SubflowNavigationStatus } from "./_internal/SubflowNavigationStatus";
 import { StoryUnavailableNote } from "./_internal/TraceUnavailableNote";
-import { useRunCompanions } from "./_internal/useRunCompanions";
-import { ownDataField, isPlainRecord } from "./_internal/safeRecordRead";
-import {
-  narrativeRecorderFromSnapshot,
-} from "../../adapters/fromRuntimeSnapshot";
+import { ownDataField } from "./_internal/safeRecordRead";
 import { overlayFromSnapshot } from "../../adapters/overlayFromSnapshot";
 import { buildTraceWorkflowOverlay, type TraceWorkflowOverlay } from "../../trace/traceWorkflowOverlay";
 import { projectStageActivity, type StageActivityTraceTarget } from "../../trace/stageActivity";
 import { StageActivityPanel } from "../StageActivityPanel";
 import { InspectorPanel } from "../InspectorPanel/InspectorPanel";
-import { LensWorkbenchContext, type LensTheme, type LensWorkbenchContextValue, type LensWorkbenchLayout, type LensView, type LensCommentaryOptions } from "./LensWorkbench";
+import { LensWorkbenchContext, type LensWorkbenchContextValue, type LensView } from "./LensWorkbench";
 import { CommentaryPanel } from "../ExplainableView/CommentaryPanel";
 import { InsightPanel } from "../InsightPanel/InsightPanel";
 import { insightName } from "../../model/recorderView";
@@ -47,7 +44,6 @@ import { devWarn } from "../FlowchartView/_internal/devWarn";
 import { ResultPanel } from "../ResultPanel";
 import { GanttTimeline } from "../GanttTimeline";
 import { TimeTravelRail } from "../TimeTravelControls/TimeTravelControls";
-import type { ReplayControlsOptions } from "../TimeTravelControls";
 import { prefersReducedMotion } from "../TimeTravelControls/prefersReducedMotion";
 import { MemoryPanel } from "../MemoryPanel";
 import { NarrativePanel } from "../NarrativePanel";
@@ -60,283 +56,20 @@ function MountedChart({ render }: { render: () => ReactNode }) {
   return <>{render()}</>;
 }
 
-/**
- * Minimal subflow-walking spec shape. Used INTERNALLY by drill-down
- * resolution (which navigates `subflowStructure` to find a child chart
- * inside the parent's serialized structure). No longer used for chart
- * rendering — that happens via `traceGraph` + `<TracedFlow>` exclusively.
- *
- * Kept as a local type so the file no longer depends on any legacy
- * spec-walk module.
- */
-export interface SpecNode {
-  name: string;
-  id?: string;
-  description?: string;
-  children?: SpecNode[];
-  next?: SpecNode;
-  isSubflowRoot?: boolean;
-  subflowId?: string;
-  subflowName?: string;
-  subflowStructure?: SpecNode;
-}
 import { CompactTimeline } from "../CompactTimeline/CompactTimeline";
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-/** Tab ID — "result", "memory", "narrative", or any custom recorder view ID. */
-export type ShellTab = string;
-
-/**
- * The whole-surface view that exists ONLY in unstyled mode: chart, memory,
- * narrative and timeline in one scroll, rather than one tab at a time.
- * `"ai-compatible"` is the historical spelling and still answers to it.
- */
+import type { ExplainableShellProps, SpecNode, ShellTab } from "./ShellProps";
+export type { ExplainableShellProps, SpecNode, RecorderView, TraceTheme, ShellTab, PanelLabels, DefaultExpanded } from "./ShellProps";
+export type { RuntimeSnapshotInput } from "../../model/recording";
 const EXPLAINABLE_TAB_ID = "explainable";
 function isExplainableTab(tabId: string): boolean {
   return tabId === EXPLAINABLE_TAB_ID || tabId === "ai-compatible";
 }
 
-
-export interface PanelLabels {
-  /** Left panel pill label (subflow tree). Default: "Topology" */
-  topology?: string;
-  /** Right panel pill label (memory/narrative). Default: "Details" */
-  details?: string;
-  /** Bottom panel pill label (timeline). Default: "Timeline" */
-  timeline?: string;
-}
-
-/** Which panels start expanded. Default: `{ details: true }` (flowchart + memory). */
-export interface DefaultExpanded {
-  topology?: boolean;
-  details?: boolean;
-  timeline?: boolean;
-}
-
-/**
- * Raw runtime snapshot from FlowChartExecutor.getSnapshot().
- * When provided, ExplainableShell converts it internally — zero boilerplate.
- */
-export type { RuntimeSnapshotInput } from "../../model/recording";
-
-/**
- * A recorder view that appears as a tab in the details panel.
- * Each recorder provides its own per-stage rendering.
- * Memory and Narrative are built-in defaults — add more via this prop.
- */
-export interface RecorderView {
-  /** Unique key for this view tab */
-  id: string;
-  /** Display label on the tab */
-  name: string;
-  /** Short description shown as tooltip and header for auto-detected views.
-   *  e.g., "Per-step timing and I/O counts (KeyedRecorder)" */
-  description?: string;
-  /**
-   * Render function — receives the current snapshot index and all snapshots.
-   * Return a React node to display in the details panel.
-   */
-  render: (props: { snapshots: StageSnapshot[]; selectedIndex: number }) => React.ReactNode;
-}
-
-/**
- * The Trace flowchart's two-colour theme (footprintjs level).
- *
- * `mode` is the COARSE switch: it applies eui's full light or dark preset
- * (`coolLight` / `coolDark`) as `--fp-*` variables on the shell root, so the
- * ENTIRE shell — canvas, panels, nodes, text, borders — follows dark/light from
- * this one field. You do NOT need to hand-set `--fp-*` yourself. (`--fp-*`
- * remains available as a fine escape hatch for individual token overrides.)
- *
- * `visited` and `current` are the two semantic node colours, layered on top of
- * the mode base. All optional — sensible per-mode defaults are used for anything
- * omitted.
- */
-export interface TraceTheme {
-  mode?: "dark" | "light";
-  /** Executed / done nodes. */
-  visited?: string;
-  /** The node at the current cursor position ("now"). */
-  current?: string;
-}
-
-export interface ExplainableShellProps extends BaseComponentProps {
-  /**
-   * Pre-converted visualization snapshots. Use when you've already called
-   * toVisualizationSnapshots() yourself.
-   */
-  snapshots?: StageSnapshot[];
-  /**
-   * Raw runtime snapshot from executor.getSnapshot(). The shell converts it
-   * internally via toVisualizationSnapshots(). When provided, `snapshots`
-   * and `resultData` are derived automatically. Pair with
-   * `narrativeEntries` for rich per-stage narrative.
-   *
-   * Usage: `<ExplainableShell runtimeSnapshot={executor.getSnapshot()} narrativeEntries={executor.getNarrativeEntries()} traceGraph={graph} runtimeOverlay={overlay} />`
-   */
-  runtimeSnapshot?: RuntimeSnapshotInput | null;
-  /**
-   * Build-time graph captured live via `createTraceStructureRecorder`.
-   * REQUIRED for chart rendering (v6+) — the legacy `spec` →
-   * legacy spec-walk post-walk path was removed in favor of this
-   * recorder-driven graph.
-   *
-   * Pair with `runtimeOverlay` for the full time-travel trace UI.
-   * When `traceGraph` is set but `runtimeOverlay` is absent, the
-   * chart renders without runtime coloring (build-time-only view).
-   *
-   * The `spec` prop, when also provided, is used INTERNALLY for
-   * subflow drill-down resolution (navigating `subflowStructure` to
-   * find a child chart inside the parent's serialized structure) —
-   * NOT for rendering.
-   */
-  traceGraph?: import("../FlowchartView/traceStructureRecorder").TraceGraph | null;
-  /**
-   * Runtime overlay captured live via `createTraceRuntimeOverlay` — the
-   * per-step colouring that lights the executed path.
-   *
-   * **Usually leave it off.** When `runtimeSnapshot` is given and this prop
-   * is absent, the shell rebuilds the overlay from the snapshot's own commit
-   * log (`overlayFromSnapshot`), so a replayed recording colours its chart
-   * exactly like the live run did. Pass it only to override that — a live
-   * `createTraceRuntimeOverlay` handle sees a little more than a recording
-   * can (errors, subflow internals, wall-clock).
-   *
-   * For a deliberately uncoloured (build-time-only) chart pass an EMPTY
-   * overlay — `{ executionOrder: [], errors: new Map(), running: false }`.
-   * Omitting the prop no longer means "no colours"; it means "work it out
-   * from the snapshot", because omitting it was how every replay ended up
-   * grey.
-   */
-  runtimeOverlay?: import("../FlowchartView/createTraceRuntimeOverlay").RuntimeOverlay | null;
-  /**
-   * Trace flowchart theme — the footprintjs-LEVEL **two-colour** scheme:
-   * `visited` (executed nodes) + `current` (the cursor node). `mode` is the
-   * coarse light/dark switch — it applies eui's full preset to the whole shell,
-   * so you pass one word instead of a wall of `--fp-*` vars. Colours are optional
-   * — omit to use the per-mode defaults. The agent-semantic three-colour theme
-   * belongs to `<Lens>`, not here.
-   */
-  traceTheme?: TraceTheme;
-  title?: string;
-  resultData?: Record<string, unknown> | null;
-  logs?: string[];
-  /** Structured narrative entries from `executor.getNarrativeEntries()`.
-   *  This is the only narrative input — the flat-string form was
-   *  removed; call `.map(e => e.text)` if you need it.
-   *
-   *  Optional when `runtimeSnapshot` is given: a run recorded with
-   *  footprintjs's narrative recorder carries its entries inside the
-   *  snapshot, and the shell reads them from there. Pass this prop to
-   *  override that (it always wins). */
-  narrativeEntries?: NarrativeEntry[];
-  /**
-   * @deprecated Never had an effect and now warns in dev. Use `hideTabs` to
-   * drop tabs by id and `defaultTab` to choose which one opens first.
-   *
-   * It was documented as `["result", "explainable"]`, but `"explainable"` is
-   * not a tab in the styled shell at all — it is the unstyled whole-surface
-   * view — so honouring this list literally would have cut every styled shell
-   * down to a lone Result tab. There is no reading of it that is both
-   * faithful to the documented default and safe, which is why it is going
-   * rather than getting wired.
-   */
-  tabs?: ShellTab[];
-  defaultTab?: ShellTab;
-  hideConsole?: boolean;
-  /** Hide specific detail tabs (e.g., ['result', 'memory']). */
-  hideTabs?: string[];
-  /** Customize the labels on collapsible panel pills */
-  panelLabels?: PanelLabels;
-  /** Which panels start expanded. Default: `{ details: true }` */
-  defaultExpanded?: DefaultExpanded;
-  /**
-   * Recorder views — each becomes a tab in the details panel.
-   * Default: Memory + Narrative. Pass additional recorder views
-   * to show tokens, cost, tools, permissions, or custom data.
-   *
-   * Usage:
-   *   recorderViews={[
-   *     { id: 'tokens', name: 'Tokens', render: ({ selectedIndex }) => <div>...</div> },
-   *   ]}
-   */
-  recorderViews?: RecorderView[];
-  /**
-   * Custom flowchart renderer. When omitted, ExplainableShell renders
-   * via `<TracedFlow graph={traceGraph} overlay={runtimeOverlay} />` —
-   * the recorder-driven path. Override to plug a custom chart UI; the
-   * `spec` parameter is forwarded only for backward-compatible
-   * signatures (it's the same SpecNode used for drill-down) and may
-   * be `null` once consumers stop threading it in.
-   */
-  renderFlowchart?: (props: {
-    spec: SpecNode | null;
-    snapshots: StageSnapshot[];
-    selectedIndex: number;
-    unstyled?: boolean;
-    onNodeClick?: (indexOrId: number | string) => void;
-    showStageId?: boolean;
-    /** Resolved built-in geometry; custom renderers may honor or replace it. */
-    renderer?: FlowchartRenderer;
-    /** Dependency-cone overlay (chart node id → BFS depth) — painted while
-     *  the Inspector's Data Trace tab is open. Custom renderers may ignore it. */
-    sliceCone?: ReadonlyMap<string, number>;
-    /** Recorded values and state-read links for the active variable investigation. */
-    traceWorkflow?: TraceWorkflowOverlay | null;
-    /** The shell's CURRENT drill scope — the mount node's id, or `null` at the
-     *  top level. The shell owns the one drill state, so a chart that keeps
-     *  its own must follow this or it will show a different level than the
-     *  breadcrumb, story and timeline beside it. */
-    currentSubflowId?: string | null;
-    /** Call to MOVE the shell's drill: a mount node's id to drill in, `null`
-     *  to pop back to the top. */
-    onSubflowChange?: (mountStageId: string | null) => void;
-  }) => React.ReactNode;
-  /**
-   * When true, render each node's stable `stageId` as a small monospace
-   * caption beneath the label in the default flowchart renderer.
-   * Teaching aid: it reveals the key recorders use
-   * (`runtimeStageId = [subflowPath/]stageId#executionIndex`) so a
-   * consumer can map any recorder's per-stage data back to a node.
-   * Default false.
-   */
-  showStageId?: boolean;
-  /** Built-in chart geometry. Explicit values override JSON layout.flowchart; flat is the default. */
-  flowchart?: FlowchartOptions;
-  /**
-   * Play the run by itself when it opens, once: the cursor goes to the first
-   * stage and walks to the last on the Play loop, then stops. A new run (a new
-   * `runId`, or a new snapshot object when it has none) plays again and leaves
-   * any subflow a person drilled into; a re-render does not. Pause, scrubbing,
-   * arrow keys, space, a drill, a trace or any other move of the cursor stop it
-   * for good. It does not start under `prefers-reduced-motion: reduce`, while
-   * tracing, or with fewer than two stages. Default false.
-   */
-  autoPlay?: boolean;
-  /** Controlled details audience. Both views keep the same chart, selection and subflow. */
-  view?: LensView;
-  /** Initial details audience when view is uncontrolled. Default developer. */
-  defaultView?: LensView;
-  /** Request an audience change from the two Details buttons. */
-  onViewChange?: (view: LensView) => void;
-  /** Configure recorded prose in Story and the custom-layout commentary surface. */
-  commentary?: LensCommentaryOptions;
-  /** Choose replay controls and an optional reading interval without creating a second cursor. */
-  replayControls?: ReplayControlsOptions;
-  /** Brand tokens and native-control adapters; explicit tokens override mode. */
-  theme?: LensTheme;
-  /** Own the layout while retaining the complete Lens selection, drill and backtrack behavior. */
-  renderLayout?: LensWorkbenchLayout;
-  /** Serializable named-area layout. Omitted optional surfaces stay hidden. renderLayout takes precedence. */
-  layout?: LensLayoutDefinition;
-}
-
-export function ExplainableShell({
+export function ExplainableShell(props: ExplainableShellProps) {
+  const {
   snapshots: snapshotsProp,
-  runtimeSnapshot,
+  runtimeSnapshot: _runtimeSnapshot,
+  source, rendering,
   title,
   resultData: resultDataProp,
   logs = [],
@@ -360,14 +93,14 @@ export function ExplainableShell({
   replayControls,
   showStageId = false,
   autoPlay = false,
-  traceGraph,
+  traceGraph: _traceGraph,
   runtimeOverlay: runtimeOverlayProp,
   traceTheme,
   size = "default",
   unstyled = false,
   className,
   style,
-}: ExplainableShellProps) {
+  } = props;
   const [uncontrolledView, setUncontrolledView] = useState<LensView>(defaultView);
   const view = controlledView ?? uncontrolledView;
   const handleViewChange = useCallback((next: LensView) => {
@@ -381,74 +114,8 @@ export function ExplainableShell({
   // live run did — no executor left to call getNarrativeEntries() on. The
   // A paired prop takes precedence. Known unchanged companions from a
   // previous run are withheld; a current record-owned Story can replace them.
-  const snapshotNarrative = useMemo(
-    () => narrativeRecorderFromSnapshot(runtimeSnapshot),
-    [runtimeSnapshot],
-  );
-  const companions = useRunCompanions(runtimeSnapshot, {
-    narrativeEntries: narrativeEntriesProp,
-    snapshots: snapshotsProp,
-    resultData: resultDataProp,
-    runtimeOverlay: runtimeOverlayProp,
-  });
-  const companionNarrativeMissing = companions.staleKeys.includes("narrativeEntries") && !snapshotNarrative;
-  const narrativeEntries = companions.values.narrativeEntries ?? snapshotNarrative?.entries;
-
-  const exactResults = useMemo(
-    () => exactSubflowResults(ownDataField(runtimeSnapshot, "subflowResults")),
-    [runtimeSnapshot],
-  );
-
-  // Convert runtimeSnapshot → visualization snapshots (zero-boilerplate mode).
-  // A snapshot we cannot read is REMEMBERED, not swallowed: the empty state
-  // below reports it instead of rendering full chrome with nothing in it.
-  const derivedFromRuntime = useMemo(() => {
-    if (!runtimeSnapshot) return null;
-    try {
-      // Consume only known own fields. Spreading a stored source would
-      // evaluate unrelated accessors that no renderer ever asked to read.
-      const sharedState = ownDataField(runtimeSnapshot, "sharedState");
-      if (!isPlainRecord(sharedState)) throw new Error("sharedState is not a plain object");
-      const input = {
-        sharedState,
-        executionTree: ownDataField(runtimeSnapshot,"executionTree"),
-        commitLog: ownDataField(runtimeSnapshot,"commitLog"),
-        subflowResults: exactResults,
-        recorders: ownDataField(runtimeSnapshot,"recorders"),
-      };
-      const projection = projectRuntimeSnapshot(input, narrativeEntries);
-      return projection.kind === "unreadable"
-        ? { snapshots: projection.snapshots, resultData: null, error: projection.detail }
-        : { snapshots: projection.snapshots, resultData: input.sharedState, error: null };
-    } catch (err) {
-      return {
-        snapshots: [] as StageSnapshot[],
-        resultData: null,
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
-  }, [runtimeSnapshot, narrativeEntries, exactResults]);
-
-  // Use derived data when runtimeSnapshot is provided, otherwise use explicit props
-  const snapshots = companions.values.snapshots ?? derivedFromRuntime?.snapshots ?? [];
-  const resultData = companions.values.resultData ?? derivedFromRuntime?.resultData ?? null;
-
-  // The chart's colouring, rebuilt from the recording when the caller didn't
-  // hand us a live one. `runtimeSnapshot` + `traceGraph` with no overlay used
-  // to render a fully grey chart with no warning — the single most common way
-  // an integration "worked" but showed nothing. The commit log already holds
-  // the execution order, so there is nothing to ask the consumer for.
-  const runtimeOverlay = useMemo(
-    () =>
-      companions.values.runtimeOverlay ??
-      // Retries leave no mark on the commit log (a failed attempt discards its
-      // writes): the snapshot's tree carries their counts (footprintjs >= 10.1),
-      // and for an older recording the narrative's `retry` entries do.
-      (runtimeSnapshot
-        ? overlayFromSnapshot(runtimeSnapshot, { narrativeEntries })
-        : undefined),
-    [companions.values.runtimeOverlay, runtimeSnapshot, narrativeEntries],
-  );
+  const { sourceState, originalSnapshot, runtimeSnapshot, snapshotNarrative, companions, companionNarrativeMissing,
+    narrativeEntries, exactResults, derivedFromRuntime, snapshots, resultData, runtimeOverlay, traceGraph } = useShellRecording(props);
 
   // A recording is THREE things — events, snapshot, structure — and only the
   // structure can draw the chart. Handed run data with no `traceGraph` the
@@ -484,81 +151,6 @@ export function ExplainableShell({
     ? resolveLensLayout(layout).definition : undefined, [layout, renderLayout, snapshots.length]);
   const flowchartRenderer = useMemo(() => resolveFlowchartOptions(flowchart).renderer
     ?? resolvedLayout?.flowchart?.renderer ?? "flat", [flowchart, resolvedLayout]);
-  const tracedFlowRenderer = useMemo(() => {
-    if (!traceGraph) return undefined;
-    return ({ selectedIndex, snapshots, onNodeClick, sliceCone, traceWorkflow, currentSubflowId, onSubflowChange, unstyled: chartUnstyled }: {
-      spec: SpecNode | null; snapshots: StageSnapshot[]; selectedIndex: number;
-      unstyled?: boolean;
-      onNodeClick?: (indexOrId: number | string) => void;
-      showStageId?: boolean;
-      renderer?: FlowchartRenderer;
-      sliceCone?: ReadonlyMap<string, number>;
-      traceWorkflow?: TraceWorkflowOverlay | null;
-      currentSubflowId?: string | null;
-      onSubflowChange?: (mountStageId: string | null) => void;
-    }) => {
-      // The shell's `selectedIndex` indexes into `snapshots[]` (which
-      // may be filtered to a drill-down subset). The overlay's
-      // `executionOrder` is the FULL execution timeline (all stages
-      // including subflow internals). When the two arrays have
-      // different lengths, passing selectedIndex straight through
-      // misaligns the chart's active highlight.
-      //
-      // Translate: take the runtimeStageId at snapshots[selectedIndex]
-      // and find the matching position in overlay.executionOrder.
-      // Fall back to selectedIndex when no overlay or no match
-      // (charts without subflows have aligned indexes anyway).
-      const activeRsid = snapshots[selectedIndex]?.runtimeStageId;
-      let overlayIdx = selectedIndex;
-      if (activeRsid && runtimeOverlay) {
-        let i = runtimeOverlay.executionOrder.findIndex(
-          (s) => s.runtimeStageId === activeRsid,
-        );
-        // Drilled-in subflow snapshots carry PREFIX-STRIPPED runtimeStageIds
-        // (e.g. "gather#8" vs the overlay's "sf-injection-engine/gather#8"),
-        // so the exact match misses and we'd fall back to the raw subflow-local
-        // index — mixing index spaces and mis-coloring the whole run as "done".
-        // Re-match by suffix so the subflow-local cursor maps to the correct
-        // whole-run overlay position (Bug 2).
-        if (i < 0) {
-          i = runtimeOverlay.executionOrder.findIndex(
-            (s) => s.runtimeStageId?.endsWith("/" + activeRsid),
-          );
-        }
-        if (i >= 0) overlayIdx = i;
-      }
-      // Map the shell's 2-colour Trace theme onto TracedFlow's colour model:
-      // `visited → done`, `current → active`, and a neutral base per mode. The
-      // flowchart background stays transparent (inherits the container), so it
-      // follows the consumer's dark/light automatically.
-      const traceColors = traceTheme && {
-        ...(traceTheme.visited !== undefined && { done: traceTheme.visited }),
-        ...(traceTheme.current !== undefined && { active: traceTheme.current }),
-        ...(traceTheme.mode !== undefined && { default: traceTheme.mode === "dark" ? "#94a3b8" : "#64748b" }),
-      };
-      return (
-        <TracedFlow
-          renderer={flowchartRenderer}
-          graph={traceGraph}
-          overlay={runtimeOverlay ?? undefined}
-          sliceCone={sliceCone ?? undefined}
-          traceWorkflow={traceWorkflow}
-          unstyled={chartUnstyled}
-          colors={traceColors || undefined}
-          scrubIndex={overlayIdx}
-          onNodeClick={(stageId) => onNodeClick?.(stageId)}
-          // CONTROLLED drill: the shell owns the scope, the chart renders it.
-          // Every gesture — a mount card here, a row in the Topology tree, the
-          // breadcrumb — moves the same one value, so the chart can never show
-          // a different level than the panels around it.
-          currentSubflowId={currentSubflowId ?? null}
-          onSubflowChange={(mountId) => onSubflowChange?.(mountId)}
-        />
-      );
-    };
-  }, [traceGraph, runtimeOverlay, traceTheme, flowchartRenderer]);
-  const effectiveRenderFlowchart = renderFlowchart ?? tracedFlowRenderer;
-  const showExecutionChart = !!effectiveRenderFlowchart && (!!renderFlowchart || !!traceGraph);
   const leftLabel = panelLabels?.topology ?? "Topology";
   const rightLabel = panelLabels?.details ?? "Details";
   const bottomLabel = panelLabels?.timeline ?? "Timeline";
@@ -693,7 +285,7 @@ export function ExplainableShell({
   const toggleRight = useCallback((v: boolean) => { setRightExpanded(v); triggerReflow(); }, [triggerReflow]);
   const toggleTimeline = useCallback(() => { setTimelineExpanded((p) => !p); triggerReflow(); }, [triggerReflow]);
 
-  const sourceRunId = sourceRunKey(runtimeSnapshot);
+  const sourceRunId = source ?? sourceRunKey(originalSnapshot);
   const activitySource = useRef({ source: sourceRunId, token: {} });
   if (activitySource.current.source !== sourceRunId) activitySource.current = { source: sourceRunId, token: {} };
   const readsAvailable = useMemo(
@@ -708,7 +300,7 @@ export function ExplainableShell({
   );
   const nestedReadTracking = ownDataField(runtimeSnapshot, "nestedReadTracking") === true;
   const navigation = useSubflowNavigation({
-    snapshots, sourceRunId, readsAvailable, nestedReadTracking, exactResults, narrativeEntries,
+    source, sourceState, snapshots, sourceRunId, readsAvailable, nestedReadTracking, exactResults, narrativeEntries,
     traceGraph, snapshotIdx, setSnapshotIdxRaw,
     activeTab: JSON.stringify([activeTab, rightPanelMode, inspectorTab, activitySelected, mobileInspectorSelected]),
     onScopeReset: traceSessionState.reset,
@@ -717,6 +309,89 @@ export function ExplainableShell({
     selectedStack, setSnapshotIdx, handleDrillDown, handleBreadcrumbNavigate,
     handleChartSubflowChange, handleNodeClick,
   } = navigation;
+  const currentPath = selectedStack.at(-1)?.traceScope.invocationPath ?? [];
+  const activeGraph = useMemo(() => source ? source.getGraph(currentPath) : traceGraph, [source, sourceState, traceGraph, selectedStack]);
+  const renderingOptions = useMemo(() => ({ ...resolvedLayout?.rendering, ...resolveProgressiveRenderingOptions(rendering) }), [resolvedLayout, rendering]);
+  useSubflowPrefetch(source, renderingOptions, selectedStack.at(-1)?.snapshots ?? snapshots, snapshotIdx, currentPath);
+  const activeRuntimeOverlay = useMemo(() => {
+    const scope = selectedStack.at(-1)?.traceScope;
+    return source && scope ? overlayFromSnapshot({ commitLog: scope.commitLog, executionTree: scope.executionTree }) : runtimeOverlay;
+  }, [source, selectedStack, runtimeOverlay]);
+  const tracedFlowRenderer = useMemo(() => {
+    if (!activeGraph) return undefined;
+    return ({ selectedIndex, snapshots, onNodeClick, sliceCone, traceWorkflow, currentSubflowId, onSubflowChange, unstyled: chartUnstyled }: {
+      spec: SpecNode | null; snapshots: StageSnapshot[]; selectedIndex: number;
+      unstyled?: boolean;
+      onNodeClick?: (indexOrId: number | string) => void;
+      showStageId?: boolean;
+      renderer?: FlowchartRenderer;
+      sliceCone?: ReadonlyMap<string, number>;
+      traceWorkflow?: TraceWorkflowOverlay | null;
+      currentSubflowId?: string | null;
+      onSubflowChange?: (mountStageId: string | null) => void;
+    }) => {
+      // The shell's `selectedIndex` indexes into `snapshots[]` (which
+      // may be filtered to a drill-down subset). The overlay's
+      // `executionOrder` is the FULL execution timeline (all stages
+      // including subflow internals). When the two arrays have
+      // different lengths, passing selectedIndex straight through
+      // misaligns the chart's active highlight.
+      //
+      // Translate: take the runtimeStageId at snapshots[selectedIndex]
+      // and find the matching position in overlay.executionOrder.
+      // Fall back to selectedIndex when no overlay or no match
+      // (charts without subflows have aligned indexes anyway).
+      const activeRsid = snapshots[selectedIndex]?.runtimeStageId;
+      let overlayIdx = selectedIndex;
+      if (activeRsid && activeRuntimeOverlay) {
+        let i = activeRuntimeOverlay.executionOrder.findIndex(
+          (s) => s.runtimeStageId === activeRsid,
+        );
+        // Drilled-in subflow snapshots carry PREFIX-STRIPPED runtimeStageIds
+        // (e.g. "gather#8" vs the overlay's "sf-injection-engine/gather#8"),
+        // so the exact match misses and we'd fall back to the raw subflow-local
+        // index — mixing index spaces and mis-coloring the whole run as "done".
+        // Re-match by suffix so the subflow-local cursor maps to the correct
+        // whole-run overlay position (Bug 2).
+        if (i < 0) {
+          i = activeRuntimeOverlay.executionOrder.findIndex(
+            (s) => s.runtimeStageId?.endsWith("/" + activeRsid),
+          );
+        }
+        if (i >= 0) overlayIdx = i;
+      }
+      // Map the shell's 2-colour Trace theme onto TracedFlow's colour model:
+      // `visited → done`, `current → active`, and a neutral base per mode. The
+      // flowchart background stays transparent (inherits the container), so it
+      // follows the consumer's dark/light automatically.
+      const traceColors = traceTheme && {
+        ...(traceTheme.visited !== undefined && { done: traceTheme.visited }),
+        ...(traceTheme.current !== undefined && { active: traceTheme.current }),
+        ...(traceTheme.mode !== undefined && { default: traceTheme.mode === "dark" ? "#94a3b8" : "#64748b" }),
+      };
+      return (
+        <TracedFlow
+          renderer={flowchartRenderer}
+          graph={activeGraph}
+          overlay={activeRuntimeOverlay ?? undefined}
+          sliceCone={sliceCone ?? undefined}
+          traceWorkflow={traceWorkflow}
+          unstyled={chartUnstyled}
+          colors={traceColors || undefined}
+          scrubIndex={overlayIdx}
+          onNodeClick={(stageId) => onNodeClick?.(stageId)}
+          // CONTROLLED drill: the shell owns the scope, the chart renders it.
+          // Every gesture — a mount card here, a row in the Topology tree, the
+          // breadcrumb — moves the same one value, so the chart can never show
+          // a different level than the panels around it.
+          currentSubflowId={currentSubflowId ?? null}
+          onSubflowChange={(mountId) => onSubflowChange?.(mountId)}
+        />
+      );
+    };
+  }, [activeGraph, activeRuntimeOverlay, traceTheme, flowchartRenderer]);
+  const effectiveRenderFlowchart = renderFlowchart ?? tracedFlowRenderer;
+  const showExecutionChart = !!effectiveRenderFlowchart && (!!renderFlowchart || !!traceGraph);
   const isInSubflow = selectedStack.length > 0;
   // autoPlay's one shot belongs to the RUN, not to the rail's array: a drill
   // swaps that array, and `runtimeSnapshot={executor.getSnapshot()}` makes a
@@ -801,7 +476,7 @@ export function ExplainableShell({
     traceHistoryAvailable: isInSubflow || !!runtimeSnapshot?.commitLog,
     showDataTraceCone: !unstyled && (isNarrow ? mobileInspectorSelected : rightPanelMode === "what") && !activitySelected && inspectorTab === "trace",
     setSnapshotIdx, onStartInspector, onReturnToActivity,
-    runtimeSnapshot, openTraceSource: navigation.openTraceSource,
+    runtimeSnapshot, recordingIdentity: source, openTraceSource: navigation.openTraceSource,
     restoreTraceQuestion: navigation.restoreTraceQuestion,
     stageActivity,
   });
@@ -943,14 +618,18 @@ export function ExplainableShell({
     size={size}
   />;
 
-  const navigationStatus = <SubflowNavigationStatus
+  const navigationStatus = <><LazySubflowStatus pending={navigation.pendingLoad} options={renderingOptions} size={size} unstyled={unstyled} />
+    <LazyTraceEvidence source={source} path={activeTraceScope.invocationPath} pending={navigation.pendingLoad}
+      mounts={traceSession.traceWalk?.stops.filter(stop => activeTraceScope.mountLabels.has(stop.runtimeStageId)).map(stop => stop.runtimeStageId) ?? []}
+      load={navigation.loadEvidence} size={size} unstyled={unstyled} />
+    <SubflowNavigationStatus
     unstyled={unstyled} size={size}
     staleInputs={companions.staleKeys.length > 0}
     notice={navigation.navigationNotice}
     choice={navigation.visitChoice}
     onChoose={navigation.applyDrill}
     onDismiss={navigation.clearTransient}
-  />;
+  /></>;
   // Map tab id → label for rendering
   const tabLabels = new Map(allTabs.map((t) => [t.id, t.name]));
 

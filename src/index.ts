@@ -192,3 +192,7 @@ export type { TraceWorkflowOverlay, TraceWorkflowStage, TraceWorkflowRead } from
 
 // Canonical investigation wording; host labels remain component presentation data.
 export { investigationGapMessage } from "./components/InvestigationPanel/wording";
+
+export * from "./progressiveRendering";
+export { FootprintLoadStatus } from "./theme";
+export type { FootprintLoadStatusProps, FootprintLoadStatusAdapterProps } from "./theme";
