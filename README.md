@@ -1805,6 +1805,32 @@ import { FailureExplanationView, FootprintTheme, coolLight } from 'footprint-exp
 </FootprintTheme>
 ```
 
+Canonical findings may include an optional readonly `level`: `HIGH`, `MEDIUM`,
+`LOW` or `UNVERIFIED`. It is an assessment supplied by the host. Each list keeps
+its source order and shows neutral **Host level: HIGH** badges through the
+existing theme Badge adapter, with a visible statement that the view does not
+verify those levels. Absence stays unlabelled; no level is inferred from a code,
+summary, health, confidence or another finding.
+
+```tsx
+import type { FailureExplanationDisplayFinding } from 'footprint-explainable-ui';
+
+const hostFinding: FailureExplanationDisplayFinding = {
+  code: 'STEP_FAILED',
+  summary: 'The step recorded a failure.',
+  evidenceRefs: ['record:failure'],
+  level: 'HIGH', // Explicit host assessment, not a verification claim.
+};
+// A finding in causes, consequences or diagnosticFailures may carry this field.
+```
+
+Migration: `level` is now a recognized own field. Unsupported values or accessors
+refuse the complete view; use an exact supported host level or remove unsupported
+metadata. Accepted levels charge their UTF-16 length, including repetitions,
+against the existing text budget. A near-limit model that previously carried
+ignored level metadata may now refuse. Missing, own-undefined and inherited-only
+levels preserve the previous DTO, markup and usage; no cap is raised.
+
 Producer-formatted explanations are structurally assignable; this UI component
 has no runtime dependency on the producer. Evidence references are opaque text in
 disclosures, never links or selection authority. A malformed, accessor-backed or

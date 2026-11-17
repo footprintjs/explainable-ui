@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import type { CSSProperties } from 'react';
 import { theme } from '../../theme/styles';
+import { FootprintBadge } from '../../theme';
 import { admitFailureExplanation } from './admission';
 import type { FailureExplanationDisplayFinding, FailureExplanationViewProps } from './types';
 
@@ -17,16 +18,20 @@ const titles = ['Problem', 'Recorded cause', 'Suggested next step'] as const;
 const sectionNames = ['problem', 'recordedCause', 'suggestedNextStep'] as const;
 
 function FindingList({ findings }: { findings: readonly FailureExplanationDisplayFinding[] }) {
-  return <ul>{findings.map((finding, index) => (
+  return <>
+    {findings.some(finding => finding.level !== undefined) &&
+      <p>Finding levels are supplied by the host and are not verified by this view.</p>}
+    <ul>{findings.map((finding, index) => (
     <li key={index} style={{ marginBlock: 12 }}>
       <code style={{ color: theme.textSecondary, fontSize: 12 }}>{finding.code}</code>
+      {finding.level !== undefined && <> <FootprintBadge part="failure-finding-level">{`Host level: ${finding.level}`}</FootprintBadge></>}
       <p style={{ whiteSpace: 'pre-wrap', marginBlock: 6 }}>{finding.summary}</p>
       {finding.evidenceRefs.length > 0 && <details>
         <summary>Recorded references</summary>
         <ul>{finding.evidenceRefs.map((reference, number) => <li key={number}><code>{reference}</code></li>)}</ul>
       </details>}
     </li>
-  ))}</ul>;
+  ))}</ul></>;
 }
 
 /** Optional presentation only: no diagnosis, graph traversal, storage query or executable advice. */

@@ -1,6 +1,7 @@
 import { runDisplayCheck, failureExplanationDisplayLimits as limits } from '../../displayAdmission';
 import type { DisplayCheckResult, DisplayReader, DisplayPath, DisplayLimitName } from '../../displayAdmission';
 import type { FailureExplanationDisplay, FailureExplanationDisplayFinding, FailureExplanationDisplaySection } from './types';
+import { isFindingLevel } from './findingLevel';
 
 const findingCode = new RegExp(limits.findingCodePattern);
 
@@ -32,9 +33,15 @@ class FailureAdmission {
       if (!findingCode.test(code)) r.fail('invalid-code', codePath);
       const summaryPath: DisplayPath = [...entryPath, 'summary'];
       const refsPath: DisplayPath = [...entryPath, 'evidenceRefs'];
-      return Object.freeze({ code,
-        summary: this.text(r.field(entry, 'summary', summaryPath), summaryPath),
-        evidenceRefs: this.strings(r.field(entry, 'evidenceRefs', refsPath), refsPath) });
+      const summary = this.text(r.field(entry, 'summary', summaryPath), summaryPath);
+      const evidenceRefs = this.strings(r.field(entry, 'evidenceRefs', refsPath), refsPath);
+      const levelPath: DisplayPath = [...entryPath, 'level'];
+      const level = r.field(entry, 'level', levelPath);
+      const retainedLevel = level === undefined ? undefined
+        : isFindingLevel(level) ? level : r.fail('invalid-enum', levelPath);
+      if (retainedLevel !== undefined) this.text(retainedLevel, levelPath);
+      return Object.freeze({ code, summary, evidenceRefs,
+        ...(retainedLevel === undefined ? {} : { level: retainedLevel }) });
     });
   }
 

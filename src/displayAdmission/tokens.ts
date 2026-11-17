@@ -4,7 +4,7 @@ import type { DisplayDiagnostic, DisplayDiagnosticCode, DisplayLimitName, Displa
 const schemaFields: ReadonlySet<string> = new Set<DisplaySchemaField>([
   'problem', 'recordedCause', 'suggestedNextStep', 'text', 'configuredText', 'wordingSource',
   'evidenceRefs', 'unknowns', 'canonicalFindings', 'causes', 'consequences', 'diagnosticFailures',
-  'code', 'summary', 'nodes', 'nodeId', 'attention', 'kind', 'reason', 'evidence', 'confidence',
+  'code', 'summary', 'level', 'nodes', 'nodeId', 'attention', 'kind', 'reason', 'evidence', 'confidence',
   'gaps', 'from', 'to', 'attribution', 'edges', 'backward', 'rootCause', 'path', 'alternatives',
   'impact', 'projection', 'requestedNodeId', 'length',
 ]);

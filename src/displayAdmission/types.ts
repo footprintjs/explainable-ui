@@ -4,7 +4,7 @@ import type { failureExplanationDisplayLimits, investigationDisplayLimits } from
 export type DisplaySchemaField =
   | 'problem' | 'recordedCause' | 'suggestedNextStep' | 'text' | 'configuredText'
   | 'wordingSource' | 'evidenceRefs' | 'unknowns' | 'canonicalFindings' | 'causes'
-  | 'consequences' | 'diagnosticFailures' | 'code' | 'summary' | 'nodes' | 'nodeId'
+  | 'consequences' | 'diagnosticFailures' | 'code' | 'summary' | 'level' | 'nodes' | 'nodeId'
   | 'attention' | 'kind' | 'reason' | 'evidence' | 'confidence' | 'gaps' | 'from'
   | 'to' | 'attribution' | 'edges' | 'backward' | 'rootCause' | 'path'
   | 'alternatives' | 'impact' | 'projection' | 'requestedNodeId' | 'length';
@@ -21,7 +21,7 @@ export type DisplayDiagnostic =
   | Readonly<{ code: 'limit-exceeded'; path: DisplayPath; limit?: DisplayLimitName; maximum?: number; observed?: number }>
   | Readonly<{ code: Exclude<DisplayDiagnosticCode, 'limit-exceeded'>; path: DisplayPath;
       limit?: never; maximum?: never; observed?: never }>;
-/** Exact parser-counted retained free text and list slots on success; not serialized or DOM cost. */
+/** Exact parser-counted retained text and list slots on success; profiles define enum charges, not DOM cost. */
 export interface DisplayUsage {
   readonly textCodeUnits: number;
   readonly listItems: number;

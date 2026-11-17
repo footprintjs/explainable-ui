@@ -69,13 +69,74 @@ const rich={...base,backward:{nodes:['one','two'],edges:[{from:'one',to:'two',ki
 assert.equal(api.checkInvestigationExplanation(rich,'one','relationships').ok,true);
 const inconsistent={...rich,backward:{...rich.backward,confidence:'incomplete'}};
 assert.equal(api.checkInvestigationExplanation(inconsistent,'one','relationships').ok,false);
+const levels=['HIGH','MEDIUM','LOW','UNVERIFIED'];
+const listNames=['causes','consequences','diagnosticFailures'];
+function findings(withLevels){return Object.fromEntries(listNames.map(name=>[name,levels.map((level,index)=>({
+  code:'RECORDED_'+index,summary:'<Recorded text> '+index,evidenceRefs:['<record-ref>'],...(withLevels?{level}:{})
+}))]));}
+const unlabelled={...value,canonicalFindings:findings(false)};
+const labelled={...value,canonicalFindings:findings(true)};
+const beforeLevels=api.checkFailureExplanationDisplay(unlabelled),afterLevels=api.checkFailureExplanationDisplay(labelled);
+assert(beforeLevels.ok&&afterLevels.ok);
+assert.equal(afterLevels.usage.textCodeUnits,beforeLevels.usage.textCodeUnits+3*levels.reduce((sum,level)=>sum+level.length,0));
+assert.equal(afterLevels.usage.listItems,beforeLevels.usage.listItems);
+for(const name of listNames){assert.deepEqual(afterLevels.value.canonicalFindings[name].map(f=>f.level),levels);
+  assert.deepEqual(afterLevels.value.canonicalFindings[name].map(f=>f.code),labelled.canonicalFindings[name].map(f=>f.code));
+  assert(Object.isFrozen(afterLevels.value.canonicalFindings[name][0]));}
+const levelHtml=renderToStaticMarkup(React.createElement(api.FailureExplanationView,{explanation:labelled}));
+for(const level of levels)assert(levelHtml.includes('Host level: '+level));
+assert.equal(levelHtml.split('Finding levels are supplied by the host and are not verified by this view.').length-1,3);
+assert(levelHtml.includes('data-fp-part="failure-finding-level"'));
+assert(levelHtml.includes('&lt;Recorded text&gt;'));assert(levelHtml.includes('&lt;record-ref&gt;'));
+assert(!levelHtml.includes('<Recorded text>'));
+const plainHtml=renderToStaticMarkup(React.createElement(api.FailureExplanationView,{explanation:unlabelled}));
+assert(!plainHtml.includes('Host level:'));assert(!plainHtml.includes('failure-finding-level'));
+labelled.canonicalFindings.causes[0].level='LOW';assert.equal(afterLevels.value.canonicalFindings.causes[0].level,'HIGH');
+const single=level=>({...value,canonicalFindings:{...value.canonicalFindings,causes:[{code:'VALID',summary:'S',evidenceRefs:[],level}]}});
+for(const level of [null,'high','CRITICAL','',1,{toString(){throw Error('No coercion');}}]){
+  const rejected=api.checkFailureExplanationDisplay(single(level));assert(!rejected.ok);
+  assert.deepEqual(rejected.diagnostic,{code:'invalid-enum',path:['canonicalFindings','causes',0,'level']});
+  assert(!('value' in rejected));assert(!('usage' in rejected));
+  assert(renderToStaticMarkup(React.createElement(api.FailureExplanationView,{explanation:single(level)})).includes('cause and outcome remain unknown'));
+}
+let levelGetterReads=0;const accessor=single(undefined);
+Object.defineProperty(accessor.canonicalFindings.causes[0],'level',{get(){levelGetterReads++;throw Error('No getter');}});
+assert.deepEqual(api.checkFailureExplanationDisplay(accessor).diagnostic,{code:'accessor-field',path:['canonicalFindings','causes',0,'level']});
+assert.equal(levelGetterReads,0);
+const absent=single(undefined);const absentResult=api.checkFailureExplanationDisplay(absent);assert(absentResult.ok);
+assert(!Object.hasOwn(absentResult.value.canonicalFindings.causes[0],'level'));
+const inherited=single(undefined);delete inherited.canonicalFindings.causes[0].level;
+Object.setPrototypeOf(inherited.canonicalFindings.causes[0],{get level(){levelGetterReads++;throw Error('No inherited getter');}});
+assert.deepEqual(api.checkFailureExplanationDisplay(inherited),absentResult);assert.equal(levelGetterReads,0);
+const bounded=single('HIGH');const initialCharge=api.checkFailureExplanationDisplay(bounded);assert(initialCharge.ok);
+bounded.problem={...bounded.problem,text:'x'.repeat(api.failureExplanationDisplayLimits.maxTextCodeUnits-(initialCharge.usage.textCodeUnits-1))};
+assert.equal(api.checkFailureExplanationDisplay(bounded).usage.textCodeUnits,api.failureExplanationDisplayLimits.maxTextCodeUnits);
+bounded.problem.text+='x';assert.deepEqual(api.checkFailureExplanationDisplay(bounded).diagnostic,{
+  code:'limit-exceeded',path:['canonicalFindings','causes',0,'level'],limit:'maxTextCodeUnits',maximum:262144,observed:262145});
+for(const key of ['isFindingLevel','findingLevels','findingLevelVocabulary'])assert(!Object.hasOwn(api,key));
+process.stdout.write(format+' actual packed host finding levels, whole refusal, readonly snapshots and exact text accounting passed.\\n');
 process.stdout.write(format+' actual packed display checks, fixed bounds, inert exceptions and reader parity passed.\\n');
 `;
   writeFileSync(join(scratch, 'consumer.cjs'), `const format='CJS';const api=require('footprint-explainable-ui');\n${consumer}`);
   process.stdout.write(run(process.execPath, ['consumer.cjs']));
   writeFileSync(join(scratch, 'consumer.mjs'), `import {createRequire} from 'node:module';const require=createRequire(import.meta.url);const format='ESM';const api=await import('footprint-explainable-ui');\n${consumer}`);
   process.stdout.write(run(process.execPath, ['consumer.mjs']));
-  const typeSource = `import {checkInvestigationAttention,checkInvestigationExplanation,checkFailureExplanationDisplay,investigationDisplayLimits,failureExplanationDisplayLimits,type InvestigationTextDisplay,type InvestigationRelationshipDisplay,type DisplayDiagnostic} from 'footprint-explainable-ui';
+  const typeSource = `import {checkInvestigationAttention,checkInvestigationExplanation,checkFailureExplanationDisplay,investigationDisplayLimits,failureExplanationDisplayLimits,type InvestigationTextDisplay,type InvestigationRelationshipDisplay,type DisplayDiagnostic,type FailureExplanationDisplayFinding} from 'footprint-explainable-ui';
+const legacyFinding:FailureExplanationDisplayFinding={code:'RECORDED',summary:'Recorded text',evidenceRefs:[]};void legacyFinding;
+const finding:FailureExplanationDisplayFinding={...legacyFinding,level:'HIGH'};
+const allowed:NonNullable<FailureExplanationDisplayFinding['level']>='UNVERIFIED';void allowed;
+// @ts-expect-error Unknown levels are outside the closed contract.
+const invalidLevel:FailureExplanationDisplayFinding={...legacyFinding,level:'CRITICAL'};void invalidLevel;
+// @ts-expect-error Values are not silently normalized.
+const lower:FailureExplanationDisplayFinding={...legacyFinding,level:'high'};void lower;
+// @ts-expect-error Admitted finding configuration is readonly.
+finding.level='LOW';
+// @ts-expect-error The private derived type is not a new root export.
+import type {FindingLevel} from 'footprint-explainable-ui';
+const failure=checkFailureExplanationDisplay({});
+if(failure.ok){const level:FailureExplanationDisplayFinding['level']=failure.value.canonicalFindings.causes[0]?.level;void level;
+// @ts-expect-error Checker projections retain readonly finding levels.
+failure.value.canonicalFindings.causes[0]!.level='LOW';}
 const raw:unknown={};const text=checkInvestigationExplanation(raw,'bound-id');const visual=checkInvestigationExplanation(raw,'bound-id','relationships');
 if(text.ok){const projected:InvestigationTextDisplay=text.value;void projected;
 // @ts-expect-error Text profile leaves backward relationships with the host.
@@ -114,5 +175,5 @@ void [checkInvestigationAttention(raw),checkFailureExplanationDisplay(raw),failu
   }
   process.stdout.write(JSON.stringify({ package: manifest.name, version: manifest.version, candidateOnly: true,
     packedIntegrity: packed.integrity, publicDoor: '.', formats: ['CJS','ESM'], strictTypes: modes, foottraceInstalled: false,
-    privateReaderExported: false, wholeRefusalAndComponentParity: true, noBudgetOverride: true })+'\n');
+    privateReaderExported: false, wholeRefusalAndComponentParity: true, noBudgetOverride: true, hostFindingLevels: true, levelTextAccounting: true, privateLevelHelpersExported: false })+'\n');
 } finally { rmSync(scratch, { recursive: true, force: true }); }

@@ -96,3 +96,51 @@ parser-counted text/list usage. Refusal returns one schema-only diagnostic;
 there is no partial model or claimed full cost of the unvisited tail. The view
 keeps its generic uncertainty/recovery message. No source value, reference,
 finding code or foreign error text is copied into a refusal diagnostic.
+
+## Optional host finding levels
+
+Each finding may carry readonly `level: 'HIGH' | 'MEDIUM' | 'LOW' | 'UNVERIFIED'`.
+The shared finding list keeps supplied order and duplicates, and shows neutral
+`Host level: HIGH` badges through the existing FootprintBadge adapter with part
+`failure-finding-level`. A labelled list also says: “Finding levels are supplied
+by the host and are not verified by this view.” The value is a host assessment,
+not UI confidence, verification, health, a supported root or an evidence reason.
+Missing, own-undefined and inherited-only levels add no badge/caption/wrapper or
+DTO property; absence never becomes UNVERIFIED. Existing finding text,
+references, disclosure, unknowns, IDs and theme behavior remain intact.
+
+`findingLevel.ts` is a sealed facade over one private frozen vocabulary and its
+native derived type/guard. No table, helper, new root export or component prop is
+public. Types and admission share that vocabulary; admission keeps code,
+summary and references first, then reads one own level descriptor. An accessor
+refuses without invoking it; invalid members refuse the whole model with the
+static level path. Foreign reflection errors keep the existing fixed diagnostic.
+Proxy traps remain executable host code, not a sandbox or a time guarantee.
+
+Accepted levels charge their retained UTF-16 length through the existing text
+reader after membership validation. Repetitions count again; a scalar adds no
+list slot. All existing caps remain fixed. This charge is parser-counted retained
+input text, not the badge template, serialized bytes or DOM cost.
+
+```mermaid
+flowchart TD
+  Types[Finding type] --> Facade[findingLevel facade]
+  Facade --> Vocabulary[Private frozen vocabulary and guard]
+  Input[Host-bound finding] --> Legacy[Validate code then summary then references]
+  Legacy --> Own[Read own level once]
+  Own -->|missing or undefined| Omit[Freeze without level]
+  Own -->|accessor or reflection failure| Refuse[Refuse whole explanation]
+  Own -->|data value| Member{Closed vocabulary member?}
+  Member -->|no| Refuse
+  Member -->|yes| Charge[Charge retained level text]
+  Charge -->|over existing budget| Refuse
+  Charge -->|within budget| Freeze[Freeze finding with level]
+  Freeze --> View[Shared finding list and neutral Badge adapter]
+  Omit --> View
+```
+
+Migration: a formerly ignored own invalid/accessor level now refuses, and an
+accepted level now consumes text budget. Near-limit models may newly refuse.
+Supply a valid host level within the unchanged bounds or remove unsupported
+metadata. This intentional change is recorded in the major Migration fragment;
+no producer authentication or automatic severity conversion is introduced.
