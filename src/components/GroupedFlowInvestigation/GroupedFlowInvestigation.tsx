@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useIsomorphicLayoutEffect } from "../../_internal/useIsomorphicLayoutEffect";
 import { theme } from "../../theme";
 import { GroupedFlowDiagram } from "../GroupedFlowDiagram/GroupedFlowDiagram";
@@ -39,8 +39,6 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
     committedResult.current = ready ? { owner, request: ready.request } : undefined;
     return () => { committedResult.current = undefined; };
   }, [owner, ready]);
-  const wrapper = useRef<HTMLElement>(null);
-  const [narrow, setNarrow] = useState(false);
   const [expansion, setExpansion] = useState<{ owner: object; ids: readonly string[] }>({ owner, ids: [] });
   const [mode, setMode] = useState<{ request: AbortController; value: "cause" | "impact" }>();
   const [focusCommand, setFocusCommand] = useState<{ request: AbortController; phase: "cause" | "impact"; count: number }>();
@@ -69,23 +67,14 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
     automaticExpansion.current = { request: ready.request, phase };
     setExpansion({ owner, ids: expandedGroupIds });
   });
-  useEffect(() => {
-    const element = wrapper.current;
-    if (!element) return;
-    const measure = () => setNarrow(element.clientWidth > 0 && element.clientWidth < 600);
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure); observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
   const selectedId = controller.selection && known.has(controller.selection) ? controller.selection : null;
   const activeFocusCommand = focusCommand?.request === ready?.request && focusCommand?.phase === phase ? focusCommand : undefined;
   const cameraKey = useMemo(() => ({ owner, request: ready?.request, phase, command: activeFocusCommand, view: activeView }), [owner, ready?.request, phase, activeFocusCommand, activeView]);
-  let focusNodeIds = [...new Set([...(projected?.groupIds ?? []), ...(projected?.nodeIds ?? [])])];
-  if (ready && (activeFocusCommand || narrow)) {
-    const target = !activeFocusCommand && phase === "cause" && ready.result.rootCause && known.has(ready.result.rootCause) ? ready.result.rootCause : selectedId;
-    focusNodeIds = target ? [target] : [];
-  }
+  // Frame the returned references and their route paint on every viewport.
+  // Ancestor containers reveal membership; their unrelated children do not own
+  // the camera. Only an explicit one-card command narrows the recorded view.
+  const recordedFitIds = projected?.nodeIds ?? [];
+  const focusNodeIds = ready && activeFocusCommand ? selectedId ? [selectedId] : [] : recordedFitIds;
   const choose = (nodeId: string) => {
     if (!known.has(nodeId)) return;
     if (states.get(nodeId) === "failed") controller.query(nodeId);
@@ -101,13 +90,11 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
     : ready && root && !known.has(root) ? "The supported cause is not shown in this diagram. No substitute card is labelled."
     : ready || selected?.status === "error" || selected?.status === "refused" ? "Cause unknown. The available evidence does not support a cause on this diagram."
     : "Select a failed item, or select another item and choose Investigate selected item.";
-  const recordedFitIds = narrow && ready ? phase === "cause" && mappedRoot ? [mappedRoot] : selectedId ? [selectedId] : []
-    : [...new Set([...(projected?.groupIds ?? []), ...(projected?.nodeIds ?? [])])];
   const changeView = () => {
     if (!ready || controller.currentOwner.current !== owner || committedResult.current?.owner !== owner || committedResult.current.request !== ready.request) return;
     setView({ request: ready.request, whole: !whole });
   };
-  return <section ref={wrapper} className={props.className} aria-label={props["aria-label"] ?? "Grouped flow investigation"}
+  return <section className={props.className} aria-label={props["aria-label"] ?? "Grouped flow investigation"}
     style={{ display: "grid", gap: 16, minWidth: 0, color: theme.textPrimary, fontFamily: theme.fontSans, ...props.style }}>
     <div role="status" aria-label="Cause summary" aria-live="polite" style={{ padding: "12px 16px", border: `1px solid ${theme.border}`, borderRadius: 10, background: theme.bgElevated }}>
       <strong>{summary}</strong>
