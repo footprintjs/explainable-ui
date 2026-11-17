@@ -1,5 +1,5 @@
 import { optionalOwnDataField } from '../../trace/safeRecordRead';
-import { copyOwnedData } from './native-copy';
+import { copyOwnedData } from '../../recordedValues';
 
 export function invalid(): Error { return new Error('Recorded subflow evidence could not be prepared.'); }
 export function abortError(): Error { const error = new Error('Recorded subflow request was cancelled.'); error.name = 'AbortError'; return error; }

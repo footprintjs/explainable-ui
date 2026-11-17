@@ -1,4 +1,4 @@
-import { isPlainRecord, optionalOwnDataField, WorkBudget } from '../../trace/safeRecordRead';
+import { isPlainRecord, optionalOwnDataField, WorkBudget } from '../trace/safeRecordRead';
 import { nativeEntries, nativeEpoch, nativeKind, nativeSize } from './native';
 
 /** Compare detached admitted data: ordered collections and shared-reference topology are facts. */

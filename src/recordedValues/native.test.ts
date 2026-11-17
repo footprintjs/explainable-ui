@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { copyData } from '../prepare';
-import { sameOwnedData } from '../prepare';
-import { createRecordingSource } from '../source';
-import { attachSubflowWorker, createSubflowWorkerPreparation } from '../worker';
-import type { LoadedSubflow, PreparationWorker, RecordingSource } from '../types';
+import { copyData } from '../progressiveRendering/prepare';
+import { sameOwnedData } from '../progressiveRendering/prepare';
+import { createRecordingSource } from '../progressiveRendering/source';
+import { attachSubflowWorker, createSubflowWorkerPreparation } from '../progressiveRendering/worker';
+import type { LoadedSubflow, PreparationWorker, RecordingSource } from '../progressiveRendering/types';
 
 const graph = { nodes: [], edges: [] };
 const NativeDate = Date;

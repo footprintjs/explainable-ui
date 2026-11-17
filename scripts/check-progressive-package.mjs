@@ -57,6 +57,22 @@ for (const entry of entries) {
   const rewrite = structuredClone(probeRoot); rewrite.commitLog[0].nativeProbe.when.setTime(0);
   assert.throws(() => probe.update({ snapshot: rewrite, graph: { nodes: [], edges: [] } }));
   probe.dispose();
+  if (entry.MemoryPanel) {
+    const memory = { amount: 35n, values: new Map([['items', 30n]]), tags: new Set([5n]), when: new Date(0) };
+    const displaySource = entry.createRecordingSource({ snapshot: { sharedState: memory,
+      executionTree: { id: 'write', name: 'Write', runtimeStageId: 'write#1', stageWrites: memory },
+      commitLog: [{ stage: 'Write', stageId: 'write', runtimeStageId: 'write#1', trace: Object.keys(memory).map(path => ({ path })), overwrite: memory }] },
+      graph: { nodes: [], edges: [] } });
+    try {
+      const snapshots = entry.toVisualizationSnapshots(displaySource.getSnapshot().snapshot);
+      for (const unstyled of [false, true]) {
+        const state = renderToStaticMarkup(React.createElement(entry.MemoryPanel, { snapshots, selectedIndex: 0, unstyled }));
+        for (const value of ['35n', '30n', '5n', 'Map', 'Set', 'Date']) assert(state.includes(value), value);
+      }
+      const diff = renderToStaticMarkup(React.createElement(entry.ScopeDiff, { previous: { values: new Map([['items', 29n]]) }, current: { values: memory.values }, hideUnchanged: true, unstyled: true }));
+      assert(diff.includes('data-type="changed"')); assert(diff.includes('29n')); assert(diff.includes('30n'));
+    } finally { displaySource.dispose(); }
+  }
   const html = renderToStaticMarkup(React.createElement(entry.FootprintLoadStatus, { state: 'loading', label: 'Loading recorded scope', indicator: 'skeleton' }));
   assert.match(html, /aria-busy="true"/); assert.match(html, /loading-skeleton/);
 }

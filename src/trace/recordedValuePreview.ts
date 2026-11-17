@@ -1,4 +1,5 @@
 import { isPlainRecord, ownDataField } from "./safeRecordRead";
+import { formatRecordedValue, nativeKind } from "../recordedValues";
 
 /** Engine trace paths use UNIT SEPARATOR; dots inside a recorded key stay literal. */
 export function recordedValueAtPath(memory: unknown, key: string): unknown {
@@ -24,6 +25,7 @@ export function recordedValuePreview(value: unknown): string | null {
     if (item === null) return "null";
     if (typeof item === "string") return JSON.stringify(item.length > 56 ? `${item.slice(0, 53)}…` : item);
     if (typeof item === "number" || typeof item === "boolean") return String(item);
+    if (typeof item === "bigint" || (typeof item === "object" && nativeKind(item))) return formatRecordedValue(item, { maxChars: 100, maxItems: 32, maxDepth: 2 });
     if (typeof item !== "object") return "[unavailable]";
     if (seen.has(item)) return "[circular]";
     if (depth >= 2) return Array.isArray(item) ? "[…]" : "{…}";

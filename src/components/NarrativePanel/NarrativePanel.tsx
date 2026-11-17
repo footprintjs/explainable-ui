@@ -15,36 +15,11 @@ import { theme, componentStyles, FootprintButton, FootprintCheckbox } from "../.
 import { buildEntryRangeIndex, computeRevealedEntryCount, narrativeSynchronizationStatus } from "../../utils/narrativeSync";
 import { StoryNarrative } from "../StoryNarrative";
 import { NarrativeTrace } from "../NarrativeTrace";
+import { formatRecordedValue } from "../../recordedValues";
+import { ownDataField } from "../../trace/safeRecordRead";
 
-/**
- * JSON.stringify with a circular-ref sentinel and a size cap — snapshots
- * can contain cycles (runtime stages reference each other) and can grow
- * multi-megabyte. A strict JSON.stringify would throw; the clipboard cap
- * stops "Copy for LLM" from dumping 20MB of tool history into a paste.
- */
-function safeJsonStringify(value: unknown): string {
-  const seen = new WeakSet<object>();
-  const MAX_CHARS = 500_000;
-  try {
-    let text = JSON.stringify(
-      value,
-      (_key, v) => {
-        if (typeof v === "object" && v !== null) {
-          if (seen.has(v as object)) return "[Circular]";
-          seen.add(v as object);
-        }
-        return v;
-      },
-      2,
-    );
-    if (text && text.length > MAX_CHARS) {
-      text = text.slice(0, MAX_CHARS) + `\n... [truncated at ${MAX_CHARS} chars]`;
-    }
-    return text ?? "undefined";
-  } catch (err) {
-    return `[stringify error: ${err instanceof Error ? err.message : String(err)}]`;
-  }
-}
+/** Bounded inert previews; native values use typed display extensions. */
+const safeJsonStringify = (value: unknown) => formatRecordedValue(value, { indent: 2, maxChars: 500_000, maxItems: 10_000, maxDepth: 64 });
 
 export interface NarrativePanelProps extends BaseComponentProps {
   snapshots: StageSnapshot[];
@@ -154,6 +129,7 @@ export function NarrativePanel({
     const sections: string[] = [runtimeSnapshot ? "## Full run debug bundle" : "## Recorded log"];
     sections.push(`Recorded log scope: ${scopeSubflowId ?? "Root invocation"}.`);
     sections.push("This export includes all supplied log entries, including entries after the selected step. Recorded array order is preserved.");
+    sections.push("Recorded values are bounded display previews. Native types are labelled; unavailable, circular or truncated data have explicit markers.");
     sections.push("\n## Recorded narrative\n");
     sections.push(narrativeEntries?.length ? narrativeEntries.map(entry => entry.text).join("\n") : narrative.join("\n"));
     if (runtimeSnapshot) sections.push("\nThe following debug data is from the full supplied run snapshot, including root state and other invocations. It is not limited to the visible log or selected step.");
@@ -164,16 +140,19 @@ export function NarrativePanel({
     // topology, and any recorder snapshots (metrics, tokens, instructions,
     // emit events). Without these the story has no payloads to reason over.
     if (runtimeSnapshot) {
-      const snap = runtimeSnapshot as {
-        sharedState?: unknown;
-        commitLog?: unknown;
-        recorders?: unknown;
-        subflowResults?: unknown;
+      const snap = {
+        sharedState: ownDataField(runtimeSnapshot, 'sharedState'), commitLog: ownDataField(runtimeSnapshot, 'commitLog'),
+        recorders: ownDataField(runtimeSnapshot, 'recorders'), subflowResults: ownDataField(runtimeSnapshot, 'subflowResults'),
       };
+      const unavailable = Object.keys(snap).filter(key => {
+        const descriptor = Object.getOwnPropertyDescriptor(runtimeSnapshot, key);
+        return descriptor && !('value' in descriptor);
+      });
+      if (unavailable.length) sections.push("\n\n## Unavailable recorded fields", ...unavailable.map(key => `${key}: [Unavailable]`));
 
       if (snap.sharedState !== undefined) {
         sections.push("\n\n## Final Shared State");
-        sections.push("```json");
+        sections.push("```text");
         sections.push(safeJsonStringify(snap.sharedState));
         sections.push("```");
       }
@@ -184,7 +163,7 @@ export function NarrativePanel({
           "Each entry = one stage execution's writes to shared state. " +
             "`rsid` is the runtimeStageId (use it to correlate with narrative + executionTree).\n",
         );
-        sections.push("```json");
+        sections.push("```text");
         sections.push(safeJsonStringify(snap.commitLog));
         sections.push("```");
       }
@@ -194,7 +173,7 @@ export function NarrativePanel({
         sections.push(
           "Per-recorder data captured DURING the run (metrics, tokens, instructions, emit events).\n",
         );
-        sections.push("```json");
+        sections.push("```text");
         sections.push(safeJsonStringify(snap.recorders));
         sections.push("```");
       }
@@ -203,7 +182,7 @@ export function NarrativePanel({
         const keys = Object.keys(snap.subflowResults as Record<string, unknown>);
         if (keys.length > 0) {
           sections.push("\n\n## Subflow Results");
-          sections.push("```json");
+          sections.push("```text");
           sections.push(safeJsonStringify(snap.subflowResults));
           sections.push("```");
         }
@@ -216,7 +195,7 @@ export function NarrativePanel({
         "Node + edge metadata for the chart that ran. Useful for 'where in " +
           "the graph did step N happen?' questions.\n",
       );
-      sections.push("```json");
+      sections.push("```text");
       sections.push(safeJsonStringify(spec));
       sections.push("```");
     }

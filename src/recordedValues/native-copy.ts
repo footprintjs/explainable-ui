@@ -1,4 +1,4 @@
-import { isPlainRecord, optionalOwnDataField, readOwnArray, WorkBudget } from '../../trace/safeRecordRead';
+import { isPlainRecord, optionalOwnDataField, readOwnArray, WorkBudget } from '../trace/safeRecordRead';
 import { nativeEntries, nativeEpoch, nativeKind, nativeSize, newNative, putNative, unsupported } from './native';
 
 type Frame = { input: object; output: object; at: number } & (
