@@ -11,12 +11,16 @@ import type {
   KeysReadSource,
   StateKey,
   TimeTravelSource,
+  TimeTravel,
 } from "foottrace";
 import type {
   RecordChange,
   RecordLensInput,
   RecordLensModel,
   RecordProvenance,
+  RecordLensReader,
+  RecordReaderInput,
+  RecordRefusal,
 } from "./types";
 
 /** Missing reads are deliberately not inferred by walking a producer's tree. */
@@ -97,93 +101,73 @@ function provenanceAt(
   }
 }
 
-/** Read one explicit source through Foottrace; never clamp or mutate the caller's cursor. */
-export function buildRecordLensModel(input: RecordLensInput): RecordLensModel {
-  const position = { sourceId: input.sourceId, step: input.step };
-  if (!input.sourceId.trim()) {
-    return {
-      ...position,
-      stops: [],
-      selected: null,
-      status: "refused",
-      refusal: {
-        code: "invalid-source-id",
-        message: "A source label is required.",
-      },
-    };
+function refused<TMeta>(
+  sourceId: string,
+  step: number,
+  stops: RecordLensReader<TMeta>["stops"],
+  code: RecordRefusal["code"],
+  message: string
+): RecordLensModel<TMeta> {
+  return { sourceId, step, stops, selected: null, status: "refused", refusal: { code, message } };
+}
+
+function unavailableReader<TMeta>(sourceId: string, code: RecordRefusal["code"], message: string): RecordLensReader<TMeta> {
+  const stops = Object.freeze([]);
+  return { sourceId, stops, at: (step) => refused(sourceId, step, stops, code, message) };
+}
+
+function modelAt<TMeta>(
+  input: RecordReaderInput<TMeta>,
+  cursor: TimeTravel<TMeta>,
+  step: number,
+  selectedKey?: StateKey
+): RecordLensModel<TMeta> {
+  const { sourceId, source, reads } = input;
+  const { stops } = cursor;
+  if (!Number.isInteger(step) || step < 0 || (stops.length === 0 ? step !== 0 : step >= stops.length)) {
+    return refused(sourceId, step, stops, "invalid-step", "The requested step is not a position in this source.");
   }
-  let stops: RecordLensModel["stops"] = [];
+
   try {
-    // The pilot accepts one caller-selected source, never Foottrace's multi-source overload.
-    if (
-      !input.source ||
-      typeof input.source !== "object" ||
-      Array.isArray(input.source)
-    ) {
-      return {
-        ...position,
-        stops,
-        selected: null,
-        status: "refused",
-        refusal: {
-          code: "read-refused",
-          message: "Supply one recorded source object.",
-        },
-      };
-    }
-    const cursor = timeTravel(input.source);
-    stops = cursor.stops;
-    const validStep =
-      Number.isInteger(input.step) &&
-      input.step >= 0 &&
-      (stops.length === 0 ? input.step === 0 : input.step < stops.length);
-    if (!validStep) {
-      return {
-        ...position,
-        stops,
-        selected: null,
-        status: "refused",
-        refusal: {
-          code: "invalid-step",
-          message: "The requested step is not a position in this source.",
-        },
-      };
-    }
-    const selected = stops[input.step] ?? null;
-    const folded = selected
-      ? cursor.stateAt(selected)
-      : stateAt(input.source, -1);
-    const previousStop = stops[input.step - 1];
-    const previous = previousStop
-      ? cursor.stateAt(previousStop)
-      : stateAt(input.source, -1);
+    const selected = stops[step] ?? null;
+    const previousStop = stops[step - 1];
+    const previous = previousStop ? cursor.stateAt(previousStop) : stateAt(source, -1);
+    const folded = selected ? cursor.stateAt(selected) : previous;
     return {
-      ...position,
-      stops,
-      selected,
+      sourceId, step, stops, selected, previous, folded,
       status: selected ? "ready" : "empty",
-      folded,
-      previous,
       changes: changesBetween(previous.state, folded.state),
-      ...(input.selectedKey !== undefined && {
-        provenance: provenanceAt(
-          input.source,
-          folded.throughCommitIdx,
-          input.selectedKey,
-          input.reads
-        ),
+      ...(selectedKey !== undefined && {
+        provenance: provenanceAt(source, folded.throughCommitIdx, selectedKey, reads),
       }),
     };
   } catch {
-    return {
-      ...position,
-      stops,
-      selected: null,
-      status: "refused",
-      refusal: {
-        code: "read-refused",
-        message: "Foottrace could not read the supplied source.",
-      },
-    };
+    return refused(sourceId, step, stops, "read-refused", "Foottrace could not read the supplied source.");
   }
+}
+
+/** Prepare one canonical axis per published revision. Reuse it while moving between stops. */
+export function createRecordLensReader<TMeta = unknown>({ sourceId, source, reads, strategy }: RecordReaderInput<TMeta>): RecordLensReader<TMeta> {
+  if (typeof sourceId !== "string" || !sourceId.trim()) {
+    return unavailableReader(typeof sourceId === "string" ? sourceId : "", "invalid-source-id", "A source label is required.");
+  }
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return unavailableReader(sourceId, "read-refused", "Supply one recorded source object.");
+  }
+  try {
+    const cursor = timeTravel(source, { strategy });
+    const revision = { sourceId, source, reads };
+    return {
+      sourceId,
+      stops: cursor.stops,
+      at: (step, selectedKey) => modelAt(revision, cursor, step, selectedKey),
+    };
+  } catch {
+    return unavailableReader(sourceId, "read-refused", "Foottrace could not read the supplied source.");
+  }
+}
+
+/** One-shot read, including hosts that publish updates by mutating a source in place. */
+export function buildRecordLensModel<TMeta = unknown>(input: RecordLensInput<TMeta>): RecordLensModel<TMeta> {
+  return createRecordLensReader(input).at(input.step, input.selectedKey);
 }

@@ -1,4 +1,5 @@
 /** Reproducible offline packed ESM/CJS UI replay. Build first. No installs/network. */
+import { graphConsumerPackages } from "./fixtures/graph-consumer-packages.mjs";
 import {
   mkdtempSync,
   mkdirSync,
@@ -68,8 +69,7 @@ try {
   const manifest = JSON.parse(readFileSync(join(repo, "package.json"), "utf8"));
   for (const name of [
     ...new Set([
-      ...Object.keys(manifest.peerDependencies),
-      ...Object.keys(manifest.dependencies),
+      ...graphConsumerPackages(manifest),
       "vitest",
       "@testing-library/react",
       "@testing-library/jest-dom",

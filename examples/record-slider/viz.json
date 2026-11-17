@@ -1,0 +1,120 @@
+{
+  "producer": {
+    "package": "vizfootprint",
+    "version": "0.1.0",
+    "footprintjs": "9.16.1"
+  },
+  "sourceId": "1794959554024-0000000001",
+  "source": {
+    "executionTree": {
+      "id": "load",
+      "runtimeStageId": "load#0",
+      "name": "load values",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageWrites": {
+        "amountVals": [
+          5,
+          9,
+          42,
+          59
+        ],
+        "binCount": 2
+      },
+      "flowMessages": [
+        {
+          "type": "next",
+          "description": "Moving to assign quantile bins stage",
+          "timestamp": 1794959554025,
+          "targetStage": "assign quantile bins"
+        }
+      ],
+      "next": {
+        "id": "cluster",
+        "runtimeStageId": "cluster#1",
+        "name": "assign quantile bins",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "cluster_id": [
+            0,
+            0,
+            1,
+            1
+          ]
+        },
+        "stageReads": {
+          "amountVals": [
+            5,
+            9,
+            42,
+            59
+          ],
+          "binCount": 2
+        }
+      }
+    },
+    "commitLog": [
+      {
+        "overwrite": {
+          "amountVals": [
+            5,
+            9,
+            42,
+            59
+          ],
+          "binCount": 2
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "amountVals",
+            "verb": "set"
+          },
+          {
+            "path": "binCount",
+            "verb": "set"
+          }
+        ],
+        "stage": "load values",
+        "stageId": "load",
+        "runtimeStageId": "load#0",
+        "untrackedSources": [
+          "args"
+        ],
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "cluster_id": [
+            0,
+            0,
+            1,
+            1
+          ]
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "cluster_id",
+            "verb": "set"
+          }
+        ],
+        "stage": "assign quantile bins",
+        "stageId": "cluster",
+        "runtimeStageId": "cluster#1",
+        "idx": 1
+      }
+    ]
+  }
+}

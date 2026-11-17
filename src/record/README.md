@@ -1,45 +1,54 @@
-# Record Lens — source pilot
+# Foottrace recording reader
 
-This is an experimental source module, **not a published entry point**. Existing
-`footprint-explainable-ui` imports, required peers, runtime dependencies and Node
-support are unchanged. There is no installable `footprint-explainable-ui/record`
-export yet. The pilot runs on Node 22+ with Foottrace 1.0.1 as a development-only
-dependency; choosing a supported public package contract requires a separate review.
+Import this entry from `footprint-explainable-ui/record`. It accepts one explicitly
+selected Foottrace 2 `TimeTravelSource`, including a saved commit log or a selected
+child history. Supply its recorded initial state and source-local read evidence when
+available. Foottrace constructs the stops, folds state and explains recorded writes.
+The host supplies labels, timing, diagrams and a controlled numeric step.
 
-## Boundary
+## Read one revision
 
-The host supplies one explicitly selected Foottrace `TimeTravelSource`, a stable
-source label, its numeric stop, and optionally `KeysReadSource` and a `StateKey`.
-`buildRecordLensModel` calls Foottrace's public cursor, fold, equality, slice and
-formatter functions. It does not replay patches, infer branch structure, inspect
-an agent, walk an execution tree, or implement another causal algorithm.
+```tsx
+import { createRecordLensReader, RecordLens } from "footprint-explainable-ui/record";
 
-`RecordLens` is a read-only React facade over that model. Step/key callbacks are
-navigation intentions, not application actions. The host owns the selection,
-including switching to a nested source and supplying the matching read evidence.
-There is no implicit source discovery, background model request, or rerun.
+const reader = createRecordLensReader({ sourceId, source, reads });
+const model = reader.at(step, selectedKey);
+const stop = model.selected; // Pass this same stop to the host diagram.
+<RecordLens reader={reader} step={step} selectedKey={selectedKey}
+  onStepChange={setStep} onKeyChange={setSelectedKey} />;
+```
 
-## Honest display
+Build the reader once per immutable source revision and reuse its `stops` array
+while scrubbing. Build a fresh reader when the source, read evidence or grouping
+strategy changes. A live producer can batch appends and publish one revision per
+batch. If it mutates the source in place, its revision or notification must
+trigger reader construction. Stop numbers are local to the selected source
+and grouping strategy. The host chooses the new selection when either changes.
 
-- An invalid cursor refuses; it never selects a neighbouring state silently.
-- An empty source displays its available base without inventing a recorded step.
-- Missing starting state, redaction and skipped rows remain visible.
-- Causal queries validate the selected prefix, preserving original row addresses.
-  A gap refuses the explanation; a future gap cannot affect an earlier question.
-- Missing read evidence remains unknown. Even supplied evidence does not establish
-  that every dependency was captured. Foottrace's explanation and notes are retained.
-- Top-level changes use Foottrace equality; value previews are abbreviated display
-  text, not serialized evidence. Special values and cycles do not become empty data.
+`buildRecordLensModel({ sourceId, source, step, reads, selectedKey })` reads the
+current source in one call. `RecordLens` accepts these source props directly or
+accepts a prepared `reader`. Its buttons request navigation through host
+callbacks. Use `RecordTimeSlider` with the same stops and step for a custom
+composition. Keep the stop-to-duration mapping stable for the same timing data
+and replace it when the host receives revised measurements. A stage's timing
+belongs to the source and stop for which it was measured. A diagram can render
+any topology and select a recorded stop through the same host callback.
 
-The viewer uses the existing theme tokens. Existing snapshot-based panels remain
-unchanged: they have their own input contracts and JSON-only presentation, so this
-pilot does not pass arbitrary record values through those adapters.
+## Canonical state and Backtrack
 
-## Verification
+The default stops include Foottrace's run bookends and phase groups. An optional
+Foottrace `strategy`, such as `tagStops(["review"])`, can group the same history
+by a producer's recorded tags. The state at a stop includes rows through its
+`lastCommitIdx`. A filtered start can include a recorded prologue. Numeric
+steps select canonical stops. A raw commit index can differ from that step.
 
-See `../../pilots/record-lens/README.md` for independent fixture, browser-bundle,
-declaration and normal-package checks. Pilot outputs are built in scratch space,
-not added to the package's two existing build entries or its shipped `dist`.
+The model refuses an invalid step. An empty source exposes its available base.
+Missing base state, skipped rows and redacted values remain visible. Backtrack
+uses the selected fold boundary, validates each row in that prefix and retains
+the original commit addresses. A gap in that prefix makes the causal query
+unavailable. A later gap cannot change an earlier answer. Foottrace owns the
+returned slice and its prose. Missing read evidence remains unknown.
+Top-level change detection uses Foottrace's equality operation.
 
-Not included: nested-source discovery, HCI action dispatch, agent features, Viz
-branch merging, export/video generation, public versioning or consumer migration.
+The [fixture and package checks](../../pilots/record-lens/README.md) exercise
+saved Flow and HCI records and both JavaScript module formats.

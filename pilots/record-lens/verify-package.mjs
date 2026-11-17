@@ -1,4 +1,4 @@
-/** Non-shipping proof: normal shipped entries stay unchanged; synthetic /record is isolated. */
+/** Install and exercise the original package archive in separate graph and recording consumers. */
 import "./require-node.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -19,20 +19,20 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { build as bundle } from "esbuild";
-import { build as buildPackage } from "tsup";
+import { archiveProof, compareInstalledFiles, installConsumer } from "./packed-consumers.mjs";
 import ts from "typescript";
 import { assertNoFoottraceRuntime, assertNoPilotSource } from "./shipping-boundary.mjs";
 
 const repo = fileURLToPath(new URL("../../", import.meta.url));
 const require = createRequire(join(repo, "package.json"));
-const scratch = realpathSync(mkdtempSync(join(tmpdir(), "record-lens-pilot-")));
+const scratch = realpathSync(mkdtempSync(join(tmpdir(), "public-record-consumer-")));
 const keep = process.argv.includes("--keep");
 const fixture = join(scratch, "consumer");
 const modules = join(fixture, "node_modules");
-const packageName = "@record-lens/pilot";
-const pilot = join(modules, packageName);
-const entry = join(repo, "src/record/index.ts");
-const forbidden = ["footprintjs", "agentfootprint", "@xyflow/react"];
+const packageName = "footprint-explainable-ui";
+const installed = join(modules, packageName);
+const entry = `${packageName}/record`;
+const forbidden = ["footprintjs", "agentfootprint", "@xyflow/react", "dagre", "react-dom", "hcifootprint", "vizfootprint"];
 const allowedRuntime = new Set(["react", "foottrace"]);
 const minifiedBudget = 50_000;
 const evidence = { gates: {}, measurements: {}, negativeControls: [] };
@@ -52,7 +52,7 @@ const walk = (dir) =>
   );
 const sourceDigests = () =>
   Object.fromEntries(
-    [...walk(join(repo, "src/record")), join(repo, "src/theme/styles.ts")]
+    [...walk(join(repo, "src")), join(repo, "package.json"), join(repo, "tsup.config.ts")]
       .sort()
       .map((path) => [
         relative(repo, path),
@@ -63,11 +63,11 @@ const initialSources = sourceDigests();
 
 function assertBrowserBoundary(result, vendors) {
   for (const [path, input] of Object.entries(result.metafile.inputs)) {
-    const absolute = resolve(repo, path);
+    const absolute = resolve(fixture, path);
     assert(
       path === "<stdin>" ||
-        within(absolute, join(repo, "src")) ||
-        within(absolute, join(repo, "node_modules/foottrace")),
+        within(absolute, installed) ||
+        within(absolute, join(modules, "foottrace")),
       `Unexpected bundled dependency: ${path}`
     );
     for (const imported of input.imports.filter((row) => row.external)) {
@@ -90,14 +90,14 @@ function assertBrowserBoundary(result, vendors) {
 async function browserBuild({ injected, includeFoottrace = false } = {}) {
   const vendors = new Set(includeFoottrace ? ["react"] : allowedRuntime);
   const result = await bundle({
-    absWorkingDir: repo,
+    absWorkingDir: fixture,
     ...(injected
       ? {
           stdin: {
             contents: `export * from ${JSON.stringify(
               entry
             )}; import ${JSON.stringify(injected)};`,
-            resolveDir: repo,
+            resolveDir: fixture,
           },
         }
       : { entryPoints: [entry] }),
@@ -128,15 +128,11 @@ async function browserBuild({ injected, includeFoottrace = false } = {}) {
   };
 }
 
-function copyPrerequisite(name) {
-  const source = dirname(require.resolve(`${name}/package.json`));
-  cpSync(source, join(modules, name), { recursive: true });
-  return json(join(source, "package.json")).version;
-}
-
-const consumerSource = `import { buildRecordLensModel, type RecordLensInput } from "${packageName}/record";
+const consumerSource = `import { RecordTimeSlider, buildRecordLensModel, type TimeTravelSource, type RecordLensInput } from "${packageName}/record";
 const input: RecordLensInput = { sourceId: "fixture", source: { commitLog: [], initialState: { seed: 1 } }, step: 0 };
+export const source: TimeTravelSource = input.source;
 export const result = buildRecordLensModel(input);
+export const Slider = RecordTimeSlider;
 `;
 
 function checkDeclarations(mode, extension, expectedMissing) {
@@ -157,7 +153,7 @@ function checkDeclarations(mode, extension, expectedMissing) {
     esModuleInterop: true,
   };
   // No paths, alias, baseUrl, or repository node_modules: TypeScript resolves
-  // the copied emitted declarations as an ordinary external consumer would.
+  // the installed package declarations as an ordinary external consumer would.
   const program = ts.createProgram([consumer], options);
   const diagnostics = ts.getPreEmitDiagnostics(program);
   const typeScriptRoot = dirname(require.resolve("typescript"));
@@ -208,6 +204,7 @@ const verifyRealFixtures = require("./runtime-fixtures.cjs");`
     }
 const result = lens.buildRecordLensModel({ sourceId: "fixture", source: { commitLog: [], initialState: { seed: 1 } }, step: 0 });
 if (result.status !== "empty" || result.folded.state.seed !== 1) throw new Error("Real canonical fold failed");
+if (typeof lens.RecordTimeSlider !== "function") throw new Error("Missing record slider");
 if (typeof lens.RecordLens !== "function") throw new Error("Missing composed viewer");
 console.log(JSON.stringify(verifyRealFixtures(lens, record)));
 `
@@ -239,8 +236,8 @@ function verifyNormalPackage() {
   });
   assert.deepEqual(
     manifest.exports,
-    { ".": door("index"), "./flowchart": door("flowchart") },
-    "The source pilot must not change shipped doors"
+    { ".": door("index"), "./flowchart": door("flowchart"), "./record": door("record") },
+    "Exactly the three public entries must ship"
   );
   assert.deepEqual(
     [manifest.main, manifest.module, manifest.types],
@@ -248,51 +245,36 @@ function verifyNormalPackage() {
   );
   assert.deepEqual(manifest.files, ["dist"]);
   assert.deepEqual(manifest.engines, { node: ">=18" });
-  assert.deepEqual(manifest.dependencies, { dagre: "^0.8.5" });
-  assert.deepEqual(manifest.peerDependencies, {
-    "@xyflow/react": "^12.0.0",
-    react: ">=18.0.0",
-    "react-dom": ">=18.0.0",
-  });
-  assert.equal(manifest.peerDependenciesMeta, undefined);
-  assert.deepEqual(manifest.typesVersions, {
-    "*": { flowchart: ["./dist/flowchart.d.ts"] },
-  });
-  assert.equal(manifest.devDependencies.foottrace, "1.7.0");
-  const packed = JSON.parse(
-    execFileSync(
-      "npm",
-      [
-        "pack",
-        "--json",
-        "--ignore-scripts",
-        "--offline",
-        "--cache",
-        join(scratch, "npm-cache"),
-        "--pack-destination",
-        scratch,
-      ],
-      { cwd: repo, env, encoding: "utf8" }
-    )
-  )[0];
+  const artifact = process.env.UI_PACKED_REVIEW;
+  const packed = artifact
+    ? json(resolve(repo, artifact))[0]
+    : JSON.parse(execFileSync("npm", [
+      "pack", "--json", "--ignore-scripts", "--offline", "--pack-destination", scratch,
+    ], { cwd: repo, env, encoding: "utf8" }))[0];
+  assert.equal(packed.name, packageName);
+  assert.equal(packed.version, manifest.version);
+  assert.equal(packed.filename, `${packageName}-${manifest.version}.tgz`);
+  const archive = join(artifact ? dirname(resolve(repo, artifact)) : scratch, packed.filename);
+  const identity = archiveProof(archive, packed);
   const unpacked = join(scratch, "normal-package");
   mkdirSync(unpacked);
-  execFileSync("tar", ["-xzf", join(scratch, packed.filename), "-C", unpacked]);
+  execFileSync("tar", ["-xzf", archive, "-C", unpacked]);
   const shipped = walk(join(unpacked, "package"));
   const inspectedDistFiles = [];
   const verifiedSources = new Set();
   for (const path of shipped) {
     const rel = relative(join(unpacked, "package"), path);
     assert(
-      !/(?:^|\/)(?:src|pilots|record)(?:\/|\.)/.test(rel),
-      `Pilot path shipped: ${rel}`
+      /^(?:dist\/[^/]+|package\.json|README\.md|LICENSE)$/.test(rel),
+      `Unexpected archive member: ${rel}`
     );
     if (rel.startsWith("dist/")) {
-      assertNoPilotSource(readFileSync(path, "utf8"), rel);
+      const graphEntry = !rel.startsWith("dist/record.");
+      if (graphEntry) assertNoPilotSource(readFileSync(path, "utf8"), rel);
       // Canonical cause TYPES are bundled for the optional panel; no Foottrace
       // runtime import is allowed. Source-map admission below also rejects any
       // bundled runtime input outside src/, including node_modules/foottrace.
-      if (/\.(?:c?js)$/.test(rel))
+      if (graphEntry && /\.(?:c?js)$/.test(rel))
         assertNoFoottraceRuntime(readFileSync(path, "utf8"), rel);
       inspectedDistFiles.push(rel);
       if (rel.endsWith(".map")) {
@@ -314,7 +296,7 @@ function verifyNormalPackage() {
       }
     }
   }
-  const expectedDistFiles = ["flowchart", "index"].flatMap((name) =>
+  const expectedDistFiles = ["flowchart", "index", "record"].flatMap((name) =>
     ["cjs", "cjs.map", "d.cts", "d.ts", "js", "js.map"].map(
       (extension) => `dist/${name}.${extension}`
     )
@@ -322,32 +304,34 @@ function verifyNormalPackage() {
   assert.deepEqual(
     inspectedDistFiles.sort(),
     expectedDistFiles.sort(),
-    "The original two dual-format entries/types/maps must remain the whole dist package"
+    "Only the three dual-format entries, declarations and source maps may ship"
   );
   assert(
     verifiedSources.has("src/index.ts") &&
-      verifiedSources.has("src/flowchart.ts"),
-    "Both normal entry sources must be verified"
+      verifiedSources.has("src/flowchart.ts") && verifiedSources.has("src/record/model.ts"),
+    "The graph entries and public reader implementation must match the source"
   );
   evidence.gates.normalTarball = {
     files: packed.files.map((row) => row.path),
     inspectedDistFiles,
     sourceMapInputsVerified: [...verifiedSources].sort(),
-    integrity: packed.integrity,
+    ...identity,
+    memberSha256: Object.fromEntries(shipped.map(path => [relative(join(unpacked, "package"), path),
+      createHash("sha256").update(readFileSync(path)).digest("hex")])),
+    testedCommit: execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).trim(),
+    testedTree: execFileSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: repo, encoding: "utf8" }).trim(),
   };
+  assert.deepEqual(json(join(unpacked, "package/package.json")), manifest);
+  return { archive, unpacked: join(unpacked, "package") };
 }
 
 try {
-  verifyNormalPackage();
-  mkdirSync(pilot, { recursive: true });
-  writeJSON(join(fixture, "package.json"), { private: true, type: "module" });
-  const versions = Object.fromEntries(
-    ["foottrace", "react", "@types/react", "csstype"].map((name) => [
-      name,
-      copyPrerequisite(name),
-    ])
-  );
-  assert.equal(versions.foottrace, "1.7.0");
+  const { archive, unpacked } = verifyNormalPackage();
+  const graphFixture = join(scratch, "graph");
+  evidence.gates.graphWithoutReader = installConsumer({ fixture: graphFixture, archive, repo, env, graph: true });
+  compareInstalledFiles(unpacked, join(graphFixture, "node_modules", packageName));
+  const prerequisites = installConsumer({ fixture, archive, repo, env });
+  compareInstalledFiles(unpacked, installed);
   const fixtureDirectory = join(repo, "pilots/record-lens/fixtures");
   const fixtureHashes = json(
     join(fixtureDirectory, "provenance.json")
@@ -365,35 +349,6 @@ try {
     join(repo, "pilots/record-lens/runtime-fixtures.cjs"),
     join(fixture, "runtime-fixtures.cjs")
   );
-  writeJSON(join(pilot, "package.json"), {
-    name: packageName,
-    version: "0.0.0-pilot",
-    private: true,
-    type: "module",
-    exports: {
-      "./record": {
-        import: { types: "./record.d.ts", default: "./record.js" },
-        require: { types: "./record.d.cts", default: "./record.cjs" },
-      },
-    },
-    dependencies: { foottrace: versions.foottrace },
-    peerDependencies: { react: ">=18" },
-  });
-  await buildPackage({
-    entry: { record: entry },
-    format: ["esm", "cjs"],
-    dts: true,
-    outDir: pilot,
-    clean: false,
-    sourcemap: false,
-    splitting: false,
-    config: false,
-    tsconfig: join(repo, "tsconfig.json"),
-    external: ["react", "react-dom", "foottrace"],
-    esbuildOptions(options) {
-      options.jsx = "automatic";
-    },
-  });
   evidence.gates.realFixturesVerified = {
     fixtureHashes,
     producerRuntimesAbsent: [
@@ -413,7 +368,7 @@ try {
   ])
     checkDeclarations(mode, ext);
   evidence.gates.isolatedConsumer = {
-    prerequisites: versions,
+    prerequisites,
     runtime: ["ESM", "CJS"],
     declarations: ["NodeNext ESM", "NodeNext CJS", "Bundler"],
     skipLibCheck: false,
@@ -422,7 +377,7 @@ try {
   evidence.measurements.vendorExcluded = await browserBuild();
   assert(
     evidence.measurements.vendorExcluded.minifiedBytes <= minifiedBudget,
-    `Pilot exceeds ${minifiedBudget} minified bytes excluding Foottrace/React`
+    `Record entry exceeds ${minifiedBudget} minified bytes excluding Foottrace/React`
   );
   evidence.measurements.withFoottrace = await browserBuild({
     includeFoottrace: true,
@@ -440,7 +395,7 @@ try {
       ["record.js", "mjs", `import ${JSON.stringify(name)};\n`],
       ["record.cjs", "cjs", `require(${JSON.stringify(name)});\n`],
     ]) {
-      const path = join(pilot, file);
+      const path = join(installed, "dist", file);
       const original = readFileSync(path, "utf8");
       try {
         writeFileSync(path, statement + original);
@@ -454,7 +409,7 @@ try {
       ["record.d.cts", "nodenext", "cts"],
       ["record.d.ts", "bundler", "tsx"],
     ]) {
-      const path = join(pilot, file);
+      const path = join(installed, "dist", file);
       const original = readFileSync(path, "utf8");
       try {
         writeFileSync(
@@ -479,12 +434,16 @@ try {
   assert.deepEqual(
     sourceDigests(),
     initialSources,
-    "Pilot source changed while verification was running; repeat on frozen source"
+    "Package source changed while verification was running; repeat on frozen source"
   );
   evidence.sourceDigests = initialSources;
+  compareInstalledFiles(unpacked, installed);
   writeJSON(join(scratch, "verification.json"), evidence);
+  if (process.env.UI_PACKED_REVIEW) {
+    writeJSON(join(dirname(resolve(repo, process.env.UI_PACKED_REVIEW)), "record-consumer-verification.json"), evidence);
+  }
   console.log(JSON.stringify(evidence, null, 2));
-  if (keep) console.log(`Retained pilot evidence: ${scratch}`);
+  if (keep) console.log(`Retained record-consumer evidence: ${scratch}`);
 } finally {
   // Only the directory allocated by this invocation; never dist or caller input.
   if (!keep) rmSync(scratch, { recursive: true, force: true });

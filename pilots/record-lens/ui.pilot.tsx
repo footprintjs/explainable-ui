@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { CommitBundle, TimeTravelSource } from "foottrace";
 import { RecordLens } from "../../src/record/RecordLens";
+import { createRecordLensReader } from "../../src/record/model";
+import { tagStops } from "foottrace";
 import { previewValue } from "../../src/record/preview";
 
 afterEach(cleanup);
@@ -21,7 +23,20 @@ const source: TimeTravelSource = {
   commitLog: [write],
 };
 
-describe("source-only RecordLens", () => {
+describe("RecordLens", () => {
+  it("renders a shared reader's tagged start prologue at the controlled step", () => {
+    const reader = createRecordLensReader({
+      sourceId: "milestones",
+      source: { commitLog: [write, { ...write, runtimeStageId: "review#2", tags: ["review"] }] },
+      strategy: tagStops(["review"]),
+    });
+    const { rerender } = render(<RecordLens reader={reader} step={0} />);
+    expect(screen.getByText("Run start · includes earlier stages through commit 0")).toBeTruthy();
+    rerender(<RecordLens reader={reader} step={1} selectedKey="total" />);
+    expect(screen.getByText("review#2 · commits 1–1")).toBeTruthy();
+    expect(screen.getByRole("combobox", { name: "Step" })).toHaveProperty("value", "1");
+  });
+
   it("renders the canonical selection and emits navigation without running application actions", () => {
     const onStepChange = vi.fn();
     const { rerender } = render(

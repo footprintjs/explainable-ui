@@ -30,7 +30,9 @@ function packageOf(specifier: string): string {
   return specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0];
 }
 
-const ENTRIES = ["dist/index.js", "dist/index.cjs", "dist/flowchart.js", "dist/flowchart.cjs"];
+const ENTRIES = ["index", "flowchart", "record"].flatMap(entry => [
+  `dist/${entry}.js`, `dist/${entry}.cjs`,
+]);
 
 // ESM `from "x"` / `import("x")` and CJS `require("x")` in the built output.
 // The specifier itself must LOOK like a package path — minified bundles are
@@ -61,7 +63,8 @@ describe("built entry points only import what the manifest declares", () => {
 
   it("the mistake this gate was written for stays fixed: @xyflow/react has a declared range", () => {
     expect(pkg.peerDependencies["@xyflow/react"], "root bundle statically imports it").toMatch(/\^/);
-    // "optional" was the old lie — the root entry hard-requires it.
-    expect(pkg.peerDependenciesMeta?.["@xyflow/react"]?.optional).not.toBe(true);
+    // The root explicitly requires this peer. Record-only consumers omit every graph peer.
+    expect(pkg.peerDependenciesMeta["@xyflow/react"]).toEqual({ optional: true });
+    expect(pkg.peerDependencies.dagre).toBe("^0.8.5");
   });
 });

@@ -8,7 +8,9 @@ import type {
 } from "foottrace/cause";
 
 /** Canonical display projection: unused graph edges stay with the host and may evolve independently. */
-export type InvestigationResult = Omit<CauseResult, "impact"> & {
+export type InvestigationResult = Pick<CauseResult,
+  "nodeId" | "attention" | "rootCause" | "path" | "alternatives" | "confidence" | "gaps"
+> & {
   readonly impact: Omit<ImpactResult, "edges">;
 };
 

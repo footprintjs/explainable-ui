@@ -1,12 +1,20 @@
 import { useId, useRef, useState } from 'react';
-import type { StageSnapshot, Size } from '../../types';
-import { FootprintButton, FootprintInput, componentStyles, theme } from '../../theme';
-import type { TracingRail } from './types';
-import type { ReplayControlsOptions } from '../../model/replayControls';
-import { projectReplayAxis } from '../../replay/replayAxis';
+import type { Size } from '../types';
+import { FootprintButton, FootprintInput } from '../theme/components';
+import { componentStyles, theme } from '../theme/styles';
+import type { ReplayControlsOptions, TracingRail } from '../model/replayControls';
+import { projectReplayAxis } from './replayAxis';
+
+interface PositionEntry {
+  readonly stageLabel?: string;
+  readonly stageName?: string;
+  readonly label?: string;
+  readonly durationMs?: number;
+}
 
 interface ReplayPositionProps {
-  snapshots: StageSnapshot[];
+  snapshots: readonly PositionEntry[];
+  ariaLabel?: string;
   selectedIndex: number;
   selectIndex: (index: number) => void;
   stopSet: ReadonlySet<number> | null;
@@ -18,7 +26,7 @@ interface ReplayPositionProps {
 }
 
 /** One interaction implementation for the visible native range and segmented rail. */
-export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet, tracing, presentation, scale, size, unstyled }: ReplayPositionProps) {
+export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet, tracing, presentation, scale, size, unstyled, ariaLabel }: ReplayPositionProps) {
   const [focused, setFocused] = useState(false), rangeKey = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const noteId = useId(), axis = projectReplayAxis(snapshots, scale), weighted = scale !== 'steps';
@@ -43,9 +51,9 @@ export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet,
     unstyled={unstyled} densitySize={size} part="time-travel-slider" data-fp="tt-slider"
     type="range" min={0} max={weighted ? 1 : Math.max(0, snapshots.length - 1)} step={weighted ? 'any' : 1} value={weighted ? axis.positionAt(position) ?? 0 : position}
     disabled={snapshots.length < 2 || (isTracing && allowedStops.length === 0)}
-    aria-label={isTracing ? 'Trace position' : 'Replay position'}
+    aria-label={ariaLabel ?? (isTracing ? 'Trace position' : 'Replay position')}
     aria-describedby={weighted ? noteId : undefined}
-    aria-valuetext={snapshots.length ? `Step ${position + 1} of ${snapshots.length}: ${snapshots[position]?.stageLabel || snapshots[position]?.stageName || 'Recorded stage'}${weighted ? `, ${durationLabel(position)}` : ''}` : 'No recorded stages'}
+    aria-valuetext={snapshots.length ? `Step ${position + 1} of ${snapshots.length}: ${snapshots[position]?.stageLabel || snapshots[position]?.stageName || snapshots[position]?.label || 'Recorded stage'}${weighted ? `, ${durationLabel(position)}` : ''}` : 'No recorded stages'}
     onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); rangeKey.current = null; }}
     onKeyDown={event => {
       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown', ' '].includes(event.key)) {
@@ -88,7 +96,7 @@ export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet,
       return <FootprintButton key={index} unstyled densitySize={size} part="time-travel-tick" type="button"
         data-fp="tt-tick" data-active={index === selectedIndex} data-done={index < selectedIndex}
         data-stop={isTracing ? isStop : undefined} tabIndex={-1} aria-hidden="true" disabled={isTracing && !isStop}
-        onClick={() => selectIndex(index)} title={snap.stageLabel} defaultStyle={undefined} />;
+        onClick={() => selectIndex(index)} title={snap.stageLabel ?? snap.label} defaultStyle={undefined} />;
     })}
   </div>}</>;
 
@@ -117,7 +125,7 @@ export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet,
       const isStop = !stopSet || stopSet.has(index), unlandable = isTracing && !isStop;
       return <FootprintButton key={index} unstyled={unstyled} densitySize={size} part="time-travel-tick" type="button"
         onClick={() => selectIndex(index)} disabled={unlandable}
-        title={`${snap.stageLabel}${weighted ? ` · ${durationLabel(index)}` : ''}${unlandable ? ' (not part of this trace)' : ''}`}
+        title={`${snap.stageLabel ?? snap.label ?? 'Recorded stage'}${weighted ? ` · ${durationLabel(index)}` : ''}${unlandable ? ' (not part of this trace)' : ''}`}
         data-fp="tt-tick" data-stop={isTracing ? isStop : undefined} data-active={isActive || undefined}
         tabIndex={-1} aria-hidden="true" style={{ flex: weighted ? `${axis.weights[index]} 1 0%` : 1, minWidth: weighted ? 0 : undefined,
           padding: weighted ? 0 : undefined, boxSizing: weighted ? 'border-box' : undefined,
