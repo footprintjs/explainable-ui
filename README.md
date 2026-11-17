@@ -1918,6 +1918,16 @@ the owner of graph traversal and source interpretation.
 
 ### Preflight the display projection
 
+These checks and limits are exported from the root entry:
+
+| Export | Description |
+|---|---|
+| `checkInvestigationAttention` | Admit the same bounded attention projection used by the panel |
+| `checkInvestigationExplanation` | Check the default text or explicit relationship projection for one bound selected ID |
+| `checkFailureExplanationDisplay` | Check the exact failure-explanation projection and its finding-code rules |
+| `investigationDisplayLimits` | Frozen primitive limits for attention and explanation display admission |
+| `failureExplanationDisplayLimits` | Frozen failure-display limits and finding-code pattern string |
+
 Use the root-exported display checks before handing unknown data to a panel:
 
 ```tsx

@@ -51,6 +51,16 @@ const traceWorkflowExports = [
   { name: "TraceWorkflowRead", kind: "type" },
 ];
 
+const displayPreflightExports = [
+  ...["checkInvestigationAttention", "checkInvestigationExplanation", "checkFailureExplanationDisplay",
+    "investigationDisplayLimits", "failureExplanationDisplayLimits",
+  ].map(name => ({ name, kind: "value" })),
+  ...["DisplayCheckResult", "DisplayDiagnostic", "DisplayDiagnosticCode", "DisplayLimitName",
+    "DisplayPath", "DisplaySchemaField", "DisplayUsage", "InvestigationAttentionDisplay",
+    "InvestigationTextDisplay", "InvestigationRelationshipDisplay",
+  ].map(name => ({ name, kind: "type" })),
+];
+
 const stageActivityExports = [
   { name: "StageActivityPanel", kind: "value" },
   { name: "projectStageActivity", kind: "value" },
@@ -101,6 +111,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...stageActivityExports,
         ...themePrimitiveExports,
         ...flowchartOptionExports,
+        ...displayPreflightExports,
         ...["paperLight", "paperDark"].map(name => ({ name, kind: "value" })),
         { name: "useLensWorkbench", kind: "value" },
         ...["LensTheme", "LensView", "LensCommentaryOptions", "ReplayControlsOptions", "LensLayoutDefinition", "LensLayoutSurface", "LensWorkbenchContextValue", "LensWorkbenchActions", "LensWorkbenchSurfaces", "LensWorkbenchLayout"]
