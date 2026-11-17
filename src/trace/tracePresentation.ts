@@ -15,6 +15,10 @@ export function inputSentence(scope: TraceWalkScope | undefined, key: string, re
     ? "read path encoding is ambiguous; source unknown"
     : reason === "legacy-address-unknown"
     ? "legacy read address is unknown; source unknown"
+    : reason === "read-window-ambiguous"
+    ? "a recorded write overlaps this read window; source uncertain"
+    : reason === "related-write"
+    ? "a recorded parent or child path changed; exact source unknown"
     : scope?.startKeys?.includes(key)
     ? START_SENTENCE
     : "no recorded write; value unknown";

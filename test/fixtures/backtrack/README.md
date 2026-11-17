@@ -31,3 +31,13 @@ unresolved. UI changes cannot repair missing evidence in immutable historical
 recordings. Dot-joined `stageReads` labels never establish canonical paths. Legacy flat
 read names on nested written paths also omit the scope address, so the UI
 cannot choose between a local writer and a root fallback from those names.
+
+
+`native-read-time.json` is an additional unedited capture from public Foottrace
+2.0.0-rc.2 RecordFrames, with its registry integrity embedded. The reproduction
+source is `capture-native-read-time.cjs.source.txt`; run it from a standalone
+installed-package project, or set `FOOTTRACE_PACKAGE_JSON` to that project's
+package.json before executing the copied script. Its cases pin early reads,
+coarse overlapping windows, mapper-offset indices, and parent/child writes.
+They supply names-only read/identity trees in unit tests; those trees do not
+assert an execution topology. The original total35 capture remains unchanged.

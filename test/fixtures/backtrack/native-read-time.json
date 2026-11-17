@@ -1,0 +1,535 @@
+{
+  "recordLayer": {
+    "name": "foottrace",
+    "version": "2.0.0-rc.2",
+    "integrity": "sha512-myJwI+qndMeu4DVR/mhPnpCpiHsDlnojU4iP8PP0z6RJzhq5iPKsv/6nw/qLmS0s6RSQX2Sbve/GZFU5igMBgg=="
+  },
+  "cases": {
+    "began": [
+      {
+        "overwrite": {
+          "x": 1
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "x",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Load",
+        "stageId": "load",
+        "runtimeStageId": "load#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "x": 99
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "x",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Overwrite",
+        "stageId": "overwrite",
+        "runtimeStageId": "overwrite#0",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "y": 1
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "y",
+            "verb": "set",
+            "readKeys": [
+              "x"
+            ]
+          }
+        ],
+        "stage": "Derive",
+        "stageId": "derive",
+        "runtimeStageId": "derive#0",
+        "beganAt": 1,
+        "idx": 2
+      }
+    ],
+    "overlap": [
+      {
+        "overwrite": {
+          "x": 1
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "x",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Load",
+        "stageId": "load",
+        "runtimeStageId": "load#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "x": 99,
+          "other": 2
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "x",
+            "verb": "set",
+            "readKeys": []
+          },
+          {
+            "path": "other",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Overwrite",
+        "stageId": "overwrite",
+        "runtimeStageId": "overwrite#0",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "y": 1
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "y",
+            "verb": "set",
+            "readKeys": [
+              "x",
+              "other"
+            ]
+          }
+        ],
+        "stage": "Derive",
+        "stageId": "derive",
+        "runtimeStageId": "derive#0",
+        "beganAt": 1,
+        "sawUntil": 2,
+        "idx": 2
+      }
+    ],
+    "unrelatedWindow": [
+      {
+        "overwrite": {
+          "x": 1
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "x",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Load",
+        "stageId": "load",
+        "runtimeStageId": "load#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "other": 99
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "other",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Overwrite",
+        "stageId": "overwrite",
+        "runtimeStageId": "overwrite#0",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "y": 1
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "y",
+            "verb": "set",
+            "readKeys": [
+              "x",
+              "other"
+            ]
+          }
+        ],
+        "stage": "Derive",
+        "stageId": "derive",
+        "runtimeStageId": "derive#0",
+        "beganAt": 1,
+        "sawUntil": 2,
+        "idx": 2
+      }
+    ],
+    "mapperOffset": [
+      {
+        "overwrite": {
+          "seed": 0
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "seed",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Mapper",
+        "stageId": "mapper",
+        "runtimeStageId": "mount#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "x": 1
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "x",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Load",
+        "stageId": "load",
+        "runtimeStageId": "load#0",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "x": 99
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "x",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Overwrite",
+        "stageId": "overwrite",
+        "runtimeStageId": "overwrite#0",
+        "idx": 2
+      },
+      {
+        "overwrite": {
+          "y": 1
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "y",
+            "verb": "set",
+            "readKeys": [
+              "x"
+            ]
+          }
+        ],
+        "stage": "Derive",
+        "stageId": "derive",
+        "runtimeStageId": "derive#0",
+        "beganAt": 2,
+        "idx": 3
+      }
+    ],
+    "parentReplacement": [
+      {
+        "overwrite": {
+          "cfg": {
+            "amount": 1
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "cfg\u001famount",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Load",
+        "stageId": "load",
+        "runtimeStageId": "load#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "cfg": {
+            "amount": 99
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "cfg",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Changed",
+        "stageId": "changed",
+        "runtimeStageId": "changed#0",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "result": 99
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "result",
+            "verb": "set",
+            "readKeys": [
+              "cfg\u001famount"
+            ]
+          }
+        ],
+        "stage": "Derive",
+        "stageId": "derive",
+        "runtimeStageId": "derive#0",
+        "idx": 2
+      }
+    ],
+    "childReplacement": [
+      {
+        "overwrite": {
+          "cfg": {
+            "amount": 1
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "cfg",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Load",
+        "stageId": "load",
+        "runtimeStageId": "load#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "cfg": {
+            "amount": 99
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "cfg\u001famount",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Changed",
+        "stageId": "changed",
+        "runtimeStageId": "changed#0",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "result": 99
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "result",
+            "verb": "set",
+            "readKeys": [
+              "cfg"
+            ]
+          }
+        ],
+        "stage": "Derive",
+        "stageId": "derive",
+        "runtimeStageId": "derive#0",
+        "idx": 2
+      }
+    ],
+    "sameCommitRelated": [
+      {
+        "overwrite": {
+          "a": 1,
+          "b": 99
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "a",
+            "verb": "set",
+            "readKeys": []
+          },
+          {
+            "path": "b",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Load",
+        "stageId": "load",
+        "runtimeStageId": "load#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "cfg": {
+            "amount": 99
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "cfg\u001famount",
+            "verb": "set",
+            "readKeys": [
+              "a"
+            ]
+          },
+          {
+            "path": "cfg",
+            "verb": "set",
+            "readKeys": [
+              "a",
+              "b"
+            ]
+          }
+        ],
+        "stage": "Changed",
+        "stageId": "changed",
+        "runtimeStageId": "changed#0",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "result": 99
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "result",
+            "verb": "set",
+            "readKeys": [
+              "cfg\u001famount"
+            ]
+          }
+        ],
+        "stage": "Derive",
+        "stageId": "derive",
+        "runtimeStageId": "derive#0",
+        "idx": 2
+      }
+    ],
+    "legacyMixed": [
+      {
+        "overwrite": {
+          "x": 1,
+          "runs": {
+            "branch": {
+              "x": 2
+            }
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "x",
+            "verb": "set",
+            "readKeys": []
+          },
+          {
+            "path": "runs\u001fbranch\u001fx",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Load",
+        "stageId": "load",
+        "runtimeStageId": "load#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "rootout": 2,
+          "runs": {
+            "branch": {
+              "localout": 2
+            }
+          }
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "rootout",
+            "verb": "set",
+            "readKeys": [
+              "x"
+            ]
+          },
+          {
+            "path": "runs\u001fbranch\u001flocalout",
+            "verb": "set",
+            "readKeys": [
+              "x"
+            ]
+          }
+        ],
+        "stage": "Mixed",
+        "stageId": "mixed",
+        "runtimeStageId": "mixed#0",
+        "idx": 1
+      }
+    ]
+  }
+}

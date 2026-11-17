@@ -7,6 +7,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-11-16
+
+### Added
+
+- Optional built-in Isometric rendering through `TraceFlow.renderer`,
+  `TracedFlow.renderer`, `ExplainableShell.flowchart`, `TraceViewer.flowchart`
+  and JSON `layout.flowchart.renderer`. Flat remains the default; explicit
+  props override JSON and custom renderers retain control. SVG stage drawings,
+  connectors, grid and projected layout share the existing cursor and theme
+  adapters, without an additional stylesheet or 3D dependency.
+- Paper light/dark presets and optional `tokens.nodes` paint controls for stage,
+  decision, pill and group cards, including borders, radii, shadows and status
+  cues. Theme and renderer choices remain independent.
+- Seven recorded workflow examples with Recorded / Built-in / Custom SVG node
+  icon selection, with Custom SVG selected initially, and a hosted preview.
+  The recordings use published FootprintJS 13.0.0 and Foottrace 2.0.0 with
+  canonical read capture and retained registry integrity metadata.
+
+### Fixed
+
+- Backtrack follows the read prefix captured for each written value at its
+  exact commit, connecting canonical nested reads to their recorded writers.
+  Explicit empty prefixes stay empty; later reads from the same visit do not
+  become earlier outputs' inputs. Legacy dotted and namespace-ambiguous reads
+  remain unresolved rather than gaining inferred links.
+- Backtrack retains the producer's canonical-path discriminator through saved
+  recording and subflow projections, presents readable paths, and restores the
+  originating Activity stage, selected variable and keyboard focus on return.
+- Backtrack, Activity and stage inspection bind reads using recorded native
+  `beganAt` / `sawUntil` windows while preserving native indices through subflow
+  filtering. Overlapping writes, parent/child replacements, ambiguous legacy
+  namespaces and unsafe timing remain unresolved. Read questions keep their
+  reader window across source follows and returns; empty exit/repeat bookends
+  cannot silently move a stage's read time.
+- Legacy fan-in expands shared read ingredients once per commit, avoiding
+  quadratic traversal when one stage writes many outputs.
+- `TraceViewer` no longer forwards an implicit deprecated `tabs` value, so
+  default saved-recording consumers avoid an unnecessary deprecation warning.
+- Switching Flat / Isometric retains the shared cursor, investigation and custom
+  controls; grouped geometry and authored node/edge overrides remain respected.
+
 ## [0.45.0] - 2026-11-16
 
 ### Added

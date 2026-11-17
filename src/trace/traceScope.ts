@@ -10,6 +10,7 @@ import {
   classifyAdmissionFailure,
 } from "./safeRecordRead";
 import { readTraceWrites } from "./readProvenance";
+import { readCommitTiming, indexReadWindows } from "./readTiming";
 export type TraceAvailability =
   | { ok: true }
   | {
@@ -94,7 +95,7 @@ export function sourceRunKey(snapshot: unknown): unknown {
 /** Preserve only a value-free engine bookend marker. Activity can then
  * distinguish an exit/repeat from a second commit with an ambiguous stamp,
  * without retaining child state values in this names-only scope. */
-function emptyVisitPhase(entry: unknown, traceLength: number, budget: WorkBudget): "exit" | "repeat" | undefined {
+export function emptyVisitPhase(entry: unknown, traceLength: number, budget: WorkBudget): "exit" | "repeat" | undefined {
   const phase = ownDataField(entry, "phase");
   if ((phase !== "exit" && phase !== "repeat") || traceLength !== 0 || !entry || typeof entry !== "object") return undefined;
   for (const field of ["overwrite", "updates"]) {
@@ -167,6 +168,8 @@ export function childTraceScope(
           startKeys.push(readName(key));
       }
     }
+    const timings = history.map(readCommitTiming);
+    indexReadWindows(timings);
     const recordedCommits = history.map((entry, index) => {
       const runtimeStageId = ownDataField(entry, "runtimeStageId");
       // Through 9.33 the first input mapper bundle used an empty stamp.
@@ -178,6 +181,7 @@ export function childTraceScope(
       const trace = readTraceWrites(ownDataField(entry, "trace"), budget);
       const phase = emptyVisitPhase(entry, trace.length, budget);
       return {
+        ...timings[index],
         stage: readName(ownDataField(entry, "stage")),
         stageId: readName(ownDataField(entry, "stageId")),
         runtimeStageId: readName(runtimeStageId),

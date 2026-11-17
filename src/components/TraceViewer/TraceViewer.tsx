@@ -32,7 +32,7 @@
  */
 import * as React from 'react';
 import { useMemo } from 'react';
-import { ExplainableShell, type ExplainableShellProps, type ShellTab } from '../ExplainableShell';
+import { ExplainableShell, type ExplainableShellProps } from '../ExplainableShell';
 import { parseRecordingInput, projectRuntimeSnapshot } from '../../model/recording';
 import type { NarrativeEntry } from '../../types';
 import { graphFromStructure } from '../../adapters/graphFromStructure';
@@ -200,14 +200,12 @@ function prepare(input: TraceViewerProps['recording']): Prepared {
   }
 }
 
-const DEFAULT_TABS: ShellTab[] = ['explainable'];
-
 export function TraceViewer({
   recording,
   trace,
   onError,
   fallback,
-  tabs = DEFAULT_TABS,
+  tabs,
   defaultTab = 'narrative',
   hideTabs,
   size,
