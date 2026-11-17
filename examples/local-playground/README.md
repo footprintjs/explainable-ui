@@ -74,11 +74,11 @@ Or include it in JSON alongside the named panel areas:
 }
 ```
 
-`flowchart.renderer` supplied as a prop wins over the JSON value. Flat remains the library default. Custom chart renderers keep final control; low-level custom layouts and `layout="passthrough"` retain their positions. Paper styling is independent of this choice. The renderer, theme presets and node paint controls are unreleased source additions; the published 0.45.0 package does not include them yet.
+`flowchart.renderer` supplied as a prop wins over the JSON value. Flat remains the library default. Custom chart renderers keep final control; low-level custom layouts and `layout="passthrough"` retain their positions. Paper styling is independent of this choice. The renderer, theme presets and node paint controls are included in the 0.46.0 UI release.
 
 **Lens theme → Paper** applies a paper-and-pastel palette, thin node outlines and small offset shadows inspired by the [Designed to Scale reference](https://designed-to-scale.vercel.app/#/design-chat/12). The existing light/dark toggle selects `paperLight` or `paperDark`. The surrounding preview and the Lens use the same exported tokens. Standard, Forest and Graphite remain available, and Standard remains the initial choice.
 
-Paper presets and `tokens.nodes` are unreleased source additions, not part of the published 0.45.0 package yet.
+Paper presets and `tokens.nodes` are included in the 0.46.0 UI release.
 
 Consumers can use the preset directly, without the preview:
 

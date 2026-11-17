@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.46.0] - 2026-11-16
+
+### Added
+
+- Optional built-in Isometric rendering through `TraceFlow.renderer`,
+  `TracedFlow.renderer`, `ExplainableShell.flowchart`, `TraceViewer.flowchart`
+  and JSON `layout.flowchart.renderer`. Flat remains the default; explicit
+  props override JSON and custom renderers retain control. SVG stage drawings,
+  connectors, grid and projected layout share the existing cursor and theme
+  adapters, without an additional stylesheet or 3D dependency.
+- Paper light/dark presets and optional `tokens.nodes` paint controls for stage,
+  decision, pill and group cards, including borders, radii, shadows and status
+  cues. Theme and renderer choices remain independent.
+- Seven recorded workflow examples with Recorded / Built-in / Custom SVG node
+  icon selection, with Custom SVG selected initially, and a hosted preview.
+
+### Fixed
+
+- Backtrack follows the read prefix captured for each written value at its
+  exact commit, connecting canonical nested reads to their recorded writers.
+  Explicit empty prefixes stay empty; later reads from the same visit do not
+  become earlier outputs' inputs. Legacy dotted and namespace-ambiguous reads
+  remain unresolved rather than gaining inferred links.
+- Backtrack retains the producer's canonical-path discriminator through saved
+  recording and subflow projections, presents readable paths, and restores the
+  originating Activity stage, selected variable and keyboard focus on return.
+- Switching Flat / Isometric retains the shared cursor, investigation and custom
+  controls; grouped geometry and authored node/edge overrides remain respected.
+
 ## [0.45.0] - 2026-11-16
 
 ### Added

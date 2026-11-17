@@ -706,7 +706,7 @@ remain available, including replacements for the default `stageNode` renderer.
 Loop-back and recorded-read edges retain their specialized renderers.
 `IsometricStageNode`, `IsometricEdge` and `IsometricGrid` are also exported from
 `footprint-explainable-ui/flowchart` for consumers composing their own chart.
-These source additions are not yet part of published package 0.45.0.
+These renderer APIs are included in the 0.46.0 release.
 
 ### Default template and existing tab IDs
 
@@ -1238,8 +1238,7 @@ available. Legacy `radius` seeds all three component radii; an explicit
 `componentStyles(size)` exports the CSS-variable recipes for custom surfaces;
 the existing numeric font-size and padding helpers remain available for math.
 
-The `nodes` group and Paper presets are unreleased additions; they are not in
-the published `footprint-explainable-ui@0.45.0` package yet.
+The `nodes` group and Paper presets are included in the 0.46.0 release.
 
 The optional `nodes` group controls chart-card paint independently from the
 state fill colors and panel recipes. For example, a dark outline and a small
