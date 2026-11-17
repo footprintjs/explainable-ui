@@ -1,6 +1,7 @@
 /** Offline installed ESM/CJS and strict type proof. Build first. No Foottrace in the consumer. */
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { createRequire } from "node:module";
 import {
   mkdtempSync,
   mkdirSync,
@@ -17,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 const readerPackage = process.argv[2];
 const repo = fileURLToPath(new URL("../", import.meta.url));
+const ts = createRequire(join(repo, "package.json"))("typescript");
 const scratch = mkdtempSync(join(tmpdir(), "investigation-package-"));
 const env = {
   PATH: process.env.PATH ?? "/usr/bin:/bin",
@@ -34,6 +36,34 @@ function run(command, args, cwd = scratch) {
       `${command} failed (${result.status})\n${result.stdout}\n${result.stderr}`
     );
   return result.stdout;
+}
+/** Inspect declarations structurally: a renderer's unrelated graph type is not the cause GraphEdge. */
+function declarationHygiene(file) {
+  const bytes = readFileSync(file);
+  const source = ts.createSourceFile(file, bytes.toString("utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  assert.equal(source.parseDiagnostics.length, 0, `${file} must parse as a declaration`);
+  const matches = [];
+  function visit(node) {
+    if (ts.isInterfaceDeclaration(node) || ts.isTypeAliasDeclaration(node)) {
+      const name = node.name.text;
+      // Declaration rollups may disambiguate a name with a numeric suffix.
+      const base = name.replace(/\$\d+$/, "");
+      const wholeResult = ["CauseResult", "ImpactResult", "TraversedEdge"].includes(base);
+      const members = ts.isInterfaceDeclaration(node) ? node.members
+        : ts.isTypeLiteralNode(node.type) ? node.type.members : [];
+      const causeAttribution = base === "GraphEdge" && members.some(member =>
+        ts.isPropertySignature(member) && member.name &&
+        (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) && member.name.text === "attribution");
+      if (wholeResult || causeAttribution) matches.push({
+        name,
+        line: source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1,
+        reason: wholeResult ? "whole-upstream-result" : "cause-edge-attribution",
+      });
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  return { file: file.slice(file.lastIndexOf("/dist/") + 1), sha256: createHash("sha256").update(bytes).digest("hex"), matches };
 }
 try {
   const npm = join(
@@ -90,8 +120,16 @@ try {
   }
   writeFileSync(join(peerOnly, "package.json"), JSON.stringify({ private: true, type: "module" }));
   assert(!existsSync(join(peerModules, "foottrace")));
-  const peerSource = `import { InvestigationPanel, GroupedFlowInvestigation, type InvestigationPort } from 'footprint-explainable-ui';
-import { GroupedFlowInvestigation as ChartInvestigation, type GroupedFlowInvestigationProps as ChartProps } from 'footprint-explainable-ui/flowchart';
+  const peerSource = `import { InvestigationPanel, GroupedFlowInvestigation, type InvestigationPort, type FlowDiagramRecordedRelationship as RootRelationship } from 'footprint-explainable-ui';
+import { GroupedFlowInvestigation as ChartInvestigation, type GroupedFlowInvestigationProps as ChartProps, type FlowDiagramRecordedRelationship as ChartRelationship } from 'footprint-explainable-ui/flowchart';
+const attributions = ['per-write','stage','recorded-control','recorded-read','recorded-write'] as const;
+const rootRelationships: readonly RootRelationship[] = attributions.map((attribution): RootRelationship => ({id:'r',source:'one',target:'two',kind:attribution === 'recorded-control' ? 'control' : 'data',attribution,evidence:[]}));
+const chartRelationships: readonly ChartRelationship[] = attributions.map((attribution): ChartRelationship => ({id:'r',source:'one',target:'two',kind:attribution === 'recorded-control' ? 'control' : 'data',attribution,evidence:[]}));
+// @ts-expect-error Unknown attribution must remain outside the root public relationship contract.
+const unknownRoot: RootRelationship['attribution'] = 'unrecorded-guess';
+// @ts-expect-error Unknown attribution must remain outside the flowchart public relationship contract.
+const unknownChart: ChartRelationship['attribution'] = 'unrecorded-guess';
+void [rootRelationships,chartRelationships,unknownRoot,unknownChart];
 const port: InvestigationPort = { binding:{}, attention:{nodes:[],confidence:'complete',gaps:[]}, explain:nodeId=>({nodeId,attention:[],path:[nodeId],alternatives:[],confidence:'incomplete',gaps:[],impact:{nodes:[],edges:[],confidence:'complete',gaps:[]}}) };
 const definition = {nodes:[{id:'one',label:'One'}],edges:[]};
 const chartProps: ChartProps = {definition,port};
@@ -112,10 +150,18 @@ GroupedFlowInvestigation({definition,port}); ChartInvestigation(chartProps);
     assert(!listing.includes(join(repo, "src")), "packed checks must not import UI source");
     noReaderTypeModes.push(`${mode} ${extension}`);
   }
+  const declarationProof = [];
   for (const door of ["index", "flowchart"]) for (const extension of ["ts", "cts"]) {
-    const declaration = readFileSync(join(destination, `dist/${door}.d.${extension}`), "utf8");
+    const file = join(destination, `dist/${door}.d.${extension}`);
+    const declaration = readFileSync(file, "utf8");
+    declarationProof.push(declarationHygiene(file));
     assert(!/(?:from\s*|import\s*\()\s*['"](?:foottrace(?:\/|['"])|\.\/lib\/cause)/.test(declaration), `${door} public types must be closed`);
   }
+  // Compiler controls above must pass first. This is a separate declaration-hygiene failure,
+  // not a claim that any of the already-supported five attribution values fails compilation.
+  console.log(JSON.stringify({ peerOnlyAttributionModes: noReaderTypeModes, declarationProof }));
+  assert(declarationProof.every(({ matches }) => matches.length === 0),
+    `packed declarations retain unused upstream graph contracts: ${JSON.stringify(declarationProof)}`);
   const noReaderRuntime = [];
   for (const extension of ["mjs", "cjs"]) {
     const imports = extension === "mjs"
@@ -283,6 +329,7 @@ render(<InvestigationPanel port={port}/>);expect(explain).not.toHaveBeenCalled()
       runtime: process.version,
       strictTypes: ["NodeNext ESM", "NodeNext CJS"],
       noReaderTypeModes,
+      declarationProof,
       noReaderRuntime,
       publicDoors: [".", "./flowchart"],
       peerOnlyDependencies: declared,
