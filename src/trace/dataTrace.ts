@@ -1,3 +1,5 @@
+import { emptyVisitPhase } from "./traceScope";
+import { readCommitTiming, indexReadWindows, type RecordedReadTiming, type ReadWindow } from "./readTiming";
 /**
  * dataTrace — the REAL backward data slice behind the shell's "Data Trace"
  * tab, mirroring footprintjs' `causalChain` (thin backward slicing: BFS over
@@ -23,7 +25,7 @@
  */
 
 import { optionalOwnDataField, readOwnArray, WorkBudget } from "./safeRecordRead";
-import { indexReadAddresses, indexTraceWrites, indexWriterCommits, readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, writerBefore, type RecordedTraceWrite } from "./readProvenance";
+import { indexReadAddresses, indexTraceWrites, indexWriterCommits, readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, indexRelatedWrites, resolveReadWriter, type RelatedWriteIndex, type RecordedTraceWrite } from "./readProvenance";
 
 /** The frame shape DataTracePanel renders. New evidence fields are optional. */
 export interface DataTraceFrame {
@@ -52,7 +54,8 @@ export interface DataTraceProvenanceOptions {
 }
 
 /** Duck-typed commit bundle (the stable snapshot shape). */
-interface CommitEntry {
+interface CommitEntry extends RecordedReadTiming {
+  phase?: "exit" | "repeat";
   stage: string;
   stageId: string;
   runtimeStageId: string;
@@ -76,23 +79,35 @@ export function buildDataTrace(
   targetPath?: string,
   provenance?: DataTraceProvenanceOptions,
 ): DataTraceResult {
-  let log: CommitEntry[], reads: Map<string, string[]>;
+  let log: CommitEntry[], reads: Map<string, string[]>, windows: ReadWindow[], related: RelatedWriteIndex;
   try {
     const budget = new WorkBudget();
-    log = readOwnArray(commitLog ?? [], budget).map(entry => ({
-      stage: optionalOwnDataField(entry, "stage") as string,
-      stageId: optionalOwnDataField(entry, "stageId") as string,
-      runtimeStageId: optionalOwnDataField(entry, "runtimeStageId") as string,
-      trace: readTraceWrites(optionalOwnDataField(entry, "trace"), budget, true),
-    }));
+    log = readOwnArray(commitLog ?? [], budget).map(entry => {
+      const trace = readTraceWrites(optionalOwnDataField(entry, "trace"), budget, true);
+      const phase = emptyVisitPhase(entry, trace.length, budget);
+      return { ...readCommitTiming(entry),
+        stage: optionalOwnDataField(entry, "stage") as string,
+        stageId: optionalOwnDataField(entry, "stageId") as string,
+        runtimeStageId: optionalOwnDataField(entry, "runtimeStageId") as string,
+        trace, ...(phase ? { phase } : {}),
+      };
+    });
     reads = stageReadKeys(executionTree, budget);
+    windows = indexReadWindows(log); related = indexRelatedWrites(log);
   } catch { return { frames: [], readsAvailable: false }; }
   const readsAvailable = reads.size > 0 || log.some(commit => commit.trace?.some(write => write.readKeys !== undefined));
   if (!log.length) return { frames: [], readsAvailable };
 
   const idxOf = new Map<string, number>();
-  for (let i = 0; i < log.length; i++) idxOf.set(log[i].runtimeStageId, i);
-  let startIdx = idxOf.get(targetRuntimeStageId);
+  const ambiguous = new Set<string>();
+  // Only a proven value-free exit/repeat is bookkeeping. Other duplicate
+  // visits cannot date a stage question and must not silently choose a row.
+  for (let i = 0; i < log.length; i++) {
+    if (log[i].phase) continue;
+    if (idxOf.has(log[i].runtimeStageId)) ambiguous.add(log[i].runtimeStageId);
+    else idxOf.set(log[i].runtimeStageId, i);
+  }
+  let startIdx = ambiguous.has(targetRuntimeStageId) && targetPath === undefined ? undefined : idxOf.get(targetRuntimeStageId);
   if (targetPath !== undefined) {
     startIdx = undefined;
     for (let i = log.length - 1; i >= 0; i--) {
@@ -143,7 +158,7 @@ export function buildDataTrace(
     if (depth >= maxDepth) continue;
     for (const key of selectedReads) {
       if (readPathUncertainty(key, writesByKey[idx], path, readAddresses[idx])) continue;
-      const writerIdx = writerBefore(writers, key, idx);
+      const { writer: writerIdx } = resolveReadWriter(writers, related, key, windows[idx]);
       if (writerIdx >= 0) {
         queue.push([writerIdx, depth + 1, key, key]);
       }

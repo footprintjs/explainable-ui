@@ -1,10 +1,14 @@
 import type { NarrativeEntry, StageSnapshot } from "../types";
-import { buildDataTrace } from "./dataTrace";
+import { indexReadAddresses, indexTraceWrites, indexWriterCommits, indexRelatedWrites,
+  readPathUncertainty, readTraceWrites, resolveReadWriter, type RecordedTraceWrite } from "./readProvenance";
+import { readCommitTiming, indexReadWindows, type RecordedReadTiming } from "./readTiming";
 import { recordedPathLabel, recordedValuePreview } from "./recordedValuePreview";
 import { isPlainRecord, optionalOwnDataField, ownDataField, readName, readOwnArray, WorkBudget } from "./safeRecordRead";
 import type { TraceScope } from "./traceScope";
 
-/** Names and an exact exclusive cutoff only: never a retained snapshot value. */
+/** Names and the original visit address only: never a retained snapshot value.
+ * For reads, beforeCommitIdx identifies the reader for TraceWalkOptions.readerCommitIdx;
+ * for writes it remains the exclusive cutoff immediately after the write. */
 export interface StageActivityTraceTarget {
   readonly key: string;
   readonly kind: "read" | "write";
@@ -90,7 +94,7 @@ const MAX_TOTAL_TEXT = 65_536;
 const MAX_VARIABLE_KEY_TEXT = 16_384;
 const unavailableValue = (): StageActivityValue => ({ state: "unavailable", preview: null });
 
-type Commit = { stage: string; stageId: string; runtimeStageId: string; trace: { path: string }[]; bookend: boolean };
+type Commit = RecordedReadTiming & { stage: string; stageId: string; runtimeStageId: string; trace: RecordedTraceWrite[]; bookend: boolean };
 type InternalValue = { public: StageActivityValue; value?: unknown };
 
 /** A single visit's evidence, detached from arbitrary stored values. It does
@@ -149,7 +153,7 @@ export function projectStageActivity(input: StageActivityInput): StageActivityVi
     if (ownDataField(ownDataField(scope, "availability"), "ok") !== true) return fail("Recorded history is unavailable for this invocation.");
 
     const log: Commit[] = readOwnArray(ownDataField(scope, "commitLog"), budget).map(entry => {
-      const trace = readOwnArray(ownDataField(entry, "trace"), budget).map(write => ({ path: readName(ownDataField(write, "path")) }));
+      const trace = readTraceWrites(optionalOwnDataField(entry, "trace"), budget);
       const phase = optionalOwnDataField(entry, "phase");
       const emptyObject = (field: string) => {
         const value = optionalOwnDataField(entry, field);
@@ -163,6 +167,7 @@ export function projectStageActivity(input: StageActivityInput): StageActivityVi
         return value === undefined || readOwnArray(value, budget).length === 0;
       };
       return {
+        ...readCommitTiming(entry),
         stage: readName(ownDataField(entry, "stage")), stageId: readName(ownDataField(entry, "stageId")),
         runtimeStageId: readName(ownDataField(entry, "runtimeStageId")), trace,
         // Engine exits/repeats can append a value-free bookend under the same
@@ -171,6 +176,8 @@ export function projectStageActivity(input: StageActivityInput): StageActivityVi
           emptyObject("overwrite") && emptyObject("updates") && emptyRedactions(),
       };
     });
+    const windows = indexReadWindows(log);
+    const writers = indexWriterCommits(log), related = indexRelatedWrites(log);
     const commitById = new Map<string, { commit: Commit; index: number }>();
     for (let index = 0; index < log.length; index++) {
       if (log[index].bookend) continue;
@@ -312,21 +319,20 @@ export function projectStageActivity(input: StageActivityInput): StageActivityVi
       }
     }
     if (inStageReadKeys.size) note("A narrative reports reads after an in-stage write. Their read-time values and origins are unresolved; pre-stage history is not substituted.");
+    for (const write of current.commit.trace) for (const key of write.readKeys ?? []) readSources.set(key, "stage-read");
     if (readSources.size > MAX_VARIABLES) view.coverage.truncated = true;
     const visibleReads = boundedVariables([...readSources]);
 
-    // Reuse the existing prior-writer lookup once, for one hop over admitted
-    // read names. This projection never installs or changes a source tree.
-    const sources = buildDataTrace(log.slice(0, current.index + 1), { runtimeStageId, stageReads: Object.fromEntries(visibleReads.map(([key]) => [key, true])) }, runtimeStageId, 1, MAX_VARIABLES + 1);
+    // Use the same read-window/address binding as the walk. Never fabricate a
+    // stage tree or resolve a frame through a later continuation with its ID.
     const sourceWriters = new Map<string, StageActivityWriter>();
-    for (const frame of sources.frames) {
-      if (frame.depth !== 1) continue;
-      const writer = commitById.get(frame.runtimeStageId);
-      if (!writer || writer.index >= current.index) continue;
-      for (const key of frame.keysWritten) {
-        const previous = sourceWriters.get(key);
-        if (!previous || writer.index > previous.commitIdx) sourceWriters.set(key, { runtimeStageId: frame.runtimeStageId, stageName: frame.stageName, commitIdx: writer.index });
-      }
+    const writes = indexTraceWrites(current.commit.trace);
+    const addresses = indexReadAddresses(writes, new Set(visibleReads.map(([key]) => key)), ownDataField(scope, "nestedReadTracking") === true);
+    for (const [key] of visibleReads) {
+      if (readPathUncertainty(key, writes, undefined, addresses)) continue;
+      const { writer } = resolveReadWriter(writers, related, key, windows[current.index]);
+      if (writer < 0) continue;
+      sourceWriters.set(key, { runtimeStageId: log[writer].runtimeStageId, stageName: log[writer].stage, commitIdx: writer });
     }
     const pathValue = (snapshot: unknown, key: string): InternalValue => {
       if (!snapshot) return { public: unavailableValue() };

@@ -154,7 +154,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         {scopeSentence(presentation) && <div data-fp="trace-scope-note">{scopeSentence(presentation)}</div>}
         <div style={sx({ color: theme.textPrimary, marginTop: ui.spaceSm })}>
           {walk.missing.reason === "evidence-unavailable" ? (
-            <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(walk.key)}</FootprintCode>: write evidence is unavailable; value origin unknown.</>
+            <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(walk.key)}</FootprintCode>: {walk.missing.unresolvedReason ? inputSentence(presentation, walk.key, walk.missing.unresolvedReason) : "write evidence is unavailable; value origin unknown"}.</>
           ) : walk.missing.reason === "never-written" ? (
             <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{recordedPathLabel(walk.key)}</FootprintCode>: {inputLabel}.</>
           ) : (

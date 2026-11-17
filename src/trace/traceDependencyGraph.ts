@@ -90,6 +90,7 @@ export function buildTraceDependencyGraph(walk: TraceWalk): TraceDependencyGraph
       id: JSON.stringify(["unresolved", "anchor", walk.key]),
       key: walk.key, runtimeStageId: null, stageName: null, commitIdx: null,
       kind: "unresolved", isAnchor: true,
+      ...(walk.missing?.unresolvedReason ? { unresolvedReason: walk.missing.unresolvedReason } : {}),
     });
     return { nodes, edges, truncated };
   }

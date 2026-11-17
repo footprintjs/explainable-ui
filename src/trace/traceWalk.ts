@@ -1,3 +1,4 @@
+import { readCommitTiming, indexReadWindows, type RecordedReadTiming, type ReadWindow } from "./readTiming";
 /**
  * traceWalk — the SAME-RAIL REWIND walk: a variable-anchored backward slice,
  * linearized in REVERSE COMMIT ORDER so it can be driven by the existing
@@ -29,7 +30,7 @@ import { rootMountLabels } from "./traceScope";
 import { ownDataField, readOwnArray, WorkBudget } from "./safeRecordRead";
 import { snapshotWalkScope } from "./walkScope";
 import { buildDataTrace } from "./dataTrace";
-import { indexReadAddresses, indexTraceWrites, indexWriterCommits, readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, writerBefore, type RecordedTraceWrite, type ReadPathUncertainty } from "./readProvenance";
+import { indexReadAddresses, indexTraceWrites, indexWriterCommits, readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, indexRelatedWrites, resolveReadWriter, type RelatedWriteIndex, type RecordedTraceWrite, type ReadPathUncertainty } from "./readProvenance";
 import { handoffSentence, type SubflowHandoffSource } from "./subflowHandoff";
 import { recordedPathLabel } from "./recordedValuePreview";
 import {
@@ -52,6 +53,8 @@ export interface TraceWalkScope {
 }
 export interface TraceWalkOptions {
   beforeCommitIdx?: number;
+  /** ARRAY index of a recorded reader; binds the selected read using its native window. */
+  readerCommitIdx?: number;
   maxDepth?: number;
   maxFrames?: number;
   scope?: TraceWalkScope;
@@ -93,6 +96,8 @@ export interface TraceStop {
 }
 
 export interface TraceWalkMissing {
+  /** A supplied read may be recorded without one certain source. */
+  unresolvedReason?: ReadPathUncertainty;
   reason: "never-written" | "not-yet-written" | "evidence-unavailable";
   /** For 'not-yet-written': where the FIRST write actually happens. */
   firstWriteCommitIdx?: number;
@@ -121,7 +126,7 @@ export interface TraceWalk {
 }
 
 /** Duck-typed commit bundle (same stable snapshot shape dataTrace uses). */
-interface CommitEntry {
+interface CommitEntry extends RecordedReadTiming {
   stage: string;
   stageId: string;
   runtimeStageId: string;
@@ -155,17 +160,19 @@ export function buildTraceWalk(
   const scope =
     selectedScope === undefined ? undefined : snapshotWalkScope(selectedScope);
   const scoped = scope === undefined ? {} : { scope };
-  let log: CommitEntry[], readsOf: Map<string, string[]>;
+  let log: CommitEntry[], readsOf: Map<string, string[]>, windows: ReadWindow[], related: RelatedWriteIndex;
   try {
     if (root && !root.availability.ok) throw new Error("Unavailable tree evidence");
     const budget = new WorkBudget();
     log = readOwnArray(commitLog ?? [], budget).map((entry) => ({
+      ...readCommitTiming(entry),
       stage: ownDataField(entry, "stage") as string,
       stageId: ownDataField(entry, "stageId") as string,
       runtimeStageId: ownDataField(entry, "runtimeStageId") as string,
       trace: readTraceWrites(ownDataField(entry, "trace"), budget),
     }));
     readsOf = stageReadKeys(executionTree, budget);
+    windows = indexReadWindows(log); related = indexRelatedWrites(log);
   } catch {
     return {
       key,
@@ -186,10 +193,29 @@ export function buildTraceWalk(
   const stageReadNames = new Map([...readsOf].map(([id, keys]) => [id, new Set(keys)]));
   const noStageReads = new Set<string>();
   const readAddresses = writesByKey.map((writes, index) => indexReadAddresses(writes, stageReadNames.get(log[index].runtimeStageId) ?? noStageReads, scope?.nestedReadTracking === true));
-  const writerOf = (k: string, beforeIdx: number): number => writerBefore(writers, k, Math.min(beforeIdx, log.length));
 
   // ── Anchor: the last writer of `key` within the cutoff ──
-  const anchorIdx = writerOf(key, cutoff);
+  let anchorIdx: number;
+  if (opts?.readerCommitIdx !== undefined) {
+    const reader = opts.readerCommitIdx;
+    const unsafeReader = !Number.isSafeInteger(reader) || reader < 0 || reader >= log.length;
+    const uncertainty = unsafeReader ? undefined : readPathUncertainty(key, writesByKey[reader], undefined, readAddresses[reader]);
+    const source = unsafeReader || uncertainty ? undefined : resolveReadWriter(writers, related, key, windows[reader]);
+    const unresolvedReason = uncertainty ?? source?.unresolvedReason;
+    if (unsafeReader || unresolvedReason) return {
+      key, stops: [], missing: { reason: "evidence-unavailable", ...(unresolvedReason ? { unresolvedReason } : {}) },
+      inputTermini: [key], readsAvailable: scope?.readsAvailable ?? true, truncated: false, ...scoped,
+    };
+    anchorIdx = source!.writer;
+  } else {
+    const position = Math.min(cutoff, log.length);
+    const source = resolveReadWriter(writers, related, key, { start: position, end: position });
+    if (source.unresolvedReason) return {
+      key, stops: [], missing: { reason: "evidence-unavailable", unresolvedReason: source.unresolvedReason },
+      inputTermini: [key], readsAvailable: scope?.readsAvailable ?? true, truncated: false, ...scoped,
+    };
+    anchorIdx = source.writer;
+  }
   if (anchorIdx < 0) {
     // Honest absence — distinguish "never" from "not yet" by checking the
     // FULL log: conflating them would assert a falsehood under a cutoff.
@@ -254,8 +280,8 @@ export function buildTraceWalk(
         return { key: readKey, writerRuntimeStageId: null, writerStageName: null,
           writerCommitIdx: null, unresolvedReason: uncertainty };
       }
-      const writer = writerOf(readKey, commitIdx);
-      return { key: readKey, writerRuntimeStageId: writer >= 0 ? log[writer].runtimeStageId : null,
+      const { writer, unresolvedReason } = resolveReadWriter(writers, related, readKey, windows[commitIdx]);
+      return { key: readKey, ...(unresolvedReason ? { unresolvedReason } : {}), writerRuntimeStageId: writer >= 0 ? log[writer].runtimeStageId : null,
         writerStageName: writer >= 0 ? log[writer].stage : null, writerCommitIdx: writer >= 0 ? writer : null };
     };
     const legacy = writes.get(writtenKey)?.readKeys === undefined;
@@ -349,7 +375,9 @@ export function formatTraceWalk(
   const lines: string[] = scope ? [scope] : [];
   if (walk.missing) {
     if (walk.missing.reason === "evidence-unavailable") {
-      lines.push(`\`${recordedPathLabel(walk.key)}\`: write evidence is unavailable; value origin unknown.`);
+      lines.push(`\`${recordedPathLabel(walk.key)}\`: ${walk.missing.unresolvedReason
+        ? inputSentence(presentation, walk.key, walk.missing.unresolvedReason)
+        : "write evidence is unavailable; value origin unknown"}.`);
     } else if (walk.missing.reason === "never-written") {
       lines.push(`\`${recordedPathLabel(walk.key)}\`: ${inputSentence(presentation, walk.key)}.`);
     } else {

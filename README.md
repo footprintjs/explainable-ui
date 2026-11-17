@@ -906,6 +906,14 @@ relationships and execution status retain their separate meanings.
   empty list means no reads were captured before that write; it does not borrow
   later reads from another output in the same step. These links describe
   recorded state usage, not how an expression computed an output.
+- **Recorded read time**: native `beganAt` / `sawUntil` bounds date a read in the
+  producer's commit-index space, including after subflow filtering. A later
+  sibling write cannot replace an earlier pinned source. If a key or a related
+  parent/child path changes inside the recorded look window, its exact source
+  stays unresolved. A later parent/child replacement also invalidates an old
+  exact-path recipe; the UI does not infer a new source from object values.
+  Invalid, incomplete or unmappable timing cannot silently become legacy
+  dating. Unstamped old recordings retain their positional convention.
 - **Legacy evidence stays coarse**: when `readKeys` is absent, recorded stage
   reads remain the fallback. A stage's two outputs can then share its read
   union. Nested writer paths are matched exactly as recorded; dot-joined labels
@@ -921,11 +929,16 @@ relationships and execution status retain their separate meanings.
   an attested capture. Without the flag, a dotted read name remains unresolved
   because a legacy nested label can collide with a different literal-dot key.
   Tree `stageReads` dotted labels remain ambiguous even when the snapshot has
-  the flag. Legacy reads on a nested written path also lack a reliable scope
+  the flag. Legacy reads in a commit containing a nested write also lack a reliable scope
   address: a local `x` may collide with a different root `x`, including when
   its name has no dots. Such reads stay unresolved. Legacy records without
   nested address evidence keep their historical root-key interpretation;
   this compatibility fallback does not establish global provenance.
+- **Detached read questions**: `buildTraceWalk` accepts `readerCommitIdx`, the
+  reader's array position, to retain that commit's native read window. The
+  existing `beforeCommitIdx` remains an exclusive array-position cutoff for a
+  value-at-that-moment question. Cursor positions stay local to the displayed
+  recording; native timing stamps are never rebased to those positions.
 - **Choose a source explicitly**: branches remain visible in the variable
   map and the recorded-read chips. Select a variable or chip to follow its
   recorded writer. The rail's **Earlier recorded step** and **Later recorded

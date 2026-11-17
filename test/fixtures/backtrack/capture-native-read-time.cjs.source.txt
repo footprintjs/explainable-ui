@@ -1,0 +1,53 @@
+const assert = require('node:assert/strict');
+const { createRequire } = require('node:module');
+const { writeFileSync, readFileSync } = require('node:fs');
+const { createHash } = require('node:crypto');
+const req = createRequire(process.env.FOOTTRACE_PACKAGE_JSON || __filename);
+const { SharedMemory, EventLog, RecordFrame } = req('foottrace/write');
+const version = req('foottrace/package.json').version;
+assert.equal(version, '2.0.0-rc.2');
+function world() {
+ const state = new SharedMemory(undefined, {}), log = new EventLog({});
+ return { state, log, frame(address = [], canonical = true) {
+   const f = new RecordFrame(state, log, address);
+   f.useEncoding({ writeProvenance: 'reads-prefix', nestedReadTracking: canonical }); return f;
+ } };
+}
+const commit = (f, name, runtimeStageId = `${name.toLowerCase()}#0`) => {
+ f.commit(() => ({stage:name, stageId:name.toLowerCase(), runtimeStageId})); f.release();
+};
+const write = (f,path,value) => f.write(path,value,'set');
+function windowCase({overlap=false,unrelated=false,mapper=false}={}) {
+ const w=world();
+ if(mapper){const f=w.frame();write(f,['seed'],0);commit(f,'Mapper','mount#0');}
+ const load=w.frame();write(load,['x'],1);commit(load,'Load');
+ const a=w.frame(), seen=a.readTracked([],'x');assert.equal(seen,1);
+ const b=w.frame();write(b,[unrelated?'other':'x'],99);if(overlap)write(b,['other'],2);commit(b,'Overwrite');
+ if(overlap)assert.equal(a.readGlobalTracked('other'),2);
+ if(unrelated)assert.equal(a.readGlobalTracked('other'),99);
+ write(a,['y'],seen);commit(a,'Derive');
+ return w.log.list();
+}
+function relatedCase(parentFirst=false,sameCommit=false) {
+ const w=world();const load=w.frame();
+ if(sameCommit){write(load,['a'],1);write(load,['b'],99);}
+ else write(load,parentFirst?['cfg']:['cfg','amount'],parentFirst?{amount:1}:1);
+ commit(load,'Load');
+ const changed=w.frame();
+ if(sameCommit){write(changed,['cfg','amount'],changed.readTracked([],'a'));write(changed,['cfg'],{amount:changed.readTracked([],'b')});}
+ else write(changed,parentFirst?['cfg','amount']:['cfg'],parentFirst?99:{amount:99});
+ commit(changed,'Changed');
+ const a=w.frame(), value=parentFirst?a.readTracked([],'cfg').amount:a.readTracked(['cfg'],'amount');assert.equal(value,99);
+ write(a,['result'],value);commit(a,'Derive');return w.log.list();
+}
+function legacyMixed() {
+ const w=world(), load=w.frame();write(load,['x'],1);write(load,['runs','branch','x'],2);commit(load,'Load');
+ const a=w.frame(['runs','branch'],false), value=a.readTracked([],'x');assert.equal(value,2);
+ write(a,['rootout'],value);write(a,a.at([],'localout'),value);commit(a,'Mixed');return w.log.list();
+}
+const captured={recordLayer:{name:'foottrace',version,integrity:'sha512-myJwI+qndMeu4DVR/mhPnpCpiHsDlnojU4iP8PP0z6RJzhq5iPKsv/6nw/qLmS0s6RSQX2Sbve/GZFU5igMBgg=='},cases:{
+ began:windowCase(),overlap:windowCase({overlap:true}),unrelatedWindow:windowCase({unrelated:true}),
+ mapperOffset:windowCase({mapper:true}),parentReplacement:relatedCase(),childReplacement:relatedCase(true),sameCommitRelated:relatedCase(false,true),legacyMixed:legacyMixed(),
+}};
+const target=process.argv[2];assert.ok(target);const json=JSON.stringify(captured,null,2)+'\n';writeFileSync(target,json);
+console.log(JSON.stringify({version,cases:Object.keys(captured.cases),sha256:createHash('sha256').update(json).digest('hex')}));

@@ -98,6 +98,61 @@ function renderActivitySession(scope = scopeWithReads(), initialIndex = 4) {
 }
 
 describe("trace session controller", () => {
+  it("does not replace an unavailable question with the broader stage dependency cone", () => {
+    const { result, rerender, options } = renderSession();
+    rerender({ ...options, showDataTraceCone: true });
+    expect(result.current.sliceCone?.size).toBeGreaterThan(1);
+    act(() => result.current.handleStartTracing("not-recorded"));
+    expect(result.current.traceWalk?.missing).not.toBeNull();
+    expect(result.current.sliceCone).toBeUndefined();
+  });
+
+  it("retains an Activity reader's pinned window through following, show-all, history and return", () => {
+    const scope = scopeWithReads();
+    scope.commitLog = scope.commitLog.map((entry, idx) => ({ ...(entry as object), idx }));
+    scope.commitLog[2] = { stage: "audit", stageId: "audit", runtimeStageId: "audit#2", idx: 2,
+      trace: [{ path: "subtotal", readKeys: [] }] };
+    scope.commitLog[4] = { ...(scope.commitLog[4] as object), beganAt: 2 };
+    const { result, returned } = renderActivitySession(scope);
+    const target = result.current.stageActivity.reads.find(variable => variable.key === "subtotal")!.traceTarget!;
+    act(() => result.current.handleTraceStageVariable(target));
+    expect(result.current.cursor).toBe(1); // Sum, not the later Audit overwrite.
+    expect(result.current.tracing).toEqual(expect.objectContaining({ readerCommitIdx: 4, beforeCommitIdx: 4 }));
+    expect(result.current.traceWalk?.stops[0].runtimeStageId).toBe("sum#1");
+    act(() => result.current.handleFollowIngredient(result.current.traceWalk!.stops[0].ingredients[0]));
+    expect(result.current.cursor).toBe(0);
+    act(() => result.current.handleReturnToQuestion(0));
+    expect(result.current.cursor).toBe(1);
+    expect(result.current.tracing?.readerCommitIdx).toBe(4);
+    act(() => result.current.handleFollowIngredient(result.current.traceWalk!.stops[0].ingredients[0]));
+    act(() => result.current.handleShowAllIngredients());
+    expect(result.current.cursor).toBe(1);
+    expect(result.current.traceWalk?.stops[0].runtimeStageId).toBe("sum#1");
+    act(() => result.current.handleExitTracing());
+    expect(result.current.cursor).toBe(4);
+    expect(returned).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ runtimeStageId: "total#4",
+      beforeCommitIdx: 4, key: "subtotal", kind: "read" }));
+  });
+
+  it("cannot restore a saved reader question after its recorded look changes", () => {
+    const scope = scopeWithReads();
+    scope.commitLog = scope.commitLog.map((entry, idx) => ({ ...(entry as object), idx }));
+    scope.commitLog[2] = { stage: "audit", stageId: "audit", runtimeStageId: "audit#2", idx: 2,
+      trace: [{ path: "subtotal", readKeys: [] }] };
+    scope.commitLog[4] = { ...(scope.commitLog[4] as object), beganAt: 2 };
+    const { result, rerender, options } = renderActivitySession(scope);
+    const target = result.current.stageActivity.reads.find(variable => variable.key === "subtotal")!.traceTarget!;
+    act(() => result.current.handleTraceStageVariable(target));
+    act(() => result.current.handleFollowIngredient(result.current.traceWalk!.stops[0].ingredients[0]));
+    expect(result.current.cursor).toBe(0);
+    const replacement = { ...scope, commitLog: [...scope.commitLog] };
+    replacement.commitLog[4] = { ...(replacement.commitLog[4] as object), beganAt: 3 };
+    rerender({ ...options, scope: replacement });
+    expect(result.current.questionTrail).toEqual([]);
+    act(() => result.current.handleReturnToQuestion(0));
+    expect(result.current.cursor).toBe(0);
+  });
+
   it("returns an Activity read to its original visit and variable after following and restoring questions", () => {
     const { result, rerender, options, returned, restored } = renderActivitySession();
     rerender({ ...options, restore: true });

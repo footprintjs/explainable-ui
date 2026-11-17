@@ -1,5 +1,6 @@
 /** Names-only read evidence. Canonical paths stay opaque: no dot/prefix aliases. */
 import { isPlainRecord, optionalOwnDataField, readName, readOwnArray, WorkBudget } from "./safeRecordRead";
+import type { ReadWindow } from "./readTiming";
 
 export interface RecordedTraceWrite {
   path: string;
@@ -68,7 +69,7 @@ export function indexTraceWrites(writes: readonly RecordedTraceWrite[]): Readonl
   return new Map(writes.map(write => [write.path, write]));
 }
 
-export type ReadPathUncertainty = "ambiguous-read-path" | "legacy-address-unknown";
+export type ReadPathUncertainty = "ambiguous-read-path" | "legacy-address-unknown" | "read-window-ambiguous" | "related-write";
 
 interface ReadAddressEvidence {
   nestedReadTracking: boolean;
@@ -103,7 +104,7 @@ export function readPathUncertainty(
     : writes.get(selectedPath)?.readKeys !== undefined);
   // Legacy scope-local `x` can collide with a different root writer `x`.
   // A nested write is evidence of a namespace boundary, never an address map.
-  const nestedWriter = selectedPath === undefined ? evidence.nestedWrites : selectedPath.includes("\u001f");
+  const nestedWriter = evidence.nestedWrites;
   if (!canonicalRead && nestedWriter) return "legacy-address-unknown";
   if (key.includes(".") && !canonicalRead) return "ambiguous-read-path";
   return undefined;
@@ -131,4 +132,57 @@ export function writerBefore(writers: ReadonlyMap<string, readonly number[]>, ke
     else high = middle;
   }
   return low ? positions[low - 1] : -1;
+}
+
+
+interface RelatedNode { children: Map<string, RelatedNode>; exact: number[]; descendants: number[] }
+export interface RelatedWriteIndex { latestBefore(key: string, before: number): number }
+const lastBefore = (positions: readonly number[], before: number): number => {
+  let low = 0, high = positions.length;
+  while (low < high) { const middle = (low + high) >>> 1;
+    if (positions[middle] < before) low = middle + 1; else high = middle;
+  }
+  return low ? positions[low - 1] : -1;
+};
+
+/** Segment-prefix index; siblings and literal dots never become aliases. */
+export function indexRelatedWrites(log: readonly { trace?: readonly RecordedTraceWrite[] }[]): RelatedWriteIndex {
+  const node = (): RelatedNode => ({ children: new Map(), exact: [], descendants: [] });
+  const root = node(), budget = new WorkBudget();
+  const append = (positions: number[], index: number) => { if (positions[positions.length - 1] !== index) positions.push(index); };
+  log.forEach((commit, index) => {
+    for (const write of commit.trace ?? []) {
+      const parts = write.path.split("\u001f"); budget.spend(parts.length);
+      let at = root;
+      for (let depth = 0; depth < parts.length; depth++) {
+        if (depth) append(at.descendants, index);
+        let next = at.children.get(parts[depth]);
+        if (!next) { next = node(); at.children.set(parts[depth], next); }
+        at = next;
+      }
+      append(at.exact, index);
+    }
+  });
+  return { latestBefore(key, before) {
+    let at: RelatedNode | undefined = root, latest = -1;
+    const parts = key.split("\u001f");
+    for (let depth = 0; depth < parts.length; depth++) {
+      at = at.children.get(parts[depth]); if (!at) break;
+      latest = Math.max(latest, lastBefore(depth + 1 === parts.length ? at.descendants : at.exact, before));
+    }
+    return latest;
+  } };
+}
+
+/** Certain exact writer only; read overlap or related writes never invent a replacement source. */
+export function resolveReadWriter(
+  writers: ReadonlyMap<string, readonly number[]>, related: RelatedWriteIndex, key: string, window: ReadWindow,
+): { writer: number; unresolvedReason?: ReadPathUncertainty } {
+  const exact = writerBefore(writers, key, window.end), touched = related.latestBefore(key, window.end);
+  if (exact >= window.start || touched >= window.start)
+    return { writer: -1, unresolvedReason: "read-window-ambiguous" };
+  // Same-commit parent/child rows can also invalidate an older per-path recipe.
+  if (touched >= 0 && touched >= exact)
+    return { writer: -1, unresolvedReason: "related-write" };
+  return { writer: exact };
 }

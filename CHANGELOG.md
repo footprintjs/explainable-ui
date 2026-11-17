@@ -33,6 +33,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Backtrack retains the producer's canonical-path discriminator through saved
   recording and subflow projections, presents readable paths, and restores the
   originating Activity stage, selected variable and keyboard focus on return.
+- Backtrack, Activity and stage inspection bind reads using recorded native
+  `beganAt` / `sawUntil` windows while preserving native indices through subflow
+  filtering. Overlapping writes, parent/child replacements, ambiguous legacy
+  namespaces and unsafe timing remain unresolved. Read questions keep their
+  reader window across source follows and returns; empty exit/repeat bookends
+  cannot silently move a stage's read time.
+- Legacy fan-in expands shared read ingredients once per commit, avoiding
+  quadratic traversal when one stage writes many outputs.
 - Switching Flat / Isometric retains the shared cursor, investigation and custom
   controls; grouped geometry and authored node/edge overrides remain respected.
 
