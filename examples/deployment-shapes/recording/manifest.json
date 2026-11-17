@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "simulation": true,
+  "seed": "deployment-shapes-v1",
+  "description": "Recorded local deployment simulation; no infrastructure was contacted, configured or deployed.",
+  "generatedAt": "2026-11-17T21:03:55.575Z",
+  "packages": {
+    "footprintjs": {
+      "version": "13.0.0",
+      "tarball": "https://registry.npmjs.org/footprintjs/-/footprintjs-13.0.0.tgz",
+      "integrity": "sha512-TfyJNi+2Y/3b1r9h8tGx4/22QTgUhFDqbCnkZXAIWNJswvyotCKAJ26nXAfmkM7Wx1/Sw17co9PTV3x8jDos7Q==",
+      "archiveSha256": "b7763206e9db7b1309f6d0188cc1fafb27c4fa97952fcaed66c9a5231a7304ad"
+    },
+    "foottrace": {
+      "version": "2.0.0",
+      "tarball": "https://registry.npmjs.org/foottrace/-/foottrace-2.0.0.tgz",
+      "integrity": "sha512-zQ/mnaLnpyLG9NzW7m6dNj4nv8sRnQCAumn5l+lp+LsmzOVbJIUEsPaTGpDKZ+PXLV7zaSJR6noS3hx4YTW8HQ==",
+      "archiveSha256": "0e7a420dd0600d8efd2622c2486b5acf58426f2782adc464577da25860d775b6"
+    },
+    "footprint-explainable-ui": {
+      "version": "1.0.1",
+      "tarball": "https://registry.npmjs.org/footprint-explainable-ui/-/footprint-explainable-ui-1.0.1.tgz",
+      "integrity": "sha512-LTCb0DzNQCbJqN2/YCFdWr0H47/elJDONPpWp3PglDNkpqmfeyVv80vKA0vQhlnlVUy3wUR+kCP0VvzCNsDeTQ==",
+      "archiveSha256": "939666ac0588c62c42ecf9a602c33c8a2d6439fc4d88f571390055fa15780609"
+    }
+  },
+  "rootStats": {
+    "stages": 7,
+    "graphNodes": 7,
+    "commits": 11,
+    "narrativeEntries": 30,
+    "allNarrativeEntries": 60
+  },
+  "children": [
+    {
+      "subflowId": "server-a",
+      "mountRuntimeStageId": "server-a#3",
+      "invocationPath": [
+        "server-a#3"
+      ],
+      "runId": "1794949435552-0000000001",
+      "file": "server-a.json",
+      "stages": 3,
+      "graphNodes": 3,
+      "commits": 4,
+      "narrativeEntries": 15,
+      "outputKey": "serverAHealthy",
+      "childKey": "healthy",
+      "sha256": "f8da47b33efd72025f1ed404ea66a59f231e832e1e1251fbbc8e032f55d703fa"
+    },
+    {
+      "subflowId": "server-b",
+      "mountRuntimeStageId": "server-b#5",
+      "invocationPath": [
+        "server-b#5"
+      ],
+      "runId": "1794949435552-0000000001",
+      "file": "server-b.json",
+      "stages": 3,
+      "graphNodes": 3,
+      "commits": 4,
+      "narrativeEntries": 15,
+      "outputKey": "serverBHealthy",
+      "childKey": "healthy",
+      "sha256": "6b07896cd2c0d363953b7b4ae543624845724b575b1ee39bdc6e7fc8e12e8057"
+    }
+  ],
+  "narrativePartition": "Exact child runtimeStageId prefixes go to that child; recorded mount-boundary entries remain in the overview. Original entry objects/order are retained.",
+  "omittedRecorderPayloads": [
+    {
+      "id": "combined-narrative-1",
+      "name": "Narrative"
+    },
+    {
+      "id": "metrics-1",
+      "name": "Metrics"
+    }
+  ],
+  "metricsNotice": "Aggregate recorder payloads are omitted from the overview to avoid embedding child details. Native root/tree/log facts and every recorded narrative entry are retained in their scoped file.",
+  "reproducibility": "The fixed seed repeats shared-state outcome and public graph. Run IDs, timestamps, metrics and parallel event interleaving may differ."
+}

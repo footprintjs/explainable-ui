@@ -1,0 +1,6 @@
+{
+  "router": "router",
+  "switch": "switch",
+  "server-a": "server",
+  "server-b": "server"
+}
