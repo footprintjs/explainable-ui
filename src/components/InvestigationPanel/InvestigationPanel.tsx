@@ -7,11 +7,15 @@ import { useIsomorphicLayoutEffect } from "../../_internal/useIsomorphicLayoutEf
 import {
   admitAttention,
   admitExplanation,
+  admitVisualExplanation,
   displayLabel,
-  gapMessages,
 } from "./admission";
 import type { InvestigationPanelProps } from "./types";
+import { gapMessages, resolveInvestigationMarkLabel } from "./wording";
+import type { VisualInvestigationResult } from "./visualTypes";
 import { useInvestigationQuery, type InvestigationController } from "./useInvestigationQuery";
+import { CoverageSection, supportsRecordedRoot } from "./coverage";
+import { resolveCoverageMode } from "./coverageMode";
 
 const box: CSSProperties = {
   color: theme.textPrimary,
@@ -37,17 +41,8 @@ const row: CSSProperties = {
   borderBlockEnd: `1px solid ${theme.border}`,
   paddingBlock: 12,
 };
-const attentionNames: Record<string, string> = {
-  error: "Recorded error",
-  "unknown-effect": "Outcome unknown",
-  "gave-up": "Stopped retrying",
-  timeout: "Timed out",
-  retried: "Retried",
-  "quality-drop": "Quality changed",
-  "not-collected": "Evidence unavailable",
-  outlier: "Unusual result",
-};
-function Badges({ marks }: { marks: readonly Attention[] }) {
+
+function Badges({ marks, markLabels }: { marks: readonly Attention[]; markLabels?: InvestigationPanelProps["markLabels"] }) {
   return (
     <>
       {marks.map((mark, index) => (
@@ -62,9 +57,7 @@ function Badges({ marks }: { marks: readonly Attention[] }) {
             background: theme.accentBg,
           }}
         >
-          {Object.prototype.hasOwnProperty.call(attentionNames, mark.kind)
-            ? attentionNames[mark.kind]
-            : mark.kind}
+          {resolveInvestigationMarkLabel(markLabels, mark.kind)}
         </span>
       ))}
     </>
@@ -81,12 +74,27 @@ function Gaps({ gaps }: { gaps: readonly Gap[] }) {
     </>
   );
 }
+
+/** A view of admitted candidates; canonical ranking and membership stay intact. */
+function otherCandidates(nodeId: string, alternatives: readonly string[]) {
+  return {
+    selectedWasCandidate: alternatives.includes(nodeId),
+    otherCandidateIds: alternatives.filter(id => id !== nodeId),
+  };
+}
 type FocusIntent =
   | { owner: object; kind: "explanation"; request: AbortController }
   | { owner: object; kind: "attention"; nodeId: string };
 
 /** Bounded presentation over host-selected canonical Foottrace results. Never traverses or loads a graph. */
 export function InvestigationPanel(props: InvestigationPanelProps) {
+  const coverageMode = resolveCoverageMode(props.coverageMode);
+  if (!coverageMode) return (
+    <section aria-label="Investigation" className={props.className} style={{ ...box, ...props.style }}>
+      <h2>Needs attention</h2>
+      <p role="alert">Investigation is unavailable for this coverage mode.</p>
+    </section>
+  );
   if (!props.port)
     return (
       <section
@@ -98,21 +106,25 @@ export function InvestigationPanel(props: InvestigationPanelProps) {
         <p role="status">Investigation is unavailable for this recording.</p>
       </section>
     );
-  return <BoundInvestigationPanel {...props} port={props.port} />;
+  return <BoundInvestigationPanel {...props} coverageMode={coverageMode} port={props.port} />;
 }
 function BoundInvestigationPanel(props: InvestigationPanelProps & { port: NonNullable<InvestigationPanelProps["port"]> }) {
-  const controller = useInvestigationQuery(props.port, admitExplanation);
+  const controller = useInvestigationQuery<VisualInvestigationResult>(props.port,
+    props.coverageMode === "directional" ? admitVisualExplanation : admitExplanation);
   return <InvestigationPanelView {...props} controller={controller} />;
 }
 /** Internal shared presentation; both standalone and grouped views use the same admitted request. */
-export function InvestigationPanelView({ port, className, style, controller, showAttention = true, focusExternalRequests = true }: InvestigationPanelProps & {
-  port: NonNullable<InvestigationPanelProps["port"]>; controller: InvestigationController; showAttention?: boolean; focusExternalRequests?: boolean;
+export function InvestigationPanelView({ port, className, style, controller, markLabels, coverageMode = "overall", showAttention = true, focusExternalRequests = true }: InvestigationPanelProps & {
+  port: NonNullable<InvestigationPanelProps["port"]>; controller: InvestigationController<VisualInvestigationResult>; showAttention?: boolean; focusExternalRequests?: boolean;
 }) {
   const attention = useMemo(
     () => showAttention ? admitAttention(port.attention) : undefined,
     [port.attention, showAttention]
   );
   const { owner, currentOwner, active, selected } = controller;
+  const candidates = selected?.status === "ready"
+    ? otherCandidates(selected.result.nodeId, selected.result.alternatives)
+    : undefined;
   const explanationElement = useRef<HTMLElement | null>(null);
   const attentionElements = useRef(new Map<string, HTMLButtonElement>());
   const returnTo = useRef<{ owner: object; nodeId: string } | null>(null);
@@ -195,7 +207,9 @@ export function InvestigationPanelView({ port, className, style, controller, sho
         <p role="alert">The attention list could not be verified.</p>
       ) : (
         <>
-          <Gaps gaps={attention.gaps} />
+          {coverageMode === "directional"
+            ? <CoverageSection context="attention" coverage={attention} />
+            : <Gaps gaps={attention.gaps} />}
           {attention.confidence === "incomplete" &&
             attention.nodes.length > 0 && (
               <p role="status">
@@ -215,7 +229,7 @@ export function InvestigationPanelView({ port, className, style, controller, sho
                 .map((node, index) => (
                   <li key={node.nodeId} style={row}>
                     <div>{label(node.nodeId)}</div>
-                    <Badges marks={node.attention} />{" "}
+                    <Badges marks={node.attention} markLabels={markLabels} />{" "}
                     <button
                       ref={(element) => {
                         if (element)
@@ -283,10 +297,11 @@ export function InvestigationPanelView({ port, className, style, controller, sho
             </>
           ) : (
             <>
-              <Badges marks={selected.result.attention} />
+              <Badges marks={selected.result.attention} markLabels={markLabels} />
               <h4>
                 {selected.result.rootCause
-                  ? "Supported root cause"
+                  ? coverageMode === "directional" && !supportsRecordedRoot(selected.result)
+                    ? "Reported root cause" : "Supported root cause"
                   : "Root cause unknown"}
               </h4>
               {selected.result.rootCause && (
@@ -295,12 +310,20 @@ export function InvestigationPanelView({ port, className, style, controller, sho
               {!selected.result.rootCause && (
                 <p>The supplied evidence does not establish one root cause.</p>
               )}
-              {!!selected.result.gaps.length && <h4>Evidence coverage</h4>}
-              <Gaps gaps={selected.result.gaps} />
-              {selected.result.confidence === "incomplete" &&
-                !selected.result.gaps.length && (
-                  <p role="status">The recorded explanation is incomplete.</p>
-                )}
+              {coverageMode === "directional" ? (
+                <>
+                  <CoverageSection context="backward" coverage={selected.result.backward} />
+                  <CoverageSection context="overall" coverage={selected.result} />
+                </>
+              ) : (
+                <>
+                  {!!selected.result.gaps.length && <h4>Evidence coverage</h4>}
+                  <Gaps gaps={selected.result.gaps} />
+                  {selected.result.confidence === "incomplete" && !selected.result.gaps.length && (
+                    <p role="status">The recorded explanation is incomplete.</p>
+                  )}
+                </>
+              )}
               <details>
                 <summary>Recorded evidence references</summary>
                 <ul>
@@ -312,6 +335,8 @@ export function InvestigationPanelView({ port, className, style, controller, sho
                     ...selected.result.impact.gaps.flatMap(
                       (gap) => gap.evidence
                     ),
+                    ...(coverageMode === "directional"
+                      ? selected.result.backward?.gaps.flatMap(gap => gap.evidence) ?? [] : []),
                   ].map((reference, index) => (
                     <li key={index}>{reference}</li>
                   ))}
@@ -335,22 +360,31 @@ export function InvestigationPanelView({ port, className, style, controller, sho
                   )}
                 </>
               )}
-              {!!selected.result.alternatives.length && (
+              {candidates && !!selected.result.alternatives.length && (
                 <>
-                  <h4>Alternative candidates</h4>
-                  <p>These candidates remain uncertain.</p>
-                  <button
-                    type="button"
-                    style={button}
-                    aria-expanded={showAlternatives}
-                    onClick={() => setShowAlternatives((value) => !value)}
-                  >
-                    {showAlternatives
-                      ? "Hide alternative candidates"
-                      : "Show alternative candidates"}
-                  </button>
-                  {showAlternatives && (
-                    <ul>{selected.result.alternatives.map(item)}</ul>
+                  <h4>Other candidates</h4>
+                  {candidates.selectedWasCandidate && (
+                    <p>The selected item is included in the supplied candidate list.</p>
+                  )}
+                  {candidates.otherCandidateIds.length ? (
+                    <>
+                      <p>These candidates remain uncertain.</p>
+                      <button
+                        type="button"
+                        style={button}
+                        aria-expanded={showAlternatives}
+                        onClick={() => setShowAlternatives((value) => !value)}
+                      >
+                        {showAlternatives
+                          ? "Hide other candidates"
+                          : "Show other candidates"}
+                      </button>
+                      {showAlternatives && (
+                        <ul>{candidates.otherCandidateIds.map(item)}</ul>
+                      )}
+                    </>
+                  ) : (
+                    <p>No other candidates were supplied. This does not establish one root cause.</p>
                   )}
                 </>
               )}
@@ -364,11 +398,14 @@ export function InvestigationPanelView({ port, className, style, controller, sho
                   {showImpact ? "Hide affected items" : "Show affected items"}
                 </button>
               </div>
+              {coverageMode === "directional" && (
+                <CoverageSection context="impact" coverage={selected.result.impact} />
+              )}
               {showImpact && (
                 <>
                   <h4>Affected items</h4>
-                  <Gaps gaps={selected.result.impact.gaps} />
-                  {selected.result.impact.confidence === "incomplete" && (
+                  {coverageMode === "overall" && <Gaps gaps={selected.result.impact.gaps} />}
+                  {coverageMode === "overall" && selected.result.impact.confidence === "incomplete" && (
                     <p role="status">
                       Affected-item coverage is incomplete. Unlisted items
                       remain unknown.

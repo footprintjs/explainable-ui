@@ -1,0 +1,971 @@
+{
+  "parent": "8bc4f0c14f1f9bfc06637eadb6a68cb70dcc1f2a",
+  "observations": {
+    "checks": {
+      "attention": {
+        "ok": true,
+        "value": {
+          "nodes": [
+            {
+              "nodeId": "selected",
+              "attention": [
+                {
+                  "kind": "error",
+                  "reason": "ERROR_RECORDED",
+                  "evidence": [
+                    "mark-ref"
+                  ]
+                },
+                {
+                  "kind": "unknown-effect",
+                  "reason": "ERROR_RECORDED",
+                  "evidence": [
+                    "mark-ref"
+                  ]
+                },
+                {
+                  "kind": "gave-up",
+                  "reason": "ERROR_RECORDED",
+                  "evidence": [
+                    "mark-ref"
+                  ]
+                },
+                {
+                  "kind": "timeout",
+                  "reason": "ERROR_RECORDED",
+                  "evidence": [
+                    "mark-ref"
+                  ]
+                },
+                {
+                  "kind": "retried",
+                  "reason": "ERROR_RECORDED",
+                  "evidence": [
+                    "mark-ref"
+                  ]
+                },
+                {
+                  "kind": "quality-drop",
+                  "reason": "ERROR_RECORDED",
+                  "evidence": [
+                    "mark-ref"
+                  ]
+                },
+                {
+                  "kind": "not-collected",
+                  "reason": "ERROR_RECORDED",
+                  "evidence": [
+                    "mark-ref"
+                  ]
+                },
+                {
+                  "kind": "outlier",
+                  "reason": "ERROR_RECORDED",
+                  "evidence": [
+                    "mark-ref"
+                  ]
+                },
+                {
+                  "kind": "custom-kind",
+                  "reason": "ERROR_RECORDED",
+                  "evidence": [
+                    "mark-ref"
+                  ]
+                }
+              ]
+            }
+          ],
+          "confidence": "incomplete",
+          "gaps": [
+            {
+              "code": "not-collected",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "untracked-input",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "redacted",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "conservative",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "scope-boundary",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "invalid-data",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "unavailable",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "timeout",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "cancelled",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "cycle",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "node-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "depth-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "edge-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "call-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "truncated",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "strategy-failed",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "not-checked",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "no-match",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "ambiguous",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "stale",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "incompatible",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "unsupported",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "not-permitted",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            }
+          ]
+        },
+        "usage": {
+          "textCodeUnits": 623,
+          "listItems": 65
+        }
+      },
+      "explanation": {
+        "ok": true,
+        "value": {
+          "nodeId": "selected",
+          "attention": [
+            {
+              "kind": "error",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "unknown-effect",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "gave-up",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "timeout",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "retried",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "quality-drop",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "not-collected",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "outlier",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "custom-kind",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            }
+          ],
+          "path": [
+            "selected"
+          ],
+          "alternatives": [],
+          "impact": {
+            "nodes": [],
+            "confidence": "complete",
+            "gaps": []
+          },
+          "confidence": "incomplete",
+          "gaps": [
+            {
+              "code": "not-collected",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "untracked-input",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "redacted",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "conservative",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "scope-boundary",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "invalid-data",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "unavailable",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "timeout",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "cancelled",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "cycle",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "node-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "depth-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "edge-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "call-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "truncated",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "strategy-failed",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "not-checked",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "no-match",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "ambiguous",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "stale",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "incompatible",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "unsupported",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "not-permitted",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            }
+          ]
+        },
+        "usage": {
+          "textCodeUnits": 631,
+          "listItems": 65
+        }
+      },
+      "relationships": {
+        "ok": true,
+        "value": {
+          "nodeId": "selected",
+          "attention": [
+            {
+              "kind": "error",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "unknown-effect",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "gave-up",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "timeout",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "retried",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "quality-drop",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "not-collected",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "outlier",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            },
+            {
+              "kind": "custom-kind",
+              "reason": "ERROR_RECORDED",
+              "evidence": [
+                "mark-ref"
+              ]
+            }
+          ],
+          "path": [
+            "selected"
+          ],
+          "alternatives": [],
+          "impact": {
+            "nodes": [],
+            "confidence": "complete",
+            "gaps": []
+          },
+          "backward": {
+            "nodes": [
+              "selected"
+            ],
+            "edges": [],
+            "confidence": "incomplete",
+            "gaps": [
+              {
+                "code": "not-collected",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "untracked-input",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "redacted",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "conservative",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "scope-boundary",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "invalid-data",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "unavailable",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "timeout",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "cancelled",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "cycle",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "node-limit",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "depth-limit",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "edge-limit",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "call-limit",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "truncated",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "strategy-failed",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "not-checked",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "no-match",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "ambiguous",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "stale",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "incompatible",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "unsupported",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              },
+              {
+                "code": "not-permitted",
+                "nodeId": "selected",
+                "evidence": [
+                  "recorded-ref"
+                ]
+              }
+            ]
+          },
+          "confidence": "incomplete",
+          "gaps": [
+            {
+              "code": "not-collected",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "untracked-input",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "redacted",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "conservative",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "scope-boundary",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "invalid-data",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "unavailable",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "timeout",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "cancelled",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "cycle",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "node-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "depth-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "edge-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "call-limit",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "truncated",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "strategy-failed",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "not-checked",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "no-match",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "ambiguous",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "stale",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "incompatible",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "unsupported",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            },
+            {
+              "code": "not-permitted",
+              "nodeId": "selected",
+              "evidence": [
+                "recorded-ref"
+              ]
+            }
+          ]
+        },
+        "usage": {
+          "textCodeUnits": 1099,
+          "listItems": 112
+        }
+      },
+      "unknownCode": {
+        "ok": false,
+        "diagnostic": {
+          "code": "invalid-enum",
+          "path": [
+            "gaps",
+            0,
+            "code"
+          ]
+        }
+      },
+      "inheritedCode": {
+        "ok": false,
+        "diagnostic": {
+          "code": "invalid-enum",
+          "path": [
+            "gaps",
+            0,
+            "code"
+          ]
+        }
+      },
+      "overlong": {
+        "ok": false,
+        "diagnostic": {
+          "code": "limit-exceeded",
+          "path": [
+            "nodes",
+            0,
+            "nodeId"
+          ],
+          "limit": "maxStringCodeUnits",
+          "maximum": 2048,
+          "observed": 2049
+        }
+      },
+      "accessor": {
+        "ok": false,
+        "diagnostic": {
+          "code": "accessor-field",
+          "path": [
+            "gaps"
+          ]
+        }
+      },
+      "hostile": {
+        "ok": false,
+        "diagnostic": {
+          "code": "unreadable-input",
+          "path": []
+        }
+      }
+    },
+    "getterCalls": 0,
+    "overall": "<section aria-label=\"Investigation\" style=\"color:var(--fp-text-primary, #f8fafc);background:var(--fp-bg, #1a1b26);border:1px solid var(--fp-border, #334155);border-radius:var(--fp-radius, 8px);padding:20px;font-family:var(--fp-font-sans, Inter, system-ui, -apple-system, sans-serif);line-height:1.5;min-width:0;overflow-wrap:anywhere\"><h2 style=\"margin-block-start:0\">Needs attention</h2><p style=\"color:var(--fp-text-secondary, #94a3b8)\">Choose an item to inspect its recorded causes and effects.</p><p role=\"status\">Some evidence was not collected.</p><p role=\"status\">An input&#x27;s earlier origin is unknown.</p><p role=\"status\">Some evidence is hidden.</p><p role=\"status\">The recorded relationship is uncertain.</p><p role=\"status\">Evidence stops at an execution boundary.</p><p role=\"status\">Some recorded evidence could not be read.</p><p role=\"status\">Some evidence is unavailable.</p><p role=\"status\">The evidence search reached its time allowance.</p><p role=\"status\">The evidence search was cancelled.</p><p role=\"status\">A repeated dependency could not be resolved.</p><p role=\"status\">The evidence search reached its item allowance.</p><p role=\"status\">The evidence search reached its depth allowance.</p><p role=\"status\">The evidence search reached its relationship allowance.</p><p role=\"status\">The evidence search reached its request allowance.</p><p role=\"status\">The recorded evidence is incomplete.</p><p role=\"status\">Candidate ordering is unavailable.</p><p role=\"status\">Some evidence has not been checked.</p><p role=\"status\">No matching evidence was found.</p><p role=\"status\">More than one explanation remains possible.</p><p role=\"status\">Some evidence belongs to an earlier recording.</p><p role=\"status\">Some evidence uses an unsupported format.</p><p role=\"status\">Some evidence is unsupported.</p><p role=\"status\">Some evidence is unavailable for this view.</p><p role=\"status\">Attention coverage is incomplete. Other outcomes remain unknown.</p><ul style=\"list-style:none;padding:0\"><li style=\"border-block-end:1px solid var(--fp-border, #334155);padding-block:12px\"><div>selected</div><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Recorded error</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Outcome unknown</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Stopped retrying</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Timed out</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Retried</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Quality changed</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Evidence unavailable</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Unusual result</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">custom-kind</span> <button type=\"button\" style=\"color:var(--fp-text-primary, #f8fafc);background:var(--fp-bg-secondary, #1e293b);border:1px solid var(--fp-border, #334155);border-radius:6px;padding:6px 10px;font:inherit;cursor:pointer\" aria-label=\"Investigate item 1\">Investigate</button></li></ul></section>",
+    "directional": "<section aria-label=\"Investigation\" style=\"color:var(--fp-text-primary, #f8fafc);background:var(--fp-bg, #1a1b26);border:1px solid var(--fp-border, #334155);border-radius:var(--fp-radius, 8px);padding:20px;font-family:var(--fp-font-sans, Inter, system-ui, -apple-system, sans-serif);line-height:1.5;min-width:0;overflow-wrap:anywhere\"><h2 style=\"margin-block-start:0\">Needs attention</h2><p style=\"color:var(--fp-text-secondary, #94a3b8)\">Choose an item to inspect its recorded causes and effects.</p><section aria-labelledby=\"_R_b_\" style=\"margin-block:16px\"><h4 id=\"_R_b_\">Attention evidence coverage</h4><p>Source-reported confidence: incomplete.</p><p role=\"status\">The supplied coverage is incomplete. Unreported evidence remains unknown.</p><ul aria-label=\"Supplied gap groups\"><li style=\"margin-block:12px\"><p role=\"status\">Some evidence was not collected.</p><p>1 supplied entry</p><details><summary>View supplied entries for not-collected</summary><ol aria-label=\"Supplied entries for not-collected\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">An input&#x27;s earlier origin is unknown.</p><p>1 supplied entry</p><details><summary>View supplied entries for untracked-input</summary><ol aria-label=\"Supplied entries for untracked-input\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">Some evidence is hidden.</p><p>1 supplied entry</p><details><summary>View supplied entries for redacted</summary><ol aria-label=\"Supplied entries for redacted\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">The recorded relationship is uncertain.</p><p>1 supplied entry</p><details><summary>View supplied entries for conservative</summary><ol aria-label=\"Supplied entries for conservative\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">Evidence stops at an execution boundary.</p><p>1 supplied entry</p><details><summary>View supplied entries for scope-boundary</summary><ol aria-label=\"Supplied entries for scope-boundary\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">Some recorded evidence could not be read.</p><p>1 supplied entry</p><details><summary>View supplied entries for invalid-data</summary><ol aria-label=\"Supplied entries for invalid-data\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">Some evidence is unavailable.</p><p>1 supplied entry</p><details><summary>View supplied entries for unavailable</summary><ol aria-label=\"Supplied entries for unavailable\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">The evidence search reached its time allowance.</p><p>1 supplied entry</p><details><summary>View supplied entries for timeout</summary><ol aria-label=\"Supplied entries for timeout\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">The evidence search was cancelled.</p><p>1 supplied entry</p><details><summary>View supplied entries for cancelled</summary><ol aria-label=\"Supplied entries for cancelled\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">A repeated dependency could not be resolved.</p><p>1 supplied entry</p><details><summary>View supplied entries for cycle</summary><ol aria-label=\"Supplied entries for cycle\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">The evidence search reached its item allowance.</p><p>1 supplied entry</p><details><summary>View supplied entries for node-limit</summary><ol aria-label=\"Supplied entries for node-limit\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">The evidence search reached its depth allowance.</p><p>1 supplied entry</p><details><summary>View supplied entries for depth-limit</summary><ol aria-label=\"Supplied entries for depth-limit\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">The evidence search reached its relationship allowance.</p><p>1 supplied entry</p><details><summary>View supplied entries for edge-limit</summary><ol aria-label=\"Supplied entries for edge-limit\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">The evidence search reached its request allowance.</p><p>1 supplied entry</p><details><summary>View supplied entries for call-limit</summary><ol aria-label=\"Supplied entries for call-limit\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">The recorded evidence is incomplete.</p><p>1 supplied entry</p><details><summary>View supplied entries for truncated</summary><ol aria-label=\"Supplied entries for truncated\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">Candidate ordering is unavailable.</p><p>1 supplied entry</p><details><summary>View supplied entries for strategy-failed</summary><ol aria-label=\"Supplied entries for strategy-failed\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">Some evidence has not been checked.</p><p>1 supplied entry</p><details><summary>View supplied entries for not-checked</summary><ol aria-label=\"Supplied entries for not-checked\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">No matching evidence was found.</p><p>1 supplied entry</p><details><summary>View supplied entries for no-match</summary><ol aria-label=\"Supplied entries for no-match\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">More than one explanation remains possible.</p><p>1 supplied entry</p><details><summary>View supplied entries for ambiguous</summary><ol aria-label=\"Supplied entries for ambiguous\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">Some evidence belongs to an earlier recording.</p><p>1 supplied entry</p><details><summary>View supplied entries for stale</summary><ol aria-label=\"Supplied entries for stale\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">Some evidence uses an unsupported format.</p><p>1 supplied entry</p><details><summary>View supplied entries for incompatible</summary><ol aria-label=\"Supplied entries for incompatible\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">Some evidence is unsupported.</p><p>1 supplied entry</p><details><summary>View supplied entries for unsupported</summary><ol aria-label=\"Supplied entries for unsupported\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li><li style=\"margin-block:12px\"><p role=\"status\">Some evidence is unavailable for this view.</p><p>1 supplied entry</p><details><summary>View supplied entries for not-permitted</summary><ol aria-label=\"Supplied entries for not-permitted\"><li><p>Supplied item ID: <code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">selected</code></p><ul aria-label=\"Supplied evidence references\"><li><code style=\"font-family:var(--fp-font-mono, &#x27;JetBrains Mono&#x27;, &#x27;Fira Code&#x27;, monospace)\">recorded-ref</code></li></ul></li></ol></details></li></ul></section><p role=\"status\">Attention coverage is incomplete. Other outcomes remain unknown.</p><ul style=\"list-style:none;padding:0\"><li style=\"border-block-end:1px solid var(--fp-border, #334155);padding-block:12px\"><div>selected</div><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Recorded error</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Outcome unknown</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Stopped retrying</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Timed out</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Retried</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Quality changed</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Evidence unavailable</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">Unusual result</span><span style=\"display:inline-block;margin-inline-end:6px;margin-block:3px;padding:2px 7px;border-radius:4px;background:var(--fp-accent-bg, rgba(99,102,241,0.12))\">custom-kind</span> <button type=\"button\" style=\"color:var(--fp-text-primary, #f8fafc);background:var(--fp-bg-secondary, #1e293b);border:1px solid var(--fp-border, #334155);border-radius:6px;padding:6px 10px;font:inherit;cursor:pointer\" aria-label=\"Investigate item 1\">Investigate</button></li></ul></section>"
+  }
+}

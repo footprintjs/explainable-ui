@@ -77,7 +77,7 @@ describe("investigation focus handoff", () => {
       open(2);
       await screen.findByText(kind === "alternatives" ? "Root cause unknown" : "Supported root cause");
       fireEvent.click(screen.getByRole("button", { name: {
-        path: "Show recorded path", impact: "Show affected items", alternatives: "Show alternative candidates",
+        path: "Show recorded path", impact: "Show affected items", alternatives: "Show other candidates",
       }[kind] }));
       const related = screen.getByRole("button", { name: "Investigate related item 1" });
       related.focus();

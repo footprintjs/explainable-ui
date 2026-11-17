@@ -1785,16 +1785,54 @@ recording failures. The latter two appear in separate visible sections, rather
 than disappearing from the explanation or being relabelled as causes. Complete
 cause codes and references remain available in the cause details.
 
+An empty `unknowns` list means the supplied list is empty; it does not establish
+that everything is known, and the verification disclaimer stays visible. Section
+text, configured guidance and finding summaries use `white-space: pre-wrap`.
+These plain strings carry no substring-origin metadata, so a quoted source value
+can wrap into apparent body text; HTML escaping does not identify its origin.
+Keep untrusted quoted values in host-owned, clearly labelled presentation. If a
+formatter normalizes a display copy, label that change and preserve the original
+bound evidence; leave canonical IDs, references and recorded evidence unchanged.
+Whitespace collapse alone does not establish origin.
+
 ```tsx
-import { FailureExplanationView } from 'footprint-explainable-ui';
+import { FailureExplanationView, FootprintTheme, coolLight } from 'footprint-explainable-ui';
 
 // The host formats an admitted diagnosis and binds it to the exact selected
 // recording/item. Clear it whenever that selection changes.
-<FailureExplanationView explanation={selectedExplanation ?? null} />
+<FootprintTheme tokens={coolLight}>
+  <FailureExplanationView explanation={selectedExplanation ?? null} />
+</FootprintTheme>
 ```
 
-Blueprint's formatted explanation is structurally assignable; this UI component
-has no Blueprint runtime dependency. Evidence references are opaque text in
+Canonical findings may include an optional readonly `level`: `HIGH`, `MEDIUM`,
+`LOW` or `UNVERIFIED`. It is an assessment supplied by the host. Each list keeps
+its source order and shows neutral **Host level: HIGH** badges through the
+existing theme Badge adapter, with a visible statement that the view does not
+verify those levels. Absence stays unlabelled; no level is inferred from a code,
+summary, health, confidence or another finding.
+
+```tsx
+import type { FailureExplanationDisplayFinding } from 'footprint-explainable-ui';
+
+const hostFinding: FailureExplanationDisplayFinding = {
+  code: 'STEP_FAILED',
+  summary: 'The step recorded a failure.',
+  evidenceRefs: ['record:failure'],
+  level: 'HIGH', // Explicit host assessment, not a verification claim.
+};
+// A finding in causes, consequences or diagnosticFailures may carry this field.
+```
+
+Migration: `level` is now a recognized own field. Unsupported values or accessors
+refuse the complete view; use an exact supported host level or remove unsupported
+metadata. Accepted levels charge their UTF-16 length, including repetitions,
+against the existing text budget. A near-limit model that previously carried
+ignored level metadata may now refuse. Missing, own-undefined and inherited-only
+levels preserve the previous DTO, markup and usage; no cap is raised.
+
+Producer-formatted explanations are structurally assignable; this UI component
+has no runtime dependency on the producer. Evidence references are opaque text in
 disclosures, never links or selection authority. A malformed, accessor-backed or
 over-budget model refuses the whole view, with a message that the cause and
 outcome remain unknown. Display bounds are 262,144 UTF-16 text code units total,
@@ -1803,20 +1841,68 @@ reference/unknown. All canonical finding text counts toward these limits. This i
 admission, not producer authentication or a JavaScript Proxy sandbox. Existing
 viewers and diagrams are unchanged until the host explicitly adds this component.
 
+Every canonical finding code must match `/^[A-Z][A-Z0-9_]{1,79}$/`: 2–80 ASCII
+characters, starting with an uppercase letter and followed only by uppercase
+letters, digits or underscores. Empty codes, lowercase and whitespace are invalid.
+An invalid code refuses the whole view.
+
+**Section hooks:** the outer section carries
+`data-fp="failure-explanation"` in admitted and refused states. Admitted section
+containers use fixed `data-section` values: `problem`, `recordedCause`,
+`suggestedNextStep`, `consequences`, `recording` and `unknowns`. Optional outcome
+and recording sections retain their existing presence rules; refusal has no
+admitted section markers. These values repeat between instances, so scope a
+lookup to a host container holding one explanation:
+
+```ts
+const view = hostElement.querySelector<HTMLElement>('[data-fp="failure-explanation"]');
+view?.querySelector<HTMLElement>('[data-section="recordedCause"]')?.scrollIntoView();
+```
+
+The markers support section lookup and scrolling only. Unique generated heading
+IDs and their `aria-labelledby` bindings remain intact; internal ID suffixes are
+not a lookup contract. A marker grants no recording selection, evidence authority
+or repair action. Both standalone panels inherit tokens from `FootprintTheme`;
+neither requires a new theme prop.
+
 ### Recorded cause and impact panel
 
 `InvestigationPanel` is a standalone, optional panel. Existing viewers and their
 selected visits do not change. The host supplies a bounded canonical attention
 list and handles each explicit investigation with Foottrace's `explain` API.
-No query runs on mount. Recorded paths, alternatives, affected items and evidence
+No query runs on mount. Recorded paths, other candidates, affected items and evidence
 references start collapsed; selecting a related item requests only that item.
+The **Other candidates** list omits the selected item's exact ID from navigation.
+A note preserves its supplied candidate membership; a selected-only list does not
+establish a root cause. Canonical `alternatives`, their order and checker results
+remain intact. This display filter does not change root, attention or coverage.
+
+Set `coverageMode="directional"` on `InvestigationPanel` or
+`GroupedFlowInvestigation` to separate backward evidence, affected-item coverage,
+overall coverage with no supplied direction, and attention coverage. Gaps group
+within each context by code; **supplied entries** counts lead to every original
+entry, item ID and reference, including duplicates. Confidence is source-reported;
+neither an empty gap list nor a complete flag verifies the underlying evidence.
+
+The host supplies backward relationships. The view does not collect them or infer
+their direction from aggregate gaps. Missing backward coverage stays unknown;
+any supplied root is labelled **Reported root cause**, with no supported badge.
+A supported backward root remains supported when only affected-item coverage is
+incomplete. Existing inconsistent-root refusals and display limits still apply.
+
+The default `coverageMode="overall"` keeps the existing presentation and text
+projection. Changing the standalone admission mode cancels and clears its old
+investigation; another explicit investigation is required. Grouped investigation
+already retains relationships, so its presentation can switch without a query.
+Invalid modes show an unavailable state without offering an investigation.
+
 An explicit investigation moves keyboard focus into the selected explanation.
 Closing it restores focus to the original attention item, including after
 following related items or opening an item beyond the first attention page.
 
 ```tsx
 import { useMemo } from "react";
-import { InvestigationPanel, type InvestigationPort } from "footprint-explainable-ui";
+import { FootprintTheme, InvestigationPanel, coolLight, type InvestigationPort } from "footprint-explainable-ui";
 import { explain } from "foottrace/cause";
 
 function RunInvestigation({ session }) {
@@ -1830,9 +1916,22 @@ function RunInvestigation({ session }) {
       signal, maxNodes: 128, maxEdges: 256, maxCalls: 512, timeoutMs: 2_000,
     }),
   }), [session]);
-  return <InvestigationPanel port={port} />;
+  return (
+    <FootprintTheme tokens={coolLight}>
+      <InvestigationPanel port={port} />
+    </FootprintTheme>
+  );
 }
 ```
+
+**Show recorded path** expands the accepted result's `path` reference list; it
+does not reconstruct dependency edges or make another query. For the richer
+recorded backward graph, use `GroupedFlowInvestigation`, which already includes
+its investigation panel. Its cause view uses supplied `backward.nodes` and
+`backward.edges`; without that data, path references do not establish missing
+connections. Use the same exact host-bound `InvestigationPort` contract and
+opaque node IDs for the diagram and query. Labels do not resolve identity. See
+[the grouped composition](#click-an-item-to-investigate-its-recorded-cause-unreleased).
 
 The host binds authorization, tenant, run, storage, exact selected scope and
 query/storage budgets before creating the port. A request contains only the
@@ -1866,6 +1965,97 @@ No storage adapter ships in this panel. Supplying an already loaded archive does
 not establish storage-I/O laziness; per-scope receipt and ownership admission is
 required before a future indexed loader can expose a scope. Foottrace remains
 the owner of graph traversal and source interpretation.
+
+### Reuse gap sentences and name mark kinds
+
+Import `investigationGapMessage` from the root entry to obtain the exact sentence
+shown for a recognized gap code. Unknown codes return `undefined`, allowing the
+host to keep an unfamiliar code explicit without inventing an explanation.
+
+```tsx
+import { investigationGapMessage, InvestigationPanel } from "footprint-explainable-ui";
+
+const sentence = investigationGapMessage("not-collected");
+const markLabels = Object.freeze({ error: "Recorded failure", "domain-rule": "Review needed" });
+<InvestigationPanel port={port} markLabels={markLabels} />;
+```
+
+`GroupedFlowInvestigation` accepts the same `markLabels` prop through both its
+root and `/flowchart` entries. Labels match the exact mark kind; `port.labels`
+continues naming node IDs. The eight built-in names and unknown raw kinds remain
+the default. Only used own data strings of 1–512 UTF-16 units are accepted;
+missing, inherited, accessor, invalid, overlong or unreadable entries retain the
+default. Values render as escaped text, including a value equal to the raw kind.
+No label is a verification, severity or causal claim, and no evidence is altered.
+
+The map is readonly in types; replace it to update names. No host-map enumeration,
+mutation, getter invocation, callbacks or HTML is supported. Proxy descriptor
+traps remain executable host code; fallback handling is not a JavaScript sandbox
+or a time limit. The existing mark/list caps bound used lookups per render; host
+copy is additional display text outside canonical evidence usage accounting.
+Changing labels preserves query, source binding, selection and focus. The
+sentence function is root-only; its private bank and default-name helpers are
+not public exports.
+
+### Preflight the display projection
+
+These display helpers and limits are exported from the root entry:
+
+| Export | Description |
+|---|---|
+| `investigationGapMessage` | Exact canonical sentence for a recognized gap code, otherwise undefined |
+| `checkInvestigationAttention` | Admit the same bounded attention projection used by the panel |
+| `checkInvestigationExplanation` | Check the default text or explicit relationship projection for one bound selected ID |
+| `checkFailureExplanationDisplay` | Check the exact failure-explanation projection and its finding-code rules |
+| `investigationDisplayLimits` | Frozen primitive limits for attention and explanation display admission |
+| `failureExplanationDisplayLimits` | Frozen failure-display limits and finding-code pattern string |
+
+Use the root-exported display checks before handing unknown data to a panel:
+
+```tsx
+import {
+  checkFailureExplanationDisplay, checkInvestigationAttention,
+  checkInvestigationExplanation, failureExplanationDisplayLimits,
+  investigationDisplayLimits, FailureExplanationView,
+} from 'footprint-explainable-ui';
+
+const checked = checkFailureExplanationDisplay(rawExplanation);
+// A host can log checked.diagnostic when checked.ok is false.
+<FailureExplanationView explanation={checked.ok ? checked.value : null} />;
+
+const attention = checkInvestigationAttention(rawAttention);
+const text = checkInvestigationExplanation(rawResult, exactSelectedNodeId);
+const relationships = checkInvestigationExplanation(rawResult, exactSelectedNodeId, 'relationships');
+```
+
+The checks use the panels' actual parsers and return the detached admitted
+projection with `ok: true`. The default explanation profile retains the text
+fields and leaves `backward` and impact edges unread. The explicit
+`relationships` profile uses the grouped view's existing bounded relationship
+and root/path consistency checks. Bind the selected ID and recording in the
+host before querying or displaying either result.
+
+On `ok: false`, `diagnostic` contains one closed rule code and a bounded path of
+schema fields and array indices. A limit refusal can include its limit name,
+maximum and observed count. It contains no partial result, raw value, node ID,
+reference or foreign exception details. The reader-facing refusal stays generic;
+the host chooses whether to log the diagnostic. The check stops at the first
+refusal, so it does not report an exact whole-input cost for a refused model.
+
+On success, `usage.textCodeUnits` counts the parser-budgeted free text in UTF-16
+code units and `usage.listItems` counts admitted list slots, including repeated
+occurrences. Fixed enum wording is bounded separately. This is not serialized
+size, rendered-page size or graph-query work. The frozen primitive-only
+`investigationDisplayLimits` and `failureExplanationDisplayLimits` expose the
+same fixed caps used by the parsers; the finding-code pattern is a string. There
+is no automatic fit/trimming or per-call budget override. A producer's query
+budget alone cannot guarantee that its labels, references and gap lists fit.
+
+Ordinary getters, array methods/iterators and ignored fields remain unread;
+sparse or inconsistent selected fields refuse the whole projection. JavaScript
+Proxy reflection is not sandboxed. Successful structural admission does not
+authenticate the producer, verify evidence, discover graph relationships or
+establish completeness beyond the supplied display projection.
 
 ## The footprintjs ecosystem
 

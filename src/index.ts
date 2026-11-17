@@ -184,6 +184,11 @@ export { GroupedFlowInvestigation } from "./components/GroupedFlowInvestigation"
 export type { GroupedFlowInvestigationProps } from "./components/GroupedFlowInvestigation";
 export { FailureExplanationView } from "./components/FailureExplanationView";
 export type { FailureExplanationViewProps, FailureExplanationDisplay, FailureExplanationDisplaySection, FailureExplanationDisplayFinding } from "./components/FailureExplanationView";
+export { checkInvestigationAttention, checkInvestigationExplanation, checkFailureExplanationDisplay, investigationDisplayLimits, failureExplanationDisplayLimits } from "./displayChecks";
+export type { DisplayCheckResult, DisplayDiagnostic, DisplayDiagnosticCode, DisplayLimitName, DisplayPath, DisplaySchemaField, DisplayUsage, InvestigationAttentionDisplay, InvestigationTextDisplay, InvestigationRelationshipDisplay } from "./displayChecks";
 
 // Recorded-read presentation for custom workflow renderers.
 export type { TraceWorkflowOverlay, TraceWorkflowStage, TraceWorkflowRead } from "./trace/traceWorkflowOverlay";
+
+// Canonical investigation wording; host labels remain component presentation data.
+export { investigationGapMessage } from "./components/InvestigationPanel/wording";
