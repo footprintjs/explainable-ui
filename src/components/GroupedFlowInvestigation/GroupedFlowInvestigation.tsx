@@ -142,7 +142,7 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
       {projected.confidence === "incomplete" && <p>Some evidence is missing. The highlighted references do not establish the full dependency picture.</p>}
       {projected.unmapped > 0 && <p>{projected.unmapped} recorded {projected.unmapped === 1 ? "item is" : "items are"} not shown in this diagram. No substitute item has been selected.</p>}
     </div>}
-    <InvestigationPanelView port={port} controller={controller} coverageMode={props.coverageMode} showAttention={false} focusExternalRequests={false} />
+    <InvestigationPanelView port={port} controller={controller} markLabels={props.markLabels} coverageMode={props.coverageMode} showAttention={false} focusExternalRequests={false} />
     {ready && <DependencyEvidence result={ready.result} direction={phase} labels={port.labels} />}
   </section>;
 }

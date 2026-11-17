@@ -25,7 +25,7 @@ limits. No trimming, list deduplication or automatic logging is performed.
 
 `checkTypes.ts` describes only the UI fields that each profile retains; it does
 not add an external graph/resolver type or duplicate the separate declaration
-boundary fix. `gapMessages` remains the existing wording table. Host label lookup
+boundary fix. The canonical gap bank lives behind `wording.ts`. Host node-label lookup
 keeps its prior node-ID fallback, separate from explanation refusal diagnostics.
 # Other candidates
 
@@ -54,3 +54,25 @@ A standalone strategy change clears pending and ready projections, cancels old
 work and requires an explicit new query. Switching back cannot revive an older
 result; speculative renders leave the committed request intact. Grouped changes
 only presentation, retaining its existing request, result and selection.
+
+## Canonical wording and host mark labels
+
+`wording.ts` is the facade for the sealed `wording/` bank, sentence lookup and
+used-label resolver. Admission and both overall/directional gap renderers share
+that single bank. Root-only `investigationGapMessage(code)` returns its exact
+sentence or undefined; no mutable wording table is public.
+
+Both investigation props accept readonly `markLabels`, keyed by exact admitted
+mark kind. This is separate from node-ID names in `port.labels`. Used own data
+strings of 1–512 UTF16 units replace badge text; missing, inherited, accessor,
+invalid, overlong or unreadable entries preserve the built-in name or raw kind.
+No trimming, truncation, callbacks, HTML, map enumeration, mutation or retention.
+A label equal to the raw kind is still a valid override. Changing the map changes
+only text, leaving query/binding, selection, focus and canonical evidence intact.
+
+The existing limits derive a conservative 16*(256+1) used-descriptor reads per
+render, normally reduced by pagination; accepted host text is additional display
+copy outside canonical parser usage. Readonly is a type contract: hosts replace
+the map for updates. Proxy descriptor traps can run/throw, so this is not a
+sandbox or a time guarantee. Failed lookups fall back without inspecting foreign
+errors. A host label never establishes verification, severity or a cause.

@@ -9,9 +9,9 @@ import {
   admitExplanation,
   admitVisualExplanation,
   displayLabel,
-  gapMessages,
 } from "./admission";
 import type { InvestigationPanelProps } from "./types";
+import { gapMessages, resolveInvestigationMarkLabel } from "./wording";
 import type { VisualInvestigationResult } from "./visualTypes";
 import { useInvestigationQuery, type InvestigationController } from "./useInvestigationQuery";
 import { CoverageSection, supportsRecordedRoot } from "./coverage";
@@ -41,17 +41,8 @@ const row: CSSProperties = {
   borderBlockEnd: `1px solid ${theme.border}`,
   paddingBlock: 12,
 };
-const attentionNames: Record<string, string> = {
-  error: "Recorded error",
-  "unknown-effect": "Outcome unknown",
-  "gave-up": "Stopped retrying",
-  timeout: "Timed out",
-  retried: "Retried",
-  "quality-drop": "Quality changed",
-  "not-collected": "Evidence unavailable",
-  outlier: "Unusual result",
-};
-function Badges({ marks }: { marks: readonly Attention[] }) {
+
+function Badges({ marks, markLabels }: { marks: readonly Attention[]; markLabels?: InvestigationPanelProps["markLabels"] }) {
   return (
     <>
       {marks.map((mark, index) => (
@@ -66,9 +57,7 @@ function Badges({ marks }: { marks: readonly Attention[] }) {
             background: theme.accentBg,
           }}
         >
-          {Object.prototype.hasOwnProperty.call(attentionNames, mark.kind)
-            ? attentionNames[mark.kind]
-            : mark.kind}
+          {resolveInvestigationMarkLabel(markLabels, mark.kind)}
         </span>
       ))}
     </>
@@ -125,7 +114,7 @@ function BoundInvestigationPanel(props: InvestigationPanelProps & { port: NonNul
   return <InvestigationPanelView {...props} controller={controller} />;
 }
 /** Internal shared presentation; both standalone and grouped views use the same admitted request. */
-export function InvestigationPanelView({ port, className, style, controller, coverageMode = "overall", showAttention = true, focusExternalRequests = true }: InvestigationPanelProps & {
+export function InvestigationPanelView({ port, className, style, controller, markLabels, coverageMode = "overall", showAttention = true, focusExternalRequests = true }: InvestigationPanelProps & {
   port: NonNullable<InvestigationPanelProps["port"]>; controller: InvestigationController<VisualInvestigationResult>; showAttention?: boolean; focusExternalRequests?: boolean;
 }) {
   const attention = useMemo(
@@ -240,7 +229,7 @@ export function InvestigationPanelView({ port, className, style, controller, cov
                 .map((node, index) => (
                   <li key={node.nodeId} style={row}>
                     <div>{label(node.nodeId)}</div>
-                    <Badges marks={node.attention} />{" "}
+                    <Badges marks={node.attention} markLabels={markLabels} />{" "}
                     <button
                       ref={(element) => {
                         if (element)
@@ -308,7 +297,7 @@ export function InvestigationPanelView({ port, className, style, controller, cov
             </>
           ) : (
             <>
-              <Badges marks={selected.result.attention} />
+              <Badges marks={selected.result.attention} markLabels={markLabels} />
               <h4>
                 {selected.result.rootCause
                   ? coverageMode === "directional" && !supportsRecordedRoot(selected.result)

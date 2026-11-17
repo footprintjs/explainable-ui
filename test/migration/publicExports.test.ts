@@ -83,6 +83,16 @@ const themePrimitiveExports = [
 ];
 
 describe("M1 — preserve every existing public home and value/type kind", () => {
+  it("exports gap sentences only through the root function", () => {
+    const surface = exportSurface({ ".": "src/index.ts", "./flowchart": "src/flowchart.ts" });
+    expect(surface["."]).toContainEqual({ name: "investigationGapMessage", kind: "value" });
+    expect(surface["./flowchart"]).not.toContainEqual({ name: "investigationGapMessage", kind: "value" });
+    for (const name of ["gapMessages", "attentionNames", "resolveInvestigationMarkLabel"]) {
+      expect(surface["."].some(entry => entry.name === name)).toBe(false);
+      expect(surface["./flowchart"].some(entry => entry.name === name)).toBe(false);
+    }
+  });
+
   it("keeps all root and flowchart names, including deprecations and duplicate homes", () => {
     expect(
       exportSurface({ ".": "src/index.ts", "./flowchart": "src/flowchart.ts" })
@@ -112,6 +122,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...themePrimitiveExports,
         ...flowchartOptionExports,
         ...displayPreflightExports,
+        { name: "investigationGapMessage", kind: "value" },
         ...["paperLight", "paperDark"].map(name => ({ name, kind: "value" })),
         { name: "useLensWorkbench", kind: "value" },
         ...["LensTheme", "LensView", "LensCommentaryOptions", "ReplayControlsOptions", "LensLayoutDefinition", "LensLayoutSurface", "LensWorkbenchContextValue", "LensWorkbenchActions", "LensWorkbenchSurfaces", "LensWorkbenchLayout"]

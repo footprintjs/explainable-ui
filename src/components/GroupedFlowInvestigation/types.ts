@@ -4,6 +4,8 @@ import type { FlowDiagramDefinition, FlowDiagramObservation } from "../GroupedFl
 
 /** The diagram and bound port use the same exact item IDs; labels never resolve identity. */
 export interface GroupedFlowInvestigationProps {
+  /** Uses the same bounded display names as the standalone investigation panel. */
+  readonly markLabels?: InvestigationPanelProps["markLabels"];
   readonly definition: FlowDiagramDefinition;
   readonly observation?: FlowDiagramObservation;
   readonly port?: InvestigationPort | null;

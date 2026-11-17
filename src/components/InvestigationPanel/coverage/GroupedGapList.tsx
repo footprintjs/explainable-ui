@@ -1,6 +1,6 @@
 import type { Gap } from 'foottrace/cause';
 import { theme } from '../../../theme/styles';
-import { gapMessages } from '../admission';
+import { gapMessages } from '../wording';
 import { groupGaps } from './groupGaps';
 
 const codeStyle = { fontFamily: theme.fontMono };

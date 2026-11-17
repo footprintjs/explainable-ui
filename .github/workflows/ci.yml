@@ -62,6 +62,10 @@ jobs:
         if: matrix.node-version == 22
         run: node scripts/check-directional-coverage-package.mjs
 
+      - name: Verify packed investigation wording and host labels
+        if: matrix.node-version == 22
+        run: node scripts/check-investigation-wording-package.mjs
+
       # Packaging-correctness gate on the would-be-published tarball (now that the dual
       # CJS/ESM types + exports are correct). attw exits non-zero on a types masquerade /
       # broken subpath; publint on a packaging error.

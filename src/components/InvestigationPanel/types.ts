@@ -28,6 +28,8 @@ export interface InvestigationPort {
 }
 
 export interface InvestigationPanelProps {
+  /** Optional plain-text names for exact mark kinds; evidence and identity remain unchanged. */
+  readonly markLabels?: Readonly<Record<string, string>>;
   readonly port?: InvestigationPort | null;
   /** Explicit richer evidence presentation; overall preserves the legacy text projection. */
   readonly coverageMode?: "overall" | "directional";

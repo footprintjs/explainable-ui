@@ -1940,12 +1940,44 @@ not establish storage-I/O laziness; per-scope receipt and ownership admission is
 required before a future indexed loader can expose a scope. Foottrace remains
 the owner of graph traversal and source interpretation.
 
+### Reuse gap sentences and name mark kinds
+
+Import `investigationGapMessage` from the root entry to obtain the exact sentence
+shown for a recognized gap code. Unknown codes return `undefined`, allowing the
+host to keep an unfamiliar code explicit without inventing an explanation.
+
+```tsx
+import { investigationGapMessage, InvestigationPanel } from "footprint-explainable-ui";
+
+const sentence = investigationGapMessage("not-collected");
+const markLabels = Object.freeze({ error: "Recorded failure", "domain-rule": "Review needed" });
+<InvestigationPanel port={port} markLabels={markLabels} />;
+```
+
+`GroupedFlowInvestigation` accepts the same `markLabels` prop through both its
+root and `/flowchart` entries. Labels match the exact mark kind; `port.labels`
+continues naming node IDs. The eight built-in names and unknown raw kinds remain
+the default. Only used own data strings of 1–512 UTF-16 units are accepted;
+missing, inherited, accessor, invalid, overlong or unreadable entries retain the
+default. Values render as escaped text, including a value equal to the raw kind.
+No label is a verification, severity or causal claim, and no evidence is altered.
+
+The map is readonly in types; replace it to update names. No host-map enumeration,
+mutation, getter invocation, callbacks or HTML is supported. Proxy descriptor
+traps remain executable host code; fallback handling is not a JavaScript sandbox
+or a time limit. The existing mark/list caps bound used lookups per render; host
+copy is additional display text outside canonical evidence usage accounting.
+Changing labels preserves query, source binding, selection and focus. The
+sentence function is root-only; its private bank and default-name helpers are
+not public exports.
+
 ### Preflight the display projection
 
-These checks and limits are exported from the root entry:
+These display helpers and limits are exported from the root entry:
 
 | Export | Description |
 |---|---|
+| `investigationGapMessage` | Exact canonical sentence for a recognized gap code, otherwise undefined |
 | `checkInvestigationAttention` | Admit the same bounded attention projection used by the panel |
 | `checkInvestigationExplanation` | Check the default text or explicit relationship projection for one bound selected ID |
 | `checkFailureExplanationDisplay` | Check the exact failure-explanation projection and its finding-code rules |
