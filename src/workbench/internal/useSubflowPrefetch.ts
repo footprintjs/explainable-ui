@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import type { StageSnapshot } from '../../../types';
-import type { RecordingSource, ProgressiveRenderingOptions } from '../../../progressiveRendering';
+import type { StageSnapshot } from '../../types';
+import type { RecordingSource, ProgressiveRenderingOptions } from '../../progressiveRendering';
 /** One likely next exact visit at a time; optional work has no navigation effects. */
 export function useSubflowPrefetch(source: RecordingSource | undefined, options: ProgressiveRenderingOptions,
   snapshots: StageSnapshot[], index: number, path: readonly string[]) {

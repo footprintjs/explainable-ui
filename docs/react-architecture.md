@@ -14,7 +14,7 @@ module-level viewer store and no state-management dependency.
 | Composable session | `ExplainableProvider` | One controlled or uncontrolled cursor shared by its surfaces |
 | Subflow navigation | `useSubflowNavigation` | Exact invocation selection, scope replacement and navigation notices |
 | Trace session | `useTraceSessionState` and `useTraceSessionController` | Frozen questions, ingredient paths, tracing transitions and synchronized card/cone/rail models |
-| Playback | `useTimeTravelPlayback` | Timers, one-shot autoplay, manual interruption and navigation commands |
+| Playback | `src/replay/useTimeTravelPlayback` | Timers, one-shot autoplay, manual interruption and navigation commands |
 | Presentation | Shell layout, chrome, recorder, right-panel and trace-panel components | Geometry, labels and rendering of supplied models and commands |
 | Live recorder subscriptions | Existing translator handles and `useTranslator` | External non-React sources through `useSyncExternalStore` |
 

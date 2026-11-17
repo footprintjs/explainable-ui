@@ -1,4 +1,5 @@
 import type * as React from "react";
+import type { LensControllerOptions } from "../../workbench";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import type { RuntimeSnapshotInput } from "../../model/recording";
 import type { TraceWorkflowOverlay } from "../../trace/traceWorkflowOverlay";
@@ -84,7 +85,7 @@ export interface TraceTheme {
   current?: string;
 }
 
-export interface ExplainableShellProps extends BaseComponentProps {
+export interface ExplainableShellProps extends BaseComponentProps, LensControllerOptions {
   /**
    * Pre-converted visualization snapshots. Use when you've already called
    * toVisualizationSnapshots() yourself.

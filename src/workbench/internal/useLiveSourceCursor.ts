@@ -1,6 +1,6 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
-import type { StageSnapshot } from '../../../types';
-import type { RecordingSource } from '../../../progressiveRendering';
+import type { StageSnapshot } from '../../types';
+import type { RecordingSource } from '../../progressiveRendering';
 /** A parallel branch may grow earlier in tree preorder. Pin the selected visit,
  * using the existing cursor state; explicit user moves and scope changes win. */
 export function useLiveSourceCursor(source: RecordingSource | undefined, scope: string | null,

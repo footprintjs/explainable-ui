@@ -1,3 +1,6 @@
+export { LensControllerProvider, useLensController } from "./workbench";
+export type { ReplayAxis, ReplayAxisScale } from './replay/replayAxis';
+export type { LensControllerProviderProps, LensRecordingInput, LensControllerOptions, LensController, LensControllerActions, LensPresentationRequest, LensRecordingStatus } from "./workbench";
 // Types
 export { useLensWorkbench } from "./components/ExplainableShell/LensWorkbench";
 export type { LensTheme, LensView, LensCommentaryOptions, LensWorkbenchContextValue, LensWorkbenchActions, LensWorkbenchSurfaces, LensWorkbenchLayout } from "./components/ExplainableShell/LensWorkbench";
@@ -49,7 +52,7 @@ export type { ResultPanelProps } from "./components/ResultPanel";
 export { StageDetailPanel, DEFAULT_EXCLUDED_KEYS } from "./components/StageDetailPanel";
 export type { StageDetailPanelProps, StageDetailMode, MemoryChange } from "./components/StageDetailPanel";
 
-export { TimeTravelControls } from "./components/TimeTravelControls";
+export { TimeTravelControls, LensReplayControls } from "./components/TimeTravelControls";
 export type { TimeTravelControlsProps, TracingRail, ReplayControlsOptions } from "./components/TimeTravelControls";
 
 export { ExplainableShell } from "./components/ExplainableShell";

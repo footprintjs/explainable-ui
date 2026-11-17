@@ -2,7 +2,7 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useTimeTravelPlayback } from "../../src/components/TimeTravelControls/useTimeTravelPlayback";
+import { useTimeTravelPlayback } from "../../src/replay/useTimeTravelPlayback";
 import type { TimeTravelControlsProps, TracingRail } from "../../src/components/TimeTravelControls/TimeTravelControls";
 import type { StageSnapshot } from "../../src/types";
 

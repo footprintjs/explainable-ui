@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { useTraceSessionController, useTraceSessionState } from "../../src/components/ExplainableShell/_internal/useTraceSession";
+import { useTraceSessionController, useTraceSessionState } from "../../src/workbench/internal/useTraceSession";
 import type { TraceScope } from "../../src/trace/traceScope";
 import { childTraceScope } from "../../src/trace/traceScope";
 import { projectStageActivity } from "../../src/trace/stageActivity";

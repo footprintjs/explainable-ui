@@ -1,3 +1,5 @@
+import { resolveReplayControlsOptions } from "./replayControlsOptions";
+import type { ReplayControlsOptions } from "./replayControls";
 import { resolveProgressiveRenderingOptions } from "../progressiveRendering";
 import type { ProgressiveRenderingOptions } from "../progressiveRendering";
 /** JSON layout for the existing Lens surfaces; validation also works during SSR. */
@@ -19,6 +21,8 @@ export interface LensLayoutDefinition {
   /** Optional built-in geometry; an explicit Shell flowchart prop takes precedence. */
   readonly flowchart?: FlowchartOptions;
   readonly rendering?: ProgressiveRenderingOptions;
+  /** Serializable transport presentation and pacing; explicit props override individual fields. */
+  readonly replayControls?: ReplayControlsOptions;
 }
 
 const SURFACES: ReadonlySet<string> = new Set([
@@ -75,6 +79,8 @@ export function resolveLensLayout(layout: unknown): {
   const rows = own(layout, "rows");
   if (rows !== undefined) css(rows, "rows");
   const minHeight = own(layout, "minHeight"), gap = own(layout, "gap");
+  const rawReplayControls = own(layout, "replayControls");
+  const replayControls = rawReplayControls === undefined ? undefined : resolveReplayControlsOptions(rawReplayControls);
   const rawRendering = own(layout, "rendering");
   const rendering = rawRendering === undefined ? undefined : resolveProgressiveRenderingOptions(rawRendering);
   const rawFlowchart = own(layout, "flowchart");
@@ -113,6 +119,7 @@ export function resolveLensLayout(layout: unknown): {
       gap: gap as number | string | undefined,
       ...(flowchart !== undefined && { flowchart }),
       ...(rendering !== undefined && { rendering }),
+      ...(replayControls !== undefined && { replayControls }),
     },
     order: [...bounds.keys()],
   };

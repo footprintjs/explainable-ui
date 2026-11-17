@@ -1,6 +1,6 @@
 import { FootprintButton, componentStyles, theme } from "../../../theme";
 import type { Size } from "../../../types";
-import type { VisitChoice } from "./useSubflowNavigation";
+import type { VisitChoice } from "../../../workbench";
 interface Props {
   staleInputs: boolean;
   notice: string;

@@ -1,4 +1,4 @@
-import type { StageSnapshot } from "../../../types";
+import type { StageSnapshot } from "../../types";
 export type InvocationResolution =
   | {
       kind: "found";

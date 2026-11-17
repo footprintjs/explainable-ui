@@ -4,6 +4,7 @@ import { componentStyles, theme, FootprintBadge } from "../../theme";
 import type { BaseComponentProps, NarrativeEntry } from "../../types";
 import { projectCommentary } from "../../model/commentary";
 import { useTraceMotion } from "../../_internal/useTraceMotion";
+import { useOptionalControllerOwner } from "../../workbench";
 import { LensWorkbenchContext } from "../ExplainableShell/LensWorkbench";
 import { useOptionalExplainableRun } from "./ExplainableContext";
 import { RecordedText, RecordedVisit, recordedTextStyle } from "../StoryNarrative/_internal/RecordedVisit";
@@ -36,12 +37,14 @@ export function CommentaryPanel({
   size = "default", unstyled = false, className, style,
 }: CommentaryPanelProps) {
   const lens = useContext(LensWorkbenchContext);
+  const headless = useOptionalControllerOwner()?.value;
   const basic = useOptionalExplainableRun();
-  const source = lens ?? basic;
-  if (!source) throw new Error("CommentaryPanel must be rendered inside ExplainableProvider or ExplainableShell.");
+  const lensState = lens ?? headless;
+  const source = lensState ?? basic;
+  if (!source) throw new Error("CommentaryPanel must be rendered inside LensControllerProvider, ExplainableProvider or ExplainableShell.");
   const { snapshots, selectedIndex, narrativeEntries } = source;
-  const available = lens ? lens.narrativeAvailable !== false : !basic?.error;
-  const scope = lens?.narrativeScopeSubflowId;
+  const available = lensState ? lensState.narrativeAvailable !== false && headless?.recordingStatus.status !== "error" : !basic?.error;
+  const scope = lensState?.narrativeScopeSubflowId;
   const projection = useMemo(() => projectCommentary({ snapshots, selectedIndex, narrativeEntries,
     narrativeAvailable: available, narrativeScopeSubflowId: scope, presentation, maxLines }),
   [snapshots, selectedIndex, narrativeEntries, available, scope, presentation, maxLines]);

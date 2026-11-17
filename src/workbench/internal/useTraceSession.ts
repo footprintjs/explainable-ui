@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import type { StageSnapshot } from "../../../types";
-import type { TracingRail } from "../../TimeTravelControls/TimeTravelControls";
-import { buildDataTrace, type DataTraceResult } from "./dataTrace";
-import type { TraceScope } from "./traceScope";
-import { buildTraceWalk, type TraceIngredient, type TraceWalk } from "./traceWalk";
-import { subflowHandoffSources, type SubflowHandoffSource } from "../../../trace/subflowHandoff";
-import { projectTraceInvocation } from "../../../trace/projectTraceInvocation";
-import { ownDataField } from "../../../trace/safeRecordRead";
-import { rootMountLabels, runHasRecordedReads, sourceRunKey } from "../../../trace/traceScope";
-import { projectStageActivity, type StageActivityTraceTarget, type StageActivityView } from "../../../trace/stageActivity";
+import type { StageSnapshot } from "../../types";
+import type { TracingRail } from "../../model/replayControls";
+import { buildDataTrace, type DataTraceResult } from "../../trace/dataTrace";
+import type { TraceScope } from "../../trace/traceScope";
+import { buildTraceWalk, type TraceIngredient, type TraceWalk } from "../../trace/traceWalk";
+import { subflowHandoffSources, type SubflowHandoffSource } from "../../trace/subflowHandoff";
+import { projectTraceInvocation } from "../../trace/projectTraceInvocation";
+import { ownDataField } from "../../trace/safeRecordRead";
+import { rootMountLabels, runHasRecordedReads, sourceRunKey } from "../../trace/traceScope";
+import { projectStageActivity, type StageActivityTraceTarget, type StageActivityView } from "../../trace/stageActivity";
 
 interface TraceAnchor {
   key: string;
@@ -18,7 +18,7 @@ interface TraceAnchor {
   readerRuntimeStageId?: string;
 }
 
-interface TraceQuestion extends TraceAnchor {
+export interface TraceQuestion extends TraceAnchor {
   scope: string | null;
   via: TraceAnchor[];
   handoff?: {

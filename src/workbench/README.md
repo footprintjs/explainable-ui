@@ -1,0 +1,21 @@
+# Shared Lens controller
+
+`LensControllerProvider` and `useLensController` are the public React-headless owner. They expose current recorded data and semantic commands; they do not render a chart, theme, layout or DOM focus. This is a React API, not a framework-independent external store.
+
+`types.ts` owns the public model/options/actions. `context.tsx` owns one provider and rejects nested providers. `useController.ts` composes the recording, exact invocation, live-cursor, Activity, Backtrack, and playback owners under `internal/`. The stock Shell is a presentation adapter over that same owner. A standalone Shell creates its own provider; a Shell under a provider accepts presentation props and refuses conflicting recording/replay/rendering ownership. Provider options do not include a controlled numeric cursor.
+
+Use one stable source per recorded run and let its creator dispose it after all consumers unmount. Changing/remounting a presenter does not create another controller or clock. Source updates preserve cumulative facts and do not make the presenter own event history. A source/run replacement and exact scope change invalidate stale retained commands; consumers should still use the latest rendered model.
+
+`actions.selectStage` addresses an exact recorded runtime ID. `selectIndex` explicitly selects context independently of transport visibility. `previous`, `next` and `scrubTo` retain the replay/Backtrack landable-stop policy; `play`, `pause` and `togglePlay` share one playback clock. Custom controls own their keyboard/ARIA/focus, while a default Shell retains its existing presentation behavior. A return origin is a model address, not a retained snapshot value or focus node.
+
+`LensReplayControls` binds the stock transport directly to an existing provider, including the same trace stops and shared clock. `CommentaryPanel` can also consume this provider directly; it keeps the current scope, recorded narrative and cursor. Neither surface creates another owner. These are optional presentation bindings, not React nodes stored on the controller model. Theme tokens and adapters remain presentation-owned.
+
+`recordingStatus` is a data-only waiting/empty/ready/error state with an optional fixed reason. It carries no rendered error, chart or placeholder. Hosts choose how to display it. Live/bootstrap waiting does not consume the one-shot playback offer before recorded stages arrive; changing presenters does not make another offer.
+
+`replayAxis` is the shared frozen presentation geometry for `replayControls.scale` (`steps`, `duration` or `log-duration`). A custom range uses `positionAt(selectedIndex)` and `indexAt(normalizedPosition)` with `actions.scrubTo`; keyboard movement still uses semantic previous/next or endpoint indexes. The axis exposes timing availability, zero/default/unavailable counts and minimum-width adjustments. Duration scales use supplied milliseconds, `log-duration` uses `log1p`, and no-positive-timing input falls back to equal spacing without inventing duration. It is a sequence axis, not elapsed wall-clock time.
+
+The neutral `src/replay/` family owns the shared playback hook and axis cache. Axis computation is O(n) per new immutable snapshots array/scale; cursor movement reuses that cache, with O(1) index-to-position and O(log n) pointer-to-index lookup. Source ready publication keeps its existing visual batching. This is not a claim that all parsing, projection or graph layout is nonblocking or constant-time.
+
+For programmatic/agent navigation, select the recorded stage, wait for a fresh matching model, and consume an admitted `activity.reads/writes[].traceTarget`. Do not synthesize a target from a label, retain it across scope/run changes, or infer evidence from current values. `visitChoice` supplies exact IDs for `chooseInvocation`. Backtrack/handoff commands inspect supplied recordings and never execute a workflow or manufacture an explanation.
+
+The `examples/headless-controller` source example composes custom transport/Activity summary and optional stock panels/Shell under one provider. It copies only the genuine engine 13 / Foottrace 2 parallel 35 and measured-retry recordings, and marks the unreleased API as next-release source work. New renderers can subscribe to this public model; they should not import `internal/` controllers or add their own replay position.

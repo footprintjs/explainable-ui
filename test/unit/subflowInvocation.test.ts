@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   resolveSubflowInvocation,
   pathMountChain,
-} from "../../src/components/ExplainableShell/_internal/subflowInvocation";
+} from "../../src/workbench/internal/subflowInvocation";
 import type { StageSnapshot } from "../../src/types";
 const visit = (path: string, index: number): StageSnapshot => ({
   stageName: "same label",

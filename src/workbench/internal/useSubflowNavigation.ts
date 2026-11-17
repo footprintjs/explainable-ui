@@ -1,10 +1,10 @@
-import type { RecordingSource, RecordingSourceSnapshot } from "../../../progressiveRendering";
+import type { RecordingSource, RecordingSourceSnapshot } from "../../progressiveRendering";
 import { useLazySubflowRequest } from "./useLazySubflowRequest";
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { StageSnapshot, NarrativeEntry } from "../../../types";
-import type { TraceGraph } from "../../FlowchartView/traceStructureRecorder";
-import { buildSubflowBreadcrumb } from "../../FlowchartView/_internal/subflowDrill";
+import type { StageSnapshot, NarrativeEntry } from "../../types";
+import type { TraceGraph } from "../../components/FlowchartView/traceStructureRecorder";
+import { buildSubflowBreadcrumb } from "../../components/FlowchartView/_internal/subflowDrill";
 import { resolveSubflowLevel, type DrillDownEntry } from "./subflowRecord";
 import { pathMountChain, type InvocationResolution } from "./subflowInvocation";
 export interface VisitChoice {
@@ -25,7 +25,8 @@ interface NavigationOptions {
   traceGraph?: TraceGraph | null;
   snapshotIdx: number;
   setSnapshotIdxRaw: Dispatch<SetStateAction<number>>;
-  activeTab: string;
+  /** Semantic host interaction revision, without panel/tab names. */
+  interactionKey?: number;
   onScopeReset: () => void;
 }
 /** One owner of drill identity, visit choice and transient navigation feedback. */
@@ -39,10 +40,10 @@ export function useSubflowNavigation({
   traceGraph,
   snapshotIdx,
   setSnapshotIdxRaw,
-  activeTab,
+  interactionKey = 0,
   onScopeReset,
 }: NavigationOptions) {
-  const lazy = useLazySubflowRequest(source, sourceState ?? null, JSON.stringify([activeTab, sourceRunId && typeof sourceRunId === "string" ? sourceRunId : null]));
+  const lazy = useLazySubflowRequest(source, sourceState ?? null, JSON.stringify([interactionKey, sourceRunId && typeof sourceRunId === "string" ? sourceRunId : null]));
   const latestApply = useRef<(mountKey: string, choices: ReadonlyMap<string, string>) => void>(() => {});
   const [drillDownStack, setDrillDownStack] = useState<DrillDownEntry[]>([]);
   const [navigationNotice, setNavigationNotice] = useState("");
@@ -125,7 +126,7 @@ export function useSubflowNavigation({
   // A chooser describes the prior cursor/tab, never the next location.
   useEffect(() => {
     clearTransient();
-  }, [activeTab, clearTransient]);
+  }, [interactionKey, clearTransient]);
   const buildDrillStack = useCallback(
     (
       mountKey: string,

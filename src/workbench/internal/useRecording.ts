@@ -1,15 +1,15 @@
 import { useMemo, useSyncExternalStore } from "react";
-import type { ExplainableShellProps } from "../ShellProps";
-import { narrativeRecorderFromSnapshot } from "../../../adapters/fromRuntimeSnapshot";
-import { overlayFromSnapshot } from "../../../adapters/overlayFromSnapshot";
-import { projectRuntimeSnapshot } from "../../../model/recording";
-import type { StageSnapshot } from "../../../types";
+import type { LensRecordingInput } from "../types";
+import { narrativeRecorderFromSnapshot } from "../../adapters/fromRuntimeSnapshot";
+import { overlayFromSnapshot } from "../../adapters/overlayFromSnapshot";
+import { projectRuntimeSnapshot } from "../../model/recording";
+import type { StageSnapshot } from "../../types";
 import { exactSubflowResults } from "./subflowRecord";
-import { ownDataField, isPlainRecord } from "./safeRecordRead";
+import { ownDataField, isPlainRecord } from "../../trace/safeRecordRead";
 import { useRunCompanions } from "./useRunCompanions";
 const noopSubscribe = () => () => {};
 const emptySnapshot = () => null;
-export function useShellRecording(props: ExplainableShellProps) {
+export function useRecording(props: LensRecordingInput) {
   const source = props.source;
   const sourceState = useSyncExternalStore(source?.subscribe ?? noopSubscribe, source?.getSnapshot ?? emptySnapshot, source?.getSnapshot ?? emptySnapshot);
   const originalSnapshot = source?.rootSnapshot ?? props.runtimeSnapshot;

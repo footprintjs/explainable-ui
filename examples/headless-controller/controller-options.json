@@ -1,0 +1,7 @@
+{
+  "replayControls": {
+    "presentation": "range",
+    "scale": "log-duration",
+    "intervalMs": 700
+  }
+}

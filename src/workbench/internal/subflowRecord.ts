@@ -1,8 +1,8 @@
-import type { RecordingSource, SubflowLoadRequest } from "../../../progressiveRendering";
-import type { StageSnapshot, NarrativeEntry } from "../../../types";
-import { subflowResultToSnapshots } from "../../../adapters/fromRuntimeSnapshot";
-import { childTraceScope, type TraceScope } from "./traceScope";
-import { ownDataField, isPlainRecord } from "./safeRecordRead";
+import type { RecordingSource, SubflowLoadRequest } from "../../progressiveRendering";
+import type { StageSnapshot, NarrativeEntry } from "../../types";
+import { subflowResultToSnapshots } from "../../adapters/fromRuntimeSnapshot";
+import { childTraceScope, type TraceScope } from "../../trace/traceScope";
+import { ownDataField, isPlainRecord } from "../../trace/safeRecordRead";
 import {
   resolveSubflowInvocation,
   type InvocationResolution,

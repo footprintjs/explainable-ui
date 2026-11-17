@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Add a shared React-headless `LensControllerProvider` and `useLensController`
+  for recording, exact scope, playback, Activity and Backtrack data/commands.
+  Custom views and the default Shell share one owner; `LensReplayControls` and
+  `CommentaryPanel` bind directly to it. Expose data-only recording status and
+  preserve creator-owned source disposal.
+- Add optional visible range transport through props and JSON replay controls,
+  without per-stage tick DOM. Segmented presentation remains the default;
+  explicit props override individual JSON fields and both modes retain the
+  same discrete cursor and Backtrack stop policy.
+- Add optional linear/logarithmic recorded-duration sequence geometry and a
+  public cached `replayAxis` for custom controls, with timing availability and
+  honest equal-spacing fallback. Reading pace and recorded duration remain
+  separate; the axis does not invent elapsed parallel wall-clock time.
+- Add a shared-controller consumer example using the existing recorded
+  parallel 35 and measured-retry scenarios, with custom controls, admitted evidence previews and
+  optional standard presenters. Infrastructure hardware drawings remain in
+  consumer-owned examples.
+
 ## [1.0.1] - 2026-11-17
 
 ### Added
