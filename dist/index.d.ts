@@ -2853,19 +2853,32 @@ interface InvestigationPort {
     readonly explain: (nodeId: NodeId, context: GraphContext) => InvestigationResult | Promise<InvestigationResult>;
 }
 interface InvestigationPanelProps {
+    /** Optional plain-text names for exact mark kinds; evidence and identity remain unchanged. */
+    readonly markLabels?: Readonly<Record<string, string>>;
     readonly port?: InvestigationPort | null;
+    /** Explicit richer evidence presentation; overall preserves the legacy text projection. */
+    readonly coverageMode?: "overall" | "directional";
     readonly className?: string;
     readonly style?: CSSProperties;
 }
+
+type VisualInvestigationEdge = Omit<FlowDiagramRecordedRelationship, "id" | "source" | "target" | "direction"> & {
+    readonly from: string;
+    readonly to: string;
+};
 
 /** Bounded presentation over host-selected canonical Foottrace results. Never traverses or loads a graph. */
 declare function InvestigationPanel(props: InvestigationPanelProps): react.JSX.Element;
 
 /** The diagram and bound port use the same exact item IDs; labels never resolve identity. */
 interface GroupedFlowInvestigationProps {
+    /** Uses the same bounded display names as the standalone investigation panel. */
+    readonly markLabels?: InvestigationPanelProps["markLabels"];
     readonly definition: FlowDiagramDefinition;
     readonly observation?: FlowDiagramObservation;
     readonly port?: InvestigationPort | null;
+    /** Presentation only: grouped investigation already admits recorded relationships. */
+    readonly coverageMode?: InvestigationPanelProps["coverageMode"];
     readonly direction?: "LR" | "TB";
     readonly className?: string;
     readonly style?: CSSProperties;
@@ -2874,6 +2887,10 @@ interface GroupedFlowInvestigationProps {
 
 /** User-initiated investigation over one host-bound recording. No graph storage or causal search lives here. */
 declare function GroupedFlowInvestigation(props: GroupedFlowInvestigationProps): react.JSX.Element;
+
+declare const findingLevels: readonly ["HIGH", "MEDIUM", "LOW", "UNVERIFIED"];
+/** Host-declared display assessment; no inference, ranking or verification. */
+type FindingLevel = typeof findingLevels[number];
 
 /** Display projection only. The host admits and binds the underlying evidence. */
 interface FailureExplanationDisplaySection {
@@ -2889,6 +2906,8 @@ interface FailureExplanationDisplayFinding {
     readonly code: string;
     readonly summary: string;
     readonly evidenceRefs: readonly string[];
+    /** Host-declared display assessment; never inferred confidence or verification. */
+    readonly level?: FindingLevel;
 }
 /** Structurally accepts a formatted Blueprint explanation without a runtime dependency. */
 interface FailureExplanationDisplay {
@@ -2912,4 +2931,104 @@ interface FailureExplanationViewProps {
 /** Optional presentation only: no diagnosis, graph traversal, storage query or executable advice. */
 declare function FailureExplanationView(props: FailureExplanationViewProps): react.JSX.Element;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, type FailureExplanationDisplay, type FailureExplanationDisplayFinding, type FailureExplanationDisplaySection, FailureExplanationView, type FailureExplanationViewProps, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, type FlowchartOptions, FlowchartPanel, type FlowchartPanelProps, type FlowchartRenderer, FootprintBadge, type FootprintBadgeProps, FootprintButton, type FootprintButtonProps, FootprintCheckbox, type FootprintCheckboxProps, FootprintCode, type FootprintCodeProps, type FootprintComponents, FootprintIcon, type FootprintIconAdapterProps, type FootprintIconProps, FootprintInput, type FootprintInputProps, type FootprintPrimitiveOptions, FootprintTab, FootprintTheme, type FootprintThemeProps, FootprintTooltip, type FootprintTooltipAdapterProps, type FootprintTooltipProps, GanttTimeline, type GanttTimelineProps, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, InvestigationPanel, type InvestigationPanelProps, type InvestigationPort, type InvestigationResult, type LensCommentaryOptions, type LensLayoutDefinition, type LensLayoutSurface, type LensTheme, type LensView, type LensWorkbenchActions, type LensWorkbenchContextValue, type LensWorkbenchLayout, type LensWorkbenchSurfaces, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, type RecorderView, type Recording, type ReplayControlsOptions, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageActivityEvent, type StageActivityInput, StageActivityPanel, type StageActivityPanelProps, type StageActivityTraceTarget, type StageActivityValue, type StageActivityVariable, type StageActivityView, type StageActivityWriter, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceInvocationOptions, type TraceInvocationProjection, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TraceWalkOptions, type TraceWalkScope, type TraceWorkflowOverlay, type TraceWorkflowRead, type TraceWorkflowStage, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, componentStyles, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatStageActivitySummary, formatTraceWalk, getFlowDiagramAncestors, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, paperDark, paperLight, projectGroupedFlowDiagram, projectStageActivity, projectTraceInvocation, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintComponents, useFootprintTheme, useLensWorkbench, warmDark, warmLight };
+/** Fixed retained-display ceilings, not graph-query or storage budgets. Text uses UTF-16 code units. */
+declare const investigationDisplayLimits: Readonly<{
+    maxTextCodeUnits: 65536;
+    maxStringCodeUnits: 2048;
+    maxItemsPerList: 256;
+    maxMarksPerItem: 16;
+    maxReferencesPerList: 32;
+    maxGapsPerList: 128;
+    maxEdgesPerList: 512;
+}>;
+declare const failureExplanationDisplayLimits: Readonly<{
+    maxTextCodeUnits: 262144;
+    maxItemsPerList: 1024;
+    maxTotalListItems: 4096;
+    maxReferenceOrUnknownCodeUnits: 4096;
+    maxFindingCodeUnits: 80;
+    findingCodePattern: "^[A-Z][A-Z0-9_]{1,79}$";
+}>;
+
+/** Only fixed schema names and bounded array positions can appear in a diagnostic. */
+type DisplaySchemaField = 'problem' | 'recordedCause' | 'suggestedNextStep' | 'text' | 'configuredText' | 'wordingSource' | 'evidenceRefs' | 'unknowns' | 'canonicalFindings' | 'causes' | 'consequences' | 'diagnosticFailures' | 'code' | 'summary' | 'level' | 'nodes' | 'nodeId' | 'attention' | 'kind' | 'reason' | 'evidence' | 'confidence' | 'gaps' | 'from' | 'to' | 'attribution' | 'edges' | 'backward' | 'rootCause' | 'path' | 'alternatives' | 'impact' | 'projection' | 'requestedNodeId' | 'length';
+type DisplayPath = readonly (DisplaySchemaField | number)[];
+type DisplayDiagnosticCode = 'invalid-own-field' | 'accessor-field' | 'invalid-value' | 'invalid-enum' | 'invalid-code' | 'duplicate-identity' | 'selection-mismatch' | 'inconsistent-evidence' | 'limit-exceeded' | 'unreadable-input';
+type DisplayLimitName = keyof typeof investigationDisplayLimits | Exclude<keyof typeof failureExplanationDisplayLimits, 'findingCodePattern'>;
+type DisplayDiagnostic = Readonly<{
+    code: 'limit-exceeded';
+    path: DisplayPath;
+    limit?: DisplayLimitName;
+    maximum?: number;
+    observed?: number;
+}> | Readonly<{
+    code: Exclude<DisplayDiagnosticCode, 'limit-exceeded'>;
+    path: DisplayPath;
+    limit?: never;
+    maximum?: never;
+    observed?: never;
+}>;
+/** Exact parser-counted retained text and list slots on success; profiles define enum charges, not DOM cost. */
+interface DisplayUsage {
+    readonly textCodeUnits: number;
+    readonly listItems: number;
+}
+type DisplayCheckResult<T> = Readonly<{
+    ok: true;
+    value: T;
+    usage: DisplayUsage;
+}> | Readonly<{
+    ok: false;
+    diagnostic: DisplayDiagnostic;
+}>;
+
+type DisplayAttention = Pick<InvestigationResult["attention"][number], "kind" | "reason" | "evidence">;
+type DisplayGap = Pick<InvestigationResult["gaps"][number], "code" | "nodeId" | "evidence">;
+type DisplayEdge = Pick<VisualInvestigationEdge, "from" | "to" | "kind" | "attribution" | "evidence">;
+type DisplayCoverage = {
+    readonly confidence: InvestigationResult["confidence"];
+    readonly gaps: readonly DisplayGap[];
+};
+/** Detached display projection of the bounded attention list. */
+interface InvestigationAttentionDisplay extends DisplayCoverage {
+    readonly nodes: readonly {
+        readonly nodeId: string;
+        readonly attention: readonly DisplayAttention[];
+    }[];
+}
+/** Text projection deliberately omits backward data and impact edges. */
+interface InvestigationTextDisplay extends DisplayCoverage {
+    readonly nodeId: string;
+    readonly attention: readonly DisplayAttention[];
+    readonly rootCause?: string;
+    readonly path: readonly string[];
+    readonly alternatives: readonly string[];
+    readonly impact: DisplayCoverage & {
+        readonly nodes: readonly string[];
+    };
+}
+/** Explicit relationship projection of the existing bounded visual reader. */
+interface InvestigationRelationshipDisplay extends InvestigationTextDisplay {
+    readonly backward?: DisplayCoverage & {
+        readonly nodes: readonly string[];
+        readonly edges: readonly DisplayEdge[];
+    };
+    readonly impact: InvestigationTextDisplay["impact"] & {
+        readonly edges?: readonly DisplayEdge[];
+    };
+}
+
+/** Check the same detached attention projection used by InvestigationPanel. */
+declare function checkInvestigationAttention(value: unknown): DisplayCheckResult<InvestigationAttentionDisplay>;
+/** Text mode intentionally leaves backward data and impact edges unread. */
+declare function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection?: "text"): DisplayCheckResult<InvestigationTextDisplay>;
+declare function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection: "relationships"): DisplayCheckResult<InvestigationRelationshipDisplay>;
+declare function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection?: "text" | "relationships"): DisplayCheckResult<InvestigationTextDisplay | InvestigationRelationshipDisplay>;
+
+/** Preflight the exact bounded display projection; this does not authenticate its evidence. */
+declare function checkFailureExplanationDisplay(value: unknown): DisplayCheckResult<FailureExplanationDisplay>;
+
+/** Exact canonical sentence only; unknown/runtime nonstring inputs have no sentence. */
+declare function investigationGapMessage(code: string): string | undefined;
+
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type DisplayCheckResult, type DisplayDiagnostic, type DisplayDiagnosticCode, type DisplayLimitName, type DisplayPath, type DisplaySchemaField, type DisplayUsage, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, type FailureExplanationDisplay, type FailureExplanationDisplayFinding, type FailureExplanationDisplaySection, FailureExplanationView, type FailureExplanationViewProps, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, type FlowchartOptions, FlowchartPanel, type FlowchartPanelProps, type FlowchartRenderer, FootprintBadge, type FootprintBadgeProps, FootprintButton, type FootprintButtonProps, FootprintCheckbox, type FootprintCheckboxProps, FootprintCode, type FootprintCodeProps, type FootprintComponents, FootprintIcon, type FootprintIconAdapterProps, type FootprintIconProps, FootprintInput, type FootprintInputProps, type FootprintPrimitiveOptions, FootprintTab, FootprintTheme, type FootprintThemeProps, FootprintTooltip, type FootprintTooltipAdapterProps, type FootprintTooltipProps, GanttTimeline, type GanttTimelineProps, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type InvestigationAttentionDisplay, InvestigationPanel, type InvestigationPanelProps, type InvestigationPort, type InvestigationRelationshipDisplay, type InvestigationResult, type InvestigationTextDisplay, type LensCommentaryOptions, type LensLayoutDefinition, type LensLayoutSurface, type LensTheme, type LensView, type LensWorkbenchActions, type LensWorkbenchContextValue, type LensWorkbenchLayout, type LensWorkbenchSurfaces, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, type RecorderView, type Recording, type ReplayControlsOptions, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageActivityEvent, type StageActivityInput, StageActivityPanel, type StageActivityPanelProps, type StageActivityTraceTarget, type StageActivityValue, type StageActivityVariable, type StageActivityView, type StageActivityWriter, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceInvocationOptions, type TraceInvocationProjection, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TraceWalkOptions, type TraceWalkScope, type TraceWorkflowOverlay, type TraceWorkflowRead, type TraceWorkflowStage, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, checkFailureExplanationDisplay, checkInvestigationAttention, checkInvestigationExplanation, componentStyles, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, failureExplanationDisplayLimits, formatStageActivitySummary, formatTraceWalk, getFlowDiagramAncestors, graphFromStructure, investigationDisplayLimits, investigationGapMessage, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, paperDark, paperLight, projectGroupedFlowDiagram, projectStageActivity, projectTraceInvocation, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintComponents, useFootprintTheme, useLensWorkbench, warmDark, warmLight };

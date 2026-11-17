@@ -1750,28 +1750,28 @@ var Queue = class {
     return a.score < b.score || a.score === b.score && a.key < b.key;
   }
   push(value) {
-    let at = this.items.length;
+    let at2 = this.items.length;
     this.items.push(value);
-    while (at) {
-      const parent = at - 1 >> 1;
+    while (at2) {
+      const parent = at2 - 1 >> 1;
       if (!this.before(value, this.items[parent])) break;
-      this.items[at] = this.items[parent];
-      at = parent;
+      this.items[at2] = this.items[parent];
+      at2 = parent;
     }
-    this.items[at] = value;
+    this.items[at2] = value;
   }
   pop() {
     const result = this.items[0], last = this.items.pop();
     if (!this.items.length || !last) return result;
-    let at = 0;
-    while (at * 2 + 1 < this.items.length) {
-      let child = at * 2 + 1;
+    let at2 = 0;
+    while (at2 * 2 + 1 < this.items.length) {
+      let child = at2 * 2 + 1;
       if (child + 1 < this.items.length && this.before(this.items[child + 1], this.items[child])) child++;
       if (!this.before(this.items[child], last)) break;
-      this.items[at] = this.items[child];
-      at = child;
+      this.items[at2] = this.items[child];
+      at2 = child;
     }
-    this.items[at] = last;
+    this.items[at2] = last;
     return result;
   }
 };
@@ -1893,7 +1893,7 @@ function routeRecordedRelationships(links, model) {
   }
   const columns = [...xs].sort((a, b) => a - b), rows = [...ys].sort((a, b) => a - b), width = columns.length;
   if (!width || !rows.length) return outcome();
-  const position = (at) => ({ x: columns[at % width], y: rows[Math.floor(at / width)] });
+  const position = (at2) => ({ x: columns[at2 % width], y: rows[Math.floor(at2 / width)] });
   const index = (p) => rows.indexOf(p.y) * width + columns.indexOf(p.x);
   const occupied = /* @__PURE__ */ new Map(), occupiedVertices = /* @__PURE__ */ new Map(), checked = /* @__PURE__ */ new Map(), labels = [], usedPorts = /* @__PURE__ */ new Map();
   const portKey = (id, port) => JSON.stringify([id, port.side, port.offset]);
@@ -1919,9 +1919,9 @@ function routeRecordedRelationships(links, model) {
         const points = [], segments = [];
         let key = current.key;
         while (key !== void 0) {
-          const at = Math.floor(key / 3), previous = parents.get(key);
-          points.push(position(at));
-          if (previous !== void 0) segments.push(segmentKey(at, Math.floor(previous / 3)));
+          const at2 = Math.floor(key / 3), previous = parents.get(key);
+          points.push(position(at2));
+          if (previous !== void 0) segments.push(segmentKey(at2, Math.floor(previous / 3)));
           key = previous;
         }
         return { points: points.reverse(), segments };
@@ -1947,7 +1947,7 @@ function routeRecordedRelationships(links, model) {
     return void 0;
   };
   const labelFor = (points) => {
-    const segments = points.slice(1).map((b, at) => ({ a: points[at], b, length: distance(points[at], b) })).sort((a, b) => b.length - a.length);
+    const segments = points.slice(1).map((b, at2) => ({ a: points[at2], b, length: distance(points[at2], b) })).sort((a, b) => b.length - a.length);
     for (const { a, b, length } of segments) {
       if (length < 28) continue;
       for (const fraction of [0.5, 0.25, 0.75, 0.125, 0.875]) for (const offset of [0, 20, -20, 38, -38]) {
@@ -1974,14 +1974,14 @@ function routeRecordedRelationships(links, model) {
       if (!clear(option.source, option.start, obstacles, link.source) || !clear(option.end, option.target, obstacles, link.target) || !clear(option.source, option.start, labels) || !clear(option.end, option.target, labels)) continue;
       const found = search(option.start, option.end);
       if (!found) continue;
-      const corners = found.points.filter((p, at, all) => !at || at === all.length - 1 || all[at - 1].x === p.x !== (p.x === all[at + 1].x));
+      const corners = found.points.filter((p, at2, all) => !at2 || at2 === all.length - 1 || all[at2 - 1].x === p.x !== (p.x === all[at2 + 1].x));
       const points = [option.source, ...corners, option.target], label = labelFor(points);
       if (!label) continue;
       labels.push(label.box);
       for (const segment of found.segments) occupied.set(segment, (occupied.get(segment) ?? 0) + 1);
       for (const p of found.points) {
-        const at = index(p);
-        occupiedVertices.set(at, (occupiedVertices.get(at) ?? 0) + 1);
+        const at2 = index(p);
+        occupiedVertices.set(at2, (occupiedVertices.get(at2) ?? 0) + 1);
       }
       usedPorts.set(sourceKey, shared(option) ? fan.key : "");
       usedPorts.set(targetKey, "");
@@ -2004,13 +2004,13 @@ function recordedRoutePath(route, source, target) {
     const axis = side === "left" || side === "right" ? "y" : "x", from = reverse ? interior.length - 1 : 0;
     const expected = route.points[from + 1][axis];
     if (Math.abs(expected - anchor[axis]) > 1e-3) return;
-    for (let at = from; at >= 0 && at < interior.length && route.points[at + 1][axis] === expected; at += reverse ? -1 : 1) interior[at][axis] = anchor[axis];
+    for (let at2 = from; at2 >= 0 && at2 < interior.length && route.points[at2 + 1][axis] === expected; at2 += reverse ? -1 : 1) interior[at2][axis] = anchor[axis];
   };
   normalize(source, route.sourceSide, false);
   normalize(target, route.targetSide, true);
   const start = interior[0], end = interior[interior.length - 1];
   const bridge = (p, actual, side) => side === "left" || side === "right" ? { x: p.x, y: actual.y } : { x: actual.x, y: p.y };
-  const assembled = [source, bridge(start, source, route.sourceSide), ...interior, bridge(end, target, route.targetSide), target].filter((p, at, all) => !at || p.x !== all[at - 1].x || p.y !== all[at - 1].y);
+  const assembled = [source, bridge(start, source, route.sourceSide), ...interior, bridge(end, target, route.targetSide), target].filter((p, at2, all) => !at2 || p.x !== all[at2 - 1].x || p.y !== all[at2 - 1].y);
   const points = [];
   for (const next of assembled) {
     while (points.length > 1) {
@@ -2022,8 +2022,8 @@ function recordedRoutePath(route, source, target) {
     points.push(next);
   }
   let path = `M${source.x},${source.y}`;
-  for (let at = 1; at < points.length - 1; at++) {
-    const a = points[at - 1], p = points[at], b = points[at + 1];
+  for (let at2 = 1; at2 < points.length - 1; at2++) {
+    const a = points[at2 - 1], p = points[at2], b = points[at2 + 1];
     const radius2 = Math.min(16, distance(a, p) / 2, distance(p, b) / 2);
     const before = { x: p.x + Math.sign(a.x - p.x) * radius2, y: p.y + Math.sign(a.y - p.y) * radius2 }, after = { x: p.x + Math.sign(b.x - p.x) * radius2, y: p.y + Math.sign(b.y - p.y) * radius2 };
     path += ` L${before.x},${before.y} Q${p.x},${p.y} ${after.x},${after.y}`;
@@ -4750,13 +4750,13 @@ function minimumCenterDistance(points) {
     const middleX = byX[middle].x;
     let best = Math.min(visit(from, middle), visit(middle, to));
     let left = from, right = middle;
-    for (let at = from; at < to; at++) {
-      scratch[at] = right === to || left < middle && byY[left].y <= byY[right].y ? byY[left++] : byY[right++];
+    for (let at2 = from; at2 < to; at2++) {
+      scratch[at2] = right === to || left < middle && byY[left].y <= byY[right].y ? byY[left++] : byY[right++];
     }
-    for (let at = from; at < to; at++) byY[at] = scratch[at];
+    for (let at2 = from; at2 < to; at2++) byY[at2] = scratch[at2];
     let count = 0;
-    for (let at = from; at < to; at++) {
-      if ((byY[at].x - middleX) ** 2 < best) scratch[count++] = byY[at];
+    for (let at2 = from; at2 < to; at2++) {
+      if ((byY[at2].x - middleX) ** 2 < best) scratch[count++] = byY[at2];
     }
     for (let i = 0; i < count; i++) {
       for (let j = i + 1; j < count && j <= i + 7; j++) {
@@ -9565,11 +9565,8 @@ import { useMemo as useMemo17, useRef as useRef12, useState as useState15 } from
 // src/components/InvestigationPanel/InvestigationPanel.tsx
 import { useMemo as useMemo16, useRef as useRef11, useState as useState14 } from "react";
 
-// src/components/InvestigationPanel/admission.ts
-var MAX_ITEMS = 256;
-var MAX_TEXT = 65536;
-var MAX_STRING = 2048;
-var gapMessages = {
+// src/components/InvestigationPanel/wording/banks.ts
+var gapMessages = Object.freeze({
   "not-collected": "Some evidence was not collected.",
   "untracked-input": "An input's earlier origin is unknown.",
   redacted: "Some evidence is hidden.",
@@ -9593,7 +9590,236 @@ var gapMessages = {
   incompatible: "Some evidence uses an unsupported format.",
   unsupported: "Some evidence is unsupported.",
   "not-permitted": "Some evidence is unavailable for this view."
+});
+var attentionNames = Object.freeze({
+  error: "Recorded error",
+  "unknown-effect": "Outcome unknown",
+  "gave-up": "Stopped retrying",
+  timeout: "Timed out",
+  retried: "Retried",
+  "quality-drop": "Quality changed",
+  "not-collected": "Evidence unavailable",
+  outlier: "Unusual result"
+});
+
+// src/components/InvestigationPanel/wording/gapMessage.ts
+var longestGapCode = Math.max(...Object.keys(gapMessages).map((code) => code.length));
+
+// src/components/InvestigationPanel/wording/markLabel.ts
+function resolveInvestigationMarkLabel(labels, kind) {
+  const fallback2 = Object.prototype.hasOwnProperty.call(attentionNames, kind) ? attentionNames[kind] : kind;
+  if (!labels || typeof labels !== "object") return fallback2;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(labels, kind);
+    if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, "value")) return fallback2;
+    const value = descriptor.value;
+    return typeof value === "string" && value.length > 0 && value.length <= 512 ? value : fallback2;
+  } catch {
+    return fallback2;
+  }
+}
+
+// src/displayAdmission/limits.ts
+var investigationDisplayLimits = Object.freeze({
+  maxTextCodeUnits: 65536,
+  maxStringCodeUnits: 2048,
+  maxItemsPerList: 256,
+  maxMarksPerItem: 16,
+  maxReferencesPerList: 32,
+  maxGapsPerList: 128,
+  maxEdgesPerList: 512
+});
+var failureExplanationDisplayLimits = Object.freeze({
+  maxTextCodeUnits: 262144,
+  maxItemsPerList: 1024,
+  maxTotalListItems: 4096,
+  maxReferenceOrUnknownCodeUnits: 4096,
+  maxFindingCodeUnits: 80,
+  findingCodePattern: "^[A-Z][A-Z0-9_]{1,79}$"
+});
+
+// src/displayAdmission/tokens.ts
+var schemaFields = /* @__PURE__ */ new Set([
+  "problem",
+  "recordedCause",
+  "suggestedNextStep",
+  "text",
+  "configuredText",
+  "wordingSource",
+  "evidenceRefs",
+  "unknowns",
+  "canonicalFindings",
+  "causes",
+  "consequences",
+  "diagnosticFailures",
+  "code",
+  "summary",
+  "level",
+  "nodes",
+  "nodeId",
+  "attention",
+  "kind",
+  "reason",
+  "evidence",
+  "confidence",
+  "gaps",
+  "from",
+  "to",
+  "attribution",
+  "edges",
+  "backward",
+  "rootCause",
+  "path",
+  "alternatives",
+  "impact",
+  "projection",
+  "requestedNodeId",
+  "length"
+]);
+var codes = /* @__PURE__ */ new Set([
+  "invalid-own-field",
+  "accessor-field",
+  "invalid-value",
+  "invalid-enum",
+  "invalid-code",
+  "duplicate-identity",
+  "selection-mismatch",
+  "inconsistent-evidence",
+  "limit-exceeded",
+  "unreadable-input"
+]);
+var limitNames = /* @__PURE__ */ new Set([
+  ...Object.keys(investigationDisplayLimits),
+  ...Object.keys(failureExplanationDisplayLimits).filter((key) => key !== "findingCodePattern")
+]);
+var emptyPath = Object.freeze([]);
+var unreadableDiagnostic = Object.freeze({ code: "unreadable-input", path: emptyPath });
+var refusals = /* @__PURE__ */ new WeakMap();
+function copyDisplayPath(path) {
+  try {
+    if (!Array.isArray(path)) return void 0;
+    const descriptor = Object.getOwnPropertyDescriptor(path, "length");
+    if (!descriptor || !("value" in descriptor)) return void 0;
+    const length = descriptor.value;
+    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0 || length > 8) return void 0;
+    const copy = [];
+    for (let index = 0; index < length; index++) {
+      const part = Object.getOwnPropertyDescriptor(path, String(index));
+      if (!part || !("value" in part)) return void 0;
+      const value = part.value;
+      if (typeof value === "string" && schemaFields.has(value)) copy.push(value);
+      else if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 1024) copy.push(value);
+      else return void 0;
+    }
+    return Object.freeze(copy);
+  } catch {
+    return void 0;
+  }
+}
+function copyLimitDetails(details) {
+  try {
+    if (!details || typeof details !== "object") return void 0;
+    const own = (key) => {
+      const field3 = Object.getOwnPropertyDescriptor(details, key);
+      return field3 && "value" in field3 ? field3.value : void 0;
+    };
+    const limit = own("limit"), maximum = own("maximum"), observed = own("observed");
+    if (typeof limit !== "string" || !limitNames.has(limit) || typeof maximum !== "number" || !Number.isSafeInteger(maximum) || maximum < 0 || typeof observed !== "number" || !Number.isSafeInteger(observed) || observed < 0) return void 0;
+    return Object.freeze({ limit, maximum, observed });
+  } catch {
+    return void 0;
+  }
+}
+function throwDiagnostic(diagnostic) {
+  const token = Object.freeze(/* @__PURE__ */ Object.create(null));
+  refusals.set(token, diagnostic);
+  throw token;
+}
+function refuseDisplay(code, path, details) {
+  const copiedPath = copyDisplayPath(path);
+  if (!copiedPath || !codes.has(code) || details !== void 0 && code !== "limit-exceeded")
+    return throwDiagnostic(unreadableDiagnostic);
+  if (code === "limit-exceeded") {
+    const copiedDetails = details === void 0 ? void 0 : copyLimitDetails(details);
+    if (details !== void 0 && !copiedDetails) return throwDiagnostic(unreadableDiagnostic);
+    return throwDiagnostic(Object.freeze({ code, path: copiedPath, ...copiedDetails }));
+  }
+  return throwDiagnostic(Object.freeze({ code, path: copiedPath }));
+}
+function deliberateDisplayRefusal(thrown) {
+  if (typeof thrown === "object" && thrown !== null || typeof thrown === "function")
+    return refusals.get(thrown);
+  return void 0;
+}
+
+// src/displayAdmission/reader.ts
+function checkedPath(path) {
+  const copy = copyDisplayPath(path);
+  if (!copy) refuseDisplay("unreadable-input", []);
+  return copy;
+}
+function readOwnField(value, key, path = []) {
+  const at2 = checkedPath(path);
+  if (typeof key !== "string") refuseDisplay("unreadable-input", []);
+  if (!value || typeof value !== "object") refuseDisplay("invalid-own-field", at2);
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  if (descriptor === void 0) return void 0;
+  if (!("value" in descriptor)) refuseDisplay("accessor-field", at2);
+  return descriptor.value;
+}
+var DisplayReader = class {
+  constructor(limits) {
+    this.limits = limits;
+    this.textCodeUnits = 0;
+    this.listItems = 0;
+  }
+  field(value, key, path) {
+    return readOwnField(value, key, path);
+  }
+  fail(code, path, details) {
+    return refuseDisplay(code, path, details);
+  }
+  text(value, path, maximum, limit) {
+    const at2 = checkedPath(path);
+    if (typeof value !== "string" || value.length === 0) this.fail("invalid-value", at2);
+    if (value.length > maximum) this.fail("limit-exceeded", at2, { limit, maximum, observed: value.length });
+    this.textCodeUnits += value.length;
+    if (this.textCodeUnits > this.limits.maxTextCodeUnits)
+      this.fail("limit-exceeded", at2, { limit: "maxTextCodeUnits", maximum: this.limits.maxTextCodeUnits, observed: this.textCodeUnits });
+    return value;
+  }
+  list(value, path, maximum, limit, parse) {
+    const at2 = checkedPath(path);
+    if (!Array.isArray(value)) this.fail("invalid-value", at2);
+    const length = this.field(value, "length", [...at2, "length"]);
+    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0) this.fail("invalid-value", at2);
+    if (length > maximum) this.fail("limit-exceeded", at2, { limit, maximum, observed: length });
+    this.listItems += length;
+    if (this.limits.maxTotalListItems !== void 0 && this.listItems > this.limits.maxTotalListItems)
+      this.fail("limit-exceeded", at2, { limit: "maxTotalListItems", maximum: this.limits.maxTotalListItems, observed: this.listItems });
+    const copy = [];
+    for (let index = 0; index < length; index++) {
+      const entryPath = [...at2, index];
+      copy.push(parse(this.field(value, String(index), entryPath), entryPath));
+    }
+    return copy;
+  }
+  /** Exact only for a successfully completed schema parser. */
+  usage() {
+    return Object.freeze({ textCodeUnits: this.textCodeUnits, listItems: this.listItems });
+  }
 };
+function runDisplayCheck(limits, parse) {
+  try {
+    const reader = new DisplayReader(limits);
+    const value = parse(reader);
+    return Object.freeze({ ok: true, value, usage: reader.usage() });
+  } catch (thrown) {
+    return Object.freeze({ ok: false, diagnostic: deliberateDisplayRefusal(thrown) ?? unreadableDiagnostic });
+  }
+}
+
+// src/components/InvestigationPanel/admission.ts
 var reasons = {
   ERROR_RECORDED: true,
   UNKNOWN_EFFECT_RECORDED: true,
@@ -9605,171 +9831,161 @@ var reasons = {
   OUTLIER_RECORDED: true,
   BUSINESS_RULE_MATCHED: true
 };
-var Refused = class extends Error {
-};
-function field3(value, key) {
-  if (!value || typeof value !== "object") throw new Refused();
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  if (!descriptor) return void 0;
-  if (!("value" in descriptor)) throw new Refused();
-  return descriptor.value;
-}
+var at = (path, key) => [...path, key];
 var Admission = class {
-  constructor() {
-    this.remaining = MAX_TEXT;
-    this.evidence = (value) => this.list(value, 32, (entry) => this.text(entry));
-    this.attention = (value) => {
-      const reason = field3(value, "reason");
+  constructor(reader) {
+    this.reader = reader;
+    this.attention = (value, path) => {
+      const reason = this.field(value, "reason", at(path, "reason"));
       if (typeof reason !== "string" || !Object.prototype.hasOwnProperty.call(reasons, reason))
-        throw new Refused();
+        this.reader.fail("invalid-enum", at(path, "reason"));
       return {
-        kind: this.text(field3(value, "kind")),
+        kind: this.text(this.field(value, "kind", at(path, "kind")), at(path, "kind")),
         reason,
-        evidence: this.evidence(field3(value, "evidence"))
+        evidence: this.evidence(this.field(value, "evidence", at(path, "evidence")), at(path, "evidence"))
       };
     };
-    this.gaps = (value) => this.list(value, 128, (entry) => {
-      const code = field3(entry, "code");
+  }
+  field(value, key, path) {
+    return this.reader.field(value, key, path);
+  }
+  text(value, path) {
+    return this.reader.text(value, path, investigationDisplayLimits.maxStringCodeUnits, "maxStringCodeUnits");
+  }
+  confidence(value, path) {
+    if (value !== "complete" && value !== "incomplete") this.reader.fail("invalid-enum", path);
+    return value;
+  }
+  evidence(value, path) {
+    return this.reader.list(value, path, investigationDisplayLimits.maxReferencesPerList, "maxReferencesPerList", (entry, entryPath) => this.text(entry, entryPath));
+  }
+  gaps(value, path) {
+    return this.reader.list(value, path, investigationDisplayLimits.maxGapsPerList, "maxGapsPerList", (entry, entryPath) => {
+      const code = this.field(entry, "code", at(entryPath, "code"));
       if (typeof code !== "string" || !Object.prototype.hasOwnProperty.call(gapMessages, code))
-        throw new Refused();
-      const nodeId = field3(entry, "nodeId");
+        this.reader.fail("invalid-enum", at(entryPath, "code"));
+      const nodeId = this.field(entry, "nodeId", at(entryPath, "nodeId"));
       return {
         code,
-        ...nodeId !== void 0 && { nodeId: this.text(nodeId) },
-        evidence: this.evidence(field3(entry, "evidence"))
+        ...nodeId !== void 0 && { nodeId: this.text(nodeId, at(entryPath, "nodeId")) },
+        evidence: this.evidence(this.field(entry, "evidence", at(entryPath, "evidence")), at(entryPath, "evidence"))
       };
     });
   }
-  text(value) {
-    if (typeof value !== "string" || !value.length || value.length > MAX_STRING)
-      throw new Refused();
-    this.remaining -= value.length;
-    if (this.remaining < 0) throw new Refused();
-    return value;
-  }
-  list(value, max, parse) {
-    if (!Array.isArray(value)) throw new Refused();
-    const length = field3(value, "length");
-    if (typeof length !== "number" || !Number.isSafeInteger(length) || length < 0 || length > max)
-      throw new Refused();
-    const copy = [];
-    for (let index = 0; index < length; index++)
-      copy.push(parse(field3(value, String(index))));
-    return copy;
-  }
-  confidence(value) {
-    if (value !== "complete" && value !== "incomplete") throw new Refused();
-    return value;
-  }
-  edges(value, members) {
-    return this.list(value, 512, (entry) => {
-      const from = this.text(field3(entry, "from")), to = this.text(field3(entry, "to"));
-      const kind = field3(entry, "kind"), attribution = field3(entry, "attribution");
-      if (!members.has(from) || !members.has(to) || kind !== "data" && kind !== "control" || !admitsRecordedAttribution(attribution, kind)) throw new Refused();
-      return { from, to, kind, attribution, evidence: this.evidence(field3(entry, "evidence")) };
+  edges(value, members, path) {
+    return this.reader.list(value, path, investigationDisplayLimits.maxEdgesPerList, "maxEdgesPerList", (entry, entryPath) => {
+      const from = this.text(this.field(entry, "from", at(entryPath, "from")), at(entryPath, "from"));
+      const to = this.text(this.field(entry, "to", at(entryPath, "to")), at(entryPath, "to"));
+      const kind = this.field(entry, "kind", at(entryPath, "kind"));
+      const attribution = this.field(entry, "attribution", at(entryPath, "attribution"));
+      if (!members.has(from)) this.reader.fail("inconsistent-evidence", at(entryPath, "from"));
+      if (!members.has(to)) this.reader.fail("inconsistent-evidence", at(entryPath, "to"));
+      if (kind !== "data" && kind !== "control") this.reader.fail("invalid-enum", at(entryPath, "kind"));
+      if (!admitsRecordedAttribution(attribution, kind))
+        this.reader.fail(attribution === "recorded-write" && kind === "control" ? "inconsistent-evidence" : "invalid-enum", at(entryPath, "attribution"));
+      return { from, to, kind, attribution, evidence: this.evidence(this.field(entry, "evidence", at(entryPath, "evidence")), at(entryPath, "evidence")) };
     });
   }
   backward(value, selected, root, path, alternatives) {
-    const nodes = this.list(field3(value, "nodes"), MAX_ITEMS, (entry) => this.text(entry));
+    const nodesPath = ["backward", "nodes"];
+    const nodes = this.reader.list(this.field(value, "nodes", nodesPath), nodesPath, investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => this.text(entry, entryPath));
     const members = new Set(nodes);
-    if (members.size !== nodes.length || nodes.length > 0 && !members.has(selected)) throw new Refused();
-    const confidence = this.confidence(field3(value, "confidence")), gaps = this.gaps(field3(value, "gaps"));
-    if (root !== void 0 && (!members.has(root) || confidence !== "complete" || gaps.length)) throw new Refused();
-    const edges = this.edges(field3(value, "edges"), members);
-    if (path.some((id) => !members.has(id)) || alternatives.some((id) => !members.has(id)) || root !== void 0 && edges.some((edge) => edge.attribution === "stage")) throw new Refused();
+    if (members.size !== nodes.length) this.reader.fail("duplicate-identity", nodesPath);
+    if (nodes.length > 0 && !members.has(selected)) this.reader.fail("inconsistent-evidence", nodesPath);
+    const confidence = this.confidence(this.field(value, "confidence", ["backward", "confidence"]), ["backward", "confidence"]);
+    const gaps = this.gaps(this.field(value, "gaps", ["backward", "gaps"]), ["backward", "gaps"]);
+    if (root !== void 0) {
+      if (!members.has(root)) this.reader.fail("inconsistent-evidence", nodesPath);
+      if (confidence !== "complete") this.reader.fail("inconsistent-evidence", ["backward", "confidence"]);
+      if (gaps.length) this.reader.fail("inconsistent-evidence", ["backward", "gaps"]);
+    }
+    const edges = this.edges(this.field(value, "edges", ["backward", "edges"]), members, ["backward", "edges"]);
+    if (path.some((id) => !members.has(id))) this.reader.fail("inconsistent-evidence", ["path"]);
+    if (alternatives.some((id) => !members.has(id))) this.reader.fail("inconsistent-evidence", ["alternatives"]);
+    if (root !== void 0 && edges.some((edge) => edge.attribution === "stage")) this.reader.fail("inconsistent-evidence", ["backward", "edges"]);
     const links = /* @__PURE__ */ new Map();
     for (const edge of edges) {
       const targets = links.get(edge.from) ?? /* @__PURE__ */ new Set();
       targets.add(edge.to);
       links.set(edge.from, targets);
     }
-    for (let index = 1; index < path.length; index++) if (!links.get(path[index - 1])?.has(path[index])) throw new Refused();
+    for (let index = 1; index < path.length; index++)
+      if (!links.get(path[index - 1])?.has(path[index])) this.reader.fail("inconsistent-evidence", ["path", index]);
     return { nodes, edges, confidence, gaps };
   }
   impact(value, selected, visual) {
-    const nodes = this.list(
-      field3(value, "nodes"),
-      MAX_ITEMS,
-      (entry) => this.text(entry)
-    );
-    if (new Set(nodes).size !== nodes.length) throw new Refused();
+    const nodesPath = ["impact", "nodes"];
+    const nodes = this.reader.list(this.field(value, "nodes", nodesPath), nodesPath, investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => this.text(entry, entryPath));
+    if (new Set(nodes).size !== nodes.length) this.reader.fail("duplicate-identity", nodesPath);
     return {
       nodes,
-      confidence: this.confidence(field3(value, "confidence")),
-      gaps: this.gaps(field3(value, "gaps")),
-      ...visual && field3(value, "edges") !== void 0 ? { edges: this.edges(field3(value, "edges"), /* @__PURE__ */ new Set([selected, ...nodes])) } : {}
+      confidence: this.confidence(this.field(value, "confidence", ["impact", "confidence"]), ["impact", "confidence"]),
+      gaps: this.gaps(this.field(value, "gaps", ["impact", "gaps"]), ["impact", "gaps"]),
+      ...visual && this.field(value, "edges", ["impact", "edges"]) !== void 0 ? { edges: this.edges(this.field(value, "edges", ["impact", "edges"]), /* @__PURE__ */ new Set([selected, ...nodes]), ["impact", "edges"]) } : {}
     };
   }
 };
-function admitAttention(value) {
-  try {
-    const reader = new Admission();
-    const nodes = reader.list(
-      field3(value, "nodes"),
-      MAX_ITEMS,
-      (entry) => ({
-        nodeId: reader.text(field3(entry, "nodeId")),
-        attention: reader.list(field3(entry, "attention"), 16, reader.attention)
-      })
-    );
-    if (new Set(nodes.map((node) => node.nodeId)).size !== nodes.length)
-      return void 0;
-    return {
-      nodes,
-      confidence: reader.confidence(field3(value, "confidence")),
-      gaps: reader.gaps(field3(value, "gaps"))
-    };
-  } catch {
-    return void 0;
-  }
+function readAttention(value, reader) {
+  const nodes = reader.reader.list(reader.field(value, "nodes", ["nodes"]), ["nodes"], investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => ({
+    nodeId: reader.text(reader.field(entry, "nodeId", at(entryPath, "nodeId")), at(entryPath, "nodeId")),
+    attention: reader.reader.list(reader.field(entry, "attention", at(entryPath, "attention")), at(entryPath, "attention"), investigationDisplayLimits.maxMarksPerItem, "maxMarksPerItem", reader.attention)
+  }));
+  if (new Set(nodes.map((node) => node.nodeId)).size !== nodes.length) reader.reader.fail("duplicate-identity", ["nodes"]);
+  return {
+    nodes,
+    confidence: reader.confidence(reader.field(value, "confidence", ["confidence"]), ["confidence"]),
+    gaps: reader.gaps(reader.field(value, "gaps", ["gaps"]), ["gaps"])
+  };
 }
-function readExplanation(value, requested, visual) {
-  try {
-    const reader = new Admission();
-    const nodeId = reader.text(field3(value, "nodeId"));
-    if (nodeId !== requested) return void 0;
-    const path = reader.list(
-      field3(value, "path"),
-      MAX_ITEMS,
-      (entry) => reader.text(entry)
-    );
-    const alternatives = reader.list(
-      field3(value, "alternatives"),
-      MAX_ITEMS,
-      (entry) => reader.text(entry)
-    );
-    if (path.length && path[0] !== nodeId || new Set(path).size !== path.length || new Set(alternatives).size !== alternatives.length)
-      return void 0;
-    const confidence = reader.confidence(field3(value, "confidence"));
-    const gaps = reader.gaps(field3(value, "gaps"));
-    const root = field3(value, "rootCause");
-    const rootCause = root === void 0 ? void 0 : reader.text(root);
-    if (rootCause !== void 0 && (alternatives.length || path[path.length - 1] !== rootCause))
-      return void 0;
-    return {
-      nodeId,
-      attention: reader.list(field3(value, "attention"), 16, reader.attention),
-      ...rootCause !== void 0 && { rootCause },
-      path,
-      alternatives,
-      impact: reader.impact(field3(value, "impact"), nodeId, visual),
-      ...visual && field3(value, "backward") !== void 0 ? { backward: reader.backward(field3(value, "backward"), nodeId, rootCause, path, alternatives) } : {},
-      confidence,
-      gaps
-    };
-  } catch {
-    return void 0;
-  }
+function readExplanation(value, requested, visual, reader) {
+  const nodeId = reader.text(reader.field(value, "nodeId", ["nodeId"]), ["nodeId"]);
+  if (nodeId !== requested) reader.reader.fail("selection-mismatch", ["nodeId"]);
+  const path = reader.reader.list(reader.field(value, "path", ["path"]), ["path"], investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => reader.text(entry, entryPath));
+  const alternatives = reader.reader.list(reader.field(value, "alternatives", ["alternatives"]), ["alternatives"], investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => reader.text(entry, entryPath));
+  if (path.length && path[0] !== nodeId) reader.reader.fail("inconsistent-evidence", ["path", 0]);
+  if (new Set(path).size !== path.length) reader.reader.fail("duplicate-identity", ["path"]);
+  if (new Set(alternatives).size !== alternatives.length) reader.reader.fail("duplicate-identity", ["alternatives"]);
+  const confidence = reader.confidence(reader.field(value, "confidence", ["confidence"]), ["confidence"]);
+  const gaps = reader.gaps(reader.field(value, "gaps", ["gaps"]), ["gaps"]);
+  const root = reader.field(value, "rootCause", ["rootCause"]);
+  const rootCause = root === void 0 ? void 0 : reader.text(root, ["rootCause"]);
+  if (rootCause !== void 0 && (alternatives.length || path[path.length - 1] !== rootCause)) reader.reader.fail("inconsistent-evidence", ["rootCause"]);
+  return {
+    nodeId,
+    attention: reader.reader.list(reader.field(value, "attention", ["attention"]), ["attention"], investigationDisplayLimits.maxMarksPerItem, "maxMarksPerItem", reader.attention),
+    ...rootCause !== void 0 && { rootCause },
+    path,
+    alternatives,
+    impact: reader.impact(reader.field(value, "impact", ["impact"]), nodeId, visual),
+    ...visual && reader.field(value, "backward", ["backward"]) !== void 0 ? { backward: reader.backward(reader.field(value, "backward", ["backward"]), nodeId, rootCause, path, alternatives) } : {},
+    confidence,
+    gaps
+  };
+}
+function checkInvestigationAttention(value) {
+  return runDisplayCheck(investigationDisplayLimits, (reader) => readAttention(value, new Admission(reader)));
+}
+function checkInvestigationExplanation(value, requestedNodeId, projection = "text") {
+  return runDisplayCheck(investigationDisplayLimits, (reader) => {
+    if (projection !== "text" && projection !== "relationships") reader.fail("invalid-enum", ["projection"]);
+    return readExplanation(value, requestedNodeId, projection === "relationships", new Admission(reader));
+  });
+}
+function admitAttention(value) {
+  const result = checkInvestigationAttention(value);
+  return result.ok ? result.value : void 0;
 }
 function admitExplanation(value, requested) {
-  return readExplanation(value, requested, false);
+  const result = checkInvestigationExplanation(value, requested);
+  return result.ok ? result.value : void 0;
 }
 function admitVisualExplanation(value, requested) {
-  return readExplanation(value, requested, true);
+  const result = checkInvestigationExplanation(value, requested, "relationships");
+  return result.ok ? result.value : void 0;
 }
 function displayLabel(labels, nodeId) {
   try {
-    const label = field3(labels, nodeId);
+    const label = readOwnField(labels, nodeId);
     return typeof label === "string" && label.length > 0 && label.length <= 512 ? label : nodeId;
   } catch {
     return nodeId;
@@ -9781,49 +9997,53 @@ import { useRef as useRef10, useState as useState13 } from "react";
 function useInvestigationQuery(port, admit) {
   const owner = port.binding;
   const currentOwner = useRef10(null);
+  const committedAdmission = useRef10(null);
   const active = useRef10(null);
   const [state, setState] = useState13(null);
   const [selection, setSelection] = useState13(null);
   useIsomorphicLayoutEffect(() => {
+    const strategyChanged = committedAdmission.current !== null && committedAdmission.current !== admit;
     currentOwner.current = owner;
-    if (!active.current) setState((previous) => previous?.owner === owner && previous.status === "loading" ? null : previous);
+    committedAdmission.current = admit;
+    if (strategyChanged) setState(null);
+    else if (!active.current) setState((previous) => previous?.owner === owner && previous.status === "loading" ? null : previous);
     return () => {
       currentOwner.current = null;
       active.current?.abort();
       active.current = null;
     };
-  }, [owner]);
+  }, [owner, admit]);
   const close = () => {
-    if (currentOwner.current !== owner) return;
+    if (currentOwner.current !== owner || committedAdmission.current !== admit) return;
     active.current?.abort();
     active.current = null;
     setState(null);
   };
   const select = (nodeId) => {
-    if (currentOwner.current !== owner) return;
+    if (currentOwner.current !== owner || committedAdmission.current !== admit) return;
     close();
     setSelection({ owner, nodeId });
   };
   const query = (nodeId) => {
     const controller = new AbortController();
-    if (currentOwner.current !== owner) {
+    if (currentOwner.current !== owner || committedAdmission.current !== admit) {
       controller.abort();
       return controller;
     }
     active.current?.abort();
     active.current = controller;
     setSelection({ owner, nodeId });
-    setState({ owner, nodeId, request: controller, status: "loading" });
+    setState({ owner, admission: admit, nodeId, request: controller, status: "loading" });
     Promise.resolve().then(() => {
-      if (controller.signal.aborted || currentOwner.current !== owner) return void 0;
+      if (controller.signal.aborted || currentOwner.current !== owner || committedAdmission.current !== admit) return void 0;
       return port.explain(nodeId, { signal: controller.signal });
     }).then((value) => {
-      if (active.current !== controller || controller.signal.aborted || currentOwner.current !== owner) return;
+      if (active.current !== controller || controller.signal.aborted || currentOwner.current !== owner || committedAdmission.current !== admit) return;
       const result = admit(value, nodeId);
-      setState(result ? { owner, nodeId, request: controller, status: "ready", result } : { owner, nodeId, request: controller, status: "refused" });
+      setState(result ? { owner, admission: admit, nodeId, request: controller, status: "ready", result } : { owner, admission: admit, nodeId, request: controller, status: "refused" });
     }, () => {
-      if (active.current === controller && !controller.signal.aborted && currentOwner.current === owner)
-        setState({ owner, nodeId, request: controller, status: "error" });
+      if (active.current === controller && !controller.signal.aborted && currentOwner.current === owner && committedAdmission.current === admit)
+        setState({ owner, admission: admit, nodeId, request: controller, status: "error" });
     });
     return controller;
   };
@@ -9831,7 +10051,7 @@ function useInvestigationQuery(port, admit) {
     owner,
     currentOwner,
     active,
-    selected: state?.owner === owner ? state : null,
+    selected: state?.owner === owner && state.admission === admit ? state : null,
     selection: selection?.owner === owner ? selection.nodeId : void 0,
     query,
     close,
@@ -9839,8 +10059,90 @@ function useInvestigationQuery(port, admit) {
   };
 }
 
+// src/components/InvestigationPanel/coverage/CoverageSection.tsx
+import { useId as useId3 } from "react";
+
+// src/components/InvestigationPanel/coverage/groupGaps.ts
+function groupGaps(gaps) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const entry of gaps) {
+    const entries = groups.get(entry.code);
+    if (entries) entries.push(entry);
+    else groups.set(entry.code, [entry]);
+  }
+  return Object.freeze([...groups].map(([code, entries]) => Object.freeze({ code, entries: Object.freeze(entries) })));
+}
+
+// src/components/InvestigationPanel/coverage/GroupedGapList.tsx
+import { jsx as jsx32, jsxs as jsxs24 } from "react/jsx-runtime";
+var codeStyle = { fontFamily: theme.fontMono };
+function GroupedGapList({ gaps }) {
+  return /* @__PURE__ */ jsx32("ul", { "aria-label": "Supplied gap groups", children: groupGaps(gaps).map((group) => /* @__PURE__ */ jsxs24("li", { style: { marginBlock: 12 }, children: [
+    /* @__PURE__ */ jsx32("p", { role: "status", children: gapMessages[group.code] }),
+    /* @__PURE__ */ jsxs24("p", { children: [
+      group.entries.length,
+      " supplied ",
+      group.entries.length === 1 ? "entry" : "entries"
+    ] }),
+    /* @__PURE__ */ jsxs24("details", { children: [
+      /* @__PURE__ */ jsxs24("summary", { children: [
+        "View supplied entries for ",
+        group.code
+      ] }),
+      /* @__PURE__ */ jsx32("ol", { "aria-label": `Supplied entries for ${group.code}`, children: group.entries.map((entry, index) => /* @__PURE__ */ jsxs24("li", { children: [
+        entry.nodeId !== void 0 && /* @__PURE__ */ jsxs24("p", { children: [
+          "Supplied item ID: ",
+          /* @__PURE__ */ jsx32("code", { style: codeStyle, children: entry.nodeId })
+        ] }),
+        entry.evidence.length > 0 ? /* @__PURE__ */ jsx32("ul", { "aria-label": "Supplied evidence references", children: entry.evidence.map((reference, position) => /* @__PURE__ */ jsx32("li", { children: /* @__PURE__ */ jsx32("code", { style: codeStyle, children: reference }) }, position)) }) : /* @__PURE__ */ jsx32("p", { children: "No evidence references were supplied for this entry." })
+      ] }, index)) })
+    ] })
+  ] }, group.code)) });
+}
+
+// src/components/InvestigationPanel/coverage/CoverageSection.tsx
+import { Fragment as Fragment10, jsx as jsx33, jsxs as jsxs25 } from "react/jsx-runtime";
+var headings = {
+  attention: "Attention evidence coverage",
+  overall: "Overall reported coverage; direction not supplied",
+  backward: "Backward evidence coverage",
+  impact: "Affected-item coverage"
+};
+var absent = {
+  attention: "Attention evidence coverage was not supplied. Coverage remains unknown.",
+  overall: "Overall evidence coverage was not supplied. Coverage remains unknown.",
+  backward: "Backward evidence was not supplied. Backward coverage remains unknown.",
+  impact: "Affected-item coverage was not supplied. Unlisted effects remain unknown."
+};
+function CoverageSection({ context, coverage }) {
+  const headingId = useId3();
+  return /* @__PURE__ */ jsxs25("section", { "aria-labelledby": headingId, style: { marginBlock: 16 }, children: [
+    /* @__PURE__ */ jsx33("h4", { id: headingId, children: headings[context] }),
+    coverage === void 0 ? /* @__PURE__ */ jsx33("p", { role: "status", children: absent[context] }) : /* @__PURE__ */ jsxs25(Fragment10, { children: [
+      /* @__PURE__ */ jsxs25("p", { children: [
+        "Source-reported confidence: ",
+        coverage.confidence,
+        "."
+      ] }),
+      coverage.confidence === "incomplete" && /* @__PURE__ */ jsx33("p", { role: "status", children: "The supplied coverage is incomplete. Unreported evidence remains unknown." }),
+      coverage.gaps.length > 0 ? /* @__PURE__ */ jsx33(GroupedGapList, { gaps: coverage.gaps }) : /* @__PURE__ */ jsx33("p", { children: "No gap entries were supplied. This does not verify completeness." })
+    ] })
+  ] });
+}
+
+// src/components/InvestigationPanel/coverage/supportsRecordedRoot.ts
+function supportsRecordedRoot(result) {
+  return typeof result.rootCause === "string" && result.rootCause.length > 0 && result.backward?.confidence === "complete" && result.backward.gaps.length === 0;
+}
+
+// src/components/InvestigationPanel/coverageMode.ts
+function resolveCoverageMode(value) {
+  if (value === void 0) return "overall";
+  return value === "overall" || value === "directional" ? value : void 0;
+}
+
 // src/components/InvestigationPanel/InvestigationPanel.tsx
-import { Fragment as Fragment10, jsx as jsx32, jsxs as jsxs24 } from "react/jsx-runtime";
+import { Fragment as Fragment11, jsx as jsx34, jsxs as jsxs26 } from "react/jsx-runtime";
 var box = {
   color: theme.textPrimary,
   background: theme.bg,
@@ -9865,18 +10167,8 @@ var row = {
   borderBlockEnd: `1px solid ${theme.border}`,
   paddingBlock: 12
 };
-var attentionNames = {
-  error: "Recorded error",
-  "unknown-effect": "Outcome unknown",
-  "gave-up": "Stopped retrying",
-  timeout: "Timed out",
-  retried: "Retried",
-  "quality-drop": "Quality changed",
-  "not-collected": "Evidence unavailable",
-  outlier: "Unusual result"
-};
-function Badges({ marks }) {
-  return /* @__PURE__ */ jsx32(Fragment10, { children: marks.map((mark, index) => /* @__PURE__ */ jsx32(
+function Badges({ marks, markLabels }) {
+  return /* @__PURE__ */ jsx34(Fragment11, { children: marks.map((mark, index) => /* @__PURE__ */ jsx34(
     "span",
     {
       style: {
@@ -9887,40 +10179,55 @@ function Badges({ marks }) {
         borderRadius: 4,
         background: theme.accentBg
       },
-      children: Object.prototype.hasOwnProperty.call(attentionNames, mark.kind) ? attentionNames[mark.kind] : mark.kind
+      children: resolveInvestigationMarkLabel(markLabels, mark.kind)
     },
     index
   )) });
 }
 function Gaps({ gaps }) {
-  return /* @__PURE__ */ jsx32(Fragment10, { children: gaps.map((gap, index) => /* @__PURE__ */ jsx32("p", { role: "status", children: gapMessages[gap.code] }, index)) });
+  return /* @__PURE__ */ jsx34(Fragment11, { children: gaps.map((gap, index) => /* @__PURE__ */ jsx34("p", { role: "status", children: gapMessages[gap.code] }, index)) });
+}
+function otherCandidates(nodeId, alternatives) {
+  return {
+    selectedWasCandidate: alternatives.includes(nodeId),
+    otherCandidateIds: alternatives.filter((id) => id !== nodeId)
+  };
 }
 function InvestigationPanel(props) {
+  const coverageMode = resolveCoverageMode(props.coverageMode);
+  if (!coverageMode) return /* @__PURE__ */ jsxs26("section", { "aria-label": "Investigation", className: props.className, style: { ...box, ...props.style }, children: [
+    /* @__PURE__ */ jsx34("h2", { children: "Needs attention" }),
+    /* @__PURE__ */ jsx34("p", { role: "alert", children: "Investigation is unavailable for this coverage mode." })
+  ] });
   if (!props.port)
-    return /* @__PURE__ */ jsxs24(
+    return /* @__PURE__ */ jsxs26(
       "section",
       {
         "aria-label": "Investigation",
         className: props.className,
         style: { ...box, ...props.style },
         children: [
-          /* @__PURE__ */ jsx32("h2", { children: "Needs attention" }),
-          /* @__PURE__ */ jsx32("p", { role: "status", children: "Investigation is unavailable for this recording." })
+          /* @__PURE__ */ jsx34("h2", { children: "Needs attention" }),
+          /* @__PURE__ */ jsx34("p", { role: "status", children: "Investigation is unavailable for this recording." })
         ]
       }
     );
-  return /* @__PURE__ */ jsx32(BoundInvestigationPanel, { ...props, port: props.port });
+  return /* @__PURE__ */ jsx34(BoundInvestigationPanel, { ...props, coverageMode, port: props.port });
 }
 function BoundInvestigationPanel(props) {
-  const controller = useInvestigationQuery(props.port, admitExplanation);
-  return /* @__PURE__ */ jsx32(InvestigationPanelView, { ...props, controller });
+  const controller = useInvestigationQuery(
+    props.port,
+    props.coverageMode === "directional" ? admitVisualExplanation : admitExplanation
+  );
+  return /* @__PURE__ */ jsx34(InvestigationPanelView, { ...props, controller });
 }
-function InvestigationPanelView({ port, className, style, controller, showAttention = true, focusExternalRequests = true }) {
+function InvestigationPanelView({ port, className, style, controller, markLabels, coverageMode = "overall", showAttention = true, focusExternalRequests = true }) {
   const attention = useMemo16(
     () => showAttention ? admitAttention(port.attention) : void 0,
     [port.attention, showAttention]
   );
   const { owner, currentOwner, active, selected } = controller;
+  const candidates = selected?.status === "ready" ? otherCandidates(selected.result.nodeId, selected.result.alternatives) : void 0;
   const explanationElement = useRef11(null);
   const attentionElements = useRef11(/* @__PURE__ */ new Map());
   const returnTo = useRef11(null);
@@ -9970,10 +10277,10 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
     focusIntent.current = { owner, kind: "explanation", request };
   };
   const label = (nodeId) => displayLabel(port.labels, nodeId);
-  const item = (nodeId, index) => /* @__PURE__ */ jsxs24("li", { style: row, children: [
-    /* @__PURE__ */ jsx32("span", { children: label(nodeId) }),
+  const item = (nodeId, index) => /* @__PURE__ */ jsxs26("li", { style: row, children: [
+    /* @__PURE__ */ jsx34("span", { children: label(nodeId) }),
     " ",
-    /* @__PURE__ */ jsx32(
+    /* @__PURE__ */ jsx34(
       "button",
       {
         type: "button",
@@ -9984,23 +10291,23 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
       }
     )
   ] }, `${index}:${nodeId}`);
-  return /* @__PURE__ */ jsxs24(
+  return /* @__PURE__ */ jsxs26(
     "section",
     {
       "aria-label": "Investigation",
       className,
       style: { ...box, ...style },
       children: [
-        /* @__PURE__ */ jsx32("h2", { style: { marginBlockStart: 0 }, children: showAttention ? "Needs attention" : "Understand this step" }),
-        /* @__PURE__ */ jsx32("p", { style: { color: theme.textSecondary }, children: "Choose an item to inspect its recorded causes and effects." }),
-        showAttention && (!attention ? /* @__PURE__ */ jsx32("p", { role: "alert", children: "The attention list could not be verified." }) : /* @__PURE__ */ jsxs24(Fragment10, { children: [
-          /* @__PURE__ */ jsx32(Gaps, { gaps: attention.gaps }),
-          attention.confidence === "incomplete" && attention.nodes.length > 0 && /* @__PURE__ */ jsx32("p", { role: "status", children: "Attention coverage is incomplete. Other outcomes remain unknown." }),
-          !attention.nodes.length ? /* @__PURE__ */ jsx32("p", { children: attention.confidence === "incomplete" || attention.gaps.length ? "No attention items are available. Coverage is unknown." : "No attention items were reported in the supplied evidence." }) : /* @__PURE__ */ jsx32("ul", { style: { listStyle: "none", padding: 0 }, children: attention.nodes.slice(0, selected ? 20 : visible).map((node, index) => /* @__PURE__ */ jsxs24("li", { style: row, children: [
-            /* @__PURE__ */ jsx32("div", { children: label(node.nodeId) }),
-            /* @__PURE__ */ jsx32(Badges, { marks: node.attention }),
+        /* @__PURE__ */ jsx34("h2", { style: { marginBlockStart: 0 }, children: showAttention ? "Needs attention" : "Understand this step" }),
+        /* @__PURE__ */ jsx34("p", { style: { color: theme.textSecondary }, children: "Choose an item to inspect its recorded causes and effects." }),
+        showAttention && (!attention ? /* @__PURE__ */ jsx34("p", { role: "alert", children: "The attention list could not be verified." }) : /* @__PURE__ */ jsxs26(Fragment11, { children: [
+          coverageMode === "directional" ? /* @__PURE__ */ jsx34(CoverageSection, { context: "attention", coverage: attention }) : /* @__PURE__ */ jsx34(Gaps, { gaps: attention.gaps }),
+          attention.confidence === "incomplete" && attention.nodes.length > 0 && /* @__PURE__ */ jsx34("p", { role: "status", children: "Attention coverage is incomplete. Other outcomes remain unknown." }),
+          !attention.nodes.length ? /* @__PURE__ */ jsx34("p", { children: attention.confidence === "incomplete" || attention.gaps.length ? "No attention items are available. Coverage is unknown." : "No attention items were reported in the supplied evidence." }) : /* @__PURE__ */ jsx34("ul", { style: { listStyle: "none", padding: 0 }, children: attention.nodes.slice(0, selected ? 20 : visible).map((node, index) => /* @__PURE__ */ jsxs26("li", { style: row, children: [
+            /* @__PURE__ */ jsx34("div", { children: label(node.nodeId) }),
+            /* @__PURE__ */ jsx34(Badges, { marks: node.attention, markLabels }),
             " ",
-            /* @__PURE__ */ jsx32(
+            /* @__PURE__ */ jsx34(
               "button",
               {
                 ref: (element) => {
@@ -10016,7 +10323,7 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
               }
             )
           ] }, node.nodeId)) }),
-          !selected && attention.nodes.length > visible && /* @__PURE__ */ jsx32(
+          !selected && attention.nodes.length > visible && /* @__PURE__ */ jsx34(
             "button",
             {
               type: "button",
@@ -10026,7 +10333,7 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
             }
           )
         ] })),
-        selected && /* @__PURE__ */ jsxs24(
+        selected && /* @__PURE__ */ jsxs26(
           "section",
           {
             ref: explanationElement,
@@ -10039,11 +10346,11 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
               paddingBlockStart: 16
             },
             children: [
-              /* @__PURE__ */ jsx32("button", { type: "button", style: button, onClick: close, children: "Close investigation" }),
-              /* @__PURE__ */ jsx32("h3", { children: label(selected.nodeId) }),
-              selected.status === "loading" ? /* @__PURE__ */ jsx32("p", { role: "status", children: "Loading explanation\u2026" }) : selected.status === "error" ? /* @__PURE__ */ jsxs24(Fragment10, { children: [
-                /* @__PURE__ */ jsx32("p", { role: "alert", children: "Explanation unavailable. Try again." }),
-                /* @__PURE__ */ jsx32(
+              /* @__PURE__ */ jsx34("button", { type: "button", style: button, onClick: close, children: "Close investigation" }),
+              /* @__PURE__ */ jsx34("h3", { children: label(selected.nodeId) }),
+              selected.status === "loading" ? /* @__PURE__ */ jsx34("p", { role: "status", children: "Loading explanation\u2026" }) : selected.status === "error" ? /* @__PURE__ */ jsxs26(Fragment11, { children: [
+                /* @__PURE__ */ jsx34("p", { role: "alert", children: "Explanation unavailable. Try again." }),
+                /* @__PURE__ */ jsx34(
                   "button",
                   {
                     type: "button",
@@ -10052,30 +10359,36 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
                     children: "Try again"
                   }
                 )
-              ] }) : selected.status === "refused" ? /* @__PURE__ */ jsxs24(Fragment10, { children: [
-                /* @__PURE__ */ jsx32("p", { role: "alert", children: "This explanation could not be verified." }),
-                /* @__PURE__ */ jsx32("p", { children: "Its evidence is unsupported, too large, or from a different selection." })
-              ] }) : /* @__PURE__ */ jsxs24(Fragment10, { children: [
-                /* @__PURE__ */ jsx32(Badges, { marks: selected.result.attention }),
-                /* @__PURE__ */ jsx32("h4", { children: selected.result.rootCause ? "Supported root cause" : "Root cause unknown" }),
-                selected.result.rootCause && /* @__PURE__ */ jsx32("p", { children: label(selected.result.rootCause) }),
-                !selected.result.rootCause && /* @__PURE__ */ jsx32("p", { children: "The supplied evidence does not establish one root cause." }),
-                !!selected.result.gaps.length && /* @__PURE__ */ jsx32("h4", { children: "Evidence coverage" }),
-                /* @__PURE__ */ jsx32(Gaps, { gaps: selected.result.gaps }),
-                selected.result.confidence === "incomplete" && !selected.result.gaps.length && /* @__PURE__ */ jsx32("p", { role: "status", children: "The recorded explanation is incomplete." }),
-                /* @__PURE__ */ jsxs24("details", { children: [
-                  /* @__PURE__ */ jsx32("summary", { children: "Recorded evidence references" }),
-                  /* @__PURE__ */ jsx32("ul", { children: [
+              ] }) : selected.status === "refused" ? /* @__PURE__ */ jsxs26(Fragment11, { children: [
+                /* @__PURE__ */ jsx34("p", { role: "alert", children: "This explanation could not be verified." }),
+                /* @__PURE__ */ jsx34("p", { children: "Its evidence is unsupported, too large, or from a different selection." })
+              ] }) : /* @__PURE__ */ jsxs26(Fragment11, { children: [
+                /* @__PURE__ */ jsx34(Badges, { marks: selected.result.attention, markLabels }),
+                /* @__PURE__ */ jsx34("h4", { children: selected.result.rootCause ? coverageMode === "directional" && !supportsRecordedRoot(selected.result) ? "Reported root cause" : "Supported root cause" : "Root cause unknown" }),
+                selected.result.rootCause && /* @__PURE__ */ jsx34("p", { children: label(selected.result.rootCause) }),
+                !selected.result.rootCause && /* @__PURE__ */ jsx34("p", { children: "The supplied evidence does not establish one root cause." }),
+                coverageMode === "directional" ? /* @__PURE__ */ jsxs26(Fragment11, { children: [
+                  /* @__PURE__ */ jsx34(CoverageSection, { context: "backward", coverage: selected.result.backward }),
+                  /* @__PURE__ */ jsx34(CoverageSection, { context: "overall", coverage: selected.result })
+                ] }) : /* @__PURE__ */ jsxs26(Fragment11, { children: [
+                  !!selected.result.gaps.length && /* @__PURE__ */ jsx34("h4", { children: "Evidence coverage" }),
+                  /* @__PURE__ */ jsx34(Gaps, { gaps: selected.result.gaps }),
+                  selected.result.confidence === "incomplete" && !selected.result.gaps.length && /* @__PURE__ */ jsx34("p", { role: "status", children: "The recorded explanation is incomplete." })
+                ] }),
+                /* @__PURE__ */ jsxs26("details", { children: [
+                  /* @__PURE__ */ jsx34("summary", { children: "Recorded evidence references" }),
+                  /* @__PURE__ */ jsx34("ul", { children: [
                     ...selected.result.attention.flatMap(
                       (mark) => mark.evidence
                     ),
                     ...selected.result.gaps.flatMap((gap) => gap.evidence),
                     ...selected.result.impact.gaps.flatMap(
                       (gap) => gap.evidence
-                    )
-                  ].map((reference, index) => /* @__PURE__ */ jsx32("li", { children: reference }, index)) })
+                    ),
+                    ...coverageMode === "directional" ? selected.result.backward?.gaps.flatMap((gap) => gap.evidence) ?? [] : []
+                  ].map((reference, index) => /* @__PURE__ */ jsx34("li", { children: reference }, index)) })
                 ] }),
-                /* @__PURE__ */ jsx32(
+                /* @__PURE__ */ jsx34(
                   "button",
                   {
                     type: "button",
@@ -10085,26 +10398,29 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
                     children: showPath ? "Hide recorded path" : "Show recorded path"
                   }
                 ),
-                showPath && /* @__PURE__ */ jsxs24(Fragment10, { children: [
-                  /* @__PURE__ */ jsx32("h4", { children: "Recorded dependency path" }),
-                  selected.result.path.length ? /* @__PURE__ */ jsx32("ol", { children: selected.result.path.map(item) }) : /* @__PURE__ */ jsx32("p", { children: "No dependency path was supplied." })
+                showPath && /* @__PURE__ */ jsxs26(Fragment11, { children: [
+                  /* @__PURE__ */ jsx34("h4", { children: "Recorded dependency path" }),
+                  selected.result.path.length ? /* @__PURE__ */ jsx34("ol", { children: selected.result.path.map(item) }) : /* @__PURE__ */ jsx34("p", { children: "No dependency path was supplied." })
                 ] }),
-                !!selected.result.alternatives.length && /* @__PURE__ */ jsxs24(Fragment10, { children: [
-                  /* @__PURE__ */ jsx32("h4", { children: "Alternative candidates" }),
-                  /* @__PURE__ */ jsx32("p", { children: "These candidates remain uncertain." }),
-                  /* @__PURE__ */ jsx32(
-                    "button",
-                    {
-                      type: "button",
-                      style: button,
-                      "aria-expanded": showAlternatives,
-                      onClick: () => setShowAlternatives((value) => !value),
-                      children: showAlternatives ? "Hide alternative candidates" : "Show alternative candidates"
-                    }
-                  ),
-                  showAlternatives && /* @__PURE__ */ jsx32("ul", { children: selected.result.alternatives.map(item) })
+                candidates && !!selected.result.alternatives.length && /* @__PURE__ */ jsxs26(Fragment11, { children: [
+                  /* @__PURE__ */ jsx34("h4", { children: "Other candidates" }),
+                  candidates.selectedWasCandidate && /* @__PURE__ */ jsx34("p", { children: "The selected item is included in the supplied candidate list." }),
+                  candidates.otherCandidateIds.length ? /* @__PURE__ */ jsxs26(Fragment11, { children: [
+                    /* @__PURE__ */ jsx34("p", { children: "These candidates remain uncertain." }),
+                    /* @__PURE__ */ jsx34(
+                      "button",
+                      {
+                        type: "button",
+                        style: button,
+                        "aria-expanded": showAlternatives,
+                        onClick: () => setShowAlternatives((value) => !value),
+                        children: showAlternatives ? "Hide other candidates" : "Show other candidates"
+                      }
+                    ),
+                    showAlternatives && /* @__PURE__ */ jsx34("ul", { children: candidates.otherCandidateIds.map(item) })
+                  ] }) : /* @__PURE__ */ jsx34("p", { children: "No other candidates were supplied. This does not establish one root cause." })
                 ] }),
-                /* @__PURE__ */ jsx32("div", { style: { marginBlockStart: 16 }, children: /* @__PURE__ */ jsx32(
+                /* @__PURE__ */ jsx34("div", { style: { marginBlockStart: 16 }, children: /* @__PURE__ */ jsx34(
                   "button",
                   {
                     type: "button",
@@ -10114,11 +10430,12 @@ function InvestigationPanelView({ port, className, style, controller, showAttent
                     children: showImpact ? "Hide affected items" : "Show affected items"
                   }
                 ) }),
-                showImpact && /* @__PURE__ */ jsxs24(Fragment10, { children: [
-                  /* @__PURE__ */ jsx32("h4", { children: "Affected items" }),
-                  /* @__PURE__ */ jsx32(Gaps, { gaps: selected.result.impact.gaps }),
-                  selected.result.impact.confidence === "incomplete" && /* @__PURE__ */ jsx32("p", { role: "status", children: "Affected-item coverage is incomplete. Unlisted items remain unknown." }),
-                  selected.result.impact.nodes.length ? /* @__PURE__ */ jsx32("ul", { children: selected.result.impact.nodes.map(item) }) : /* @__PURE__ */ jsx32("p", { children: "No affected items were reported in the supplied evidence." })
+                coverageMode === "directional" && /* @__PURE__ */ jsx34(CoverageSection, { context: "impact", coverage: selected.result.impact }),
+                showImpact && /* @__PURE__ */ jsxs26(Fragment11, { children: [
+                  /* @__PURE__ */ jsx34("h4", { children: "Affected items" }),
+                  coverageMode === "overall" && /* @__PURE__ */ jsx34(Gaps, { gaps: selected.result.impact.gaps }),
+                  coverageMode === "overall" && selected.result.impact.confidence === "incomplete" && /* @__PURE__ */ jsx34("p", { role: "status", children: "Affected-item coverage is incomplete. Unlisted items remain unknown." }),
+                  selected.result.impact.nodes.length ? /* @__PURE__ */ jsx34("ul", { children: selected.result.impact.nodes.map(item) }) : /* @__PURE__ */ jsx34("p", { children: "No affected items were reported in the supplied evidence." })
                 ] })
               ] })
             ]
@@ -10178,19 +10495,19 @@ function projectInvestigation(definition, result, direction) {
 }
 
 // src/components/GroupedFlowInvestigation/DependencyEvidence.tsx
-import { jsx as jsx33, jsxs as jsxs25 } from "react/jsx-runtime";
+import { jsx as jsx35, jsxs as jsxs27 } from "react/jsx-runtime";
 function DependencyEvidence({ result, direction, labels }) {
   const source = direction === "cause" ? result.backward : result.impact;
   if (!source?.edges) return null;
-  return /* @__PURE__ */ jsxs25("details", { children: [
-    /* @__PURE__ */ jsxs25("summary", { children: [
+  return /* @__PURE__ */ jsxs27("details", { children: [
+    /* @__PURE__ */ jsxs27("summary", { children: [
       "Recorded dependency evidence (",
       source.edges.length,
       ")"
     ] }),
-    /* @__PURE__ */ jsx33("p", { children: "These are the returned relationships, including references outside this diagram. Names do not establish identity or a cause." }),
-    /* @__PURE__ */ jsx33("ol", { children: source.edges.slice(0, 64).map((edge, index) => /* @__PURE__ */ jsxs25("li", { children: [
-      /* @__PURE__ */ jsxs25("span", { children: [
+    /* @__PURE__ */ jsx35("p", { children: "These are the returned relationships, including references outside this diagram. Names do not establish identity or a cause." }),
+    /* @__PURE__ */ jsx35("ol", { children: source.edges.slice(0, 64).map((edge, index) => /* @__PURE__ */ jsxs27("li", { children: [
+      /* @__PURE__ */ jsxs27("span", { children: [
         displayLabel(labels, edge.from),
         " \u2192 ",
         displayLabel(labels, edge.to),
@@ -10199,29 +10516,31 @@ function DependencyEvidence({ result, direction, labels }) {
         " \xB7 ",
         edge.attribution
       ] }),
-      /* @__PURE__ */ jsx33("ul", { children: edge.evidence.map((reference, at) => /* @__PURE__ */ jsx33("li", { children: reference }, at)) })
+      /* @__PURE__ */ jsx35("ul", { children: edge.evidence.map((reference, at2) => /* @__PURE__ */ jsx35("li", { children: reference }, at2)) })
     ] }, index)) }),
-    source.edges.length > 64 && /* @__PURE__ */ jsxs25("p", { children: [
+    source.edges.length > 64 && /* @__PURE__ */ jsxs27("p", { children: [
       source.edges.length - 64,
       " additional relationships are retained in the admitted result and not expanded here."
     ] }),
-    !source.edges.length && /* @__PURE__ */ jsx33("p", { children: "No relationships were returned for this direction. This is not evidence of success or absence of external effects." })
+    !source.edges.length && /* @__PURE__ */ jsx35("p", { children: "No relationships were returned for this direction. This is not evidence of success or absence of external effects." })
   ] });
 }
 
 // src/components/GroupedFlowInvestigation/GroupedFlowInvestigation.tsx
-import { jsx as jsx34, jsxs as jsxs26 } from "react/jsx-runtime";
+import { jsx as jsx36, jsxs as jsxs28 } from "react/jsx-runtime";
 var action = { font: "inherit", fontSize: 12, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "7px 12px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
 function GroupedFlowInvestigation(props) {
   const admitted = useMemo17(() => {
     return projectGroupedFlowDiagram(props.definition, { observation: props.observation });
   }, [props.definition, props.observation]);
-  if (!admitted.model) return /* @__PURE__ */ jsx34(GroupedFlowDiagram, { definition: props.definition, observation: props.observation, className: props.className, style: props.style });
-  if (!props.port) return /* @__PURE__ */ jsxs26("section", { className: props.className, style: props.style, children: [
-    /* @__PURE__ */ jsx34(GroupedFlowDiagram, { definition: admitted.model.definition, observation: props.observation, direction: props.direction }),
-    /* @__PURE__ */ jsx34(InvestigationPanel, { port: null })
+  const coverageMode = resolveCoverageMode(props.coverageMode);
+  if (!coverageMode) return /* @__PURE__ */ jsx36("section", { className: props.className, style: props.style, children: /* @__PURE__ */ jsx36("p", { role: "alert", children: "Investigation is unavailable for this coverage mode." }) });
+  if (!admitted.model) return /* @__PURE__ */ jsx36(GroupedFlowDiagram, { definition: props.definition, observation: props.observation, className: props.className, style: props.style });
+  if (!props.port) return /* @__PURE__ */ jsxs28("section", { className: props.className, style: props.style, children: [
+    /* @__PURE__ */ jsx36(GroupedFlowDiagram, { definition: admitted.model.definition, observation: props.observation, direction: props.direction }),
+    /* @__PURE__ */ jsx36(InvestigationPanel, { port: null })
   ] });
-  return /* @__PURE__ */ jsx34(BoundGroupedFlowInvestigation, { ...props, port: props.port, admitted: admitted.model });
+  return /* @__PURE__ */ jsx36(BoundGroupedFlowInvestigation, { ...props, coverageMode, port: props.port, admitted: admitted.model });
 }
 function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
   const controller = useInvestigationQuery(port, admitVisualExplanation);
@@ -10274,6 +10593,7 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
     else controller.select(nodeId);
   };
   const root = ready?.result.rootCause;
+  const reportedRoot = props.coverageMode === "directional" && ready && !supportsRecordedRoot(ready.result);
   let mappedRoot = root && known.has(root) ? root : void 0;
   for (let id = mappedRoot; id !== void 0; id = known.get(id)?.parentId) {
     if (states.get(id) === "not-run") {
@@ -10281,25 +10601,25 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
       break;
     }
   }
-  const summary = selected?.status === "loading" ? "Checking recorded evidence\u2026" : ready && mappedRoot ? `Supported cause: ${known.get(mappedRoot).label}. ${phase === "cause" ? "The recorded path is highlighted below." : "Showing recorded affected items below."}` : ready && root && !known.has(root) ? "The supported cause is not shown in this diagram. No substitute card is labelled." : ready || selected?.status === "error" || selected?.status === "refused" ? "Cause unknown. The available evidence does not support a cause on this diagram." : "Select a failed item, or select another item and choose Investigate selected item.";
+  const summary = selected?.status === "loading" ? "Checking recorded evidence\u2026" : ready && mappedRoot ? `${reportedRoot ? "Reported" : "Supported"} cause: ${known.get(mappedRoot).label}. ${phase === "cause" ? "The recorded path is highlighted below." : "Showing recorded affected items below."}` : ready && root && !known.has(root) ? `The ${reportedRoot ? "reported" : "supported"} cause is not shown in this diagram. No substitute card is labelled.` : ready || selected?.status === "error" || selected?.status === "refused" ? "Cause unknown. The available evidence does not support a cause on this diagram." : "Select a failed item, or select another item and choose Investigate selected item.";
   const changeView = () => {
     if (!ready || controller.currentOwner.current !== owner || committedResult.current?.owner !== owner || committedResult.current.request !== ready.request) return;
     setView({ request: ready.request, whole: !whole });
   };
-  return /* @__PURE__ */ jsxs26(
+  return /* @__PURE__ */ jsxs28(
     "section",
     {
       className: props.className,
       "aria-label": props["aria-label"] ?? "Grouped flow investigation",
       style: { display: "grid", gap: 16, minWidth: 0, color: theme.textPrimary, fontFamily: theme.fontSans, ...props.style },
       children: [
-        /* @__PURE__ */ jsx34("div", { role: "status", "aria-label": "Cause summary", "aria-live": "polite", style: { padding: "12px 16px", border: `1px solid ${theme.border}`, borderRadius: 10, background: theme.bgElevated }, children: /* @__PURE__ */ jsx34("strong", { children: summary }) }),
-        ready && /* @__PURE__ */ jsxs26("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }, children: [
-          /* @__PURE__ */ jsx34("strong", { children: whole ? "Whole flow" : phase === "cause" ? "Cause focus" : "Impact focus" }),
-          /* @__PURE__ */ jsx34("button", { type: "button", style: action, onClick: changeView, children: whole ? "Focus on recorded links" : "Show whole flow" }),
-          !whole && /* @__PURE__ */ jsx34("span", { style: { fontSize: 12, color: theme.textSecondary }, children: "Workflow arrows are hidden so the recorded connections are easier to follow." })
+        /* @__PURE__ */ jsx36("div", { role: "status", "aria-label": "Cause summary", "aria-live": "polite", style: { padding: "12px 16px", border: `1px solid ${theme.border}`, borderRadius: 10, background: theme.bgElevated }, children: /* @__PURE__ */ jsx36("strong", { children: summary }) }),
+        ready && /* @__PURE__ */ jsxs28("div", { style: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }, children: [
+          /* @__PURE__ */ jsx36("strong", { children: whole ? "Whole flow" : phase === "cause" ? "Cause focus" : "Impact focus" }),
+          /* @__PURE__ */ jsx36("button", { type: "button", style: action, onClick: changeView, children: whole ? "Focus on recorded links" : "Show whole flow" }),
+          !whole && /* @__PURE__ */ jsx36("span", { style: { fontSize: 12, color: theme.textSecondary }, children: "Workflow arrows are hidden so the recorded connections are easier to follow." })
         ] }),
-        /* @__PURE__ */ jsx34(RecordedFocusContext.Provider, { value: { focused: !!ready && !whole, fitNodeIds: recordedFitIds }, children: /* @__PURE__ */ jsx34(
+        /* @__PURE__ */ jsx36(RecordedFocusContext.Provider, { value: { focused: !!ready && !whole, fitNodeIds: recordedFitIds }, children: /* @__PURE__ */ jsx36(
           GroupedFlowDiagram,
           {
             definition: admitted.definition,
@@ -10309,39 +10629,39 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }) {
             onSelectNode: choose,
             expandedGroupIds,
             onExpandedGroupIdsChange: (ids) => setExpansion({ owner, ids }),
-            highlight: projected ? { nodeIds: projected.nodeIds, ...phase === "cause" && mappedRoot ? { rootCauseId: mappedRoot } : {} } : void 0,
+            highlight: projected ? { nodeIds: projected.nodeIds, ...phase === "cause" && mappedRoot && !reportedRoot ? { rootCauseId: mappedRoot } : {} } : void 0,
             recordedRelationships: projected?.relationships,
             focusRequest: ready && (whole || focusNodeIds.length) ? { key: cameraKey, nodeIds: whole ? [] : focusNodeIds } : void 0
           },
           diagramBindingKey
         ) }),
-        /* @__PURE__ */ jsxs26("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 }, children: [
-          /* @__PURE__ */ jsx34("button", { type: "button", style: action, disabled: !selectedId || selected?.status === "loading", onClick: () => {
+        /* @__PURE__ */ jsxs28("div", { style: { display: "flex", flexWrap: "wrap", gap: 8 }, children: [
+          /* @__PURE__ */ jsx36("button", { type: "button", style: action, disabled: !selectedId || selected?.status === "loading", onClick: () => {
             if (selectedId) controller.query(selectedId);
           }, children: "Investigate selected item" }),
-          /* @__PURE__ */ jsx34("button", { type: "button", style: action, disabled: !ready, "aria-pressed": phase === "cause", onClick: () => {
+          /* @__PURE__ */ jsx36("button", { type: "button", style: action, disabled: !ready, "aria-pressed": phase === "cause", onClick: () => {
             if (ready) setMode({ request: ready.request, value: "cause" });
           }, children: "Why it happened" }),
-          /* @__PURE__ */ jsx34("button", { type: "button", style: action, disabled: !ready, "aria-pressed": phase === "impact", onClick: () => {
+          /* @__PURE__ */ jsx36("button", { type: "button", style: action, disabled: !ready, "aria-pressed": phase === "impact", onClick: () => {
             if (ready) setMode({ request: ready.request, value: "impact" });
           }, children: "What it affected" }),
-          /* @__PURE__ */ jsx34("button", { type: "button", style: action, disabled: !ready || !selectedId, onClick: () => {
+          /* @__PURE__ */ jsx36("button", { type: "button", style: action, disabled: !ready || !selectedId, onClick: () => {
             if (ready) setFocusCommand((previous) => ({ request: ready.request, phase, count: (previous?.count ?? 0) + 1 }));
           }, children: "Back to selected item" })
         ] }),
-        projected && /* @__PURE__ */ jsxs26("div", { role: "status", children: [
-          /* @__PURE__ */ jsx34("p", { children: phase === "cause" ? "Dependency arrows point from an item toward its recorded source. They do not show execution order or prove how a value was used." : "Arrows show returned recorded relationships to linked items, not proof of harm or delivery." }),
-          !projected.relationshipsAvailable && /* @__PURE__ */ jsx34("p", { children: phase === "cause" ? "Backward connections were not provided. References can be shown, but missing links remain unknown." : "Impact connections were not provided. The full effect of these references remains unknown." }),
-          projected.confidence === "incomplete" && /* @__PURE__ */ jsx34("p", { children: "Some evidence is missing. The highlighted references do not establish the full dependency picture." }),
-          projected.unmapped > 0 && /* @__PURE__ */ jsxs26("p", { children: [
+        projected && /* @__PURE__ */ jsxs28("div", { role: "status", children: [
+          /* @__PURE__ */ jsx36("p", { children: phase === "cause" ? "Dependency arrows point from an item toward its recorded source. They do not show execution order or prove how a value was used." : "Arrows show returned recorded relationships to linked items, not proof of harm or delivery." }),
+          !projected.relationshipsAvailable && /* @__PURE__ */ jsx36("p", { children: phase === "cause" ? "Backward connections were not provided. References can be shown, but missing links remain unknown." : "Impact connections were not provided. The full effect of these references remains unknown." }),
+          projected.confidence === "incomplete" && /* @__PURE__ */ jsx36("p", { children: "Some evidence is missing. The highlighted references do not establish the full dependency picture." }),
+          projected.unmapped > 0 && /* @__PURE__ */ jsxs28("p", { children: [
             projected.unmapped,
             " recorded ",
             projected.unmapped === 1 ? "item is" : "items are",
             " not shown in this diagram. No substitute item has been selected."
           ] })
         ] }),
-        /* @__PURE__ */ jsx34(InvestigationPanelView, { port, controller, showAttention: false, focusExternalRequests: false }),
-        ready && /* @__PURE__ */ jsx34(DependencyEvidence, { result: ready.result, direction: phase, labels: port.labels })
+        /* @__PURE__ */ jsx36(InvestigationPanelView, { port, controller, markLabels: props.markLabels, coverageMode: props.coverageMode, showAttention: false, focusExternalRequests: false }),
+        ready && /* @__PURE__ */ jsx36(DependencyEvidence, { result: ready.result, direction: phase, labels: port.labels })
       ]
     }
   );

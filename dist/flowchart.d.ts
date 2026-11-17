@@ -3565,12 +3565,25 @@ interface InvestigationPort {
     /** Call Foottrace's canonical explain API; honor cancellation and enforce storage/query work limits here. */
     readonly explain: (nodeId: NodeId, context: GraphContext) => InvestigationResult | Promise<InvestigationResult>;
 }
+interface InvestigationPanelProps {
+    /** Optional plain-text names for exact mark kinds; evidence and identity remain unchanged. */
+    readonly markLabels?: Readonly<Record<string, string>>;
+    readonly port?: InvestigationPort | null;
+    /** Explicit richer evidence presentation; overall preserves the legacy text projection. */
+    readonly coverageMode?: "overall" | "directional";
+    readonly className?: string;
+    readonly style?: CSSProperties;
+}
 
 /** The diagram and bound port use the same exact item IDs; labels never resolve identity. */
 interface GroupedFlowInvestigationProps {
+    /** Uses the same bounded display names as the standalone investigation panel. */
+    readonly markLabels?: InvestigationPanelProps["markLabels"];
     readonly definition: FlowDiagramDefinition;
     readonly observation?: FlowDiagramObservation;
     readonly port?: InvestigationPort | null;
+    /** Presentation only: grouped investigation already admits recorded relationships. */
+    readonly coverageMode?: InvestigationPanelProps["coverageMode"];
     readonly direction?: "LR" | "TB";
     readonly className?: string;
     readonly style?: CSSProperties;
