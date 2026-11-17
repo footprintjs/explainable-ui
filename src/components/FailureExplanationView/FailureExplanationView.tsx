@@ -81,7 +81,7 @@ export function FailureExplanationView(props: FailureExplanationViewProps) {
         <h3 id={`${id}-unknowns`} style={{ marginBlockStart: 0, fontSize: 16 }}>Still unknown</h3>
         {model.unknowns.length > 0
           ? <ul>{model.unknowns.map((unknown, index) => <li key={index}>{unknown}</li>)}</ul>
-          : <p>No additional unknowns were supplied. This view does not verify the underlying evidence.</p>}
+          : <p>The supplied list is empty. This does not establish that everything is known. This view does not verify the underlying evidence.</p>}
       </section>
     </section>
   );

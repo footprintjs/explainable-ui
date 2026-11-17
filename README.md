@@ -1785,6 +1785,16 @@ recording failures. The latter two appear in separate visible sections, rather
 than disappearing from the explanation or being relabelled as causes. Complete
 cause codes and references remain available in the cause details.
 
+An empty `unknowns` list means the supplied list is empty; it does not establish
+that everything is known, and the verification disclaimer stays visible. Section
+text, configured guidance and finding summaries use `white-space: pre-wrap`.
+These plain strings carry no substring-origin metadata, so a quoted source value
+can wrap into apparent body text; HTML escaping does not identify its origin.
+Keep untrusted quoted values in host-owned, clearly labelled presentation. If a
+formatter normalizes a display copy, label that change and preserve the original
+bound evidence; leave canonical IDs, references and recorded evidence unchanged.
+Whitespace collapse alone does not establish origin.
+
 ```tsx
 import { FailureExplanationView, FootprintTheme, coolLight } from 'footprint-explainable-ui';
 

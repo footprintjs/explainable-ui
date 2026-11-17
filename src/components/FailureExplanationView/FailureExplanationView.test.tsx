@@ -149,8 +149,10 @@ describe('optional plain-language explanation display', () => {
   });
   it('explains an empty supplied uncertainty list without claiming verification', () => {
     render(<FailureExplanationView explanation={{ ...explanation(), unknowns: [] }} />);
-    expect(screen.getByRole('heading', { name: 'Still unknown' })).toBeTruthy();
-    expect(screen.getByText(/does not verify the underlying evidence/)).toBeTruthy();
+    const unknowns = screen.getByRole('region', { name: 'Still unknown' });
+    expect(within(unknowns).getByText(/The supplied list is empty/)).toBeTruthy();
+    expect(within(unknowns).getByText(/does not establish that everything is known/)).toBeTruthy();
+    expect(within(unknowns).getByText(/does not verify the underlying evidence/)).toBeTruthy();
   });
   it('replaces the old explanation immediately when the host changes or clears the selection', () => {
     const { rerender } = render(<FailureExplanationView explanation={explanation()} />);

@@ -19,6 +19,16 @@ explanation is structurally assignable without a runtime dependency on its produ
 Canonical text is always visible; configured wording does not replace evidence.
 Reference strings appear only in disclosure text, never as links or actions.
 
+An empty `unknowns` list means the supplied list is empty; it does not establish
+that everything is known, and the verification disclaimer stays visible. Section
+text, configured guidance and finding summaries use `white-space: pre-wrap`.
+These plain strings carry no substring-origin metadata, so a quoted source value
+can wrap into apparent body text; HTML escaping does not identify its origin.
+Keep untrusted quoted values in host-owned, clearly labelled presentation. If a
+formatter normalizes a display copy, label that change and preserve the original
+bound evidence; leave canonical IDs, references and recorded evidence unchanged.
+Whitespace collapse alone does not establish origin.
+
 The entire view is refused when a required field is missing, inconsistent,
 accessor-backed or over budget: 262,144 retained UTF-16 text code units total,
 1,024 entries per list, 4,096 total list items across nested findings/references,

@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Documented finding-code grammar, standalone light-theme wrappers and the
   existing recorded-path versus grouped backward-graph composition.
 
+### Fixed
+
+- Clarified that an empty supplied unknowns list does not establish that
+  everything is known, while retaining the evidence-verification disclaimer.
+
 ## [0.46.0] - 2026-11-16
 
 ### Added
