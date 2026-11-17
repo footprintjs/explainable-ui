@@ -16,8 +16,9 @@ selection and admitted request binding.
 The existing fitter preserves a manually moved viewport across container-only
 resizes and measurement updates. An auto-owned viewport still follows its current
 target and route/label bounds when the container changes. No second fitter,
-responsive polling or app resize workaround exists here. Phone-root versus
-recorded-chain framing remains the investigation composition's policy.
+responsive polling or app resize workaround exists here. The investigation composition supplies returned reference targets on every
+width; explicit one-card commands remain separate camera intents. Routed
+self-links contribute their own paint extents without adding other endpoints.
 
 Regression behavior is exercised by
 `GroupedFlowDiagramResponsiveCamera.test.tsx` beside this owner, the real

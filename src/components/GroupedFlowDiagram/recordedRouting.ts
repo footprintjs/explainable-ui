@@ -231,14 +231,14 @@ export function recordedRoutePath(route: Omit<RecordedRoute, "sourcePort" | "tar
   return `${path} L${target.x},${target.y}`;
 }
 
-/** Include paint extents only for the current camera's scope; a one-card focus remains readable. */
+/** Include only scoped paint. A self-link belongs to its one focused endpoint; other links require both. */
 export function recordedVisualBounds(plan: ReturnType<typeof routeRecordedRelationships>, links: readonly ProjectedRecordedRelationship[], focus?: readonly string[]) {
   const selected = focus?.length ? new Set(focus) : undefined;
   let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
   const include = (box: Box) => { left = Math.min(left, box.x); top = Math.min(top, box.y); right = Math.max(right, box.x + box.width); bottom = Math.max(bottom, box.y + box.height); };
   for (const [id, box] of plan.decorations) if (!selected || selected.has(id)) include(box);
   for (const link of links) {
-    if (selected && (selected.size < 2 || !selected.has(link.source) || !selected.has(link.target))) continue;
+    if (selected && (!selected.has(link.source) || !selected.has(link.target))) continue;
     const route = plan.routes.get(link.relationship.id); if (!route) continue;
     for (const p of route.points) include({ x: p.x - 2, y: p.y - 2, width: 4, height: 4 });
     include({ x: route.label.x - route.label.width / 2 - 6, y: route.label.y - route.label.height / 2 - 6, width: route.label.width + 12, height: route.label.height + 12 });

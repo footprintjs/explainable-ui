@@ -1,7 +1,337 @@
 import * as react from 'react';
-import { CSSProperties, ReactNode } from 'react';
+import { HTMLAttributes, CSSProperties, RefAttributes, ButtonHTMLAttributes, InputHTMLAttributes, ElementType, ReactNode } from 'react';
 import * as _xyflow_react from '@xyflow/react';
-import { Node, Edge, NodeTypes, EdgeTypes, NodeProps, EdgeProps } from '@xyflow/react';
+import { Node, Edge, NodeTypes, EdgeTypes, BackgroundProps, Viewport, NodeProps, EdgeProps } from '@xyflow/react';
+
+/** Default theme tokens — consumers override via CSS variables or ThemeProvider. */
+interface ThemeTokens {
+    colors?: {
+        primary?: string;
+        success?: string;
+        error?: string;
+        warning?: string;
+        /** Text/icon colors paired with independently configurable fills. */
+        onPrimary?: string;
+        onSuccess?: string;
+        onError?: string;
+        onWarning?: string;
+        onTracing?: string;
+        onNodeCursor?: string;
+        onNodeVisited?: string;
+        onNodeMain?: string;
+        /** Semantic node-state roles (a runtime overlay maps onto these): the scrub
+         *  cursor, the visited path, and a group's lead node. */
+        nodeCursor?: string;
+        nodeVisited?: string;
+        nodeMain?: string;
+        /** Interactive accent — active tab, selected row rule, focused chip.
+         *  Defaults to `primary` when omitted, so setting one colour is enough. */
+        accent?: string;
+        /** The translucent wash BEHIND an accented row (selected trace step). */
+        accentBg?: string;
+        /** Panel body surface — the plain background a panel paints itself with. */
+        bg?: string;
+        /** Raised surface (cards, popovers) sitting ON the body surface. */
+        bgElevated?: string;
+        /** Tracing-rail chrome — the "you are walking a value's causes" colour.
+         *  One token drives the badge, rail border, stops and walk buttons. */
+        tracing?: string;
+        /** CATEGORICAL chip palette (four hues) for the ingredient chips on one
+         *  trace stop. Not semantic — their only job is to stay tellable apart,
+         *  which is why they are their own roles and not `primary`/`success`. */
+        chip1?: string;
+        chip2?: string;
+        chip3?: string;
+        chip4?: string;
+        bgPrimary?: string;
+        bgSecondary?: string;
+        bgTertiary?: string;
+        textPrimary?: string;
+        textSecondary?: string;
+        textMuted?: string;
+        border?: string;
+    };
+    /** Legacy global radius; also seeds component radii unless explicitly set. */
+    radius?: string;
+    typography?: {
+        body?: string;
+        label?: string;
+        small?: string;
+        title?: string;
+        lineHeight?: string;
+        weightNormal?: string;
+        weightMedium?: string;
+        weightStrong?: string;
+    };
+    spacing?: {
+        xs?: string;
+        sm?: string;
+        md?: string;
+        lg?: string;
+        xl?: string;
+    };
+    radii?: {
+        control?: string;
+        panel?: string;
+        badge?: string;
+    };
+    borders?: {
+        width?: string;
+        focusWidth?: string;
+    };
+    elevation?: {
+        panel?: string;
+        popover?: string;
+        focus?: string;
+    };
+    /** Chart-card paint overrides. Omitted fields retain each renderer's
+     *  existing status-dependent appearance. `initial` restores that fallback. */
+    nodes?: {
+        borderColor?: string;
+        borderWidth?: string;
+        borderStyle?: string;
+        radius?: string;
+        shadow?: string;
+        /** CSS filter for clipped shapes, such as none or drop-shadow(...).
+         *  Unlike a box shadow, drop-shadow() accepts no spread or inset. */
+        shapeShadow?: string;
+        badgeShadow?: string;
+        pulseOpacity?: string;
+        /** Display value for the group header's recorded-state cue. Default none. */
+        groupStatusDisplay?: string;
+    };
+    motion?: {
+        duration?: string;
+        fastDuration?: string;
+        easing?: string;
+    };
+    controls?: {
+        height?: string;
+        paddingX?: string;
+        gap?: string;
+        iconSize?: string;
+    };
+    fontFamily?: {
+        sans?: string;
+        mono?: string;
+    };
+}
+/**
+ * Maps ThemeTokens to CSS custom property assignments.
+ *
+ * Every `--fp-*` variable the components actually read must be emitted
+ * here — a component reading a variable this function never writes can
+ * only ever show its hard-coded fallback, which is how a "light" theme
+ * ends up with dark patches. `test/unit/themeTokens.test.ts` greps the
+ * source for `--fp-*` reads and fails when one has no emitter, so a new
+ * token can't silently drift back out of the theme.
+ */
+declare function tokensToCSSVars(tokens: ThemeTokens): Record<string, string>;
+
+/** Snapshot of a single pipeline stage — the core data shape for all components. */
+interface StageSnapshot {
+    /** Internal stage identifier */
+    stageName: string;
+    /** Human-readable label */
+    stageLabel: string;
+    /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex. Key for recorder Map lookup. */
+    runtimeStageId?: string;
+    /** Accumulated memory state after this stage ran */
+    memory: Record<string, unknown>;
+    /** Narrative text describing what happened */
+    narrative: string;
+    /** When this stage started (ms from pipeline start) */
+    startMs: number;
+    /** How long this stage took (ms) */
+    durationMs: number;
+    /** Execution status */
+    status?: "pending" | "active" | "done" | "error";
+    /** Human-readable description of what this stage does */
+    description?: string;
+    /** Subflow identifier (when this stage is inside a subflow) */
+    subflowId?: string;
+    /** Subflow execution result — present on stages that ran a subflow. */
+    subflowResult?: unknown;
+}
+/** Component size variants */
+type Size = "compact" | "default" | "detailed";
+/** Common props shared by all visualization components */
+interface BaseComponentProps {
+    /** Size variant */
+    size?: Size;
+    /** Strip all built-in styles — bring your own */
+    unstyled?: boolean;
+    /** Additional CSS class name */
+    className?: string;
+    /** Inline style overrides */
+    style?: React.CSSProperties;
+}
+
+/**
+ * Adapters must forward the native ref, events, disabled/checked state, ARIA
+ * and data attributes. The registry changes presentation, not Lens actions.
+ */
+interface FootprintComponents {
+    Button?: ElementType<ButtonHTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>>;
+    Tab?: ElementType<ButtonHTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>>;
+    Input?: ElementType<InputHTMLAttributes<HTMLInputElement> & RefAttributes<HTMLInputElement>>;
+    Checkbox?: ElementType<InputHTMLAttributes<HTMLInputElement> & RefAttributes<HTMLInputElement>>;
+    Badge?: ElementType<HTMLAttributes<HTMLSpanElement> & RefAttributes<HTMLSpanElement>>;
+    Code?: ElementType<HTMLAttributes<HTMLElement> & RefAttributes<HTMLElement>>;
+    Tooltip?: ElementType<FootprintTooltipAdapterProps & RefAttributes<HTMLSpanElement>>;
+    Icon?: ElementType<FootprintIconAdapterProps & RefAttributes<HTMLSpanElement>>;
+}
+declare function useFootprintComponents(): FootprintComponents;
+interface FootprintPrimitiveOptions {
+    /** Omit the library's paint; explicit consumer style is still honored. */
+    unstyled?: boolean;
+    /** Library fallback paint. A registered host component never receives it.
+     *  Explicit undefined opts out; omitting this prop uses the default recipe. */
+    defaultStyle?: CSSProperties;
+    /** Stable semantic part name available to a host adapter as data-fp-part. */
+    part?: string;
+    densitySize?: Size;
+}
+interface FootprintButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, FootprintPrimitiveOptions {
+}
+interface FootprintInputProps extends InputHTMLAttributes<HTMLInputElement>, FootprintPrimitiveOptions {
+}
+interface FootprintCheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type">, FootprintPrimitiveOptions {
+}
+interface FootprintBadgeProps extends HTMLAttributes<HTMLSpanElement>, FootprintPrimitiveOptions {
+}
+interface FootprintCodeProps extends HTMLAttributes<HTMLElement>, FootprintPrimitiveOptions {
+}
+interface FootprintTooltipAdapterProps extends HTMLAttributes<HTMLSpanElement> {
+    content?: string;
+}
+interface FootprintTooltipProps extends FootprintTooltipAdapterProps, FootprintPrimitiveOptions {
+}
+interface FootprintIconAdapterProps extends HTMLAttributes<HTMLSpanElement> {
+    name: string;
+    children?: ReactNode;
+}
+interface FootprintIconProps extends FootprintIconAdapterProps, FootprintPrimitiveOptions {
+}
+declare const FootprintButton: react.ForwardRefExoticComponent<FootprintButtonProps & RefAttributes<HTMLButtonElement>>;
+declare const FootprintTab: react.ForwardRefExoticComponent<FootprintButtonProps & RefAttributes<HTMLButtonElement>>;
+declare const FootprintInput: react.ForwardRefExoticComponent<FootprintInputProps & RefAttributes<HTMLInputElement>>;
+declare const FootprintCheckbox: react.ForwardRefExoticComponent<FootprintCheckboxProps & RefAttributes<HTMLInputElement>>;
+declare const FootprintBadge: react.ForwardRefExoticComponent<FootprintBadgeProps & RefAttributes<HTMLSpanElement>>;
+declare const FootprintCode: react.ForwardRefExoticComponent<FootprintCodeProps & RefAttributes<HTMLElement>>;
+/** Native-title fallback; a host adapter may provide its own tooltip behavior. */
+declare const FootprintTooltip: react.ForwardRefExoticComponent<FootprintTooltipProps & RefAttributes<HTMLSpanElement>>;
+declare const FootprintIcon: react.ForwardRefExoticComponent<FootprintIconProps & RefAttributes<HTMLSpanElement>>;
+
+declare function useFootprintTheme(): ThemeTokens;
+interface FootprintThemeProps {
+    tokens?: ThemeTokens;
+    /** Native-compatible adapters for host design-system primitives. */
+    components?: FootprintComponents;
+    /** Apply local variables to a single child instead of adding a DOM wrapper.
+     *  Custom children must forward className/style to their root. */
+    asChild?: boolean;
+    children: React.ReactNode;
+}
+/**
+ * Optional theme provider — wraps children with CSS custom properties.
+ * Consumers can also just set --fp-* CSS variables directly.
+ *
+ * Wrapper div uses `display: contents` so it's invisible to the
+ * parent's layout (flex / grid / block). This matters because themed
+ * children often need to fill a parent (flex:1 / height:100% /
+ * grid cells), and a regular block `<div>` here would break that
+ * chain — descendants would resolve to 0 height when the parent is
+ * flex-column or a grid cell with minmax(0, 1fr). `display: contents`
+ * removes the box from the render tree while keeping the DOM intact,
+ * so CSS custom property inheritance (which follows the DOM) still
+ * flows to children.
+ *
+ * Trade-off: `display: contents` elements are removed from the
+ * accessibility tree in some older browser versions. Our wrapper has
+ * no semantic role, so this is fine.
+ */
+declare function FootprintTheme({ tokens, components, children, asChild }: FootprintThemeProps): react.JSX.Element;
+
+/**
+ * CSS recipes for visual sizes. Numeric layout/math callers retain fontSize
+ * and padding above; components use these strings for themeable paint.
+ * Size offsets keep the historic compact/default/detailed density distinct.
+ */
+declare function componentStyles(size?: Size): {
+    body: string;
+    label: string;
+    small: string;
+    title: string;
+    lineHeight: string;
+    weightNormal: string;
+    weightMedium: string;
+    weightStrong: string;
+    padding: string;
+    controlHeight: string;
+    controlPadding: string;
+    controlPaddingX: string;
+    controlGap: string;
+    iconSize: string;
+    radiusControl: string;
+    radiusPanel: string;
+    radiusBadge: string;
+    borderWidth: string;
+    focusWidth: string;
+    shadowPanel: string;
+    shadowPopover: string;
+    shadowFocus: string;
+    duration: string;
+    fastDuration: string;
+    easing: string;
+    spaceXs: string;
+    spaceSm: string;
+    spaceMd: string;
+    spaceLg: string;
+    spaceXl: string;
+};
+
+/**
+ * The one-word theme switch.
+ *
+ * Every component in this library paints from `--fp-*` variables whose
+ * built-in fallbacks are DARK. Mounted inside a light app with nothing set,
+ * a panel renders dark — correct by the rules, wrong on the page. Setting a
+ * dozen variables by hand to fix that is not a first-try experience.
+ *
+ * `<Component theme="light" />` is that fix in one word: it stamps a full
+ * preset as inline `--fp-*` variables on the component's own root, so
+ * everything under it — including nested children — follows. It is the same
+ * mechanism `<ExplainableShell traceTheme={{ mode }}>` uses; this module is
+ * the single place that maps a mode to its palette.
+ *
+ * Precedence, from weakest to strongest:
+ *   1. the components' hard-coded fallbacks (dark)
+ *   2. `--fp-*` an ancestor sets (`<FootprintTheme>`, your own CSS)
+ *   3. `theme="light" | "dark"` on the component  ← wins, because it is local
+ *
+ * So `theme` is a per-component override, not a replacement for
+ * `<FootprintTheme tokens={...}>` — reach for the provider when you want one
+ * palette for a whole tree, and for a custom palette rather than a preset.
+ */
+
+/** Light or dark. The whole switch. */
+type ThemeMode = "dark" | "light";
+/** Props mixin for components that accept the switch. */
+interface ThemeModeProps {
+    /**
+     * Light or dark, in one word — applies the built-in preset as `--fp-*`
+     * variables on this component's root. Omit to inherit whatever the page
+     * (or a `<FootprintTheme>` ancestor) already set.
+     */
+    theme?: ThemeMode;
+}
+/**
+ * CSS variables for a mode, ready to spread into a root element's `style`.
+ * Returns `{}` for `undefined` so an unthemed component is byte-identical to
+ * how it rendered before the prop existed.
+ */
+declare function themeModeVars(mode?: ThemeMode): CSSProperties;
 
 /** One display contract shared by the two independent relationship admission boundaries. */
 declare const attributions: Readonly<{
@@ -198,6 +528,10 @@ interface StageNodeData {
             color: string;
         }[];
     };
+    /** Display membership only; makes no claim about execution or causal independence. */
+    traceContext?: "displayed" | "outside";
+    /** Keep content, semantic hooks and ports; let the host supply visual styles. */
+    unstyled?: boolean;
     /** Stop node pulses and state transitions while inspecting recorded evidence. */
     suppressMotion?: boolean;
     /** Node was not executed (dim it) */
@@ -250,52 +584,13 @@ interface StageNodeData {
  * All colors and fonts come from `--fp-*` CSS variables (via theme).
  * Shows execution state via color, icon, step badge, and pulse animation.
  */
-declare const StageNode: react.NamedExoticComponent<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "width" | "height" | "id" | "data" | "sourcePosition" | "targetPosition" | "dragHandle" | "parentId"> & Required<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "type" | "selected" | "dragging" | "draggable" | "selectable" | "deletable" | "zIndex">> & {
+declare const StageNode: react.NamedExoticComponent<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "width" | "height" | "data" | "id" | "sourcePosition" | "targetPosition" | "dragHandle" | "parentId"> & Required<Pick<_xyflow_react.Node<Record<string, unknown>, string | undefined>, "type" | "draggable" | "selected" | "dragging" | "selectable" | "deletable" | "zIndex">> & {
     isConnectable: boolean;
     positionAbsoluteX: number;
     positionAbsoluteY: number;
 } & {
     data: StageNodeData;
 }>;
-
-/** Snapshot of a single pipeline stage — the core data shape for all components. */
-interface StageSnapshot {
-    /** Internal stage identifier */
-    stageName: string;
-    /** Human-readable label */
-    stageLabel: string;
-    /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex. Key for recorder Map lookup. */
-    runtimeStageId?: string;
-    /** Accumulated memory state after this stage ran */
-    memory: Record<string, unknown>;
-    /** Narrative text describing what happened */
-    narrative: string;
-    /** When this stage started (ms from pipeline start) */
-    startMs: number;
-    /** How long this stage took (ms) */
-    durationMs: number;
-    /** Execution status */
-    status?: "pending" | "active" | "done" | "error";
-    /** Human-readable description of what this stage does */
-    description?: string;
-    /** Subflow identifier (when this stage is inside a subflow) */
-    subflowId?: string;
-    /** Subflow execution result — present on stages that ran a subflow. */
-    subflowResult?: unknown;
-}
-/** Component size variants */
-type Size = "compact" | "default" | "detailed";
-/** Common props shared by all visualization components */
-interface BaseComponentProps {
-    /** Size variant */
-    size?: Size;
-    /** Strip all built-in styles — bring your own */
-    unstyled?: boolean;
-    /** Additional CSS class name */
-    className?: string;
-    /** Inline style overrides */
-    style?: React.CSSProperties;
-}
 
 /**
  * Branded types for translator key discipline.
@@ -1007,6 +1302,7 @@ declare function useSubflowNavigation(rootGraph: TraceGraph | null): SubflowNavi
 interface SubflowBreadcrumbProps {
     breadcrumbs: BreadcrumbEntry$1[];
     onNavigate: (level: number) => void;
+    unstyled?: boolean;
 }
 /**
  * Breadcrumb bar for subflow drill-down navigation.
@@ -1175,6 +1471,12 @@ interface SubflowTreeProps extends BaseComponentProps {
 }
 declare const SubflowTree: react.NamedExoticComponent<SubflowTreeProps>;
 
+/** Geometry is independent of theme, replay position and panel arrangement. */
+type FlowchartRenderer = "flat" | "isometric";
+interface FlowchartOptions {
+    readonly renderer?: FlowchartRenderer;
+}
+
 /**
  * TraceFlow — ReactFlow renderer driven by `createTraceStructureRecorder`.
  *
@@ -1264,6 +1566,8 @@ type TraceFlowSource = {
     recorder?: never;
 };
 type TraceFlowProps = BaseComponentProps & TraceFlowSource & {
+    /** Built-in drawing and default geometry. Explicit layout and custom registries retain priority. */
+    renderer?: FlowchartRenderer;
     /** Layout function. Default: BFS tree walk. Pass the literal
      *  `"passthrough"` to skip layout when nodes already carry positions. */
     layout?: TraceFlowLayout | "passthrough";
@@ -1273,7 +1577,7 @@ type TraceFlowProps = BaseComponentProps & TraceFlowSource & {
     onNodeClick?: (id: string) => void;
     /**
      * Consumer-supplied xyflow node types. Merged with the built-in
-     * `{ stageNode: StageNode }` registry — keys you supply OVERRIDE
+     * `stageNode` registry — keys you supply OVERRIDE
      * the default for that node type. Pass `{ stageNode: MyNode }` to
      * replace the default stage renderer entirely, or add new keys
      * for nodes you build yourself (any nodes you push into the
@@ -1281,8 +1585,8 @@ type TraceFlowProps = BaseComponentProps & TraceFlowSource & {
      */
     nodeTypes?: NodeTypes;
     /**
-     * Consumer-supplied xyflow edge types. Merged with no built-in
-     * defaults — pass `{ myEdge: MyEdge }` to register custom edge
+     * Consumer-supplied xyflow edge types override built-ins. Pass
+     * `{ myEdge: MyEdge }` to register custom edge
      * components for nodes/edges you build with `type: 'myEdge'`.
      */
     edgeTypes?: EdgeTypes;
@@ -1304,372 +1608,6 @@ type TraceFlowProps = BaseComponentProps & TraceFlowSource & {
     children?: react.ReactNode;
 };
 declare function TraceFlow(props: TraceFlowProps): react.JSX.Element;
-
-/**
- * The one-word theme switch.
- *
- * Every component in this library paints from `--fp-*` variables whose
- * built-in fallbacks are DARK. Mounted inside a light app with nothing set,
- * a panel renders dark — correct by the rules, wrong on the page. Setting a
- * dozen variables by hand to fix that is not a first-try experience.
- *
- * `<Component theme="light" />` is that fix in one word: it stamps a full
- * preset as inline `--fp-*` variables on the component's own root, so
- * everything under it — including nested children — follows. It is the same
- * mechanism `<ExplainableShell traceTheme={{ mode }}>` uses; this module is
- * the single place that maps a mode to its palette.
- *
- * Precedence, from weakest to strongest:
- *   1. the components' hard-coded fallbacks (dark)
- *   2. `--fp-*` an ancestor sets (`<FootprintTheme>`, your own CSS)
- *   3. `theme="light" | "dark"` on the component  ← wins, because it is local
- *
- * So `theme` is a per-component override, not a replacement for
- * `<FootprintTheme tokens={...}>` — reach for the provider when you want one
- * palette for a whole tree, and for a custom palette rather than a preset.
- */
-
-/** Light or dark. The whole switch. */
-type ThemeMode = "dark" | "light";
-/** Props mixin for components that accept the switch. */
-interface ThemeModeProps {
-    /**
-     * Light or dark, in one word — applies the built-in preset as `--fp-*`
-     * variables on this component's root. Omit to inherit whatever the page
-     * (or a `<FootprintTheme>` ancestor) already set.
-     */
-    theme?: ThemeMode;
-}
-
-/** Presentation of recorded stage reads; never expression-level output derivation. */
-
-interface TraceWorkflowStage {
-    runtimeStageId: string;
-    stageId: string;
-    color: string;
-    role: "question" | "input" | "upstream";
-    values: readonly {
-        key: string;
-        preview: string | null;
-        color: string;
-    }[];
-}
-interface TraceWorkflowRead {
-    key: string;
-    sourceRuntimeStageId: string;
-    targetRuntimeStageId: string;
-    color: string;
-}
-interface TraceWorkflowOverlay {
-    questionKey: string;
-    scopeKey: string;
-    focusRuntimeStageId: string | null;
-    stages: readonly TraceWorkflowStage[];
-    reads: readonly TraceWorkflowRead[];
-}
-
-/**
- * TracedFlow — runtime-overlay variant of `<TraceFlow>`.
- *
- * Pairs a build-time `TraceGraph` (from `createTraceStructureRecorder`)
- * with a runtime `RuntimeOverlay` (from `createTraceRuntimeOverlay`)
- * and a scrub index → renders an xyflow chart with per-node coloring
- * (done / active / error), per-edge highlighting (executed paths),
- * loop-edge side-routing, and subflow drill-down.
- *
- * The component is orchestration only. Each responsibility lives in
- * an extracted helper / hook (see `_internal/`):
- *
- *   - drill state .................. useSubflowDrill
- *   - measured viewport fitting .... ChartAutoRefit
- *   - graph filtering by drill ..... filterGraphForDrill
- *   - breadcrumb path .............. buildSubflowBreadcrumb
- *   - slice id normalization ....... normalizeSliceLeafIds
- *   - mount status aggregation ..... aggregateMountStatus
- *   - node / edge styling .......... toStageNodeWithOverlay + styleEdgeWithOverlay
- *   - breadcrumb UI ................ <SubflowBreadcrumbBar>
- *
- * @example
- * ```tsx
- * const trace = useMemo(() => createTraceStructureRecorder(), []);
- * const runtime = useMemo(() => createTraceRuntimeOverlay(), []);
- * // ... attach both to executor, run the chart ...
- * <TracedFlow
- *   graph={trace.getGraph()}
- *   overlay={runtime.getOverlay()}
- *   scrubIndex={sliderValue}
- *   onNodeClick={(stageId) => focusStage(stageId)}
- *   onSubflowChange={(mountId) => syncShellDrill(mountId)}
- * />
- * ```
- */
-
-interface TracedFlowColors {
-    /** Default (un-executed) node text + edge stroke. */
-    default: string;
-    /** Done — visually de-emphasised (lighter). */
-    done: string;
-    /** Active — current scrub position. */
-    active: string;
-    /** Error — node with recorded onError. */
-    error: string;
-    /** Loop back-edge color. */
-    loop: string;
-}
-interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
-    /** Build-time graph from `createTraceStructureRecorder().getGraph()`. */
-    graph: TraceGraph;
-    /** Runtime overlay from `createTraceRuntimeOverlay().getOverlay()`. */
-    overlay?: RuntimeOverlay;
-    /** Time-travel scrub index. Defaults to the last step (latest state). */
-    scrubIndex?: number;
-    /** Layout function. Default: BFS tree walk over the recorder graph. */
-    layout?: TraceFlowLayout | "passthrough";
-    /** Color overrides. */
-    colors?: Partial<TracedFlowColors>;
-    /** Node click handler — receives stage id. */
-    onNodeClick?: (stageId: string) => void;
-    /**
-     * Fires when the chart drills into or out of a subflow (explicit
-     * user click on a mount node, or a click on the chart's own
-     * breadcrumb). Receives the mount stage id (drill in) or `null`
-     * (pop back). Container shells use this to keep their data panels
-     * in lock-step with the chart's drill state.
-     */
-    onSubflowChange?: (mountStageId: string | null) => void;
-    /**
-     * CONTROLLED drill scope — the mount node id to show the internals of,
-     * or `null` for the top level. Pass it (together with
-     * `onSubflowChange`) when the host owns the drill because it ALSO
-     * drills from somewhere else — a subflow tree, a breadcrumb, a
-     * deep-link. The chart then renders the host's scope instead of a
-     * second, private one that can drift out of step with the panels
-     * beside it. Omit for a standalone chart: the drill stays internal
-     * and clicking a mount card just works.
-     */
-    currentSubflowId?: string | null;
-    /**
-     * Consumer-supplied xyflow node types. Merged with the built-in
-     * `{ stageNode: StageNode }` registry — keys you supply OVERRIDE
-     * the default for that node type. Pass `{ stageNode: MyNode }` to
-     * replace the default stage renderer entirely, or add new keys
-     * for custom node components you push into the graph.
-     *
-     * v0.20+ — overlay state is injected into custom nodes' `data`
-     * fields too (`active`, `done`, `error`, `errorMessage`, `dimmed`,
-     * `stepNumbers`, `retryAttempts`), so consumer renderers can style with
-     * the same scrub-driven done/active/error semantics the bundled
-     * `<StageNode>` uses — without re-implementing the overlay slice
-     * derivation. Consumer `data` fields pass through untouched alongside.
-     */
-    nodeTypes?: NodeTypes;
-    /**
-     * Consumer-supplied xyflow edge types. Merged with no built-in
-     * defaults — pass `{ myEdge: MyEdge }` to register custom edge
-     * components for edges you push into the graph with `type: 'myEdge'`.
-     */
-    edgeTypes?: EdgeTypes;
-    /**
-     * Extra chart node ids to mark `active` SIMULTANEOUSLY at the current scrub
-     * position, on top of the overlay's single active node. Lets a consumer light
-     * a whole parallel cohort at one cursor (e.g. the lens lighting every branch
-     * of a fork together). Works for BOTH stage and custom nodes. Defaults to
-     * none — single-active behaviour is unchanged.
-     */
-    coActiveStageIds?: ReadonlySet<string>;
-    /**
-     * Dependency-CONE overlay (the variable backward slice painted on the
-     * chart): a map of chart node id → BFS depth (0 = the slice anchor/writer).
-     * Nodes NOT in the map dim to near-transparency; members re-light with a
-     * staggered transition-delay by depth — causality walks BACKWARDS across
-     * the chart when the cone changes. Edges with either endpoint outside the
-     * cone dim too. `undefined`/`null` = no cone, byte-identical rendering.
-     * Keys are chart node ids (the stage part of a runtimeStageId — strip
-     * `#N` before passing).
-     */
-    sliceCone?: ReadonlyMap<string, number> | null;
-    /** Static, scope-qualified recorded reads drawn separately from workflow execution edges. */
-    traceWorkflow?: TraceWorkflowOverlay | null;
-    /**
-     * Hide the nodes this predicate matches (a hidden subflow card takes its
-     * drill-internals with it); edges re-connect THROUGH hidden nodes so every
-     * surviving path still reads. The predicate is the CALLER's judgement — this
-     * component special-cases no id convention. The pure transform behind it is
-     * exported as `collapseTraceGraph` for callers that also need the hidden-id
-     * list (to render an honest "N steps hidden" note — hiding without saying so
-     * is the one way not to use this prop). Unset → nothing is hidden.
-     */
-    collapseNode?: (node: TraceNode$1) => boolean;
-    /**
-     * Subflow ids to render as GROUP CONTAINER boxes — the subflow's member
-     * stages render NESTED inside the box (xyflow `parentId` + `extent`),
-     * instead of behind a click-to-zoom DRILL card. Per-subflow choice: any
-     * subflow id NOT listed keeps drilling. Default (unset): all drill —
-     * existing behavior, nothing changes.
-     */
-    groupedSubflows?: readonly string[];
-    /**
-     * Wrap the ENTIRE chart in ONE main-chart container box (the Lens model:
-     * the primitive you're viewing is always one box; subflows inside stay
-     * drill cards). Pass a config object to enable + label it; omit for no
-     * outer box. Composes AFTER drill-filtering, so when you drill into a
-     * subflow the box reframes to that subflow's contents.
-     */
-    mainChartBox?: {
-        label?: string;
-        kind?: string;
-    };
-    /**
-     * Children rendered INSIDE the `<ReactFlow>` element, after the
-     * built-in `<Background>`. Use this slot to mount xyflow
-     * accessory components like `<Controls />`, `<MiniMap />`, or a
-     * custom legend. If unset, only the default Background is rendered.
-     */
-    children?: react.ReactNode;
-}
-declare function TracedFlow({ graph, overlay, scrubIndex, layout: layoutProp, colors: colorOverrides, onNodeClick, onSubflowChange, currentSubflowId: controlledSubflowId, collapseNode, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, sliceCone, traceWorkflow, theme: themeMode, children, className, style, }: TracedFlowProps): react.JSX.Element;
-
-interface GroupContainerNodeData {
-    label: string;
-    isGroupContainer?: boolean;
-    active?: boolean;
-    done?: boolean;
-    error?: boolean;
-    dimmed?: boolean;
-    description?: string;
-    icon?: string;
-    /** Opt in before additional header data is rendered; legacy extra metadata stays invisible. */
-    headerMode?: "expandable";
-    /** Trusted host-rendered header content; recorded strings must not be supplied as markup. */
-    iconContent?: ReactNode;
-    headerAction?: ReactNode;
-    statusLabel?: string;
-    statusLabelId?: string;
-    handleDirection?: "LR" | "TB";
-    highlighted?: boolean;
-    compactHeader?: boolean;
-    [key: string]: unknown;
-}
-declare function GroupContainerNode({ data }: NodeProps): react.JSX.Element;
-
-interface SlotPillNodeData {
-    label: string;
-    /** Lit when the selector PICKED this slot this turn (overlay or consumer). */
-    active?: boolean;
-    selected?: boolean;
-    done?: boolean;
-    /** Faded when other slots ran but this one didn't (the "unlit" signal). */
-    dimmed?: boolean;
-    /** Semantic kind hint for the dot color (e.g. 'system-prompt'|'messages'|'tools'). */
-    slotKind?: string;
-    icon?: string;
-    [key: string]: unknown;
-}
-declare function SlotPillNode({ data }: NodeProps): react.JSX.Element;
-
-declare function LoopBackEdge({ id, source, target, markerEnd, style }: EdgeProps): react.JSX.Element | null;
-
-declare function SmartStepEdge({ id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, }: EdgeProps): react.JSX.Element;
-
-/**
- * groupLayout — xyflow NATIVE container boxes for the trace chart.
- *
- * Two box mechanisms live here, plus the existing drill (elsewhere):
- *
- *   - **Drill** (`subflowDrill.ts` + `useSubflowDrill`): a subflow shows as
- *     ONE mount card; clicking it zooms in. The DEFAULT for every subflow.
- *   - **Main-chart box** (`wrapInMainChartBox`): wrap the WHOLE chart in ONE
- *     container box. This is the Lens model — the primitive you're viewing
- *     (LLMCall / Agent) is always one box; every subflow inside it stays a
- *     drill card. A `nodeTypes` registry then styles each inner card
- *     (system-prompt / messages / tools / LLM). USE THIS for Lens.
- *   - **Per-subflow group** (`applyGroupLayout`): box individual subflows
- *     (mount → container, members nested inside). A more granular tool kept
- *     for consumers that want specific subflows inlined as boxes rather than
- *     drilled. NOT what the Lens main-chart model uses.
- *
- * All are pure `(graph, opts) => graph` (no React, no I/O) and compose with
- * `<TracedFlow>` before nodes reach `<ReactFlow>`. explainable-ui stays
- * policy-free: it offers the mechanisms; the consumer (Lens) picks.
- *
- * Pure: `(graph, opts) => graph`. No React, no I/O. Composed by `<TracedFlow>`
- * before the nodes reach `<ReactFlow>`.
- *
- * What it does, given `groupedSubflowIds`:
- *   1. For each grouped subflow that is actually present (a mount node whose
- *      `subflowId` is listed AND has ≥1 member where `subflowOf === id`):
- *      - lay the OUTER graph out with `baseLayout` (members excluded; the
- *        mount stays as the box anchor);
- *      - lay the subflow's MEMBERS out with `baseLayout` in isolation, then
- *        normalise them to the box's local coordinate space;
- *      - size the container box to fit the members (+ header + padding);
- *      - convert the mount node to `type: 'groupContainer'` with a `style`
- *        width/height, and nest each member via `parentId` + `extent`.
- *   2. Subflows NOT listed are left untouched (they continue to drill).
- *
- * Node ORDER invariant (xyflow requirement): a parent node MUST appear
- * before its children in the array. We emit all outer nodes (containers
- * included) first, then all nested members — so every container precedes
- * its members.
- */
-
-/** xyflow node type used for the container box. Consumers register a
- *  renderer for this key (explainable-ui ships a default `GroupContainerNode`). */
-declare const GROUP_CONTAINER_NODE_TYPE = "groupContainer";
-interface GroupLayoutOptions {
-    /** Subflow ids (the mount's `subflowId`) to render as group boxes. */
-    readonly groupedSubflowIds: readonly string[];
-    /** Layout for both the outer graph and each subflow's interior. */
-    readonly baseLayout: TraceFlowLayout;
-    /** Inner padding inside the container box, in px. Default 16. */
-    readonly padding?: number;
-    /** Header strip height (room for the box title), in px. Default 44. */
-    readonly headerHeight?: number;
-    /** Assumed node footprint for box sizing (the layout sets positions, not
-     *  sizes). Defaults match the bundled `StageNode` footprint. */
-    readonly nodeWidth?: number;
-    readonly nodeHeight?: number;
-}
-/**
- * Apply group-container nesting to a positioned-or-unpositioned graph.
- * Returns a NEW graph (input is not mutated). Edges pass through unchanged
- * — xyflow resolves them by node id regardless of nesting, so an edge that
- * pointed at a now-container mount still connects to the box, and
- * member↔member edges render inside it.
- */
-declare function applyGroupLayout(graph: TraceGraph, opts: GroupLayoutOptions): TraceGraph;
-/**
- * Convenience: wrap a base layout into a `TraceFlowLayout` that applies
- * group containers. Pass to `<TraceFlow layout={...}>` / `<TracedFlow>`.
- */
-declare function createGroupedLayout(opts: GroupLayoutOptions): TraceFlowLayout;
-/** Default id for the synthesised main-chart container node. */
-declare const MAIN_CHART_BOX_ID = "__main_chart__";
-interface MainChartBoxOptions {
-    /** Layout applied to the chart's contents before wrapping. */
-    readonly baseLayout: TraceFlowLayout;
-    /** Container node id. Default `__main_chart__`. */
-    readonly id?: string;
-    /** Box title (rendered in the container header). */
-    readonly label?: string;
-    /** Optional taxonomy hint surfaced on `data` (e.g. 'LLMCall' | 'Agent'). */
-    readonly kind?: string;
-    readonly padding?: number;
-    readonly headerHeight?: number;
-    readonly nodeWidth?: number;
-    readonly nodeHeight?: number;
-}
-/**
- * Wrap an entire graph in a single main-chart container box. Pure
- * `(graph, opts) => graph`; input not mutated. Empty graph → returned
- * unchanged (nothing to wrap).
- */
-declare function wrapInMainChartBox(graph: TraceGraph, opts: MainChartBoxOptions): TraceGraph;
-/**
- * Convenience: a `TraceFlowLayout` that wraps the whole chart in one
- * main-chart box. Pass to `<TraceFlow layout={...}>` / `<TracedFlow>`.
- */
-declare function createMainChartBoxLayout(opts: MainChartBoxOptions): TraceFlowLayout;
 
 /**
  * dagreTraceLayout — professor-grade `TraceFlowLayout` backed by dagre.
@@ -1787,6 +1725,368 @@ declare function dagreTraceLayout(graph: TraceGraph, options?: DagreTraceLayoutO
  * `baseLayout` for the group/main-box transforms.
  */
 declare function createDagreTraceLayout(options?: DagreTraceLayoutOptions): TraceFlowLayout;
+
+interface SubflowBreadcrumbBarProps {
+    entries: BreadcrumbEntry[];
+    onNavigate: (subflowId: string | null) => void;
+    unstyled?: boolean;
+}
+
+/** Presentation of recorded stage reads; never expression-level output derivation. */
+
+interface TraceWorkflowStage {
+    runtimeStageId: string;
+    stageId: string;
+    color: string;
+    role: "question" | "input" | "upstream";
+    values: readonly {
+        key: string;
+        preview: string | null;
+        color: string;
+    }[];
+}
+interface TraceWorkflowRead {
+    key: string;
+    sourceRuntimeStageId: string;
+    targetRuntimeStageId: string;
+    color: string;
+}
+interface TraceWorkflowOverlay {
+    questionKey: string;
+    scopeKey: string;
+    focusRuntimeStageId: string | null;
+    stages: readonly TraceWorkflowStage[];
+    reads: readonly TraceWorkflowRead[];
+}
+
+/**
+ * TracedFlow — runtime-overlay variant of `<TraceFlow>`.
+ *
+ * Pairs a build-time `TraceGraph` (from `createTraceStructureRecorder`)
+ * with a runtime `RuntimeOverlay` (from `createTraceRuntimeOverlay`)
+ * and a scrub index → renders an xyflow chart with per-node coloring
+ * (done / active / error), per-edge highlighting (executed paths),
+ * loop-edge side-routing, and subflow drill-down.
+ *
+ * The component is orchestration only. Each responsibility lives in
+ * an extracted helper / hook (see `_internal/`):
+ *
+ *   - drill state .................. useSubflowDrill
+ *   - measured viewport fitting .... ChartAutoRefit
+ *   - graph filtering by drill ..... filterGraphForDrill
+ *   - breadcrumb path .............. buildSubflowBreadcrumb
+ *   - slice id normalization ....... normalizeSliceLeafIds
+ *   - mount status aggregation ..... aggregateMountStatus
+ *   - node / edge styling .......... toStageNodeWithOverlay + styleEdgeWithOverlay
+ *   - breadcrumb UI ................ <SubflowBreadcrumbBar>
+ *
+ * @example
+ * ```tsx
+ * const trace = useMemo(() => createTraceStructureRecorder(), []);
+ * const runtime = useMemo(() => createTraceRuntimeOverlay(), []);
+ * // ... attach both to executor, run the chart ...
+ * <TracedFlow
+ *   graph={trace.getGraph()}
+ *   overlay={runtime.getOverlay()}
+ *   scrubIndex={sliderValue}
+ *   onNodeClick={(stageId) => focusStage(stageId)}
+ *   onSubflowChange={(mountId) => syncShellDrill(mountId)}
+ * />
+ * ```
+ */
+
+interface TracedFlowColors {
+    /** Default workflow edge stroke. Node renderers use semantic theme tokens. */
+    default: string;
+    /** Done — visually de-emphasised (lighter). */
+    done: string;
+    /** Active — current scrub position. */
+    active: string;
+    /** Optional error-edge paint, activated only when explicitly supplied through colors.error. */
+    error: string;
+    /** Loop back-edge color. */
+    loop: string;
+}
+interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
+    /** Built-in drawing and default geometry. Explicit layout and custom registries retain priority. */
+    renderer?: FlowchartRenderer;
+    /** Build-time graph from `createTraceStructureRecorder().getGraph()`. */
+    graph: TraceGraph;
+    /** Runtime overlay from `createTraceRuntimeOverlay().getOverlay()`. */
+    overlay?: RuntimeOverlay;
+    /** Time-travel scrub index. Defaults to the last step (latest state). */
+    scrubIndex?: number;
+    /** Override the renderer's default geometry; "passthrough" keeps authored positions. */
+    layout?: TraceFlowLayout | "passthrough";
+    /** Tune the flat measured pipeline; nodeSize also resolves custom isometric footprints. Ignored with a custom layout. */
+    layoutOptions?: Omit<DagreTraceLayoutOptions, "direction">;
+    /** Color overrides. */
+    colors?: Partial<TracedFlowColors>;
+    /** Node click handler — receives stage id. */
+    onNodeClick?: (stageId: string) => void;
+    /**
+     * Fires when the chart drills into or out of a subflow (explicit
+     * user click on a mount node, or a click on the chart's own
+     * breadcrumb). Receives the mount stage id (drill in) or `null`
+     * (pop back). Container shells use this to keep their data panels
+     * in lock-step with the chart's drill state.
+     */
+    onSubflowChange?: (mountStageId: string | null) => void;
+    /**
+     * CONTROLLED drill scope — the mount node id to show the internals of,
+     * or `null` for the top level. Pass it (together with
+     * `onSubflowChange`) when the host owns the drill because it ALSO
+     * drills from somewhere else — a subflow tree, a breadcrumb, a
+     * deep-link. The chart then renders the host's scope instead of a
+     * second, private one that can drift out of step with the panels
+     * beside it. Omit for a standalone chart: the drill stays internal
+     * and clicking a mount card just works.
+     */
+    currentSubflowId?: string | null;
+    /**
+     * Consumer-supplied xyflow node types. Merged with the built-in
+     * `stageNode` registry — keys you supply OVERRIDE
+     * the default for that node type. Pass `{ stageNode: MyNode }` to
+     * replace the default stage renderer entirely, or add new keys
+     * for custom node components you push into the graph.
+     *
+     * v0.20+ — overlay state is injected into custom nodes' `data`
+     * fields too (`active`, `done`, `error`, `errorMessage`, `dimmed`,
+     * `stepNumbers`, `retryAttempts`), so consumer renderers can style with
+     * the same scrub-driven done/active/error semantics the bundled
+     * `<StageNode>` uses — without re-implementing the overlay slice
+     * derivation. Consumer `data` fields pass through untouched alongside.
+     */
+    nodeTypes?: NodeTypes;
+    /**
+     * Consumer-supplied xyflow edge types. Consumer registry keys override
+     * built-ins — pass `{ myEdge: MyEdge }` to register custom edge
+     * components for edges you push into the graph with `type: 'myEdge'`.
+     */
+    edgeTypes?: EdgeTypes;
+    /**
+     * Extra chart node ids to mark `active` SIMULTANEOUSLY at the current scrub
+     * position, on top of the overlay's single active node. Lets a consumer light
+     * a whole parallel cohort at one cursor (e.g. the lens lighting every branch
+     * of a fork together). Works for BOTH stage and custom nodes. Defaults to
+     * none — single-active behaviour is unchanged.
+     */
+    coActiveStageIds?: ReadonlySet<string>;
+    /**
+     * Dependency-CONE overlay (the variable backward slice painted on the
+     * chart): a map of chart node id → BFS depth (0 = the slice anchor/writer).
+     * Nodes NOT in the map dim to near-transparency; members re-light with a
+     * staggered transition-delay by depth — causality walks BACKWARDS across
+     * the chart when the cone changes. Edges with either endpoint outside the
+     * cone dim too. `undefined`/`null` = no cone, byte-identical rendering.
+     * Keys are chart node ids (the stage part of a runtimeStageId — strip
+     * `#N` before passing).
+     */
+    sliceCone?: ReadonlyMap<string, number> | null;
+    /** Static, scope-qualified recorded reads drawn separately from workflow execution edges. */
+    traceWorkflow?: TraceWorkflowOverlay | null;
+    /**
+     * Hide the nodes this predicate matches (a hidden subflow card takes its
+     * drill-internals with it); edges re-connect THROUGH hidden nodes so every
+     * surviving path still reads. The predicate is the CALLER's judgement — this
+     * component special-cases no id convention. The pure transform behind it is
+     * exported as `collapseTraceGraph` for callers that also need the hidden-id
+     * list (to render an honest "N steps hidden" note — hiding without saying so
+     * is the one way not to use this prop). Unset → nothing is hidden.
+     */
+    collapseNode?: (node: TraceNode$1) => boolean;
+    /**
+     * Subflow ids to render as GROUP CONTAINER boxes — the subflow's member
+     * stages render NESTED inside the box (xyflow `parentId` + `extent`),
+     * instead of behind a click-to-zoom DRILL card. Per-subflow choice: any
+     * subflow id NOT listed keeps drilling. Default (unset): all drill —
+     * existing behavior, nothing changes.
+     */
+    groupedSubflows?: readonly string[];
+    /**
+     * Wrap the ENTIRE chart in ONE main-chart container box (the Lens model:
+     * the primitive you're viewing is always one box; subflows inside stay
+     * drill cards). Pass a config object to enable + label it; omit for no
+     * outer box. Composes AFTER drill-filtering, so when you drill into a
+     * subflow the box reframes to that subflow's contents.
+     */
+    mainChartBox?: {
+        label?: string;
+        kind?: string;
+    };
+    /** Default dotted background; false removes it. Explicit props also work in unstyled mode. */
+    background?: false | BackgroundProps;
+    /** Replace or remove the default drill breadcrumb. Navigation commands retain the same scope owner. */
+    breadcrumb?: false | ((props: SubflowBreadcrumbBarProps) => react.ReactNode);
+    /** xyflow camera bounds. The existing minimum of 0.1 is retained when omitted. */
+    minZoom?: number;
+    maxZoom?: number;
+    /** Controlled camera: disables the internal automatic fitter. */
+    viewport?: Viewport;
+    defaultViewport?: Viewport;
+    onViewportChange?: (viewport: Viewport) => void;
+    /** Initial/layout automatic fitting. Defaults to padding 0.18; false leaves camera ownership to the host. */
+    autoFit?: boolean | {
+        padding?: number;
+        maxZoom?: number;
+    };
+    /**
+     * Children rendered INSIDE the `<ReactFlow>` element, after the
+     * built-in `<Background>`. Use this slot to mount xyflow
+     * accessory components like `<Controls />`, `<MiniMap />`, or a
+     * custom legend. If unset, only the default Background is rendered.
+     */
+    children?: react.ReactNode;
+}
+declare function TracedFlow({ renderer: rendererProp, graph, overlay, scrubIndex, layout: layoutProp, layoutOptions, colors: colorOverrides, onNodeClick, onSubflowChange, currentSubflowId: controlledSubflowId, collapseNode, groupedSubflows, mainChartBox, nodeTypes: userNodeTypes, edgeTypes: userEdgeTypes, coActiveStageIds, sliceCone, traceWorkflow, background, breadcrumb: renderBreadcrumb, minZoom, maxZoom, viewport, defaultViewport, onViewportChange, autoFit, theme: themeMode, unstyled, children, className, style, }: TracedFlowProps): react.JSX.Element;
+
+interface GroupContainerNodeData {
+    label: string;
+    isGroupContainer?: boolean;
+    active?: boolean;
+    done?: boolean;
+    error?: boolean;
+    dimmed?: boolean;
+    description?: string;
+    icon?: string;
+    /** Opt in before additional header data is rendered; legacy extra metadata stays invisible. */
+    headerMode?: "expandable";
+    /** Trusted host-rendered header content; recorded strings must not be supplied as markup. */
+    iconContent?: ReactNode;
+    headerAction?: ReactNode;
+    statusLabel?: string;
+    statusLabelId?: string;
+    handleDirection?: "LR" | "TB";
+    highlighted?: boolean;
+    compactHeader?: boolean;
+    unstyled?: boolean;
+    [key: string]: unknown;
+}
+declare function GroupContainerNode({ data }: NodeProps): react.JSX.Element;
+
+interface SlotPillNodeData {
+    label: string;
+    /** Lit when the selector PICKED this slot this turn (overlay or consumer). */
+    active?: boolean;
+    selected?: boolean;
+    done?: boolean;
+    /** Faded when other slots ran but this one didn't (the "unlit" signal). */
+    dimmed?: boolean;
+    /** Semantic kind hint for the dot color (e.g. 'system-prompt'|'messages'|'tools'). */
+    slotKind?: string;
+    icon?: string;
+    unstyled?: boolean;
+    [key: string]: unknown;
+}
+declare function SlotPillNode({ data }: NodeProps): react.JSX.Element;
+
+declare function LoopBackEdge({ id, source, target, markerEnd, style, data }: EdgeProps): react.JSX.Element | null;
+
+declare function SmartStepEdge({ id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, }: EdgeProps): react.JSX.Element;
+
+/**
+ * groupLayout — xyflow NATIVE container boxes for the trace chart.
+ *
+ * Two box mechanisms live here, plus the existing drill (elsewhere):
+ *
+ *   - **Drill** (`subflowDrill.ts` + `useSubflowDrill`): a subflow shows as
+ *     ONE mount card; clicking it zooms in. The DEFAULT for every subflow.
+ *   - **Main-chart box** (`wrapInMainChartBox`): wrap the WHOLE chart in ONE
+ *     container box. This is the Lens model — the primitive you're viewing
+ *     (LLMCall / Agent) is always one box; every subflow inside it stays a
+ *     drill card. A `nodeTypes` registry then styles each inner card
+ *     (system-prompt / messages / tools / LLM). USE THIS for Lens.
+ *   - **Per-subflow group** (`applyGroupLayout`): box individual subflows
+ *     (mount → container, members nested inside). A more granular tool kept
+ *     for consumers that want specific subflows inlined as boxes rather than
+ *     drilled. NOT what the Lens main-chart model uses.
+ *
+ * All are pure `(graph, opts) => graph` (no React, no I/O) and compose with
+ * `<TracedFlow>` before nodes reach `<ReactFlow>`. explainable-ui stays
+ * policy-free: it offers the mechanisms; the consumer (Lens) picks.
+ *
+ * Pure: `(graph, opts) => graph`. No React, no I/O. Composed by `<TracedFlow>`
+ * before the nodes reach `<ReactFlow>`.
+ *
+ * What it does, given `groupedSubflowIds`:
+ *   1. For each grouped subflow that is actually present (a mount node whose
+ *      `subflowId` is listed AND has ≥1 member where `subflowOf === id`):
+ *      - lay the OUTER graph out with `baseLayout` (members excluded; the
+ *        mount stays as the box anchor);
+ *      - lay the subflow's MEMBERS out with `baseLayout` in isolation, then
+ *        normalise them to the box's local coordinate space;
+ *      - size the container box to fit the members (+ header + padding);
+ *      - convert the mount node to `type: 'groupContainer'` with a `style`
+ *        width/height, and nest each member via `parentId` + `extent`.
+ *   2. Subflows NOT listed are left untouched (they continue to drill).
+ *
+ * Node ORDER invariant (xyflow requirement): a parent node MUST appear
+ * before its children in the array. We emit all outer nodes (containers
+ * included) first, then all nested members — so every container precedes
+ * its members.
+ */
+
+/** xyflow node type used for the container box. Consumers register a
+ *  renderer for this key (explainable-ui ships a default `GroupContainerNode`). */
+declare const GROUP_CONTAINER_NODE_TYPE = "groupContainer";
+interface GroupLayoutOptions {
+    /** Subflow ids (the mount's `subflowId`) to render as group boxes. */
+    readonly groupedSubflowIds: readonly string[];
+    /** Layout for both the outer graph and each subflow's interior. */
+    readonly baseLayout: TraceFlowLayout;
+    /** Inner padding inside the container box, in px. Default 16. */
+    readonly padding?: number;
+    /** Header strip height (room for the box title), in px. Default 44. */
+    readonly headerHeight?: number;
+    /** Assumed node footprint for box sizing (the layout sets positions, not
+     *  sizes). Defaults match the bundled `StageNode` footprint. */
+    readonly nodeWidth?: number;
+    readonly nodeHeight?: number;
+    /** Optional measured/custom footprints for bounds only; never stamps child styles. */
+    readonly nodeSize?: NodeSizeResolver;
+}
+/**
+ * Apply group-container nesting to a positioned-or-unpositioned graph.
+ * Returns a NEW graph (input is not mutated). Edges pass through unchanged
+ * — xyflow resolves them by node id regardless of nesting, so an edge that
+ * pointed at a now-container mount still connects to the box, and
+ * member↔member edges render inside it.
+ */
+declare function applyGroupLayout(graph: TraceGraph, opts: GroupLayoutOptions): TraceGraph;
+/**
+ * Convenience: wrap a base layout into a `TraceFlowLayout` that applies
+ * group containers. Pass to `<TraceFlow layout={...}>` / `<TracedFlow>`.
+ */
+declare function createGroupedLayout(opts: GroupLayoutOptions): TraceFlowLayout;
+/** Default id for the synthesised main-chart container node. */
+declare const MAIN_CHART_BOX_ID = "__main_chart__";
+interface MainChartBoxOptions {
+    /** Layout applied to the chart's contents before wrapping. */
+    readonly baseLayout: TraceFlowLayout;
+    /** Container node id. Default `__main_chart__`. */
+    readonly id?: string;
+    /** Box title (rendered in the container header). */
+    readonly label?: string;
+    /** Optional taxonomy hint surfaced on `data` (e.g. 'LLMCall' | 'Agent'). */
+    readonly kind?: string;
+    readonly padding?: number;
+    readonly headerHeight?: number;
+    readonly nodeWidth?: number;
+    readonly nodeHeight?: number;
+    /** Optional measured/custom footprints for bounds only; container stamps win. */
+    readonly nodeSize?: NodeSizeResolver;
+}
+/**
+ * Wrap an entire graph in a single main-chart container box. Pure
+ * `(graph, opts) => graph`; input not mutated. Empty graph → returned
+ * unchanged (nothing to wrap).
+ */
+declare function wrapInMainChartBox(graph: TraceGraph, opts: MainChartBoxOptions): TraceGraph;
+/**
+ * Convenience: a `TraceFlowLayout` that wraps the whole chart in one
+ * main-chart box. Pass to `<TraceFlow layout={...}>` / `<TracedFlow>`.
+ */
+declare function createMainChartBoxLayout(opts: MainChartBoxOptions): TraceFlowLayout;
 
 /**
  * snapLinearSuccessors — pure post-dagre alignment pass for the chart SPINE.
@@ -2952,6 +3252,32 @@ interface RunSliderProps extends BaseComponentProps {
 }
 declare function RunSlider({ index, cursorRuntimeStageId, onCursorChange, renderLabel, className, style, }: RunSliderProps): react.JSX.Element;
 
+declare function IsometricStageNode({ data: input }: NodeProps): react.JSX.Element;
+
+/** The layout projects the endpoints; a straight segment stays in that plane. */
+declare function IsometricEdge({ id, sourceX, sourceY, targetX, targetY, markerStart, markerEnd, style, data, label, labelStyle, labelShowBg, labelBgStyle, labelBgPadding, labelBgBorderRadius, interactionWidth }: EdgeProps): react.JSX.Element;
+
+/** A small vector pattern, clipped to the visible world rectangle as it pans. */
+declare function IsometricGrid({ unstyled }: {
+    unstyled?: boolean;
+}): react.JSX.Element | null;
+
+declare const ISOMETRIC_NODE_WIDTH = 168;
+declare const ISOMETRIC_NODE_HEIGHT = 116;
+interface IsometricTraceLayoutOptions {
+    /** Measured/custom footprints affect layout only; they never stamp custom node styles. */
+    readonly nodeSize?: NodeSizeResolver;
+    /** Fixed built-in tiles use 168×116. Disable for a consumer stageNode replacement. */
+    readonly fixedStageNodes?: boolean;
+}
+/**
+ * Fixed-angle presentation of the existing graph. Parent-relative children
+ * are already laid out by group helpers and stay local; their authoritative
+ * container is placed as one outer footprint. IDs, data and edges pass through.
+ */
+declare function createIsometricTraceLayout(options?: IsometricTraceLayoutOptions): TraceFlowLayout;
+declare const isometricTraceLayout: TraceFlowLayout;
+
 /**
  * overlayFromSnapshot — the runtime overlay, rebuilt from a FROZEN snapshot.
  *
@@ -3239,12 +3565,25 @@ interface InvestigationPort {
     /** Call Foottrace's canonical explain API; honor cancellation and enforce storage/query work limits here. */
     readonly explain: (nodeId: NodeId, context: GraphContext) => InvestigationResult | Promise<InvestigationResult>;
 }
+interface InvestigationPanelProps {
+    /** Optional plain-text names for exact mark kinds; evidence and identity remain unchanged. */
+    readonly markLabels?: Readonly<Record<string, string>>;
+    readonly port?: InvestigationPort | null;
+    /** Explicit richer evidence presentation; overall preserves the legacy text projection. */
+    readonly coverageMode?: "overall" | "directional";
+    readonly className?: string;
+    readonly style?: CSSProperties;
+}
 
 /** The diagram and bound port use the same exact item IDs; labels never resolve identity. */
 interface GroupedFlowInvestigationProps {
+    /** Uses the same bounded display names as the standalone investigation panel. */
+    readonly markLabels?: InvestigationPanelProps["markLabels"];
     readonly definition: FlowDiagramDefinition;
     readonly observation?: FlowDiagramObservation;
     readonly port?: InvestigationPort | null;
+    /** Presentation only: grouped investigation already admits recorded relationships. */
+    readonly coverageMode?: InvestigationPanelProps["coverageMode"];
     readonly direction?: "LR" | "TB";
     readonly className?: string;
     readonly style?: CSSProperties;
@@ -3254,4 +3593,4 @@ interface GroupedFlowInvestigationProps {
 /** User-initiated investigation over one host-bound recording. No graph storage or causal search lives here. */
 declare function GroupedFlowInvestigation(props: GroupedFlowInvestigationProps): react.JSX.Element;
 
-export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, type OverlayFromSnapshotOptions, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, type TraceWorkflowOverlay, type TraceWorkflowRead, type TraceWorkflowStage, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, getFlowDiagramAncestors, graphFromStructure, overlayFromSnapshot, projectGroupedFlowDiagram, sliceOverlay, snapLinearSuccessors, structureAsChainTree, traceGroupLayout, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };
+export { type BreadcrumbEntry$1 as BreadcrumbEntry, type ChainSlotProps, type ChainTreeOptions, type CollapsedTraceGraph, type CommitChain, type CommitChainLeaf, CommitChainView, type CommitChainViewProps, type CommitFlowIndex, type CommitFlowRecorderHandle, CommitInspector, type CommitInspectorProps, type CommitInspectorSlotProps, type CommitView, type CreateCommitFlowRecorderOptions, type CreateNodeViewRecorderOptions, type CreateTraceBundleOptions, type CreateTraceRuntimeOverlayOptions, type CreateTraceStructureRecorderOptions, type DagreTraceLayoutOptions, type DataDependency, type EdgeMinLenResolver, type EdgeWeightResolver, type ExecutionRecord, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, type FlowchartOptions, type FlowchartRenderer, FootprintBadge, type FootprintBadgeProps, FootprintButton, type FootprintButtonProps, FootprintCheckbox, type FootprintCheckboxProps, FootprintCode, type FootprintCodeProps, type FootprintComponents, FootprintIcon, type FootprintIconAdapterProps, type FootprintIconProps, FootprintInput, type FootprintInputProps, type FootprintPrimitiveOptions, FootprintTab, FootprintTheme, type FootprintThemeProps, FootprintTooltip, type FootprintTooltipAdapterProps, type FootprintTooltipProps, GROUP_CONTAINER_NODE_TYPE, GroupContainerNode, type GroupContainerNodeData, type GroupLayoutOptions, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, ISOMETRIC_NODE_HEIGHT, ISOMETRIC_NODE_WIDTH, IsometricEdge, IsometricGrid, IsometricStageNode, type IsometricTraceLayoutOptions, LoopBackEdge, MAIN_CHART_BOX_ID, type MainChartBoxOptions, type MinimalCommitFlowRecorder, type MinimalFlowRecorder, type MinimalNodeViewRecorder, type MinimalStructureRecorder, type NodeFootprint, NodeInspector, type NodeInspectorProps, type NodeInspectorSlotProps, type NodeSizeResolver, type NodeView, type NodeViewIndex, type NodeViewRecorderHandle, type OverlayFromSnapshotOptions, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, RunSlider, type RunSliderProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeOverlaySlice, type RuntimeStageId, type SerializedStructureNode, type SiblingOrderResolver, type SliderSlotProps, SlotPillNode, type SlotPillNodeData, SmartStepEdge, type SnapLinearSuccessorsOptions, type SnapshotWithCommitLog, type StageId, StageNode, type StageNodeData, type StructureChain, type StructureChainLeaf, SubflowBreadcrumb, type SubflowBreadcrumbProps, type SubflowNavigation, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, type ThemeMode, type ThemeTokens, TimeTravelDebugger, type TimeTravelDebuggerProps, type TraceBundle, type TraceEdge, type TraceEdgeData, TraceExplorerShell, type TraceExplorerShellProps, type TraceExplorerSlots, TraceFlow, type TraceFlowEdgeColors, type TraceFlowLayout, type TraceFlowProps, type TraceGraph, type TraceGroupLayoutOptions, type TraceNode$1 as TraceNode, type TraceNodeData, type TraceRuntimeOverlayHandle, type TraceStructureRecorderHandle, type TraceWorkflowOverlay, type TraceWorkflowRead, type TraceWorkflowStage, TracedFlow, type TracedFlowColors, type TracedFlowProps, type TranslatorHandleLike, type WalkOptions, applyGroupLayout, asRuntimeStageId, asStageId, backtraceDataFlow, backtraceStructural, buildCommitChainTree, buildSubflowBreadcrumb, collapseTraceGraph, componentStyles, createCommitFlowRecorder, createDagreTraceLayout, createGroupedLayout, createIsometricTraceLayout, createMainChartBoxLayout, createNodeViewRecorder, createSnappedDagreLayout, createTraceBundle, createTraceGroupLayout, createTraceRuntimeOverlay, createTraceStructureRecorder, dagreTraceLayout, defaultTraceFlowLayout, filterGraphForDrill, forwardtraceStructural, getFlowDiagramAncestors, graphFromStructure, isometricTraceLayout, overlayFromSnapshot, projectGroupedFlowDiagram, sliceOverlay, snapLinearSuccessors, structureAsChainTree, themeModeVars, tokensToCSSVars, traceGroupLayout, useFootprintComponents, useFootprintTheme, useSubflowNavigation, useTranslator, walkBackward, walkForward, wrapInMainChartBox };

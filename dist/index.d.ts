@@ -1,6 +1,913 @@
 import * as react from 'react';
-import { CSSProperties, ReactNode } from 'react';
+import { ElementType, ButtonHTMLAttributes, RefAttributes, InputHTMLAttributes, HTMLAttributes, ReactNode, CSSProperties } from 'react';
 import { Node, Edge } from '@xyflow/react';
+
+/** Snapshot of a single pipeline stage — the core data shape for all components. */
+interface StageSnapshot {
+    /** Internal stage identifier */
+    stageName: string;
+    /** Human-readable label */
+    stageLabel: string;
+    /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex. Key for recorder Map lookup. */
+    runtimeStageId?: string;
+    /** Accumulated memory state after this stage ran */
+    memory: Record<string, unknown>;
+    /** Narrative text describing what happened */
+    narrative: string;
+    /** When this stage started (ms from pipeline start) */
+    startMs: number;
+    /** How long this stage took (ms) */
+    durationMs: number;
+    /** Execution status */
+    status?: "pending" | "active" | "done" | "error";
+    /** Human-readable description of what this stage does */
+    description?: string;
+    /** Subflow identifier (when this stage is inside a subflow) */
+    subflowId?: string;
+    /** Subflow execution result — present on stages that ran a subflow. */
+    subflowResult?: unknown;
+}
+/**
+ * The narrative entry kinds this package renders with a badge of its own.
+ * Closed on purpose: `StoryNarrative` keys its badge map by this union, so a
+ * kind added here without a badge is a compile error.
+ */
+type KnownNarrativeEntryType = 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume' | 'emit'
+/** One failed attempt at a stage that declares a `retry` policy — the
+ *  stage is about to run again. Attempt telemetry, not an outcome: the
+ *  stage may still succeed, so this is warning-weight, not error-weight.
+ *  Emitted by footprintjs 9.15–10.0, nested inside its own stage; later
+ *  releases narrate `attempt` lines instead. */
+ | 'retry'
+/** One attempt of a stage that declares a `retry` policy — its outcome,
+ *  how long it took, its cause and the retry-or-stop decision, one line per
+ *  attempt. Emitted by footprintjs >= 10.1, nested inside its own stage
+ *  (beneath the `error` line when the stage failed for good). */
+ | 'attempt';
+/**
+ * A narrative entry's kind: one this package knows, or ANY other string.
+ *
+ * Open on purpose. footprintjs adds entry kinds in minor releases (`retry` in
+ * 9.15, `attempt` in 10.1); while this type was a closed union, each addition
+ * made every app that hands `executor.getNarrativeEntries()` to a component
+ * here fail to compile. A kind this release does not know renders with a plain
+ * generic badge and its text as written. `(string & {})` keeps editor
+ * completion for the known kinds.
+ */
+type NarrativeEntryType = KnownNarrativeEntryType | (string & {});
+/** Structured narrative entry — preserves type info for semantic rendering. */
+interface NarrativeEntry {
+    type: NarrativeEntryType;
+    text: string;
+    depth: number;
+    stageName?: string;
+    /** Stable stage identifier (matches spec node id). Primary key for UI sync. */
+    stageId?: string;
+    /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex.
+     *  Used for exact time-travel sync (preferred over stageId for progressive reveal). */
+    runtimeStageId?: string;
+    /** Subflow ID when this entry was generated inside a subflow. */
+    subflowId?: string;
+    /** Direction for subflow entries: 'entry' when entering, 'exit' when leaving. */
+    direction?: 'entry' | 'exit';
+    stepNumber?: number;
+    /** Scope key that was read or written. Only present on 'step' entries. */
+    key?: string;
+    /** Raw value from the scope event. Only present on 'step' entries. */
+    rawValue?: unknown;
+}
+/** Component size variants */
+type Size = "compact" | "default" | "detailed";
+/** Common props shared by all visualization components */
+interface BaseComponentProps {
+    /** Size variant */
+    size?: Size;
+    /** Strip all built-in styles — bring your own */
+    unstyled?: boolean;
+    /** Additional CSS class name */
+    className?: string;
+    /** Inline style overrides */
+    style?: React.CSSProperties;
+}
+
+/** Scope admission only. Existing dataTrace / traceWalk own traversal. */
+
+type TraceAvailability = {
+    ok: true;
+} | {
+    ok: false;
+    reason: "no-history" | "malformed" | "too-large";
+    items?: number;
+};
+interface TraceScope {
+    invocationPath: readonly string[];
+    commitLog: unknown[];
+    executionTree: unknown;
+    availability: TraceAvailability;
+    readsAvailable: boolean;
+    /** Inherited only from an explicit canonical producer snapshot. */
+    nestedReadTracking?: true;
+    mountLabels: ReadonlyMap<string, string>;
+    /** Names only; a start snapshot does not attest input-mapping versus resume origin. */
+    startKeys?: readonly string[];
+}
+
+/** Names and the original visit address only: never a retained snapshot value.
+ * For reads, beforeCommitIdx identifies the reader for TraceWalkOptions.readerCommitIdx;
+ * for writes it remains the exclusive cutoff immediately after the write. */
+interface StageActivityTraceTarget {
+    readonly key: string;
+    readonly kind: "read" | "write";
+    readonly runtimeStageId: string;
+    readonly beforeCommitIdx: number;
+    readonly invocationPath: readonly string[];
+}
+interface StageActivityValue {
+    readonly state: "recorded" | "absent" | "unavailable";
+    readonly preview: string | null;
+}
+interface StageActivityWriter {
+    readonly runtimeStageId: string;
+    readonly stageName: string;
+    readonly commitIdx: number;
+}
+interface StageActivityVariable {
+    readonly id: string;
+    readonly key: string;
+    readonly label: string;
+    readonly kind: "read" | "write";
+    readonly source: "stage-read" | "narrative" | "commit-write";
+    readonly value: StageActivityValue;
+    readonly valueLabel: string;
+    readonly before?: StageActivityValue;
+    readonly after?: StageActivityValue;
+    readonly change: "added" | "updated" | "removed" | "unchanged" | "written" | "unknown";
+    readonly writer: StageActivityWriter | null;
+    readonly traceTarget: StageActivityTraceTarget | null;
+}
+interface StageActivityEvent {
+    readonly id: string;
+    readonly kind: "step" | "decision" | "error" | "event" | "log";
+    readonly source: "narrative" | "execution-tree";
+    readonly text: string;
+    readonly key?: string;
+    readonly variableId?: string;
+    /** A standard narrative's own wording, not a typed scope-event assertion. */
+    readonly reportedOperation?: "read" | "write" | "update" | "delete";
+}
+interface StageActivityView {
+    readonly identity: {
+        readonly stageName: string;
+        readonly stageLabel: string;
+        readonly runtimeStageId: string | null;
+        readonly invocationPath: readonly string[];
+        readonly commitIdx: number | null;
+    };
+    readonly availability: {
+        readonly ok: true;
+    } | {
+        readonly ok: false;
+        readonly reason: string;
+    };
+    readonly events: readonly StageActivityEvent[];
+    readonly reads: readonly StageActivityVariable[];
+    readonly writes: readonly StageActivityVariable[];
+    readonly decisions: readonly StageActivityEvent[];
+    readonly logs: readonly StageActivityEvent[];
+    readonly coverage: {
+        readonly narrative: "recorded" | "unavailable" | "none-recorded";
+        readonly reads: "recorded" | "unknown";
+        readonly writes: "recorded" | "unavailable";
+        readonly logs: "stage-scoped" | "unavailable";
+        readonly truncated: boolean;
+    };
+    readonly notes: readonly string[];
+}
+interface StageActivityInput {
+    readonly scope: TraceScope;
+    readonly snapshots: readonly StageSnapshot[];
+    readonly selectedIndex: number;
+    readonly narrativeEntries?: readonly NarrativeEntry[];
+    /** False when the shell has rejected a stale or unavailable companion. */
+    readonly narrativeAvailable?: boolean;
+}
+/** A single visit's evidence, detached from arbitrary stored values. It does
+ * not infer formulas, merge parallel clocks, or claim every assignment was
+ * committed. Supplied scope evidence is re-read through inert own fields. */
+declare function projectStageActivity(input: StageActivityInput): StageActivityView;
+/** Copy/export uses the same bounded projection shown by the panel. */
+declare function formatStageActivitySummary(view: StageActivityView): string;
+
+/** Names-only read evidence. Canonical paths stay opaque: no dot/prefix aliases. */
+
+type ReadPathUncertainty = "ambiguous-read-path" | "legacy-address-unknown" | "read-window-ambiguous" | "related-write";
+
+/** A navigation target, never a foreign key inserted into the parent's read set. */
+interface SubflowHandoffSource {
+    readonly key: string;
+    readonly mountRuntimeStageId: string;
+    readonly invocationPath: readonly string[];
+    /** Exclusive position on the child's displayed history, without its seed bookend. */
+    readonly beforeCommitIdx: number;
+}
+
+/** Explicit, serializable presentation and recording scope. Child ancestry stays unknown. */
+interface TraceWalkScope {
+    readonly invocationPath: readonly string[];
+    readonly mountLabels?: Readonly<Record<string, string>>;
+    readonly readsAvailable?: boolean;
+    /** Explicit producer discriminator for canonical per-write read paths. */
+    readonly nestedReadTracking?: true;
+    /** Recorded non-undefined starting keys, without their values or inferred origin. */
+    readonly startKeys?: readonly string[];
+}
+interface TraceWalkOptions {
+    beforeCommitIdx?: number;
+    /** ARRAY index of a recorded reader; binds the selected read using its native window. */
+    readerCommitIdx?: number;
+    maxDepth?: number;
+    maxFrames?: number;
+    scope?: TraceWalkScope;
+}
+/** One read key of a stop, resolved to the commit that wrote it. */
+interface TraceIngredient {
+    key: string;
+    /** null = no safely bound prior local writer, including ambiguous legacy paths. */
+    writerRuntimeStageId: string | null;
+    writerStageName: string | null;
+    writerCommitIdx: number | null;
+    /** A legacy read name may omit its namespace or canonical path encoding. */
+    unresolvedReason?: ReadPathUncertainty;
+}
+/** One stop on the rewind rail — a slice frame with its rail position. */
+interface TraceStop {
+    runtimeStageId: string;
+    stageId: string;
+    stageName: string;
+    /** Position in the commit log — the stop's place on the time rail. */
+    commitIdx: number;
+    /** The slice keys DOWNSTREAM members read from this stop (what it
+     *  contributed to the traced value). The anchor contributes the traced
+     *  key itself. */
+    contributedKeys: string[];
+    keysWritten: string[];
+    ingredients: TraceIngredient[];
+    /** Exact per-output read prefixes. Older caller-supplied walks may omit it. */
+    ingredientsByKey?: Readonly<Record<string, readonly TraceIngredient[]>>;
+    /** BFS hop distance from the anchor (tooltip-grade info, NOT the walk
+     *  order — the walk order is time). */
+    depth: number;
+    /** 1-based pass number when the same stage appears more than once in
+     *  the walk (loop iterations); 0 = appears once. */
+    loopPass: number;
+    /** Admitted child targets; their histories remain on their own cursor rail. */
+    handoffSources?: readonly SubflowHandoffSource[];
+}
+interface TraceWalkMissing {
+    /** A supplied read may be recorded without one certain source. */
+    unresolvedReason?: ReadPathUncertainty;
+    reason: "never-written" | "not-yet-written" | "evidence-unavailable";
+    /** For 'not-yet-written': where the FIRST write actually happens. */
+    firstWriteCommitIdx?: number;
+    firstWriterRuntimeStageId?: string;
+    firstWriterStageName?: string;
+}
+interface TraceWalk {
+    /** Detached scope, including root mount labels derived from recorded metadata. */
+    readonly scope?: TraceWalkScope;
+    key: string;
+    /** Stops in WALK ORDER: commitIdx DESCENDING. stops[0] is the anchor
+     *  (the last writer of `key` within the cutoff). */
+    stops: TraceStop[];
+    /** Non-null ⇒ zero stops: the honest-absence card, not an empty chain. */
+    missing: TraceWalkMissing | null;
+    /** Read keys with no safely bound local writer, deduped in encounter order.
+     * Their earlier origin requires separate starting-state evidence. */
+    inputTermini: string[];
+    /** False when the snapshot recorded no reads anywhere — the chain is
+     *  UNKNOWABLE (not absent) beyond the anchor. */
+    readsAvailable: boolean;
+    /** True when the underlying slice hit its frame/depth budget — the
+     *  earliest stop may not be the true origin. */
+    truncated: boolean;
+}
+/**
+ * Build the rewind walk for `key`.
+ *
+ * `beforeCommitIdx` (EXCLUSIVE) scopes the question to "the value as it
+ * stood before that moment" — it is also how ingredient-following works:
+ * follow ingredient K at stop S = buildTraceWalk(K, { beforeCommitIdx:
+ * S.commitIdx }) — one function, no traversal modes.
+ */
+declare function buildTraceWalk(commitLog: unknown[], executionTree: unknown, key: string, opts?: TraceWalkOptions): TraceWalk;
+/**
+ * formatTraceWalk — THE parity artifact: the [Copy story] button and any
+ * LLM backtrack tool emit THIS string, so the human's board and the
+ * agent's answer are the same text, not two translations.
+ *
+ * `stepNumberOf` maps a runtimeStageId to the 1-based step number shown on
+ * the rail (null = not on the rail); walk order and wording match the
+ * stop cards exactly.
+ */
+declare function formatTraceWalk(walk: TraceWalk, stepNumberOf: (runtimeStageId: string) => number | null, options?: {
+    scope?: TraceWalkScope;
+}): string;
+
+/** Default theme tokens — consumers override via CSS variables or ThemeProvider. */
+interface ThemeTokens {
+    colors?: {
+        primary?: string;
+        success?: string;
+        error?: string;
+        warning?: string;
+        /** Text/icon colors paired with independently configurable fills. */
+        onPrimary?: string;
+        onSuccess?: string;
+        onError?: string;
+        onWarning?: string;
+        onTracing?: string;
+        onNodeCursor?: string;
+        onNodeVisited?: string;
+        onNodeMain?: string;
+        /** Semantic node-state roles (a runtime overlay maps onto these): the scrub
+         *  cursor, the visited path, and a group's lead node. */
+        nodeCursor?: string;
+        nodeVisited?: string;
+        nodeMain?: string;
+        /** Interactive accent — active tab, selected row rule, focused chip.
+         *  Defaults to `primary` when omitted, so setting one colour is enough. */
+        accent?: string;
+        /** The translucent wash BEHIND an accented row (selected trace step). */
+        accentBg?: string;
+        /** Panel body surface — the plain background a panel paints itself with. */
+        bg?: string;
+        /** Raised surface (cards, popovers) sitting ON the body surface. */
+        bgElevated?: string;
+        /** Tracing-rail chrome — the "you are walking a value's causes" colour.
+         *  One token drives the badge, rail border, stops and walk buttons. */
+        tracing?: string;
+        /** CATEGORICAL chip palette (four hues) for the ingredient chips on one
+         *  trace stop. Not semantic — their only job is to stay tellable apart,
+         *  which is why they are their own roles and not `primary`/`success`. */
+        chip1?: string;
+        chip2?: string;
+        chip3?: string;
+        chip4?: string;
+        bgPrimary?: string;
+        bgSecondary?: string;
+        bgTertiary?: string;
+        textPrimary?: string;
+        textSecondary?: string;
+        textMuted?: string;
+        border?: string;
+    };
+    /** Legacy global radius; also seeds component radii unless explicitly set. */
+    radius?: string;
+    typography?: {
+        body?: string;
+        label?: string;
+        small?: string;
+        title?: string;
+        lineHeight?: string;
+        weightNormal?: string;
+        weightMedium?: string;
+        weightStrong?: string;
+    };
+    spacing?: {
+        xs?: string;
+        sm?: string;
+        md?: string;
+        lg?: string;
+        xl?: string;
+    };
+    radii?: {
+        control?: string;
+        panel?: string;
+        badge?: string;
+    };
+    borders?: {
+        width?: string;
+        focusWidth?: string;
+    };
+    elevation?: {
+        panel?: string;
+        popover?: string;
+        focus?: string;
+    };
+    /** Chart-card paint overrides. Omitted fields retain each renderer's
+     *  existing status-dependent appearance. `initial` restores that fallback. */
+    nodes?: {
+        borderColor?: string;
+        borderWidth?: string;
+        borderStyle?: string;
+        radius?: string;
+        shadow?: string;
+        /** CSS filter for clipped shapes, such as none or drop-shadow(...).
+         *  Unlike a box shadow, drop-shadow() accepts no spread or inset. */
+        shapeShadow?: string;
+        badgeShadow?: string;
+        pulseOpacity?: string;
+        /** Display value for the group header's recorded-state cue. Default none. */
+        groupStatusDisplay?: string;
+    };
+    motion?: {
+        duration?: string;
+        fastDuration?: string;
+        easing?: string;
+    };
+    controls?: {
+        height?: string;
+        paddingX?: string;
+        gap?: string;
+        iconSize?: string;
+    };
+    fontFamily?: {
+        sans?: string;
+        mono?: string;
+    };
+}
+/**
+ * Maps ThemeTokens to CSS custom property assignments.
+ *
+ * Every `--fp-*` variable the components actually read must be emitted
+ * here — a component reading a variable this function never writes can
+ * only ever show its hard-coded fallback, which is how a "light" theme
+ * ends up with dark patches. `test/unit/themeTokens.test.ts` greps the
+ * source for `--fp-*` reads and fails when one has no emitter, so a new
+ * token can't silently drift back out of the theme.
+ */
+declare function tokensToCSSVars(tokens: ThemeTokens): Record<string, string>;
+/** Raw fallback values — used by tokensToCSSVars() and anywhere a real color is needed. */
+declare const rawDefaults: {
+    readonly colors: {
+        readonly primary: "#6366f1";
+        readonly success: "#22c55e";
+        readonly error: "#ef4444";
+        readonly warning: "#f59e0b";
+        readonly onPrimary: "#fff";
+        readonly onSuccess: "#fff";
+        readonly onError: "#fff";
+        readonly onWarning: "#1a1a1a";
+        readonly onTracing: "#fff";
+        readonly onNodeCursor: "#1a1a1a";
+        readonly onNodeVisited: "#fff";
+        readonly onNodeMain: "#fff";
+        readonly nodeCursor: "#f59e0b";
+        readonly nodeVisited: "#22c55e";
+        readonly nodeMain: "#6366f1";
+        readonly accent: "#6366f1";
+        readonly accentBg: "rgba(99,102,241,0.12)";
+        readonly tracing: "#0d9488";
+        readonly chip1: "#0d9488";
+        readonly chip2: "#d97706";
+        readonly chip3: "#7c3aed";
+        readonly chip4: "#e11d48";
+        readonly bg: "#1a1b26";
+        readonly bgElevated: "#1e293b";
+        readonly bgPrimary: "#0f172a";
+        readonly bgSecondary: "#1e293b";
+        readonly bgTertiary: "#334155";
+        readonly textPrimary: "#f8fafc";
+        readonly textSecondary: "#94a3b8";
+        readonly textMuted: "#64748b";
+        readonly border: "#334155";
+    };
+    readonly radius: "8px";
+    readonly typography: {
+        readonly body: "12px";
+        readonly label: "11px";
+        readonly small: "10px";
+        readonly title: "14px";
+        readonly lineHeight: "1.5";
+        readonly weightNormal: "400";
+        readonly weightMedium: "500";
+        readonly weightStrong: "700";
+    };
+    readonly spacing: {
+        readonly xs: "4px";
+        readonly sm: "8px";
+        readonly md: "12px";
+        readonly lg: "16px";
+        readonly xl: "24px";
+    };
+    readonly radii: {
+        readonly control: "6px";
+        readonly panel: "8px";
+        readonly badge: "12px";
+    };
+    readonly borders: {
+        readonly width: "1px";
+        readonly focusWidth: "2px";
+    };
+    readonly elevation: {
+        readonly panel: "0 2px 8px rgba(0,0,0,0.15)";
+        readonly popover: "0 6px 24px rgba(0,0,0,0.2)";
+        readonly focus: "none";
+    };
+    readonly nodes: {
+        readonly borderColor: "initial";
+        readonly borderWidth: "initial";
+        readonly borderStyle: "initial";
+        readonly radius: "initial";
+        readonly shadow: "initial";
+        readonly shapeShadow: "initial";
+        readonly badgeShadow: "initial";
+        readonly pulseOpacity: "initial";
+        readonly groupStatusDisplay: "none";
+    };
+    readonly motion: {
+        readonly duration: "240ms";
+        readonly fastDuration: "120ms";
+        readonly easing: "ease";
+    };
+    readonly controls: {
+        readonly height: "28px";
+        readonly paddingX: "8px";
+        readonly gap: "6px";
+        readonly iconSize: "14px";
+    };
+    readonly fontFamily: {
+        readonly sans: "Inter, system-ui, -apple-system, sans-serif";
+        readonly mono: "'JetBrains Mono', 'Fira Code', monospace";
+    };
+};
+/**
+ * Default dark theme values with CSS variable references (consumers can
+ * override via CSS).
+ *
+ * WARNING — do NOT pass this object to `<FootprintTheme tokens={...}>` (or to
+ * `tokensToCSSVars`). Every value here is already a `var(--fp-…, fallback)`
+ * REFERENCE, so feeding them back in emits self-referential declarations like
+ * `--fp-accent: var(--fp-accent, #6366f1)`, which resolve to nothing and blank
+ * out the colours they were meant to set. Start from `rawDefaults` (plain hex)
+ * or from a preset in `theme/presets.ts` and override the fields you want.
+ */
+declare const defaultTokens: Required<{
+    [K in keyof ThemeTokens]-?: Required<ThemeTokens[K]>;
+}>;
+
+/**
+ * Adapters must forward the native ref, events, disabled/checked state, ARIA
+ * and data attributes. The registry changes presentation, not Lens actions.
+ */
+interface FootprintComponents {
+    Button?: ElementType<ButtonHTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>>;
+    Tab?: ElementType<ButtonHTMLAttributes<HTMLButtonElement> & RefAttributes<HTMLButtonElement>>;
+    Input?: ElementType<InputHTMLAttributes<HTMLInputElement> & RefAttributes<HTMLInputElement>>;
+    Checkbox?: ElementType<InputHTMLAttributes<HTMLInputElement> & RefAttributes<HTMLInputElement>>;
+    Badge?: ElementType<HTMLAttributes<HTMLSpanElement> & RefAttributes<HTMLSpanElement>>;
+    Code?: ElementType<HTMLAttributes<HTMLElement> & RefAttributes<HTMLElement>>;
+    Tooltip?: ElementType<FootprintTooltipAdapterProps & RefAttributes<HTMLSpanElement>>;
+    Icon?: ElementType<FootprintIconAdapterProps & RefAttributes<HTMLSpanElement>>;
+}
+declare function useFootprintComponents(): FootprintComponents;
+interface FootprintPrimitiveOptions {
+    /** Omit the library's paint; explicit consumer style is still honored. */
+    unstyled?: boolean;
+    /** Library fallback paint. A registered host component never receives it.
+     *  Explicit undefined opts out; omitting this prop uses the default recipe. */
+    defaultStyle?: CSSProperties;
+    /** Stable semantic part name available to a host adapter as data-fp-part. */
+    part?: string;
+    densitySize?: Size;
+}
+interface FootprintButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>, FootprintPrimitiveOptions {
+}
+interface FootprintInputProps extends InputHTMLAttributes<HTMLInputElement>, FootprintPrimitiveOptions {
+}
+interface FootprintCheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type">, FootprintPrimitiveOptions {
+}
+interface FootprintBadgeProps extends HTMLAttributes<HTMLSpanElement>, FootprintPrimitiveOptions {
+}
+interface FootprintCodeProps extends HTMLAttributes<HTMLElement>, FootprintPrimitiveOptions {
+}
+interface FootprintTooltipAdapterProps extends HTMLAttributes<HTMLSpanElement> {
+    content?: string;
+}
+interface FootprintTooltipProps extends FootprintTooltipAdapterProps, FootprintPrimitiveOptions {
+}
+interface FootprintIconAdapterProps extends HTMLAttributes<HTMLSpanElement> {
+    name: string;
+    children?: ReactNode;
+}
+interface FootprintIconProps extends FootprintIconAdapterProps, FootprintPrimitiveOptions {
+}
+declare const FootprintButton: react.ForwardRefExoticComponent<FootprintButtonProps & RefAttributes<HTMLButtonElement>>;
+declare const FootprintTab: react.ForwardRefExoticComponent<FootprintButtonProps & RefAttributes<HTMLButtonElement>>;
+declare const FootprintInput: react.ForwardRefExoticComponent<FootprintInputProps & RefAttributes<HTMLInputElement>>;
+declare const FootprintCheckbox: react.ForwardRefExoticComponent<FootprintCheckboxProps & RefAttributes<HTMLInputElement>>;
+declare const FootprintBadge: react.ForwardRefExoticComponent<FootprintBadgeProps & RefAttributes<HTMLSpanElement>>;
+declare const FootprintCode: react.ForwardRefExoticComponent<FootprintCodeProps & RefAttributes<HTMLElement>>;
+/** Native-title fallback; a host adapter may provide its own tooltip behavior. */
+declare const FootprintTooltip: react.ForwardRefExoticComponent<FootprintTooltipProps & RefAttributes<HTMLSpanElement>>;
+declare const FootprintIcon: react.ForwardRefExoticComponent<FootprintIconProps & RefAttributes<HTMLSpanElement>>;
+
+declare function useFootprintTheme(): ThemeTokens;
+interface FootprintThemeProps {
+    tokens?: ThemeTokens;
+    /** Native-compatible adapters for host design-system primitives. */
+    components?: FootprintComponents;
+    /** Apply local variables to a single child instead of adding a DOM wrapper.
+     *  Custom children must forward className/style to their root. */
+    asChild?: boolean;
+    children: React.ReactNode;
+}
+/**
+ * Optional theme provider — wraps children with CSS custom properties.
+ * Consumers can also just set --fp-* CSS variables directly.
+ *
+ * Wrapper div uses `display: contents` so it's invisible to the
+ * parent's layout (flex / grid / block). This matters because themed
+ * children often need to fill a parent (flex:1 / height:100% /
+ * grid cells), and a regular block `<div>` here would break that
+ * chain — descendants would resolve to 0 height when the parent is
+ * flex-column or a grid cell with minmax(0, 1fr). `display: contents`
+ * removes the box from the render tree while keeping the DOM intact,
+ * so CSS custom property inheritance (which follows the DOM) still
+ * flows to children.
+ *
+ * Trade-off: `display: contents` elements are removed from the
+ * accessibility tree in some older browser versions. Our wrapper has
+ * no semantic role, so this is fine.
+ */
+declare function FootprintTheme({ tokens, components, children, asChild }: FootprintThemeProps): react.JSX.Element;
+
+/**
+ * CSS recipes for visual sizes. Numeric layout/math callers retain fontSize
+ * and padding above; components use these strings for themeable paint.
+ * Size offsets keep the historic compact/default/detailed density distinct.
+ */
+declare function componentStyles(size?: Size): {
+    body: string;
+    label: string;
+    small: string;
+    title: string;
+    lineHeight: string;
+    weightNormal: string;
+    weightMedium: string;
+    weightStrong: string;
+    padding: string;
+    controlHeight: string;
+    controlPadding: string;
+    controlPaddingX: string;
+    controlGap: string;
+    iconSize: string;
+    radiusControl: string;
+    radiusPanel: string;
+    radiusBadge: string;
+    borderWidth: string;
+    focusWidth: string;
+    shadowPanel: string;
+    shadowPopover: string;
+    shadowFocus: string;
+    duration: string;
+    fastDuration: string;
+    easing: string;
+    spaceXs: string;
+    spaceSm: string;
+    spaceMd: string;
+    spaceLg: string;
+    spaceXl: string;
+};
+
+/**
+ * Built-in palettes.
+ *
+ * Each preset carries EVERY role the components read — including the
+ * node-state roles, the accent pair, the surfaces and the tracing colour.
+ * A preset with holes is worse than no preset: the components fall back to
+ * their hard-coded (dark) defaults for the missing roles, so a light theme
+ * shows dark patches. `test/unit/themeTokens.test.ts` fails when a preset
+ * stops covering a token the source reads.
+ *
+ * The cool presets keep the historic raw defaults for the node roles
+ * (amber cursor / green visited / indigo lead) so nothing re-colours for
+ * consumers already on them; the warm presets use their own palette.
+ */
+/** Cool dark theme (the library default) */
+declare const coolDark: ThemeTokens;
+/** Warm dark theme — charcoal-purple palette */
+declare const warmDark: ThemeTokens;
+/** Warm light theme — cream/peach palette */
+declare const warmLight: ThemeTokens;
+/** Cool light theme — neutral grays, matches Tailwind zinc palette */
+declare const coolLight: ThemeTokens;
+/** Paper light — cream surfaces, pastel recorded states and ink outlines. */
+declare const paperLight: ThemeTokens;
+/** Paper dark — warm charcoal surfaces with the same readable pastel states. */
+declare const paperDark: ThemeTokens;
+/** All built-in theme presets */
+declare const themePresets: {
+    readonly coolDark: ThemeTokens;
+    readonly coolLight: ThemeTokens;
+    readonly warmDark: ThemeTokens;
+    readonly warmLight: ThemeTokens;
+    readonly paperLight: ThemeTokens;
+    readonly paperDark: ThemeTokens;
+};
+type ThemePresetName = keyof typeof themePresets;
+
+/**
+ * useDarkModeTokens — follow the host app's dark mode.
+ *
+ * The direct answer to "why is your UI dark inside my light app": this
+ * library's `--fp-*` fallbacks are dark, so a component with nothing set
+ * renders dark. This hook watches the app's own dark-mode switch and hands
+ * back the matching preset.
+ *
+ *   import { FootprintTheme, useDarkModeTokens } from 'footprint-explainable-ui';
+ *
+ *   function MyApp() {
+ *     const tokens = useDarkModeTokens();          // Tailwind's `.dark` on <html>
+ *     return (
+ *       <FootprintTheme tokens={tokens}>
+ *         <ExplainableShell ... />
+ *       </FootprintTheme>
+ *     );
+ *   }
+ *
+ * Other switches work too — pass whatever your app uses:
+ *
+ *   useDarkModeTokens({ darkClass: 'theme-dark' })          // a class name
+ *   useDarkModeTokens({ darkClass: '[data-theme="dark"]' }) // a CSS selector
+ *   useDarkModeTokens({ light: warmLight, dark: warmDark }) // your palettes
+ *
+ * Server rendering: on the server there is no `document`, so the first render
+ * returns the LIGHT tokens and the client corrects on mount. (It used to read
+ * `document` inside the `useState` initializer, which is a hard crash in
+ * Next.js — a light flash is the honest cost of not knowing yet.)
+ */
+
+interface DarkModeTokensOptions {
+    /** Tokens to use in light mode. Defaults to coolLight. */
+    light?: ThemeTokens;
+    /** Tokens to use in dark mode. Defaults to coolDark. */
+    dark?: ThemeTokens;
+    /**
+     * How the app says "dark". A bare CLASS NAME on `<html>` (`'dark'` —
+     * Tailwind's convention, the default), or any CSS SELECTOR the root
+     * element should match (`'.dark'`, `'[data-theme="dark"]'`, `'#app.night'`).
+     * Anything starting with `.`, `[`, `#` or `:` is treated as a selector.
+     */
+    darkClass?: string;
+    /** @deprecated Renamed to `darkClass`. Still read, same meaning. */
+    selector?: string;
+}
+declare function useDarkModeTokens(options?: DarkModeTokensOptions): ThemeTokens;
+
+/**
+ * The one-word theme switch.
+ *
+ * Every component in this library paints from `--fp-*` variables whose
+ * built-in fallbacks are DARK. Mounted inside a light app with nothing set,
+ * a panel renders dark — correct by the rules, wrong on the page. Setting a
+ * dozen variables by hand to fix that is not a first-try experience.
+ *
+ * `<Component theme="light" />` is that fix in one word: it stamps a full
+ * preset as inline `--fp-*` variables on the component's own root, so
+ * everything under it — including nested children — follows. It is the same
+ * mechanism `<ExplainableShell traceTheme={{ mode }}>` uses; this module is
+ * the single place that maps a mode to its palette.
+ *
+ * Precedence, from weakest to strongest:
+ *   1. the components' hard-coded fallbacks (dark)
+ *   2. `--fp-*` an ancestor sets (`<FootprintTheme>`, your own CSS)
+ *   3. `theme="light" | "dark"` on the component  ← wins, because it is local
+ *
+ * So `theme` is a per-component override, not a replacement for
+ * `<FootprintTheme tokens={...}>` — reach for the provider when you want one
+ * palette for a whole tree, and for a custom palette rather than a preset.
+ */
+
+/** Light or dark. The whole switch. */
+type ThemeMode = "dark" | "light";
+/** Props mixin for components that accept the switch. */
+interface ThemeModeProps {
+    /**
+     * Light or dark, in one word — applies the built-in preset as `--fp-*`
+     * variables on this component's root. Omit to inherit whatever the page
+     * (or a `<FootprintTheme>` ancestor) already set.
+     */
+    theme?: ThemeMode;
+}
+/**
+ * CSS variables for a mode, ready to spread into a root element's `style`.
+ * Returns `{}` for `undefined` so an unthemed component is byte-identical to
+ * how it rendered before the prop existed.
+ */
+declare function themeModeVars(mode?: ThemeMode): CSSProperties;
+
+interface CommentaryRenderContext {
+    readonly index: number;
+    /** The last displayed comment from the exact selected visit. */
+    readonly current: boolean;
+}
+interface CommentaryPanelProps extends BaseComponentProps {
+    readonly title?: string;
+    readonly maxLines?: number;
+    readonly renderEntry?: (entry: NarrativeEntry, context: CommentaryRenderContext) => react.ReactNode;
+    readonly emptyMessage?: string;
+    /** A recorded log through the cursor, or only the exact selected visit's prose. */
+    readonly presentation?: "log" | "current";
+    /** Show recorded kind labels in the log. Omit to retain the legacy type column. */
+    readonly showEntryTypes?: boolean;
+    /** Group consecutive admitted comments by their exact recorded stage visit. */
+    readonly groupByStage?: boolean;
+    /** Opt into following the selected step; reduced motion suppresses scrolling. */
+    readonly followCursor?: boolean;
+}
+/** The existing commentary JSON follows either provider's one cursor, without owning another. */
+declare function CommentaryPanel({ title, maxLines, renderEntry, emptyMessage, presentation, showEntryTypes, groupByStage, followCursor, size, unstyled, className, style, }: CommentaryPanelProps): react.JSX.Element;
+
+/** Two presentations of the same recorded run and selected visit. */
+type LensView = "developer" | "story";
+/** Recorded prose presentation; text and values still come from the recording. */
+type LensCommentaryOptions = Pick<CommentaryPanelProps, "title" | "maxLines" | "renderEntry" | "emptyMessage" | "presentation" | "followCursor" | "showEntryTypes" | "groupByStage">;
+/** One design-system mapping for the complete Lens, including custom layouts. */
+interface LensTheme {
+    mode?: ThemeMode;
+    tokens?: ThemeTokens;
+    components?: FootprintComponents;
+}
+/** Ready-made surfaces retain the Lens's exact visit, invocation and trace actions. */
+interface LensWorkbenchSurfaces {
+    timeTravel: ReactNode;
+    navigation: ReactNode;
+    breadcrumb: ReactNode;
+    chart: ReactNode;
+    commentary: ReactNode;
+    topology: ReactNode;
+    inspector: ReactNode;
+    developer: ReactNode;
+    details: ReactNode;
+    runData: ReactNode;
+    result: ReactNode;
+    timeline: ReactNode;
+    compactTimeline: ReactNode;
+}
+interface LensWorkbenchActions {
+    selectIndex: (index: number) => void;
+    selectStage: (runtimeStageId: string) => void;
+    drillDown: (mountStageId: string) => void;
+    returnToRoot: () => void;
+    backtrack: (target: StageActivityTraceTarget) => void;
+    exitBacktrack: () => void;
+    followIngredient: (ingredient: TraceIngredient) => void;
+    followHandoff: (source: SubflowHandoffSource) => void;
+    returnToQuestion: (index: number) => void;
+    showAllIngredients: () => void;
+    selectActivityVariable: (variableId: string) => void;
+}
+/** Current state only. Bookmarks and returns are still validated by the Lens. */
+interface LensWorkbenchContextValue {
+    readonly snapshots: readonly StageSnapshot[];
+    readonly selectedIndex: number;
+    readonly selectedSnapshot: StageSnapshot | undefined;
+    readonly invocationPath: readonly string[];
+    readonly activity: StageActivityView;
+    readonly selectedActivityVariableId: string | undefined;
+    /** The current scope's supplied recording; custom logs own cursor filtering. */
+    readonly narrativeEntries: readonly NarrativeEntry[];
+    /** False while a recording's known stale companion is withheld. */
+    readonly narrativeAvailable?: boolean;
+    /** The admitted narrative scope at the selected subflow level. */
+    readonly narrativeScopeSubflowId?: string;
+    readonly traceWalk: TraceWalk | null;
+    readonly questionTrail: readonly {
+        key: string;
+        invocationPath: readonly string[];
+    }[];
+    readonly activityOrigin: {
+        readonly stageLabel: string;
+        readonly key: string;
+        readonly kind: "read" | "write";
+        readonly runtimeStageId: string;
+        readonly invocationPath: readonly string[];
+    } | null;
+    readonly surfaces: LensWorkbenchSurfaces;
+    readonly actions: LensWorkbenchActions;
+}
+type LensWorkbenchLayout = (workbench: LensWorkbenchContextValue) => ReactNode;
+declare function useLensWorkbench(): LensWorkbenchContextValue;
+
+/** Geometry is independent of theme, replay position and panel arrangement. */
+type FlowchartRenderer = "flat" | "isometric";
+interface FlowchartOptions {
+    readonly renderer?: FlowchartRenderer;
+}
+
+/** JSON layout for the existing Lens surfaces; validation also works during SSR. */
+
+type LensLayoutSurface = "timeTravel" | "flowchart" | "developer" | "commentary" | "timeline" | "details";
+interface LensLayoutDefinition {
+    readonly columns: string;
+    readonly rows?: string;
+    readonly areas: readonly (readonly (LensLayoutSurface | ".")[])[];
+    readonly minHeight?: number | string;
+    readonly gap?: number | string;
+    /** Optional built-in geometry; an explicit Shell flowchart prop takes precedence. */
+    readonly flowchart?: FlowchartOptions;
+}
 
 /** One display contract shared by the two independent relationship admission boundaries. */
 declare const attributions: Readonly<{
@@ -160,344 +1067,6 @@ declare function getFlowDiagramAncestors(definition: FlowDiagramDefinition, node
  */
 declare function projectGroupedFlowDiagram(definition: FlowDiagramDefinition, options?: GroupedFlowDiagramModelOptions): GroupedFlowDiagramModelResult;
 
-/** Snapshot of a single pipeline stage — the core data shape for all components. */
-interface StageSnapshot {
-    /** Internal stage identifier */
-    stageName: string;
-    /** Human-readable label */
-    stageLabel: string;
-    /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex. Key for recorder Map lookup. */
-    runtimeStageId?: string;
-    /** Accumulated memory state after this stage ran */
-    memory: Record<string, unknown>;
-    /** Narrative text describing what happened */
-    narrative: string;
-    /** When this stage started (ms from pipeline start) */
-    startMs: number;
-    /** How long this stage took (ms) */
-    durationMs: number;
-    /** Execution status */
-    status?: "pending" | "active" | "done" | "error";
-    /** Human-readable description of what this stage does */
-    description?: string;
-    /** Subflow identifier (when this stage is inside a subflow) */
-    subflowId?: string;
-    /** Subflow execution result — present on stages that ran a subflow. */
-    subflowResult?: unknown;
-}
-/**
- * The narrative entry kinds this package renders with a badge of its own.
- * Closed on purpose: `StoryNarrative` keys its badge map by this union, so a
- * kind added here without a badge is a compile error.
- */
-type KnownNarrativeEntryType = 'stage' | 'step' | 'condition' | 'fork' | 'selector' | 'subflow' | 'loop' | 'break' | 'error' | 'pause' | 'resume' | 'emit'
-/** One failed attempt at a stage that declares a `retry` policy — the
- *  stage is about to run again. Attempt telemetry, not an outcome: the
- *  stage may still succeed, so this is warning-weight, not error-weight.
- *  Emitted by footprintjs 9.15–10.0, nested inside its own stage; later
- *  releases narrate `attempt` lines instead. */
- | 'retry'
-/** One attempt of a stage that declares a `retry` policy — its outcome,
- *  how long it took, its cause and the retry-or-stop decision, one line per
- *  attempt. Emitted by footprintjs >= 10.1, nested inside its own stage
- *  (beneath the `error` line when the stage failed for good). */
- | 'attempt';
-/**
- * A narrative entry's kind: one this package knows, or ANY other string.
- *
- * Open on purpose. footprintjs adds entry kinds in minor releases (`retry` in
- * 9.15, `attempt` in 10.1); while this type was a closed union, each addition
- * made every app that hands `executor.getNarrativeEntries()` to a component
- * here fail to compile. A kind this release does not know renders with a plain
- * generic badge and its text as written. `(string & {})` keeps editor
- * completion for the known kinds.
- */
-type NarrativeEntryType = KnownNarrativeEntryType | (string & {});
-/** Structured narrative entry — preserves type info for semantic rendering. */
-interface NarrativeEntry {
-    type: NarrativeEntryType;
-    text: string;
-    depth: number;
-    stageName?: string;
-    /** Stable stage identifier (matches spec node id). Primary key for UI sync. */
-    stageId?: string;
-    /** Unique per-execution-step identifier. Format: [subflowPath/]stageId#executionIndex.
-     *  Used for exact time-travel sync (preferred over stageId for progressive reveal). */
-    runtimeStageId?: string;
-    /** Subflow ID when this entry was generated inside a subflow. */
-    subflowId?: string;
-    /** Direction for subflow entries: 'entry' when entering, 'exit' when leaving. */
-    direction?: 'entry' | 'exit';
-    stepNumber?: number;
-    /** Scope key that was read or written. Only present on 'step' entries. */
-    key?: string;
-    /** Raw value from the scope event. Only present on 'step' entries. */
-    rawValue?: unknown;
-}
-/** Component size variants */
-type Size = "compact" | "default" | "detailed";
-/** Common props shared by all visualization components */
-interface BaseComponentProps {
-    /** Size variant */
-    size?: Size;
-    /** Strip all built-in styles — bring your own */
-    unstyled?: boolean;
-    /** Additional CSS class name */
-    className?: string;
-    /** Inline style overrides */
-    style?: React.CSSProperties;
-}
-
-/** Default theme tokens — consumers override via CSS variables or ThemeProvider. */
-interface ThemeTokens {
-    colors?: {
-        primary?: string;
-        success?: string;
-        error?: string;
-        warning?: string;
-        /** Semantic node-state roles (a runtime overlay maps onto these): the scrub
-         *  cursor, the visited path, and a group's lead node. */
-        nodeCursor?: string;
-        nodeVisited?: string;
-        nodeMain?: string;
-        /** Interactive accent — active tab, selected row rule, focused chip.
-         *  Defaults to `primary` when omitted, so setting one colour is enough. */
-        accent?: string;
-        /** The translucent wash BEHIND an accented row (selected trace step). */
-        accentBg?: string;
-        /** Panel body surface — the plain background a panel paints itself with. */
-        bg?: string;
-        /** Raised surface (cards, popovers) sitting ON the body surface. */
-        bgElevated?: string;
-        /** Tracing-rail chrome — the "you are walking a value's causes" colour.
-         *  One token drives the badge, rail border, stops and walk buttons. */
-        tracing?: string;
-        /** CATEGORICAL chip palette (four hues) for the ingredient chips on one
-         *  trace stop. Not semantic — their only job is to stay tellable apart,
-         *  which is why they are their own roles and not `primary`/`success`. */
-        chip1?: string;
-        chip2?: string;
-        chip3?: string;
-        chip4?: string;
-        bgPrimary?: string;
-        bgSecondary?: string;
-        bgTertiary?: string;
-        textPrimary?: string;
-        textSecondary?: string;
-        textMuted?: string;
-        border?: string;
-    };
-    radius?: string;
-    fontFamily?: {
-        sans?: string;
-        mono?: string;
-    };
-}
-/**
- * Maps ThemeTokens to CSS custom property assignments.
- *
- * Every `--fp-*` variable the components actually read must be emitted
- * here — a component reading a variable this function never writes can
- * only ever show its hard-coded fallback, which is how a "light" theme
- * ends up with dark patches. `test/unit/themeTokens.test.ts` greps the
- * source for `--fp-*` reads and fails when one has no emitter, so a new
- * token can't silently drift back out of the theme.
- */
-declare function tokensToCSSVars(tokens: ThemeTokens): Record<string, string>;
-/** Raw fallback values — used by tokensToCSSVars() and anywhere a real color is needed. */
-declare const rawDefaults: {
-    readonly colors: {
-        readonly primary: "#6366f1";
-        readonly success: "#22c55e";
-        readonly error: "#ef4444";
-        readonly warning: "#f59e0b";
-        readonly nodeCursor: "#f59e0b";
-        readonly nodeVisited: "#22c55e";
-        readonly nodeMain: "#6366f1";
-        readonly accent: "#6366f1";
-        readonly accentBg: "rgba(99,102,241,0.12)";
-        readonly tracing: "#0d9488";
-        readonly chip1: "#0d9488";
-        readonly chip2: "#d97706";
-        readonly chip3: "#7c3aed";
-        readonly chip4: "#e11d48";
-        readonly bg: "#1a1b26";
-        readonly bgElevated: "#1e293b";
-        readonly bgPrimary: "#0f172a";
-        readonly bgSecondary: "#1e293b";
-        readonly bgTertiary: "#334155";
-        readonly textPrimary: "#f8fafc";
-        readonly textSecondary: "#94a3b8";
-        readonly textMuted: "#64748b";
-        readonly border: "#334155";
-    };
-    readonly radius: "8px";
-    readonly fontFamily: {
-        readonly sans: "Inter, system-ui, -apple-system, sans-serif";
-        readonly mono: "'JetBrains Mono', 'Fira Code', monospace";
-    };
-};
-/**
- * Default dark theme values with CSS variable references (consumers can
- * override via CSS).
- *
- * WARNING — do NOT pass this object to `<FootprintTheme tokens={...}>` (or to
- * `tokensToCSSVars`). Every value here is already a `var(--fp-…, fallback)`
- * REFERENCE, so feeding them back in emits self-referential declarations like
- * `--fp-accent: var(--fp-accent, #6366f1)`, which resolve to nothing and blank
- * out the colours they were meant to set. Start from `rawDefaults` (plain hex)
- * or from a preset in `theme/presets.ts` and override the fields you want.
- */
-declare const defaultTokens: Required<{
-    [K in keyof ThemeTokens]-?: Required<ThemeTokens[K]>;
-}>;
-
-declare function useFootprintTheme(): ThemeTokens;
-interface FootprintThemeProps {
-    tokens?: ThemeTokens;
-    children: React.ReactNode;
-}
-/**
- * Optional theme provider — wraps children with CSS custom properties.
- * Consumers can also just set --fp-* CSS variables directly.
- *
- * Wrapper div uses `display: contents` so it's invisible to the
- * parent's layout (flex / grid / block). This matters because themed
- * children often need to fill a parent (flex:1 / height:100% /
- * grid cells), and a regular block `<div>` here would break that
- * chain — descendants would resolve to 0 height when the parent is
- * flex-column or a grid cell with minmax(0, 1fr). `display: contents`
- * removes the box from the render tree while keeping the DOM intact,
- * so CSS custom property inheritance (which follows the DOM) still
- * flows to children.
- *
- * Trade-off: `display: contents` elements are removed from the
- * accessibility tree in some older browser versions. Our wrapper has
- * no semantic role, so this is fine.
- */
-declare function FootprintTheme({ tokens, children }: FootprintThemeProps): react.JSX.Element;
-
-/**
- * Built-in palettes.
- *
- * Each preset carries EVERY role the components read — including the
- * node-state roles, the accent pair, the surfaces and the tracing colour.
- * A preset with holes is worse than no preset: the components fall back to
- * their hard-coded (dark) defaults for the missing roles, so a light theme
- * shows dark patches. `test/unit/themeTokens.test.ts` fails when a preset
- * stops covering a token the source reads.
- *
- * The cool presets keep the historic raw defaults for the node roles
- * (amber cursor / green visited / indigo lead) so nothing re-colours for
- * consumers already on them; the warm presets use their own palette.
- */
-/** Cool dark theme (the library default) */
-declare const coolDark: ThemeTokens;
-/** Warm dark theme — charcoal-purple palette */
-declare const warmDark: ThemeTokens;
-/** Warm light theme — cream/peach palette */
-declare const warmLight: ThemeTokens;
-/** Cool light theme — neutral grays, matches Tailwind zinc palette */
-declare const coolLight: ThemeTokens;
-/** All built-in theme presets */
-declare const themePresets: {
-    readonly coolDark: ThemeTokens;
-    readonly coolLight: ThemeTokens;
-    readonly warmDark: ThemeTokens;
-    readonly warmLight: ThemeTokens;
-};
-type ThemePresetName = keyof typeof themePresets;
-
-/**
- * useDarkModeTokens — follow the host app's dark mode.
- *
- * The direct answer to "why is your UI dark inside my light app": this
- * library's `--fp-*` fallbacks are dark, so a component with nothing set
- * renders dark. This hook watches the app's own dark-mode switch and hands
- * back the matching preset.
- *
- *   import { FootprintTheme, useDarkModeTokens } from 'footprint-explainable-ui';
- *
- *   function MyApp() {
- *     const tokens = useDarkModeTokens();          // Tailwind's `.dark` on <html>
- *     return (
- *       <FootprintTheme tokens={tokens}>
- *         <ExplainableShell ... />
- *       </FootprintTheme>
- *     );
- *   }
- *
- * Other switches work too — pass whatever your app uses:
- *
- *   useDarkModeTokens({ darkClass: 'theme-dark' })          // a class name
- *   useDarkModeTokens({ darkClass: '[data-theme="dark"]' }) // a CSS selector
- *   useDarkModeTokens({ light: warmLight, dark: warmDark }) // your palettes
- *
- * Server rendering: on the server there is no `document`, so the first render
- * returns the LIGHT tokens and the client corrects on mount. (It used to read
- * `document` inside the `useState` initializer, which is a hard crash in
- * Next.js — a light flash is the honest cost of not knowing yet.)
- */
-
-interface DarkModeTokensOptions {
-    /** Tokens to use in light mode. Defaults to coolLight. */
-    light?: ThemeTokens;
-    /** Tokens to use in dark mode. Defaults to coolDark. */
-    dark?: ThemeTokens;
-    /**
-     * How the app says "dark". A bare CLASS NAME on `<html>` (`'dark'` —
-     * Tailwind's convention, the default), or any CSS SELECTOR the root
-     * element should match (`'.dark'`, `'[data-theme="dark"]'`, `'#app.night'`).
-     * Anything starting with `.`, `[`, `#` or `:` is treated as a selector.
-     */
-    darkClass?: string;
-    /** @deprecated Renamed to `darkClass`. Still read, same meaning. */
-    selector?: string;
-}
-declare function useDarkModeTokens(options?: DarkModeTokensOptions): ThemeTokens;
-
-/**
- * The one-word theme switch.
- *
- * Every component in this library paints from `--fp-*` variables whose
- * built-in fallbacks are DARK. Mounted inside a light app with nothing set,
- * a panel renders dark — correct by the rules, wrong on the page. Setting a
- * dozen variables by hand to fix that is not a first-try experience.
- *
- * `<Component theme="light" />` is that fix in one word: it stamps a full
- * preset as inline `--fp-*` variables on the component's own root, so
- * everything under it — including nested children — follows. It is the same
- * mechanism `<ExplainableShell traceTheme={{ mode }}>` uses; this module is
- * the single place that maps a mode to its palette.
- *
- * Precedence, from weakest to strongest:
- *   1. the components' hard-coded fallbacks (dark)
- *   2. `--fp-*` an ancestor sets (`<FootprintTheme>`, your own CSS)
- *   3. `theme="light" | "dark"` on the component  ← wins, because it is local
- *
- * So `theme` is a per-component override, not a replacement for
- * `<FootprintTheme tokens={...}>` — reach for the provider when you want one
- * palette for a whole tree, and for a custom palette rather than a preset.
- */
-
-/** Light or dark. The whole switch. */
-type ThemeMode = "dark" | "light";
-/** Props mixin for components that accept the switch. */
-interface ThemeModeProps {
-    /**
-     * Light or dark, in one word — applies the built-in preset as `--fp-*`
-     * variables on this component's root. Omit to inherit whatever the page
-     * (or a `<FootprintTheme>` ancestor) already set.
-     */
-    theme?: ThemeMode;
-}
-/**
- * CSS variables for a mode, ready to spread into a root element's `style`.
- * Returns `{}` for `undefined` so an unthemed component is byte-identical to
- * how it rendered before the prop existed.
- */
-declare function themeModeVars(mode?: ThemeMode): CSSProperties;
-
 interface MemoryInspectorProps extends BaseComponentProps {
     /** A memory object to show as-is. Takes precedence over `snapshots`. */
     data?: Record<string, unknown>;
@@ -541,8 +1110,10 @@ interface NarrativeTraceProps extends BaseComponentProps {
     defaultCollapsed?: boolean;
     /** Called when user clicks a stage header */
     onStageClick?: (headerIndex: number) => void;
+    /** Follow revealed sections only when the reader opts in. */
+    followCursor?: boolean;
 }
-declare function NarrativeTrace({ narrative, revealedCount, defaultCollapsed, onStageClick, size, unstyled, className, style, }: NarrativeTraceProps): react.JSX.Element;
+declare function NarrativeTrace({ narrative, revealedCount, defaultCollapsed, onStageClick, followCursor, size, unstyled, className, style, }: NarrativeTraceProps): react.JSX.Element;
 
 interface GanttTimelineProps extends BaseComponentProps, ThemeModeProps {
     /** Stage snapshots with timing info */
@@ -670,8 +1241,12 @@ interface TracingRail {
      *  the "stop 2 of 6" label. */
     stopOrdinal: number;
     totalStops: number;
-    /** Exit tracing (Done button / Escape). The cursor stays put. */
+    /** Exit tracing (button / Escape). The host decides where to return. */
     onExit: () => void;
+    /** Optional return destination; defaults to the legacy Done label. */
+    exitLabel?: string;
+    /** Accessible return action; defaults to Exit tracing. */
+    exitAriaLabel?: string;
     /** Clear the via filter back to the full walk (breadcrumb's "show all"). */
     onShowAll?: () => void;
     /** Ingredient count at the CURRENT stop. At the earliest landable stop,
@@ -682,6 +1257,16 @@ interface TracingRail {
     /** Open the fork chooser at the earliest landable stop when `forkCount >= 2`
      *  (click or ArrowLeft on the walk-back control). */
     onForkPrompt?: () => void;
+}
+interface ReplayControlsOptions {
+    /** Show previous/next actions and enable their toolbar arrow shortcuts. Default true. */
+    previousNext?: boolean;
+    /** Show Play/Pause and allow manual or automatic playback. Default true. */
+    playPause?: boolean;
+    /** Show the position rail and its native range scrubbing control. Default true. */
+    slider?: boolean;
+    /** Fixed milliseconds per replay step, clamped to 200–10,000. Omit for proportional timing. */
+    intervalMs?: number;
 }
 interface TimeTravelControlsProps extends BaseComponentProps {
     /** Stage snapshots */
@@ -707,6 +1292,8 @@ interface TimeTravelControlsProps extends BaseComponentProps {
      * array itself, so keep it stable across renders or pass a run id here.
      */
     autoPlayKey?: unknown;
+    /** Optional transport visibility and readable replay pacing over the same cursor. */
+    replayControls?: ReplayControlsOptions;
 }
 declare function TimeTravelControls(props: TimeTravelControlsProps): react.JSX.Element;
 
@@ -956,6 +1543,8 @@ interface RuntimeSnapshotInput {
     sharedState: Record<string, unknown>;
     executionTree: unknown;
     commitLog: unknown[];
+    /** Producer attestation that per-write readKeys use canonical nested paths. */
+    nestedReadTracking?: boolean;
     subflowResults?: Record<string, unknown>;
     /** Recorder snapshots from toSnapshot() — auto-generates detail tabs. */
     recorders?: Array<{
@@ -966,134 +1555,6 @@ interface RuntimeSnapshotInput {
         data: unknown;
     }>;
 }
-
-/** A navigation target, never a foreign key inserted into the parent's read set. */
-interface SubflowHandoffSource {
-    readonly key: string;
-    readonly mountRuntimeStageId: string;
-    readonly invocationPath: readonly string[];
-    /** Exclusive position on the child's displayed history, without its seed bookend. */
-    readonly beforeCommitIdx: number;
-}
-
-/**
- * traceWalk — the SAME-RAIL REWIND walk: a variable-anchored backward slice,
- * linearized in REVERSE COMMIT ORDER so it can be driven by the existing
- * time slider ("◀ earlier cause" stop by stop).
- *
- * THE LOAD-BEARING FACT (why one linear walk can cover a DAG): every
- * dependency was committed strictly EARLIER than the value derived from it,
- * so a backward slice is always a sub-sequence of the run's timeline — and
- * sorting its frames by commitIdx DESCENDING is a valid topological order.
- * One monotone "earlier" button therefore visits EVERY frame, including
- * both parents of a fork, with no branch-choosing UI and no second cursor.
- *
- * FORKS are explained, not navigated: each stop carries its `ingredients`
- * (the read keys + who wrote each), so a 2-parent value shows both chips;
- * "follow one ingredient" is a RE-ANCHORED walk (same function, key = the
- * ingredient, before = this stop) — never a special traversal mode.
- *
- * HONEST ABSENCE, two truthful sentences (they are different facts):
- *   'never-written'   — no commit in the WHOLE log wrote the key. Its
- *                       earlier origin needs separate starting-state evidence.
- *   'not-yet-written' — a later commit writes it, but none at or before
- *                       the cutoff: "not yet" is not "never".
- *
- * Shares the read→write BFS with dataTrace.ts (the causalChain mirror);
- * eui still never imports footprintjs — snapshot SHAPES only.
- */
-
-/** Explicit, serializable presentation and recording scope. Child ancestry stays unknown. */
-interface TraceWalkScope {
-    readonly invocationPath: readonly string[];
-    readonly mountLabels?: Readonly<Record<string, string>>;
-    readonly readsAvailable?: boolean;
-    /** Recorded non-undefined starting keys, without their values or inferred origin. */
-    readonly startKeys?: readonly string[];
-}
-interface TraceWalkOptions {
-    beforeCommitIdx?: number;
-    maxDepth?: number;
-    maxFrames?: number;
-    scope?: TraceWalkScope;
-}
-/** One read key of a stop, resolved to the commit that wrote it. */
-interface TraceIngredient {
-    key: string;
-    /** null = no commit before this stop wrote the key (an unresolved local-writer terminus). */
-    writerRuntimeStageId: string | null;
-    writerStageName: string | null;
-    writerCommitIdx: number | null;
-}
-/** One stop on the rewind rail — a slice frame with its rail position. */
-interface TraceStop {
-    runtimeStageId: string;
-    stageId: string;
-    stageName: string;
-    /** Position in the commit log — the stop's place on the time rail. */
-    commitIdx: number;
-    /** The slice keys DOWNSTREAM members read from this stop (what it
-     *  contributed to the traced value). The anchor contributes the traced
-     *  key itself. */
-    contributedKeys: string[];
-    keysWritten: string[];
-    ingredients: TraceIngredient[];
-    /** BFS hop distance from the anchor (tooltip-grade info, NOT the walk
-     *  order — the walk order is time). */
-    depth: number;
-    /** 1-based pass number when the same stage appears more than once in
-     *  the walk (loop iterations); 0 = appears once. */
-    loopPass: number;
-    /** Admitted child targets; their histories remain on their own cursor rail. */
-    handoffSources?: readonly SubflowHandoffSource[];
-}
-interface TraceWalkMissing {
-    reason: "never-written" | "not-yet-written" | "evidence-unavailable";
-    /** For 'not-yet-written': where the FIRST write actually happens. */
-    firstWriteCommitIdx?: number;
-    firstWriterRuntimeStageId?: string;
-    firstWriterStageName?: string;
-}
-interface TraceWalk {
-    /** Detached scope, including root mount labels derived from recorded metadata. */
-    readonly scope?: TraceWalkScope;
-    key: string;
-    /** Stops in WALK ORDER: commitIdx DESCENDING. stops[0] is the anchor
-     *  (the last writer of `key` within the cutoff). */
-    stops: TraceStop[];
-    /** Non-null ⇒ zero stops: the honest-absence card, not an empty chain. */
-    missing: TraceWalkMissing | null;
-    /** Read keys with no recorded local writer, deduped in encounter order.
-     * Their earlier origin requires separate starting-state evidence. */
-    inputTermini: string[];
-    /** False when the snapshot recorded no reads anywhere — the chain is
-     *  UNKNOWABLE (not absent) beyond the anchor. */
-    readsAvailable: boolean;
-    /** True when the underlying slice hit its frame/depth budget — the
-     *  earliest stop may not be the true origin. */
-    truncated: boolean;
-}
-/**
- * Build the rewind walk for `key`.
- *
- * `beforeCommitIdx` (EXCLUSIVE) scopes the question to "the value as it
- * stood before that moment" — it is also how ingredient-following works:
- * follow ingredient K at stop S = buildTraceWalk(K, { beforeCommitIdx:
- * S.commitIdx }) — one function, no traversal modes.
- */
-declare function buildTraceWalk(commitLog: unknown[], executionTree: unknown, key: string, opts?: TraceWalkOptions): TraceWalk;
-/**
- * formatTraceWalk — THE parity artifact: the [Copy story] button and any
- * LLM backtrack tool emit THIS string, so the human's board and the
- * agent's answer are the same text, not two translations.
- *
- * `stepNumberOf` maps a runtimeStageId to the 1-based step number shown on
- * the rail (null = not on the rail); walk order and wording match the
- * stop cards exactly.
- */
-declare function formatTraceWalk(walk: TraceWalk, stepNumberOf: (runtimeStageId: string) => number | null, options?: {
-    scope?: TraceWalkScope;
-}): string;
 
 /** Presentation of recorded stage reads; never expression-level output derivation. */
 
@@ -1314,8 +1775,11 @@ interface ExplainableShellProps extends BaseComponentProps {
         spec: SpecNode | null;
         snapshots: StageSnapshot[];
         selectedIndex: number;
+        unstyled?: boolean;
         onNodeClick?: (indexOrId: number | string) => void;
         showStageId?: boolean;
+        /** Resolved built-in geometry; custom renderers may honor or replace it. */
+        renderer?: FlowchartRenderer;
         /** Dependency-cone overlay (chart node id → BFS depth) — painted while
          *  the Inspector's Data Trace tab is open. Custom renderers may ignore it. */
         sliceCone?: ReadonlyMap<string, number>;
@@ -1339,6 +1803,8 @@ interface ExplainableShellProps extends BaseComponentProps {
      * Default false.
      */
     showStageId?: boolean;
+    /** Built-in chart geometry. Explicit values override JSON layout.flowchart; flat is the default. */
+    flowchart?: FlowchartOptions;
     /**
      * Play the run by itself when it opens, once: the cursor goes to the first
      * stage and walks to the last on the Play loop, then stops. A new run (a new
@@ -1349,8 +1815,24 @@ interface ExplainableShellProps extends BaseComponentProps {
      * tracing, or with fewer than two stages. Default false.
      */
     autoPlay?: boolean;
+    /** Controlled details audience. Both views keep the same chart, selection and subflow. */
+    view?: LensView;
+    /** Initial details audience when view is uncontrolled. Default developer. */
+    defaultView?: LensView;
+    /** Request an audience change from the two Details buttons. */
+    onViewChange?: (view: LensView) => void;
+    /** Configure recorded prose in Story and the custom-layout commentary surface. */
+    commentary?: LensCommentaryOptions;
+    /** Choose replay controls and an optional reading interval without creating a second cursor. */
+    replayControls?: ReplayControlsOptions;
+    /** Brand tokens and native-control adapters; explicit tokens override mode. */
+    theme?: LensTheme;
+    /** Own the layout while retaining the complete Lens selection, drill and backtrack behavior. */
+    renderLayout?: LensWorkbenchLayout;
+    /** Serializable named-area layout. Omitted optional surfaces stay hidden. renderLayout takes precedence. */
+    layout?: LensLayoutDefinition;
 }
-declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs: deprecatedTabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, showStageId, autoPlay, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
+declare function ExplainableShell({ snapshots: snapshotsProp, runtimeSnapshot, title, resultData: resultDataProp, logs, narrativeEntries: narrativeEntriesProp, tabs: deprecatedTabs, defaultTab, hideConsole, hideTabs: hideTabsProp, panelLabels, defaultExpanded, recorderViews, renderFlowchart, flowchart, theme: consumerTheme, renderLayout, layout, view: controlledView, defaultView, onViewChange, commentary, replayControls, showStageId, autoPlay, traceGraph, runtimeOverlay: runtimeOverlayProp, traceTheme, size, unstyled, className, style, }: ExplainableShellProps): react.JSX.Element;
 
 /**
  * TraceViewer — renders a saved recording. No live executor, no re-run.
@@ -1435,7 +1917,7 @@ type TraceParseError = {
     kind: 'no-stages';
     message: string;
 };
-interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'traceTheme' | 'autoPlay'>, ThemeModeProps {
+interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'flowchart' | 'traceTheme' | 'autoPlay' | 'view' | 'defaultView' | 'onViewChange' | 'commentary' | 'replayControls' | 'renderLayout' | 'layout'>, ThemeModeProps {
     /**
      * The recording to render — a parsed object or a raw JSON string.
      * `null` / `undefined` / empty-string render the `fallback`.
@@ -1452,7 +1934,7 @@ interface TraceViewerProps extends Pick<ExplainableShellProps, 'tabs' | 'default
     /** Element rendered when no valid recording is available. */
     readonly fallback?: react.ReactNode;
 }
-declare function TraceViewer({ recording, trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, traceTheme, autoPlay, theme: themeMode, }: TraceViewerProps): react.ReactElement | null;
+declare function TraceViewer({ recording, trace, onError, fallback, tabs, defaultTab, hideTabs, size, panelLabels, recorderViews, renderFlowchart, flowchart, traceTheme, autoPlay, view, defaultView, onViewChange, commentary, replayControls, renderLayout, layout, theme: themeMode, }: TraceViewerProps): react.ReactElement | null;
 
 interface MemoryPanelProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
@@ -1470,6 +1952,10 @@ interface NarrativePanelProps extends BaseComponentProps {
      *  a drilled-in level. Forwarded to `<StoryNarrative scopeSubflowId>` so the
      *  level's own stages are shown instead of hidden as "subflow internals". */
     scopeSubflowId?: string;
+    /** Expanded recorded entries, or readable groups of exact recorded visits. */
+    presentation?: "entries" | "visits";
+    /** Opt into following the selected step. Reading never scrolls by default. */
+    defaultFollowCursor?: boolean;
     /**
      * Full runtime snapshot from the runner (executor.getSnapshot() /
      * agent.getSnapshot()). When present, "Copy for LLM" includes the
@@ -1486,7 +1972,7 @@ interface NarrativePanelProps extends BaseComponentProps {
      */
     spec?: any;
 }
-declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, scopeSubflowId, runtimeSnapshot, spec, size, unstyled, className, style, }: NarrativePanelProps): react.JSX.Element;
+declare function NarrativePanel({ snapshots, selectedIndex, narrativeEntries, scopeSubflowId, presentation, defaultFollowCursor, runtimeSnapshot, spec, size, unstyled, className, style, }: NarrativePanelProps): react.JSX.Element;
 
 interface StoryNarrativeProps extends BaseComponentProps {
     /** Structured narrative entries from CombinedNarrativeRecorder */
@@ -1504,8 +1990,16 @@ interface StoryNarrativeProps extends BaseComponentProps {
      * hidden and only the Entering/Exiting markers show.
      */
     scopeSubflowId?: string;
+    /** Keep the expanded entry list, or group contiguous exact recorded visits. */
+    presentation?: "entries" | "visits";
+    /** An admitted exact visit; omitted when the log cannot synchronize. */
+    selectedRuntimeStageId?: string;
+    /** Exact admitted visits through the cursor, when entry and rail order differ. */
+    visibleRuntimeStageIds?: readonly string[];
+    /** Follow newly revealed entries only when the reader opts in. */
+    followCursor?: boolean;
 }
-declare function StoryNarrative({ entries, revealedEntryCount, scopeSubflowId, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): react.JSX.Element;
+declare function StoryNarrative({ entries, revealedEntryCount, scopeSubflowId, presentation, selectedRuntimeStageId, visibleRuntimeStageIds, followCursor, size, unstyled, className, style: outerStyle, }: StoryNarrativeProps): react.JSX.Element;
 
 interface SubflowTreeEntry {
     /** Node name / identifier */
@@ -1971,8 +2465,35 @@ interface InspectorPanelProps extends BaseComponentProps {
     /** Replaces the Data Trace tab body (the shell swaps in the Same-Rail
      *  Rewind stop card / entry chips); default = the classic frames list. */
     traceContent?: ReactNode;
+    /** Add the exact-visit Activity lens. Its presence selects Activity by default
+     *  unless activitySelected is controlled. Legacy instances remain unchanged. */
+    activity?: StageActivityView;
+    /** Controls the Activity lens separately, preserving the legacy tab union. */
+    activitySelected?: boolean;
+    /** Called when Activity is selected. State/Trace still use onTabChange. */
+    onActivitySelect?: () => void;
+    /** Reuse the host's validated trace controller for this exact read or write. */
+    onTraceActivityVariable?: (target: StageActivityTraceTarget) => void;
+    /** Controlled variable selection within the exact Activity visit. */
+    selectedActivityVariableId?: string;
+    onActivityVariableSelect?: (id: string) => void;
 }
 declare const InspectorPanel: react.NamedExoticComponent<InspectorPanelProps>;
+
+interface StageActivityPanelProps extends BaseComponentProps {
+    /** A projection of one exact recorded visit, not an aggregate stage name. */
+    activity: StageActivityView;
+    /** The host validates this recorded target before entering the existing walk. */
+    onTraceVariable?: (target: StageActivityTraceTarget) => void;
+    /** Explicitly inspect the recorded writer without changing the read's identity. */
+    onNavigateToStage?: (runtimeStageId: string) => void;
+    /** A variable id from this exact visit. Omit to keep selection local. */
+    selectedVariableId?: string;
+    /** Fires for an explicit variable selection, including controlled instances. */
+    onVariableSelect?: (id: string) => void;
+}
+/** A stage remains the context while its recorded reads and changes are inspected. */
+declare function StageActivityPanel({ activity, onTraceVariable, onNavigateToStage, selectedVariableId, onVariableSelect, size, unstyled, className, style, }: StageActivityPanelProps): react.JSX.Element;
 
 interface TraceWalkCardProps extends BaseComponentProps {
     walk: TraceWalk;
@@ -2000,6 +2521,10 @@ interface TraceWalkCardProps extends BaseComponentProps {
     onJumpToStop?: (runtimeStageId: string) => void;
     onShowAll?: () => void;
     onExit?: () => void;
+    /** Optional return destination; defaults to the legacy Done label. */
+    exitLabel?: string;
+    /** Accessible return action; defaults to Exit tracing. */
+    exitAriaLabel?: string;
     /** F2 fork chooser: when true AND the current stop has 2+ ingredients,
      *  a loud chooser block asks WHICH ingredient the walk should follow —
      *  the rail's walk-back control opens it instead of moving. */
@@ -2017,7 +2542,7 @@ declare const TraceWalkCard: react.NamedExoticComponent<TraceWalkCardProps>;
 interface InsightConfig {
     /** Unique ID (matches recorder id). */
     id: string;
-    /** User-facing name (Story, Performance, Quality, Cost). */
+    /** User-facing name (Run log, Metrics, Quality, Cost). */
     name: string;
     /** Aggregate summary for collapsed header (e.g., "1.2ms 3R 3W"). */
     summary?: string;
@@ -2033,7 +2558,7 @@ interface InsightPanelProps extends BaseComponentProps {
 }
 declare const InsightPanel: react.NamedExoticComponent<InsightPanelProps>;
 
-interface CompactTimelineProps {
+interface CompactTimelineProps extends BaseComponentProps {
     snapshots: StageSnapshot[];
     selectedIndex: number;
     /** Start expanded or collapsed. Default: collapsed. */
@@ -2082,13 +2607,13 @@ declare const CompactTimeline: react.NamedExoticComponent<CompactTimelineProps>;
  */
 
 interface TracedFlowColors {
-    /** Default (un-executed) node text + edge stroke. */
+    /** Default workflow edge stroke. Node renderers use semantic theme tokens. */
     default: string;
     /** Done — visually de-emphasised (lighter). */
     done: string;
     /** Active — current scrub position. */
     active: string;
-    /** Error — node with recorded onError. */
+    /** Optional error-edge paint, activated only when explicitly supplied through colors.error. */
     error: string;
     /** Loop back-edge color. */
     loop: string;
@@ -2157,22 +2682,11 @@ interface ValueInspectorProps extends BaseComponentProps {
 }
 declare function ValueInspector({ title, size, unstyled, className, style, }: ValueInspectorProps): react.JSX.Element;
 
-interface CommentaryRenderContext {
-    readonly index: number;
-    readonly current: boolean;
-}
-interface CommentaryPanelProps extends BaseComponentProps {
-    readonly title?: string;
-    readonly maxLines?: number;
-    readonly renderEntry?: (entry: NarrativeEntry, context: CommentaryRenderContext) => react.ReactNode;
-    readonly emptyMessage?: string;
-}
-declare function CommentaryPanel({ title, maxLines, renderEntry, emptyMessage, unstyled, className, style, }: CommentaryPanelProps): react.JSX.Element;
-
 interface TimeTravelBarProps extends BaseComponentProps {
     readonly autoPlayable?: boolean;
+    readonly replayControls?: ReplayControlsOptions;
 }
-declare function TimeTravelBar({ autoPlayable, size, unstyled, className, style, }: TimeTravelBarProps): react.JSX.Element;
+declare function TimeTravelBar({ autoPlayable, replayControls, size, unstyled, className, style, }: TimeTravelBarProps): react.JSX.Element;
 
 interface CompactTimelinePanelProps extends BaseComponentProps {
     readonly defaultExpanded?: boolean;
@@ -2217,16 +2731,9 @@ interface ExplainableViewProps extends Omit<ExplainableProviderProps, "children"
     readonly defaultDetailsExpanded?: boolean;
     readonly onDetailsExpandedChange?: (expanded: boolean) => void;
     readonly detailsLabel?: string;
+    readonly replayControls?: ReplayControlsOptions;
 }
-declare function ExplainableView({ recording, selectedIndex, defaultSelectedIndex, onSelectedIndexChange, theme: viewTheme, layout, slots, minHeight, detailsExpanded, defaultDetailsExpanded, onDetailsExpandedChange, detailsLabel, unstyled, className, style, }: ExplainableViewProps): react.JSX.Element;
-
-type TraceAvailability = {
-    ok: true;
-} | {
-    ok: false;
-    reason: "no-history" | "malformed" | "too-large";
-    items?: number;
-};
+declare function ExplainableView({ recording, selectedIndex, defaultSelectedIndex, onSelectedIndexChange, theme: viewTheme, layout, slots, minHeight, detailsExpanded, defaultDetailsExpanded, onDetailsExpandedChange, detailsLabel, replayControls, unstyled, className, style, }: ExplainableViewProps): react.JSX.Element;
 
 /** Exact recorded-invocation projection for both UI and non-UI clients.
  * No path aliases, stage-label fallback, values, engine or storage access. */
@@ -2346,19 +2853,32 @@ interface InvestigationPort {
     readonly explain: (nodeId: NodeId, context: GraphContext) => InvestigationResult | Promise<InvestigationResult>;
 }
 interface InvestigationPanelProps {
+    /** Optional plain-text names for exact mark kinds; evidence and identity remain unchanged. */
+    readonly markLabels?: Readonly<Record<string, string>>;
     readonly port?: InvestigationPort | null;
+    /** Explicit richer evidence presentation; overall preserves the legacy text projection. */
+    readonly coverageMode?: "overall" | "directional";
     readonly className?: string;
     readonly style?: CSSProperties;
 }
+
+type VisualInvestigationEdge = Omit<FlowDiagramRecordedRelationship, "id" | "source" | "target" | "direction"> & {
+    readonly from: string;
+    readonly to: string;
+};
 
 /** Bounded presentation over host-selected canonical Foottrace results. Never traverses or loads a graph. */
 declare function InvestigationPanel(props: InvestigationPanelProps): react.JSX.Element;
 
 /** The diagram and bound port use the same exact item IDs; labels never resolve identity. */
 interface GroupedFlowInvestigationProps {
+    /** Uses the same bounded display names as the standalone investigation panel. */
+    readonly markLabels?: InvestigationPanelProps["markLabels"];
     readonly definition: FlowDiagramDefinition;
     readonly observation?: FlowDiagramObservation;
     readonly port?: InvestigationPort | null;
+    /** Presentation only: grouped investigation already admits recorded relationships. */
+    readonly coverageMode?: InvestigationPanelProps["coverageMode"];
     readonly direction?: "LR" | "TB";
     readonly className?: string;
     readonly style?: CSSProperties;
@@ -2367,6 +2887,10 @@ interface GroupedFlowInvestigationProps {
 
 /** User-initiated investigation over one host-bound recording. No graph storage or causal search lives here. */
 declare function GroupedFlowInvestigation(props: GroupedFlowInvestigationProps): react.JSX.Element;
+
+declare const findingLevels: readonly ["HIGH", "MEDIUM", "LOW", "UNVERIFIED"];
+/** Host-declared display assessment; no inference, ranking or verification. */
+type FindingLevel = typeof findingLevels[number];
 
 /** Display projection only. The host admits and binds the underlying evidence. */
 interface FailureExplanationDisplaySection {
@@ -2382,6 +2906,8 @@ interface FailureExplanationDisplayFinding {
     readonly code: string;
     readonly summary: string;
     readonly evidenceRefs: readonly string[];
+    /** Host-declared display assessment; never inferred confidence or verification. */
+    readonly level?: FindingLevel;
 }
 /** Structurally accepts a formatted Blueprint explanation without a runtime dependency. */
 interface FailureExplanationDisplay {
@@ -2405,4 +2931,104 @@ interface FailureExplanationViewProps {
 /** Optional presentation only: no diagnosis, graph traversal, storage query or executable advice. */
 declare function FailureExplanationView(props: FailureExplanationViewProps): react.JSX.Element;
 
-export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, type FailureExplanationDisplay, type FailureExplanationDisplayFinding, type FailureExplanationDisplaySection, FailureExplanationView, type FailureExplanationViewProps, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, FlowchartPanel, type FlowchartPanelProps, FootprintTheme, GanttTimeline, type GanttTimelineProps, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, InvestigationPanel, type InvestigationPanelProps, type InvestigationPort, type InvestigationResult, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, type RecorderView, type Recording, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceInvocationOptions, type TraceInvocationProjection, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TraceWalkOptions, type TraceWalkScope, type TraceWorkflowOverlay, type TraceWorkflowRead, type TraceWorkflowStage, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, formatTraceWalk, getFlowDiagramAncestors, graphFromStructure, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, projectGroupedFlowDiagram, projectTraceInvocation, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintTheme, warmDark, warmLight };
+/** Fixed retained-display ceilings, not graph-query or storage budgets. Text uses UTF-16 code units. */
+declare const investigationDisplayLimits: Readonly<{
+    maxTextCodeUnits: 65536;
+    maxStringCodeUnits: 2048;
+    maxItemsPerList: 256;
+    maxMarksPerItem: 16;
+    maxReferencesPerList: 32;
+    maxGapsPerList: 128;
+    maxEdgesPerList: 512;
+}>;
+declare const failureExplanationDisplayLimits: Readonly<{
+    maxTextCodeUnits: 262144;
+    maxItemsPerList: 1024;
+    maxTotalListItems: 4096;
+    maxReferenceOrUnknownCodeUnits: 4096;
+    maxFindingCodeUnits: 80;
+    findingCodePattern: "^[A-Z][A-Z0-9_]{1,79}$";
+}>;
+
+/** Only fixed schema names and bounded array positions can appear in a diagnostic. */
+type DisplaySchemaField = 'problem' | 'recordedCause' | 'suggestedNextStep' | 'text' | 'configuredText' | 'wordingSource' | 'evidenceRefs' | 'unknowns' | 'canonicalFindings' | 'causes' | 'consequences' | 'diagnosticFailures' | 'code' | 'summary' | 'level' | 'nodes' | 'nodeId' | 'attention' | 'kind' | 'reason' | 'evidence' | 'confidence' | 'gaps' | 'from' | 'to' | 'attribution' | 'edges' | 'backward' | 'rootCause' | 'path' | 'alternatives' | 'impact' | 'projection' | 'requestedNodeId' | 'length';
+type DisplayPath = readonly (DisplaySchemaField | number)[];
+type DisplayDiagnosticCode = 'invalid-own-field' | 'accessor-field' | 'invalid-value' | 'invalid-enum' | 'invalid-code' | 'duplicate-identity' | 'selection-mismatch' | 'inconsistent-evidence' | 'limit-exceeded' | 'unreadable-input';
+type DisplayLimitName = keyof typeof investigationDisplayLimits | Exclude<keyof typeof failureExplanationDisplayLimits, 'findingCodePattern'>;
+type DisplayDiagnostic = Readonly<{
+    code: 'limit-exceeded';
+    path: DisplayPath;
+    limit?: DisplayLimitName;
+    maximum?: number;
+    observed?: number;
+}> | Readonly<{
+    code: Exclude<DisplayDiagnosticCode, 'limit-exceeded'>;
+    path: DisplayPath;
+    limit?: never;
+    maximum?: never;
+    observed?: never;
+}>;
+/** Exact parser-counted retained text and list slots on success; profiles define enum charges, not DOM cost. */
+interface DisplayUsage {
+    readonly textCodeUnits: number;
+    readonly listItems: number;
+}
+type DisplayCheckResult<T> = Readonly<{
+    ok: true;
+    value: T;
+    usage: DisplayUsage;
+}> | Readonly<{
+    ok: false;
+    diagnostic: DisplayDiagnostic;
+}>;
+
+type DisplayAttention = Pick<InvestigationResult["attention"][number], "kind" | "reason" | "evidence">;
+type DisplayGap = Pick<InvestigationResult["gaps"][number], "code" | "nodeId" | "evidence">;
+type DisplayEdge = Pick<VisualInvestigationEdge, "from" | "to" | "kind" | "attribution" | "evidence">;
+type DisplayCoverage = {
+    readonly confidence: InvestigationResult["confidence"];
+    readonly gaps: readonly DisplayGap[];
+};
+/** Detached display projection of the bounded attention list. */
+interface InvestigationAttentionDisplay extends DisplayCoverage {
+    readonly nodes: readonly {
+        readonly nodeId: string;
+        readonly attention: readonly DisplayAttention[];
+    }[];
+}
+/** Text projection deliberately omits backward data and impact edges. */
+interface InvestigationTextDisplay extends DisplayCoverage {
+    readonly nodeId: string;
+    readonly attention: readonly DisplayAttention[];
+    readonly rootCause?: string;
+    readonly path: readonly string[];
+    readonly alternatives: readonly string[];
+    readonly impact: DisplayCoverage & {
+        readonly nodes: readonly string[];
+    };
+}
+/** Explicit relationship projection of the existing bounded visual reader. */
+interface InvestigationRelationshipDisplay extends InvestigationTextDisplay {
+    readonly backward?: DisplayCoverage & {
+        readonly nodes: readonly string[];
+        readonly edges: readonly DisplayEdge[];
+    };
+    readonly impact: InvestigationTextDisplay["impact"] & {
+        readonly edges?: readonly DisplayEdge[];
+    };
+}
+
+/** Check the same detached attention projection used by InvestigationPanel. */
+declare function checkInvestigationAttention(value: unknown): DisplayCheckResult<InvestigationAttentionDisplay>;
+/** Text mode intentionally leaves backward data and impact edges unread. */
+declare function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection?: "text"): DisplayCheckResult<InvestigationTextDisplay>;
+declare function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection: "relationships"): DisplayCheckResult<InvestigationRelationshipDisplay>;
+declare function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection?: "text" | "relationships"): DisplayCheckResult<InvestigationTextDisplay | InvestigationRelationshipDisplay>;
+
+/** Preflight the exact bounded display projection; this does not authenticate its evidence. */
+declare function checkFailureExplanationDisplay(value: unknown): DisplayCheckResult<FailureExplanationDisplay>;
+
+/** Exact canonical sentence only; unknown/runtime nonstring inputs have no sentence. */
+declare function investigationGapMessage(code: string): string | undefined;
+
+export { type NarrativeEntry as AdapterNarrativeEntry, type BaseComponentProps, type CausalFrame, CommentaryPanel, type CommentaryPanelProps, type CommentaryRenderContext, CompactTimeline, CompactTimelinePanel, type CompactTimelinePanelProps, type CompactTimelineProps, DEFAULT_EXCLUDED_KEYS, type DarkModeTokensOptions, DataTracePanel, type DataTracePanelProps, type DefaultExpanded, type DiffEntry, type DisplayCheckResult, type DisplayDiagnostic, type DisplayDiagnosticCode, type DisplayLimitName, type DisplayPath, type DisplaySchemaField, type DisplayUsage, type EntryRangeIndex, type ExplainableLayoutDefinition, ExplainableProvider, type ExplainableProviderProps, type ExplainableRecording, type ExplainableRecordingInput, type ExplainableRunContextValue, ExplainableShell, type ExplainableShellProps, type ExplainableSurface, ExplainableView, type ExplainableViewLayout, type ExplainableViewPreset, type ExplainableViewProps, type ExplainableViewSlot, type ExplainableViewSlots, type ExplainableViewTheme, type FailureExplanationDisplay, type FailureExplanationDisplayFinding, type FailureExplanationDisplaySection, FailureExplanationView, type FailureExplanationViewProps, type FlowDiagramDefinition, type FlowDiagramEdge, type FlowDiagramEdgeState, type FlowDiagramFocusRequest, type FlowDiagramHighlight, type FlowDiagramNode, type FlowDiagramNodeState, type FlowDiagramObservation, type FlowDiagramRecordedRelationship, type FlowchartOptions, FlowchartPanel, type FlowchartPanelProps, type FlowchartRenderer, FootprintBadge, type FootprintBadgeProps, FootprintButton, type FootprintButtonProps, FootprintCheckbox, type FootprintCheckboxProps, FootprintCode, type FootprintCodeProps, type FootprintComponents, FootprintIcon, type FootprintIconAdapterProps, type FootprintIconProps, FootprintInput, type FootprintInputProps, type FootprintPrimitiveOptions, FootprintTab, FootprintTheme, type FootprintThemeProps, FootprintTooltip, type FootprintTooltipAdapterProps, type FootprintTooltipProps, GanttTimeline, type GanttTimelineProps, GroupedFlowDiagram, type GroupedFlowDiagramModel, type GroupedFlowDiagramModelOptions, type GroupedFlowDiagramModelResult, type GroupedFlowDiagramProps, GroupedFlowInvestigation, type GroupedFlowInvestigationProps, type InsightConfig, InsightPanel, type InsightPanelProps, InspectorPanel, type InspectorPanelProps, type InvestigationAttentionDisplay, InvestigationPanel, type InvestigationPanelProps, type InvestigationPort, type InvestigationRelationshipDisplay, type InvestigationResult, type InvestigationTextDisplay, type LensCommentaryOptions, type LensLayoutDefinition, type LensLayoutSurface, type LensTheme, type LensView, type LensWorkbenchActions, type LensWorkbenchContextValue, type LensWorkbenchLayout, type LensWorkbenchSurfaces, type MemoryChange, MemoryInspector, type MemoryInspectorProps, MemoryPanel, type MemoryPanelProps, type NarrativeEntry, NarrativeLog, type NarrativeLogProps, NarrativePanel, type NarrativePanelProps, NarrativeTrace, type NarrativeTraceProps, type OverlayFromSnapshotOptions, type PanelLabels, type PositionedFlowDiagramEdge, type PositionedFlowDiagramNode, type RecorderView, type Recording, type ReplayControlsOptions, ResultPanel, type ResultPanelProps, type RuntimeExecutionStep, type RuntimeOverlay, type RuntimeSnapshotInput, ScopeDiff, type ScopeDiffProps, type SerializedStructureNode, type ShellTab, type Size, SnapshotPanel, type SnapshotPanelProps, type SnapshotWithCommitLog, type StageActivityEvent, type StageActivityInput, StageActivityPanel, type StageActivityPanelProps, type StageActivityTraceTarget, type StageActivityValue, type StageActivityVariable, type StageActivityView, type StageActivityWriter, type StageDetailMode, StageDetailPanel, type StageDetailPanelProps, type StageSnapshot, StoryNarrative, type StoryNarrativeProps, SubflowTree, type SubflowTreeEntry, type SubflowTreeProps, SurfaceCollapseHandle, type SurfaceCollapseHandleProps, type ThemeMode, type ThemeModeProps, type ThemePresetName, type ThemeTokens, TimeTravelBar, type TimeTravelBarProps, TimeTravelControls, type TimeTravelControlsProps, TimelinePanel, type TimelinePanelProps, type TraceGraph, type TraceIngredient, type TraceInvocationOptions, type TraceInvocationProjection, type TraceParseError, type TraceStop, type TraceTheme, TraceViewer, type TraceViewerProps, type TraceWalk, TraceWalkCard, type TraceWalkCardProps, type TraceWalkMissing, type TraceWalkOptions, type TraceWalkScope, type TraceWorkflowOverlay, type TraceWorkflowRead, type TraceWorkflowStage, type TracingRail, ValueInspector, type ValueInspectorProps, buildEntryRangeIndex, buildTraceWalk, checkFailureExplanationDisplay, checkInvestigationAttention, checkInvestigationExplanation, componentStyles, computeRevealedEntryCount, coolDark, coolLight, createSnapshots, defaultTokens, extractSubflowNarrative, failureExplanationDisplayLimits, formatStageActivitySummary, formatTraceWalk, getFlowDiagramAncestors, graphFromStructure, investigationDisplayLimits, investigationGapMessage, mergeWritePatch, narrativeFromSnapshot, overlayFromSnapshot, paperDark, paperLight, projectGroupedFlowDiagram, projectStageActivity, projectTraceInvocation, rawDefaults, subflowResultToSnapshots, themeModeVars, themePresets, toVisualizationSnapshots, tokensToCSSVars, useDarkModeTokens, useExplainableRun, useFootprintComponents, useFootprintTheme, useLensWorkbench, warmDark, warmLight };

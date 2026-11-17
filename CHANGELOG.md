@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Clarified that an empty supplied unknowns list does not establish that
   everything is known, while retaining the evidence-verification disclaimer.
 
+- Grouped investigations frame the selected reference and returned recorded
+  sources or affected items together on narrow screens, including relationship
+  captions. Ancestor containers no longer pull unrelated items into the fit.
+  Explicit one-card focus, deliberate folds and manual camera ownership remain
+  available; existing routed self-links include their own paint bounds.
+
 ## [0.46.0] - 2026-11-16
 
 ### Added

@@ -29,7 +29,7 @@ it("does no eager query; a failed exact item requests one explanation, reveals a
   expect(source.explain).toHaveBeenCalledTimes(1); expect(vi.mocked(source.explain).mock.calls[0]?.[0]).toBe("failed");
   const diagram = screen.getByTestId("diagram"); expect(diagram.getAttribute("data-expanded")).toBe("flow");
   expect(diagram.getAttribute("data-highlight-nodes")).toContain("root"); expect(diagram.getAttribute("data-camera")).toContain("root");
-  expect(diagram.getAttribute("data-camera")?.split(" ")).toContain("flow");
+  expect(diagram.getAttribute("data-camera")?.split(" ")).toEqual(["failed", "root"]);
   expect(diagram.getAttribute("data-highlight-edges")).not.toContain("design");
   expect(screen.getByTestId("edge-labels").textContent).toContain("recorded-read");
   fireEvent.click(screen.getByRole("button", { name: "What it affected" }));
@@ -88,13 +88,13 @@ it("keeps the supported backward root when only impact coverage is limited", asy
   expect(source.explain).toHaveBeenCalledTimes(1);
 });
 
-it("frames a readable supported root without the whole group on a narrow canvas", async () => {
+it("frames the selected item and supported root without unrelated group contents on a narrow canvas", async () => {
   const before = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
   Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 390 });
   try {
     render(<GroupedFlowInvestigation definition={definition} observation={observation} port={port()} />);
     selectFailure(); await screen.findByText("Supported root cause");
-    expect(screen.getByTestId("diagram").getAttribute("data-camera")).toBe("root");
+    expect(screen.getByTestId("diagram").getAttribute("data-camera")).toBe("failed root");
   } finally {
     if (before) Object.defineProperty(HTMLElement.prototype, "clientWidth", before);
     else delete (HTMLElement.prototype as any).clientWidth;

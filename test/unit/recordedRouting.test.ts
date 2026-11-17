@@ -246,3 +246,20 @@ it("keeps real reversals instead of simplifying them into a different recorded c
   const path = recordedRoutePath({ points, sourceSide: "left", targetSide: "right", label: { x: 250, y: 80, width: 48, height: 22 } }, points[0]!, points.at(-1)!);
   expect(path).toContain("Q382,80"); expect(path).toContain("Q390,80");
 });
+
+
+it("includes an existing admitted self-link and its caption when its one endpoint is focused", () => {
+  const nodes = [item("root", 20, 160, 180, 148, { isRootCause: true })], links = [link("self", "root", "root")];
+  const planned = routeRecordedRelationships(links, model(nodes));
+  expect(planned.undrawn).toBe(0);
+  const route = planned.routes.get("self")!, bounds = recordedVisualBounds(planned, links, ["root"])!;
+  for (const point of route.points) {
+    expect(bounds.x).toBeLessThanOrEqual(point.x - 2); expect(bounds.y).toBeLessThanOrEqual(point.y - 2);
+    expect(bounds.x + bounds.width).toBeGreaterThanOrEqual(point.x + 2);
+    expect(bounds.y + bounds.height).toBeGreaterThanOrEqual(point.y + 2);
+  }
+  expect(bounds.x).toBeLessThanOrEqual(route.label.x - route.label.width / 2 - 6);
+  expect(bounds.y).toBeLessThanOrEqual(route.label.y - route.label.height / 2 - 6);
+  expect(bounds.x + bounds.width).toBeGreaterThanOrEqual(route.label.x + route.label.width / 2 + 6);
+  expect(bounds.y + bounds.height).toBeGreaterThanOrEqual(route.label.y + route.label.height / 2 + 6);
+});
