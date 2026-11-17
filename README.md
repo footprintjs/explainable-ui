@@ -1850,6 +1850,26 @@ The **Other candidates** list omits the selected item's exact ID from navigation
 A note preserves its supplied candidate membership; a selected-only list does not
 establish a root cause. Canonical `alternatives`, their order and checker results
 remain intact. This display filter does not change root, attention or coverage.
+
+Set `coverageMode="directional"` on `InvestigationPanel` or
+`GroupedFlowInvestigation` to separate backward evidence, affected-item coverage,
+overall coverage with no supplied direction, and attention coverage. Gaps group
+within each context by code; **supplied entries** counts lead to every original
+entry, item ID and reference, including duplicates. Confidence is source-reported;
+neither an empty gap list nor a complete flag verifies the underlying evidence.
+
+The host supplies backward relationships. The view does not collect them or infer
+their direction from aggregate gaps. Missing backward coverage stays unknown;
+any supplied root is labelled **Reported root cause**, with no supported badge.
+A supported backward root remains supported when only affected-item coverage is
+incomplete. Existing inconsistent-root refusals and display limits still apply.
+
+The default `coverageMode="overall"` keeps the existing presentation and text
+projection. Changing the standalone admission mode cancels and clears its old
+investigation; another explicit investigation is required. Grouped investigation
+already retains relationships, so its presentation can switch without a query.
+Invalid modes show an unavailable state without offering an investigation.
+
 An explicit investigation moves keyboard focus into the selected explanation.
 Closing it restores focus to the original attention item, including after
 following related items or opening an item beyond the first attention page.

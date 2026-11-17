@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   test: {
-    include: ['test/**/*.test.{ts,tsx}', 'src/recordedRelationships/*.test.ts', 'src/components/GroupedFlowDiagram/*.test.{ts,tsx}', 'src/components/FailureExplanationView/*.test.tsx', 'src/components/InvestigationPanel/*.test.{ts,tsx}', 'src/displayAdmission/**/*.test.ts'],
+    include: ['test/**/*.test.{ts,tsx}', 'src/recordedRelationships/*.test.ts', 'src/components/GroupedFlowDiagram/*.test.{ts,tsx}', 'src/components/FailureExplanationView/*.test.tsx', 'src/components/InvestigationPanel/*.test.{ts,tsx}', 'src/components/InvestigationPanel/coverage/*.test.{ts,tsx}', 'src/displayAdmission/**/*.test.ts'],
     // Setup file runs for jsdom tests (provides scrollIntoView stub + cleanup)
     setupFiles: ['test/setup.ts'],
   },

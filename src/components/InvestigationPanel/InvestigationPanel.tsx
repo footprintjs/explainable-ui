@@ -7,11 +7,15 @@ import { useIsomorphicLayoutEffect } from "../../_internal/useIsomorphicLayoutEf
 import {
   admitAttention,
   admitExplanation,
+  admitVisualExplanation,
   displayLabel,
   gapMessages,
 } from "./admission";
 import type { InvestigationPanelProps } from "./types";
+import type { VisualInvestigationResult } from "./visualTypes";
 import { useInvestigationQuery, type InvestigationController } from "./useInvestigationQuery";
+import { CoverageSection, supportsRecordedRoot } from "./coverage";
+import { resolveCoverageMode } from "./coverageMode";
 
 const box: CSSProperties = {
   color: theme.textPrimary,
@@ -95,6 +99,13 @@ type FocusIntent =
 
 /** Bounded presentation over host-selected canonical Foottrace results. Never traverses or loads a graph. */
 export function InvestigationPanel(props: InvestigationPanelProps) {
+  const coverageMode = resolveCoverageMode(props.coverageMode);
+  if (!coverageMode) return (
+    <section aria-label="Investigation" className={props.className} style={{ ...box, ...props.style }}>
+      <h2>Needs attention</h2>
+      <p role="alert">Investigation is unavailable for this coverage mode.</p>
+    </section>
+  );
   if (!props.port)
     return (
       <section
@@ -106,15 +117,16 @@ export function InvestigationPanel(props: InvestigationPanelProps) {
         <p role="status">Investigation is unavailable for this recording.</p>
       </section>
     );
-  return <BoundInvestigationPanel {...props} port={props.port} />;
+  return <BoundInvestigationPanel {...props} coverageMode={coverageMode} port={props.port} />;
 }
 function BoundInvestigationPanel(props: InvestigationPanelProps & { port: NonNullable<InvestigationPanelProps["port"]> }) {
-  const controller = useInvestigationQuery(props.port, admitExplanation);
+  const controller = useInvestigationQuery<VisualInvestigationResult>(props.port,
+    props.coverageMode === "directional" ? admitVisualExplanation : admitExplanation);
   return <InvestigationPanelView {...props} controller={controller} />;
 }
 /** Internal shared presentation; both standalone and grouped views use the same admitted request. */
-export function InvestigationPanelView({ port, className, style, controller, showAttention = true, focusExternalRequests = true }: InvestigationPanelProps & {
-  port: NonNullable<InvestigationPanelProps["port"]>; controller: InvestigationController; showAttention?: boolean; focusExternalRequests?: boolean;
+export function InvestigationPanelView({ port, className, style, controller, coverageMode = "overall", showAttention = true, focusExternalRequests = true }: InvestigationPanelProps & {
+  port: NonNullable<InvestigationPanelProps["port"]>; controller: InvestigationController<VisualInvestigationResult>; showAttention?: boolean; focusExternalRequests?: boolean;
 }) {
   const attention = useMemo(
     () => showAttention ? admitAttention(port.attention) : undefined,
@@ -206,7 +218,9 @@ export function InvestigationPanelView({ port, className, style, controller, sho
         <p role="alert">The attention list could not be verified.</p>
       ) : (
         <>
-          <Gaps gaps={attention.gaps} />
+          {coverageMode === "directional"
+            ? <CoverageSection context="attention" coverage={attention} />
+            : <Gaps gaps={attention.gaps} />}
           {attention.confidence === "incomplete" &&
             attention.nodes.length > 0 && (
               <p role="status">
@@ -297,7 +311,8 @@ export function InvestigationPanelView({ port, className, style, controller, sho
               <Badges marks={selected.result.attention} />
               <h4>
                 {selected.result.rootCause
-                  ? "Supported root cause"
+                  ? coverageMode === "directional" && !supportsRecordedRoot(selected.result)
+                    ? "Reported root cause" : "Supported root cause"
                   : "Root cause unknown"}
               </h4>
               {selected.result.rootCause && (
@@ -306,12 +321,20 @@ export function InvestigationPanelView({ port, className, style, controller, sho
               {!selected.result.rootCause && (
                 <p>The supplied evidence does not establish one root cause.</p>
               )}
-              {!!selected.result.gaps.length && <h4>Evidence coverage</h4>}
-              <Gaps gaps={selected.result.gaps} />
-              {selected.result.confidence === "incomplete" &&
-                !selected.result.gaps.length && (
-                  <p role="status">The recorded explanation is incomplete.</p>
-                )}
+              {coverageMode === "directional" ? (
+                <>
+                  <CoverageSection context="backward" coverage={selected.result.backward} />
+                  <CoverageSection context="overall" coverage={selected.result} />
+                </>
+              ) : (
+                <>
+                  {!!selected.result.gaps.length && <h4>Evidence coverage</h4>}
+                  <Gaps gaps={selected.result.gaps} />
+                  {selected.result.confidence === "incomplete" && !selected.result.gaps.length && (
+                    <p role="status">The recorded explanation is incomplete.</p>
+                  )}
+                </>
+              )}
               <details>
                 <summary>Recorded evidence references</summary>
                 <ul>
@@ -323,6 +346,8 @@ export function InvestigationPanelView({ port, className, style, controller, sho
                     ...selected.result.impact.gaps.flatMap(
                       (gap) => gap.evidence
                     ),
+                    ...(coverageMode === "directional"
+                      ? selected.result.backward?.gaps.flatMap(gap => gap.evidence) ?? [] : []),
                   ].map((reference, index) => (
                     <li key={index}>{reference}</li>
                   ))}
@@ -384,11 +409,14 @@ export function InvestigationPanelView({ port, className, style, controller, sho
                   {showImpact ? "Hide affected items" : "Show affected items"}
                 </button>
               </div>
+              {coverageMode === "directional" && (
+                <CoverageSection context="impact" coverage={selected.result.impact} />
+              )}
               {showImpact && (
                 <>
                   <h4>Affected items</h4>
-                  <Gaps gaps={selected.result.impact.gaps} />
-                  {selected.result.impact.confidence === "incomplete" && (
+                  {coverageMode === "overall" && <Gaps gaps={selected.result.impact.gaps} />}
+                  {coverageMode === "overall" && selected.result.impact.confidence === "incomplete" && (
                     <p role="status">
                       Affected-item coverage is incomplete. Unlisted items
                       remain unknown.

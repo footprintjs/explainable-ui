@@ -29,6 +29,8 @@ export interface InvestigationPort {
 
 export interface InvestigationPanelProps {
   readonly port?: InvestigationPort | null;
+  /** Explicit richer evidence presentation; overall preserves the legacy text projection. */
+  readonly coverageMode?: "overall" | "directional";
   readonly className?: string;
   readonly style?: CSSProperties;
 }

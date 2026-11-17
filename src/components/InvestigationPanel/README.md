@@ -35,3 +35,22 @@ order and explicitly notes supplied selected-item membership. Selected-only and
 originally empty lists stay distinct; neither establishes a root cause. Canonical
 `alternatives`, checker projections, admission limits, attention, gaps and graph
 membership are unchanged. Labels and namespace basenames never determine identity.
+
+## Optional directional coverage
+
+`coverageMode` accepts `overall` (default) or `directional` on both investigation
+components. Standalone directional mode reuses relationships admission; overall
+keeps backward/impact-edge fields unread. Grouped already admits relationships.
+The host supplies evidence; presentation does not query or manufacture it.
+
+The private coverage facade separates attention, backward, impact and unscoped
+overall contexts, retaining every gap occurrence/reference under the original
+caps and checker accounting. Complete flags cannot hide gaps. Missing backward
+coverage labels a root as reported, withholding a supported badge without changing
+its identity, path or graph membership. No grouping changes root eligibility.
+
+The controller binds committed admission identity alongside the host binding.
+A standalone strategy change clears pending and ready projections, cancels old
+work and requires an explicit new query. Switching back cannot revive an older
+result; speculative renders leave the committed request intact. Grouped changes
+only presentation, retaining its existing request, result and selection.
