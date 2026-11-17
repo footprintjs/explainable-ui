@@ -10,12 +10,22 @@ import type {
 import type { InvestigationResult } from "./types";
 import type { VisualInvestigationResult, VisualInvestigationEdge } from "./visualTypes";
 import { admitsRecordedAttribution } from "../../recordedRelationships/attribution";
+import {
+  DisplayReader,
+  investigationDisplayLimits,
+  readOwnField,
+  runDisplayCheck,
+  type DisplayCheckResult,
+  type DisplayPath,
+} from "../../displayAdmission";
+import type {
+  InvestigationAttentionDisplay,
+  InvestigationRelationshipDisplay,
+  InvestigationTextDisplay,
+} from "./checkTypes";
 type Attention = CauseResult["attention"][number];
 
 // Display admission only. Foottrace and the host own graph traversal, storage admission and causal claims.
-const MAX_ITEMS = 256;
-const MAX_TEXT = 65_536;
-const MAX_STRING = 2_048;
 export const gapMessages = {
   "not-collected": "Some evidence was not collected.",
   "untracked-input": "An input's earlier origin is unknown.",
@@ -53,194 +63,173 @@ const reasons = {
   BUSINESS_RULE_MATCHED: true,
 } satisfies Record<AttentionReason, true>;
 
-class Refused extends Error {}
-function field(value: unknown, key: string): unknown {
-  if (!value || typeof value !== "object") throw new Refused();
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  if (!descriptor) return undefined;
-  if (!("value" in descriptor)) throw new Refused();
-  return descriptor.value;
-}
+const at = (path: DisplayPath, key: DisplayPath[number]): DisplayPath => [...path, key];
+
 class Admission {
-  remaining = MAX_TEXT;
-  text(value: unknown): string {
-    if (typeof value !== "string" || !value.length || value.length > MAX_STRING)
-      throw new Refused();
-    this.remaining -= value.length;
-    if (this.remaining < 0) throw new Refused();
+  constructor(readonly reader: DisplayReader) {}
+  field(value: unknown, key: string, path: DisplayPath): unknown {
+    return this.reader.field(value, key, path);
+  }
+  text(value: unknown, path: DisplayPath): string {
+    return this.reader.text(value, path, investigationDisplayLimits.maxStringCodeUnits, "maxStringCodeUnits");
+  }
+  confidence(value: unknown, path: DisplayPath): Confidence {
+    if (value !== "complete" && value !== "incomplete") this.reader.fail("invalid-enum", path);
     return value;
   }
-  list<T>(value: unknown, max: number, parse: (entry: unknown) => T): T[] {
-    if (!Array.isArray(value)) throw new Refused();
-    const length = field(value, "length");
-    if (
-      typeof length !== "number" ||
-      !Number.isSafeInteger(length) ||
-      length < 0 ||
-      length > max
-    )
-      throw new Refused();
-    const copy: T[] = [];
-    for (let index = 0; index < length; index++)
-      copy.push(parse(field(value, String(index))));
-    return copy;
+  evidence(value: unknown, path: DisplayPath): string[] {
+    return this.reader.list(value, path, investigationDisplayLimits.maxReferencesPerList, "maxReferencesPerList", (entry, entryPath) => this.text(entry, entryPath));
   }
-  confidence(value: unknown): Confidence {
-    if (value !== "complete" && value !== "incomplete") throw new Refused();
-    return value;
-  }
-  evidence = (value: unknown) =>
-    this.list(value, 32, (entry) => this.text(entry));
-  attention = (value: unknown): Attention => {
-    const reason = field(value, "reason");
-    if (
-      typeof reason !== "string" ||
-      !Object.prototype.hasOwnProperty.call(reasons, reason)
-    )
-      throw new Refused();
+  attention = (value: unknown, path: DisplayPath): Attention => {
+    const reason = this.field(value, "reason", at(path, "reason"));
+    if (typeof reason !== "string" || !Object.prototype.hasOwnProperty.call(reasons, reason))
+      this.reader.fail("invalid-enum", at(path, "reason"));
     return {
-      kind: this.text(field(value, "kind")),
+      kind: this.text(this.field(value, "kind", at(path, "kind")), at(path, "kind")),
       reason: reason as AttentionReason,
-      evidence: this.evidence(field(value, "evidence")),
+      evidence: this.evidence(this.field(value, "evidence", at(path, "evidence")), at(path, "evidence")),
     };
   };
-  gaps = (value: unknown): Gap[] =>
-    this.list(value, 128, (entry) => {
-      const code = field(entry, "code");
-      if (
-        typeof code !== "string" ||
-        !Object.prototype.hasOwnProperty.call(gapMessages, code)
-      )
-        throw new Refused();
-      const nodeId = field(entry, "nodeId");
+  gaps(value: unknown, path: DisplayPath): Gap[] {
+    return this.reader.list(value, path, investigationDisplayLimits.maxGapsPerList, "maxGapsPerList", (entry, entryPath) => {
+      const code = this.field(entry, "code", at(entryPath, "code"));
+      if (typeof code !== "string" || !Object.prototype.hasOwnProperty.call(gapMessages, code))
+        this.reader.fail("invalid-enum", at(entryPath, "code"));
+      const nodeId = this.field(entry, "nodeId", at(entryPath, "nodeId"));
       return {
         code: code as GapCode,
-        ...(nodeId !== undefined && { nodeId: this.text(nodeId) }),
-        evidence: this.evidence(field(entry, "evidence")),
+        ...(nodeId !== undefined && { nodeId: this.text(nodeId, at(entryPath, "nodeId")) }),
+        evidence: this.evidence(this.field(entry, "evidence", at(entryPath, "evidence")), at(entryPath, "evidence")),
       };
     });
-  edges(value: unknown, members: ReadonlySet<string>): VisualInvestigationEdge[] {
-    return this.list(value, 512, entry => {
-      const from = this.text(field(entry, "from")), to = this.text(field(entry, "to"));
-      const kind = field(entry, "kind"), attribution = field(entry, "attribution");
-      if (!members.has(from) || !members.has(to) || (kind !== "data" && kind !== "control")
-        || !admitsRecordedAttribution(attribution, kind)) throw new Refused();
-      return { from, to, kind, attribution: attribution as VisualInvestigationEdge["attribution"], evidence: this.evidence(field(entry, "evidence")) };
+  }
+  edges(value: unknown, members: ReadonlySet<string>, path: DisplayPath): VisualInvestigationEdge[] {
+    return this.reader.list(value, path, investigationDisplayLimits.maxEdgesPerList, "maxEdgesPerList", (entry, entryPath) => {
+      const from = this.text(this.field(entry, "from", at(entryPath, "from")), at(entryPath, "from"));
+      const to = this.text(this.field(entry, "to", at(entryPath, "to")), at(entryPath, "to"));
+      const kind = this.field(entry, "kind", at(entryPath, "kind"));
+      const attribution = this.field(entry, "attribution", at(entryPath, "attribution"));
+      if (!members.has(from)) this.reader.fail("inconsistent-evidence", at(entryPath, "from"));
+      if (!members.has(to)) this.reader.fail("inconsistent-evidence", at(entryPath, "to"));
+      if (kind !== "data" && kind !== "control") this.reader.fail("invalid-enum", at(entryPath, "kind"));
+      if (!admitsRecordedAttribution(attribution, kind))
+        this.reader.fail(attribution === "recorded-write" && kind === "control" ? "inconsistent-evidence" : "invalid-enum", at(entryPath, "attribution"));
+      return { from, to, kind, attribution: attribution as VisualInvestigationEdge["attribution"], evidence: this.evidence(this.field(entry, "evidence", at(entryPath, "evidence")), at(entryPath, "evidence")) };
     });
   }
   backward(value: unknown, selected: string, root: string | undefined, path: readonly string[], alternatives: readonly string[]): NonNullable<VisualInvestigationResult["backward"]> {
-    const nodes = this.list(field(value, "nodes"), MAX_ITEMS, entry => this.text(entry));
+    const nodesPath: DisplayPath = ["backward", "nodes"];
+    const nodes = this.reader.list(this.field(value, "nodes", nodesPath), nodesPath, investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => this.text(entry, entryPath));
     const members = new Set(nodes);
-    if (members.size !== nodes.length || (nodes.length > 0 && !members.has(selected))) throw new Refused();
-    const confidence = this.confidence(field(value, "confidence")), gaps = this.gaps(field(value, "gaps"));
-    if (root !== undefined && (!members.has(root) || confidence !== "complete" || gaps.length)) throw new Refused();
-    const edges = this.edges(field(value, "edges"), members);
-    if (path.some(id => !members.has(id)) || alternatives.some(id => !members.has(id))
-      || (root !== undefined && edges.some(edge => edge.attribution === "stage"))) throw new Refused();
-    // Check only the supplied path's adjacent pairs. This is consistency admission,
-    // not graph traversal, candidate discovery or another root-cause strategy.
+    if (members.size !== nodes.length) this.reader.fail("duplicate-identity", nodesPath);
+    if (nodes.length > 0 && !members.has(selected)) this.reader.fail("inconsistent-evidence", nodesPath);
+    const confidence = this.confidence(this.field(value, "confidence", ["backward", "confidence"]), ["backward", "confidence"]);
+    const gaps = this.gaps(this.field(value, "gaps", ["backward", "gaps"]), ["backward", "gaps"]);
+    if (root !== undefined) {
+      if (!members.has(root)) this.reader.fail("inconsistent-evidence", nodesPath);
+      if (confidence !== "complete") this.reader.fail("inconsistent-evidence", ["backward", "confidence"]);
+      if (gaps.length) this.reader.fail("inconsistent-evidence", ["backward", "gaps"]);
+    }
+    const edges = this.edges(this.field(value, "edges", ["backward", "edges"]), members, ["backward", "edges"]);
+    if (path.some(id => !members.has(id))) this.reader.fail("inconsistent-evidence", ["path"]);
+    if (alternatives.some(id => !members.has(id))) this.reader.fail("inconsistent-evidence", ["alternatives"]);
+    if (root !== undefined && edges.some(edge => edge.attribution === "stage")) this.reader.fail("inconsistent-evidence", ["backward", "edges"]);
+    // Supplied path adjacency only: no graph traversal or new root strategy.
     const links = new Map<string, Set<string>>();
     for (const edge of edges) {
       const targets = links.get(edge.from) ?? new Set<string>();
       targets.add(edge.to); links.set(edge.from, targets);
     }
-    for (let index = 1; index < path.length; index++) if (!links.get(path[index - 1]!)?.has(path[index]!)) throw new Refused();
+    for (let index = 1; index < path.length; index++)
+      if (!links.get(path[index - 1]!)?.has(path[index]!)) this.reader.fail("inconsistent-evidence", ["path", index]);
     return { nodes, edges, confidence, gaps };
   }
   impact(value: unknown, selected: string, visual: boolean): VisualInvestigationResult["impact"] {
-    const nodes = this.list(field(value, "nodes"), MAX_ITEMS, (entry) =>
-      this.text(entry)
-    );
-    if (new Set(nodes).size !== nodes.length) throw new Refused();
+    const nodesPath: DisplayPath = ["impact", "nodes"];
+    const nodes = this.reader.list(this.field(value, "nodes", nodesPath), nodesPath, investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => this.text(entry, entryPath));
+    if (new Set(nodes).size !== nodes.length) this.reader.fail("duplicate-identity", nodesPath);
     return {
       nodes,
-      confidence: this.confidence(field(value, "confidence")),
-      gaps: this.gaps(field(value, "gaps")),
-      ...(visual && field(value, "edges") !== undefined ? { edges: this.edges(field(value, "edges"), new Set([selected, ...nodes])) } : {}),
+      confidence: this.confidence(this.field(value, "confidence", ["impact", "confidence"]), ["impact", "confidence"]),
+      gaps: this.gaps(this.field(value, "gaps", ["impact", "gaps"]), ["impact", "gaps"]),
+      ...(visual && this.field(value, "edges", ["impact", "edges"]) !== undefined ? { edges: this.edges(this.field(value, "edges", ["impact", "edges"]), new Set([selected, ...nodes]), ["impact", "edges"]) } : {}),
     };
   }
 }
-export function admitAttention(
-  value: unknown
-): AttentionListResult | undefined {
-  try {
-    const reader = new Admission();
-    const nodes = reader.list(
-      field(value, "nodes"),
-      MAX_ITEMS,
-      (entry): MarkedNode => ({
-        nodeId: reader.text(field(entry, "nodeId")),
-        attention: reader.list(field(entry, "attention"), 16, reader.attention),
-      })
-    );
-    if (new Set(nodes.map((node) => node.nodeId)).size !== nodes.length)
-      return undefined;
-    return {
-      nodes,
-      confidence: reader.confidence(field(value, "confidence")),
-      gaps: reader.gaps(field(value, "gaps")),
-    };
-  } catch {
-    return undefined;
-  }
+
+function readAttention(value: unknown, reader: Admission): InvestigationAttentionDisplay {
+  const nodes = reader.reader.list(reader.field(value, "nodes", ["nodes"]), ["nodes"], investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath): MarkedNode => ({
+    nodeId: reader.text(reader.field(entry, "nodeId", at(entryPath, "nodeId")), at(entryPath, "nodeId")),
+    attention: reader.reader.list(reader.field(entry, "attention", at(entryPath, "attention")), at(entryPath, "attention"), investigationDisplayLimits.maxMarksPerItem, "maxMarksPerItem", reader.attention),
+  }));
+  if (new Set(nodes.map(node => node.nodeId)).size !== nodes.length) reader.reader.fail("duplicate-identity", ["nodes"]);
+  return {
+    nodes,
+    confidence: reader.confidence(reader.field(value, "confidence", ["confidence"]), ["confidence"]),
+    gaps: reader.gaps(reader.field(value, "gaps", ["gaps"]), ["gaps"]),
+  };
 }
-function readExplanation(value: unknown, requested: string, visual: boolean): VisualInvestigationResult | undefined {
-  try {
-    const reader = new Admission();
-    const nodeId = reader.text(field(value, "nodeId"));
-    if (nodeId !== requested) return undefined;
-    const path = reader.list(field(value, "path"), MAX_ITEMS, (entry) =>
-      reader.text(entry)
-    );
-    const alternatives = reader.list(
-      field(value, "alternatives"),
-      MAX_ITEMS,
-      (entry) => reader.text(entry)
-    );
-    if (
-      (path.length && path[0] !== nodeId) ||
-      new Set(path).size !== path.length ||
-      new Set(alternatives).size !== alternatives.length
-    )
-      return undefined;
-    const confidence = reader.confidence(field(value, "confidence"));
-    const gaps = reader.gaps(field(value, "gaps"));
-    const root = field(value, "rootCause");
-    const rootCause = root === undefined ? undefined : reader.text(root);
-    if (
-      rootCause !== undefined &&
-      (alternatives.length || path[path.length - 1] !== rootCause)
-    )
-      return undefined;
-    return {
-      nodeId,
-      attention: reader.list(field(value, "attention"), 16, reader.attention),
-      ...(rootCause !== undefined && { rootCause }),
-      path,
-      alternatives,
-      impact: reader.impact(field(value, "impact"), nodeId, visual),
-      ...(visual && field(value, "backward") !== undefined ? { backward: reader.backward(field(value, "backward"), nodeId, rootCause, path, alternatives) } : {}),
-      confidence,
-      gaps,
-    };
-  } catch {
-    return undefined;
-  }
+
+function readExplanation(value: unknown, requested: string, visual: boolean, reader: Admission): VisualInvestigationResult {
+  const nodeId = reader.text(reader.field(value, "nodeId", ["nodeId"]), ["nodeId"]);
+  if (nodeId !== requested) reader.reader.fail("selection-mismatch", ["nodeId"]);
+  const path = reader.reader.list(reader.field(value, "path", ["path"]), ["path"], investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => reader.text(entry, entryPath));
+  const alternatives = reader.reader.list(reader.field(value, "alternatives", ["alternatives"]), ["alternatives"], investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => reader.text(entry, entryPath));
+  if (path.length && path[0] !== nodeId) reader.reader.fail("inconsistent-evidence", ["path", 0]);
+  if (new Set(path).size !== path.length) reader.reader.fail("duplicate-identity", ["path"]);
+  if (new Set(alternatives).size !== alternatives.length) reader.reader.fail("duplicate-identity", ["alternatives"]);
+  const confidence = reader.confidence(reader.field(value, "confidence", ["confidence"]), ["confidence"]);
+  const gaps = reader.gaps(reader.field(value, "gaps", ["gaps"]), ["gaps"]);
+  const root = reader.field(value, "rootCause", ["rootCause"]);
+  const rootCause = root === undefined ? undefined : reader.text(root, ["rootCause"]);
+  if (rootCause !== undefined && (alternatives.length || path[path.length - 1] !== rootCause)) reader.reader.fail("inconsistent-evidence", ["rootCause"]);
+  return {
+    nodeId,
+    attention: reader.reader.list(reader.field(value, "attention", ["attention"]), ["attention"], investigationDisplayLimits.maxMarksPerItem, "maxMarksPerItem", reader.attention),
+    ...(rootCause !== undefined && { rootCause }),
+    path,
+    alternatives,
+    impact: reader.impact(reader.field(value, "impact", ["impact"]), nodeId, visual),
+    ...(visual && reader.field(value, "backward", ["backward"]) !== undefined ? { backward: reader.backward(reader.field(value, "backward", ["backward"]), nodeId, rootCause, path, alternatives) } : {}),
+    confidence,
+    gaps,
+  };
+}
+
+/** Check the same detached attention projection used by InvestigationPanel. */
+export function checkInvestigationAttention(value: unknown): DisplayCheckResult<InvestigationAttentionDisplay> {
+  return runDisplayCheck(investigationDisplayLimits, reader => readAttention(value, new Admission(reader)));
+}
+
+/** Text mode intentionally leaves backward data and impact edges unread. */
+export function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection?: "text"): DisplayCheckResult<InvestigationTextDisplay>;
+export function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection: "relationships"): DisplayCheckResult<InvestigationRelationshipDisplay>;
+export function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection?: "text" | "relationships"): DisplayCheckResult<InvestigationTextDisplay | InvestigationRelationshipDisplay>;
+export function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection: "text" | "relationships" = "text"): DisplayCheckResult<InvestigationTextDisplay | InvestigationRelationshipDisplay> {
+  return runDisplayCheck(investigationDisplayLimits, reader => {
+    if (projection !== "text" && projection !== "relationships") reader.fail("invalid-enum", ["projection"]);
+    return readExplanation(value, requestedNodeId, projection === "relationships", new Admission(reader));
+  });
+}
+
+export function admitAttention(value: unknown): AttentionListResult | undefined {
+  const result = checkInvestigationAttention(value);
+  return result.ok ? result.value : undefined;
 }
 /** Legacy text projection intentionally leaves optional graph relationships with the host. */
 export function admitExplanation(value: unknown, requested: string): InvestigationResult | undefined {
-  return readExplanation(value, requested, false);
+  const result = checkInvestigationExplanation(value, requested);
+  return result.ok ? result.value : undefined;
 }
 /** The grouped view admits only explicitly supplied, bounded canonical relationships. */
 export function admitVisualExplanation(value: unknown, requested: string): VisualInvestigationResult | undefined {
-  return readExplanation(value, requested, true);
+  const result = checkInvestigationExplanation(value, requested, "relationships");
+  return result.ok ? result.value : undefined;
 }
 export function displayLabel(labels: unknown, nodeId: string): string {
   try {
-    const label = field(labels, nodeId);
-    return typeof label === "string" && label.length > 0 && label.length <= 512
-      ? label
-      : nodeId;
+    const label = readOwnField(labels, nodeId);
+    return typeof label === "string" && label.length > 0 && label.length <= 512 ? label : nodeId;
   } catch {
     return nodeId;
   }

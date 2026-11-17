@@ -79,3 +79,20 @@ execution. They never derive from model text or host IDs.
 
 Adjacent tests cover visible canonical wording/unknowns, supplementary labels,
 text escaping, no actions, selection replacement, fixed bounds and inert reads.
+
+Host preflight uses the same parser as this component:
+
+```tsx
+import { checkFailureExplanationDisplay, failureExplanationDisplayLimits } from 'footprint-explainable-ui';
+
+const checked = checkFailureExplanationDisplay(rawExplanation);
+// The host may log the bounded checked.diagnostic on refusal.
+<FailureExplanationView explanation={checked.ok ? checked.value : null} />;
+```
+
+The frozen limits expose the existing UTF-16/list ceilings and finding-code
+pattern string. Success returns the detached frozen projection and exact
+parser-counted text/list usage. Refusal returns one schema-only diagnostic;
+there is no partial model or claimed full cost of the unvisited tail. The view
+keeps its generic uncertainty/recovery message. No source value, reference,
+finding code or foreign error text is copied into a refusal diagnostic.

@@ -1916,6 +1916,55 @@ not establish storage-I/O laziness; per-scope receipt and ownership admission is
 required before a future indexed loader can expose a scope. Foottrace remains
 the owner of graph traversal and source interpretation.
 
+### Preflight the display projection
+
+Use the root-exported display checks before handing unknown data to a panel:
+
+```tsx
+import {
+  checkFailureExplanationDisplay, checkInvestigationAttention,
+  checkInvestigationExplanation, failureExplanationDisplayLimits,
+  investigationDisplayLimits, FailureExplanationView,
+} from 'footprint-explainable-ui';
+
+const checked = checkFailureExplanationDisplay(rawExplanation);
+// A host can log checked.diagnostic when checked.ok is false.
+<FailureExplanationView explanation={checked.ok ? checked.value : null} />;
+
+const attention = checkInvestigationAttention(rawAttention);
+const text = checkInvestigationExplanation(rawResult, exactSelectedNodeId);
+const relationships = checkInvestigationExplanation(rawResult, exactSelectedNodeId, 'relationships');
+```
+
+The checks use the panels' actual parsers and return the detached admitted
+projection with `ok: true`. The default explanation profile retains the text
+fields and leaves `backward` and impact edges unread. The explicit
+`relationships` profile uses the grouped view's existing bounded relationship
+and root/path consistency checks. Bind the selected ID and recording in the
+host before querying or displaying either result.
+
+On `ok: false`, `diagnostic` contains one closed rule code and a bounded path of
+schema fields and array indices. A limit refusal can include its limit name,
+maximum and observed count. It contains no partial result, raw value, node ID,
+reference or foreign exception details. The reader-facing refusal stays generic;
+the host chooses whether to log the diagnostic. The check stops at the first
+refusal, so it does not report an exact whole-input cost for a refused model.
+
+On success, `usage.textCodeUnits` counts the parser-budgeted free text in UTF-16
+code units and `usage.listItems` counts admitted list slots, including repeated
+occurrences. Fixed enum wording is bounded separately. This is not serialized
+size, rendered-page size or graph-query work. The frozen primitive-only
+`investigationDisplayLimits` and `failureExplanationDisplayLimits` expose the
+same fixed caps used by the parsers; the finding-code pattern is a string. There
+is no automatic fit/trimming or per-call budget override. A producer's query
+budget alone cannot guarantee that its labels, references and gap lists fit.
+
+Ordinary getters, array methods/iterators and ignored fields remain unread;
+sparse or inconsistent selected fields refuse the whole projection. JavaScript
+Proxy reflection is not sandboxed. Successful structural admission does not
+authenticate the producer, verify evidence, discover graph relationships or
+establish completeness beyond the supplied display projection.
+
 ## The footprintjs ecosystem
 
 The self-explaining stack — from backend pipelines to AI agents. → **[overview](https://footprintjs.github.io/)**
