@@ -12,6 +12,8 @@ import { projectInvestigation } from "./projection";
 import { DependencyEvidence } from "./DependencyEvidence";
 import type { GroupedFlowInvestigationProps } from "./types";
 import { RecordedFocusContext } from "../GroupedFlowDiagram/presentation";
+import { resolveCoverageMode } from "../InvestigationPanel/coverageMode";
+import { supportsRecordedRoot } from "../InvestigationPanel/coverage";
 
 const action = { font: "inherit", fontSize: 12, border: `1px solid ${theme.border}`, borderRadius: 8, padding: "7px 12px", background: theme.bgElevated, color: theme.textPrimary, cursor: "pointer" };
 
@@ -20,12 +22,16 @@ export function GroupedFlowInvestigation(props: GroupedFlowInvestigationProps) {
   const admitted = useMemo(() => {
     return projectGroupedFlowDiagram(props.definition, { observation: props.observation });
   }, [props.definition, props.observation]);
+  const coverageMode = resolveCoverageMode(props.coverageMode);
+  if (!coverageMode) return <section className={props.className} style={props.style}>
+    <p role="alert">Investigation is unavailable for this coverage mode.</p>
+  </section>;
   if (!admitted.model) return <GroupedFlowDiagram definition={props.definition} observation={props.observation} className={props.className} style={props.style} />;
   if (!props.port) return <section className={props.className} style={props.style}>
     <GroupedFlowDiagram definition={admitted.model.definition} observation={props.observation} direction={props.direction} />
     <InvestigationPanel port={null} />
   </section>;
-  return <BoundGroupedFlowInvestigation {...props} port={props.port} admitted={admitted.model} />;
+  return <BoundGroupedFlowInvestigation {...props} coverageMode={coverageMode} port={props.port} admitted={admitted.model} />;
 }
 
 function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlowInvestigationProps & { admitted: GroupedFlowDiagramModel; port: InvestigationPort }) {
@@ -81,13 +87,14 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
     else controller.select(nodeId);
   };
   const root = ready?.result.rootCause;
+  const reportedRoot = props.coverageMode === "directional" && ready && !supportsRecordedRoot(ready.result);
   let mappedRoot = root && known.has(root) ? root : undefined;
   for (let id = mappedRoot; id !== undefined; id = known.get(id)?.parentId) {
     if (states.get(id) === "not-run") { mappedRoot = undefined; break; }
   }
   const summary = selected?.status === "loading" ? "Checking recorded evidence…"
-    : ready && mappedRoot ? `Supported cause: ${known.get(mappedRoot)!.label}. ${phase === "cause" ? "The recorded path is highlighted below." : "Showing recorded affected items below."}`
-    : ready && root && !known.has(root) ? "The supported cause is not shown in this diagram. No substitute card is labelled."
+    : ready && mappedRoot ? `${reportedRoot ? "Reported" : "Supported"} cause: ${known.get(mappedRoot)!.label}. ${phase === "cause" ? "The recorded path is highlighted below." : "Showing recorded affected items below."}`
+    : ready && root && !known.has(root) ? `The ${reportedRoot ? "reported" : "supported"} cause is not shown in this diagram. No substitute card is labelled.`
     : ready || selected?.status === "error" || selected?.status === "refused" ? "Cause unknown. The available evidence does not support a cause on this diagram."
     : "Select a failed item, or select another item and choose Investigate selected item.";
   const changeView = () => {
@@ -107,7 +114,7 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
     <RecordedFocusContext.Provider value={{ focused: !!ready && !whole, fitNodeIds: recordedFitIds }}>
     <GroupedFlowDiagram key={diagramBindingKey} definition={admitted.definition} observation={props.observation} direction={props.direction}
       selectedNodeId={selectedId} onSelectNode={choose} expandedGroupIds={expandedGroupIds} onExpandedGroupIdsChange={ids => setExpansion({ owner, ids })}
-      highlight={projected ? { nodeIds: projected.nodeIds, ...(phase === "cause" && mappedRoot ? { rootCauseId: mappedRoot } : {}) } : undefined} recordedRelationships={projected?.relationships}
+      highlight={projected ? { nodeIds: projected.nodeIds, ...(phase === "cause" && mappedRoot && !reportedRoot ? { rootCauseId: mappedRoot } : {}) } : undefined} recordedRelationships={projected?.relationships}
       focusRequest={ready && (whole || focusNodeIds.length) ? { key: cameraKey, nodeIds: whole ? [] : focusNodeIds } : undefined} />
     </RecordedFocusContext.Provider>
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
@@ -122,7 +129,7 @@ function BoundGroupedFlowInvestigation({ admitted, port, ...props }: GroupedFlow
       {projected.confidence === "incomplete" && <p>Some evidence is missing. The highlighted references do not establish the full dependency picture.</p>}
       {projected.unmapped > 0 && <p>{projected.unmapped} recorded {projected.unmapped === 1 ? "item is" : "items are"} not shown in this diagram. No substitute item has been selected.</p>}
     </div>}
-    <InvestigationPanelView port={port} controller={controller} showAttention={false} focusExternalRequests={false} />
+    <InvestigationPanelView port={port} controller={controller} markLabels={props.markLabels} coverageMode={props.coverageMode} showAttention={false} focusExternalRequests={false} />
     {ready && <DependencyEvidence result={ready.result} direction={phase} labels={port.labels} />}
   </section>;
 }

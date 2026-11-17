@@ -3,8 +3,8 @@ import {
   admitAttention,
   admitExplanation,
   displayLabel,
-  gapMessages,
 } from "../../src/components/InvestigationPanel/admission";
+import { gapMessages } from "../../src/components/InvestigationPanel/wording";
 import {
   attention,
   explanation,

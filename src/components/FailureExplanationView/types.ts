@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import type { FindingLevel } from './findingLevel';
 
 /** Display projection only. The host admits and binds the underlying evidence. */
 export interface FailureExplanationDisplaySection {
@@ -15,6 +16,8 @@ export interface FailureExplanationDisplayFinding {
   readonly code: string;
   readonly summary: string;
   readonly evidenceRefs: readonly string[];
+  /** Host-declared display assessment; never inferred confidence or verification. */
+  readonly level?: FindingLevel;
 }
 
 /** Structurally accepts a formatted Blueprint explanation without a runtime dependency. */

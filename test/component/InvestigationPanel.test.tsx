@@ -217,7 +217,7 @@ describe("host-bound on-demand investigation", () => {
     );
     open();
     await screen.findByText("Root cause unknown");
-    expect(screen.getByText("Alternative candidates")).toBeTruthy();
+    expect(screen.getByText("Other candidates")).toBeTruthy();
     expect(screen.getByText("Some evidence was not collected.")).toBeTruthy();
     expect(screen.queryByText("Supported root cause")).toBeNull();
   });
