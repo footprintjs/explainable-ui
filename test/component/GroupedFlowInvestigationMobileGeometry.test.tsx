@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { GroupedFlowInvestigation } from "../../src/components/GroupedFlowInvestigation/GroupedFlowInvestigation";
 import { chartFitViewport } from "../../src/components/FlowchartView/_internal/chartFitGeometry";
@@ -130,3 +130,76 @@ it("fits the selected item and returned impact with its caption without another 
   contains({ x: label.x - label.width / 2 - 6, y: label.y - label.height / 2 - 6, width: label.width + 12, height: label.height + 12 });
   expect(screen.queryByText("Supported cause")).toBeNull(); expect(source.port.explain).toHaveBeenCalledTimes(1);
 });
+
+
+async function directionalFixture(attribution: "recorded-read" | "recorded-write", backward = true) {
+  const source = fixture(attribution), original = await source.port.explain();
+  const gap = (nodeId: string) => ({ code: "not-collected" as const, nodeId, evidence: [`proof:${nodeId}`] });
+  const answer = { ...original, confidence: "incomplete" as const, gaps: [gap("aggregate")],
+    backward: backward ? original.backward : undefined,
+    impact: { ...original.impact, confidence: "incomplete" as const, gaps: [gap("affected")] } };
+  // The public port supplies the evidence; directional presentation must not
+  // promote missing backward coverage or demote a complete backward traversal.
+  return { ...source, port: { ...source.port, explain: vi.fn(async () => answer) } };
+}
+function containsRecordedPaint(width: number) {
+  const { byId, absolute, contains } = geometry(width, 350);
+  for (const id of targets()) {
+    const node = byId.get(id)!; contains({ ...absolute(node), width: node.width, height: node.height });
+  }
+  // This paint extent includes the supported badge only when one was admitted.
+  if (latest.fit.visualBounds) contains(latest.fit.visualBounds);
+  for (const edge of latest.edges.filter(edge => edge.data?.relationship)) {
+    for (const point of edge.data.route.points) contains({ x: point.x - 2, y: point.y - 2, width: 4, height: 4 });
+    const label = edge.data.route.label;
+    contains({ x: label.x - label.width / 2 - 6, y: label.y - label.height / 2 - 6,
+      width: label.width + 12, height: label.height + 12 });
+  }
+}
+
+it.each([
+  { width: 253, direction: "TB" as const, attribution: "recorded-read" as const },
+  { width: 253, direction: "TB" as const, attribution: "recorded-write" as const },
+  { width: 320, direction: "LR" as const, attribution: "recorded-read" as const },
+  { width: 320, direction: "LR" as const, attribution: "recorded-write" as const },
+])("directional coverage keeps the supported $attribution path framed at $width px despite incomplete impact", async ({ width, direction, attribution }) => {
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => width });
+  const source = await directionalFixture(attribution);
+  render(<GroupedFlowInvestigation {...source} direction={direction} coverageMode="directional" />);
+  fireEvent.click(screen.getByRole("button", { name: "Expand Batch" }));
+  fireEvent.click(screen.getByRole("button", { name: /^Select Failure/ }));
+  await screen.findByText("Supported root cause");
+  expect(screen.getByText("Supported cause")).toBeTruthy();
+  expect(screen.getByRole("status", { name: "Cause summary" }).textContent).toContain("Supported cause: Source.");
+  const backward = screen.getByRole("region", { name: "Backward evidence coverage" });
+  expect(within(backward).getByText("Source-reported confidence: complete.")).toBeTruthy();
+  expect(backward.textContent).not.toContain("incomplete");
+  expect(within(screen.getByRole("region", { name: "Affected-item coverage" })).getByText("Source-reported confidence: incomplete.")).toBeTruthy();
+  expect(within(screen.getByRole("region", { name: "Overall reported coverage; direction not supplied" })).getByText("Source-reported confidence: incomplete.")).toBeTruthy();
+  await waitFor(() => expect(new Set(targets())).toEqual(new Set(["effect", "source"])));
+  expect(latest.nodes.find(node => node.id === "source").data.item.isRootCause).toBe(true);
+  expect(latest.edges.filter(edge => edge.data?.relationship?.attribution === attribution)).toHaveLength(1);
+  containsRecordedPaint(width);
+  expect(source.port.explain).toHaveBeenCalledTimes(1);
+});
+
+it.each([{ width: 253, direction: "TB" as const }, { width: 320, direction: "LR" as const }])(
+  "directional coverage frames reported references at $width px without inventing backward support", async ({ width, direction }) => {
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => width });
+    const source = await directionalFixture("recorded-read", false);
+    render(<GroupedFlowInvestigation {...source} direction={direction} coverageMode="directional" />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand Batch" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Select Failure/ }));
+    await screen.findByText("Reported root cause");
+    expect(screen.getByRole("status", { name: "Cause summary" }).textContent).toContain("Reported cause: Source.");
+    expect(screen.queryByText("Supported cause")).toBeNull();
+    expect(screen.queryByText("Supported root cause")).toBeNull();
+    expect(screen.getByRole("region", { name: "Backward evidence coverage" }).textContent).toContain("Backward evidence was not supplied. Backward coverage remains unknown.");
+    expect(screen.getByText("Backward connections were not provided. References can be shown, but missing links remain unknown.")).toBeTruthy();
+    await waitFor(() => expect(new Set(targets())).toEqual(new Set(["effect", "source"])));
+    expect(latest.nodes.find(node => node.id === "source").data.item.isRootCause).not.toBe(true);
+    expect(latest.edges.filter(edge => edge.data?.relationship)).toHaveLength(0);
+    containsRecordedPaint(width);
+    expect(source.port.explain).toHaveBeenCalledTimes(1);
+  },
+);
