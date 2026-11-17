@@ -143,6 +143,7 @@ interface TraceSessionControllerOptions {
   onStartInspector: () => void;
   onReturnToActivity?: (origin: ActivityTraceOrigin) => void;
   runtimeSnapshot?: unknown;
+  recordingIdentity?: unknown;
   openTraceSource?: (mountRuntimeStageId: string, invocationPath: readonly string[], targetRuntimeStageId?: string) => boolean;
   restoreTraceQuestion?: (invocationPath: readonly string[], targetRuntimeStageId: string) => boolean;
   /** Current exact-visit addresses admitted for the Activity surface. */
@@ -210,14 +211,14 @@ export function useTraceSessionController({
   setSnapshotIdx,
   onStartInspector,
   onReturnToActivity,
-  runtimeSnapshot,
+  runtimeSnapshot, recordingIdentity,
   openTraceSource,
   restoreTraceQuestion,
   stageActivity,
 }: TraceSessionControllerOptions) {
   const { tracing, history, activityOrigin: savedActivityOrigin, generation,
     forkChooserOpen, traceSearch, setTraceSearch, dispatch } = session;
-  const source = runtimeSnapshot === undefined ? activeTraceScope : sourceRunKey(runtimeSnapshot);
+  const source = recordingIdentity === undefined ? (runtimeSnapshot === undefined ? activeTraceScope : sourceRunKey(runtimeSnapshot)) : sourceRunKey(recordingIdentity);
   // Old sources without run IDs stay object-scoped, without retaining old snapshot payloads in history.
   const sourceToken = useRef({ source, token: {} });
   if (sourceToken.current.source !== source) sourceToken.current = { source, token: {} };

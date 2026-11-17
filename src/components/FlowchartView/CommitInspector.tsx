@@ -20,6 +20,7 @@ import { backtraceDataFlow } from "./createCommitFlowRecorder";
 import type { RuntimeStageId } from "./_internal/keys";
 import type { BaseComponentProps } from "../../types";
 import { theme } from "../../theme";
+import { formatRecordedValue } from "../../recordedValues";
 
 export interface CommitInspectorProps extends BaseComponentProps {
   /** The CommitFlow index (from `commitFlow.getIndex()` or `useTranslator`).
@@ -127,7 +128,7 @@ export function CommitInspector({
       {/* ── Payload ───────────────────────────────────────────── */}
       {Object.keys(view.updates).length > 0 && (
         <Section title={`Updates (${Object.keys(view.updates).length})`}>
-          <KeyValueGrid entries={Object.entries(view.updates)} />
+          <KeyValueGrid entries={Object.entries(Object.getOwnPropertyDescriptors(view.updates)).filter(([, descriptor]) => descriptor.enumerable)} />
         </Section>
       )}
       {view.reads.length > 0 && (
@@ -255,17 +256,17 @@ function RuntimeRefs({
   );
 }
 
-function KeyValueGrid({ entries }: { entries: ReadonlyArray<[string, unknown]> }) {
+function KeyValueGrid({ entries }: { entries: ReadonlyArray<[string, PropertyDescriptor]> }) {
   return (
     <table style={{ fontSize: 11, fontFamily: "monospace", width: "100%", borderCollapse: "collapse" }}>
       <tbody>
-        {entries.map(([k, v]) => (
+        {entries.map(([k, descriptor]) => (
           <tr key={k}>
             <td style={{ color: theme.textSecondary, padding: "2px 8px 2px 0", verticalAlign: "top" }}>
               {k}
             </td>
             <td style={{ color: theme.textPrimary, wordBreak: "break-word" }}>
-              {typeof v === "object" ? JSON.stringify(v) : String(v)}
+              {'value' in descriptor ? typeof descriptor.value === 'string' ? descriptor.value : formatRecordedValue(descriptor.value) : '[Unavailable]'}
             </td>
           </tr>
         ))}

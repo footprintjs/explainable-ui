@@ -7,6 +7,7 @@ import {
   type RecorderMetricColumn,
 } from "../../../model/recorderView";
 import { ownDataField } from "../../../trace/safeRecordRead";
+import { formatRecordedValue } from "../../../recordedValues";
 
 export interface KeyedRecorderViewProps extends BaseComponentProps {
   data: unknown;
@@ -26,18 +27,8 @@ function formatNumber(value: number | null): string {
 }
 
 function rawRecorderText(data: unknown): string {
-  if (typeof data === "string") return data;
-  try {
-    const seen = new WeakSet<object>();
-    const text = JSON.stringify(data, (_key, value: unknown) => {
-      if (value && typeof value === "object") {
-        if (seen.has(value)) return "[Circular]";
-        seen.add(value);
-      }
-      return value;
-    }, 2) ?? "No recorder data.";
-    return text.length > 100_000 ? `${text.slice(0, 100_000)}\n[Additional recorder data omitted]` : text;
-  } catch { return "Recorder data could not be displayed."; }
+  if (typeof data === "string") return data.length > 100_000 ? `${data.slice(0, 99_988)}[Truncated]` : data;
+  return formatRecordedValue(data, { indent: 2, maxChars: 100_000, maxItems: 10_000, maxDepth: 64 });
 }
 
 export function KeyedRecorderView({

@@ -70,3 +70,16 @@ describe("exact subflow invocation selection", () => {
     ).toEqual({ kind: "missing" });
   });
 });
+
+describe("explicit lazy invocation selection", () => {
+  it("identifies only the requested unloaded visit when lazy selection is opted in", () => {
+    const snapshots = [
+      { runtimeStageId: "child#2", subflowId: "child" },
+      { runtimeStageId: "child#9", subflowId: "child", subflowResult: {} },
+    ] as StageSnapshot[];
+    expect(resolveSubflowInvocation(snapshots, "child", undefined, "child#2")).toEqual({ kind: "missing" });
+    const result = resolveSubflowInvocation(snapshots, "child", undefined, "child#2", { allowUnloaded: true });
+    expect(result.kind).toBe("found");
+    if (result.kind === "found") expect(result.snapshot.runtimeStageId).toBe("child#2");
+  });
+});

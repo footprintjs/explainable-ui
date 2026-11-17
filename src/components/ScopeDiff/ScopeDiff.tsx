@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { BaseComponentProps } from "../../types";
 import { theme, componentStyles } from "../../theme";
+import { formatRecordedValue, compareRecordedValues } from "../../recordedValues";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,21 +30,26 @@ export interface ScopeDiffProps extends BaseComponentProps {
 function computeDiff(
   prev: Record<string, unknown> | null,
   curr: Record<string, unknown>
-): DiffEntry[] {
+): { entries: DiffEntry[]; unavailable: boolean } {
   const entries: DiffEntry[] = [];
+  let unavailable = false;
+  try {
   const allKeys = new Set([...Object.keys(prev ?? {}), ...Object.keys(curr)]);
 
   for (const key of allKeys) {
-    const inPrev = prev != null && key in prev;
-    const inCurr = key in curr;
-    const oldVal = prev?.[key];
-    const newVal = curr[key];
+    const before = prev ? Object.getOwnPropertyDescriptor(prev, key) : undefined;
+    const after = Object.getOwnPropertyDescriptor(curr, key);
+    if ((before && !('value' in before)) || (after && !('value' in after))) { unavailable = true; continue; }
+    const inPrev = before !== undefined, inCurr = after !== undefined;
+    const oldVal = before?.value, newVal = after?.value;
+    const comparison = compareRecordedValues(oldVal, newVal);
+    if (comparison === 'unavailable') { unavailable = true; continue; }
 
     if (!inPrev && inCurr) {
       entries.push({ key, type: "added", newValue: newVal });
     } else if (inPrev && !inCurr) {
       entries.push({ key, type: "removed", oldValue: oldVal });
-    } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+    } else if (comparison === 'different') {
       entries.push({ key, type: "changed", oldValue: oldVal, newValue: newVal });
     } else {
       entries.push({ key, type: "unchanged", newValue: newVal });
@@ -52,14 +58,11 @@ function computeDiff(
 
   const order = { added: 0, changed: 1, removed: 2, unchanged: 3 };
   entries.sort((a, b) => order[a.type] - order[b.type]);
-  return entries;
+  return { entries, unavailable };
+  } catch { return { entries: [], unavailable: true }; }
 }
 
-function fmt(v: unknown): string {
-  if (typeof v === "string") return `"${v}"`;
-  if (typeof v === "object" && v !== null) return JSON.stringify(v, null, 2);
-  return String(v);
-}
+const fmt = (value: unknown) => formatRecordedValue(value, { indent: 2 });
 
 const diffColors: Record<DiffEntry["type"], { bg: string; fg: string; icon: string }> = {
   added: { bg: `color-mix(in srgb, ${theme.success} 10%, transparent)`, fg: theme.success, icon: "+" },
@@ -81,7 +84,7 @@ export function ScopeDiff({
   className,
   style,
 }: ScopeDiffProps) {
-  const entries = useMemo(() => computeDiff(previous, current), [previous, current]);
+  const { entries, unavailable } = useMemo(() => computeDiff(previous, current), [previous, current]);
   const visible = hideUnchanged ? entries.filter((e) => e.type !== "unchanged") : entries;
 
   const ui = componentStyles(size);
@@ -89,7 +92,8 @@ export function ScopeDiff({
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="scope-diff">
-        {visible.length === 0 && <div>No changes</div>}
+        {unavailable && <div role="status">[Unavailable] Some recorded values could not be compared.</div>}
+        {visible.length === 0 && !unavailable && <div>No changes</div>}
         {visible.map((e) => (
           <div key={e.key} data-fp="diff-entry" data-type={e.type}>
             <span data-fp="diff-key">{e.key}</span>
@@ -117,7 +121,8 @@ export function ScopeDiff({
       style={{ padding: ui.padding, fontFamily: theme.fontMono, ...style }}
       data-fp="scope-diff"
     >
-      {visible.length === 0 && (
+      {unavailable && <div role="status">[Unavailable] Some recorded values could not be compared.</div>}
+      {visible.length === 0 && !unavailable && (
         <div style={{ fontSize: ui.body, color: theme.textMuted, fontStyle: "italic" }}>
           No changes
         </div>

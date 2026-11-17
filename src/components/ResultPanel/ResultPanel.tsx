@@ -1,5 +1,6 @@
 import type { BaseComponentProps } from "../../types";
 import { theme, componentStyles, FootprintCode } from "../../theme";
+import { formatRecordedValue } from "../../recordedValues";
 
 export interface ResultPanelProps extends BaseComponentProps {
   /** Final pipeline output / shared state */
@@ -26,7 +27,7 @@ export function ResultPanel({
       <div className={className} style={style} data-fp="result-panel">
         <div data-fp="result-data">
           <div data-fp="result-heading">{size === "compact" ? "Result" : "Business Result (Scope)"}</div>
-          <pre><FootprintCode defaultStyle={undefined}>{data ? JSON.stringify(data, null, 2) : "No data"}</FootprintCode></pre>
+          <pre><FootprintCode defaultStyle={undefined}>{data == null ? "No data" : formatRecordedValue(data, { indent: 2 })}</FootprintCode></pre>
         </div>
         {!hideConsole && (
           <div data-fp="result-console">
@@ -80,7 +81,7 @@ export function ResultPanel({
             margin: 0,
           }}
         >
-          <FootprintCode defaultStyle={undefined}>{data ? JSON.stringify(data, null, 2) : "No data"}</FootprintCode>
+          <FootprintCode defaultStyle={undefined}>{data == null ? "No data" : formatRecordedValue(data, { indent: 2 })}</FootprintCode>
         </pre>
       </div>
 

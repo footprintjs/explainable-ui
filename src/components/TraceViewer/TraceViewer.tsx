@@ -81,7 +81,7 @@ export type TraceParseError =
 export interface TraceViewerProps
   extends Pick<
     ExplainableShellProps,
-    'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'flowchart' | 'traceTheme' | 'autoPlay' | 'view' | 'defaultView' | 'onViewChange' | 'commentary' | 'replayControls' | 'renderLayout' | 'layout'
+    'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'flowchart' | 'traceTheme' | 'autoPlay' | 'view' | 'defaultView' | 'onViewChange' | 'commentary' | 'replayControls' | 'renderLayout' | 'layout' | 'source' | 'rendering'
     >,
     ThemeModeProps {
   /**
@@ -201,6 +201,7 @@ function prepare(input: TraceViewerProps['recording']): Prepared {
 }
 
 export function TraceViewer({
+  source, rendering,
   recording,
   trace,
   onError,
@@ -225,7 +226,7 @@ export function TraceViewer({
   theme: themeMode,
 }: TraceViewerProps): React.ReactElement | null {
   const input = recording ?? trace;
-  const prepared = useMemo(() => prepare(input), [input]);
+  const prepared = useMemo(() => source ? { ok: true as const, recording: { snapshot: source.rootSnapshot } } : prepare(input), [source, input]);
 
   // Surface errors via callback; render is determined by the validity below.
   React.useEffect(() => {
@@ -236,11 +237,12 @@ export function TraceViewer({
   // snapshot cannot supply. Missing structure leaves `traceGraph` undefined,
   // and the shell then says which piece is missing on screen.
   const traceGraph = useMemo(() => {
+    if (source) return source.rootGraph;
     if (!prepared.ok) return undefined;
     const structure = prepared.recording.structure ?? prepared.recording.blueprint;
     const graph = graphFromStructure(structure);
     return graph.nodes.length > 0 ? graph : undefined;
-  }, [prepared]);
+  }, [prepared, source]);
 
   // The chart's colouring, rebuilt from the run's own commit log.
   const runtimeOverlay = useMemo(
@@ -264,6 +266,8 @@ export function TraceViewer({
 
   return (
     <ExplainableShell
+      source={source}
+      rendering={rendering}
       runtimeSnapshot={prepared.recording.snapshot as ExplainableShellProps['runtimeSnapshot']}
       traceGraph={traceGraph}
       runtimeOverlay={runtimeOverlay}

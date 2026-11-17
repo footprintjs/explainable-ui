@@ -23,6 +23,7 @@ export function resolveSubflowInvocation(
   mountKey: string,
   cursorId?: string,
   requestedId?: string,
+  options?: { allowUnloaded?: boolean },
 ): InvocationResolution {
   const candidates = snapshots
     .map((snapshot, index) => ({ snapshot, index }))
@@ -40,7 +41,7 @@ export function resolveSubflowInvocation(
     : (candidates.find(
         ({ snapshot }) => snapshot.runtimeStageId === cursorId,
       ) ?? (candidates.length === 1 ? candidates[0] : undefined));
-  if (selected && !selected.snapshot.subflowResult) return { kind: "missing" };
+  if (selected && !selected.snapshot.subflowResult && !options?.allowUnloaded) return { kind: "missing" };
   if (selected)
     return {
       kind: "found",

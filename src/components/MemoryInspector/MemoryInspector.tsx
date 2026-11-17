@@ -2,6 +2,12 @@ import { FootprintCode } from "../../theme";
 import { useMemo } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { theme, componentStyles } from "../../theme";
+import { formatRecordedValue } from "../../recordedValues";
+
+function ownEntries(memory: Record<string, unknown>) {
+  try { return Object.entries(Object.getOwnPropertyDescriptors(memory)).filter(([, descriptor]) => descriptor.enumerable); }
+  catch { return null; }
+}
 
 export interface MemoryInspectorProps extends BaseComponentProps {
   /** A memory object to show as-is. Takes precedence over `snapshots`. */
@@ -59,25 +65,26 @@ export function MemoryInspector({
     if (highlightNew) {
       const prev = safeIdx > 0 ? snapshots[safeIdx - 1]?.memory ?? {} : {};
       for (const k of Object.keys(merged)) {
-        if (!(k in prev)) nk.add(k);
+        if (!Object.prototype.hasOwnProperty.call(prev, k)) nk.add(k);
       }
     }
 
     return { memory: merged, newKeys: nk };
   }, [data, snapshots, selectedIndex, highlightNew]);
 
-  const entries = Object.entries(memory);
+  const entries = ownEntries(memory);
   const ui = componentStyles(size);
+  if (!entries) return <div className={className} style={style} data-fp="memory-inspector" role="region" aria-label="Memory state"><pre>[Unavailable]</pre></div>;
 
   if (unstyled) {
     return (
       <div className={className} style={style} data-fp="memory-inspector" role="region" aria-label="Memory state">
         <div data-fp="memory-label">Memory State</div>
         <pre data-fp="memory-json">
-          <FootprintCode defaultStyle={undefined}>{JSON.stringify(memory, null, 2)}</FootprintCode>
+          <FootprintCode defaultStyle={undefined}>{formatRecordedValue(memory, { indent: 2 })}</FootprintCode>
         </pre>
-        {showTypes && <dl data-fp="memory-types">{entries.map(([key, value]) => <div key={key}>
-          <dt>{key}</dt><dd>{typeof value}</dd>
+        {showTypes && <dl data-fp="memory-types">{entries.map(([key, descriptor]) => <div key={key}>
+          <dt>{key}</dt><dd>{'value' in descriptor ? typeof descriptor.value : 'unavailable'}</dd>
         </div>)}</dl>}
       </div>
     );
@@ -130,7 +137,7 @@ export function MemoryInspector({
             {"// empty"}
           </div>
         )}
-        {entries.map(([key, value], i) => {
+        {entries.map(([key, descriptor], i) => {
           const isNew = newKeys.has(key);
           const isLast = i === entries.length - 1;
           return (
@@ -150,7 +157,7 @@ export function MemoryInspector({
               <span style={{ color: theme.primary }}>&quot;{key}&quot;</span>
               <span style={{ color: theme.textMuted }}>: </span>
               <span style={{ color: theme.success }}>
-                <FootprintCode defaultStyle={undefined}>{formatValue(value)}</FootprintCode>
+                <FootprintCode defaultStyle={undefined}>{'value' in descriptor ? formatRecordedValue(descriptor.value) : '[Unavailable]'}</FootprintCode>
               </span>
               {showTypes && (
                 <span
@@ -161,7 +168,7 @@ export function MemoryInspector({
                     opacity: 0.6,
                   }}
                 >
-                  ({typeof value})
+                  ({'value' in descriptor ? typeof descriptor.value : 'unavailable'})
                 </span>
               )}
               {!isLast && <span style={{ color: theme.textMuted }}>,</span>}
@@ -172,10 +179,4 @@ export function MemoryInspector({
       </div>
     </div>
   );
-}
-
-function formatValue(value: unknown): string {
-  if (typeof value === "string") return `"${value}"`;
-  if (typeof value === "object" && value !== null) return JSON.stringify(value);
-  return String(value);
 }

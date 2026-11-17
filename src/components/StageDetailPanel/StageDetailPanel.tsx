@@ -1,6 +1,8 @@
 import { useState, useMemo, useCallback } from "react";
 import type { StageSnapshot, BaseComponentProps } from "../../types";
 import { theme, fontSize, padding } from "../../theme";
+import { formatRecordedValue } from "../../recordedValues";
+import { withoutExcluded, compareMemory, buildMemoryRows } from "./recordedMemory";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,20 +27,6 @@ export interface MemoryChange {
  */
 export const DEFAULT_EXCLUDED_KEYS = new Set<string>([]);
 
-/** Drop the excluded keys from one memory object. Returns the SAME reference
- *  when nothing is excluded, so the memo below doesn't churn. */
-function withoutExcluded(
-  memory: Record<string, unknown>,
-  exclude: Set<string>,
-): Record<string, unknown> {
-  if (exclude.size === 0) return memory;
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(memory)) {
-    if (!exclude.has(k)) out[k] = v;
-  }
-  return out;
-}
-
 export interface StageDetailPanelProps extends BaseComponentProps {
   /** Stage snapshots for time-travel */
   snapshots: StageSnapshot[];
@@ -61,38 +49,7 @@ export interface StageDetailPanelProps extends BaseComponentProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function computeChanges(
-  prev: Record<string, unknown> | null,
-  curr: Record<string, unknown>,
-): MemoryChange[] {
-  const changes: MemoryChange[] = [];
-  const allKeys = new Set([...Object.keys(prev ?? {}), ...Object.keys(curr)]);
-
-  for (const key of allKeys) {
-    const inPrev = prev != null && key in prev;
-    const inCurr = key in curr;
-    const oldVal = prev?.[key];
-    const newVal = curr[key];
-
-    if (!inPrev && inCurr) {
-      changes.push({ key, type: "added", newValue: newVal });
-    } else if (inPrev && !inCurr) {
-      changes.push({ key, type: "removed", oldValue: oldVal });
-    } else if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
-      changes.push({ key, type: "updated", oldValue: oldVal, newValue: newVal });
-    }
-  }
-
-  const order = { added: 0, updated: 1, removed: 2 };
-  changes.sort((a, b) => order[a.type] - order[b.type]);
-  return changes;
-}
-
-function fmt(v: unknown): string {
-  if (typeof v === "string") return `"${v}"`;
-  if (typeof v === "object" && v !== null) return JSON.stringify(v, null, 2);
-  return String(v);
-}
+const fmt = (value: unknown) => formatRecordedValue(value, { indent: 2 });
 
 /**
  * ADD / UPD / DEL badges, painted from the theme's semantic roles.
@@ -232,48 +189,22 @@ function SimpleView({
 // Dev Mode — memory story (browser DevTools style)
 // ---------------------------------------------------------------------------
 
-/** A row in the full memory ledger: either a changed key or an unchanged one. */
-type MemoryRow =
-  | { kind: "change"; change: MemoryChange }
-  | { kind: "unchanged"; key: string; value: unknown };
-
-function buildMemoryRows(
-  currMemory: Record<string, unknown>,
-  changes: MemoryChange[],
-): MemoryRow[] {
-  const changeMap = new Map(changes.map((c) => [c.key, c]));
-  const rows: MemoryRow[] = [];
-
-  // Changed keys first (ADD → UPD → DEL)
-  for (const change of changes) {
-    rows.push({ kind: "change", change });
-  }
-
-  // Then unchanged keys (sorted alphabetically)
-  const unchangedKeys = Object.keys(currMemory)
-    .filter((k) => !changeMap.has(k))
-    .sort();
-  for (const key of unchangedKeys) {
-    rows.push({ kind: "unchanged", key, value: currMemory[key] });
-  }
-
-  return rows;
-}
-
 function DevView({
   snapshot,
   changes,
   currMemory,
+  unavailable,
   fs,
   pad,
 }: {
   snapshot: StageSnapshot;
   changes: MemoryChange[];
   currMemory: Record<string, unknown>;
+  unavailable: ReadonlySet<string>;
   fs: { label: number; body: number; small: number };
   pad: number;
 }) {
-  const rows = useMemo(() => buildMemoryRows(currMemory, changes), [currMemory, changes]);
+  const rows = useMemo(() => buildMemoryRows(currMemory, changes, unavailable), [currMemory, changes, unavailable]);
   const totalKeys = Object.keys(currMemory).length;
 
   return (
@@ -347,6 +278,7 @@ function DevView({
           }}
         >
           {rows.map((row) => {
+            if (row.kind === "unavailable") return <div key={row.key} role="status" data-fp="memory-unavailable">{row.key}: [Unavailable]</div>;
             if (row.kind === "change") {
               const { change } = row;
               const badge = changeBadge[change.type];
@@ -480,16 +412,19 @@ function UnstyledDevView({
   snapshot,
   changes,
   currMemory,
+  unavailable,
 }: {
   snapshot: StageSnapshot;
   changes: MemoryChange[];
   currMemory: Record<string, unknown>;
+  unavailable: ReadonlySet<string>;
 }) {
-  const rows = useMemo(() => buildMemoryRows(currMemory, changes), [currMemory, changes]);
+  const rows = useMemo(() => buildMemoryRows(currMemory, changes, unavailable), [currMemory, changes, unavailable]);
   return (
     <div data-fp="stage-detail-dev">
       <div data-fp="stage-label">{snapshot.stageLabel}</div>
       {rows.map((row) => {
+        if (row.kind === "unavailable") return <div key={row.key} role="status" data-fp="memory-unavailable">{row.key}: [Unavailable]</div>;
         if (row.kind === "change") {
           const c = row.change;
           return (
@@ -620,9 +555,9 @@ export function StageDetailPanel({
     () => withoutExcluded(rawCurrMemory, excludeKeys),
     [rawCurrMemory, excludeKeys],
   );
-  const changes = useMemo(
+  const { changes, unavailable } = useMemo(
     () =>
-      computeChanges(
+      compareMemory(
         rawPrevMemory === null ? null : withoutExcluded(rawPrevMemory, excludeKeys),
         currMemory,
       ),
@@ -651,7 +586,7 @@ export function StageDetailPanel({
         {activeMode === "simple" ? (
           <UnstyledSimpleView snapshot={snapshot} />
         ) : (
-          <UnstyledDevView snapshot={snapshot} changes={changes} currMemory={currMemory} />
+          <UnstyledDevView snapshot={snapshot} changes={changes} currMemory={currMemory} unavailable={unavailable} />
         )}
       </div>
     );
@@ -677,7 +612,7 @@ export function StageDetailPanel({
       {activeMode === "simple" ? (
         <SimpleView snapshot={snapshot} fs={fs} pad={pad} />
       ) : (
-        <DevView snapshot={snapshot} changes={changes} currMemory={currMemory} fs={fs} pad={pad} />
+        <DevView snapshot={snapshot} changes={changes} currMemory={currMemory} unavailable={unavailable} fs={fs} pad={pad} />
       )}
     </div>
   );
