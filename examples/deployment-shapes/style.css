@@ -6,7 +6,7 @@
 .deployment-page a { color:var(--fp-accent,#465f51); }
 .deployment-controls { display:flex; flex-wrap:wrap; align-items:end; gap:16px; padding:18px; border:1px solid var(--fp-border,#555); background:var(--fp-bg-secondary,#fffdf5); border-radius:var(--fp-radius-panel,5px); }
 .deployment-controls label { display:grid; gap:6px; font-size:12px; }
-.deployment-page select,.deployment-page button { font:inherit; color:inherit; background:var(--fp-bg-elevated,#fffdf5); border:1px solid var(--fp-border,#555); border-radius:var(--fp-radius-control,5px); padding:9px 12px; }
+.deployment-controls :is(select,button),.deployment-chart-tools button,.deployment-initial button { font:inherit; color:inherit; background:var(--fp-bg-elevated,#fffdf5); border:1px solid var(--fp-border,#555); border-radius:var(--fp-radius-control,5px); padding:9px 12px; }
 .deployment-page button { cursor:pointer; }
 .deployment-page button:disabled { cursor:default; opacity:.5; }
 .deployment-page :is(button,select,input):focus-visible { outline:2px solid var(--fp-accent,#465f51); outline-offset:3px; }
