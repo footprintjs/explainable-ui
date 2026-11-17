@@ -39,7 +39,8 @@ export const InfrastructureStageNode = memo(function InfrastructureStageNode({ i
       opacity: !tracing && (data.dimmed || data.emphasis === 'muted') ? 0.48 : 1 }}>
     <div aria-hidden="true" data-device-highlight="execution" style={{ ...box, left: geometry.paint.x, top: geometry.paint.y,
       width: geometry.paint.width, height: geometry.paint.height, borderRadius: 'var(--fp-node-radius, 9px)',
-      border: data.active || data.error || data.done || data.linked ? `var(--fp-node-border-width, 2px) ${data.isLazy && !data.active && !data.done ? 'dashed' : 'solid'} ${color}` : undefined,
+      border: data.active || data.error || data.done || data.linked ? `var(--fp-node-border-width, 2px) ${data.isLazy && !data.active && !data.done ? 'dashed' : 'solid'} ${color}`
+        : data.unstyled ? undefined : '1px solid var(--fp-border, #777)',
       background: data.active && !data.unstyled ? 'color-mix(in srgb, var(--fp-node-cursor, #b7791f) 9%, transparent)' : undefined,
       pointerEvents: 'none' }} />
     {trace && <div aria-hidden="true" data-device-highlight="trace" style={{ ...box, inset: 1, borderRadius: 'var(--fp-node-radius, 9px)',
@@ -51,7 +52,7 @@ export const InfrastructureStageNode = memo(function InfrastructureStageNode({ i
     {data.active && <span data-device-badge="cursor" style={{ ...badge('var(--fp-node-cursor, #b7791f)'), right: 8,
       maxWidth: 92, color: data.unstyled ? undefined : 'var(--fp-on-node-cursor, #252923)' }}>{tracing ? 'VIEWING' : 'NOW'}</span>}
     <div style={{ ...box, left: geometry.body.x, top: geometry.body.y, width: geometry.body.width, height: geometry.body.height,
-      color: data.unstyled ? 'currentColor' : 'var(--fp-node-border-color, var(--fp-text-primary, #252923))' }}>
+      color: data.unstyled ? 'currentColor' : 'var(--fp-text-primary, #252923)' }}>
       <DeviceDrawing kind={geometry.kind} unstyled={data.unstyled} />
     </div>
     <div style={{ ...box, left: content.x, top: content.y, width: content.width, height: content.height, textAlign: 'center' }}>
