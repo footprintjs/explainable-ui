@@ -1054,6 +1054,11 @@ relationships and execution status retain their separate meanings.
   **Back** to return to that question. Handoff references describe an
   observed-read prefix, which can include reads used by other outputs. Partial, missing or invalid
   metadata retains the boundary as unknown.
+  Detached tools can pass the matching native snapshot as
+  `buildTraceWalk(log, tree, key, { runtimeSnapshot, scope })` to receive the
+  same admitted `handoffSources`. Only currently loaded complete child units
+  qualify; a lazy manifest does not establish an output mapping. The walk stays
+  on its supplied scope, and opening a source remains an explicit host action.
 - **Invocation-start values**: a value already present when a child starts
   may come from input mapping or restored state. The card and copied text
   identify recorded starting keys without inventing their earlier writers.
@@ -1555,7 +1560,7 @@ from both `footprint-explainable-ui` and `footprint-explainable-ui/flowchart`.
 | `buildEntryRangeIndex` | Index narrative entries by `runtimeStageId` for O(1) slider sync |
 | `computeRevealedEntryCount` | How many story lines are true as of the cursor's step |
 | `extractSubflowNarrative` | Just one subflow's lines out of a run's story |
-| `buildTraceWalk` | The local value-tracing walk with recorded stops and stage reads for one key |
+| `buildTraceWalk` | A local value-tracing walk, with optional captured child targets from a matching native snapshot |
 | `formatTraceWalk` | That walk as the exact text an LLM backtrack tool returns |
 | `projectTraceInvocation` | Select one exact recorded child invocation and its scope for UI or agent trace text |
 | `projectStageActivity` | Project one exact visit's bounded narrative, reads, committed changes and decisions |

@@ -85,14 +85,18 @@ try {
     recursive: true,
   });
   cpSync(join(repo, "test/setup.ts"), join(tests, "setup.ts"));
-  for (const suite of [
+  const componentSuites = [
     "ExplainableShellSubflowRecorded",
     "ExplainableShellSubflowRevision",
     "ExplainableShellNavigationReview",
     "PublicTraceScopeParity",
+  ];
+  for (const [suite, sourcePath] of [
+    ...componentSuites.map(name => [name, `test/component/${name}.test.tsx`]),
+    ["TraceWalkHandoff", "test/unit/traceWalkHandoff.test.ts"],
   ]) {
     const source = readFileSync(
-      join(repo, `test/component/${suite}.test.tsx`),
+      join(repo, sourcePath),
       "utf8"
     );
     // Exercise the actual public doors in each format: Shell is on root,

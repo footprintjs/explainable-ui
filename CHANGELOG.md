@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Graph dependencies are now explicit peers for root and `/flowchart` consumers. Migration: install React, ReactDOM, `@xyflow/react@^12` and `dagre@^0.8.5` in graph applications. Record-only consumers install React and `foottrace@^2.0.0`. This change is intended for a major release.
 
+## [1.1.1] - 2026-11-17
+
+### Fixed
+
+- Let public `buildTraceWalk` consumers supply the currently admitted native
+  runtime snapshot to receive captured child-output handoff targets. The shared
+  controller delegates to the same reader; exact scope and read cutoffs remain
+  intact, and cold or missing child evidence stays unknown. No extra cursor or
+  inferred output mapping is introduced.
+
 ## [1.1.0] - 2026-11-17
 
 ### Added
