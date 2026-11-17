@@ -81,6 +81,14 @@ function Gaps({ gaps }: { gaps: readonly Gap[] }) {
     </>
   );
 }
+
+/** A view of admitted candidates; canonical ranking and membership stay intact. */
+function otherCandidates(nodeId: string, alternatives: readonly string[]) {
+  return {
+    selectedWasCandidate: alternatives.includes(nodeId),
+    otherCandidateIds: alternatives.filter(id => id !== nodeId),
+  };
+}
 type FocusIntent =
   | { owner: object; kind: "explanation"; request: AbortController }
   | { owner: object; kind: "attention"; nodeId: string };
@@ -113,6 +121,9 @@ export function InvestigationPanelView({ port, className, style, controller, sho
     [port.attention, showAttention]
   );
   const { owner, currentOwner, active, selected } = controller;
+  const candidates = selected?.status === "ready"
+    ? otherCandidates(selected.result.nodeId, selected.result.alternatives)
+    : undefined;
   const explanationElement = useRef<HTMLElement | null>(null);
   const attentionElements = useRef(new Map<string, HTMLButtonElement>());
   const returnTo = useRef<{ owner: object; nodeId: string } | null>(null);
@@ -335,22 +346,31 @@ export function InvestigationPanelView({ port, className, style, controller, sho
                   )}
                 </>
               )}
-              {!!selected.result.alternatives.length && (
+              {candidates && !!selected.result.alternatives.length && (
                 <>
-                  <h4>Alternative candidates</h4>
-                  <p>These candidates remain uncertain.</p>
-                  <button
-                    type="button"
-                    style={button}
-                    aria-expanded={showAlternatives}
-                    onClick={() => setShowAlternatives((value) => !value)}
-                  >
-                    {showAlternatives
-                      ? "Hide alternative candidates"
-                      : "Show alternative candidates"}
-                  </button>
-                  {showAlternatives && (
-                    <ul>{selected.result.alternatives.map(item)}</ul>
+                  <h4>Other candidates</h4>
+                  {candidates.selectedWasCandidate && (
+                    <p>The selected item is included in the supplied candidate list.</p>
+                  )}
+                  {candidates.otherCandidateIds.length ? (
+                    <>
+                      <p>These candidates remain uncertain.</p>
+                      <button
+                        type="button"
+                        style={button}
+                        aria-expanded={showAlternatives}
+                        onClick={() => setShowAlternatives((value) => !value)}
+                      >
+                        {showAlternatives
+                          ? "Hide other candidates"
+                          : "Show other candidates"}
+                      </button>
+                      {showAlternatives && (
+                        <ul>{candidates.otherCandidateIds.map(item)}</ul>
+                      )}
+                    </>
+                  ) : (
+                    <p>No other candidates were supplied. This does not establish one root cause.</p>
                   )}
                 </>
               )}

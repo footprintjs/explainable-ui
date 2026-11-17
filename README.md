@@ -1844,8 +1844,12 @@ neither requires a new theme prop.
 `InvestigationPanel` is a standalone, optional panel. Existing viewers and their
 selected visits do not change. The host supplies a bounded canonical attention
 list and handles each explicit investigation with Foottrace's `explain` API.
-No query runs on mount. Recorded paths, alternatives, affected items and evidence
+No query runs on mount. Recorded paths, other candidates, affected items and evidence
 references start collapsed; selecting a related item requests only that item.
+The **Other candidates** list omits the selected item's exact ID from navigation.
+A note preserves its supplied candidate membership; a selected-only list does not
+establish a root cause. Canonical `alternatives`, their order and checker results
+remain intact. This display filter does not change root, attention or coverage.
 An explicit investigation moves keyboard focus into the selected explanation.
 Closing it restores focus to the original attention item, including after
 following related items or opening an item beyond the first attention page.

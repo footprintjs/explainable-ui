@@ -27,3 +27,11 @@ limits. No trimming, list deduplication or automatic logging is performed.
 not add an external graph/resolver type or duplicate the separate declaration
 boundary fix. `gapMessages` remains the existing wording table. Host label lookup
 keeps its prior node-ID fallback, separate from explanation refusal diagnostics.
+# Other candidates
+
+The shared standalone/grouped view omits the selected item's exact ID only from
+the rendered **Other candidates** navigation list. It preserves every other ID's
+order and explicitly notes supplied selected-item membership. Selected-only and
+originally empty lists stay distinct; neither establishes a root cause. Canonical
+`alternatives`, checker projections, admission limits, attention, gaps and graph
+membership are unchanged. Labels and namespace basenames never determine identity.
