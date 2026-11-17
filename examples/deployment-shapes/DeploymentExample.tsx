@@ -27,7 +27,7 @@ function Workbench({ source, dark, isometric, indicator }: {
 
 export function DeploymentExample() {
   const [dark, setDark] = useState(false);
-  const [isometric, setIsometric] = useState(true);
+  const [isometric, setIsometric] = useState(false);
   const [indicator, setIndicator] = useState<'skeleton' | 'spinner' | 'text'>('skeleton');
   const [slow, setSlow] = useState(true);
   const [failedNext, setFailedNext] = useState(false);
@@ -67,7 +67,8 @@ export function DeploymentExample() {
         <ol><li>Replay the seven overview stages. Device shapes identify host-assigned roles; their outlines show recorded execution.</li>
           <li>Open Server A or B from its node, Topology or the example buttons. The overview stays usable during loading; Cancel keeps your position.</li>
           <li>At CheckHealth, inspect <code>deploymentReady</code> and Backtrack through both <code>serverAHealthy</code> and <code>serverBHealthy</code>. Load missing evidence, then follow the recorded child handoff to <code>healthy</code>.</li>
-          <li>Done returns to your original replay position. Commentary follows the same cursor and uses recorded messages.</li></ol>
+          <li>Done returns to your original replay position. Commentary follows the same cursor and uses recorded messages.</li>
+          <li>Use the chart's + / − and fit buttons to inspect device shapes, or drag the canvas to pan. Flat opens first; Isometric is optional.</li></ol>
         <p>Large recordings should be split into complete invocation units. Fetching is asynchronous; JSON parsing and each admitted graph's preparation/layout still run on the main thread here. This small example is not a performance benchmark.</p>
       </details>
       {loaded ? <><DeliveryStatus recording={loaded} /><Workbench source={loaded.source} dark={dark} isometric={isometric} indicator={indicator} /></>

@@ -42,7 +42,9 @@ its address is `https://footprintjs.github.io/explainable-ui/deployment-shapes/`
    to its mount, load missing evidence when offered, then follow the recorded
    output handoff to that child's `healthy` writer. Done restores the original
    question/cursor through the existing Shell behavior.
-5. Switch Paper light/dark, Flat/Isometric and Skeleton/Spinner/Text. Developer
+5. Switch Paper light/dark, Flat/Isometric and Skeleton/Spinner/Text. Flat opens
+   first for readable device labels. Use +/−, fit and canvas panning to inspect
+   the optional Isometric layout. Developer
    and Commentary share the same chart and position; Commentary uses the
    original recorded messages, grouped by stage.
 

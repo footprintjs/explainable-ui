@@ -1,4 +1,5 @@
 import { useMemo, useSyncExternalStore } from 'react';
+import { Controls } from '@xyflow/react';
 import { FootprintLoadStatus, overlayFromSnapshot, projectTraceInvocation, useLensWorkbench } from 'footprint-explainable-ui';
 import type { ExplainableShellProps, RecordingSource, TraceGraph } from 'footprint-explainable-ui';
 import { TracedFlow } from 'footprint-explainable-ui/flowchart';
@@ -49,7 +50,9 @@ export function InfrastructureChart({ source, ...props }: ChartProps & { source:
         nodeTypes={infrastructureNodeTypes} layoutOptions={layoutOptions} renderer={props.renderer}
         onNodeClick={id => props.onNodeClick?.(id)} onSubflowChange={props.onSubflowChange}
         currentSubflowId={props.currentSubflowId ?? null} sliceCone={props.sliceCone}
-        traceWorkflow={props.traceWorkflow} unstyled={props.unstyled} minZoom={0.1} />
+        traceWorkflow={props.traceWorkflow} unstyled={props.unstyled} minZoom={0.1} autoFit={{ padding: 0.06 }}>
+        <Controls showInteractive={false} />
+      </TracedFlow>
     </div>
   </div>;
 }
