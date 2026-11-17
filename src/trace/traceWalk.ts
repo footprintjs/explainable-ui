@@ -260,11 +260,15 @@ export function buildTraceWalk(
     };
     const legacy = writes.get(writtenKey)?.readKeys === undefined;
     let ingredients = legacy ? legacyInputs.get(commitIdx) : undefined;
+    // Legacy outputs share one stage-wide read list. Keep an entry for every
+    // contributed output, but propagate that same ancestor list only once.
+    const expandInputs = ingredients === undefined;
     if (!ingredients) {
       ingredients = readsForWrittenKey(writes, stageReads, writtenKey).map(resolve);
       if (legacy) legacyInputs.set(commitIdx, ingredients);
     }
     byKey.set(writtenKey, ingredients);
+    if (legacy && !expandInputs) continue;
     for (const ingredient of ingredients) {
       if (ingredient.writerCommitIdx !== null && stopAt.has(ingredient.writerCommitIdx))
         questions.push([ingredient.writerCommitIdx, ingredient.key]);
@@ -277,12 +281,19 @@ export function buildTraceWalk(
     stop.contributedKeys = [...byKey.keys()];
     stop.ingredientsByKey = Object.fromEntries(byKey);
     const seen = new Set<string>();
-    for (const ingredients of byKey.values()) for (const ingredient of ingredients) {
-      const identity = JSON.stringify([ingredient.key, ingredient.writerCommitIdx, ingredient.unresolvedReason ?? null]);
-      if (seen.has(identity)) continue;
-      seen.add(identity); stop.ingredients.push(ingredient);
-      if (ingredient.writerCommitIdx === null && !terminiSeen.has(ingredient.key)) {
-        terminiSeen.add(ingredient.key); inputTermini.push(ingredient.key);
+    const visitedInputs = new Set<readonly TraceIngredient[]>();
+    for (const ingredients of byKey.values()) {
+      // The legacy array can be referenced by many outputs. Per-write arrays
+      // remain separate, even when their captured prefixes happen to match.
+      if (visitedInputs.has(ingredients)) continue;
+      visitedInputs.add(ingredients);
+      for (const ingredient of ingredients) {
+        const identity = JSON.stringify([ingredient.key, ingredient.writerCommitIdx, ingredient.unresolvedReason ?? null]);
+        if (seen.has(identity)) continue;
+        seen.add(identity); stop.ingredients.push(ingredient);
+        if (ingredient.writerCommitIdx === null && !terminiSeen.has(ingredient.key)) {
+          terminiSeen.add(ingredient.key); inputTermini.push(ingredient.key);
+        }
       }
     }
   }
