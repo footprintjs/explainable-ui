@@ -31,7 +31,7 @@ Arrange or hide the optional panes with a [JSON layout](#arrange-the-full-lens-f
 
 ## Install
 
-The published 1.1.0 release includes the workflow Shell and headless controller.
+The workflow Shell and shared headless controller are available together from version 1.1.0.
 The new `/record` entry and graph peer changes below target the next major release.
 To try this branch before release, use its built package archive.
 

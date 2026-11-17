@@ -40,6 +40,19 @@ describe("Foottrace stop slider", () => {
     expect(container.querySelectorAll('[data-fp="tt-tick"]')).toHaveLength(0);
   });
 
+  it.each([{ source: [] }, { source: stops.slice(0, 1) }])("keeps a disabled segmented track inert", ({ source }) => {
+    const change = vi.fn();
+    const { container } = render(<RecordTimeSlider stops={source} step={0} scale="duration" presentation="segmented" onStepChange={change} />);
+    const track = container.querySelector<HTMLElement>('[data-fp="tt-position-axis"]')!;
+    const capture = vi.fn();
+    track.setPointerCapture = capture;
+    track.getBoundingClientRect = () => ({ left: 0, width: 100 }) as DOMRect;
+    const event = new MouseEvent("pointerdown", { bubbles: true, button: 0, clientX: 50 });
+    fireEvent(track, event);
+    expect(capture).not.toHaveBeenCalled();
+    expect(change).not.toHaveBeenCalled();
+  });
+
   it("discloses missing timings and never replaces a rejected cursor with a valid stop", () => {
     const change = vi.fn();
     const { rerender } = render(<RecordTimeSlider stops={stops} step={1} scale="duration" onStepChange={change} />);
