@@ -1,0 +1,4 @@
+{
+  "extends": "../headless-controller/tsconfig.json",
+  "include": ["*.ts", "*.tsx"]
+}

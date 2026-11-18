@@ -31,6 +31,13 @@ const { renderToStaticMarkup } = require("react-dom/server");
 const { ReactFlowProvider, Position } = xyflow;
 const Icon = React.forwardRef(({ name, children: _children, ...props }, ref) => React.createElement("span", { ...props, ref, "data-company-icon": name }, "Company icon"));
 for (const name of ["TraceFlow", "TracedFlow", "IsometricStageNode", "IsometricEdge", "IsometricGrid", "FootprintTheme"]) assert.equal(typeof api[name], "function", name);
+const reader = api.createDiagramAppearanceReader([
+  { step: 1, target: "node", id: "stage", appearance: { activity: "updating", progress: { completed: 0, total: 2 } } },
+  { step: 3, target: "node", id: "stage", appearance: { presence: "removed" } },
+]);
+assert.equal(reader.at(3).nodes.stage.presence, "removed");
+assert.equal(reader.at(2).nodes.stage.progress.completed, 0);
+assert.equal(reader.at(0).nodes.stage, undefined);
 const node = React.createElement(ReactFlowProvider, null,
   React.createElement(api.FootprintTheme, { components: { Icon }, tokens: { nodes: { borderColor: "#123456" } } },
     React.createElement(api.IsometricStageNode, { data: { label: "Recorded stage", description: "Saved description", icon: "company-stage", active: true } })));

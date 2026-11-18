@@ -1,16 +1,19 @@
 import { BaseEdge, EdgeLabelRenderer, useStore } from "@xyflow/react";
 import type { EdgeProps, ReactFlowState } from "@xyflow/react";
+import { DiagramEdgeAppearance, appearanceFromData } from "../DiagramAppearance";
+import { useDiagramDrawingOptions } from "../DiagramDrawing";
 import { recordedPathLabel } from "../../trace/recordedValuePreview";
 import { theme, componentStyles } from "../../theme";
 import { recordedReadGeometry, type RecordedReadGeometry } from "./_internal/recordedReadGeometry";
 
-/** A separate, static evidence lane. It never borrows execution edges or their handles. */
+/** A separate, static evidence lane. An explicit host port only changes its endpoint. */
 export function RecordedReadEdge({ id, source, target, markerEnd, style, data }: EdgeProps) {
+  const { geometry: nodeGeometry } = useDiagramDrawingOptions();
   const lane = typeof data?.lane === "number" ? data.lane : 0;
   const unstyled = data?.unstyled === true;
   const ui = componentStyles();
   const geometry = useStore((state: ReactFlowState) => {
-    const route = recordedReadGeometry(state.nodeLookup, source, target, lane);
+    const route = recordedReadGeometry(state.nodeLookup, source, target, lane, nodeGeometry);
     return route ? JSON.stringify(route) : "";
   });
   if (!geometry) return null;
@@ -21,8 +24,10 @@ export function RecordedReadEdge({ id, source, target, markerEnd, style, data }:
   return <><g data-fp="trace-workflow-read" role="img"
     aria-label={`Recorded read ${pathLabel} from ${String(data?.sourceRuntimeStageId)} to ${String(data?.targetRuntimeStageId)}`}>
     <title>{`Recorded stage read: ${pathLabel}. ${String(data?.sourceRuntimeStageId)} → ${String(data?.targetRuntimeStageId)}`}</title>
-    <BaseEdge id={id} path={path} markerEnd={markerEnd} interactionWidth={0}
-      style={unstyled ? style : { strokeDasharray: "6 4", animation: "none", transition: "none", ...style }} />
+    <DiagramEdgeAppearance path={path} appearance={appearanceFromData(data)} unstyled={unstyled}>
+      <BaseEdge id={id} path={path} markerEnd={markerEnd} interactionWidth={0}
+        style={unstyled ? style : { strokeDasharray: "6 4", animation: "none", transition: "none", ...style }} />
+    </DiagramEdgeAppearance>
   </g><EdgeLabelRenderer><span data-fp="trace-workflow-read-label" aria-hidden="true"
     style={{ position: "absolute", transform: `translate(-50%, -50%) translate(${box.x + box.width / 2}px,${box.y + box.height / 2}px)`,
       width: "max-content", maxWidth: box.width, height: box.height, boxSizing: "border-box", overflow: "hidden",

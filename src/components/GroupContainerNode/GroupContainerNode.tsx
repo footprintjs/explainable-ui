@@ -14,12 +14,14 @@
  * done/active semantics the bundled `StageNode` uses.
  */
 
+import { DiagramNodeAppearance, type DiagramObjectAppearance } from "../DiagramAppearance";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import type { ReactNode } from "react";
 import { theme, componentStyles, v } from "../../theme";
 
 export interface GroupContainerNodeData {
+  diagramAppearance?: DiagramObjectAppearance;
   label: string;
   isGroupContainer?: boolean;
   active?: boolean;
@@ -60,7 +62,7 @@ export function GroupContainerNode({ data }: NodeProps) {
   const recordedStatus = d.error ? "Failed" : d.active ? "Selected" : d.done ? "Visited" : undefined;
 
   return (
-    <div
+    <DiagramNodeAppearance appearance={d.diagramAppearance} unstyled={unstyled}><div
       data-fp="group-container-node"
       data-active={d.active || undefined}
       data-done={d.done || undefined}
@@ -111,6 +113,6 @@ export function GroupContainerNode({ data }: NodeProps) {
       {/* Edge handles — top target, bottom source (top→bottom flow). */}
       <Handle type="target" position={expandable && d.handleDirection === "LR" ? Position.Left : Position.Top} style={unstyled ? undefined : { opacity: 0 }} />
       <Handle type="source" position={expandable && d.handleDirection === "LR" ? Position.Right : Position.Bottom} style={unstyled ? undefined : { opacity: 0 }} />
-    </div>
+    </div></DiagramNodeAppearance>
   );
 }

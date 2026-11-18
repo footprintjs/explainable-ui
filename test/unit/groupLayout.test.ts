@@ -97,6 +97,19 @@ function mergeTreeGraph(): TraceGraph {
 // ── Tests ────────────────────────────────────────────────────────────────
 
 describe("applyGroupLayout", () => {
+  it("uses the expanded frame for both XYFlow dimensions even when the mount owned a smaller drawing", () => {
+    const input = mergeTreeGraph();
+    const mount = input.nodes.find(n => n.id === "sf-messages")!;
+    mount.width = 60;
+    mount.height = 40;
+    const graph = applyGroupLayout(input, { groupedSubflowIds: ["sf-messages"], baseLayout: stubLayout });
+    const box = graph.nodes.find(n => n.id === mount.id)!;
+    expect(box.width).toBe(box.style?.width);
+    expect(box.height).toBe(box.style?.height);
+    expect(box.width).toBeGreaterThan(60);
+    expect(mount.width).toBe(60);
+  });
+
   it("identity: empty groupedSubflowIds returns the input graph unchanged", () => {
     const g = mergeTreeGraph();
     const out = applyGroupLayout(g, { groupedSubflowIds: [], baseLayout: stubLayout });

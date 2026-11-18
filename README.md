@@ -676,6 +676,43 @@ what it wanted instead of rendering empty chrome.
 | `size` | `"compact" \| "default" \| "detailed"` | `"default"` | Size variant |
 | `unstyled` | `boolean` | `false` | Remove built-in core Lens paint and retain semantic `data-fp` hooks; the default becomes the composite Explainable surface |
 
+### Draw a graph from code, live state or recorded steps
+
+A graph supplies stable node and edge IDs. Render it immediately with `TraceFlow`.
+An application can supply the current appearance directly when a job starts, reports
+progress or confirms removal. The same props work on flat and isometric charts.
+
+```tsx
+import { TraceFlow, createDiagramAppearanceReader } from "footprint-explainable-ui/flowchart";
+
+<TraceFlow graph={graph} diagramAppearance={{
+  nodes: { compose: { activity: "updating", health: "available",
+    progress: { completed: 2, total: 5, unit: "pages" } } },
+}} />;
+
+const reader = createDiagramAppearanceReader([
+  { step: 2, target: "edge", id: handoffId, appearance: { activity: "removing" } },
+  { step: 4, target: "edge", id: handoffId, appearance: { presence: "removed" } },
+]);
+<TraceFlow graph={graph} diagramAppearance={reader.at(selectedStep)} />;
+```
+
+The reader indexes the observations you supply for one recording scope. Each
+change replaces one object's appearance, and `null` clears it. Keep the node
+or edge and its endpoints in the graph to show a confirmed-removal ghost.
+An activity without a measured total shows its label without a percentage.
+FootPrintJS, Foottrace, or your own application can supply observations and
+the selected step. A static graph requires no recorder.
+
+Use `diagramGeometry` for each node's width, height and source/target attachment
+points in local pixels. `diagramDrawings` maps trusted names to React components.
+Full custom node and edge renderers receive `data.diagramAppearance` and can reuse
+`DiagramNodeAppearance` or `DiagramEdgeAppearance`. With `ExplainableShell` or
+`TraceViewer`, use `diagramAppearanceAt={({ selectedIndex, invocationPath }) =>
+readerFor(invocationPath)?.at(selectedIndex)}` to follow the current replay or
+Backtrack stop. See the [document handoff example](examples/diagram-appearance/README.md)
+for live controls, sparse events, custom geometry, and both renderers.
+
 ### Choose chart geometry
 
 Choose the illustrated renderer with a prop; the same recording, replay cursor,

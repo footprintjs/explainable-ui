@@ -1,8 +1,12 @@
 import { memo, useEffect, useRef } from "react";
-import type { CSSProperties } from "react";
-import { Handle, Position } from "@xyflow/react";
+import type { CSSProperties, ReactNode } from "react";
+import { Position } from "@xyflow/react";
 import type { NodeProps } from "@xyflow/react";
 import { theme, componentStyles, fontSize, FootprintIcon, useFootprintComponents, v } from "../../theme";
+import { DiagramPort } from "../DiagramDrawing/DiagramPort";
+import { Artwork } from "../DiagramDrawing/Artwork";
+import type { DiagramObjectAppearance } from "../DiagramAppearance/model";
+import type { DiagramNodeGeometry } from "../DiagramDrawing/types";
 import { recordedPathLabel } from "../../trace/recordedValuePreview";
 
 const KEYFRAMES_ID = "fp-stage-node-keyframes";
@@ -31,6 +35,7 @@ const traceText = (value: string, limit: number): string =>
   value.length > limit ? `${value.slice(0, limit - 1)}…` : value;
 
 export interface StageNodeData {
+  diagramAppearance?: DiagramObjectAppearance;
   label: string;
   active?: boolean;
   done?: boolean;
@@ -337,8 +342,8 @@ function StageIcon({ type, color, size, unstyled }: { type: string; color: strin
  * Shows execution state via color, icon, step badge, and pulse animation.
  */
 export const StageNode = memo(function StageNode({
-  data,
-}: NodeProps & { data: StageNodeData }) {
+  data, diagramGeometry, diagramArtwork,
+}: NodeProps & { data: StageNodeData; diagramGeometry?: DiagramNodeGeometry; diagramArtwork?: ReactNode }) {
   const { label, active, done, error, linked, icon, stepNumbers, dimmed, isSubflow, isLazy, isDecider, isFork, description, stageId, showStageId, retryAttempts, traceWorkflow, traceContext, suppressMotion } = data;
   const displayedContext = traceContext ?? (traceWorkflow ? "displayed" : undefined);
   const viewingTrace = displayedContext !== undefined;
@@ -469,7 +474,7 @@ export const StageNode = memo(function StageNode({
 
   return (
     <>
-      <Handle type="target" position={Position.Top} style={sx({ opacity: 0 })} />
+      <DiagramPort geometry={diagramGeometry} type="target" position={Position.Top} style={sx({ opacity: 0 })} />
       {/* Centering wrapper. React Flow sizes the node WRAPPER to the layout's
           allocated width (which may be WIDER than the card — e.g. uniform-width
           columns, or a NodeSizeResolver footprint stamped by the layout). The
@@ -491,7 +496,7 @@ export const StageNode = memo(function StageNode({
         title={displayedContext === "outside" ? "Outside displayed trace. Recorded execution status is shown independently."
           : displayedContext === "displayed" ? "In displayed trace. Recorded execution status is shown independently." : undefined}
         data-motion-suppressed={suppressMotion || undefined}
-        style={sx({ width: "100%", display: "flex", justifyContent: "center" })}
+        style={sx({ width: "100%", display: "flex", justifyContent: "center", ...(diagramGeometry && { height: diagramGeometry.height, alignItems: "center" }) })}
       >
         <div
           style={sx({
@@ -499,6 +504,7 @@ export const StageNode = memo(function StageNode({
             display: "flex",
             alignItems: "center",
             gap: 6,
+            ...(diagramGeometry && { width: "100%", height: "100%" }),
             // Trace emphasis uses rings and read links; every stage label stays readable.
             opacity: viewingTrace ? 1 : isMuted ? 0.5 : undefined,
           })}
@@ -506,7 +512,7 @@ export const StageNode = memo(function StageNode({
           {/* Evidence is an absolute overlay: run status, measured dimensions
               and the target/source handles keep their existing meaning. */}
           {traceWorkflow && <>
-            {isDecider ? <svg
+            {isDecider && !diagramArtwork ? <svg
               data-fp="trace-workflow-ring"
               aria-hidden="true"
               viewBox="0 0 100 100"
@@ -680,8 +686,18 @@ export const StageNode = memo(function StageNode({
           )}
 
           {/* Diamond for decider nodes — proper diamond via clip-path */}
-          {isDecider ? (
-            <div data-fp="stage-node-body" style={sx({ position: "relative", width: 120, height: 72, color: textColor, filter: v("--fp-node-shape-shadow", "none") })}>
+          {diagramArtwork && diagramGeometry ? <>
+            <Artwork geometry={diagramGeometry}>{diagramArtwork}</Artwork>
+            {error && <span data-fp="diagram-stage-error" style={sx({ position: "absolute", top: 0, left: 0,
+              color: theme.error, background: theme.bgSecondary, fontSize: 10 })}>Failed</span>}
+            <span data-fp="diagram-stage-label" style={sx({ position: "absolute", bottom: 0, left: 0, width: "100%",
+              textAlign: "center", whiteSpace: "nowrap", textOverflow: "ellipsis", overflow: "hidden", pointerEvents: "none",
+              color: theme.textPrimary, fontFamily: theme.fontSans, fontSize: 13 })} title={description ?? label}>
+              {label}{description && <small style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis" }}>{description}</small>}
+              {showStageId && stageId && <small style={{ display: "block" }}>{stageId}</small>}
+            </span>
+          </> : isDecider ? (
+            <div data-fp="stage-node-body" style={sx({ position: "relative", width: diagramGeometry?.width ?? 120, height: diagramGeometry?.height ?? 72, color: textColor, filter: v("--fp-node-shape-shadow", "none") })}>
               {/* Diamond shape layer */}
               <div
                 style={sx({
@@ -792,7 +808,8 @@ export const StageNode = memo(function StageNode({
                 boxShadow: shadow,
                 transition: suppressMotion ? "none" : "all 0.3s ease",
                 fontFamily: theme.fontSans,
-                minWidth: 100,
+                minWidth: diagramGeometry ? 0 : 100,
+                ...(diagramGeometry && { width: "100%", height: "100%", boxSizing: "border-box" }),
                 justifyContent: "center",
               })}
             >
@@ -899,7 +916,7 @@ export const StageNode = memo(function StageNode({
           )}
         </div>
       </div>
-      <Handle type="source" position={Position.Bottom} style={sx({ opacity: 0 })} />
+      <DiagramPort geometry={diagramGeometry} type="source" position={Position.Bottom} style={sx({ opacity: 0 })} />
     </>
   );
 });

@@ -66,6 +66,7 @@ export function ShellPresentation(props: ExplainableShellProps) {
   defaultExpanded,
   recorderViews,
   renderFlowchart,
+  diagramGeometry, diagramDrawings, diagramAppearance, diagramAppearanceAt,
   flowchart,
   theme: consumerTheme,
   renderLayout,
@@ -430,7 +431,11 @@ export function ShellPresentation(props: ExplainableShellProps) {
     activityOrigin={traceSession.activityOrigin ?? undefined}>
     {showExecutionChart ? <MountedChart render={() => effectiveRenderFlowchart!({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx,
       onNodeClick: handleNodeClick, showStageId, currentSubflowId: chartDrillKey,
-      onSubflowChange: handleChartSubflowChange, traceWorkflow, renderer: flowchartRenderer, unstyled, ...(sliceCone && { sliceCone }) })} /> : null}
+      onSubflowChange: handleChartSubflowChange, traceWorkflow, renderer: flowchartRenderer, unstyled,
+      diagramGeometry, diagramDrawings,
+      diagramAppearance: diagramAppearanceAt
+        ? diagramAppearanceAt({ selectedIndex: safeIdx, selectedSnapshot: activeSnapshots[safeIdx], invocationPath: activeTraceScope.invocationPath })
+        : diagramAppearance, ...(sliceCone && { sliceCone }) })} /> : null}
   </TraceDependencyView>;
   const commentarySurface = <CommentaryPanel title="What happened" presentation="log" groupByStage followCursor showEntryTypes={false}
     {...commentary} size={size} unstyled={unstyled} />;

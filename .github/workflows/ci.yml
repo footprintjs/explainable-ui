@@ -51,6 +51,20 @@ jobs:
           npx tsc -p examples/deployment-shapes/tsconfig.json
           npx vite build --config examples/deployment-shapes/vite.config.ts
 
+      - name: Check and build diagram appearance example
+        if: matrix.node-version == 22
+        run: |
+          npx tsc -p examples/diagram-appearance/tsconfig.json
+          npx vite build --config examples/diagram-appearance/vite.config.ts
+
+      - name: Retain diagram appearance example for PR review
+        if: matrix.node-version == 22 && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagram-appearance-preview
+          path: demo-dist/diagram-appearance/
+          if-no-files-found: error
+
       - name: Check and build shared controller example
         if: matrix.node-version == 22
         run: |

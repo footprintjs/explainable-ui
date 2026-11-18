@@ -86,6 +86,7 @@ export function Demo() {
         {" — replay, Developer / Commentary details, and configurable node icons."}
         {" "}<a href="https://footprintjs.github.io/explainable-ui/local-playground/?look=isometric">Try the isometric view</a>.
         {" "}<a href="./deployment-shapes/">Deployment shapes and lazy server details</a>.
+        {" "}<a href="./diagram-appearance/">Document handoff with live and saved diagram observations</a>.
         {" "}<a href="./headless-controller/">One controller with custom controls and a shared Shell</a>.
       </p>
 

@@ -81,6 +81,23 @@ describe("Shell workflow trace forwarding", () => {
     expect(chart?.traceWorkflow).toBeNull();
   });
 
+  it("projects appearance at the selected Backtrack stop in both directions", () => {
+    const at = vi.fn<NonNullable<ExplainableShellProps["diagramAppearanceAt"]>>(
+      ({ selectedSnapshot }) => selectedSnapshot ? { nodes: { total: { health: selectedSnapshot.runtimeStageId } } } : undefined,
+    );
+    renderDefaultChart.mockClear();
+    render(<ExplainableShell runtimeSnapshot={runtimeSnapshot} snapshots={snapshots} traceGraph={graph} diagramAppearanceAt={at} />);
+    const health = () => (renderDefaultChart.mock.lastCall?.[0] as ChartProps)?.diagramAppearance?.nodes?.total?.health;
+    expect(health()).toBe("seed#0");
+    startTracing();
+    expect(health()).toBe("total#4");
+    fireEvent.click(screen.getByLabelText("Earlier recorded step"));
+    expect(health()).toBe("tax#3");
+    expect(at.mock.lastCall?.[0]).toMatchObject({ selectedIndex: 3, invocationPath: [] });
+    fireEvent.click(screen.getByLabelText("Later recorded step"));
+    expect(health()).toBe("total#4");
+  });
+
   it("passes the overlay through the default chart renderer and clears it on exit", () => {
     renderDefaultChart.mockClear();
     render(<ExplainableShell runtimeSnapshot={runtimeSnapshot} snapshots={snapshots} traceGraph={graph} />);

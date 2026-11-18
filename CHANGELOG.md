@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Add consumer-owned drawings and attachment points to flat and isometric charts, with shared node and edge appearance for live and recorded activity, measured progress, and confirmed removal.
+
 ## [1.1.1] - 2026-11-17
 
 ### Fixed
