@@ -73,6 +73,21 @@ export interface TraceIngredient {
   unresolvedReason?: ReadPathUncertainty;
 }
 
+/** A writer observed by a stage read. Its relationship to this output is unconfirmed. */
+export interface TraceStageRead {
+  readonly key: string;
+  readonly runtimeStageId: string;
+  readonly stageName: string;
+  /** Native scope-local index, including an invocation seed. */
+  readonly commitIdx: number;
+  /** Cutoff on the current replay timeline. Zero denotes a seed outside its rail. */
+  readonly beforeCommitIdx: number;
+}
+
+export function stageReadLabel(read: TraceStageRead): string {
+  return `${recordedPathLabel(read.key)} from ${read.stageName}, commit ${read.commitIdx}`;
+}
+
 /** One stop on the rewind rail — a slice frame with its rail position. */
 export interface TraceStop {
   runtimeStageId: string;
@@ -86,6 +101,8 @@ export interface TraceStop {
   contributedKeys: string[];
   keysWritten: string[];
   ingredients: TraceIngredient[];
+  /** Observed reads independent of this output’s confirmed ingredients. */
+  stageReads?: readonly TraceStageRead[];
   /** Exact per-output read prefixes. Older caller-supplied walks may omit it. */
   ingredientsByKey?: Readonly<Record<string, readonly TraceIngredient[]>>;
   /** BFS hop distance from the anchor (tooltip-grade info, NOT the walk
@@ -447,6 +464,7 @@ export function formatTraceWalk(
         stop.stageName
       }${pass} wrote \`${stop.contributedKeys.map(recordedPathLabel).join("`, `")}\`${readEvidence}`
     );
+    if (stop.stageReads?.length) lines.push("Recorded stage reads", ...stop.stageReads.map(stageReadLabel));
     if (stop.gapMessages) lines.push(...stop.gapMessages);
     if (stop.handoffSources?.length) lines.push(handoffSentence(stop.handoffSources));
   });

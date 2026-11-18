@@ -86,6 +86,16 @@ export async function buildScopedWalk(graph: ScopedRecordGraph, snapshot: unknow
     stop.contributedKeys.push(key);
     const messages = new Set(stop.gapMessages);
     for (const gap of answer.gaps) messages.add(gap.message);
+    if (answer.candidates?.length) {
+      const stageReads = [...(stop.stageReads ?? [])];
+      for (const candidate of answer.candidates) {
+        if (!samePath(candidate.invocationPath, path) ||
+          stageReads.some(read => read.key === candidate.key && read.commitIdx === candidate.commitIdx)) continue;
+        stageReads.push({ key: candidate.key, runtimeStageId: candidate.runtimeStageId, stageName: candidate.stageName,
+          commitIdx: candidate.commitIdx, beforeCommitIdx: candidate.commitIdx - offset + 1 });
+      }
+      stop.stageReads = stageReads;
+    }
     const sources: SubflowHandoffSource[] = [...(stop.handoffSources ?? [])];
     function addHandoff(source: ScopedWriter) {
       const target = scopeLog(snapshot, source.invocationPath);
@@ -108,18 +118,19 @@ export async function buildScopedWalk(graph: ScopedRecordGraph, snapshot: unknow
           beforeCommitIdx: source.commitIdx + 1 - target.offset, direction, writerRuntimeStageId: source.runtimeStageId,
         });
     }
+    for (const handoff of answer.handoffs ?? []) addHandoff(handoff);
     const inputs: TraceIngredient[] = [];
     for (const source of answer.writers) {
-      if (!samePath(source.invocationPath, path)) { addHandoff(source); continue; }
+      if (!samePath(source.invocationPath, path)) continue;
       if (source.commitIdx < offset) {
         // The seed has no slider tick. Only its recorded input mapping can cross to the parent.
         const seed = await graph.read({ invocationPath: path, key: source.key, beforeCommitIdx: source.commitIdx + 1,
           runtimeStageId: source.runtimeStageId, signal });
         if (seed.writer?.commitIdx === source.commitIdx && seed.writer.key === source.key) {
           for (const gap of seed.gaps) messages.add(gap.message);
-          for (const from of seed.writers) if (!samePath(from.invocationPath, path)) addHandoff(from);
+          for (const from of seed.handoffs ?? []) addHandoff(from);
         }
-        if (!seed.writers.length) messages.add(`${source.key} recorded at invocation start; earlier origin unknown.`);
+        if (!seed.writers.length && !seed.handoffs?.length) messages.add(`${source.key} recorded at invocation start; earlier origin unknown.`);
         continue;
       }
       inputs.push({ key: source.key, writerCommitIdx: source.commitIdx - offset, writerRuntimeStageId: source.runtimeStageId,
@@ -131,7 +142,7 @@ export async function buildScopedWalk(graph: ScopedRecordGraph, snapshot: unknow
     // Preserve positively named reads whose producer the graph cannot identify.
     // Never use a fallback writer, or turn a mount's local input into output evidence.
     if (!ownDataField(local.scope?.mountLabels, runtimeStageId) &&
-      !answer.gaps.some(gap => ["redacted", "failed", "budget", "unsupported"].includes(gap.code))) {
+      !answer.gaps.some(gap => ["redacted", "failed", "budget", "unsupported", "conservative"].includes(gap.code))) {
       const recorded = local.stops.find(candidate => candidate.commitIdx === stop!.commitIdx)?.ingredientsByKey?.[key];
       for (const read of recorded ?? []) {
         if (read.writerCommitIdx === null && !answer.writers.some(writer => writer.key === read.key)) {

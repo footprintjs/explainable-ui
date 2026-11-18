@@ -88,9 +88,13 @@ return <>
 
 `onPositionChange` receives the complete address for both Follow and Return.
 A headless host can call `await scoped.backtrack(step, key)` and map each returned
-writer to a replay stop with `reader.positionOf(writer)`. In recordings with
-subflows, `at()` gives the synchronous state and local slice. The scoped query
-supplies the navigation targets and gap messages.
+writer to a replay stop with `reader.positionOf(writer)`. For a scope-aware reader,
+`at()` gives the synchronous state and local slice. The scoped query returns
+direct `writers`, optional stage-read `candidates`, optional mapper `handoffs`, and `gaps`. Each candidate
+identifies the commit that supplied a read. Its presence alone cannot establish
+which write used that read. The UI lists candidates under “Recorded stage reads”. A selectable candidate opens its own question on the shared cursor.
+A mapper read includes its exact source address. RecordLens shows it under
+“Recorded handoff reads” and lets the host follow the address across scopes.
 A covered payment recording can link the parent’s `receipt` to the `Charge`
 step that wrote the child’s `txnId`, even if the parent has its own `txnId`.
 A policy marked off reads “not collected”. A missing collection note reads

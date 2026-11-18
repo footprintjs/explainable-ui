@@ -23,7 +23,7 @@ import type { CSSProperties } from "react";
 import { componentStyles, theme } from "../../theme";
 import type { BaseComponentProps, Size } from "../../types";
 import {
-  formatTraceWalk,
+  formatTraceWalk, stageReadLabel, type TraceStageRead,
   type TraceIngredient,
   type TraceStop,
   type TraceWalk,
@@ -48,7 +48,7 @@ export interface TraceWalkCardProps extends BaseComponentProps {
   /** Active ingredient filter (breadcrumb "▸ via key"). */
   viaKey?: string | null;
   /** Original question followed by exact variable/invocation hops, including the current question. */
-  questionTrail?: readonly { key: string; invocationPath: readonly string[] }[];
+  questionTrail?: readonly { key: string; invocationPath: readonly string[]; stageReadCommitIdx?: number }[];
   /** Restore a saved question and its original cutoff/cursor. */
   onReturnToQuestion?: (index: number) => void;
   /** Map a stop to its 1-based rail step number (null = not on this rail). */
@@ -57,6 +57,7 @@ export interface TraceWalkCardProps extends BaseComponentProps {
    *  reads snapshot.memory — state as of that moment). */
   previewValueOf?: (key: string) => unknown;
   /** Follow an ingredient: re-anchor the walk on ing.key before this stop. */
+  onInspectStageRead?: (read: TraceStageRead) => void;
   onFollowIngredient?: (ing: TraceIngredient) => void;
   /** Open an exact child invocation and trace its recorded source on that scope's rail. */
   onFollowHandoff?: (source: SubflowHandoffSource) => void;
@@ -89,6 +90,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   onReturnToQuestion,
   stepNumberOf,
   previewValueOf,
+  onInspectStageRead,
   onFollowIngredient,
   onFollowHandoff,
   onJumpToStop,
@@ -340,6 +342,19 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         )}
       </div>
 
+      {!!current.stageReads?.length && <div role="group" aria-label="Recorded stage reads" style={sx({ marginTop: ui.spaceMd })}>
+        <h3 style={sx({ fontSize: ui.label, color: theme.textSecondary, margin: 0 })}>Recorded stage reads</h3>
+        <ul style={sx({ paddingLeft: ui.spaceLg, margin: 0 })}>
+          {current.stageReads.map(read => <li key={JSON.stringify([read.key, read.commitIdx])}>
+            {onInspectStageRead && read.beforeCommitIdx > 0 && stepNumberOf(read.runtimeStageId) !== null
+              ? <FootprintButton {...controls} part="trace-inspect-stage-read" type="button" onClick={() => onInspectStageRead(read)}
+                  defaultStyle={sx({ background: "transparent", border: "none", color: accent, padding: 0, minHeight: ui.controlHeight, cursor: "pointer", fontSize: ui.label })}>
+                  Inspect stage read {stageReadLabel(read)}
+                </FootprintButton>
+              : stageReadLabel(read)}
+          </li>)}
+        </ul>
+      </div>}
       {current.gapMessages?.map(message => <div key={message} data-fp="twc-gap" style={sx({ marginTop: ui.spaceSm, color: theme.textSecondary })}>{message}</div>)}
       {!!current.handoffSources?.length && <div data-fp="twc-handoff" style={sx({ marginTop: `calc(${ui.spaceSm} + 2px)` })}>
         <div style={sx({ fontSize: ui.label, color: theme.textMuted })}>{handoffSentence(current.handoffSources)}</div>
@@ -491,6 +506,7 @@ function QuestionTrail({ entries, onReturn, sx, ui, size, unstyled }: {
     <div style={sx({ display: "flex", flexWrap: "wrap", alignItems: "center", gap: ui.controlGap, fontSize: ui.label })}>
       {entries.map((entry, index) => <span key={`${index}:${entry.key}`} style={sx({ display: "inline-flex", alignItems: "center", gap: ui.controlGap })}>
         {index > 0 && <span aria-hidden="true">›</span>}
+        {entry.stageReadCommitIdx !== undefined && <span>Stage read · commit {entry.stageReadCommitIdx}</span>}
         {index === entries.length - 1 ? <span aria-current="step"><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(entry.key)}</FootprintCode></span> : <FootprintButton {...controls} part="trace-question-return" type="button" onClick={() => onReturn?.(index)} disabled={!onReturn}
           aria-label={`Return to ${recordedPathLabel(entry.key)} in ${entry.invocationPath.join(" → ") || "root"}`}
           title={`${entry.invocationPath.length ? entry.invocationPath.join(" → ") : "Root"}: ${recordedPathLabel(entry.key)}`}

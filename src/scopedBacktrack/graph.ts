@@ -24,6 +24,10 @@ export interface ScopedGap {
 export interface ScopedBacktrack {
   readonly writer?: ScopedWriter;
   readonly writers: readonly ScopedWriter[];
+  /** Addressed stage reads whose occurrences are not bound to this write. */
+  readonly candidates?: readonly ScopedWriter[];
+  /** Observed input or output mapper reads at their recorded source cutoffs. */
+  readonly handoffs?: readonly ScopedWriter[];
   readonly gaps: readonly ScopedGap[];
 }
 
@@ -64,6 +68,7 @@ const messages: Record<string, string> = {
   "nested-rows": "This step wrote only part of the selected value.",
   "writer-address-unverified": "The exact recorded writer address could not be verified.",
   "ambiguous": "The recorded read has more than one possible writer.",
+  "conservative": "The record does not tie a particular read to this write.",
   "scope-boundary": "The record does not establish this subflow handoff.",
   "unsupported": "The recording uses an unsupported evidence format.",
   "cancelled": "The Backtrack query was cancelled.",
@@ -169,7 +174,7 @@ function canFollow(edge: GraphEdge, target: ScopedWriter, writer: ScopedWriter, 
   return candidates > 1 ? "ambiguous" : "writer-address-unverified";
 }
 
-function addOutputGaps(scope: NativeScope, writer: ScopedWriter, direct: readonly ScopedWriter[], codes: Set<string>) {
+function addOutputGaps(scope: NativeScope, writer: ScopedWriter, hasHandoff: boolean, codes: Set<string>) {
   const id = writer.runtimeStageId;
   if (scope.missingChildren.has(id)) { codes.add("missing-child"); return; }
   if (!scope.mounts.has(id)) return;
@@ -177,7 +182,7 @@ function addOutputGaps(scope: NativeScope, writer: ScopedWriter, direct: readonl
   if (output === undefined) { codes.add("output-unknown"); return; }
   if (field(field(output, "parent"), "commitIdx") !== writer.commitIdx) return;
   for (const limitation of selectedLimitations(output)) codes.add(lossCode(limitation));
-  if (!direct.some(target => !samePath(target.invocationPath, writer.invocationPath))) codes.add("scope-boundary");
+  if (!hasHandoff) codes.add("scope-boundary");
 }
 
 function addInputGaps(scopes: ScopeMap, writer: ScopedWriter, codes: Set<string>) {
@@ -190,14 +195,15 @@ function addInputGaps(scopes: ScopeMap, writer: ScopedWriter, codes: Set<string>
   for (const limitation of limitations) codes.add(lossCode(limitation));
 }
 
-function addBoundaryGaps(scopes: ScopeMap, scope: NativeScope, writer: ScopedWriter, direct: readonly ScopedWriter[],
+function addBoundaryGaps(scopes: ScopeMap, scope: NativeScope, writer: ScopedWriter, hasHandoff: boolean,
   reasons: readonly Gap[], codes: Set<string>) {
   for (const reason of reasons) {
-    if (reason.code === "not-collected" || reason.code === "conservative") continue;
-    if (reason.code === "scope-boundary" && scope.mounts.has(writer.runtimeStageId)) continue;
+    if (reason.code === "not-collected") continue;
+    if (reason.code === "scope-boundary" && scope.mounts.has(writer.runtimeStageId) &&
+        (scope.missingChildren.has(writer.runtimeStageId) || field(scope.mounts.get(writer.runtimeStageId), "outputHandoff") === undefined)) continue;
     codes.add(lossCode(reason.code));
   }
-  addOutputGaps(scope, writer, direct, codes);
+  addOutputGaps(scope, writer, hasHandoff, codes);
   addInputGaps(scopes, writer, codes);
   if (!reasons.some(reason => reason.code === "scope-boundary") || reasons.some(reason => reason.code === "invalid-data")) return;
   for (const item of scope.record.subflows?.collections ?? []) {
@@ -209,15 +215,18 @@ function addBoundaryGaps(scopes: ScopeMap, scope: NativeScope, writer: ScopedWri
   }
 }
 
-function addCoverageGaps(scope: NativeScope, writer: ScopedWriter, direct: readonly ScopedWriter[], codes: Set<string>) {
+function addCoverageGaps(scope: NativeScope, writer: ScopedWriter, hasSources: boolean, codes: Set<string>) {
   const prefix = scope.log[writer.commitIdx].trace.filter(row => row.path === writer.key);
   if (scope.prefixesOff && !prefix.some(row => row.readKeys !== undefined)) codes.add("prefix-off");
   for (const code of scope.gaps) codes.add(code);
-  if (direct.length || codes.size) return;
+  // Attribution and channel coverage can both be unknown on a legacy recording.
+  const attributionOnly = codes.size === 1 && codes.has("conservative");
+  if (hasSources || (codes.size && !attributionOnly)) return;
   // Interim until Foottrace answers whether this write's finished scope interval covered reads and had no match.
   const covered = scope.coveredReads && prefix.length === 1 && prefix[0].readKeys?.length === 0 &&
     !scope.record.reads?.[writer.runtimeStageId]?.length;
-  codes.add(covered ? "no-match" : "collection-unknown");
+  if (!covered) codes.add("collection-unknown");
+  else if (codes.size === 0) codes.add("no-match");
 }
 
 function prepareGraph(snapshot: unknown, api: GraphAPI): ScopedRecordGraph {
@@ -272,22 +281,31 @@ function scopedReader(scopes: ScopeMap, api: GraphAPI): ScopedRecordGraph {
 
   function directParents(scope: NativeScope, writer: ScopedWriter, edges: readonly GraphEdge[], codes: Set<string>) {
     const direct: ScopedWriter[] = [];
+    const candidates: ScopedWriter[] = [];
+    const handoffs: ScopedWriter[] = [];
     for (const edge of edges) {
       if (edge.kind !== "data") continue;
       const target = writers.get(edge.nodeId);
       if (!target) { codes.add("writer-address-unverified"); continue; }
       if (!samePath(target.invocationPath, writer.invocationPath)) {
         const loss = handoffGap(scope, writer, target);
-        if (loss) { codes.add(loss); continue; }
-      } else {
-        const evidence = canFollow(edge, target, writer, scope, api);
-        if (evidence !== true) { codes.add(evidence); continue; }
-        // A mount's local stage reads describe input mapping, not the child's output mapper.
-        if (scope.mounts.has(writer.runtimeStageId) && edge.attribution === "stage" && !scope.record.readSources) continue;
+        if (loss) codes.add(loss);
+        else handoffs.push(target);
+        continue;
+      }
+      const evidence = canFollow(edge, target, writer, scope, api);
+      if (evidence !== true) { codes.add(evidence); continue; }
+      // A mount's local stage reads describe input mapping, not the child's output mapper.
+      if (scope.mounts.has(writer.runtimeStageId) && edge.attribution === "stage" && !scope.record.readSources) continue;
+      // Interim until Foottrace exposes per-edge evidence tying a read occurrence to this write.
+      if (edge.attribution === "stage") {
+        if (!candidates.includes(target)) candidates.push(target);
+        codes.add("conservative");
+        continue;
       }
       direct.push(target);
     }
-    return direct;
+    return { direct, candidates, handoffs };
   }
 
   return {
@@ -306,10 +324,11 @@ function scopedReader(scopes: ScopeMap, api: GraphAPI): ScopedRecordGraph {
         const reasons = await graph.gaps(anchor.id, context);
         if (context.signal.aborted) return fail("cancelled");
         const codes = new Set<string>();
-        const direct = directParents(scope, anchor.writer, parents.edges, codes);
-        addBoundaryGaps(scopes, scope, anchor.writer, direct, reasons, codes);
-        addCoverageGaps(scope, anchor.writer, direct, codes);
-        return { writer: anchor.writer, writers: direct, gaps: [...codes].map(code => gap(code, invocationPath)) };
+        const { direct, candidates, handoffs } = directParents(scope, anchor.writer, parents.edges, codes);
+        addBoundaryGaps(scopes, scope, anchor.writer, handoffs.length > 0, reasons, codes);
+        addCoverageGaps(scope, anchor.writer, direct.length + candidates.length + handoffs.length > 0, codes);
+        return { writer: anchor.writer, writers: direct, ...(candidates.length && { candidates }), ...(handoffs.length && { handoffs }),
+          gaps: [...codes].map(code => gap(code, invocationPath)) };
       } catch (error) { return fail(context.signal.aborted ? "cancelled" : refusalCode(error)); }
     },
   };

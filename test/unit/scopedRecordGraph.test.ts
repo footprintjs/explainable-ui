@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { keysReadFromExecutionTree } from "foottrace";
 import { createRecordLensReader } from "../../src/record/model";
 import { createScopedRecordGraph } from "../../src/record/scopedRecordGraph";
+import { paymentWithTwoStageReads } from "../fixtures/payment-subflow/twoStageReads";
 
 function payment(mode = "on") {
   return JSON.parse(readFileSync(`test/fixtures/payment-subflow/${mode}.json`, "utf8"));
@@ -13,6 +14,16 @@ function read(snapshot: unknown, key: string, beforeCommitIdx: number, invocatio
 const child = ["payment#1"];
 
 describe("scoped record graph", () => {
+  it("keeps two admitted reads of receipt as candidates for the exact shipped write", async () => {
+    const snapshot = paymentWithTwoStageReads();
+
+    const result = await read(snapshot, "shipped", 4);
+    expect(result.writer).toMatchObject({ invocationPath: [], commitIdx: 3, runtimeStageId: "ship#3", key: "shipped" });
+    expect(result.writers).toEqual([]);
+    expect(result.candidates?.map(w => [w.invocationPath, w.commitIdx, w.key])).toEqual([[[], 1, "receipt"], [[], 2, "receipt"]]);
+    expect(result.gaps.map(gap => gap.message)).toContain("The record does not tie a particular read to this write.");
+  });
+
   it("distinguishes a partial write from an unverified exact writer address", async () => {
     const snapshot = payment();
     const row = snapshot.commitLog[0];
@@ -71,14 +82,26 @@ describe("scoped record graph", () => {
 
   it("keeps both cutoff and writer per log through the output, child seed, and input", async () => {
     const graph = createScopedRecordGraph(payment())!;
+    const ship = await graph.read({ invocationPath: [], key: "shipped", beforeCommitIdx: 4 });
+    expect(ship.writers).toEqual([]);
+    expect(ship.candidates?.map(w => [w.invocationPath, w.commitIdx, w.key])).toEqual([[[], 1, "receipt"]]);
     for (const [path, before, key, expected] of [
-      [[], 4, "shipped", [[], 1, "receipt"]],
       [[], 3, "receipt", [child, 1, "txnId"]],
       [child, 2, "txnId", [child, 0, "chargedAmount"]],
       [child, 1, "chargedAmount", [[], 0, "amount"]],
     ] as const) {
       const reply = await graph.read({ invocationPath: path, beforeCommitIdx: before, key });
-      expect(reply.writers.map(w => [w.invocationPath, w.commitIdx, w.key])).toContainEqual(expected);
+      if (key === "txnId") {
+        expect(reply.writers.map(w => [w.invocationPath, w.commitIdx, w.key])).toEqual([expected]);
+        expect(reply.handoffs).toBeUndefined();
+      } else {
+        expect(reply.writers).toEqual([]);
+        expect(reply.handoffs?.map(w => [w.invocationPath, w.commitIdx, w.key])).toEqual([expected]);
+        expect(reply.gaps.some(g => g.code === "scope-boundary")).toBe(false);
+      }
+      expect(reply.candidates).toBeUndefined();
+      // Mapper prefixes keep Foottrace's conservative reason. The local per-write edge has no such qualification.
+      expect(reply.gaps.some(g => g.code === "conservative")).toBe(key !== "txnId");
     }
     const atMount = await graph.read({ invocationPath: [], key: "receipt", beforeCommitIdx: 3 });
     expect(atMount.gaps.map(g => g.code)).not.toContain("failed");
@@ -92,7 +115,7 @@ describe("scoped record graph", () => {
     const mount = root.stops.find(stop => stop.runtimeStageId === child[0])!;
     expect(root.at(mount.step, "receipt")).not.toHaveProperty("writerStops");
     const answer = await root.backtrack!(mount.step, "receipt");
-    const writer = answer.writers.find(w => w.key === "txnId")!;
+    const writer = answer.handoffs!.find(w => w.key === "txnId")!;
     const position = root.positionOf!(writer)!;
     expect(position).toMatchObject({ invocationPath: child, key: ["txnId"], value: "TXN-99" });
     expect(root.forScope!(child)!.stops[position.step].runtimeStageId).toBe("payment/charge#2");
@@ -101,8 +124,13 @@ describe("scoped record graph", () => {
 
   it("names only the disabled channel and does not borrow another scope's names", async () => {
     const snapshot = payment("default");
+    const ship = await read(snapshot, "shipped", 4);
+    expect(ship.writers).toEqual([]);
+    expect(ship.candidates?.map(w => [w.invocationPath, w.commitIdx, w.key])).toEqual([[[], 1, "receipt"]]);
     const answer = await read(snapshot, "receipt", 2);
     expect(answer.writers).toEqual([]);
+    expect(answer.candidates).toBeUndefined();
+    expect(answer.handoffs).toBeUndefined();
     expect(answer.gaps.map(g => g.code)).toEqual(expect.arrayContaining(["prefix-off", "output-unknown"]));
     delete snapshot.writeProvenance;
     expect((await read(snapshot, "receipt", 2)).gaps.map(g => g.code)).toContain("output-unknown");
@@ -118,7 +146,7 @@ describe("scoped record graph", () => {
       const endpoint = row.subflowResults["payment#1"].outputHandoff.child;
       if (change === "address") endpoint.address.drillPath = ["other#1"];
       else endpoint.beforeCommitIdx = 1;
-      expect((await read(row, "receipt", 3)).writers.filter(w => w.invocationPath.length)).toEqual([]);
+      expect((await read(row, "receipt", 3)).handoffs).toBeUndefined();
     }
   });
   it("preserves privacy and capture limits at the selected handoff", async () => {
@@ -130,7 +158,7 @@ describe("scoped record graph", () => {
       if (why === "privacy-active") output.writes = [];
       const reply = await read(snapshot, "receipt", 3);
       expect(reply.gaps.map(g => g.code)).toContain(code);
-      if (why === "privacy-active") expect(reply.writers.filter(w => w.invocationPath.length)).toEqual([]);
+      if (why === "privacy-active") expect(reply.handoffs).toBeUndefined();
     }
   });
   it("withholds an older child writer masked before output mapping, keeping independent sources", async () => {
@@ -142,7 +170,7 @@ describe("scoped record graph", () => {
     outputHandoff.child.beforeCommitIdx = 3;
     outputHandoff.writes[0].reads.push("chargedAmount");
     const answer = await read(snapshot, "receipt", 2);
-    expect(answer.writers.map(w => w.key)).toEqual(["chargedAmount"]);
+    expect(answer.handoffs?.map(w => w.key)).toEqual(["chargedAmount"]);
     expect(answer.gaps.map(g => g.code)).toContain("redacted");
   });
   it("does not anchor a question to a visible write preceding a masked write", async () => {
@@ -156,6 +184,7 @@ describe("scoped record graph", () => {
     expect(after.gaps.map(g => g.code)).toContain("redacted");
     const downstream = await read(snapshot, "shipped", 4);
     expect(downstream.writers.filter(w => w.key === "receipt")).toEqual([]);
+    expect(downstream.candidates?.some(w => w.key === "receipt")).not.toBe(true);
     expect(downstream.gaps.map(g => g.code)).toContain("redacted");
   });
   it("checks the parent input mapper's saved cutoff for each source", async () => {
@@ -167,7 +196,7 @@ describe("scoped record graph", () => {
     // This later mark is outside the recorded input mapping.
     snapshot.commitLog[1].redactedPaths.push("txnId");
     const answer = await read(snapshot, "chargedAmount", 1, child);
-    expect(answer.writers.map(w => w.key)).toEqual(["txnId"]);
+    expect(answer.handoffs?.map(w => w.key)).toEqual(["txnId"]);
     expect(answer.gaps.map(g => g.code)).toContain("redacted");
   });
   it("only reports an observed-empty read prefix on the matching completed log", async () => {
@@ -208,7 +237,7 @@ describe("scoped record graph", () => {
       expect(empty.gaps.map(g => g.message)).toContain(label);
       expect(empty.gaps.map(g => g.code)).not.toContain("no-match");
       const mapped = await read(snapshot, "receipt", 2);
-      expect(mapped.writers.some(w => w.key === "txnId" && w.invocationPath[0] === child[0])).toBe(true);
+      expect(mapped.handoffs?.some(w => w.key === "txnId" && w.invocationPath[0] === child[0])).toBe(true);
     }
   });
 
@@ -225,7 +254,7 @@ describe("scoped record graph", () => {
     snapshot.capture.channels.reads = "failed";
     const answer = await read(snapshot, "shipped", 4);
     expect(answer.gaps.map(g => g.code)).toEqual(expect.arrayContaining(["failed", "fanout"]));
-    expect(answer.writers.every(w => !w.invocationPath.length)).toBe(true);
+    expect(answer.handoffs).toBeUndefined();
   });
 
   it("returns the budget gap for an oversized native record", async () => {
@@ -237,7 +266,7 @@ describe("scoped record graph", () => {
     const snapshot = payment();
     snapshot.subflowResults["payment#1"].outputHandoff.status = "partial";
     const answer = await read(snapshot, "receipt", 2);
-    expect(answer.writers.some(w => w.invocationPath.length)).toBe(false);
+    expect(answer.handoffs).toBeUndefined();
     expect(answer.gaps.map(g => g.code)).toContain("scope-boundary");
   });
   it("names privacy when it hid a writer and refuses an unbound source observation", async () => {

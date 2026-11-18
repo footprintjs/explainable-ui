@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import * as React from 'react';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { ExplainableShell } from '../../src/components/ExplainableShell/ExplainableShell';
 import { createTraceStructureRecorder } from '../../src/components/FlowchartView/traceStructureRecorder';
 
+const withoutReader = process.env.SCOPED_REPLAY_FOOTTRACE === "without-reader";
 type ShellProps = React.ComponentProps<typeof ExplainableShell>;
 interface RecordedRun {
   runtimeSnapshot: NonNullable<ShellProps['runtimeSnapshot']>;
@@ -77,7 +78,12 @@ describe('scoped tracing against recorded FootprintJS 10.3.0 runs', () => {
     expect(card.textContent).not.toContain('Root Seed');
     expect(card.textContent).not.toContain('Root Report');
     const itinerary = [...card.querySelectorAll('[data-fp="twc-itinerary-row"]')].map(row => row.textContent).join(' ');
-    expect(itinerary).toMatch(/Child Sum/);
+    if (withoutReader) {
+      expect(itinerary).toMatch(/Child Sum/);
+    } else {
+      expect(itinerary).not.toMatch(/Child Sum/);
+      expect(within(card).getByRole('group', { name: 'Recorded stage reads' }).textContent).toContain('Child Sum');
+    }
     expect(itinerary).not.toMatch(/Child Audit/);
     expect(JSON.stringify(recordings.nested)).toBe(before);
   });
@@ -93,8 +99,9 @@ describe('scoped tracing against recorded FootprintJS 10.3.0 runs', () => {
     const card = await traceTotal();
     expect(card.textContent).toContain(`= ${expected}`);
     expect(card.textContent).not.toContain(`= ${expected === 24 ? 44 : 24}`);
-    fireEvent.click(screen.getByLabelText('Earlier recorded step'));
-    expect(card.querySelector('[data-fp="twc-stop-headline"]')?.textContent).toMatch(/Child Sum/);
+    if (withoutReader) fireEvent.click(screen.getByLabelText('Earlier recorded step'));
+    else fireEvent.click(within(card).getByRole('button', { name: /Inspect stage read subtotal from .*Child Sum/ }));
+    await waitFor(() => expect(card.querySelector('[data-fp="twc-stop-headline"]')?.textContent).toMatch(/Child Sum/));
     ui.drill(null);
     expect(screen.getByRole('toolbar').getAttribute('data-tracing')).toBeNull();
     expect(document.querySelector('[data-fp="trace-walk-card"]')).toBeNull();

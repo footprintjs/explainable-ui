@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import type { StateKey } from "foottrace";
 import type { RecordBacktrackPosition, RecordLensModel, RecordLensReader, RecordWriterStop } from "./types";
-import { WriterNavigation } from "./WriterNavigation";
+import { WriterNavigation, type ObservedRead } from "./WriterNavigation";
+import type { ScopedWriter } from "./scopedRecordGraph";
 import { theme } from "../theme/styles";
 
 interface Props {
@@ -21,6 +22,8 @@ interface Props {
 
 interface Explanation {
   writers: (RecordWriterStop & RecordBacktrackPosition)[];
+  candidates?: ObservedRead[];
+  handoffs?: ObservedRead[];
   messages: string[];
   writer?: string;
 }
@@ -49,7 +52,12 @@ export function RecordExplanation({ model, root, reader, owner, path, segmentedK
         if (position) writers.push({ ...position, stageName: writer.stageName });
         else messages.add("The recorded writer has no selectable step in this replay.");
       }
-      save({ writers, messages: [...messages], writer: answer.writer?.stageName });
+      const observation = (writer: ScopedWriter) => {
+        const position = root.positionOf?.(writer);
+        return { writer, destination: position && { ...position, stageName: writer.stageName } };
+      };
+      save({ writers, candidates: answer.candidates?.map(observation), handoffs: answer.handoffs?.map(observation),
+        messages: [...messages], writer: answer.writer?.stageName });
     }).catch(() => save({ writers: [], messages: ["The scoped record could not be read. Collection unknown."] }));
     return () => controller.abort();
   }, [reader, root, step, key]);
@@ -58,7 +66,7 @@ export function RecordExplanation({ model, root, reader, owner, path, segmentedK
   // original explanation for records without the scope-aware reader.
   return <>
     <WriterNavigation owner={owner} invocationPath={path} step={step} currentKey={key} segmentedKey={segmentedKey}
-      writers={reader.backtrack ? current?.writers : model.writerStops}
+      writers={reader.backtrack ? current?.writers : model.writerStops} candidates={current?.candidates} handoffs={current?.handoffs}
       onPositionChange={onPositionChange} onStepChange={onStepChange} onKeyChange={onKeyChange} style={style} />
     {!provenance ? <p>Select a key to inspect its recorded origin.</p>
       : provenance.status === "unavailable" ? <p role="status">{provenance.message}</p>

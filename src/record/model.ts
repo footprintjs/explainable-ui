@@ -202,9 +202,8 @@ export function createRecordLensReader<TMeta = unknown>(input: RecordReaderInput
       ...reader, forScope, positionOf,
       at(step, key) {
         const model = reader.at(step, key);
-        if (!graph!.hasSubflows || model.status === "refused" || !model.writerStops) return model;
-        // A same-log slice can mix a mount's input reads with its output write.
-        // Leave writer navigation to backtrack(), which knows the mapper address.
+        if (model.status === "refused" || !model.writerStops) return model;
+        // This reader distinguishes write-specific sources from stage reads in backtrack().
         const { writerStops: _localOnly, ...state } = model;
         return state;
       },

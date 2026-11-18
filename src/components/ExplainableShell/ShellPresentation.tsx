@@ -426,7 +426,7 @@ export function ShellPresentation(props: ExplainableShellProps) {
   const chartSurface = <TraceDependencyView unstyled={unstyled} walk={traceSession.traceWalk} hasWorkflow={showExecutionChart}
     cursorRuntimeStageId={activeSnapshots[safeIdx]?.runtimeStageId ?? null} snapshots={activeSnapshots}
     onJumpToStop={traceSession.navigateToStage} onFollowIngredient={traceSession.handleFollowIngredient}
-    onFollowHandoff={traceSession.handleFollowHandoff}
+    onFollowHandoff={traceSession.handleFollowHandoff} inspectedStageRead={traceSession.inspectedStageRead}
     questionTrail={traceSession.questionTrail} onReturnToQuestion={traceSession.handleReturnToQuestion}
     activityOrigin={traceSession.activityOrigin ?? undefined}>
     {showExecutionChart ? <MountedChart render={() => effectiveRenderFlowchart!({ spec: null, snapshots: activeSnapshots, selectedIndex: safeIdx,

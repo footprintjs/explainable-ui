@@ -1,7 +1,7 @@
 import { useId, useMemo, useRef, useState } from 'react';
 import type { Size } from '../types';
 import { FootprintButton, FootprintInput } from '../theme/components';
-import { componentStyles, theme } from '../theme/styles';
+import { controlStyles, theme } from '../theme/styles';
 import type { ReplayControlsOptions, TracingRail } from '../model/replayControls';
 import { projectReplayAxis } from './replayAxis';
 
@@ -44,7 +44,7 @@ export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet,
   const [focused, setFocused] = useState(false), rangeKey = useRef<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const noteId = useId(), axis = projectReplayAxis(snapshots, scale), weighted = scale !== 'steps';
-  const ui = componentStyles(size), isTracing = tracing !== null;
+  const ui = controlStyles(size), isTracing = tracing !== null;
   const position = Number.isSafeInteger(selectedIndex)
     ? Math.max(0, Math.min(selectedIndex, Math.max(0, snapshots.length - 1))) : 0;
   const indices = tracing?.stopIndices;

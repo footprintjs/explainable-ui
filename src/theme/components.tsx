@@ -11,7 +11,7 @@ import {
   type RefAttributes,
 } from "react";
 import type { Size } from "../types";
-import { componentStyles, theme } from "./styles";
+import { componentStyles, controlStyles, theme } from "./styles";
 
 /**
  * Adapters must forward the native ref, events, disabled/checked state, ARIA
@@ -70,7 +70,7 @@ function fallback(options: FootprintPrimitiveOptions, recipe: () => CSSPropertie
   return Object.prototype.hasOwnProperty.call(options, "defaultStyle") ? options.defaultStyle : recipe();
 }
 function control(size: Size): CSSProperties {
-  const ui = componentStyles(size);
+  const ui = controlStyles(size);
   return { fontFamily: theme.fontSans, fontSize: ui.body, lineHeight: ui.lineHeight,
     minHeight: ui.controlHeight, padding: ui.controlPadding, borderRadius: ui.radiusControl,
     border: `${ui.borderWidth} solid ${theme.border}`, background: theme.bgPrimary, color: theme.textPrimary };

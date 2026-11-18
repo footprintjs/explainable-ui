@@ -70,39 +70,49 @@ export const padding: Record<Size, number> = {
  * and padding above; components use these strings for themeable paint.
  * Size offsets keep the historic compact/default/detailed density distinct.
  */
-export function componentStyles(size: Size = "default") {
+function sizeOffset(name: string, fallback: string, amount: number) {
+  return amount === 0 ? v(name, fallback) : `calc(${v(name, fallback)} ${amount < 0 ? "-" : "+"} ${Math.abs(amount)}px)`;
+}
+
+/** The recording slider and its controls share these recipes with the full Shell. */
+export function controlStyles(size: Size = "default") {
   const fontOffset = fontSize[size].body - fontSize.default.body;
-  const padOffset = padding[size] - padding.default;
-  const offset = (name: string, fallback: string, amount: number) => amount === 0
-    ? v(name, fallback) : `calc(${v(name, fallback)} ${amount < 0 ? "-" : "+"} ${Math.abs(amount)}px)`;
   return {
-    body: offset("--fp-font-size-body", rawDefaults.typography.body, fontOffset),
-    label: offset("--fp-font-size-label", rawDefaults.typography.label, fontOffset),
-    small: offset("--fp-font-size-small", rawDefaults.typography.small, fontOffset),
-    title: offset("--fp-font-size-title", rawDefaults.typography.title, fontOffset),
+    body: sizeOffset("--fp-font-size-body", rawDefaults.typography.body, fontOffset),
+    small: sizeOffset("--fp-font-size-small", rawDefaults.typography.small, fontOffset),
     lineHeight: v("--fp-line-height", rawDefaults.typography.lineHeight),
-    weightNormal: v("--fp-font-weight-normal", rawDefaults.typography.weightNormal),
-    weightMedium: v("--fp-font-weight-medium", rawDefaults.typography.weightMedium),
-    weightStrong: v("--fp-font-weight-strong", rawDefaults.typography.weightStrong),
-    padding: `max(0px, ${offset("--fp-space-md", rawDefaults.spacing.md, padOffset)})`,
-    controlHeight: `max(0px, ${offset("--fp-control-height", rawDefaults.controls.height, fontOffset * 4)})`,
+    controlHeight: `max(0px, ${sizeOffset("--fp-control-height", rawDefaults.controls.height, fontOffset * 4)})`,
     controlPadding: `${v("--fp-space-xs", rawDefaults.spacing.xs)} ${v("--fp-control-padding-x", rawDefaults.controls.paddingX)}`,
-    controlPaddingX: v("--fp-control-padding-x", rawDefaults.controls.paddingX),
-    controlGap: v("--fp-control-gap", rawDefaults.controls.gap),
-    iconSize: offset("--fp-icon-size", rawDefaults.controls.iconSize, fontOffset),
+    iconSize: sizeOffset("--fp-icon-size", rawDefaults.controls.iconSize, fontOffset),
     radiusControl: `var(--fp-radius-control, var(--fp-radius, ${rawDefaults.radii.control}))`,
-    radiusPanel: `var(--fp-radius-panel, var(--fp-radius, ${rawDefaults.radii.panel}))`,
-    radiusBadge: `var(--fp-radius-badge, var(--fp-radius, ${rawDefaults.radii.badge}))`,
     borderWidth: v("--fp-border-width", rawDefaults.borders.width),
     focusWidth: v("--fp-focus-width", rawDefaults.borders.focusWidth),
-    shadowPanel: v("--fp-shadow-panel", rawDefaults.elevation.panel),
-    shadowPopover: v("--fp-shadow-popover", rawDefaults.elevation.popover),
-    shadowFocus: v("--fp-shadow-focus", rawDefaults.elevation.focus),
-    duration: v("--fp-motion-duration", rawDefaults.motion.duration),
     fastDuration: v("--fp-motion-fast-duration", rawDefaults.motion.fastDuration),
     easing: v("--fp-motion-easing", rawDefaults.motion.easing),
     spaceXs: v("--fp-space-xs", rawDefaults.spacing.xs),
     spaceSm: v("--fp-space-sm", rawDefaults.spacing.sm),
+  };
+}
+
+export function componentStyles(size: Size = "default") {
+  const fontOffset = fontSize[size].body - fontSize.default.body;
+  const padOffset = padding[size] - padding.default;
+  return {
+    ...controlStyles(size),
+    label: sizeOffset("--fp-font-size-label", rawDefaults.typography.label, fontOffset),
+    title: sizeOffset("--fp-font-size-title", rawDefaults.typography.title, fontOffset),
+    weightNormal: v("--fp-font-weight-normal", rawDefaults.typography.weightNormal),
+    weightMedium: v("--fp-font-weight-medium", rawDefaults.typography.weightMedium),
+    weightStrong: v("--fp-font-weight-strong", rawDefaults.typography.weightStrong),
+    padding: `max(0px, ${sizeOffset("--fp-space-md", rawDefaults.spacing.md, padOffset)})`,
+    controlPaddingX: v("--fp-control-padding-x", rawDefaults.controls.paddingX),
+    controlGap: v("--fp-control-gap", rawDefaults.controls.gap),
+    radiusPanel: `var(--fp-radius-panel, var(--fp-radius, ${rawDefaults.radii.panel}))`,
+    radiusBadge: `var(--fp-radius-badge, var(--fp-radius, ${rawDefaults.radii.badge}))`,
+    shadowPanel: v("--fp-shadow-panel", rawDefaults.elevation.panel),
+    shadowPopover: v("--fp-shadow-popover", rawDefaults.elevation.popover),
+    shadowFocus: v("--fp-shadow-focus", rawDefaults.elevation.focus),
+    duration: v("--fp-motion-duration", rawDefaults.motion.duration),
     spaceMd: v("--fp-space-md", rawDefaults.spacing.md),
     spaceLg: v("--fp-space-lg", rawDefaults.spacing.lg),
     spaceXl: v("--fp-space-xl", rawDefaults.spacing.xl),

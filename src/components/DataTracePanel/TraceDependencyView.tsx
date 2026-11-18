@@ -21,7 +21,8 @@ interface TraceDependencyViewProps extends BaseComponentProps {
   onFollowIngredient?: (ingredient: TraceIngredient) => void;
   onFollowHandoff?: (source: SubflowHandoffSource) => void;
   hasWorkflow?: boolean;
-  questionTrail?: readonly { key: string; invocationPath: readonly string[] }[];
+  questionTrail?: readonly { key: string; invocationPath: readonly string[]; stageReadCommitIdx?: number }[];
+  inspectedStageRead?: { key: string; value: unknown };
   onReturnToQuestion?: (index: number) => void;
   /** Where an Activity-started investigation can return; no recorded values. */
   activityOrigin?: { stageLabel: string; key: string; kind: "read" | "write" };
@@ -34,7 +35,7 @@ const NODE_HEIGHT = 104;
 /** A variable/read view of one admitted scope; execution order stays a separate view. */
 export function TraceDependencyView({
   walk, cursorRuntimeStageId, snapshots, onJumpToStop, onFollowIngredient,
-  onFollowHandoff, children, hasWorkflow = true, questionTrail, onReturnToQuestion, activityOrigin, size = "default", unstyled = false, className, style,
+  inspectedStageRead, onFollowHandoff, children, hasWorkflow = true, questionTrail, onReturnToQuestion, activityOrigin, size = "default", unstyled = false, className, style,
 }: TraceDependencyViewProps) {
   const [view, setView] = useState<"variables" | "execution">("execution");
   const motion = useTraceMotion() && !unstyled;
@@ -61,7 +62,8 @@ export function TraceDependencyView({
     }
     return result;
   }, [snapshots, graph]);
-  const preview = (node: TraceDependencyNode) => node.runtimeStageId
+  const preview = (node: TraceDependencyNode) => node.isAnchor && inspectedStageRead?.key === node.key
+    ? recordedValuePreview(inspectedStageRead.value) : node.runtimeStageId
     ? recordedValuePreview(recordedValueAtPath(memories.get(node.runtimeStageId), node.key)) : null;
   const layout = useMemo(() => {
     if (!graph) return null;
@@ -112,6 +114,7 @@ export function TraceDependencyView({
       background: active ? theme.bgPrimary : "transparent", fontFamily: theme.fontSans, fontSize: ui.body, lineHeight: ui.lineHeight, fontWeight: ui.weightNormal }), ...style }}>
     <div hidden={!investigating} style={sx({ flexShrink: 0, display: investigating ? "flex" : "none", gap: ui.spaceMd, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", padding: `${ui.padding} ${ui.spaceLg}`, borderBottom: `${ui.borderWidth} solid ${theme.border}` })}>
       <div style={sx({ minWidth: 0, flex: 1 })}>
+        {questionTrail?.at(-1)?.stageReadCommitIdx !== undefined && <div>Inspecting stage read · commit {questionTrail.at(-1)?.stageReadCommitIdx}</div>}
         {activityOrigin && <div data-fp="trace-activity-origin" style={sx({ marginBottom: ui.spaceXs, fontSize: ui.body, color: theme.textSecondary, overflowWrap: "anywhere" })}>
           From <b style={sx({ fontWeight: ui.weightStrong })}>{activityOrigin.stageLabel}</b> · {activityOrigin.kind} <FootprintCode unstyled={unstyled} densitySize={size} part="trace-origin-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(activityOrigin.key)}</FootprintCode>
         </div>}
@@ -218,7 +221,7 @@ export function TraceDependencyView({
       </TraceViewLayer>
     </div>
     {active && sources.length > 0 && <div data-fp="trace-workflow-handoff" style={sx({ flexShrink: 0, padding: `${ui.spaceSm} ${ui.spaceLg}`, borderTop: `${ui.borderWidth} solid ${theme.border}`, fontSize: ui.body })}>
-      <div style={sx({ color: theme.textSecondary, marginBottom: ui.controlGap })}>Recorded handoff sources</div>
+      <div style={sx({ color: theme.textSecondary, marginBottom: ui.controlGap })}>Reads observed by the mapper</div>
       {sources.map(source => <FootprintButton unstyled={unstyled} densitySize={size} part="trace-child-source" key={JSON.stringify([source.invocationPath, source.beforeCommitIdx, source.key])} type="button"
         disabled={!onFollowHandoff} onClick={() => onFollowHandoff?.(source)} defaultStyle={sx({ border: `${ui.borderWidth} solid ${theme.border}`, borderRadius: ui.radiusControl, background: theme.bgPrimary, color: theme.textPrimary, padding: ui.controlPadding, minHeight: ui.controlHeight, marginRight: ui.controlGap, cursor: "pointer", fontSize: ui.body, lineHeight: ui.lineHeight })}>
         Open {source.direction ?? "child"} source <FootprintCode unstyled={unstyled} densitySize={size} part="trace-child-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(source.key)}</FootprintCode>

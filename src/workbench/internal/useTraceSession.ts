@@ -5,10 +5,11 @@ import type { StageSnapshot } from "../../types";
 import type { TracingRail } from "../../model/replayControls";
 import { createDataTraceReader, type DataTraceResult } from "../../trace/dataTrace";
 import type { TraceScope } from "../../trace/traceScope";
-import { buildTraceWalk, createTraceWalkReader, type TraceIngredient, type TraceWalk } from "../../trace/traceWalk";
+import { buildTraceWalk, createTraceWalkReader, type TraceIngredient, type TraceStageRead, type TraceWalk } from "../../trace/traceWalk";
 import { subflowHandoffSources, type SubflowHandoffSource } from "../../trace/subflowHandoff";
 import { projectTraceInvocation } from "../../trace/projectTraceInvocation";
-import { ownDataField } from "../../trace/safeRecordRead";
+import { recordedValueAtPath } from "../../trace/recordedValuePreview";
+import { ownDataField, optionalOwnDataField } from "../../trace/safeRecordRead";
 import { rootMountLabels, runHasRecordedReads, sourceRunKey } from "../../trace/traceScope";
 import { projectStageActivity, type StageActivityTraceTarget, type StageActivityView } from "../../trace/stageActivity";
 
@@ -22,6 +23,8 @@ interface TraceAnchor {
 }
 
 export interface TraceQuestion extends TraceAnchor {
+  /** Independent inspection of an observed stage read, pinned to its native commit. */
+  stageReadCommitIdx?: number;
   scope: string | null;
   via: TraceAnchor[];
   handoff?: {
@@ -184,6 +187,7 @@ function questionProof(walk: TraceWalk): string | undefined {
       walk.stops.map(stop => [name(stop.runtimeStageId), stop.commitIdx,
         stop.contributedKeys.map(name), stop.keysWritten.map(name),
         stop.gapMessages?.map(name),
+        stop.stageReads?.map(read => [name(read.key), name(read.runtimeStageId), read.commitIdx, read.beforeCommitIdx]),
         stop.handoffSources?.map(source => [name(source.key), source.invocationPath.map(name), source.beforeCommitIdx, name(source.writerRuntimeStageId ?? null)]),
         stop.ingredients.map(input => [name(input.key), name(input.writerRuntimeStageId), input.writerCommitIdx, input.unresolvedReason]),
         stop.ingredientsByKey === undefined ? null : Object.entries(stop.ingredientsByKey).map(([key, inputs]) =>
@@ -414,8 +418,10 @@ export function useTraceSessionController({
   const trailValid = useMemo(() => !sourceChanged && history.every(savedQuestionValid) &&
     (!tracing || handoffStillRecorded(tracing)), [sourceChanged, history, savedQuestionValid, tracing, handoffStillRecorded]);
   const questionTrail = tracing && trailValid ? [
-    ...history.map(entry => ({ key: entry.question.via.at(-1)?.key ?? entry.question.key, invocationPath: entry.invocationPath })),
-    { key: tracing.via.at(-1)?.key ?? tracing.key, invocationPath: activeTraceScope.invocationPath },
+    ...history.map(entry => ({ key: entry.question.via.at(-1)?.key ?? entry.question.key, invocationPath: entry.invocationPath,
+      stageReadCommitIdx: entry.question.via.length ? undefined : entry.question.stageReadCommitIdx })),
+    { key: tracing.via.at(-1)?.key ?? tracing.key, invocationPath: activeTraceScope.invocationPath,
+      stageReadCommitIdx: tracing.via.length ? undefined : tracing.stageReadCommitIdx },
   ] : [];
 
   const returnContext = { history, trailValid, savedQuestionValid, restoreTraceQuestion,
@@ -517,6 +523,27 @@ export function useTraceSessionController({
       beforeCommitIdx: anchor.beforeCommitIdx,
     }));
   }, [tracing, activeTraceScope, traceWalk, dispatch, jumpToAnchor, saveCurrentQuestion, readWalk]);
+
+  const handleInspectStageRead = useCallback((read: TraceStageRead) => {
+    if (latestWalk.current !== traceWalk || !traceWalk?.stops.some(stop => stop.stageReads?.includes(read))) return;
+    const previous = saveCurrentQuestion();
+    const row = activeTraceScope.commitLog[read.beforeCommitIdx - 1];
+    if (!previous || !row || ownDataField(row, "runtimeStageId") !== read.runtimeStageId ||
+      !activeSnapshots.some(snapshot => snapshot.runtimeStageId === read.runtimeStageId)) return;
+    const question: TraceQuestion = { scope: activeTraceKey, key: read.key, beforeCommitIdx: read.beforeCommitIdx,
+      writerRuntimeStageId: read.runtimeStageId, stageReadCommitIdx: read.commitIdx, via: [] };
+    pendingJump.current = { question, cursor: safeIdx };
+    dispatch({ type: "enter", question, history: [...history, previous], activityOrigin: savedActivityOrigin, generation });
+  }, [traceWalk, saveCurrentQuestion, activeTraceScope, activeSnapshots, activeTraceKey, safeIdx, dispatch, history, savedActivityOrigin, generation]);
+
+  // Two observed reads can have the same key and runtime stage ID at different commits.
+  // The stage's final memory cannot supply a preview for an earlier occurrence.
+  const inspectedStageRead = tracing?.stageReadCommitIdx !== undefined && !tracing.via.length ? {
+    key: tracing.key,
+    value: !scoped.pending && traceWalk?.stops[0]?.commitIdx === (tracing.beforeCommitIdx ?? 0) - 1
+      ? recordedValueAtPath(optionalOwnDataField(activeTraceScope.commitLog[traceWalk.stops[0].commitIdx], "overwrite"), tracing.key)
+      : undefined,
+  } : undefined;
 
   const handleFollowHandoff = useCallback((source: SubflowHandoffSource) => {
     if (latestWalk.current !== traceWalk) return;
@@ -631,7 +658,7 @@ export function useTraceSessionController({
     shellDataTrace, allTracedKeys, traceWalk, traceStopIndices, sliceCone,
     navigateToStage, activeViaKey, stepNumberOf, tracingRail,
     handleStartTracing, handleTraceStageVariable, handleFollowIngredient, handleShowAllIngredients,
-    handleFollowHandoff,
+    handleFollowHandoff, handleInspectStageRead, inspectedStageRead,
     questionTrail, handleReturnToQuestion,
     handleExitTracing, handleForkPrompt, handleContinueTimeOrder,
   };

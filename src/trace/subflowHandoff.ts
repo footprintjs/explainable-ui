@@ -138,8 +138,10 @@ export function subflowHandoffSources(options: HandoffOptions): readonly Subflow
 }
 
 export function handoffSentence(sources: readonly SubflowHandoffSource[]): string {
-  if (sources.some(source => source.direction === "parent")) {
-    return `Recorded handoff sources: ${sources.map(source => `${source.key} from ${source.writerRuntimeStageId}`).join(", ")}.`;
-  }
-  return `Output mapping observed child reads: ${sources.map(source => `\`${source.key}\` in ${source.mountRuntimeStageId}`).join(", ")}. This conservative prefix may include reads used by other outputs.`;
+  const parents = sources.filter(source => source.direction === "parent");
+  const children = sources.filter(source => source.direction !== "parent");
+  const notes: string[] = [];
+  if (parents.length) notes.push(`Input mapping observed parent reads: ${parents.map(source => `${source.key} from ${source.writerRuntimeStageId}`).join(", ")}.`);
+  if (children.length) notes.push(`Output mapping observed child reads: ${children.map(source => `\`${source.key}\` in ${source.mountRuntimeStageId}`).join(", ")}. This conservative prefix may include reads used by other outputs.`);
+  return notes.join(" ");
 }

@@ -149,7 +149,12 @@ describe("recorded subflow review regressions", () => {
     fireEvent.click(screen.getByText("Copy story"));
     const text = writeText.mock.calls[0][0] as string;
     expect(text).toContain("pipeline/prepare#8");
-    expect(text).toContain("recorded at invocation start; earlier origin unknown");
+    if (withoutReader) expect(text).toContain("recorded at invocation start; earlier origin unknown");
+    else {
+      expect(text).toContain("Recorded stage reads");
+      expect(text).toContain("subtotal from pipeline/prepare/Child Sum, commit 2");
+      expect(text).toContain("The record does not tie a particular read to this write.");
+    }
     expect(text).not.toContain("never written");
   });
   it.each([false, true])(
@@ -237,9 +242,14 @@ describe("recorded subflow review regressions", () => {
     move(3);
     trace("total");
     await waitFor(() => expect(card().textContent).not.toContain("Reading recorded sources"));
-    expect(card().textContent).toContain("absent (no recorded write; value unknown)");
     fireEvent.click(screen.getByText("Copy story"));
-    expect(writeText.mock.calls[0][0]).toContain("absent (no recorded write; value unknown)");
+    for (const text of [card().textContent, writeText.mock.calls[0][0]]) {
+      if (withoutReader) expect(text).toContain("absent (no recorded write; value unknown)");
+      else {
+        expect(text).toContain("The record does not tie a particular read to this write.");
+        expect(text).not.toContain("absent");
+      }
+    }
     expect(writeText.mock.calls[0][0]).not.toContain("absent (recorded at invocation start");
   });
   it("keeps Story entries inside the selected visit runtime IDs", () => {

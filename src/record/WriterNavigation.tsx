@@ -4,6 +4,13 @@ import type { StateKey } from "foottrace";
 import type { CSSProperties } from "react";
 import type { RecordBacktrackPosition, RecordWriterStop } from "./types";
 import { previewValue } from "./preview";
+import type { ScopedWriter } from "./scopedRecordGraph";
+
+type Destination = RecordWriterStop & { readonly invocationPath?: readonly string[] };
+export interface ObservedRead {
+  writer: ScopedWriter;
+  destination?: Destination;
+}
 
 interface Props {
   owner: object;
@@ -12,7 +19,9 @@ interface Props {
   step: number;
   currentKey?: string;
   segmentedKey: boolean;
-  writers?: readonly (RecordWriterStop & { readonly invocationPath?: readonly string[] })[];
+  writers?: readonly Destination[];
+  candidates?: readonly ObservedRead[];
+  handoffs?: readonly ObservedRead[];
   onStepChange?: (step: number) => void;
   onKeyChange?: (key: StateKey) => void;
   style: CSSProperties;
@@ -49,7 +58,7 @@ function between(from: Position, to: Position, path: readonly string[], step: nu
 const linkId = (writer: Position) => JSON.stringify([writer.invocationPath, writer.step, writer.key]);
 
 /** Only the return address is local. Step, key and source remain host-controlled. */
-export function WriterNavigation({ owner, invocationPath, onPositionChange, step, currentKey, segmentedKey, writers, onStepChange, onKeyChange, style }: Props) {
+export function WriterNavigation({ owner, invocationPath, onPositionChange, step, currentKey, segmentedKey, writers, candidates, handoffs, onStepChange, onKeyChange, style }: Props) {
   const [visit, setVisit] = useState<Visit | null>(null);
   const acknowledged = useRef<Visit | null>(null);
   const pendingReturnFocus = useRef<Visit | null>(null);
@@ -82,9 +91,10 @@ export function WriterNavigation({ owner, invocationPath, onPositionChange, step
         pendingReturnFocus.current = null;
       }
     }
-  }, [owner, invocationPath, step, currentKey, writers]);
+  }, [owner, invocationPath, step, currentKey, writers, candidates, handoffs]);
 
   if (currentKey === undefined) return null;
+  const selectedKey = segmentedKey ? pathSegments(currentKey) : currentKey;
   const go = (position: Position) => {
     if (onPositionChange) {
       onPositionChange({ invocationPath: position.invocationPath, step: position.step, key: pathSegments(normaliseStateKey(position.key)) });
@@ -93,6 +103,30 @@ export function WriterNavigation({ owner, invocationPath, onPositionChange, step
       onKeyChange?.(position.key);
     }
   };
+  function entry(writer: Destination | undefined, id: string, label: string, action: string) {
+    const target = writer && { ...writer, invocationPath: writer.invocationPath ?? invocationPath };
+    if (!target || (!onPositionChange && (!onKeyChange || !onStepChange || !sameScope(target.invocationPath, invocationPath)))) {
+      return <li key={id}>{label}</li>;
+    }
+    return <li key={id}><button type="button" style={style} ref={node => {
+      if (node) controls.current.set(id, node);
+      else controls.current.delete(id);
+    }} onClick={() => {
+      const from = { invocationPath, step, key: selectedKey };
+      const origin = active ? visit.origin : { ...from, owner, linkId: id };
+      setVisit({ origin, from, destination: target });
+      go(target);
+    }}>{action} {label}</button></li>;
+  }
+  const describe = (writer: Destination) => `${writer.stageName} · ${writer.key.join(" › ")} = ${previewValue(writer.value)}`;
+  const observations = (rows: readonly ObservedRead[] | undefined, title: string, action: string) => !!rows?.length && <>
+    <h4>{title}</h4>
+    <ul aria-label={title}>{rows.map(({ writer, destination }) => {
+      const name = destination ? describe(destination) : `${writer.stageName} · ${pathSegments(writer.key).join(" › ")}`;
+      const id = JSON.stringify([title, writer.invocationPath, writer.commitIdx, writer.key]);
+      return entry(destination, id, `${name} · commit ${writer.commitIdx}`, action);
+    })}</ul>
+  </>;
   return <>
     {active && <button type="button" ref={returnButton} style={style} onClick={() => {
       pendingReturnFocus.current = visit;
@@ -101,24 +135,9 @@ export function WriterNavigation({ owner, invocationPath, onPositionChange, step
       go(visit.origin);
     }}>Return to recorded question</button>}
     {!!writers?.length && <ul aria-label="Recorded ingredient writers">
-      {writers.map(writer => {
-        const target = { ...writer, invocationPath: writer.invocationPath ?? invocationPath };
-        const id = linkId(target);
-        const label = `${writer.stageName} · ${writer.key.join(" › ")} = ${previewValue(writer.value)}`;
-        if (!onPositionChange && (!onKeyChange || !onStepChange || !sameScope(target.invocationPath, invocationPath))) {
-          return <li key={id}>{label}</li>;
-        }
-        return <li key={id}><button type="button" style={style} ref={node => {
-          if (node) controls.current.set(id, node);
-          else controls.current.delete(id);
-        }} onClick={() => {
-          const key = segmentedKey ? pathSegments(currentKey) : currentKey;
-          const from = { invocationPath, step, key };
-          const origin = active ? visit.origin : { ...from, owner, linkId: id };
-          setVisit({ origin, from, destination: target });
-          go(target);
-        }}>Follow {label}</button></li>;
-      })}
+      {writers.map(writer => entry(writer, linkId({ ...writer, invocationPath: writer.invocationPath ?? invocationPath }), describe(writer), "Follow"))}
     </ul>}
+    {observations(candidates, "Recorded stage reads", "Inspect stage read")}
+    {observations(handoffs, "Recorded handoff reads", "Follow handoff")}
   </>;
 }

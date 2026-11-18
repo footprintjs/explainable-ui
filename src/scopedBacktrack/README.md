@@ -5,7 +5,7 @@ The record reader and the Shell use this folder to answer “which recorded step
 A query identifies one invocation path, state key and exclusive commit index. The path is a chain of runtime mount IDs, so repeated visits to the same subflow have separate histories. A writer address includes the run, invocation path, local commit index, runtime stage ID and key. Local commit indexes include the child’s seed. The result gives the selected writer, its directly recorded sources and any gaps. A partial record can supply both a navigable source and a gap.
 
 - [nativeGraphScopes.ts](./nativeGraphScopes.ts) admits the root and exact child histories. It binds capture notes, scalar read sources and mapper observations to the log that owns them.
-- [graph.ts](./graph.ts) asks Foottrace for the writer and its direct data parents. It checks the source key at the recorded mapper cutoff before exposing a cross-scope destination. The caller owns replay navigation.
+- [graph.ts](./graph.ts) asks Foottrace for the writer and its direct data parents. A local stage edge identifies a commit that supplied a read. It appears in `candidates` so a host can inspect the commit separately from write-specific sources. Across a subflow, `handoffs` exposes mapper reads with an exact source address at the recorded cutoff. These can be inspected under “Recorded handoff reads”. The caller owns replay navigation.
 - [load.ts](./load.ts) lets the Shell request the optional `foottrace` and `foottrace/cause` entries when a scoped question needs them. Hosts using the recording entry can call the reader directly. [Record reader usage](../record/README.md)
 
 ## Gap codes
@@ -14,6 +14,7 @@ Each gap carries its invocation path, code and display sentence. A *bound note* 
 
 | Code | Display sentence | Evidence or query condition |
 | --- | --- | --- |
+| `conservative` | The record does not tie a particular read to this write. | Foottrace reports conservative attribution, or a local stage edge identifies the source of a stage read. Those local writers appear under “Recorded stage reads”. Each candidate retains its own commit address. |
 | `untracked-input` | The record does not identify an earlier writer. | Foottrace finds no writer for the selected key before the cutoff and reports no redaction, or returns this gap for a source read. |
 | `nested-rows` | This step wrote only part of the selected value. | Foottrace identifies a write inside the selected key with the `nested-rows` basis. The write covers a member of the requested value. |
 | `ambiguous` | The recorded read has more than one possible writer. | The read window contains multiple candidate commits, counting the writer before the window and writes during it. |
@@ -63,4 +64,4 @@ The following codes retain the reason supplied by the mapper, collection or Foot
 | `not-permitted` | Recorded evidence is incomplete. | Foottrace reports that access to the evidence was not permitted. |
 | Other forwarded code | Recorded evidence is incomplete. | A selected handoff limitation or reader refusal supplies a code without a dedicated sentence. |
 
-Foottrace’s general graph reasons `not-collected` and `conservative` are filtered when reading graph gaps. Channel-specific capture facts, mapper descriptors and the coverage check determine the displayed answer. At a mount, the adapter also replaces the graph’s general `scope-boundary` reason with the available handoff evidence.
+Foottrace's general `not-collected` reason can describe several channels and directions. The adapter uses the matching channel note to identify disabled recording, and applies the interval coverage check to an empty result. It preserves `conservative` even when a mapper supplies an independently navigable address. At a mount it replaces `scope-boundary` with `missing-child` or `output-unknown` when that more specific fact is available. Other boundary reasons remain visible.
