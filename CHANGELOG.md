@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-17
+
 ### Changed
 
 - Live recorder integrations can call `source.requestUpdate(readCohort)` to capture and publish the latest cumulative recording once per visual update.
