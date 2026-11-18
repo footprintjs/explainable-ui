@@ -423,6 +423,8 @@ interface FlowDiagramNode {
     readonly id: string;
     readonly label: string;
     readonly kind?: "step" | "decision" | "group";
+    /** Optional outline. Decisions may use a diamond, steps a parcel or document. */
+    readonly shape?: "diamond" | "parcel" | "document";
     /** Unique group instance ID, never the reusable flow's name. */
     readonly parentId?: string;
     /** A bundled icon key or a short Unicode symbol; never HTML or a remote URL. */

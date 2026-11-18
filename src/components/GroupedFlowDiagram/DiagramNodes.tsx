@@ -30,8 +30,11 @@ function DependencyHandles({ ports = [] }: { ports?: readonly RecordedPort[] }) 
 
 function CauseBadge({ item, id }: { item: PositionedFlowDiagramNode; id?: string }) {
   if (!item.isRootCause && !item.containsRootCause) return null;
-  return <span id={id} style={{ position: "absolute", zIndex: 2, top: -12, left: 10, padding: "4px 9px", borderRadius: 7,
-    fontSize: 11, lineHeight: "16px", fontWeight: 700, color: item.isRootCause ? theme.bg : theme.textSecondary,
+  const placement: CSSProperties = item.node.shape
+    ? { right: "calc(50% + 8px)", padding: "4px 6px", fontSize: 10, whiteSpace: "nowrap" }
+    : { left: 10, padding: "4px 9px", fontSize: 11 };
+  return <span id={id} style={{ position: "absolute", zIndex: 2, top: -12, ...placement, borderRadius: 7,
+    lineHeight: "16px", fontWeight: 700, color: item.isRootCause ? theme.bg : theme.textSecondary,
     background: item.isRootCause ? theme.textPrimary : theme.bgElevated, border: `1px solid ${theme.tracing}`, pointerEvents: "none" }}>
     {item.isRootCause ? "Supported cause" : "Cause inside"}
   </span>;
