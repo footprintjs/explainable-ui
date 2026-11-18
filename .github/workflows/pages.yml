@@ -1,7 +1,6 @@
 name: Deploy demo to GitHub Pages
 
-# Builds the gallery at /explainable-ui/ and the seven-workflow preview at
-# /explainable-ui/local-playground/, plus the deployment-shapes, headless-controller and record-slider examples.
+# Builds the gallery and the standalone previews linked from it.
 on:
   push:
     branches: [main]
@@ -10,6 +9,7 @@ on:
       - 'examples/local-playground/**'
       - 'examples/node-icons/**'
       - 'examples/deployment-shapes/**'
+      - 'examples/diagram-appearance/**'
       - 'examples/headless-controller/**'
       - 'examples/record-slider/**'
       - 'pilots/record-lens/fixtures/hci.json'
@@ -44,6 +44,10 @@ jobs:
         run: npx vite build --config examples/local-playground/vite.config.ts
       - name: Build deployment shapes example
         run: npx vite build --config examples/deployment-shapes/vite.config.ts
+      - name: Check and build diagram appearance example
+        run: |
+          npx tsc -p examples/diagram-appearance/tsconfig.json
+          npx vite build --config examples/diagram-appearance/vite.config.ts
       - name: Check and build shared controller example
         run: |
           npx tsc -p examples/headless-controller/tsconfig.json

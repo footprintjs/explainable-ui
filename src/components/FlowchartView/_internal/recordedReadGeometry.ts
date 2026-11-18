@@ -1,4 +1,6 @@
 import type { Rect } from "@xyflow/react";
+import type { DiagramGeometry } from "../../DiagramDrawing";
+import { diagramEdgePort } from "./diagramEdgePort";
 import { GROUP_CONTAINER_NODE_TYPE } from "./groupLayout";
 import { positiveFinite, type ChartFitNode } from "./chartFitGeometry";
 
@@ -15,11 +17,13 @@ export interface RecordedReadGeometry {
 /** One paint-only route for rendering and automatic fitting. Labels have a
  * bounded HTML box, so fitting does not guess a font's text measurements. */
 export function recordedReadGeometry(
-  nodes: ReadonlyMap<string, ReadNode>, source: string, target: string, lane: number,
+  nodes: ReadonlyMap<string, ReadNode>, source: string, target: string, lane: number, geometry?: DiagramGeometry,
 ): RecordedReadGeometry | null {
   const from = nodes.get(source), to = nodes.get(target);
   if (!from || !to || from.hidden || to.hidden || !Number.isSafeInteger(lane) || lane < 0) return null;
-  const sx = from.internals.positionAbsolute.x, tx = to.internals.positionAbsolute.x;
+  const sourcePort = diagramEdgePort(geometry, source, "source", from);
+  const targetPort = diagramEdgePort(geometry, target, "target", to);
+  const sx = sourcePort?.x ?? from.internals.positionAbsolute.x, tx = targetPort?.x ?? to.internals.positionAbsolute.x;
   const fromY = from.internals.positionAbsolute.y, toY = to.internals.positionAbsolute.y;
   const fromHeight = from.measured?.height, toHeight = to.measured?.height;
   if (![sx, tx, fromY, toY].every(Number.isFinite) || !positiveFinite(fromHeight) || !positiveFinite(toHeight)) return null;
@@ -29,7 +33,7 @@ export function recordedReadGeometry(
     const x = node.internals.positionAbsolute.x;
     if (Number.isFinite(x)) left = Math.min(left, x);
   }
-  const sy = fromY + fromHeight / 2, ty = toY + toHeight / 2;
+  const sy = sourcePort?.y ?? (fromY + fromHeight / 2), ty = targetPort?.y ?? (toY + toHeight / 2);
   const x = left - 36 - (lane % 6) * 18;
   const label = { x: x - RECORDED_READ_LABEL_WIDTH / 2, y: (sy + ty) / 2 - RECORDED_READ_LABEL_HEIGHT / 2,
     width: RECORDED_READ_LABEL_WIDTH, height: RECORDED_READ_LABEL_HEIGHT };

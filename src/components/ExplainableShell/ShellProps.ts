@@ -1,4 +1,6 @@
 import type * as React from "react";
+import type { DiagramVisualProps } from "../../model/diagram";
+import type { DiagramAppearance } from "../DiagramAppearance";
 import type { LensControllerOptions } from "../../workbench";
 import type { StageSnapshot, BaseComponentProps, NarrativeEntry } from "../../types";
 import type { RuntimeSnapshotInput } from "../../model/recording";
@@ -85,7 +87,17 @@ export interface TraceTheme {
   current?: string;
 }
 
-export interface ExplainableShellProps extends BaseComponentProps, LensControllerOptions {
+export interface DiagramReplayPosition {
+  /** Index in this invocation's visible snapshot list. */
+  readonly selectedIndex: number;
+  readonly selectedSnapshot: StageSnapshot | undefined;
+  readonly invocationPath: readonly string[];
+}
+
+export interface ExplainableShellProps extends BaseComponentProps, LensControllerOptions, DiagramVisualProps {
+  /** Resolve this frame of domain presentation using the Shell's single scoped cursor.
+   * When supplied this is authoritative, including a return of undefined. */
+  diagramAppearanceAt?: (position: DiagramReplayPosition) => DiagramAppearance | undefined;
   /**
    * Pre-converted visualization snapshots. Use when you've already called
    * toVisualizationSnapshots() yourself.
@@ -194,7 +206,7 @@ export interface ExplainableShellProps extends BaseComponentProps, LensControlle
    * signatures (it's the same SpecNode used for drill-down) and may
    * be `null` once consumers stop threading it in.
    */
-  renderFlowchart?: (props: {
+  renderFlowchart?: (props: DiagramVisualProps & {
     spec: SpecNode | null;
     snapshots: StageSnapshot[];
     selectedIndex: number;

@@ -234,6 +234,7 @@ export function applyGroupLayout(graph: TraceGraph, opts: GroupLayoutOptions): T
       return box
         ? {
             ...n,
+            width: box.width, height: box.height,
             style: { ...(n.style ?? {}), width: box.width, height: box.height },
             data: { ...n.data, isGroupContainer: true },
           }
@@ -257,6 +258,8 @@ export function applyGroupLayout(graph: TraceGraph, opts: GroupLayoutOptions): T
       ...mount,
       type: GROUP_CONTAINER_NODE_TYPE,
       position: mountPos,
+      // An expanded container now owns the box, including XYFlow terminal dimensions.
+      width: boxWidth, height: boxHeight,
       style: { ...(mount.style ?? {}), width: boxWidth, height: boxHeight },
       data: { ...mount.data, isGroupContainer: true },
     });

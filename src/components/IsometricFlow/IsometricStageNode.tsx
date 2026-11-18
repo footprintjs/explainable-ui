@@ -1,6 +1,9 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { Position, type NodeProps } from "@xyflow/react";
 import { FootprintIcon, useFootprintTheme, theme, v } from "../../theme";
+import { DiagramPort } from "../DiagramDrawing/DiagramPort";
+import { Artwork } from "../DiagramDrawing/Artwork";
+import type { DiagramNodeGeometry } from "../DiagramDrawing/types";
 import type { StageNodeData } from "../StageNode";
 import { isoStyles, isoPaint } from "./styles";
 import { recordedPathLabel } from "../../trace/recordedValuePreview";
@@ -43,7 +46,9 @@ function FallbackIcon({ name, data }: { name: string; data: StageNodeData }) {
     strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">{drawing}</svg>;
 }
 
-export function IsometricStageNode({ data: input }: NodeProps) {
+export function IsometricStageNode({ data: input, diagramGeometry, diagramArtwork }: NodeProps & {
+  diagramGeometry?: DiagramNodeGeometry; diagramArtwork?: ReactNode;
+}) {
   const data = input as unknown as StageNodeData;
   const tokens = useFootprintTheme();
   const { active, done, error, isSubflow, isDecider, isFork, traceWorkflow, traceContext, unstyled = false } = data;
@@ -75,16 +80,26 @@ export function IsometricStageNode({ data: input }: NodeProps) {
   const badgePaint: CSSProperties = unstyled ? {} : { color: foreground, background: fill, border: `1px solid ${outline}`,
     boxShadow: v("--fp-node-badge-shadow", "none"), fontFamily: theme.fontMono };
 
+  const width = diagramGeometry?.width ?? 168;
+  const height = diagramGeometry?.height ?? 116;
+  const scaleX = width / 168, scaleY = height / 116;
+  const visualTarget = diagramGeometry ? { x: diagramGeometry.target.x / scaleX, y: diagramGeometry.target.y / scaleY } : { x: 46, y: 40 };
+  const visualSource = diagramGeometry ? { x: diagramGeometry.source.x / scaleX, y: diagramGeometry.source.y / scaleY } : { x: 122, y: 78 };
   return <div className="fp-isometric-stage iso-stage" data-fp="isometric-stage-node" data-active={active || undefined}
     data-done={done || undefined} data-error={error || undefined} data-dimmed={data.dimmed || undefined}
     data-unstyled={unstyled || undefined} data-trace-role={traceWorkflow?.role} data-trace-context={traceContext}
-    style={{ ...isoStyles.root, ...rootPaint }} role="group" aria-label={facts} title={facts}>
-    <Handle type="target" position={Position.Left} className="iso-stage__handle"
+    style={{ ...isoStyles.root, width, height, ...rootPaint }} role="group" aria-label={facts} title={facts}>
+    <DiagramPort geometry={diagramGeometry} type="target" position={Position.Left} className="iso-stage__handle"
       style={{ left: 46, top: 40, width: 0, height: 0, minWidth: 0, minHeight: 0, border: 0, transform: "none", opacity: 0 }} />
-    <Handle type="source" position={Position.Right} className="iso-stage__handle"
+    <DiagramPort geometry={diagramGeometry} type="source" position={Position.Right} className="iso-stage__handle"
       style={{ left: 122, right: "auto", top: 78, width: 0, height: 0, minWidth: 0, minHeight: 0, border: 0, transform: "none", opacity: 0 }} />
-    <svg className="iso-stage__slab" viewBox="0 0 168 100" aria-hidden="true" focusable="false"
-      style={{ ...isoStyles.slab, ...(!unstyled && { filter: v("--fp-node-shape-shadow", `drop-shadow(1px 3px 1px color-mix(in srgb, ${theme.border} 20%, transparent))`) }) }}>
+    {diagramArtwork && diagramGeometry ? <>
+      <Artwork geometry={diagramGeometry}>{diagramArtwork}</Artwork>
+      {traceWorkflow && <span aria-hidden="true" data-fp="trace-workflow-ring" style={{ position: "absolute", inset: 0,
+        pointerEvents: "none", border: `2px solid ${unstyled ? "currentColor" : traceWorkflow.color}` }} />}
+    </> : <>
+    <svg className="iso-stage__slab" preserveAspectRatio="none" viewBox="0 0 168 100" aria-hidden="true" focusable="false"
+      style={{ ...isoStyles.slab, width, height: 100 * scaleY, ...(!unstyled && { filter: v("--fp-node-shape-shadow", `drop-shadow(1px 3px 1px color-mix(in srgb, ${theme.border} 20%, transparent))`) }) }}>
       <g stroke={unstyled ? "currentColor" : outline} strokeWidth={unstyled ? undefined : outlineWidth}
         strokeLinejoin="round" strokeDasharray={unstyled ? undefined : dash}>
         <path d={LEFT_SIDE} fill={unstyled ? "none" : `color-mix(in srgb, ${fill} 88%, ${outline})`} />
@@ -93,27 +108,28 @@ export function IsometricStageNode({ data: input }: NodeProps) {
       </g>
       {traceWorkflow && <path d={TOP} fill="none" stroke={unstyled ? "currentColor" : traceWorkflow.color}
         strokeWidth="3" strokeLinejoin="round" transform="translate(-5 -3) scale(1.06)" />}
-      <circle cx="46" cy="40" r="2.2" fill={unstyled ? "currentColor" : outline} />
-      <circle cx="122" cy="78" r="2.2" fill={unstyled ? "currentColor" : outline} />
+      <circle cx={visualTarget.x} cy={visualTarget.y} r="2.2" fill={unstyled ? "currentColor" : outline} />
+      <circle cx={visualSource.x} cy={visualSource.y} r="2.2" fill={unstyled ? "currentColor" : outline} />
     </svg>
-    <div className="iso-stage__icon" aria-hidden="true" style={isoStyles.icon}>
+    <div className="iso-stage__icon" aria-hidden="true" style={{ ...isoStyles.icon, left: 88 * scaleX - 11, top: 52 * scaleY - 11 }}>
       <FootprintIcon part="stage-icon" name={icon} unstyled={unstyled} defaultStyle={undefined}
         style={{ display: "inline-flex", width: 22, height: 22 }}><FallbackIcon name={icon} data={data} /></FootprintIcon>
     </div>
+    </>}
     {steps.length > 0 && (active || done) && <div className="iso-stage__steps" aria-hidden="true" style={isoStyles.steps}>
       {steps.map((step, index) => <span key={`${index}:${step}`} className="iso-stage__step" style={{ ...isoStyles.step, ...badgePaint, ...(!unstyled && isoPaint.step) }}>{step}</span>)}
     </div>}
     {status && <span className="iso-stage__status" style={{ ...isoStyles.status, ...badgePaint, ...(!unstyled && isoPaint.status) }} aria-hidden="true">{status}</span>}
-    {retries && <span className="iso-stage__retry" style={{ ...isoStyles.retry, ...(!unstyled && { ...isoPaint.step, color: theme.warning, background: theme.bgSecondary,
+    {retries && <span className="iso-stage__retry" style={{ ...isoStyles.retry, top: Math.max(0, height - 34), ...(!unstyled && { ...isoPaint.step, color: theme.warning, background: theme.bgSecondary,
       border: `1px solid ${theme.warning}`, boxShadow: v("--fp-node-badge-shadow", "none") }) }}
       role="img" aria-label={retryLabel} title={retryLabel}>↻ ×{retries}</span>}
-    <span className="iso-stage__label" style={{ ...isoStyles.label, ...(!unstyled && { ...isoPaint.label, color: theme.textPrimary }) }} aria-hidden="true">{label}</span>
+    <span className="iso-stage__label" style={{ ...isoStyles.label, width, top: Math.max(0, height - 17), ...(!unstyled && { ...isoPaint.label, color: theme.textPrimary }) }} aria-hidden="true">{label}</span>
     {traceWorkflow && <span className="iso-stage__trace" data-fp="trace-workflow-caption" title={`${role}${traceValues ? `: ${traceValues}` : ""}`}
-      style={{ ...isoStyles.trace, ...(!unstyled && { ...isoPaint.trace, color: traceWorkflow.color, background: theme.bgSecondary, border: `1px solid ${traceWorkflow.color}`, fontFamily: theme.fontMono }) }}>
+      style={{ ...isoStyles.trace, top: height + 2, ...(!unstyled && { ...isoPaint.trace, color: traceWorkflow.color, background: theme.bgSecondary, border: `1px solid ${traceWorkflow.color}`, fontFamily: theme.fontMono }) }}>
       <strong>{role}</strong>{traceValues && ` · ${traceValues}`}
     </span>}
     {traceContext === "outside" && <span className="iso-stage__trace" data-fp="trace-context-caption"
-      style={{ ...isoStyles.trace, ...(!unstyled && { ...isoPaint.trace, color: theme.textSecondary, background: theme.bgSecondary, border: `1px solid ${theme.border}`, fontFamily: theme.fontMono }) }}>
+      style={{ ...isoStyles.trace, top: height + 2, ...(!unstyled && { ...isoPaint.trace, color: theme.textSecondary, background: theme.bgSecondary, border: `1px solid ${theme.border}`, fontFamily: theme.fontMono }) }}>
       Outside displayed trace
     </span>}
   </div>;

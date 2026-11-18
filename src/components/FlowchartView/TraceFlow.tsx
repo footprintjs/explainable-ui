@@ -63,6 +63,9 @@ import { chartLayoutKey } from "./_internal/chartFitGeometry";
 import { resolveFlowchartRenderer, type FlowchartRenderer } from "../../model/flowchart";
 import { IsometricEdge, IsometricGrid } from "../IsometricFlow";
 import { RendererContext, DefaultStageNode } from "../IsometricFlow/RendererContext";
+import type { DiagramVisualProps } from "../../model/diagram";
+import { DiagramDrawingProvider, prepareDiagramGeometry } from "../DiagramDrawing";
+import { applyDiagramAppearance, diagramNativeEdgeTypes } from "../DiagramAppearance";
 import { RendererGeometry } from "../IsometricFlow/RendererGeometry";
 import { createIsometricTraceLayout } from "./_internal/isometricTraceLayout";
 import { MeasuredNodeSizes } from "./_internal/MeasuredNodeSizes";
@@ -275,7 +278,7 @@ type TraceFlowSource =
   | { recorder: TraceStructureRecorderHandle; graph?: never }
   | { graph: TraceGraph; recorder?: never };
 
-export type TraceFlowProps = BaseComponentProps &
+export type TraceFlowProps = BaseComponentProps & DiagramVisualProps &
   TraceFlowSource & {
     /** Built-in drawing and default geometry. Explicit layout and custom registries retain priority. */
     renderer?: FlowchartRenderer;
@@ -324,7 +327,7 @@ const DEFAULT_NODE_TYPES: NodeTypes = { stageNode: DefaultStageNode, groupContai
 // Built-in edge types. `loopBack` curves loop-back edges along the right margin
 // (see LoopBackEdge). Always registered so every consumer gets the curve;
 // merged UNDER any consumer-supplied `edgeTypes` (consumer keys win).
-const DEFAULT_EDGE_TYPES: EdgeTypes = { loopBack: LoopBackEdge, smartStep: SmartStepEdge, recordedRead: RecordedReadEdge, isometric: IsometricEdge };
+const DEFAULT_EDGE_TYPES: EdgeTypes = { ...diagramNativeEdgeTypes, loopBack: LoopBackEdge, smartStep: SmartStepEdge, recordedRead: RecordedReadEdge, isometric: IsometricEdge };
 
 /**
  * Convert a `TraceNode` (with `TraceNodeData`) to the `StageNode`-typed
@@ -417,8 +420,8 @@ export function TraceFlow(props: TraceFlowProps) {
   const fixedStageNodes = !props.nodeTypes?.stageNode;
   const isometricLayout = useMemo(() => createIsometricTraceLayout({
     nodeSize: measuredSizes ? node => measuredSizes.get(node.id) : undefined,
-    fixedStageNodes,
-  }), [measuredSizes, fixedStageNodes]);
+    fixedStageNodes, diagramGeometry: props.diagramGeometry,
+  }), [measuredSizes, fixedStageNodes, props.diagramGeometry]);
   const layout = props.layout ?? (renderer === "isometric" ? isometricLayout : dagreTraceLayout);
   const edgeColors = useMemo<TraceFlowEdgeColors>(
     () => ({ ...DEFAULT_EDGE_COLORS, ...(props.edgeColors ?? {}) }),
@@ -450,9 +453,9 @@ export function TraceFlow(props: TraceFlowProps) {
   }, [recorder, graphProp, version]);
 
   const positioned = useMemo<TraceGraph>(() => {
-    if (layout === "passthrough") return graph;
-    return layout(graph);
-  }, [graph, layout]);
+    const prepared = prepareDiagramGeometry(graph, props.diagramGeometry);
+    return layout === "passthrough" ? prepared : layout(prepared);
+  }, [graph, layout, props.diagramGeometry]);
 
   const reactFlowNodes = useMemo<Node[]>(
     () => positioned.nodes.map(source => {
@@ -465,6 +468,11 @@ export function TraceFlow(props: TraceFlowProps) {
     () => positioned.edges.map((e) => styleEdge(e, edgeColors, renderer, !!props.unstyled)),
     [positioned.edges, edgeColors, renderer, props.unstyled],
   );
+
+  const nodes = useMemo(() => applyDiagramAppearance(reactFlowNodes, props.diagramAppearance?.nodes),
+    [reactFlowNodes, props.diagramAppearance?.nodes]);
+  const edges = useMemo(() => applyDiagramAppearance(reactFlowEdges, props.diagramAppearance?.edges),
+    [reactFlowEdges, props.diagramAppearance?.edges]);
 
   const onNodeClickRef = props.onNodeClick;
   const handleNodeClick = useCallback(
@@ -502,9 +510,9 @@ export function TraceFlow(props: TraceFlowProps) {
         ...props.style,
       }}
     >
-      <RendererContext.Provider value={renderer}><ReactFlow
-        nodes={reactFlowNodes}
-        edges={reactFlowEdges}
+      <DiagramDrawingProvider enableAppearance={props.diagramAppearance !== undefined} geometry={props.diagramGeometry} drawings={props.diagramDrawings}><RendererContext.Provider value={renderer}><ReactFlow
+        nodes={nodes}
+        edges={edges}
         nodeTypes={mergedNodeTypes}
         edgeTypes={mergedEdgeTypes}
         onNodeClick={handleNodeClick}
@@ -515,7 +523,7 @@ export function TraceFlow(props: TraceFlowProps) {
         {renderer === "isometric" && props.layout === undefined && <MeasuredNodeSizes onSizes={acceptMeasurements} />}
         {!props.unstyled && (renderer === "isometric" ? <IsometricGrid /> : <Background variant={BackgroundVariant.Dots} gap={20} size={1} />)}
         {props.children}
-      </ReactFlow></RendererContext.Provider>
+      </ReactFlow></RendererContext.Provider></DiagramDrawingProvider>
     </div>
   );
 }

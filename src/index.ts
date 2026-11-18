@@ -201,3 +201,12 @@ export type { ProgressiveRenderingOptions, SubflowLoadRequest, LoadedSubflow, Pr
   RecordingSourceSnapshot, RecordingSourceOptions, RecordingSourceUpdate, RecordingSource, PreparationWorker, SubflowWorkerPreparation } from "./progressiveRendering";
 export { FootprintLoadStatus } from "./theme";
 export type { FootprintLoadStatusProps, FootprintLoadStatusAdapterProps } from "./theme";
+
+
+// Shared diagram presentation for application state and recorded replay.
+export { createDiagramAppearanceReader } from "./model/diagram";
+export type { DiagramAppearanceChange, DiagramAppearanceReader, DiagramVisualProps } from "./model/diagram";
+export { DiagramNodeAppearance, DiagramEdgeAppearance } from "./components/DiagramAppearance";
+export type { DiagramNodeAppearanceProps, DiagramEdgeAppearanceProps, DiagramAppearance, DiagramObjectAppearance, DiagramProgress } from "./components/DiagramAppearance";
+export type { DiagramPoint, DiagramGeometry, DiagramNodeGeometry, DiagramDrawings, DiagramDrawingProps } from "./components/DiagramDrawing";
+export type { DiagramReplayPosition } from "./components/ExplainableShell/ShellProps";

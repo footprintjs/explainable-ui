@@ -16,7 +16,7 @@ export interface DefaultFlowchartOptions {
 export function useDefaultFlowchart({ activeGraph, activeRuntimeOverlay, traceTheme, flowchartRenderer }: DefaultFlowchartOptions): ExplainableShellProps['renderFlowchart'] {
   return useMemo(() => {
     if (!activeGraph) return undefined;
-    return ({ selectedIndex, snapshots, onNodeClick, sliceCone, traceWorkflow, currentSubflowId, onSubflowChange, unstyled: chartUnstyled }: Parameters<NonNullable<ExplainableShellProps['renderFlowchart']>>[0]) => {
+    return ({ selectedIndex, snapshots, onNodeClick, sliceCone, traceWorkflow, currentSubflowId, onSubflowChange, diagramGeometry, diagramDrawings, diagramAppearance, unstyled: chartUnstyled }: Parameters<NonNullable<ExplainableShellProps['renderFlowchart']>>[0]) => {
       // The shell's `selectedIndex` indexes into `snapshots[]` (which
       // may be filtered to a drill-down subset). The overlay's
       // `executionOrder` is the FULL execution timeline (all stages
@@ -59,6 +59,7 @@ export function useDefaultFlowchart({ activeGraph, activeRuntimeOverlay, traceTh
       return (
         <TracedFlow
           renderer={flowchartRenderer}
+          diagramGeometry={diagramGeometry} diagramDrawings={diagramDrawings} diagramAppearance={diagramAppearance}
           graph={activeGraph}
           overlay={activeRuntimeOverlay ?? undefined}
           sliceCone={sliceCone ?? undefined}

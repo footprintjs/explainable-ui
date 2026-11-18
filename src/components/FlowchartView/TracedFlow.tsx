@@ -78,6 +78,9 @@ import { TRACE_MOTION_MS, useTraceMotion } from "../../_internal/useTraceMotion"
 import { resolveFlowchartRenderer, type FlowchartRenderer } from "../../model/flowchart";
 import { IsometricEdge, IsometricGrid } from "../IsometricFlow";
 import { RendererContext, DefaultStageNode } from "../IsometricFlow/RendererContext";
+import type { DiagramVisualProps } from "../../model/diagram";
+import { DiagramDrawingProvider, getDiagramNodeGeometry, prepareDiagramGeometry } from "../DiagramDrawing";
+import { applyDiagramAppearance, diagramNativeEdgeTypes } from "../DiagramAppearance";
 import { RendererGeometry } from "../IsometricFlow/RendererGeometry";
 import { createIsometricTraceLayout, ISOMETRIC_NODE_WIDTH, ISOMETRIC_NODE_HEIGHT } from "./_internal/isometricTraceLayout";
 
@@ -343,7 +346,7 @@ function styleEdgeWithOverlay(
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps {
+export interface TracedFlowProps extends BaseComponentProps, ThemeModeProps, DiagramVisualProps {
   /** Built-in drawing and default geometry. Explicit layout and custom registries retain priority. */
   renderer?: FlowchartRenderer;
   /** Build-time graph from `createTraceStructureRecorder().getGraph()`. */
@@ -479,10 +482,11 @@ const DEFAULT_NODE_TYPES: NodeTypes = {
 // (see LoopBackEdge); `smartStep` routes rank-skipping edges around the node
 // they skip (see SmartStepEdge). Always registered; merged UNDER consumer
 // `edgeTypes` (consumer keys win).
-const DEFAULT_EDGE_TYPES: EdgeTypes = { loopBack: LoopBackEdge, smartStep: SmartStepEdge, recordedRead: RecordedReadEdge, isometric: IsometricEdge };
+const DEFAULT_EDGE_TYPES: EdgeTypes = { ...diagramNativeEdgeTypes, loopBack: LoopBackEdge, smartStep: SmartStepEdge, recordedRead: RecordedReadEdge, isometric: IsometricEdge };
 
 export function TracedFlow({
   renderer: rendererProp,
+  diagramGeometry, diagramDrawings, diagramAppearance,
   graph,
   overlay,
   scrubIndex,
@@ -560,8 +564,8 @@ export function TracedFlow({
 
   // ── Node collapse (before drill: a hidden card cannot be drilled) ──
   const effectiveGraph = useMemo(
-    () => (collapseNode ? collapseTraceGraph(graph, collapseNode).graph : graph),
-    [graph, collapseNode],
+    () => prepareDiagramGeometry(collapseNode ? collapseTraceGraph(graph, collapseNode).graph : graph, diagramGeometry),
+    [graph, collapseNode, diagramGeometry],
   );
 
   // ── Drill state + visibility derivations ──────────────────────────
@@ -607,8 +611,8 @@ export function TracedFlow({
     // snap reconstructs centers from wrong widths (the identical-resolver
     // invariant). A consumer's custom `layout` owns its own sizing;
     // "passthrough" keeps the incoming positions.
-    const nodeSize: NodeSizeResolver | undefined = layoutOptions?.nodeSize || measuredSizes
-      ? (n) => layoutOptions?.nodeSize?.(n) ?? measuredSizes?.get(n.id)
+    const nodeSize: NodeSizeResolver | undefined = diagramGeometry || layoutOptions?.nodeSize || measuredSizes
+      ? (n) => getDiagramNodeGeometry(diagramGeometry, n.id) ?? layoutOptions?.nodeSize?.(n) ?? measuredSizes?.get(n.id)
       : undefined;
     const sizeOpts = { nodeSize, nodeWidth: layoutOptions?.nodeWidth, nodeHeight: layoutOptions?.nodeHeight };
     const nodeSep = layoutOptions?.nodeSep ?? 36;
@@ -621,11 +625,11 @@ export function TracedFlow({
       ),
       { ...sizeOpts, nodeSep }, // same nodeSep → clamp preserves dagre's reserved gap
     );
-    const isometricNodeSize: NodeSizeResolver = node => fixedStageNodes &&
+    const isometricNodeSize: NodeSizeResolver = node => getDiagramNodeGeometry(diagramGeometry, node.id) ?? (fixedStageNodes &&
       !node.data.isGroupContainer && (node.type === undefined || node.type === "stage")
       ? { width: ISOMETRIC_NODE_WIDTH, height: ISOMETRIC_NODE_HEIGHT }
-      : nodeSize?.(node);
-    const isometricBase = createIsometricTraceLayout({ nodeSize: isometricNodeSize, fixedStageNodes });
+      : nodeSize?.(node));
+    const isometricBase = createIsometricTraceLayout({ nodeSize: isometricNodeSize, fixedStageNodes, diagramGeometry });
     const isometricBounds = renderer === "isometric" && layoutProp === undefined ? { nodeSize: isometricNodeSize } : {};
     const realBase: TraceFlowLayout =
       layout === "passthrough"
@@ -654,7 +658,7 @@ export function TracedFlow({
     }
 
     return realBase(filteredGraph);
-  }, [filteredGraph, layout, layoutProp, layoutOptions, groupedSet, mainChartBox, measuredSizes, renderer, fixedStageNodes]);
+  }, [filteredGraph, layout, layoutProp, layoutOptions, groupedSet, mainChartBox, measuredSizes, renderer, fixedStageNodes, diagramGeometry]);
 
   // ── Runtime overlay slice → mount aggregation ────
   // Overlay stage ids are path-qualified (`subflowPath/stageId`, parsed
@@ -783,6 +787,10 @@ export function TracedFlow({
     });
   }, [traceWorkflow, workflowEdges, reactFlowEdges, sliceCone, unstyled]);
 
+  // Paint is applied after layout, drill filtering and Backtrack projection.
+  const nodes = useMemo(() => applyDiagramAppearance(conedNodes, diagramAppearance?.nodes), [conedNodes, diagramAppearance?.nodes]);
+  const edges = useMemo(() => applyDiagramAppearance(conedEdges, diagramAppearance?.edges), [conedEdges, diagramAppearance?.edges]);
+
   // ── Click handling: drill on subflow mount click, propagate click ─
   const handleNodeClick = useCallback(
     (_: unknown, node: Node) => {
@@ -838,9 +846,9 @@ export function TracedFlow({
         ? renderBreadcrumb({ entries: breadcrumb, onNavigate: drill.setCurrentSubflowId, unstyled })
         : <SubflowBreadcrumbBar entries={breadcrumb} onNavigate={drill.setCurrentSubflowId} unstyled={unstyled} />)}
       <div style={{ flex: 1, minHeight: 0 }}>
-        <RendererContext.Provider value={renderer}><ReactFlow
-          nodes={conedNodes}
-          edges={conedEdges}
+        <DiagramDrawingProvider enableAppearance={diagramAppearance !== undefined} geometry={diagramGeometry} drawings={diagramDrawings}><RendererContext.Provider value={renderer}><ReactFlow
+          nodes={nodes}
+          edges={edges}
           nodeTypes={mergedNodeTypes}
           edgeTypes={mergedEdgeTypes}
           onNodeClick={handleNodeClick}
@@ -860,7 +868,7 @@ export function TracedFlow({
           {background !== false && (!unstyled || background !== undefined) && (renderer === "isometric" && background === undefined
             ? <IsometricGrid /> : <Background variant={BackgroundVariant.Dots} gap={20} size={1} {...background} />)}
           {children}
-        </ReactFlow></RendererContext.Provider>
+        </ReactFlow></RendererContext.Provider></DiagramDrawingProvider>
       </div>
     </div>
   );

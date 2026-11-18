@@ -1,5 +1,6 @@
 import type { TraceWorkflowOverlay, TraceWorkflowStage } from "../../../trace/traceWorkflowOverlay";
 import type { Rect } from "@xyflow/react";
+import type { DiagramGeometry } from "../../DiagramDrawing";
 import type { ChartFitNode } from "./chartFitGeometry";
 import { positiveFinite } from "./chartFitGeometry";
 import { recordedReadGeometry } from "./recordedReadGeometry";
@@ -9,6 +10,7 @@ export function traceWorkflowPaintBounds(
   nodes: ReadonlyMap<string, ChartFitNode>,
   stageIds: Iterable<string>,
   reads: readonly Pick<VisibleWorkflowRead, "source" | "target">[] = [],
+  geometry?: DiagramGeometry,
 ): Rect | undefined {
   let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
   for (const id of stageIds) {
@@ -24,7 +26,7 @@ export function traceWorkflowPaintBounds(
     bottom = Math.max(bottom, y + height + 26); // 7px gap + 18px caption + rounding room.
   }
   for (const [lane, read] of reads.entries()) {
-    const route = recordedReadGeometry(nodes, read.source, read.target, lane);
+    const route = recordedReadGeometry(nodes, read.source, read.target, lane, geometry);
     if (!route) return undefined;
     left = Math.min(left, route.bounds.x); top = Math.min(top, route.bounds.y);
     right = Math.max(right, route.bounds.x + route.bounds.width);

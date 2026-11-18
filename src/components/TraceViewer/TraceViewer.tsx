@@ -81,7 +81,7 @@ export type TraceParseError =
 export interface TraceViewerProps
   extends Pick<
     ExplainableShellProps,
-    'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'flowchart' | 'traceTheme' | 'autoPlay' | 'view' | 'defaultView' | 'onViewChange' | 'commentary' | 'replayControls' | 'renderLayout' | 'layout' | 'source' | 'rendering'
+    'tabs' | 'defaultTab' | 'hideTabs' | 'size' | 'panelLabels' | 'recorderViews' | 'renderFlowchart' | 'flowchart' | 'diagramGeometry' | 'diagramDrawings' | 'diagramAppearance' | 'diagramAppearanceAt' | 'traceTheme' | 'autoPlay' | 'view' | 'defaultView' | 'onViewChange' | 'commentary' | 'replayControls' | 'renderLayout' | 'layout' | 'source' | 'rendering'
     >,
     ThemeModeProps {
   /**
@@ -214,6 +214,7 @@ export function TraceViewer({
   recorderViews,
   renderFlowchart,
   flowchart,
+  diagramGeometry, diagramDrawings, diagramAppearance, diagramAppearanceAt,
   traceTheme,
   autoPlay,
   view,
@@ -280,6 +281,8 @@ export function TraceViewer({
       recorderViews={recorderViews}
       renderFlowchart={renderFlowchart}
       flowchart={flowchart}
+      diagramGeometry={diagramGeometry} diagramDrawings={diagramDrawings}
+      diagramAppearance={diagramAppearance} diagramAppearanceAt={diagramAppearanceAt}
       autoPlay={autoPlay}
       view={view}
       defaultView={defaultView}

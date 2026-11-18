@@ -59,6 +59,13 @@ const progressiveRenderingExports = [
   ].map(name => ({ name, kind: "type" })),
 ];
 
+const diagramPresentationExports = [
+  ...["createDiagramAppearanceReader", "DiagramNodeAppearance", "DiagramEdgeAppearance"].map(name => ({ name, kind: "value" })),
+  ...["DiagramAppearance", "DiagramObjectAppearance", "DiagramProgress", "DiagramAppearanceChange",
+    "DiagramAppearanceReader", "DiagramVisualProps", "DiagramPoint", "DiagramGeometry", "DiagramNodeGeometry",
+    "DiagramDrawings", "DiagramDrawingProps", "DiagramNodeAppearanceProps", "DiagramEdgeAppearanceProps"].map(name => ({ name, kind: "type" })),
+];
+
 const isometricExports = [
   ...["IsometricStageNode", "IsometricEdge", "IsometricGrid", "createIsometricTraceLayout",
     "isometricTraceLayout", "ISOMETRIC_NODE_WIDTH", "ISOMETRIC_NODE_HEIGHT",
@@ -142,9 +149,11 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...stageActivityExports,
         ...themePrimitiveExports,
         ...flowchartOptionExports,
+        ...diagramPresentationExports,
         ...displayPreflightExports,
         ...progressiveRenderingExports,
         ...headlessControllerExports,
+        { name: "DiagramReplayPosition", kind: "type" },
         { name: "investigationGapMessage", kind: "value" },
         ...["paperLight", "paperDark"].map(name => ({ name, kind: "value" })),
         { name: "useLensWorkbench", kind: "value" },
@@ -157,6 +166,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         ...traceWorkflowExports,
         ...themePrimitiveExports,
         ...flowchartOptionExports,
+        ...diagramPresentationExports,
         ...isometricExports,
         ...progressiveRenderingExports,
         ...["FootprintTheme", "useFootprintTheme", "tokensToCSSVars", "themeModeVars"].map(name => ({ name, kind: "value" })),

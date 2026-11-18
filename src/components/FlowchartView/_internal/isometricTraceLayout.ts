@@ -1,3 +1,4 @@
+import { getDiagramNodeGeometry, prepareDiagramGeometry, type DiagramGeometry } from "../../DiagramDrawing";
 import type { TraceFlowLayout } from "../TraceFlow";
 import type { TraceGraph, TraceNode } from "../traceStructureRecorder";
 import { createDagreTraceLayout, type NodeFootprint, type NodeSizeResolver } from "./dagreTraceLayout";
@@ -16,6 +17,8 @@ export interface IsometricTraceLayoutOptions {
   readonly nodeSize?: NodeSizeResolver;
   /** Fixed built-in tiles use 168×116. Disable for a consumer stageNode replacement. */
   readonly fixedStageNodes?: boolean;
+  /** Explicit host footprints override the stock tile dimensions for those IDs. */
+  readonly diagramGeometry?: DiagramGeometry;
 }
 
 function isContainer(node: TraceNode): boolean {
@@ -88,7 +91,8 @@ export function createIsometricTraceLayout(options: IsometricTraceLayoutOptions 
   const fixedStageNodes = options.fixedStageNodes !== false;
   return (graph: TraceGraph): TraceGraph => {
     if (graph.nodes.length === 0) return graph;
-    const nodes = graph.nodes.map(node => fixedStageNodes && isStage(node) && !isContainer(node)
+    const prepared = prepareDiagramGeometry(graph, options.diagramGeometry);
+    const nodes = prepared.nodes.map(node => fixedStageNodes && isStage(node) && !isContainer(node) && !getDiagramNodeGeometry(options.diagramGeometry, node.id)
       ? { ...node, style: { ...node.style, width: ISOMETRIC_NODE_WIDTH, height: ISOMETRIC_NODE_HEIGHT } }
       : node);
     const ids = new Set(nodes.map(node => node.id));
@@ -99,12 +103,13 @@ export function createIsometricTraceLayout(options: IsometricTraceLayoutOptions 
     let maxWidth = 0, maxHeight = 0, hasContainers = false;
     for (const node of outer) {
       const container = isContainer(node);
-      const fixed = fixedStageNodes && isStage(node) && !container;
+      const authored = !container ? getDiagramNodeGeometry(options.diagramGeometry, node.id) : undefined;
+      const fixed = fixedStageNodes && isStage(node) && !container && !authored;
       const styleWidth = dimension(node.style?.width, NaN);
       const styleHeight = dimension(node.style?.height, NaN);
       // Stamped container dimensions and fixed built-in tiles are authoritative.
       const resolved = fixed || container && Number.isFinite(styleWidth) && Number.isFinite(styleHeight)
-        ? undefined : options.nodeSize?.(node);
+        ? undefined : authored ?? options.nodeSize?.(node);
       const fallbackWidth = dimension(node.measured?.width, dimension(node.width, ISOMETRIC_NODE_WIDTH));
       const fallbackHeight = dimension(node.measured?.height, dimension(node.height, ISOMETRIC_NODE_HEIGHT));
       const width = container ? dimension(styleWidth, dimension(resolved?.width, fallbackWidth))

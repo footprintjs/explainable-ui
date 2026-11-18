@@ -8,7 +8,7 @@
  * silently fell back to the default top/bottom handles and the loop collapsed
  * back onto the spine. This component sidesteps handles entirely: it reads the
  * source/target node bounds straight from the xyflow store, anchors on their
- * RIGHT edges, and bows out to a shared lane clear of every content node. It
+ * right edges (or explicit drawing ports), and bows out to a clear shared lane. It
  * therefore works for ANY node type with zero per-node wiring — register it
  * once and every loop curves.
  *
@@ -18,6 +18,9 @@
  */
 
 import { BaseEdge, useStore } from "@xyflow/react";
+import { useDiagramDrawingOptions } from "../DiagramDrawing";
+import { diagramEdgePort } from "../FlowchartView/_internal/diagramEdgePort";
+import { StockEdgeAppearance, appearanceFromData } from "../DiagramAppearance";
 import type { CSSProperties } from "react";
 import type { EdgeProps, InternalNode, ReactFlowState } from "@xyflow/react";
 import { LOOP_LANE_GAP, loopBackPath, loopLaneX } from "../FlowchartView/_internal/loopRouting";
@@ -60,6 +63,7 @@ function centerY(node: InternalNode): number {
 }
 
 export function LoopBackEdge({ id, source, target, markerEnd, style, data }: EdgeProps) {
+  const { geometry } = useDiagramDrawingOptions();
   // Derive the full SVG path inside the store selector and return it as a
   // STRING — primitive equality means the edge only re-renders when its
   // geometry actually changes (no per-tick churn, no render loop).
@@ -82,9 +86,11 @@ export function LoopBackEdge({ id, source, target, markerEnd, style, data }: Edg
     // (content) endpoints this is a harmless duplicate — loopLaneX takes a max.
     const laneX = loopLaneX([...contentRights, rightEdge(src), rightEdge(tgt)], LOOP_LANE_GAP);
 
+    const start = diagramEdgePort(geometry, source, "source", src);
+    const end = diagramEdgePort(geometry, target, "target", tgt);
     return loopBackPath(
-      { right: rightEdge(src), centerY: centerY(src) },
-      { right: rightEdge(tgt), centerY: centerY(tgt) },
+      { right: start?.x ?? rightEdge(src), centerY: start?.y ?? centerY(src) },
+      { right: end?.x ?? rightEdge(tgt), centerY: end?.y ?? centerY(tgt) },
       laneX,
       LOOP_CORNER_RADIUS,
     );
@@ -92,12 +98,14 @@ export function LoopBackEdge({ id, source, target, markerEnd, style, data }: Edg
 
   if (!path) return null;
   return (
-    <BaseEdge
-      id={id}
-      path={path}
-      markerEnd={markerEnd}
-      style={data?.unstyled === true ? style : { ...softenLoopStyle(undefined), ...style }}
-      aria-label="Loop back"
-    />
+    <StockEdgeAppearance path={path} appearance={appearanceFromData(data)} unstyled={data?.unstyled === true}>
+      <BaseEdge
+        id={id}
+        path={path}
+        markerEnd={markerEnd}
+        style={data?.unstyled === true ? style : { ...softenLoopStyle(undefined), ...style }}
+        aria-label="Loop back"
+      />
+    </StockEdgeAppearance>
   );
 }

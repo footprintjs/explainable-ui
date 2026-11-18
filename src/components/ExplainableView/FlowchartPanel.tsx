@@ -1,12 +1,15 @@
 import * as React from "react";
 import { useCallback, useMemo } from "react";
 
+import type { DiagramVisualProps } from "../../model/diagram";
+import type { FlowchartRenderer } from "../../model/flowchart";
 import { theme } from "../../theme";
 import type { BaseComponentProps } from "../../types";
 import { TracedFlow, type TracedFlowColors } from "../FlowchartView/TracedFlow";
 import { useExplainableRun } from "./ExplainableContext";
 
-export interface FlowchartPanelProps extends BaseComponentProps {
+export interface FlowchartPanelProps extends BaseComponentProps, DiagramVisualProps {
+  readonly renderer?: FlowchartRenderer;
   readonly title?: string;
   readonly colors?: Partial<TracedFlowColors>;
 }
@@ -19,6 +22,7 @@ function baseStageId(runtimeStageId: string): string {
 export function FlowchartPanel({
   title = "Flowchart",
   colors,
+  renderer, diagramGeometry, diagramDrawings, diagramAppearance,
   unstyled = false,
   className,
   style,
@@ -88,7 +92,8 @@ export function FlowchartPanel({
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         {traceGraph.nodes.length ? (
           <TracedFlow
-            graph={traceGraph}
+            graph={traceGraph} renderer={renderer}
+            diagramGeometry={diagramGeometry} diagramDrawings={diagramDrawings} diagramAppearance={diagramAppearance}
             overlay={runtimeOverlay}
             scrubIndex={scrubIndex}
             colors={{ ...flowchartColors, ...colors }}
