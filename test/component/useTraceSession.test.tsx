@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { useMemo, useState } from "react";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useTraceSessionController, useTraceSessionState } from "../../src/workbench/internal/useTraceSession";
 import type { TraceScope } from "../../src/trace/traceScope";
@@ -388,10 +388,10 @@ describe("trace session controller", () => {
     expect(result.current.activeViaKey).toBe("subtotal");
   });
 
-  it("restores root read coverage from the root record when the selected child has no local reads", () => {
+  it("restores root read coverage from the root record when the selected child has no local reads", async () => {
     const address = (drillPath: string[] = []) => ({ logRunId: "coverage-run", drillPath });
     const commit = (id: string, path?: string) => ({ stage: id, stageId: id.split("#")[0], runtimeStageId: id,
-      overwrite: {}, trace: path ? [{ path }] : [] });
+      overwrite: path ? { [path]: 1 } : {}, updates: {}, redactedPaths: [], trace: path ? [{ path, verb: "set" }] : [] });
     const childResult = {
       treeContext: { logAddress: address(["worker#1"]),
         history: [commit("worker#1"), commit("worker/constant#2", "value")],
@@ -427,10 +427,11 @@ describe("trace session controller", () => {
       });
     });
     act(() => result.current.handleStartTracing("answer"));
+    await waitFor(() => expect(result.current.traceWalk!.stops[0].handoffSources?.length).toBe(1));
     const source = result.current.traceWalk!.stops[0].handoffSources![0];
     act(() => result.current.handleFollowHandoff(source));
     expect(result.current.traceWalk?.readsAvailable).toBe(false);
-    expect(result.current.questionTrail.map(question => question.key)).toEqual(["answer", "value"]);
+    await waitFor(() => expect(result.current.questionTrail.map(question => question.key)).toEqual(["answer", "value"]));
     act(() => result.current.handleReturnToQuestion(0));
     expect(restore).toHaveBeenCalledWith([], "worker#1");
     expect(result.current.tracing?.beforeCommitIdx).toBe(2);

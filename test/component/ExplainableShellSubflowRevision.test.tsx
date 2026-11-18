@@ -1,11 +1,13 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { readFileSync } from "node:fs";
 import { ExplainableShell } from "../../src/components/ExplainableShell/ExplainableShell";
 import { createTraceStructureRecorder } from "../../src/components/FlowchartView/traceStructureRecorder";
 
+// The offline package replay also exercises the graph-only installation.
+const withoutReader = process.env.SCOPED_REPLAY_FOOTTRACE === "without-reader";
 type Props = React.ComponentProps<typeof ExplainableShell>;
 type Run = {
   runtimeSnapshot: NonNullable<Props["runtimeSnapshot"]>;
@@ -143,10 +145,16 @@ describe("recorded subflow review regressions", () => {
     ui.inspector();
     move(3);
     trace("total");
+    await waitFor(() => expect(card().textContent).not.toContain("Reading recorded sources"));
     fireEvent.click(screen.getByText("Copy story"));
     const text = writeText.mock.calls[0][0] as string;
     expect(text).toContain("pipeline/prepare#8");
-    expect(text).toContain("recorded at invocation start; earlier origin unknown");
+    if (withoutReader) expect(text).toContain("recorded at invocation start; earlier origin unknown");
+    else {
+      expect(text).toContain("Recorded stage reads");
+      expect(text).toContain("subtotal from pipeline/prepare/Child Sum, commit 2");
+      expect(text).toContain("The record does not tie a particular read to this write.");
+    }
     expect(text).not.toContain("never written");
   });
   it.each([false, true])(
@@ -197,7 +205,7 @@ describe("recorded subflow review regressions", () => {
     trace("total");
     expect(document.querySelector('[data-fp="trace-scope-note"]')).toBeNull();
   });
-  it("does not crash when a root trace chip reaches a commit with no trace list", () => {
+  it("does not crash when a root trace chip reaches a commit with no trace list", async () => {
     const ui=setup("repeated");
     const broken=structuredClone(ui.run.runtimeSnapshot) as any;
     delete broken.commitLog[0].trace;
@@ -205,7 +213,10 @@ describe("recorded subflow review regressions", () => {
     ui.inspector();
     move(7);
     trace("total");
-    expect(card()?.textContent).toContain("write evidence is unavailable");
+    const message = withoutReader
+      ? "write evidence is unavailable; value origin unknown."
+      : "The recorded evidence could not be read.";
+    await waitFor(() => expect(card()?.textContent).toContain(message));
   });
   it("shows a drawing failure for shared tree nodes without expanding the screen", () => {
     const ui=setup("repeated");
@@ -217,7 +228,7 @@ describe("recorded subflow review regressions", () => {
     expect(document.body.textContent).toContain("shared nodes");
     expect(document.querySelectorAll('[data-fp="tt-tick"]').length).toBeLessThan(100);
   });
-  it("keeps absent reads unknown in both the child card and copied story", () => {
+  it("keeps absent reads unknown in both the child card and copied story", async () => {
     const ui=setup("nested");
     const source=structuredClone(ui.run.runtimeSnapshot) as any;
     const context=source.subflowResults["pipeline/prepare#8"].treeContext;
@@ -230,9 +241,15 @@ describe("recorded subflow review regressions", () => {
     ui.inspector();
     move(3);
     trace("total");
-    expect(card().textContent).toContain("absent (no recorded write; value unknown)");
+    await waitFor(() => expect(card().textContent).not.toContain("Reading recorded sources"));
     fireEvent.click(screen.getByText("Copy story"));
-    expect(writeText.mock.calls[0][0]).toContain("absent (no recorded write; value unknown)");
+    for (const text of [card().textContent, writeText.mock.calls[0][0]]) {
+      if (withoutReader) expect(text).toContain("absent (no recorded write; value unknown)");
+      else {
+        expect(text).toContain("The record does not tie a particular read to this write.");
+        expect(text).not.toContain("absent");
+      }
+    }
     expect(writeText.mock.calls[0][0]).not.toContain("absent (recorded at invocation start");
   });
   it("keeps Story entries inside the selected visit runtime IDs", () => {
@@ -246,23 +263,29 @@ describe("recorded subflow review regressions", () => {
     expect(story?.textContent).not.toContain("Write total = 24");
     expect(story?.textContent).toContain("44");
   });
-  it("traces a real child seed that writes constants and has no stageReads field", () => {
+  it("traces a real child seed that writes constants and has no stageReads field", async () => {
     const ui = setup("seedless");
     ui.drill("prepare");
     ui.inspector();
     move(2);
     trace("total");
+    await waitFor(() => expect(card().textContent).not.toContain("Reading recorded sources"));
     expect(card().textContent).toContain("= 6");
     fireEvent.click(screen.getByLabelText("Earlier recorded step"));
     expect(card().textContent).toContain("Child Sum");
   });
-  it("uses the same reads-off explanation in a child as at the root", () => {
+  it("uses the same reads-off explanation in a child as at the root", async () => {
     const ui = setup("readsOff");
     ui.drill("prepare");
     ui.inspector();
     move(3);
     trace("total");
-    expect(card().textContent).toContain("reads were not recorded");
+    await waitFor(() => expect(card().textContent).not.toContain("Reading recorded sources"));
+    if (withoutReader) {
+      expect(card().textContent).toContain("reads were not recorded — dependencies are unknowable, not absent.");
+    } else {
+      expect(card().textContent).toMatch(/collection unknown|not collected/i);
+    }
     expect(card().textContent).not.toContain("this is an origin");
     expect(document.querySelector('[data-fp="trace-unavailable"]')).toBeNull();
   });

@@ -6,6 +6,7 @@ export { RecordLens } from "./RecordLens";
 export type { RecordLensProps } from "./RecordLens";
 export { buildRecordLensModel, createRecordLensReader } from "./model";
 export type {
+  RecordBacktrackPosition,
   RecordLensInput,
   RecordLensReader,
   RecordReaderInput,
@@ -15,3 +16,5 @@ export type {
   RecordProvenance,
   RecordRefusal,
 } from "./types";
+export { createScopedRecordGraph } from "./scopedRecordGraph";
+export type { ScopedBacktrack, ScopedGap, ScopedRecordGraph, ScopedWriter } from "./scopedRecordGraph";

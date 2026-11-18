@@ -15,7 +15,7 @@ import { FootprintCode, FootprintButton, FootprintIcon, FootprintTooltip } from 
  */
 import { scopeSentence, START_SENTENCE, inputSentence, isInvocationStart, mountLabel } from "../../trace/tracePresentation";
 import { handoffSentence, type SubflowHandoffSource } from "../../trace/subflowHandoff";
-import { recordedPathLabel, recordedValuePreview } from "../../trace/recordedValuePreview";
+import { recordedPathLabel, recordedValuePreview, type InspectedStageRead } from "../../trace/recordedValuePreview";
 import { buildTraceDependencyGraph } from "../../trace/traceDependencyGraph";
 import { traceIngredientColor, traceNodeColors } from "../../trace/traceWorkflowOverlay";
 import { memo, useMemo, useState } from "react";
@@ -23,7 +23,7 @@ import type { CSSProperties } from "react";
 import { componentStyles, theme } from "../../theme";
 import type { BaseComponentProps, Size } from "../../types";
 import {
-  formatTraceWalk,
+  formatTraceWalk, stageReadLabel, type TraceStageRead,
   type TraceIngredient,
   type TraceStop,
   type TraceWalk,
@@ -48,7 +48,7 @@ export interface TraceWalkCardProps extends BaseComponentProps {
   /** Active ingredient filter (breadcrumb "▸ via key"). */
   viaKey?: string | null;
   /** Original question followed by exact variable/invocation hops, including the current question. */
-  questionTrail?: readonly { key: string; invocationPath: readonly string[] }[];
+  questionTrail?: readonly { key: string; invocationPath: readonly string[]; stageReadCommitIdx?: number }[];
   /** Restore a saved question and its original cutoff/cursor. */
   onReturnToQuestion?: (index: number) => void;
   /** Map a stop to its 1-based rail step number (null = not on this rail). */
@@ -56,7 +56,9 @@ export interface TraceWalkCardProps extends BaseComponentProps {
   /** Value preview for a contributed key at the current stop (the shell
    *  reads snapshot.memory — state as of that moment). */
   previewValueOf?: (key: string) => unknown;
+  inspectedStageRead?: InspectedStageRead;
   /** Follow an ingredient: re-anchor the walk on ing.key before this stop. */
+  onInspectStageRead?: (read: TraceStageRead) => void;
   onFollowIngredient?: (ing: TraceIngredient) => void;
   /** Open an exact child invocation and trace its recorded source on that scope's rail. */
   onFollowHandoff?: (source: SubflowHandoffSource) => void;
@@ -89,6 +91,8 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   onReturnToQuestion,
   stepNumberOf,
   previewValueOf,
+  inspectedStageRead,
+  onInspectStageRead,
   onFollowIngredient,
   onFollowHandoff,
   onJumpToStop,
@@ -153,7 +157,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         <QuestionTrail entries={questionTrail} onReturn={onReturnToQuestion} sx={sx} ui={ui} size={size} unstyled={unstyled} />
         {scopeSentence(presentation) && <div data-fp="trace-scope-note">{scopeSentence(presentation)}</div>}
         <div style={sx({ color: theme.textPrimary, marginTop: ui.spaceSm })}>
-          {walk.missing.reason === "evidence-unavailable" ? (
+          {walk.missing.gapMessages?.length ? walk.missing.gapMessages.map(message => <div key={message} data-fp="twc-gap">{message}</div>) : walk.missing.reason === "evidence-unavailable" ? (
             <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(walk.key)}</FootprintCode>: {walk.missing.unresolvedReason ? inputSentence(presentation, walk.key, walk.missing.unresolvedReason) : "write evidence is unavailable; value origin unknown"}.</>
           ) : walk.missing.reason === "never-written" ? (
             <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{recordedPathLabel(walk.key)}</FootprintCode>: {inputLabel}.</>
@@ -182,7 +186,8 @@ export const TraceWalkCard = memo(function TraceWalkCard({
 
   const ambiguousTermini = new Map(walk.stops.flatMap(stop => stop.ingredients.filter(input => input.unresolvedReason).map(input => [input.key, input.unresolvedReason] as const)));
   const step = stepNumberOf(current.runtimeStageId);
-  const preview = previewValueOf ? recordedValuePreview(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
+  const inspected = currentIdx === 0 && inspectedStageRead?.key === walk.key ? inspectedStageRead : undefined;
+  const preview = recordedValuePreview(inspected ? inspected.value : previewValueOf?.(current.contributedKeys[0] ?? walk.key));
 
   return (
     <div
@@ -243,6 +248,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         {preview !== null && (
           <span style={sx({ color: theme.textPrimary, fontWeight: ui.weightStrong })}> = {preview}</span>
         )}
+        {inspected?.gap && <div data-fp="twc-value-gap">{inspected.gap}</div>}
       </div>
 
       {/* ── Fork chooser (F2) — opened by the rail's walk-back control at a
@@ -329,7 +335,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
               ))}
             </div>
           </>
-        ) : walk.readsAvailable ? (
+        ) : current.gapMessages !== undefined ? null : walk.readsAvailable ? (
           <div data-fp="twc-origin" style={sx({ fontSize: ui.body, color: theme.textMuted, fontStyle: "italic" })}>
             No recorded state reads.
           </div>
@@ -340,16 +346,30 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         )}
       </div>
 
+      {!!current.stageReads?.length && <div role="group" aria-label="Recorded stage reads" style={sx({ marginTop: ui.spaceMd })}>
+        <h3 style={sx({ fontSize: ui.label, color: theme.textSecondary, margin: 0 })}>Recorded stage reads</h3>
+        <ul style={sx({ paddingLeft: ui.spaceLg, margin: 0 })}>
+          {current.stageReads.map(read => <li key={JSON.stringify([read.key, read.commitIdx])}>
+            {onInspectStageRead && read.beforeCommitIdx > 0 && stepNumberOf(read.runtimeStageId) !== null
+              ? <FootprintButton {...controls} part="trace-inspect-stage-read" type="button" onClick={() => onInspectStageRead(read)}
+                  defaultStyle={sx({ background: "transparent", border: "none", color: accent, padding: 0, minHeight: ui.controlHeight, cursor: "pointer", fontSize: ui.label })}>
+                  Inspect stage read {stageReadLabel(read)}
+                </FootprintButton>
+              : stageReadLabel(read)}
+          </li>)}
+        </ul>
+      </div>}
+      {current.gapMessages?.map(message => <div key={message} data-fp="twc-gap" style={sx({ marginTop: ui.spaceSm, color: theme.textSecondary })}>{message}</div>)}
       {!!current.handoffSources?.length && <div data-fp="twc-handoff" style={sx({ marginTop: `calc(${ui.spaceSm} + 2px)` })}>
         <div style={sx({ fontSize: ui.label, color: theme.textMuted })}>{handoffSentence(current.handoffSources)}</div>
         {onFollowHandoff && current.handoffSources.map(source => <FootprintButton {...controls}
-          key={source.key}
+          key={JSON.stringify([source.invocationPath, source.beforeCommitIdx, source.key])}
           type="button"
           data-fp="twc-handoff-source" part="trace-handoff"
-          aria-label={`Follow child source ${recordedPathLabel(source.key)} in ${source.mountRuntimeStageId}`}
+          aria-label={`Follow ${source.direction ?? "child"} source ${recordedPathLabel(source.key)} in ${source.mountRuntimeStageId}`}
           onClick={() => onFollowHandoff(source)}
           defaultStyle={sx({ marginTop: ui.controlGap, marginRight: ui.controlGap, border: `${ui.borderWidth} solid ${accent}`, borderRadius: ui.radiusBadge, background: "transparent", color: accent, padding: `calc(${ui.spaceXs} - 1px) calc(${ui.controlPaddingX} + 2px)`, minHeight: ui.controlHeight, cursor: "pointer", fontSize: ui.label })}
-        >Follow child source <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(source.key)}</FootprintCode></FootprintButton>)}
+        >Follow {source.direction ?? "child"} source <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(source.key)}</FootprintCode></FootprintButton>)}
       </div>}
 
       {/* ── Itinerary (the whole walk; current row highlighted) ── */}
@@ -362,7 +382,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           return (
             <FootprintButton {...controls}
               type="button"
-              key={s.runtimeStageId}
+              key={s.commitIdx}
               data-fp="twc-itinerary-row" part="trace-itinerary-stop"
               data-current={isCurrent || undefined}
               onClick={() => onJumpToStop?.(s.runtimeStageId)}
@@ -490,6 +510,7 @@ function QuestionTrail({ entries, onReturn, sx, ui, size, unstyled }: {
     <div style={sx({ display: "flex", flexWrap: "wrap", alignItems: "center", gap: ui.controlGap, fontSize: ui.label })}>
       {entries.map((entry, index) => <span key={`${index}:${entry.key}`} style={sx({ display: "inline-flex", alignItems: "center", gap: ui.controlGap })}>
         {index > 0 && <span aria-hidden="true">›</span>}
+        {entry.stageReadCommitIdx !== undefined && <span>Stage read · commit {entry.stageReadCommitIdx}</span>}
         {index === entries.length - 1 ? <span aria-current="step"><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(entry.key)}</FootprintCode></span> : <FootprintButton {...controls} part="trace-question-return" type="button" onClick={() => onReturn?.(index)} disabled={!onReturn}
           aria-label={`Return to ${recordedPathLabel(entry.key)} in ${entry.invocationPath.join(" → ") || "root"}`}
           title={`${entry.invocationPath.length ? entry.invocationPath.join(" → ") : "Root"}: ${recordedPathLabel(entry.key)}`}
@@ -501,7 +522,7 @@ function QuestionTrail({ entries, onReturn, sx, ui, size, unstyled }: {
     <FootprintButton {...controls} part="trace-question-back" type="button" onClick={() => onReturn?.(entries.length - 2)} disabled={!onReturn}
       defaultStyle={sx({ display: "block", marginTop: ui.spaceSm, border: "none", background: "transparent", color: theme.textPrimary, fontSize: ui.body, cursor: "pointer", padding: 0, minHeight: ui.controlHeight, fontWeight: ui.weightStrong })}>
       ← Back to <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(previous.key)}</FootprintCode>
-      {previous.invocationPath.length !== entries[entries.length - 1].invocationPath.length ? " in parent" : ""}
+      {previous.invocationPath.length < entries[entries.length - 1].invocationPath.length ? " in parent" : previous.invocationPath.length > entries[entries.length - 1].invocationPath.length ? " in child" : ""}
     </FootprintButton>
   </nav>;
 }

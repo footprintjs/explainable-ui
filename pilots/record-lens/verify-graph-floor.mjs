@@ -53,7 +53,7 @@ export type HostModels = [InvestigationPort, TracedFlowProps];`);
     formats.push(`${resolution} .${extension}`);
   }
   const rejected = verifyRejectedReader({ directory: join(scratch, 'unsupported-engine'), archive,
-    env, installedNpm: true, react: consumer.versions.react, version: '2.0.0', code: 'EBADENGINE' });
+    env, installedNpm: true, react: consumer.versions.react, version: '2.1.0', code: 'EBADENGINE' });
   const proof = { node: process.versions.node, npm: execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim(),
     testedCommit: gates.normalTarball.testedCommit, testedTree: gates.normalTarball.testedTree, archive: identity,
     identicalInstalledFiles: Object.keys(gates.normalTarball.memberSha256).length, consumer, formats, rejected,

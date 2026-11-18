@@ -83,8 +83,8 @@ export function useCreateController(input: LensControllerOptions) {
     setSnapshotIdx, onStartInspector, onReturnToActivity, runtimeSnapshot, recordingIdentity: source,
     openTraceSource: navigation.openTraceSource, restoreTraceQuestion: navigation.restoreTraceQuestion, stageActivity });
   const traceCursorRuntimeStageId = activeSnapshots[safeIdx]?.runtimeStageId ?? null;
-  const focusWorkflow = useMemo(() => prepareTraceWorkflowOverlay(traceSession.traceWalk, activeSnapshots),
-    [traceSession.traceWalk, activeSnapshots]);
+  const focusWorkflow = useMemo(() => prepareTraceWorkflowOverlay(traceSession.traceWalk, activeSnapshots, traceSession.inspectedStageRead),
+    [traceSession.traceWalk, activeSnapshots, traceSession.inspectedStageRead]);
   const traceWorkflow = focusWorkflow?.(traceCursorRuntimeStageId) ?? null;
   const activityIdentity = JSON.stringify([stageActivity.identity.invocationPath,
     stageActivity.identity.runtimeStageId, stageActivity.identity.commitIdx]);

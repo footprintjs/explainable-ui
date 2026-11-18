@@ -38,6 +38,8 @@ export function TraceSessionPanel({ availability, scopeLabel, snapshot, selected
       viaKey={view.activeViaKey}
       stepNumberOf={view.stepNumberOf}
       previewValueOf={key => recordedValueAtPath(snapshot?.memory, key)}
+      inspectedStageRead={view.inspectedStageRead}
+      onInspectStageRead={view.handleInspectStageRead}
       onFollowIngredient={view.handleFollowIngredient}
       onFollowHandoff={view.handleFollowHandoff}
       questionTrail={view.questionTrail}

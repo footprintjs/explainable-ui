@@ -44,7 +44,7 @@ npm install react react-dom @xyflow/react@^12 dagre@^0.8.5
 For `/record`, install the recording peers. The package-wide Node floor stays at 18 for graph applications. Foottrace 2 requires Node 22 or later when running the reader in Node. An engine-strict install enforces that requirement. Importing the recording entry without Foottrace produces the normal missing-peer module error.
 
 ```bash
-npm install react foottrace@^2.0.0
+npm install react foottrace@^2.1.0
 ```
 
 ## Entry Points
@@ -98,6 +98,7 @@ Examples of source-specific diagrams and read evidence are in the [record slider
 
 | Recording export | Purpose |
 |---|---|
+| `createScopedRecordGraph` | Query exact writer and handoff addresses in a native recording with local subflows |
 | `createRecordLensReader` | Prepare canonical stops and query state or causes on an immutable recording revision |
 | `buildRecordLensModel` | Read a single position from the current source, including appended data |
 | `RecordLens` | Inspect folded state, changes and recorded causes at the selected stop |

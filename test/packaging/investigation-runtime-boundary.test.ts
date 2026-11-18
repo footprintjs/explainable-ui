@@ -5,7 +5,7 @@ const compiled = readFileSync(
   new URL("../../dist/index.js", import.meta.url),
   "utf8"
 );
-describe("installed runtime boundary admits canonical types but rejects runtime Foottrace", () => {
+describe("installed runtime boundary admits canonical types but rejects eager or unhandled runtime Foottrace", () => {
   it("accepts real compiled output and comments or erased type declarations", () => {
     expect(() => assertNoFoottraceRuntime(compiled)).not.toThrow();
     expect(() =>
@@ -22,6 +22,8 @@ describe("installed runtime boundary admits canonical types but rejects runtime 
     "require('foottrace');",
     "module.require('foottrace/cause');",
     "import('foottrace/cause');",
+    "import('foottrace/write').catch(() => undefined);",
+    "import('foottrace').then(module => module);",
     "require('foot\\x74race/cause');",
     "import('foot\\u0074race');",
     "import {explain} from 'foot\\x74race/cause';",

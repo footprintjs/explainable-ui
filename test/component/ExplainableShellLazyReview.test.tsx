@@ -111,7 +111,7 @@ describe('independent lazy-rendering navigation regressions', () => {
     const chip = [...document.querySelectorAll('[data-fp="trace-any-chip"]')].find(element => element.textContent === 'renamed');
     expect(chip).toBeTruthy();
     fireEvent.click(chip!);
-    fireEvent.click(screen.getByRole('button', { name: 'Follow child source middleOutput in child#2' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Follow child source middleOutput in child#2' }));
     expect(scope()).toBe('child');
     expect(screen.getByRole('toolbar').getAttribute('aria-label')).toBe('Tracing middleOutput');
     view.rerender(<ExplainableShell source={second} />);

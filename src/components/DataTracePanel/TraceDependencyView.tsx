@@ -7,7 +7,7 @@ import { traceNodeColors } from "../../trace/traceWorkflowOverlay";
 import { theme } from "../../theme";
 import type { BaseComponentProps, StageSnapshot } from "../../types";
 import { buildTraceDependencyGraph, type TraceDependencyNode } from "../../trace/traceDependencyGraph";
-import { recordedPathLabel, recordedValueAtPath, recordedValuePreview } from "../../trace/recordedValuePreview";
+import { recordedPathLabel, recordedValueAtPath, recordedValuePreview, type InspectedStageRead } from "../../trace/recordedValuePreview";
 import { ownDataField } from "../../trace/safeRecordRead";
 import { inputSentence } from "../../trace/tracePresentation";
 import type { TraceIngredient, TraceWalk } from "../../trace/traceWalk";
@@ -21,7 +21,8 @@ interface TraceDependencyViewProps extends BaseComponentProps {
   onFollowIngredient?: (ingredient: TraceIngredient) => void;
   onFollowHandoff?: (source: SubflowHandoffSource) => void;
   hasWorkflow?: boolean;
-  questionTrail?: readonly { key: string; invocationPath: readonly string[] }[];
+  questionTrail?: readonly { key: string; invocationPath: readonly string[]; stageReadCommitIdx?: number }[];
+  inspectedStageRead?: InspectedStageRead;
   onReturnToQuestion?: (index: number) => void;
   /** Where an Activity-started investigation can return; no recorded values. */
   activityOrigin?: { stageLabel: string; key: string; kind: "read" | "write" };
@@ -34,7 +35,7 @@ const NODE_HEIGHT = 104;
 /** A variable/read view of one admitted scope; execution order stays a separate view. */
 export function TraceDependencyView({
   walk, cursorRuntimeStageId, snapshots, onJumpToStop, onFollowIngredient,
-  onFollowHandoff, children, hasWorkflow = true, questionTrail, onReturnToQuestion, activityOrigin, size = "default", unstyled = false, className, style,
+  inspectedStageRead, onFollowHandoff, children, hasWorkflow = true, questionTrail, onReturnToQuestion, activityOrigin, size = "default", unstyled = false, className, style,
 }: TraceDependencyViewProps) {
   const [view, setView] = useState<"variables" | "execution">("execution");
   const motion = useTraceMotion() && !unstyled;
@@ -61,7 +62,8 @@ export function TraceDependencyView({
     }
     return result;
   }, [snapshots, graph]);
-  const preview = (node: TraceDependencyNode) => node.runtimeStageId
+  const preview = (node: TraceDependencyNode) => node.isAnchor && inspectedStageRead?.key === node.key
+    ? recordedValuePreview(inspectedStageRead.value) : node.runtimeStageId
     ? recordedValuePreview(recordedValueAtPath(memories.get(node.runtimeStageId), node.key)) : null;
   const layout = useMemo(() => {
     if (!graph) return null;
@@ -74,7 +76,7 @@ export function TraceDependencyView({
   }, [graph]);
 
   const active = !!walk && !!graph && !walk.missing && !!layout;
-  const investigating = active || !!(walk && activityOrigin);
+  const investigating = active || !!(walk && (activityOrigin || inspectedStageRead));
   const showExecution = !active || (hasWorkflow && view === "execution");
   const showVariables = active && !showExecution;
   useIsomorphicLayoutEffect(() => {
@@ -112,10 +114,12 @@ export function TraceDependencyView({
       background: active ? theme.bgPrimary : "transparent", fontFamily: theme.fontSans, fontSize: ui.body, lineHeight: ui.lineHeight, fontWeight: ui.weightNormal }), ...style }}>
     <div hidden={!investigating} style={sx({ flexShrink: 0, display: investigating ? "flex" : "none", gap: ui.spaceMd, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", padding: `${ui.padding} ${ui.spaceLg}`, borderBottom: `${ui.borderWidth} solid ${theme.border}` })}>
       <div style={sx({ minWidth: 0, flex: 1 })}>
+        {questionTrail?.at(-1)?.stageReadCommitIdx !== undefined && <div>Inspecting stage read · commit {questionTrail.at(-1)?.stageReadCommitIdx}</div>}
         {activityOrigin && <div data-fp="trace-activity-origin" style={sx({ marginBottom: ui.spaceXs, fontSize: ui.body, color: theme.textSecondary, overflowWrap: "anywhere" })}>
           From <b style={sx({ fontWeight: ui.weightStrong })}>{activityOrigin.stageLabel}</b> · {activityOrigin.kind} <FootprintCode unstyled={unstyled} densitySize={size} part="trace-origin-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(activityOrigin.key)}</FootprintCode>
         </div>}
         <div aria-live="polite" style={sx({ fontWeight: ui.weightStrong, fontSize: ui.title })}>Why <FootprintCode unstyled={unstyled} densitySize={size} part="trace-question-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(walk?.key ?? "")}</FootprintCode>{anchorValue !== null ? ` = ${anchorValue}` : ""}?</div>
+        {inspectedStageRead?.gap && <div>{inspectedStageRead.gap}</div>}
         {cursorIndex >= 0 && <div data-fp="trace-view-position" style={sx({ marginTop: ui.spaceXs, fontSize: ui.body, color: theme.textSecondary })}>
           Viewing recorded step {cursorIndex + 1} of {snapshots.length}
         </div>}
@@ -178,6 +182,7 @@ export function TraceDependencyView({
             const selected = node.runtimeStageId === cursorRuntimeStageId;
             const nodeColor = colors.get(node.id) ?? theme.textMuted;
             const value = preview(node);
+            const missing = (node.isAnchor && inspectedStageRead?.gap) || "Value not recorded";
             const enabled = node.runtimeStageId !== null && (node.isAnchor ? !!onJumpToStop : !!onFollowIngredient);
             const nodeText = <>
               <span style={sx({ display: "flex", justifyContent: "space-between", gap: ui.spaceSm, fontSize: ui.small, fontWeight: ui.weightStrong, letterSpacing: ".5px", textTransform: "uppercase", color: nodeColor })}>
@@ -185,7 +190,7 @@ export function TraceDependencyView({
                 {selected && <FootprintBadge unstyled={unstyled} densitySize={size} part="trace-variable-selected" defaultStyle={undefined}>Selected</FootprintBadge>}
               </span>
               <FootprintCode unstyled={unstyled} densitySize={size} part="trace-node-variable" defaultStyle={sx({ display: "block", marginTop: ui.spaceXs, fontFamily: theme.fontMono, fontSize: ui.title, fontWeight: ui.weightStrong, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" })}>{recordedPathLabel(node.key)}</FootprintCode>
-              <span style={sx({ display: "block", marginTop: ui.spaceXs, fontFamily: theme.fontMono, fontSize: ui.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: theme.textPrimary })}>{value ?? "Value not recorded"}</span>
+              <span style={sx({ display: "block", marginTop: ui.spaceXs, fontFamily: theme.fontMono, fontSize: ui.body, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: theme.textPrimary })}>{value ?? missing}</span>
               <span style={sx({ display: "block", marginTop: ui.spaceXs, fontSize: ui.label, color: theme.textSecondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" })}>{note(node)}</span>
             </>;
             const geometry = sx({ position: "absolute", boxSizing: "border-box", left: position.x - NODE_WIDTH / 2, top: position.y - NODE_HEIGHT / 2,
@@ -198,7 +203,7 @@ export function TraceDependencyView({
               animationDelay: motion ? `calc(${ui.fastDuration} * ${Math.min(nodeIndex, 4)} / 6)` : undefined,
             });
             return <FootprintButton unstyled={unstyled} densitySize={size} part="trace-variable-node" key={node.id} data-fp="trace-variable-node" data-variable={node.key} data-kind={node.kind} data-current={selected || undefined} data-anchor={node.isAnchor || undefined}
-              type="button" disabled={!enabled} onClick={() => follow(node)} title={`${recordedPathLabel(node.key)}: ${value ?? "value not recorded"}. ${note(node)}`}
+              type="button" disabled={!enabled} onClick={() => follow(node)} title={`${recordedPathLabel(node.key)}: ${value ?? missing}. ${note(node)}`}
               aria-label={enabled ? `${node.isAnchor ? "Show" : "Follow"} ${recordedPathLabel(node.key)} at ${node.stageName}` : `${recordedPathLabel(node.key)}: ${note(node)}`}
               aria-describedby={`${markerId}-node-${nodeIndex}`}
               style={geometry} defaultStyle={box}>{nodeText}</FootprintButton>;
@@ -208,7 +213,7 @@ export function TraceDependencyView({
           {graph.nodes.map((node, index) => <div key={node.id}>
             <dt>{recordedPathLabel(node.key)}</dt>
             <dd id={`${markerId}-node-${index}`}>
-              {preview(node) ?? "Value not recorded"}. {note(node)}.
+              {preview(node) ?? (node.isAnchor && inspectedStageRead?.gap || "Value not recorded")}. {note(node)}.
               {graph.edges.some(edge => edge.target === node.id) && <> Recorded stage reads: {graph.edges.filter(edge => edge.target === node.id).map(edge => edge.readKey).join(", ")}.</>}
             </dd>
           </div>)}
@@ -218,10 +223,10 @@ export function TraceDependencyView({
       </TraceViewLayer>
     </div>
     {active && sources.length > 0 && <div data-fp="trace-workflow-handoff" style={sx({ flexShrink: 0, padding: `${ui.spaceSm} ${ui.spaceLg}`, borderTop: `${ui.borderWidth} solid ${theme.border}`, fontSize: ui.body })}>
-      <div style={sx({ color: theme.textSecondary, marginBottom: ui.controlGap })}>Recorded child sources for this output:</div>
-      {sources.map(source => <FootprintButton unstyled={unstyled} densitySize={size} part="trace-child-source" key={`${source.mountRuntimeStageId}:${source.key}`} type="button"
+      <div style={sx({ color: theme.textSecondary, marginBottom: ui.controlGap })}>Reads observed by the mapper</div>
+      {sources.map(source => <FootprintButton unstyled={unstyled} densitySize={size} part="trace-child-source" key={JSON.stringify([source.invocationPath, source.beforeCommitIdx, source.key])} type="button"
         disabled={!onFollowHandoff} onClick={() => onFollowHandoff?.(source)} defaultStyle={sx({ border: `${ui.borderWidth} solid ${theme.border}`, borderRadius: ui.radiusControl, background: theme.bgPrimary, color: theme.textPrimary, padding: ui.controlPadding, minHeight: ui.controlHeight, marginRight: ui.controlGap, cursor: "pointer", fontSize: ui.body, lineHeight: ui.lineHeight })}>
-        Open child source <FootprintCode unstyled={unstyled} densitySize={size} part="trace-child-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(source.key)}</FootprintCode>
+        Open {source.direction ?? "child"} source <FootprintCode unstyled={unstyled} densitySize={size} part="trace-child-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(source.key)}</FootprintCode>
       </FootprintButton>)}
     </div>}
 

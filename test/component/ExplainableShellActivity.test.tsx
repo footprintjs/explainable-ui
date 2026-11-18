@@ -416,7 +416,7 @@ function childCounter(seed: number, written: number, startIndex: number) {
 }
 
 describe("Stage Activity exact child invocation", () => {
-  it("backtracks a captured mount write when its explicit empty exit shares the same visit ID", () => {
+  it("backtracks a captured mount write when its explicit empty exit shares the same visit ID", async () => {
     // Real engine output: a mount's output commit and empty exit bookend share
     // its runtime stamp. They are one visit, not ambiguous sibling executions.
     const recorded = JSON.parse(readFileSync("test/fixtures/subflow-handoff/recording.json", "utf8"));
@@ -438,8 +438,8 @@ describe("Stage Activity exact child invocation", () => {
     expect(traceCard().textContent).toContain("wrote renamed = 4");
     expect(traceCard().textContent).toContain("subflow boundary");
     expect(activeTick()).toBe(targetIndex);
-    fireEvent.click(within(traceCard()).getByRole("button", { name: "Follow child source middleOutput in child#9" }));
-    fireEvent.click(within(traceCard()).getByRole("button", { name: "Follow child source localOutput in child/inner#11" }));
+    fireEvent.click(await within(traceCard()).findByRole("button", { name: "Follow child source middleOutput in child#9" }));
+    fireEvent.click(await within(traceCard()).findByRole("button", { name: "Follow child source localOutput in child/inner#11" }));
     expect(screen.getByRole("toolbar").getAttribute("aria-label")).toBe("Tracing localOutput");
     expect(traceCard().textContent).toContain("child#9 → child/inner#11");
     expect(screen.getByRole("toolbar").querySelectorAll('[data-fp="tt-tick"]')).toHaveLength(1);

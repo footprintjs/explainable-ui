@@ -73,6 +73,21 @@ export interface TraceIngredient {
   unresolvedReason?: ReadPathUncertainty;
 }
 
+/** A writer observed by a stage read. Its relationship to this output is unconfirmed. */
+export interface TraceStageRead {
+  readonly key: string;
+  readonly runtimeStageId: string;
+  readonly stageName: string;
+  /** Native scope-local index, including an invocation seed. */
+  readonly commitIdx: number;
+  /** Cutoff on the current replay timeline. Zero denotes a seed outside its rail. */
+  readonly beforeCommitIdx: number;
+}
+
+export function stageReadLabel(read: TraceStageRead): string {
+  return `${recordedPathLabel(read.key)} from ${read.stageName}, commit ${read.commitIdx}`;
+}
+
 /** One stop on the rewind rail — a slice frame with its rail position. */
 export interface TraceStop {
   runtimeStageId: string;
@@ -86,6 +101,8 @@ export interface TraceStop {
   contributedKeys: string[];
   keysWritten: string[];
   ingredients: TraceIngredient[];
+  /** Observed reads independent of this output’s confirmed ingredients. */
+  stageReads?: readonly TraceStageRead[];
   /** Exact per-output read prefixes. Older caller-supplied walks may omit it. */
   ingredientsByKey?: Readonly<Record<string, readonly TraceIngredient[]>>;
   /** BFS hop distance from the anchor (tooltip-grade info, NOT the walk
@@ -96,9 +113,12 @@ export interface TraceStop {
   loopPass: number;
   /** Admitted child targets; their histories remain on their own cursor rail. */
   handoffSources?: readonly SubflowHandoffSource[];
+  /** Present when the scope-aware reader has assessed coverage for this stop. */
+  gapMessages?: readonly string[];
 }
 
 export interface TraceWalkMissing {
+  gapMessages?: readonly string[];
   /** A supplied read may be recorded without one certain source. */
   unresolvedReason?: ReadPathUncertainty;
   reason: "never-written" | "not-yet-written" | "evidence-unavailable";
@@ -170,7 +190,15 @@ export function createTraceWalkReader(commitLog: unknown[], executionTree: unkno
       runtimeStageId: ownDataField(entry, "runtimeStageId") as string,
       trace: readTraceWrites(ownDataField(entry, "trace"), budget),
     }));
-    evidence = indexTraceEvidence(log, stageReadKeys(executionTree, budget), scope?.nestedReadTracking === true);
+    const localReads = stageReadKeys(executionTree, budget);
+    for (const commit of log) {
+      if (!mountLabel(scope, commit.runtimeStageId)) continue;
+      // Input-mapper reads are local to this mount. Only an output handoff
+      // can attribute its parent write to reads in the child's separate scope.
+      localReads.delete(commit.runtimeStageId);
+      commit.trace = commit.trace.map(({ path }) => ({ path }));
+    }
+    evidence = indexTraceEvidence(log, localReads, scope?.nestedReadTracking === true);
   } catch {
     evidence = null;
   }
@@ -340,6 +368,15 @@ function walkFromEvidence(
     }
   }
 
+  for (const stop of stops) {
+    if (mountLabel(scope, stop.runtimeStageId) && !stop.handoffSources?.length) {
+      stop.gapMessages = ["Output handoff collection unknown."];
+      if (!scope?.invocationPath.length && ownDataField(opts?.runtimeSnapshot, "writeProvenance") === "off") {
+        stop.gapMessages = [...stop.gapMessages, "Per-write reads were not collected."];
+      }
+    }
+  }
+
   return {
     key,
     stops,
@@ -372,6 +409,7 @@ export function formatTraceWalk(
   const scope = scopeSentence(presentation);
   const lines: string[] = scope ? [scope] : [];
   if (walk.missing) {
+    if (walk.missing.gapMessages?.length) return [...lines, ...walk.missing.gapMessages].join("\n");
     if (walk.missing.reason === "evidence-unavailable") {
       lines.push(`\`${recordedPathLabel(walk.key)}\`: ${walk.missing.unresolvedReason
         ? inputSentence(presentation, walk.key, walk.missing.unresolvedReason)
@@ -417,6 +455,7 @@ export function formatTraceWalk(
               : `${recordedPathLabel(ing.key)} (${inputSentence(presentation, ing.key, ing.unresolvedReason)})`
           )
           .join(", ")}`
+      : stop.gapMessages !== undefined ? ""
       : readsAvailable
       ? " · No recorded state reads"
       : "";
@@ -425,13 +464,15 @@ export function formatTraceWalk(
         stop.stageName
       }${pass} wrote \`${stop.contributedKeys.map(recordedPathLabel).join("`, `")}\`${readEvidence}`
     );
+    if (stop.stageReads?.length) lines.push("Recorded stage reads", ...stop.stageReads.map(stageReadLabel));
+    if (stop.gapMessages) lines.push(...stop.gapMessages);
     if (stop.handoffSources?.length) lines.push(handoffSentence(stop.handoffSources));
   });
   if (walk.inputTermini.length > 0) {
     const ambiguous = new Map(walk.stops.flatMap(stop => stop.ingredients.filter(input => input.unresolvedReason).map(input => [input.key, input.unresolvedReason] as const)));
     lines.push(`${ambiguous.size ? "Unresolved reads" : "No local writer"}: ${walk.inputTermini.map(key => `${recordedPathLabel(key)} (${inputSentence(presentation, key, ambiguous.get(key))})`).join(", ")}`);
   }
-  if (!readsAvailable) {
+  if (!readsAvailable && walk.stops.some(stop => stop.gapMessages === undefined)) {
     lines.push(
       "⚠ reads were not recorded — dependencies are unknowable, not absent."
     );

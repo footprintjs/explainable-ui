@@ -1,5 +1,5 @@
 import type { Size } from "../types";
-import { rawDefaults } from "./tokens";
+import { borders, colors, controls, elevation, motion, radii, spacing, typography } from "./rawDefaults";
 
 /**
  * Helper to resolve a CSS variable with a fallback.
@@ -11,40 +11,40 @@ export function v(varName: string, fallback: string): string {
 
 /** Shorthand for common theme variables */
 export const theme = {
-  primary: v("--fp-color-primary", "#6366f1"),
-  success: v("--fp-color-success", "#22c55e"),
-  error: v("--fp-color-error", "#ef4444"),
-  warning: v("--fp-color-warning", "#f59e0b"),
-  onPrimary: v("--fp-on-primary", rawDefaults.colors.onPrimary),
-  onSuccess: v("--fp-on-success", rawDefaults.colors.onSuccess),
-  onError: v("--fp-on-error", rawDefaults.colors.onError),
-  onWarning: v("--fp-on-warning", rawDefaults.colors.onWarning),
-  onTracing: v("--fp-on-tracing", rawDefaults.colors.onTracing),
-  onNodeCursor: v("--fp-on-node-cursor", rawDefaults.colors.onNodeCursor),
-  onNodeVisited: v("--fp-on-node-visited", rawDefaults.colors.onNodeVisited),
-  onNodeMain: v("--fp-on-node-main", rawDefaults.colors.onNodeMain),
-  onNodeError: v("--fp-on-error", rawDefaults.colors.onError),
+  primary: v("--fp-color-primary", colors.primary),
+  success: v("--fp-color-success", colors.success),
+  error: v("--fp-color-error", colors.error),
+  warning: v("--fp-color-warning", colors.warning),
+  onPrimary: v("--fp-on-primary", colors.onPrimary),
+  onSuccess: v("--fp-on-success", colors.onSuccess),
+  onError: v("--fp-on-error", colors.onError),
+  onWarning: v("--fp-on-warning", colors.onWarning),
+  onTracing: v("--fp-on-tracing", colors.onTracing),
+  onNodeCursor: v("--fp-on-node-cursor", colors.onNodeCursor),
+  onNodeVisited: v("--fp-on-node-visited", colors.onNodeVisited),
+  onNodeMain: v("--fp-on-node-main", colors.onNodeMain),
+  onNodeError: v("--fp-on-error", colors.onError),
   // Semantic NODE-STATE colors — first-class, themeable roles a runtime overlay
   // maps onto (scrub cursor / executed / a group's lead node). Distinct from the
   // generic `primary` accent so the three read as three different things.
-  nodeCursor: v("--fp-node-cursor", "#f59e0b"), // the current / scrubbed-to step
-  nodeVisited: v("--fp-node-visited", "#22c55e"), // executed up to the cursor
-  nodeMain: v("--fp-node-main", "#6366f1"), // the lead / "hero" node of a group
+  nodeCursor: v("--fp-node-cursor", colors.nodeCursor), // the current / scrubbed-to step
+  nodeVisited: v("--fp-node-visited", colors.nodeVisited), // executed up to the cursor
+  nodeMain: v("--fp-node-main", colors.nodeMain), // the lead / "hero" node of a group
   // Short-alias roles. Panels written against these read the SAME token the
   // presets emit (see tokensToCSSVars) — they exist so a component can say
   // "accent" without deciding whether it means the brand primary.
-  accent: v("--fp-accent", "#6366f1"), // active tab / selected rule
-  accentBg: v("--fp-accent-bg", "rgba(99,102,241,0.12)"), // wash behind an accented row
-  tracing: v("--fp-tracing", "#0d9488"), // the tracing-rail chrome
-  bg: v("--fp-bg", "#1a1b26"), // panel body surface
-  bgElevated: v("--fp-bg-elevated", "#1e293b"), // raised card on the body surface
-  bgPrimary: v("--fp-bg-primary", "#0f172a"),
-  bgSecondary: v("--fp-bg-secondary", "#1e293b"),
-  bgTertiary: v("--fp-bg-tertiary", "#334155"),
-  textPrimary: v("--fp-text-primary", "#f8fafc"),
-  textSecondary: v("--fp-text-secondary", "#94a3b8"),
-  textMuted: v("--fp-text-muted", "#64748b"),
-  border: v("--fp-border", "#334155"),
+  accent: v("--fp-accent", colors.accent), // active tab / selected rule
+  accentBg: v("--fp-accent-bg", colors.accentBg), // wash behind an accented row
+  tracing: v("--fp-tracing", colors.tracing), // the tracing-rail chrome
+  bg: v("--fp-bg", colors.bg), // panel body surface
+  bgElevated: v("--fp-bg-elevated", colors.bgElevated), // raised card on the body surface
+  bgPrimary: v("--fp-bg-primary", colors.bgPrimary),
+  bgSecondary: v("--fp-bg-secondary", colors.bgSecondary),
+  bgTertiary: v("--fp-bg-tertiary", colors.bgTertiary),
+  textPrimary: v("--fp-text-primary", colors.textPrimary),
+  textSecondary: v("--fp-text-secondary", colors.textSecondary),
+  textMuted: v("--fp-text-muted", colors.textMuted),
+  border: v("--fp-border", colors.border),
   radius: v("--fp-radius", "8px"),
   fontSans: v("--fp-font-sans", "Inter, system-ui, -apple-system, sans-serif"),
   fontMono: v("--fp-font-mono", "'JetBrains Mono', 'Fira Code', monospace"),
@@ -70,41 +70,51 @@ export const padding: Record<Size, number> = {
  * and padding above; components use these strings for themeable paint.
  * Size offsets keep the historic compact/default/detailed density distinct.
  */
+function sizeOffset(name: string, fallback: string, amount: number) {
+  return amount === 0 ? v(name, fallback) : `calc(${v(name, fallback)} ${amount < 0 ? "-" : "+"} ${Math.abs(amount)}px)`;
+}
+
+/** The recording slider and its controls share these recipes with the full Shell. */
+export function controlStyles(size: Size = "default") {
+  const fontOffset = fontSize[size].body - fontSize.default.body;
+  return {
+    body: sizeOffset("--fp-font-size-body", typography.body, fontOffset),
+    small: sizeOffset("--fp-font-size-small", typography.small, fontOffset),
+    lineHeight: v("--fp-line-height", typography.lineHeight),
+    controlHeight: `max(0px, ${sizeOffset("--fp-control-height", controls.height, fontOffset * 4)})`,
+    controlPadding: `${v("--fp-space-xs", spacing.xs)} ${v("--fp-control-padding-x", controls.paddingX)}`,
+    iconSize: sizeOffset("--fp-icon-size", controls.iconSize, fontOffset),
+    radiusControl: `var(--fp-radius-control, var(--fp-radius, ${radii.control}))`,
+    borderWidth: v("--fp-border-width", borders.width),
+    focusWidth: v("--fp-focus-width", borders.focusWidth),
+    fastDuration: v("--fp-motion-fast-duration", motion.fastDuration),
+    easing: v("--fp-motion-easing", motion.easing),
+    spaceXs: v("--fp-space-xs", spacing.xs),
+    spaceSm: v("--fp-space-sm", spacing.sm),
+  };
+}
+
 export function componentStyles(size: Size = "default") {
   const fontOffset = fontSize[size].body - fontSize.default.body;
   const padOffset = padding[size] - padding.default;
-  const offset = (name: string, fallback: string, amount: number) => amount === 0
-    ? v(name, fallback) : `calc(${v(name, fallback)} ${amount < 0 ? "-" : "+"} ${Math.abs(amount)}px)`;
   return {
-    body: offset("--fp-font-size-body", rawDefaults.typography.body, fontOffset),
-    label: offset("--fp-font-size-label", rawDefaults.typography.label, fontOffset),
-    small: offset("--fp-font-size-small", rawDefaults.typography.small, fontOffset),
-    title: offset("--fp-font-size-title", rawDefaults.typography.title, fontOffset),
-    lineHeight: v("--fp-line-height", rawDefaults.typography.lineHeight),
-    weightNormal: v("--fp-font-weight-normal", rawDefaults.typography.weightNormal),
-    weightMedium: v("--fp-font-weight-medium", rawDefaults.typography.weightMedium),
-    weightStrong: v("--fp-font-weight-strong", rawDefaults.typography.weightStrong),
-    padding: `max(0px, ${offset("--fp-space-md", rawDefaults.spacing.md, padOffset)})`,
-    controlHeight: `max(0px, ${offset("--fp-control-height", rawDefaults.controls.height, fontOffset * 4)})`,
-    controlPadding: `${v("--fp-space-xs", rawDefaults.spacing.xs)} ${v("--fp-control-padding-x", rawDefaults.controls.paddingX)}`,
-    controlPaddingX: v("--fp-control-padding-x", rawDefaults.controls.paddingX),
-    controlGap: v("--fp-control-gap", rawDefaults.controls.gap),
-    iconSize: offset("--fp-icon-size", rawDefaults.controls.iconSize, fontOffset),
-    radiusControl: `var(--fp-radius-control, var(--fp-radius, ${rawDefaults.radii.control}))`,
-    radiusPanel: `var(--fp-radius-panel, var(--fp-radius, ${rawDefaults.radii.panel}))`,
-    radiusBadge: `var(--fp-radius-badge, var(--fp-radius, ${rawDefaults.radii.badge}))`,
-    borderWidth: v("--fp-border-width", rawDefaults.borders.width),
-    focusWidth: v("--fp-focus-width", rawDefaults.borders.focusWidth),
-    shadowPanel: v("--fp-shadow-panel", rawDefaults.elevation.panel),
-    shadowPopover: v("--fp-shadow-popover", rawDefaults.elevation.popover),
-    shadowFocus: v("--fp-shadow-focus", rawDefaults.elevation.focus),
-    duration: v("--fp-motion-duration", rawDefaults.motion.duration),
-    fastDuration: v("--fp-motion-fast-duration", rawDefaults.motion.fastDuration),
-    easing: v("--fp-motion-easing", rawDefaults.motion.easing),
-    spaceXs: v("--fp-space-xs", rawDefaults.spacing.xs),
-    spaceSm: v("--fp-space-sm", rawDefaults.spacing.sm),
-    spaceMd: v("--fp-space-md", rawDefaults.spacing.md),
-    spaceLg: v("--fp-space-lg", rawDefaults.spacing.lg),
-    spaceXl: v("--fp-space-xl", rawDefaults.spacing.xl),
+    ...controlStyles(size),
+    label: sizeOffset("--fp-font-size-label", typography.label, fontOffset),
+    title: sizeOffset("--fp-font-size-title", typography.title, fontOffset),
+    weightNormal: v("--fp-font-weight-normal", typography.weightNormal),
+    weightMedium: v("--fp-font-weight-medium", typography.weightMedium),
+    weightStrong: v("--fp-font-weight-strong", typography.weightStrong),
+    padding: `max(0px, ${sizeOffset("--fp-space-md", spacing.md, padOffset)})`,
+    controlPaddingX: v("--fp-control-padding-x", controls.paddingX),
+    controlGap: v("--fp-control-gap", controls.gap),
+    radiusPanel: `var(--fp-radius-panel, var(--fp-radius, ${radii.panel}))`,
+    radiusBadge: `var(--fp-radius-badge, var(--fp-radius, ${radii.badge}))`,
+    shadowPanel: v("--fp-shadow-panel", elevation.panel),
+    shadowPopover: v("--fp-shadow-popover", elevation.popover),
+    shadowFocus: v("--fp-shadow-focus", elevation.focus),
+    duration: v("--fp-motion-duration", motion.duration),
+    spaceMd: v("--fp-space-md", spacing.md),
+    spaceLg: v("--fp-space-lg", spacing.lg),
+    spaceXl: v("--fp-space-xl", spacing.xl),
   };
 }

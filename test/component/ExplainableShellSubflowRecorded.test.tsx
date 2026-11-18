@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { describe, expect, it } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import * as React from 'react';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -8,6 +8,7 @@ import { resolve } from 'node:path';
 import { ExplainableShell } from '../../src/components/ExplainableShell/ExplainableShell';
 import { createTraceStructureRecorder } from '../../src/components/FlowchartView/traceStructureRecorder';
 
+const withoutReader = process.env.SCOPED_REPLAY_FOOTTRACE === "without-reader";
 type ShellProps = React.ComponentProps<typeof ExplainableShell>;
 interface RecordedRun {
   runtimeSnapshot: NonNullable<ShellProps['runtimeSnapshot']>;
@@ -44,7 +45,7 @@ function renderRecording(recording: RecordedRun) {
 function move(count: number) {
   for (let i = 0; i < count; i++) fireEvent.click(screen.getByLabelText('Next stage'));
 }
-function traceTotal() {
+async function traceTotal() {
   move(3); // child Seed → Sum → Audit → Total
   fireEvent.click(screen.getByText('Inspector'));
   fireEvent.click(screen.getByText('Data Trace'));
@@ -55,6 +56,7 @@ function traceTotal() {
   const card = document.querySelector('[data-fp="trace-walk-card"]') as HTMLElement;
   expect(card).toBeTruthy();
   expect(screen.getByRole('toolbar').getAttribute('data-tracing')).toBe('true');
+  await waitFor(() => expect(card.textContent).not.toContain("Reading recorded sources"));
   return card;
 }
 
@@ -67,16 +69,21 @@ describe('scoped tracing against recorded FootprintJS 10.3.0 runs', () => {
   it.each([
     { path: 'prepare', expected: 24 },
     { path: 'pipeline/prepare', expected: 44 },
-  ])('uses the selected $path child, excluding same-key root and sibling writes', ({ path, expected }) => {
+  ])('uses the selected $path child, excluding same-key root and sibling writes', async ({ path, expected }) => {
     const before = JSON.stringify(recordings.nested);
     const ui = renderRecording(recordings.nested);
     ui.drill(path);
-    const card = traceTotal();
+    const card = await traceTotal();
     expect(card.textContent).toContain(`= ${expected}`);
     expect(card.textContent).not.toContain('Root Seed');
     expect(card.textContent).not.toContain('Root Report');
     const itinerary = [...card.querySelectorAll('[data-fp="twc-itinerary-row"]')].map(row => row.textContent).join(' ');
-    expect(itinerary).toMatch(/Child Sum/);
+    if (withoutReader) {
+      expect(itinerary).toMatch(/Child Sum/);
+    } else {
+      expect(itinerary).not.toMatch(/Child Sum/);
+      expect(within(card).getByRole('group', { name: 'Recorded stage reads' }).textContent).toContain('Child Sum');
+    }
     expect(itinerary).not.toMatch(/Child Audit/);
     expect(JSON.stringify(recordings.nested)).toBe(before);
   });
@@ -84,16 +91,18 @@ describe('scoped tracing against recorded FootprintJS 10.3.0 runs', () => {
   it.each([
     { rootSteps: 2, expected: 24 },
     { rootSteps: 5, expected: 44 },
-  ])('uses the invocation at root step $rootSteps rather than the latest path alias', ({ rootSteps, expected }) => {
+  ])('uses the invocation at root step $rootSteps rather than the latest path alias', async ({ rootSteps, expected }) => {
     const before = JSON.stringify(recordings.repeated);
     const ui = renderRecording(recordings.repeated);
     move(rootSteps);
     ui.drill('prepare');
-    const card = traceTotal();
+    const card = await traceTotal();
     expect(card.textContent).toContain(`= ${expected}`);
     expect(card.textContent).not.toContain(`= ${expected === 24 ? 44 : 24}`);
-    fireEvent.click(screen.getByLabelText('Earlier recorded step'));
-    expect(card.querySelector('[data-fp="twc-stop-headline"]')?.textContent).toMatch(/Child Sum/);
+    if (withoutReader) fireEvent.click(screen.getByLabelText('Earlier recorded step'));
+    else fireEvent.click(within(card).getByRole('button', { name: /Inspect stage read subtotal from .*Child Sum/ }));
+    await waitFor(() => expect(card.querySelector('[data-fp="twc-stop-headline"]')?.textContent).toMatch(/Child Sum/));
+    if (!withoutReader) expect(await within(card).findByText(`= ${expected / 2}`)).toBeTruthy();
     ui.drill(null);
     expect(screen.getByRole('toolbar').getAttribute('data-tracing')).toBeNull();
     expect(document.querySelector('[data-fp="trace-walk-card"]')).toBeNull();

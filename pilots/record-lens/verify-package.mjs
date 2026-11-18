@@ -272,7 +272,8 @@ function verifyNormalPackage() {
       const graphEntry = !rel.startsWith("dist/record.");
       if (graphEntry) assertNoPilotSource(readFileSync(path, "utf8"), rel);
       // Canonical cause TYPES are bundled for the optional panel; no Foottrace
-      // runtime import is allowed. Source-map admission below also rejects any
+      // eager runtime import is allowed. The scoped reader loads an optional peer on demand.
+      // Source-map admission below also rejects any
       // bundled runtime input outside src/, including node_modules/foottrace.
       if (graphEntry && /\.(?:c?js)$/.test(rel))
         assertNoFoottraceRuntime(readFileSync(path, "utf8"), rel);
@@ -330,6 +331,12 @@ try {
   const graphFixture = join(scratch, "graph");
   evidence.gates.graphWithoutReader = installConsumer({ fixture: graphFixture, archive, repo, env, graph: true });
   compareInstalledFiles(unpacked, join(graphFixture, "node_modules", packageName));
+  // Resolving imports in a browser build also walks optional lazy chunks. A
+  // Node-only import check cannot catch unresolved transitive recording peers.
+  await bundle({
+    absWorkingDir: graphFixture, entryPoints: [packageName], bundle: true,
+    platform: "browser", format: "esm", write: false, logLevel: "silent",
+  });
   evidence.gates.graphTypesTooling = Object.fromEntries(
     ["typescript", "@types/react", "@types/react-dom"].map(name =>
       [name, json(join(repo, "node_modules", name, "package.json")).version]),

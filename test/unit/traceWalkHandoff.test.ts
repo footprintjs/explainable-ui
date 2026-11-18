@@ -55,6 +55,14 @@ describe("detached recorded output handoffs", () => {
     expect(formatTraceWalk(walk, () => null)).not.toContain("Output mapping observed child reads:");
   });
 
+  it("stops at Payment when no output mapping was recorded, even with readable parent input keys", () => {
+    const snapshot = JSON.parse(readFileSync("test/fixtures/payment-subflow/default.json", "utf8"));
+    const walk = buildTraceWalk(snapshot.commitLog, snapshot.executionTree, "shipped", { runtimeSnapshot: snapshot });
+    expect(walk.stops.map(stop => stop.runtimeStageId)).toEqual(["ship#3", "payment#1"]);
+    expect(walk.stops[1].ingredients).toEqual([]);
+    expect(walk.stops[1].gapMessages).toEqual(["Output handoff collection unknown.", "Per-write reads were not collected."]);
+  });
+
   it("keeps a recorded-read question bound to its earlier writer and cutoff", () => {
     const snapshot = fixture();
     const walk = buildTraceWalk(snapshot.commitLog, snapshot.executionTree, "renamed", {
