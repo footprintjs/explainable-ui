@@ -846,7 +846,7 @@ export function TracedFlow({
         ? renderBreadcrumb({ entries: breadcrumb, onNavigate: drill.setCurrentSubflowId, unstyled })
         : <SubflowBreadcrumbBar entries={breadcrumb} onNavigate={drill.setCurrentSubflowId} unstyled={unstyled} />)}
       <div style={{ flex: 1, minHeight: 0 }}>
-        <DiagramDrawingProvider geometry={diagramGeometry} drawings={diagramDrawings}><RendererContext.Provider value={renderer}><ReactFlow
+        <DiagramDrawingProvider enableAppearance={diagramAppearance !== undefined} geometry={diagramGeometry} drawings={diagramDrawings}><RendererContext.Provider value={renderer}><ReactFlow
           nodes={nodes}
           edges={edges}
           nodeTypes={mergedNodeTypes}

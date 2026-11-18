@@ -20,7 +20,7 @@
 import { BaseEdge, useStore } from "@xyflow/react";
 import { useDiagramDrawingOptions } from "../DiagramDrawing";
 import { diagramEdgePort } from "../FlowchartView/_internal/diagramEdgePort";
-import { DiagramEdgeAppearance, appearanceFromData } from "../DiagramAppearance";
+import { StockEdgeAppearance, appearanceFromData } from "../DiagramAppearance";
 import type { CSSProperties } from "react";
 import type { EdgeProps, InternalNode, ReactFlowState } from "@xyflow/react";
 import { LOOP_LANE_GAP, loopBackPath, loopLaneX } from "../FlowchartView/_internal/loopRouting";
@@ -98,7 +98,7 @@ export function LoopBackEdge({ id, source, target, markerEnd, style, data }: Edg
 
   if (!path) return null;
   return (
-    <DiagramEdgeAppearance path={path} appearance={appearanceFromData(data)} unstyled={data?.unstyled === true}>
+    <StockEdgeAppearance path={path} appearance={appearanceFromData(data)} unstyled={data?.unstyled === true}>
       <BaseEdge
         id={id}
         path={path}
@@ -106,6 +106,6 @@ export function LoopBackEdge({ id, source, target, markerEnd, style, data }: Edg
         style={data?.unstyled === true ? style : { ...softenLoopStyle(undefined), ...style }}
         aria-label="Loop back"
       />
-    </DiagramEdgeAppearance>
+    </StockEdgeAppearance>
   );
 }

@@ -35,7 +35,7 @@ const props: EdgeProps = {
   id: "route", source: "a", target: "b", sourceX: 13, sourceY: 29, targetX: 161, targetY: 173,
   sourcePosition: Position.Right, targetPosition: Position.Left, markerStart: "url(#from)", markerEnd: "url(#to)",
   pathOptions: { curvature: 0.7, borderRadius: 8, offset: 12, stepPosition: 0.71 },
-  style: { stroke: "#778899" }, interactionWidth: 31, label: "Route label", type: "straight",
+  style: { stroke: "#778899", filter: "drop-shadow(1px 2px 1px navy)", opacity: 0.25 }, interactionWidth: 31, label: "Route label", type: "straight",
   animated: false, selected: false, selectable: true, deletable: true,
 };
 const geometry: DiagramGeometry = { nodes: {
@@ -75,7 +75,16 @@ describe("diagram edge appearance", () => {
     expect(overlay.querySelector("textPath")?.getAttribute("href")).toBe("#" + overlay.querySelector("path")?.id);
     expect(container.querySelector(".react-flow__edge-path")).toBe(base);
     expect(container.querySelector(".react-flow__edge-interaction")).toBe(hit);
+    rerender(view({ presence: "removed" }));
+    const paint = base.parentElement!;
+    expect(paint.getAttribute("data-fp")).toBe("diagram-edge-paint");
+    expect(paint.style.opacity).toBe("var(--fp-diagram-removed-opacity, 0.4)");
+    expect(getComputedStyle(base).opacity).toBe("0.25");
+    expect(getComputedStyle(base).filter).toBe("drop-shadow(1px 2px 1px navy)");
     rerender(view());
+    expect(paint.style.opacity).toBe("");
+    expect(getComputedStyle(base).opacity).toBe("0.25");
+    expect(getComputedStyle(base).filter).toBe("drop-shadow(1px 2px 1px navy)");
     expect(container.querySelector(".react-flow__edge-path")).toBe(base);
     expect(container.querySelector('[data-fp="diagram-edge-appearance"]')).toBeNull();
   });
@@ -93,7 +102,8 @@ describe("diagram edge appearance", () => {
     expect(accent?.getAttribute("pathLength")).toBe("1");
     rerender(view({ presence: "removed", health: "offline" }));
     expect(getByRole("img", { name: "Removed · Health · offline" })).toBeTruthy();
-    expect(container.querySelector("style")?.nextElementSibling).toBe(drawing);
+    expect(drawing.parentElement?.getAttribute("data-presence")).toBe("removed");
+    expect(container.querySelector("style")).toBeNull();
     rerender(view());
     expect(container.querySelector("svg")!.children).toHaveLength(1);
   });

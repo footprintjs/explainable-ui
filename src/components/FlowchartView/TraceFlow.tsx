@@ -510,7 +510,7 @@ export function TraceFlow(props: TraceFlowProps) {
         ...props.style,
       }}
     >
-      <DiagramDrawingProvider geometry={props.diagramGeometry} drawings={props.diagramDrawings}><RendererContext.Provider value={renderer}><ReactFlow
+      <DiagramDrawingProvider enableAppearance={props.diagramAppearance !== undefined} geometry={props.diagramGeometry} drawings={props.diagramDrawings}><RendererContext.Provider value={renderer}><ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={mergedNodeTypes}

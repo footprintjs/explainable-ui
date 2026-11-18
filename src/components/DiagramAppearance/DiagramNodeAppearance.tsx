@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
-import { componentStyles, theme } from "../../theme";
+import { componentStyles, defaultTokens, theme } from "../../theme";
 import { appearanceLabel, readDiagramObjectAppearance, type DiagramObjectAppearance } from "./model";
-import { RemovedDrawingStyle, useDrawingBoundary } from "./RemovedDrawingStyle";
 
 const ui = componentStyles();
 
@@ -15,14 +14,15 @@ export interface DiagramNodeAppearanceProps {
 export function DiagramNodeAppearance({ appearance: supplied, unstyled, children }: DiagramNodeAppearanceProps) {
   const appearance = readDiagramObjectAppearance(supplied);
   const label = appearance && appearanceLabel(appearance);
-  const boundary = useDrawingBoundary(Boolean(label));
   const progress = appearance?.progress;
   const ratio = progress && progress.completed / progress.total;
-  const removed = appearance?.presence === "removed";
+  const ghost = appearance?.presence === "removed" && !unstyled;
   return <>
-    {removed && !unstyled && <RemovedDrawingStyle boundary={boundary}/>}
-    {children}
-    {label && <div id={boundary + "-end"} data-fp="diagram-node-appearance"
+    {children != null && <div data-fp="diagram-node-paint" data-presence={appearance?.presence}
+      style={ghost ? { width: "100%", height: "100%", opacity: defaultTokens.diagram.removedOpacity } : { display: "contents" }}>
+      {children}
+    </div>}
+    {label && <div data-fp="diagram-node-appearance"
       data-activity={appearance?.activity} data-presence={appearance?.presence}
       style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 1 }}>
       {(appearance?.activity || progress) && <svg data-fp="diagram-node-ring" width={24} height={24} viewBox="0 0 24 24"

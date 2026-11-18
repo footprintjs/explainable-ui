@@ -707,12 +707,17 @@ The reader indexes the observations you supply for one recording scope. Each
 change replaces one object's appearance, and `null` clears it. Keep the node
 or edge and its endpoints in the graph to show a confirmed-removal ghost.
 Set the `diagram.removedOpacity` theme token to adjust its faded appearance.
+Opted-in node and edge drawings have a stable paint container so their filters and opacity
+compose with the ghost opacity. The HTML container uses `display: contents`
+during ordinary rendering, and SVG uses a `g`. Target the drawing's class or
+`data-fp` attribute when styling nested elements.
 An activity without a measured total shows its label without a percentage.
 FootPrintJS, Foottrace, or your own application can supply observations and
 the selected step. A static graph requires no recorder.
 
 Use `diagramGeometry` for each node's width, height and source/target attachment
 points in local pixels. `diagramDrawings` maps trusted names to React components.
+Supply an empty appearance map from the first render if you need the same mounted custom drawing throughout its first live update.
 Full custom node and edge renderers receive `data.diagramAppearance` and can reuse
 `DiagramNodeAppearance` or `DiagramEdgeAppearance`. With `ExplainableShell` or
 `TraceViewer`, use `diagramAppearanceAt={({ selectedIndex, invocationPath }) =>

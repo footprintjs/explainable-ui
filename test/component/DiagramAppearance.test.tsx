@@ -1,11 +1,29 @@
 /** @vitest-environment jsdom */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DiagramNodeAppearance, applyDiagramAppearance, readDiagramObjectAppearance, type DiagramObjectAppearance } from "../../src/components/DiagramAppearance";
+import { DiagramDrawingProvider } from "../../src/components/DiagramDrawing";
+import { StockNodeAppearance, DiagramNodeAppearance, applyDiagramAppearance, readDiagramObjectAppearance, type DiagramObjectAppearance } from "../../src/components/DiagramAppearance";
 
 afterEach(cleanup);
 
 describe("diagram object facts", () => {
+  it("keeps ordinary chart markup and retains the opted-in paint layer when a frame clears", () => {
+    const view = (enableAppearance?: boolean, appearance?: DiagramObjectAppearance) =>
+      <DiagramDrawingProvider enableAppearance={enableAppearance}>
+        <StockNodeAppearance appearance={appearance}><button>Host drawing</button></StockNodeAppearance>
+      </DiagramDrawingProvider>;
+    const ui = render(view());
+    expect(screen.getByRole("button").parentElement).toBe(ui.container);
+    ui.rerender(view(true));
+    const drawing = screen.getByRole("button");
+    const paint = drawing.parentElement;
+    expect(paint?.getAttribute("data-fp")).toBe("diagram-node-paint");
+    ui.rerender(view(true, { presence: "removed" }));
+    ui.rerender(view());
+    expect(screen.getByRole("button")).toBe(drawing);
+    expect(drawing.parentElement).toBe(paint);
+  });
+
   it("preserves direct node/edge data and clears it only for an explicit snapshot", () => {
     const untouched = Object.freeze({ id: "other" });
     const original = Object.freeze({ id: "source", data: Object.freeze({ label: "kept", diagramAppearance: { health: "existing" } }) });
@@ -42,20 +60,27 @@ describe("diagram object facts", () => {
   it("keeps an invisible native handle hidden and compounds the alpha of a dimmed drawing", () => {
     const view = (appearance?: DiagramObjectAppearance) => <div><DiagramNodeAppearance appearance={appearance}>
       <span className="react-flow__handle" data-testid="handle" style={{ opacity: 0 }} />
-      <div data-testid="dimmed" style={{ opacity: 0.25 }}>Body</div>
+      <div data-testid="dimmed" style={{ opacity: 0.25, filter: "drop-shadow(2px 2px 1px blue)" }}>Body</div>
     </DiagramNodeAppearance></div>;
     const { rerender } = render(view({ presence: "removed" }));
     for (const [name, opacity] of [["handle", "0"], ["dimmed", "0.25"]]) {
       const paint = getComputedStyle(screen.getByTestId(name));
       expect(paint.opacity).toBe(opacity);
-      expect(paint.filter).toBe("opacity(var(--fp-diagram-removed-opacity, 0.4))");
+
     }
+    const dimmed = screen.getByTestId("dimmed"), paint = dimmed.parentElement!;
+    expect(paint.getAttribute("data-fp")).toBe("diagram-node-paint");
+    expect(paint.style.opacity).toBe("var(--fp-diagram-removed-opacity, 0.4)");
+    expect(getComputedStyle(dimmed).filter).toBe("drop-shadow(2px 2px 1px blue)");
     rerender(view({ activity: "removing" }));
     expect(getComputedStyle(screen.getByTestId("handle")).opacity).toBe("0");
-    expect(getComputedStyle(screen.getByTestId("dimmed")).filter).toBe("none");
+    expect(screen.getByTestId("dimmed")).toBe(dimmed);
+    expect(getComputedStyle(dimmed).filter).toBe("drop-shadow(2px 2px 1px blue)");
+    expect(paint.style.opacity).toBe("");
+    expect(paint.style.display).toBe("contents");
   });
 
-  it("draws progress on the node, preserves stateful children through removal and rewind, and keeps ordinary markup", () => {
+  it("draws progress on the node, preserves stateful children through removal and rewind, and leaves ordinary layout unchanged", () => {
     const view = (appearance?: DiagramObjectAppearance, unstyled?: boolean) =>
       <div data-testid="footprint"><DiagramNodeAppearance appearance={appearance} unstyled={unstyled}>
         <input aria-label="Drawing" defaultValue="initial" />
@@ -81,10 +106,12 @@ describe("diagram object facts", () => {
     expect(container.querySelector("style")).toBeNull();
     rerender(view({ presence: "removed" }));
     expect(screen.getByText("Removed")).toBeTruthy();
-    expect(container.querySelector("style")?.nextElementSibling).toBe(drawing);
-    expect(drawing.nextElementSibling?.getAttribute("data-presence")).toBe("removed");
+    const paint = drawing.parentElement!;
+    expect(paint.dataset.presence).toBe("removed");
+    expect(paint.nextElementSibling?.getAttribute("data-fp")).toBe("diagram-node-appearance");
     rerender(view({ presence: "removed" }, true));
-    expect(container.querySelector("style")).toBeNull();
+    expect(paint.style.opacity).toBe("");
+    expect(paint.style.display).toBe("contents");
     rerender(view());
     expect(screen.getByTestId("footprint").children).toHaveLength(1);
     expect(screen.getByRole("textbox")).toBe(drawing);

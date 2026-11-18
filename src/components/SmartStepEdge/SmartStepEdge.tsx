@@ -20,7 +20,7 @@
 import { BaseEdge, getSmoothStepPath, useStore } from "@xyflow/react";
 import type { EdgeProps, ReactFlowState } from "@xyflow/react";
 import { Position } from "@xyflow/react";
-import { DiagramEdgeAppearance, appearanceFromData } from "../DiagramAppearance";
+import { StockEdgeAppearance, appearanceFromData } from "../DiagramAppearance";
 import {
   staggeredBendY,
   forkFanBendY,
@@ -97,7 +97,7 @@ export function SmartStepEdge({
     ...(bendY !== null ? { centerY: bendY } : {}),
   });
 
-  return <DiagramEdgeAppearance path={path} appearance={appearanceFromData(data)} unstyled={data?.unstyled === true}>
+  return <StockEdgeAppearance path={path} appearance={appearanceFromData(data)} unstyled={data?.unstyled === true}>
     <BaseEdge id={id} path={path} markerEnd={markerEnd} style={style} />
-  </DiagramEdgeAppearance>;
+  </StockEdgeAppearance>;
 }

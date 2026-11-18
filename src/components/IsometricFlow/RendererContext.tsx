@@ -1,7 +1,7 @@
 import { createContext, memo, useContext, useMemo } from "react";
 import type { NodeProps } from "@xyflow/react";
 import type { FlowchartRenderer } from "../../model/flowchart";
-import { DiagramNodeAppearance } from "../DiagramAppearance";
+import { StockNodeAppearance } from "../DiagramAppearance";
 import { getDiagramNodeGeometry, useDiagramDrawingOptions, type DiagramDrawings } from "../DiagramDrawing";
 import { StageNode, type StageNodeData } from "../StageNode";
 import { IsometricStageNode } from "./IsometricStageNode";
@@ -28,7 +28,7 @@ export const DefaultStageNode = memo(function DefaultStageNode(props: NodeProps)
   const artwork = Drawing && shape ? <Drawing id={props.id} data={data} renderer={renderer} geometry={shape} /> : undefined;
   const stage = renderer === "isometric" ? <IsometricStageNode {...props} diagramGeometry={shape} diagramArtwork={artwork} />
     : <StageNode {...props} data={data} diagramGeometry={shape} diagramArtwork={artwork} />;
-  return <DiagramNodeAppearance appearance={data.diagramAppearance} unstyled={data.unstyled === true}>
+  return <StockNodeAppearance appearance={data.diagramAppearance} unstyled={data.unstyled === true}>
     {stage}
-  </DiagramNodeAppearance>;
+  </StockNodeAppearance>;
 });

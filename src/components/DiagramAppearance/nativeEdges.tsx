@@ -4,7 +4,7 @@ import {
   getBezierPath, getSimpleBezierPath, getSmoothStepPath, getStraightPath,
   type EdgeProps, type EdgeTypes,
 } from "@xyflow/react";
-import { DiagramEdgeAppearance } from "./DiagramEdgeAppearance";
+import { StockEdgeAppearance } from "./StockAppearance";
 import { appearanceFromData } from "./model";
 
 type NativeEdgeProps = Omit<EdgeProps, "id"> & { id?: string };
@@ -14,10 +14,10 @@ function withAppearance(Native: ComponentType<NativeEdgeProps>, pathFor: (props:
     const appearance = appearanceFromData(props.data);
     // XYFlow's registered built-ins leave the visible path's id unset. Its
     // outer group owns the edge id, selection, keyboard events and interaction.
-    return <DiagramEdgeAppearance appearance={appearance} path={appearance ? pathFor(props) : ""}
+    return <StockEdgeAppearance appearance={appearance} path={appearance ? pathFor(props) : ""}
       unstyled={props.data?.unstyled === true}>
       <Native {...props} id={undefined} />
-    </DiagramEdgeAppearance>;
+    </StockEdgeAppearance>;
   };
 }
 

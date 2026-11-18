@@ -5,3 +5,4 @@ export type { DiagramEdgeAppearanceProps } from "./DiagramEdgeAppearance";
 export { applyDiagramAppearance, appearanceFromData, readDiagramObjectAppearance } from "./model";
 export type { DiagramAppearance, DiagramObjectAppearance, DiagramProgress } from "./model";
 export { diagramNativeEdgeTypes } from "./nativeEdges";
+export { StockEdgeAppearance, StockNodeAppearance } from "./StockAppearance";
