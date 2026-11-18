@@ -1,4 +1,5 @@
 /** Offline installed ESM/CJS and strict type proof. Build first. No Foottrace in the consumer. */
+import { graphConsumerPackages } from "./fixtures/graph-consumer-packages.mjs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
@@ -74,8 +75,7 @@ try {
   });
   const declared = [
     ...new Set([
-      ...Object.keys(manifest.peerDependencies),
-      ...Object.keys(manifest.dependencies),
+      ...graphConsumerPackages(manifest),
       "csstype",
     ]),
   ];
@@ -132,8 +132,7 @@ console.log(JSON.stringify({format:${JSON.stringify(extension)},doors:['.','./fl
     noReaderRuntime.push(JSON.parse(run(process.execPath, [file], peerOnly)));
   }
   for (const name of [
-    ...Object.keys(manifest.peerDependencies),
-    ...Object.keys(manifest.dependencies),
+    ...graphConsumerPackages(manifest),
     "vitest",
     "@testing-library/react",
     "@testing-library/jest-dom",

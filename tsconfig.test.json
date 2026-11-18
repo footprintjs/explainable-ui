@@ -9,7 +9,8 @@
     "baseUrl": ".",
     "paths": {
       "footprint-explainable-ui": ["./src/index.ts"],
-      "footprint-explainable-ui/flowchart": ["./src/flowchart.ts"]
+      "footprint-explainable-ui/flowchart": ["./src/flowchart.ts"],
+      "footprint-explainable-ui/record": ["./src/record/index.ts"]
     }
   },
   "include": ["src", "test", "examples"]

@@ -1,0 +1,262 @@
+{
+  "sourceId": "1794891658410-0000000001",
+  "source": {
+    "initialState": {},
+    "executionTree": {
+      "id": "load-rates",
+      "runtimeStageId": "load-rates#0",
+      "name": "LoadRates",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageWrites": {
+        "rates": [
+          3.1,
+          3.4,
+          9.9
+        ]
+      },
+      "description": "Load the local rate table",
+      "flowMessages": [
+        {
+          "type": "next",
+          "description": "Moving to PickBase stage",
+          "timestamp": 1794891658444,
+          "targetStage": "PickBase"
+        }
+      ],
+      "next": {
+        "id": "pick-base",
+        "runtimeStageId": "pick-base#1",
+        "name": "PickBase",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "baseRate": 9.9
+        },
+        "stageReads": {
+          "rates": [
+            3.1,
+            3.4,
+            9.9
+          ],
+          "rates.length": 3,
+          "rates.2": 9.9
+        },
+        "description": "Select the last rate (intentional example bug)",
+        "flowMessages": [
+          {
+            "type": "next",
+            "description": "Moving to Audit stage",
+            "timestamp": 1794891658445,
+            "targetStage": "Audit"
+          }
+        ],
+        "next": {
+          "id": "audit",
+          "runtimeStageId": "audit#2",
+          "name": "Audit",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "auditNote": "Local example checked"
+          },
+          "description": "Write a separate audit note",
+          "flowMessages": [
+            {
+              "type": "next",
+              "description": "Moving to AssessRisk stage",
+              "timestamp": 1794891658445,
+              "targetStage": "AssessRisk"
+            }
+          ],
+          "next": {
+            "id": "assess-risk",
+            "runtimeStageId": "assess-risk#3",
+            "name": "AssessRisk",
+            "isDecider": false,
+            "isFork": false,
+            "logs": {},
+            "errors": {},
+            "metrics": {},
+            "evals": {},
+            "stageWrites": {
+              "riskFactor": 1.2
+            },
+            "description": "Apply the example risk multiplier",
+            "flowMessages": [
+              {
+                "type": "next",
+                "description": "Moving to Quote stage",
+                "timestamp": 1794891658461,
+                "targetStage": "Quote"
+              }
+            ],
+            "next": {
+              "id": "quote",
+              "runtimeStageId": "quote#4",
+              "name": "Quote",
+              "isDecider": false,
+              "isFork": false,
+              "logs": {},
+              "errors": {},
+              "metrics": {},
+              "evals": {},
+              "stageWrites": {
+                "quote": 11.88
+              },
+              "stageReads": {
+                "baseRate": 9.9,
+                "riskFactor": 1.2
+              },
+              "description": "Compute the final price"
+            }
+          }
+        }
+      }
+    },
+    "commitLog": [
+      {
+        "overwrite": {
+          "rates": [
+            3.1,
+            3.4,
+            9.9
+          ]
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "rates",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "LoadRates",
+        "stageId": "load-rates",
+        "runtimeStageId": "load-rates#0",
+        "idx": 0
+      },
+      {
+        "overwrite": {
+          "baseRate": 9.9
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "baseRate",
+            "verb": "set",
+            "readKeys": [
+              "rates",
+              "rates\u001flength",
+              "rates\u001f2"
+            ]
+          }
+        ],
+        "stage": "PickBase",
+        "stageId": "pick-base",
+        "runtimeStageId": "pick-base#1",
+        "idx": 1
+      },
+      {
+        "overwrite": {
+          "auditNote": "Local example checked"
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "auditNote",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "Audit",
+        "stageId": "audit",
+        "runtimeStageId": "audit#2",
+        "idx": 2
+      },
+      {
+        "overwrite": {
+          "riskFactor": 1.2
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "riskFactor",
+            "verb": "set",
+            "readKeys": []
+          }
+        ],
+        "stage": "AssessRisk",
+        "stageId": "assess-risk",
+        "runtimeStageId": "assess-risk#3",
+        "idx": 3
+      },
+      {
+        "overwrite": {
+          "quote": 11.88
+        },
+        "updates": {},
+        "redactedPaths": [],
+        "trace": [
+          {
+            "path": "quote",
+            "verb": "set",
+            "readKeys": [
+              "baseRate",
+              "riskFactor"
+            ]
+          }
+        ],
+        "stage": "Quote",
+        "stageId": "quote",
+        "runtimeStageId": "quote#4",
+        "idx": 4
+      }
+    ]
+  },
+  "timingsMs": {
+    "load-rates#0": 32,
+    "pick-base#1": 1,
+    "audit#2": 0,
+    "assess-risk#3": 16,
+    "quote#4": 0
+  },
+  "operations": [
+    {
+      "id": "load-rates",
+      "label": "LoadRates"
+    },
+    {
+      "id": "pick-base",
+      "label": "PickBase"
+    },
+    {
+      "id": "audit",
+      "label": "Audit"
+    },
+    {
+      "id": "assess-risk",
+      "label": "AssessRisk"
+    },
+    {
+      "id": "quote",
+      "label": "Quote"
+    }
+  ]
+}

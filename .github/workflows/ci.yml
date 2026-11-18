@@ -57,10 +57,34 @@ jobs:
           npx tsc -p examples/headless-controller/tsconfig.json
           npx vite build --config examples/headless-controller/vite.config.ts
 
-      # Non-shipping source pilot. Foottrace's development tests require Node 22;
-      # the existing package entries and their Node 20 lane stay unchanged.
-      - name: Verify isolated record source pilot
+      - name: Verify the Go recording against the public Foottrace reader
         if: matrix.node-version == 22
+        run: node examples/record-slider/go/verify.mjs
+
+      - name: Check and build Foottrace record slider example
+        if: matrix.node-version == 22
+        run: |
+          npx tsc -p examples/record-slider/tsconfig.json
+          npx vite build --config examples/record-slider/vite.config.ts
+
+      - name: Save the PR's record slider preview
+        if: matrix.node-version == 22 && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: record-slider-preview
+          path: demo-dist/record-slider/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Save built package for independent verification
+        if: matrix.node-version == 22
+        run: npm pack --ignore-scripts --json --pack-destination dependency-security > dependency-security/packed-review.json
+
+      # The optional recording reader uses Foottrace 2's Node 22 runtime.
+      - name: Test the Foottrace reader and its isolated packed consumer
+        if: matrix.node-version == 22
+        env:
+          UI_PACKED_REVIEW: dependency-security/packed-review.json
         run: npm run test:record-pilot
 
       - name: Verify packed scoped trace consumers
@@ -101,15 +125,36 @@ jobs:
       - run: npx publint
       - run: npx @arethetypeswrong/cli --pack
 
-      - name: Save built package for independent verification
-        if: matrix.node-version == 22
-        run: npm pack --ignore-scripts --json --pack-destination dependency-security > dependency-security/packed-review.json
-
       - name: Retain actual dependency graph and security reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dependency-security-node-${{ matrix.node-version }}
           path: dependency-security/
+          if-no-files-found: error
+          retention-days: 7
+
+  graph-consumer:
+    name: Graph consumer on Node ${{ matrix.node }}
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [18, 20]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dependency-security-node-22
+          path: packed-artifact
+      - name: Install the tested archive and verify graph runtime and types without Foottrace
+        run: node pilots/record-lens/verify-graph-floor.mjs packed-artifact graph-consumer.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: graph-consumer-node-${{ matrix.node }}
+          path: graph-consumer.json
           if-no-files-found: error
           retention-days: 7
