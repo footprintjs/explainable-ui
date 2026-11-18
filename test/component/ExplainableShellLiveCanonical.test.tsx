@@ -7,7 +7,7 @@ import { ExplainableShell, type ExplainableShellProps } from '../../src/componen
 import { createRecordingSource } from '../../src/progressiveRendering';
 import { buildTraceWalk } from '../../src/trace/traceWalk';
 const native = JSON.parse(readFileSync('test/fixtures/backtrack/parallel35-canonical.snapshot.json', 'utf8'));
-it('keeps native total35 → Items30 / Delivery5 evidence through a live cohort publication', async () => {
+it.each(['eager', 'batched'] as const)('keeps native total35 → Items30 / Delivery5 evidence through a %s live publication', async mode => {
   const graph = { nodes: [], edges: [] };
   const source = createRecordingSource({ snapshot: native, graph });
   const chart: NonNullable<ExplainableShellProps['renderFlowchart']> = props => <div>
@@ -21,7 +21,18 @@ it('keeps native total35 → Items30 / Delivery5 evidence through a live cohort 
     fireEvent.click(screen.getByRole('button', { name: 'Backtrack write total' }));
     expect(screen.getByRole('toolbar').getAttribute('aria-label')).toBe('Tracing total');
     expect(document.querySelector('[data-fp="trace-walk-card"]')?.textContent).toContain('35');
-    act(() => source.update({ snapshot: structuredClone(native), graph }));
+    let captures = 0;
+    const capture = () => {
+      captures++;
+      return { snapshot: structuredClone(native), graph };
+    };
+    await act(async () => {
+      if (mode === 'eager') { source.update(capture()); return; }
+      const publication = source.requestUpdate(capture);
+      expect(source.requestUpdate(capture)).toBe(publication);
+      await publication;
+    });
+    expect(captures).toBe(1);
     await waitFor(() => expect(source.getSnapshot().rootRevision).toBe(1));
     expect(screen.getByRole('toolbar').getAttribute('aria-label')).toBe('Tracing total');
     expect(screen.getByTestId('canonical-live-selected').textContent).toBe(selected);

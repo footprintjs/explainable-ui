@@ -42,8 +42,13 @@ for (const entry of entries) {
   source.dispose();
   const live = entry.createRecordingSource({ snapshot: root, graph: { nodes: [], edges: [] } });
   assert.equal(live.canLoadSubflows, false);
-  live.update({ snapshot: structuredClone(native), graph: { nodes: [], edges: [] } });
-  await new Promise(resolve => { const off = live.subscribe(() => { if (live.getSnapshot().rootRevision === 1) { off(); resolve(); } }); });
+  let captures = 0;
+  const capture = () => { captures++; return { snapshot: structuredClone(native), graph: { nodes: [], edges: [] } }; };
+  const published = live.requestUpdate(capture);
+  assert.equal(live.requestUpdate(capture), published);
+  assert.equal(captures, 0);
+  await published;
+  assert.equal(captures, 1);
   assert.equal(live.getSnapshot().rootRevision, 1);
   const inline = await live.load({ invocationPath: ['child#2'], mountRuntimeStageId: 'child#2', subflowId: 'child' });
   assert(inline.snapshots.length > 0);
@@ -93,6 +98,7 @@ import { createRecordingSource as flowchartSource } from 'footprint-explainable-
 declare const options: RecordingSourceOptions; declare const worker: PreparationWorker;
 const source = createRecordingSource(options); flowchartSource(options).dispose();
 const liveUpdate: RecordingSourceUpdate = { snapshot: options.snapshot, graph: options.graph }; source.update(liveUpdate);
+const publication: Promise<void> = source.requestUpdate(() => liveUpdate); void publication;
 const prepare = createSubflowWorkerPreparation(worker); prepare.dispose(); attachSubflowWorker(worker)();
 const rendering: ProgressiveRenderingOptions = { loadingIndicator: 'text', prefetch: 'idle' };
 source.getSnapshot(); source.dispose(); void rendering;

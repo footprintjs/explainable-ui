@@ -214,3 +214,85 @@ describe('complete cumulative live source cohorts', () => {
     expect(rootBefore).not.toBe(source.rootSnapshot); source.dispose(); expect(() => source.update(value)).toThrow('disposed');
   });
 });
+
+describe('capture on recorder notification', () => {
+  it('captures one complete cohort and publishes it in the same frame', async () => {
+    const source = start(), listener = vi.fn();
+    source.subscribe(listener);
+    const history = [row('items', 30)];
+    const read = vi.fn(() => ({ snapshot: root(history), graph: graph() }));
+    const first = source.requestUpdate(read);
+    history.push(row('delivery', 5), row('combine', 35));
+    expect(source.requestUpdate(read)).toBe(first);
+    expect(read).not.toHaveBeenCalled();
+    publish();
+    await first;
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(source.rootSnapshot.commitLog).toEqual(history);
+    expect(source.getSnapshot().rootRevision).toBe(1);
+  });
+
+  it('uses the latest reader and lets an admitted eager capture supersede an unread request', async () => {
+    const source = start();
+    const skipped = vi.fn(() => { throw new Error('obsolete'); });
+    const read = vi.fn(() => ({ snapshot: root([row('a', 1)]), graph: graph() }));
+    const first = source.requestUpdate(skipped);
+    source.requestUpdate(read);
+    publish();
+    await first;
+    const final = source.requestUpdate(skipped);
+    const history = [row('a', 1), row('b', 2)];
+    source.update({ snapshot: root(history), graph: graph() });
+    publish();
+    await final;
+    expect(skipped).not.toHaveBeenCalled();
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(source.rootSnapshot.commitLog).toEqual(history);
+  });
+
+  it('rejects failed capture and prevents a later run from replacing valid pending evidence', async () => {
+    const source = start();
+    const first = row('a', 1);
+    source.update({ snapshot: root([first]), graph: graph() });
+    const wrongRun = source.requestUpdate(() => ({ snapshot: root([], { runId: 'another-run' }), graph: graph() }));
+    publish();
+    await expect(wrongRun).rejects.toThrow('same run');
+    expect(source.rootSnapshot.commitLog).toEqual([first]);
+    const failure = source.requestUpdate(() => { throw new Error('recorder unavailable'); });
+    publish();
+    await expect(failure).rejects.toThrow('recorder unavailable');
+    expect(source.getSnapshot().rootRevision).toBe(1);
+    const retry = source.requestUpdate(() => ({ snapshot: root([first, row('b', 2)]), graph: graph() }));
+    publish();
+    await retry;
+    expect(source.getSnapshot().rootRevision).toBe(2);
+  });
+
+  it('cancels a pending capture on disposal without reading the replaced run', async () => {
+    const source = start(), read = vi.fn(() => ({ snapshot: root(), graph: graph() }));
+    const pending = source.requestUpdate(read);
+    source.dispose();
+    publish();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(source.requestUpdate(read)).rejects.toMatchObject({ name: 'AbortError' });
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  it('delivers final evidence with the frame timer fallback and retains reentrant notifications', async () => {
+    const source = start();
+    const first = row('a', 1);
+    let followUp: Promise<void> | undefined;
+    const unsubscribe = source.subscribe(() => {
+      unsubscribe();
+      followUp = source.requestUpdate(() => ({ snapshot: root([first, row('b', 2)]), graph: graph() }));
+    });
+    const initial = source.requestUpdate(() => ({ snapshot: root([first]), graph: graph() }));
+    await vi.advanceTimersByTimeAsync(100);
+    await initial;
+    expect(source.rootSnapshot.commitLog).toEqual([first]);
+    await vi.advanceTimersByTimeAsync(100);
+    await followUp;
+    expect(source.rootSnapshot.commitLog).toHaveLength(2);
+  });
+});

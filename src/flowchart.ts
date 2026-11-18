@@ -240,7 +240,7 @@ export type { FlowchartRenderer, FlowchartOptions } from "./model/flowchart";
 
 export { createRecordingSource, prepareSubflow, createSubflowWorkerPreparation, attachSubflowWorker, resolveProgressiveRenderingOptions } from "./progressiveRendering";
 export type { ProgressiveRenderingOptions, SubflowLoadRequest, LoadedSubflow, PreparedSubflow, SubflowLoadState,
-  RecordingSourceSnapshot, RecordingSourceOptions, RecordingSourceUpdate, RecordingSource, PreparationWorker, SubflowWorkerPreparation } from "./progressiveRendering";
+  RecordingSourceSnapshot, RecordingSourceOptions, RecordingSourceUpdate, RecordingSource, LiveRecordingSource, PreparationWorker, SubflowWorkerPreparation } from "./progressiveRendering";
 export { FootprintLoadStatus } from "./theme";
 export type { FootprintLoadStatusProps, FootprintLoadStatusAdapterProps } from "./theme";
 

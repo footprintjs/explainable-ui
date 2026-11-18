@@ -69,6 +69,12 @@ export interface RecordingSource {
   /** Owned by the creator, never automatically called when one view unmounts. */
   dispose(): void;
 }
+/** Source created by the library. Hosts implementing RecordingSource can keep the existing pull contract. */
+export interface LiveRecordingSource extends RecordingSource {
+  /** Read the latest complete same-run cohort once at the next publication. Concurrent requests
+   * share one promise; it rejects if reading or admission fails, or if disposed before publication. */
+  requestUpdate(read: () => RecordingSourceUpdate): Promise<void>;
+}
 export interface PreparationWorker {
   postMessage(message: unknown): void;
   addEventListener(type: 'message', listener: (event: MessageEvent) => void): void;

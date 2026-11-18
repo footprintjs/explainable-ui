@@ -82,9 +82,8 @@ deduplication, cancellation, coherent publication and retained Backtrack facts.
 This example uses `rendering={{ loadingIndicator, prefetch: 'none' }}`. Existing
 JSON layouts can express the same policy as `layout.rendering`; explicit props
 take precedence. `prefetch: 'idle'` is available for optional background loading.
-Live producers can call `source.update()` with complete cumulative same-run
-cohorts; they must retain earlier commits/events. The source batches visual
-publication. A host preparation worker is optional through `prepareSubflow`.
+Live producers can call `source.requestUpdate(readCohort)` on recorder signals
+to take one complete same-run snapshot per frame, preserving earlier commits and events. A host preparation worker is optional through `prepareSubflow`.
 
 Segment large recordings at complete invocation boundaries rather than cutting
 arbitrary JSON fragments into the viewer. Fetching is asynchronous, but JSON
