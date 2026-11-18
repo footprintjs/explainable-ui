@@ -54,3 +54,21 @@ it('never invokes an unavailable timing accessor while drawing labels', () => {
   expect(getter).not.toHaveBeenCalled();
   expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toContain('zero or unavailable timing');
 });
+
+it.each([false, true])('retains exact sparse Backtrack stops on a compressed segmented rail, unstyled=%s', unstyled => {
+  const many = Array.from({ length: 1024 }, (_, i) => ({ ...stages[0], stageName: 'stage-' + i }));
+  const change = vi.fn();
+  const { container } = render(<TimeTravelControls snapshots={many} selectedIndex={10} onIndexChange={change}
+    unstyled={unstyled} replayControls={{ scale: 'log-duration', presentation: 'segmented' }}
+    tracing={{ tracedKey: 'x', stopIndices: [10, 13, 711], stopOrdinal: 3, totalStops: 3, onExit() {} }} />);
+  const ticks = container.querySelectorAll<HTMLButtonElement>('[data-fp="tt-tick"]');
+  expect(ticks).toHaveLength(128);
+  expect([...ticks].filter(tick => !tick.disabled)).toHaveLength(2);
+  const range = screen.getByRole('slider');
+  fireEvent.keyDown(range, { key: 'ArrowRight' });
+  expect(change).toHaveBeenLastCalledWith(13);
+  fireEvent.keyDown(range, { key: 'End' });
+  expect(change).toHaveBeenLastCalledWith(711);
+  fireEvent.click(ticks[Math.floor(711 / 8)]);
+  expect(change).toHaveBeenLastCalledWith(711);
+});

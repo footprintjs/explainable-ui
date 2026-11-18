@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import type { Size } from '../types';
 import { FootprintButton, FootprintInput } from '../theme/components';
 import { componentStyles, theme } from '../theme/styles';
@@ -25,6 +25,20 @@ interface ReplayPositionProps {
   unstyled: boolean;
 }
 
+// The overlaid native range retains every recorded position. Long segmented rails
+// paint consecutive groups, with widths equal to the sum of their original weights.
+const MAX_VISIBLE_TICKS = 128;
+
+function lowerBound(stops: readonly number[], index: number): number {
+  let low = 0, high = stops.length;
+  while (low < high) {
+    const mid = Math.floor((low + high) / 2);
+    if (stops[mid] < index) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+}
+
 /** One interaction implementation for the visible native range and segmented rail. */
 export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet, tracing, presentation, scale, size, unstyled, ariaLabel }: ReplayPositionProps) {
   const [focused, setFocused] = useState(false), rangeKey = useRef<string | null>(null);
@@ -33,8 +47,31 @@ export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet,
   const ui = componentStyles(size), isTracing = tracing !== null;
   const position = Number.isSafeInteger(selectedIndex)
     ? Math.max(0, Math.min(selectedIndex, Math.max(0, snapshots.length - 1))) : 0;
-  const allowedStops = tracing ? [...new Set(tracing.stopIndices.filter(index =>
-    Number.isSafeInteger(index) && index >= 0 && index < snapshots.length))].sort((left, right) => left - right) : [];
+  const indices = tracing?.stopIndices;
+  const total = snapshots.length;
+  const allowedStops = useMemo(() => indices ? [...new Set(indices.filter(index =>
+    Number.isSafeInteger(index) && index >= 0 && index < total))].sort((a, b) => a - b) : [], [indices, total]);
+  const ticks = useMemo(() => {
+    const count = presentation === 'segmented' ? Math.min(total, MAX_VISIBLE_TICKS) : 0;
+    return Array.from({ length: count }, (_, n) => {
+      const first = Math.floor(n * total / count), end = Math.floor((n + 1) * total / count);
+      let weight = end - first;
+      if (weighted) {
+        weight = 0;
+        for (let i = first; i < end; i++) weight += axis.weights[i];
+      }
+      return { first, end, weight };
+    });
+  }, [presentation, total, weighted, axis]);
+  const isGrouped = presentation === 'segmented' && total > MAX_VISIBLE_TICKS;
+  function tickPosition(first: number, end: number) {
+    if (first <= position && position < end && (!stopSet || stopSet.has(position))) return position;
+    if (isTracing && first + 1 < end) {
+      const allowed = allowedStops[lowerBound(allowedStops, first)];
+      if (allowed < end) return allowed;
+    }
+    return first;
+  }
   const canScrub = snapshots.length > 1 && (!isTracing || allowedStops.length > 0);
   const durationLabel = (index: number) => (axis.durations[index] ?? 0) > 0
     ? `${axis.durations[index]} ms` : 'zero or unavailable timing';
@@ -64,9 +101,9 @@ export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet,
           if (event.key === 'Home') selectIndex(allowedStops[0] ?? 0);
           else if (event.key === 'End') selectIndex(allowedStops.at(-1) ?? snapshots.length - 1);
           else if (['ArrowLeft', 'ArrowDown'].includes(event.key)) selectIndex(isTracing
-            ? [...allowedStops].reverse().find(index => index < position) ?? position : Math.max(0, position - 1));
+            ? allowedStops[lowerBound(allowedStops, position) - 1] ?? position : Math.max(0, position - 1));
           else if (['ArrowRight', 'ArrowUp'].includes(event.key)) selectIndex(isTracing
-            ? allowedStops.find(index => index > position) ?? position : Math.min(snapshots.length - 1, position + 1));
+            ? allowedStops[lowerBound(allowedStops, position + 1)] ?? position : Math.min(snapshots.length - 1, position + 1));
           else selectIndex(Math.max(0, Math.min(snapshots.length - 1, position + (event.key === 'PageUp' ? 10 : -10))));
         }
       }
@@ -76,9 +113,9 @@ export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet,
       const requested = event.currentTarget.valueAsNumber;
       if (weighted) selectIndex(axis.indexAt(requested));
       else if (isTracing && ['ArrowRight', 'ArrowUp'].includes(rangeKey.current ?? '')) {
-        selectIndex(allowedStops.find(index => index > position) ?? position);
+        selectIndex(allowedStops[lowerBound(allowedStops, position + 1)] ?? position);
       } else if (isTracing && ['ArrowLeft', 'ArrowDown'].includes(rangeKey.current ?? '')) {
-        selectIndex([...allowedStops].reverse().find(index => index < position) ?? position);
+        selectIndex(allowedStops[lowerBound(allowedStops, position) - 1] ?? position);
       } else selectIndex(requested);
     }}
     style={unstyled ? undefined : overlay ? { position: 'absolute', top: 0,
@@ -92,10 +129,11 @@ export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet,
   />;
 
   if (unstyled) return <>{range(false)}{note}{presentation === 'segmented' && <div data-fp="tt-ticks" hidden aria-hidden="true">
-    {snapshots.map((snap, index) => {
+    {ticks.map(({ first, end }) => {
+      const index = tickPosition(first, end), snap = snapshots[index];
       const isStop = !stopSet || stopSet.has(index);
-      return <FootprintButton key={index} unstyled densitySize={size} part="time-travel-tick" type="button"
-        data-fp="tt-tick" data-active={index === selectedIndex} data-done={index < selectedIndex}
+      return <FootprintButton key={first} unstyled densitySize={size} part="time-travel-tick" type="button"
+        data-fp="tt-tick" data-active={selectedIndex >= first && selectedIndex < end} data-done={end <= selectedIndex}
         data-stop={isTracing ? isStop : undefined} tabIndex={-1} aria-hidden="true" disabled={!canScrub || (isTracing && !isStop)}
         onClick={() => selectIndex(index)} title={snap.stageLabel ?? snap.label} defaultStyle={undefined} />;
     })}
@@ -116,20 +154,21 @@ export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet,
     }}
     style={{
     position: 'relative', flex: 1, minWidth: 0, height: ui.controlHeight, display: 'flex', alignItems: 'center',
-    gap: weighted ? 0 : `calc(${ui.spaceXs} / 2)`, padding: weighted ? 0 : `0 ${ui.spaceXs}`,
+    gap: weighted || isGrouped ? 0 : `calc(${ui.spaceXs} / 2)`, padding: weighted || isGrouped ? 0 : `0 ${ui.spaceXs}`,
     touchAction: weighted && presentation === 'segmented' ? 'none' : undefined,
     outline: focused ? `${ui.focusWidth} solid ${isTracing ? theme.tracing : theme.accent}` : undefined,
     outlineOffset: ui.spaceXs,
   }}>
-    {presentation === 'segmented' && snapshots.map((snap, index) => {
-      const isActive = index === selectedIndex, isDone = index < selectedIndex;
+    {presentation === 'segmented' && ticks.map(({ first, end, weight }) => {
+      const index = tickPosition(first, end), snap = snapshots[index];
+      const isActive = selectedIndex >= first && selectedIndex < end, isDone = end <= selectedIndex;
       const isStop = !stopSet || stopSet.has(index), unlandable = isTracing && !isStop;
-      return <FootprintButton key={index} unstyled={unstyled} densitySize={size} part="time-travel-tick" type="button"
+      return <FootprintButton key={first} unstyled={unstyled} densitySize={size} part="time-travel-tick" type="button"
         onClick={() => selectIndex(index)} disabled={!canScrub || unlandable}
-        title={`${snap.stageLabel ?? snap.label ?? 'Recorded stage'}${weighted ? ` · ${durationLabel(index)}` : ''}${unlandable ? ' (not part of this trace)' : ''}`}
+        title={`${end - first > 1 ? `Steps ${first + 1}–${end} · ` : ''}${snap.stageLabel ?? snap.label ?? 'Recorded stage'}${weighted ? ` · ${durationLabel(index)}` : ''}${unlandable ? ' (not part of this trace)' : ''}`}
         data-fp="tt-tick" data-stop={isTracing ? isStop : undefined} data-active={isActive || undefined}
-        tabIndex={-1} aria-hidden="true" style={{ flex: weighted ? `${axis.weights[index]} 1 0%` : 1, minWidth: weighted ? 0 : undefined,
-          padding: weighted ? 0 : undefined, boxSizing: weighted ? 'border-box' : undefined,
+        tabIndex={-1} aria-hidden="true" style={{ flex: weighted || isGrouped ? `${weight} 1 0%` : 1, minWidth: weighted || isGrouped ? 0 : undefined,
+          padding: weighted || isGrouped ? 0 : undefined, boxSizing: weighted || isGrouped ? 'border-box' : undefined,
           pointerEvents: weighted ? 'none' : undefined,
           height: isActive ? ui.iconSize : unlandable ? ui.spaceXs : ui.spaceSm }}
         defaultStyle={{ borderRadius: `calc(${ui.radiusControl} / 2)`, border: 'none', cursor: unlandable ? 'default' : 'pointer',
@@ -138,6 +177,12 @@ export function ReplayPosition({ snapshots, selectedIndex, selectIndex, stopSet,
           opacity: unlandable ? 0.3 : isTracing || isDone || isActive ? 1 : 0.4,
           transition: `all ${ui.fastDuration} ${ui.easing}` }} />;
     })}
+    {isGrouped && <span data-fp="tt-current-position" aria-hidden="true" style={{
+      position: 'absolute', pointerEvents: 'none', transform: 'translateX(-50%)',
+      left: `${100 * (weighted ? axis.centers[position] : (position + 0.5) / total)}%`,
+      width: ui.spaceXs, height: ui.iconSize, borderRadius: ui.radiusControl,
+      background: isTracing ? theme.tracing : theme.primary,
+    }} />}
     {range(presentation === 'segmented')}
   </div>;
   return weighted ? <div data-fp="tt-weighted-position" style={{ flex: 1, minWidth: 0 }}>{view}{note}</div> : view;

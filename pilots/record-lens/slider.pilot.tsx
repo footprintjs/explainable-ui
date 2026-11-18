@@ -65,3 +65,30 @@ describe("Foottrace stop slider", () => {
     expect(change).not.toHaveBeenCalled();
   });
 });
+
+it('groups long timelines while weighted selection still addresses each original stop', () => {
+  const count = 10_002;
+  const many: Stop[] = Array.from({ length: count }, (_, step) => ({
+    kind: 'commit', step, label: 'Stage ' + step, stageId: 'A', runtimeStageId: 'A#' + step,
+    commitIdx: step, lastCommitIdx: step,
+  }));
+  const change = vi.fn(), measured = () => 1;
+  const view = render(<RecordTimeSlider stops={many} step={5011} onStepChange={change}
+    presentation="segmented" scale="duration" durationForStop={measured} />);
+  const ticks = view.container.querySelectorAll<HTMLButtonElement>('[data-fp="tt-tick"]');
+  expect(ticks).toHaveLength(128);
+  expect(ticks[64].dataset.active).toBe('true');
+  const marker = view.container.querySelector<HTMLElement>('[data-fp="tt-current-position"]')!;
+  const firstCoordinate = Number.parseFloat(marker.style.left);
+  view.rerender(<RecordTimeSlider stops={many} step={5012} onStepChange={change}
+    presentation="segmented" scale="duration" durationForStop={measured} />);
+  expect(Number.parseFloat(marker.style.left)).toBeGreaterThan(firstCoordinate);
+  // Every stage has the same positive duration, so aggregated width is its original stage count.
+  expect([...ticks].reduce((sum, tick) => sum + Number(tick.style.flexGrow), 0)).toBe(count);
+  fireEvent.keyDown(screen.getByRole('slider'), { key: 'ArrowRight' });
+  expect(change).toHaveBeenLastCalledWith(5013);
+  fireEvent.change(screen.getByRole('slider'), { target: { value: String(7013 / (count - 1)) } });
+  expect(change).toHaveBeenLastCalledWith(7013);
+  view.rerender(<RecordTimeSlider stops={many} step={5011} onStepChange={change} presentation="range" />);
+  expect(view.container.querySelectorAll('[data-fp="tt-tick"]')).toHaveLength(0);
+});

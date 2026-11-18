@@ -1,4 +1,4 @@
-import { useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { StateKey, Stop } from "foottrace";
 import { theme } from "../theme/styles";
@@ -66,13 +66,40 @@ function stopAddress(stop: Stop | null): string {
   return `Run start · includes ${contents} through commit ${stop.lastCommitIdx}`;
 }
 
+// A number field keeps arbitrary exact stops reachable without mounting one
+// native option per visit. Small recordings keep their labelled dropdown.
+const MAX_PICKER_OPTIONS = 128;
+
+function StepNumber({ id, current, total, onStepChange }: {
+  id: string;
+  current: number | undefined;
+  total: number;
+  onStepChange?: (step: number) => void;
+}) {
+  const formatted = current === undefined ? '' : String(current + 1);
+  const [draft, setDraft] = useState(formatted);
+  useEffect(() => { setDraft(formatted); }, [formatted]);
+  const number = Number(draft);
+  const valid = Number.isSafeInteger(number) && number >= 1 && number <= total;
+  const commit = () => { if (valid) onStepChange?.(number - 1); };
+  return <>
+    <label htmlFor={id}>Step</label>
+    <input id={id} type="number" min={1} max={total} step={1}
+      aria-describedby={id + '-count'} value={draft} onChange={event => setDraft(event.target.value)}
+      onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); commit(); } }}
+      disabled={!onStepChange} style={{ ...control, width: '10ch' }} />
+    <span id={id + '-count'}>of {total}</span>
+    <button type="button" style={control} disabled={!onStepChange || !valid} onClick={commit}>Go to step</button>
+  </>;
+}
+
 /** Controlled view of one Foottrace recording and its selected historical question. */
 export function RecordLens(props: RecordLensProps) {
   const id = useId();
   const model = props.reader
     ? props.reader.at(props.step, props.selectedKey)
     : buildRecordLensModel(props);
-  const options = useMemo(() => model.stops.map(stop => (
+  const options = useMemo(() => model.stops.length > MAX_PICKER_OPTIONS ? null : model.stops.map(stop => (
     <option key={stop.step} value={stop.step}>
       {stop.step + 1}. {stop.label ?? stop.stageId} · {stop.kind}
     </option>
@@ -114,21 +141,27 @@ export function RecordLens(props: RecordLensProps) {
         >
           Previous
         </button>
-        <label htmlFor={`${id}-step`}>Step</label>
-        <select
-          id={`${id}-step`}
-          style={control}
-          value={available && selected ? props.step : ""}
-          disabled={!props.onStepChange || !model.stops.length}
-          onChange={(event) => props.onStepChange?.(Number(event.target.value))}
-        >
-          {(!available || !selected) && (
-            <option value="">
-              {available ? "No recorded steps" : "Choose a valid step"}
-            </option>
-          )}
-          {options}
-        </select>
+        {options === null ? (
+          <StepNumber key={model.sourceId} id={`${id}-step`} current={selected?.step} total={model.stops.length} onStepChange={props.onStepChange} />
+        ) : (
+          <>
+            <label htmlFor={`${id}-step`}>Step</label>
+            <select
+              id={`${id}-step`}
+              style={control}
+              value={available && selected ? props.step : ""}
+              disabled={!props.onStepChange || !model.stops.length}
+              onChange={(event) => props.onStepChange?.(Number(event.target.value))}
+            >
+              {(!available || !selected) && (
+                <option value="">
+                  {available ? "No recorded steps" : "Choose a valid step"}
+                </option>
+              )}
+              {options}
+            </select>
+          </>
+        )}
         <button
           type="button"
           style={control}
