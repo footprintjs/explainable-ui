@@ -1,10 +1,11 @@
 import { getSmoothStepPath, Position } from "@xyflow/react";
-import type { GroupedFlowDiagramModel, PositionedFlowDiagramNode } from "./types";
+import type { FlowDiagramNode, GroupedFlowDiagramModel, PositionedFlowDiagramNode } from "./types";
 import type { ProjectedRecordedRelationship } from "./relationships";
+import { shapeBoundaryPoint, type ShapeSide } from "./nodeShapeGeometry";
 
 type Point = { x: number; y: number };
-type Box = Point & { width: number; height: number; owner?: string };
-export type RecordedSide = "left" | "right" | "top" | "bottom";
+type Box = Point & { width: number; height: number; owner?: string; shape?: FlowDiagramNode["shape"] };
+export type RecordedSide = ShapeSide;
 export interface RecordedPort { readonly id: string; readonly type: "source" | "target"; readonly side: RecordedSide; readonly offset: number }
 export interface RecordedRoute {
   readonly points: readonly Point[];
@@ -17,9 +18,15 @@ export interface RecordedRoute {
 const SIDE = { left: Position.Left, right: Position.Right, top: Position.Top, bottom: Position.Bottom };
 const HALO = 16, STUB = 18, MAX_WORK = 2_000_000, MAX_VISITS = 100_000;
 const intersects = (a: Box, b: Box) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-const point = (box: Box, side: RecordedSide, offset?: number): Point => ({ x: side === "left" ? box.x : side === "right" ? box.x + box.width : box.x + (offset ?? box.width / 2),
-  y: side === "top" ? box.y : side === "bottom" ? box.y + box.height : box.y + (offset ?? box.height / 2) });
-const escape = (p: Point, side: RecordedSide): Point => ({ x: p.x + (side === "left" ? -STUB : side === "right" ? STUB : 0), y: p.y + (side === "top" ? -STUB : side === "bottom" ? STUB : 0) });
+const point = (box: Box, side: RecordedSide, offset?: number): Point => {
+  const local = shapeBoundaryPoint(box.shape, box.width, box.height, side, offset);
+  return { x: box.x + local.x, y: box.y + local.y };
+};
+// Even an inset point on a sloping face must clear the full reserved box before turning.
+const escape = (box: Box, p: Point, side: RecordedSide): Point => ({
+  x: side === "left" ? box.x - STUB : side === "right" ? box.x + box.width + STUB : p.x,
+  y: side === "top" ? box.y - STUB : side === "bottom" ? box.y + box.height + STUB : p.y,
+});
 const crossing = (a: Point, b: Point, box: Box) => a.x === b.x
   ? a.x > box.x && a.x < box.x + box.width && Math.max(a.y, b.y) > box.y && Math.min(a.y, b.y) < box.y + box.height
   : a.y > box.y && a.y < box.y + box.height && Math.max(a.x, b.x) > box.x && Math.min(a.x, b.x) < box.x + box.width;
@@ -44,7 +51,8 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
     if (depth > 16) throw new Error(); const cached = boxes.get(item.node.id); if (cached) return cached;
     const parent = item.parentId ? byId.get(item.parentId) : undefined;
     if (item.parentId && !parent) throw new Error(); const origin = parent ? absolute(parent, depth + 1) : { x: 0, y: 0 };
-    const box = { x: item.position.x + origin.x, y: item.position.y + origin.y, width: item.width, height: item.height, owner: item.node.id };
+    const box = { x: item.position.x + origin.x, y: item.position.y + origin.y, width: item.width, height: item.height, owner: item.node.id,
+      shape: item.node.kind === "group" ? undefined : item.node.shape };
     if (![box.x, box.y, box.width, box.height].every(Number.isFinite) || Math.max(Math.abs(box.x), Math.abs(box.y), box.width, box.height) > 1_000_000 || box.width <= 0 || box.height <= 0) throw new Error();
     boxes.set(item.node.id, box); return box;
   };
@@ -93,7 +101,7 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
     const options = pairs.filter(([sourceSide, targetSide]) => !(sourceSide === "top" && (byId.get(link.source)?.expanded || byId.get(link.source)?.isRootCause || byId.get(link.source)?.containsRootCause))
       && !(targetSide === "top" && (byId.get(link.target)?.expanded || byId.get(link.target)?.isRootCause || byId.get(link.target)?.containsRootCause)))
       .flatMap(([sourceSide, targetSide]) => slots(link.source, sourceSide, "source", b).flatMap(sourceOffset => slots(link.target, targetSide, "target", a, point(a, sourceSide, sourceOffset)).map(targetOffset => {
-        const source = point(a, sourceSide, sourceOffset), target = point(b, targetSide, targetOffset), start = escape(source, sourceSide), end = escape(target, targetSide);
+        const source = point(a, sourceSide, sourceOffset), target = point(b, targetSide, targetOffset), start = escape(a, source, sourceSide), end = escape(b, target, targetSide);
         for (const p of [start, end]) { xs.add(p.x); ys.add(p.y); }
         return { sourceSide, targetSide, source, target, start, end,
           sourcePort: { id: `recorded-${ordinal}-source`, type: "source" as const, side: sourceSide, offset: sourceOffset },
@@ -153,11 +161,13 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
     }
     return undefined;
   };
-  const labelFor = (points: readonly Point[]) => {
+  const labelFor = (points: readonly Point[], shapedEndpoint: boolean) => {
     const segments = points.slice(1).map((b, at) => ({ a: points[at]!, b, length: distance(points[at]!, b) })).sort((a, b) => b.length - a.length);
+    // A wide diamond can leave a caption pocket near the end of a shared fork's narrow gutter.
+    const fractions = shapedEndpoint ? [.5, .25, .75, .125, .875, .0625, .9375] : [.5, .25, .75, .125, .875];
     for (const { a, b, length } of segments) {
       if (length < 28) continue;
-      for (const fraction of [.5, .25, .75, .125, .875]) for (const offset of [0, 20, -20, 38, -38]) {
+      for (const fraction of fractions) for (const offset of [0, 20, -20, 38, -38]) {
         const horizontal = a.y === b.y, x = a.x + (b.x - a.x) * fraction + (horizontal ? 0 : offset), y = a.y + (b.y - a.y) * fraction + (horizontal ? offset : 0);
         const box = { x: x - 28, y: y - 15, width: 56, height: 30 };
         if ([...obstacles, ...labels].every(other => { if (work >= MAX_WORK) return false; work++; return !intersects(box, other); })) return { x, y, width: 48, height: 22, box };
@@ -180,7 +190,8 @@ export function routeRecordedRelationships(links: readonly ProjectedRecordedRela
         || !clear(option.source, option.start, labels) || !clear(option.end, option.target, labels)) continue;
       const found = search(option.start, option.end); if (!found) continue;
       const corners = found.points.filter((p, at, all) => !at || at === all.length - 1 || (all[at - 1]!.x === p.x) !== (p.x === all[at + 1]!.x));
-      const points = [option.source, ...corners, option.target], label = labelFor(points); if (!label) continue;
+      const points = [option.source, ...corners, option.target];
+      const label = labelFor(points, Boolean(boxes.get(link.source)?.shape || boxes.get(link.target)?.shape)); if (!label) continue;
       labels.push(label.box); for (const segment of found.segments) occupied.set(segment, (occupied.get(segment) ?? 0) + 1);
       for (const p of found.points) { const at = index(p); occupiedVertices.set(at, (occupiedVertices.get(at) ?? 0) + 1); }
       usedPorts.set(sourceKey, shared(option) ? fan!.key : ""); usedPorts.set(targetKey, "");

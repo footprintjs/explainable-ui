@@ -9,11 +9,12 @@ import { RecordedFocusContext } from "../../src/components/GroupedFlowDiagram/pr
 vi.mock("../../src/components/FlowchartView/_internal/useChartAutoRefit", () => ({ ChartAutoRefit: (props: any) => <output data-testid="camera-targets" data-focus={props.focusNodeIds?.join(" ") ?? "overview"} /> }));
 
 vi.mock("@xyflow/react", async original => ({ ...await original<typeof import("@xyflow/react")>(),
-  ReactFlow: ({ nodes, edges, nodeTypes, children }: any) => <div data-testid="canvas-model" data-model-nodes={JSON.stringify(nodes.map(({ id, position, width, height, parentId }: any) => ({ id, position, width, height, parentId })))}
+  ReactFlow: ({ nodes, edges, nodeTypes, children }: any) => <div data-testid="canvas-model" data-model-nodes={JSON.stringify(nodes.map(({ id, position, width, height, parentId, handles }: any) => ({ id, position, width, height, parentId, handles })))}
     data-model-edges={JSON.stringify(edges.map(({ id, source, target, sourceHandle, targetHandle, data, className, style, markerEnd, ariaLabel }: any) => ({ id, source, target, sourceHandle, targetHandle, data, className, style, markerEnd, ariaLabel })))}>{nodes.map((node: any) => {
     const Component = nodeTypes[node.type];
     return <div key={node.id}><Component id={node.id} data={node.data} /></div>;
-  })}{children}</div>, Handle: () => null, Background: () => null, Controls: () => null,
+  })}{children}</div>, Handle: ({ type, position, style, "data-recorded-port": port }: any) =>
+    <i data-handle-type={type} data-side={position} data-recorded-port={port} style={style} />, Background: () => null, Controls: () => null,
 }));
 const definition: FlowDiagramDefinition = { nodes: [
   { id: "payment", label: "Payment", kind: "group" },
@@ -210,4 +211,77 @@ it.each([{ targets: [] }, { targets: ["outside"] }])("refuses an empty or unknow
   expect(fit.disabled).toBe(true); fireEvent.click(fit);
   expect(screen.getByTestId("camera-targets").getAttribute("data-focus")).toBe("ship");
   expect(screen.getByText(/The recorded view cannot be fitted yet/)).toBeTruthy();
+});
+
+it("renders the host's selected silhouettes with accessible names, states and cause evidence", () => {
+  const select = vi.fn();
+  const definition: FlowDiagramDefinition = { nodes: [
+    { id: "rates", label: "Rates usable?", kind: "decision", shape: "diamond", icon: "🧭" },
+    { id: "parcel", label: "Shipping rates", shape: "parcel" },
+    { id: "paper", label: "Shipping label", shape: "document" },
+  ], edges: [] };
+  render(<GroupedFlowDiagram definition={definition} onSelectNode={select}
+    observation={{ nodeStates: { rates: "completed", paper: "not-run" } }} highlight={{ rootCauseId: "rates" }} />);
+
+  const diamond = screen.getByRole("button", { name: "Select Rates usable?", description: /Completed.*Decision.*Supported cause/ });
+  const parcel = screen.getByRole("button", { name: "Select Shipping rates", description: "Status unknown" });
+  const paper = screen.getByRole("button", { name: "Select Shipping label", description: "Not run (recorded)" });
+  const bodies = [diamond, parcel, paper].map(button => button.querySelector("[data-shape-outline]")!);
+  expect(new Set(bodies.map(body => body.getAttribute("d"))).size).toBe(3);
+  for (const button of [diamond, parcel, paper]) {
+    expect(button.querySelector("[data-shape-body]")?.getAttribute("aria-hidden")).toBe("true");
+    expect(button.style.clipPath).toContain(button.querySelector("[data-shape-outline]")!.getAttribute("d"));
+  }
+  expect(parcel.querySelector("[data-shape-details]")).toBeTruthy();
+  expect(paper.querySelector("[data-shape-details]")).toBeTruthy();
+  expect(bodies[2]?.getAttribute("stroke-dasharray")).toBe("7 5");
+  expect(diamond.textContent).toContain("🧭"); expect(diamond.textContent).toContain("✓");
+  expect(diamond.getAttribute("aria-pressed")).toBe("false");
+  fireEvent.focus(diamond);
+  expect(diamond.querySelector('[data-shape-ring="focus"]')).toBeTruthy();
+  fireEvent.click(diamond);
+  expect(select).toHaveBeenCalledExactlyOnceWith("rates");
+  fireEvent.blur(diamond);
+  expect(diamond.getAttribute("aria-pressed")).toBe("true");
+  expect(diamond.querySelector('[data-shape-ring="selected"]')).toBeTruthy();
+});
+
+it("keeps painted and declared handles aligned through a direction change and restores ordinary card handles", () => {
+  const definition: FlowDiagramDefinition = { nodes: [
+    { id: "a", label: "Rate choice", kind: "decision", shape: "diamond" },
+    { id: "b", label: "Quote", shape: "document" },
+  ], edges: [{ id: "workflow", source: "a", target: "b" }] };
+  const overlay = [{ id: "read", source: "a", target: "b", attribution: "recorded-read" as const, kind: "data" as const, evidence: ["fact"] }];
+  const view = render(<GroupedFlowDiagram definition={definition} direction="LR" recordedRelationships={overlay} />);
+  function verify(direction: "LR" | "TB") {
+    const model = screen.getByTestId("canvas-model");
+    const nodes = JSON.parse(model.getAttribute("data-model-nodes")!);
+    const route = JSON.parse(model.getAttribute("data-model-edges")!).find((edge: { id: string }) => edge.id === "read").data.route;
+    for (const node of nodes) {
+      const root = document.querySelector(`[data-node-id="${node.id}"]`)!;
+      expect(root.querySelectorAll("[data-handle-type]")).toHaveLength(node.handles.length);
+      for (const handle of node.handles) {
+        const el = root.querySelector<HTMLElement>(handle.id ? `[data-recorded-port="${handle.id}"]` : `[data-handle-type="${handle.type}"]:not([data-recorded-port])`)!;
+        expect(el.dataset.side).toBe(handle.position);
+        expect(parseFloat(el.style.left)).toBeCloseTo(handle.x);
+        expect(parseFloat(el.style.top)).toBeCloseTo(handle.y);
+        if (handle.id) {
+          const endpoint = handle.type === "source" ? route.points[0] : route.points.at(-1);
+          expect(node.position.x + handle.x).toBeCloseTo(endpoint.x);
+          expect(node.position.y + handle.y).toBeCloseTo(endpoint.y);
+        } else {
+          const input = handle.type === "target";
+          expect(handle.position).toBe(direction === "LR" ? (input ? "left" : "right") : (input ? "top" : "bottom"));
+        }
+      }
+    }
+  }
+  verify("LR");
+  view.rerender(<GroupedFlowDiagram direction="TB" definition={definition} recordedRelationships={overlay} />);
+  verify("TB");
+  view.rerender(<GroupedFlowDiagram definition={{ ...definition, nodes: definition.nodes.map(({ shape, ...card }) => card) }} />);
+  expect(document.querySelector("[data-shape-body]")).toBeNull();
+  expect(document.querySelector("[data-recorded-port]")).toBeNull();
+  expect(screen.getByRole("button", { name: "Select Rate choice" }).style.borderRadius).toBe("16px");
+  expect(JSON.parse(screen.getByTestId("canvas-model").getAttribute("data-model-nodes")!).every((node: { handles?: unknown }) => node.handles === undefined)).toBe(true);
 });

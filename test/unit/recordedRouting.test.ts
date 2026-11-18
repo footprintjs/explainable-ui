@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { recordedRoutePath, recordedVisualBounds, routeRecordedRelationships } from "../../src/components/GroupedFlowDiagram/recordedRouting";
+import { shapeOutline } from "../../src/components/GroupedFlowDiagram/nodeShapeGeometry";
 import { projectGroupedFlowDiagram } from "../../src/components/GroupedFlowDiagram/layout";
 import { projectRecordedRelationships } from "../../src/components/GroupedFlowDiagram/relationships";
 import type { GroupedFlowDiagramModel, PositionedFlowDiagramNode } from "../../src/components/GroupedFlowDiagram/types";
@@ -40,6 +41,47 @@ it.each(["LR", "TB"] as const)("routes %s backward connections around real inter
   expect(planned.undrawn).toBe(0); const route = planned.routes.get("link")!; expect(route).toBeTruthy();
   assertClear(route, nodes.map(node => ({ ...node.position, width: node.width, height: node.height })));
   expect(JSON.stringify(source)).toBe(before);
+});
+
+it.each(["LR", "TB"] as const)("attaches off-center %s dependency ports to painted contours while avoiding all other artwork", direction => {
+  for (const shape of ["diamond", "parcel", "document"] as const) {
+    const source = item("source", 0, 0, 248, 184, { node: { id: "source", label: "Source", shape } });
+    const targetPosition = direction === "LR" ? { x: 680, y: -90 } : { x: 125, y: 540 };
+    const target = item("root", targetPosition.x, targetPosition.y, 248, 184, { node: { id: "root", label: "Target", shape } });
+    const blocker = direction === "LR" ? item("blocker", 350, -70, 120, 230) : item("blocker", 60, 254, 250, 120);
+    const planned = routeRecordedRelationships([link()], model([source, target, blocker], direction));
+    expect(planned.undrawn).toBe(0);
+    const route = planned.routes.get("link")!;
+    assertClear(route, [{ ...blocker.position, width: blocker.width, height: blocker.height }]);
+    for (const [node, port, anchor, stub] of [
+      [source, route.sourcePort, route.points[0]!, route.points[1]!],
+      [target, route.targetPort, route.points.at(-1)!, route.points.at(-2)!],
+    ] as const) {
+      const x = anchor.x - node.position.x, y = anchor.y - node.position.y;
+      const horizontal = port.side === "left" || port.side === "right";
+      expect(horizontal ? y : x).toBeCloseTo(port.offset, 10);
+      expect(Math.abs(port.offset - (horizontal ? node.height : node.width) / 2)).toBeGreaterThanOrEqual(20);
+      // Compare to the SVG actually drawn, independently of the router's intersection code.
+      const outline = shapeOutline(shape, node.width, node.height).outline;
+      const vertices = [...outline.matchAll(/[ML]([\d.]+),([\d.]+)/g)].map(match => ({ x: Number(match[1]), y: Number(match[2]) }));
+      const onOutline = vertices.some((a, i) => {
+        const b = vertices[(i + 1) % vertices.length]!;
+        return Math.abs((x - a.x) * (b.y - a.y) - (y - a.y) * (b.x - a.x)) < 1e-7
+          && x >= Math.min(a.x, b.x) - 1e-7 && x <= Math.max(a.x, b.x) + 1e-7
+          && y >= Math.min(a.y, b.y) - 1e-7 && y <= Math.max(a.y, b.y) + 1e-7;
+      });
+      expect(onOutline).toBe(true);
+      if (port.side === "left") expect(stub.x).toBeLessThan(node.position.x);
+      if (port.side === "right") expect(stub.x).toBeGreaterThan(node.position.x + node.width);
+      if (port.side === "top") expect(stub.y).toBeLessThan(node.position.y);
+      if (port.side === "bottom") expect(stub.y).toBeGreaterThan(node.position.y + node.height);
+      const box = { ...node.position, width: node.width, height: node.height };
+      for (let i = 2; i < route.points.length - 1; i++) {
+        expect(crosses(route.points[i - 1]!, route.points[i]!, box)).toBe(false);
+      }
+      expect(overlaps({ x: route.label.x - 24, y: route.label.y - 11, width: 48, height: 22 }, box)).toBe(false);
+    }
+  }
 });
 
 it("reserves expanded-group headers and supported-cause badges while using absolute nested child positions", () => {
@@ -197,6 +239,30 @@ it("finds a bounded caption pocket for a shared fork in the real narrow node gut
   const planned = routeRecordedRelationships(links, model(nodes)); expect(planned.undrawn).toBe(0);
   expect(planned.routes.get("1-rates")!.points[0]).toEqual(planned.routes.get("2-area")!.points[0]);
   for (const route of planned.routes.values()) assertClear(route, nodes.map(node => ({ ...node.position, width: node.width, height: node.height })));
+});
+
+it.each(["LR", "TB"] as const)("keeps the shaped decision's shared %s exit in the normal layout gutter", direction => {
+  const graph = projectGroupedFlowDiagram({
+    nodes: [
+      { id: "rates", label: "Shipping rates", shape: "parcel" },
+      { id: "area", label: "Service area", shape: "document" },
+      { id: "decision", label: "Shipping decision", kind: "decision", shape: "diamond" },
+      { id: "failure", label: "Checkout failure" },
+    ],
+    edges: [
+      { id: "a", source: "rates", target: "decision" },
+      { id: "b", source: "area", target: "decision" },
+      { id: "c", source: "decision", target: "failure" },
+    ],
+  }, { direction, highlight: { rootCauseId: "rates" } }).model!;
+  const links = [link("0-failure", "failure", "decision"), link("1-rates", "decision", "rates"), link("2-area", "decision", "area")];
+  const planned = routeRecordedRelationships(links, graph);
+  expect(planned.undrawn).toBe(0);
+  const rates = planned.routes.get("1-rates")!, area = planned.routes.get("2-area")!;
+  expect(rates.sourceSide).toBe(direction === "LR" ? "left" : "top");
+  expect(area.points[0]).toEqual(rates.points[0]);
+  expect(area.sourcePort.id).not.toBe(rates.sourcePort.id);
+  expect(planned.routes.get("0-failure")!.points.at(-1)).not.toEqual(rates.points[0]);
 });
 
 it("rounds a short facing fork elbow without a redundant arrival waypoint making the corner almost square", () => {

@@ -2155,6 +2155,9 @@ Use `defaultExpandedGroupIds` for local expansion state, or `expandedGroupIds` p
 
 `projectGroupedFlowDiagram(definition, options)` is pure and returns `{model}` or a fixed actionable `{error}`. The model includes sanitized structural metadata, positioned visible nodes, original edge references, and explicit state/emphasis. `getFlowDiagramAncestors` returns bounded group ancestry for a valid exact node ID. Ordinary data accessors and non-plain inputs are refused; extra input fields are not copied into the admitted definition. Treat JavaScript proxies/code as executable host code, not as a serialized-record format.
 
+Set a node’s optional `shape` to `"diamond"` for a decision, or `"parcel"` or `"document"` for a step. For example, `{ id: "receipt", kind: "step", label: "Saved receipt", shape: "document" }` displays a folded page. Omit `shape` for a standard card. Groups keep their expandable frames. Each outline uses the same node ID, observations, and cause and impact links as its card.
+
+
 Limits are 512 nodes, 1,024 edges and 16 group levels; IDs are at most 256 characters, labels 160, descriptions 320 and icon hints 32. Parent cycles, unknown references and conflicting states are refused. A group's children must be supplied before it can expand; network loading and admission stay with the host. Adapting a flat saved-reference response into an execution hierarchy remains host work. The view must not guess private stage names, branch outcomes, missing child histories, source-code locations or backward adjacency.
 
 ### Click an item to investigate its recorded cause (unreleased)

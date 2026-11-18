@@ -20,12 +20,18 @@ const CANVAS_PADDING = 24;
 const STEP_WIDTH = 180;
 const STEP_HEIGHT = 148;
 const DECISION_HEIGHT = 172;
+const SHAPE_SIZE = {
+  diamond: { width: 248, height: 184 },
+  parcel: { width: 212, height: 164 },
+  document: { width: 194, height: 164 },
+} as const;
 const GROUP_MIN_WIDTH = 220;
 const GROUP_MIN_HEIGHT = 168;
 
 const ERROR = {
   definition: "Provide a diagram with plain data objects and bounded node and edge arrays.",
   nodes: "Provide up to 512 nodes with unique IDs, short labels, and valid node details.",
+  shape: "Use a diamond for a decision, a parcel or document for a step, or omit the shape for a standard card or group.",
   edges: "Provide up to 1024 edges with unique IDs, short labels, and existing node endpoints.",
   hierarchy: "Use existing groups as parents, remove parent cycles, and limit nesting to 16 groups.",
   options: "Provide plain diagram options with a supported direction and bounded ID lists.",
@@ -85,6 +91,14 @@ function optionalText(value: unknown, limit: number, message: string): string | 
   return value === undefined ? undefined : text(value, limit, message, true);
 }
 
+function optionalShape(item: DataRecord, kind: FlowDiagramNode["kind"]): FlowDiagramNode["shape"] {
+  const shape = field(item, "shape", ERROR.shape);
+  if (shape === undefined) return undefined;
+  if (kind === "decision" && shape === "diamond") return shape;
+  if ((kind === undefined || kind === "step") && (shape === "parcel" || shape === "document")) return shape;
+  throw new AdmissionError(ERROR.shape);
+}
+
 interface AdmittedDefinition {
   nodes: FlowDiagramNode[];
   edges: FlowDiagramEdge[];
@@ -105,6 +119,7 @@ function admitDefinition(input: unknown): AdmittedDefinition {
     const label = text(field(item, "label", ERROR.nodes), 160, ERROR.nodes);
     const kindValue = field(item, "kind", ERROR.nodes);
     if (kindValue !== undefined && kindValue !== "step" && kindValue !== "decision" && kindValue !== "group") throw new AdmissionError(ERROR.nodes);
+    const shape = optionalShape(item, kindValue);
     const parentValue = field(item, "parentId", ERROR.nodes);
     const parentId = parentValue === undefined ? undefined : text(parentValue, 256, ERROR.nodes);
     const description = optionalText(field(item, "description", ERROR.nodes), 320, ERROR.nodes);
@@ -114,6 +129,7 @@ function admitDefinition(input: unknown): AdmittedDefinition {
     const node: FlowDiagramNode = {
       id, label, kind: kindValue ?? "step",
       ...(parentId !== undefined ? { parentId } : {}),
+      ...(shape !== undefined ? { shape } : {}),
       ...(description !== undefined ? { description } : {}),
       ...(icon !== undefined ? { icon } : {}),
     };
@@ -291,7 +307,8 @@ export function projectGroupedFlowDiagram(
             width: Math.max(GROUP_MIN_WIDTH, contents.width + PADDING * 2),
             height: Math.max(GROUP_MIN_HEIGHT, contents.height + PADDING * 2 + HEADER_HEIGHT),
           };
-        } else size = child.kind === "group"
+        } else if (child.shape) size = { ...SHAPE_SIZE[child.shape] };
+        else size = child.kind === "group"
           ? { width: GROUP_MIN_WIDTH, height: GROUP_MIN_HEIGHT }
           : { width: STEP_WIDTH, height: child.kind === "decision" ? DECISION_HEIGHT : STEP_HEIGHT };
         sizes.set(child.id, size);
