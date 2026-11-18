@@ -1,35 +1,10 @@
 import { serveRecord, stateAt } from "foottrace";
 import type { FoldedState, TimeTravel, TimeTravelSource } from "foottrace";
 import { freezeRecord } from "foottrace/write";
+import { fitsReaderCache } from "./cacheBudget";
 
 // Keep recent canonical folds, independent of the size or duration of the run.
 const WINDOW_SIZE = 16;
-
-// Prefetch only compact plain data. Stop inspecting as soon as the budget is
-// spent, including on cycles. Large or native payloads keep only the pair
-// needed to compare the current and previous stops.
-function compactFold(fold: FoldedState): boolean {
-  let budget = 4096;
-  const pending: unknown[] = [fold];
-  while (pending.length) {
-    const item = pending.pop();
-    if (typeof item === "string") budget -= item.length;
-    if (budget < 0 || typeof item === "bigint") return false;
-    if (!item || typeof item !== "object") continue;
-    if (Array.isArray(item)) {
-      if (item.length > 256) return false;
-    } else if (Object.getPrototypeOf(item) !== Object.prototype && Object.getPrototypeOf(item) !== null) {
-      return false;
-    }
-    for (const key in item) {
-      if (!Object.prototype.hasOwnProperty.call(item, key)) continue;
-      budget -= 16 + key.length;
-      if (budget < 0) return false;
-      pending.push((item as Record<string, unknown>)[key]);
-    }
-  }
-  return true;
-}
 
 export function createFoldWindow<TMeta>(source: TimeTravelSource, cursor: TimeTravel<TMeta>) {
   const folds = new Map<number, FoldedState>();
@@ -48,7 +23,7 @@ export function createFoldWindow<TMeta>(source: TimeTravelSource, cursor: TimeTr
         : cursor.stateAt(cursor.stops[step]);
       // Foottrace owns these detached fold results. Its serve-time copy handles
       // mutable native values (e.g. Dates and typed arrays) even inside frozen state.
-      capacity = compactFold(folded) ? WINDOW_SIZE : 2;
+      capacity = fitsReaderCache(folded) ? WINDOW_SIZE : 2;
       folds.set(step, freezeRecord(folded));
       while (folds.size > capacity) folds.delete(folds.keys().next().value!);
     }

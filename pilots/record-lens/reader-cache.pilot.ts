@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { timeTravel } from "foottrace";
 import type { KeysReadSource } from "foottrace";
+import { fitsReaderCache } from "../../src/record/cacheBudget";
 import { createFoldWindow } from "../../src/record/foldWindow";
 import { createRecordLensReader } from "../../src/record/model";
 
@@ -42,6 +43,40 @@ describe("prepared recording queries", () => {
     const next = createRecordLensReader({ sourceId: "same", source: updated, reads }).at(3, "x");
     expect(next).toMatchObject({ folded: { state: { x: 42 } }, provenance: { slice: { writer: updated.commitLog[2] } } });
     expect(reads.lookup).not.toHaveBeenCalledTimes(calls);
+  });
+
+  it("returns an oversized direct writer value without cloning or caching the causal answer", () => {
+    const value = "evidence".repeat(8192);
+    const source = { commitLog: [
+      { stage: "Input", stageId: "input", runtimeStageId: "input#0", updates: {}, overwrite: { input: value }, trace: [{ verb: "set", path: "input" }] },
+      { stage: "Use", stageId: "use", runtimeStageId: "use#1", updates: {}, overwrite: { size: value.length }, trace: [{ verb: "set", path: "size", readKeys: ["input"] }] },
+    ] };
+    const lookup = vi.fn(() => []);
+    const reader = createRecordLensReader({ sourceId: "large", source, reads: { kind: "recorded", lookup } });
+    const clone = vi.spyOn(globalThis, "structuredClone");
+    try {
+      for (let i = 0; i < 2; i++) {
+        lookup.mockClear();
+        const answer = reader.at(2, "size");
+        if (answer.status !== "ready" || answer.provenance?.status !== "ready") throw Error("Missing answer");
+        expect(answer.writerStops).toEqual([{ stageName: "Input", step: 1, key: ["input"], value }]);
+        expect(answer.provenance.slice.writer).toBe(source.commitLog[1]);
+        expect(lookup).toHaveBeenCalled();
+      }
+      expect(clone.mock.calls.some(([value]) => value && typeof value === "object" && "provenance" in value)).toBe(false);
+    } finally { clone.mockRestore(); }
+  });
+
+  it("bounds inspection of sparse and shared data without reading accessors", () => {
+    const shared = { text: "a".repeat(512) };
+    const cycle = { branches: Array(20).fill(shared), self: {} };
+    cycle.self = cycle;
+    expect(fitsReaderCache(cycle)).toBe(true);
+    expect(fitsReaderCache(Array(100_000))).toBe(false);
+    expect(fitsReaderCache({ when: new Date(0) })).toBe(false);
+    const read = vi.fn(() => 1);
+    expect(fitsReaderCache(Object.defineProperty({}, "x", { get: read, enumerable: true }))).toBe(false);
+    expect(read).not.toHaveBeenCalled();
   });
 
   it("avoids speculative folds on a backward miss for a large state", () => {

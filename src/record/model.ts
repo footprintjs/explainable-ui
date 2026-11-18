@@ -14,6 +14,7 @@ import type {
   Stop,
 } from "foottrace";
 import { normaliseStateKey } from "foottrace/paths";
+import { fitsReaderCache } from "./cacheBudget";
 import { createFoldWindow } from "./foldWindow";
 import { directWriterStops } from "./writerStops";
 import type {
@@ -113,8 +114,9 @@ function createQueryReader(log: readonly CommitBundle[], reads: KeysReadSource |
         // VariableSlice is a public mutable DAG. Never cache an object handed
         // to a caller. A producer with non-cloneable metadata can still query.
         const { writer, ...slice } = answer.provenance.slice;
-        const detached = structuredClone({ ...answer, provenance: { ...answer.provenance, slice } });
-        recent.set(address, { answer: detached, writer });
+        const cacheable = { ...answer, provenance: { ...answer.provenance, slice } };
+        if (!fitsReaderCache(cacheable)) return answer;
+        recent.set(address, { answer: structuredClone(cacheable), writer });
         if (recent.size > 8) recent.delete(recent.keys().next().value!);
       } catch { /* The uncached canonical result is still valid. */ }
     }
