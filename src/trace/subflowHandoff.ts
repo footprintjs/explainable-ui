@@ -12,6 +12,8 @@ interface Address {
 /** A navigation target, never a foreign key inserted into the parent's read set. */
 export interface SubflowHandoffSource {
   readonly key: string;
+  readonly writerRuntimeStageId?: string;
+  readonly direction?: "child" | "parent";
   readonly mountRuntimeStageId: string;
   readonly invocationPath: readonly string[];
   /** Exclusive position on the child's displayed history, without its seed bookend. */
@@ -136,5 +138,8 @@ export function subflowHandoffSources(options: HandoffOptions): readonly Subflow
 }
 
 export function handoffSentence(sources: readonly SubflowHandoffSource[]): string {
+  if (sources.some(source => source.direction === "parent")) {
+    return `Recorded handoff sources: ${sources.map(source => `${source.key} from ${source.writerRuntimeStageId}`).join(", ")}.`;
+  }
   return `Output mapping observed child reads: ${sources.map(source => `\`${source.key}\` in ${source.mountRuntimeStageId}`).join(", ")}. This conservative prefix may include reads used by other outputs.`;
 }

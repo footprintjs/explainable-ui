@@ -1,0 +1,762 @@
+{
+  "sharedState": {
+    "amount": 99,
+    "txnId": "UNRELATED-PARENT-VALUE",
+    "receipt": "TXN-99",
+    "shipped": true
+  },
+  "executionTree": {
+    "id": "seed",
+    "runtimeStageId": "seed#0",
+    "name": "Seed",
+    "isDecider": false,
+    "isFork": false,
+    "logs": {},
+    "errors": {},
+    "metrics": {},
+    "evals": {},
+    "readSourceCounts": {
+      "observed": 0,
+      "retained": 0,
+      "kinds": {
+        "base": 0,
+        "committed": 0,
+        "staged": 0,
+        "unavailable": 0
+      }
+    },
+    "readSourceInvocations": 1,
+    "stageWrites": {
+      "amount": 99,
+      "txnId": "UNRELATED-PARENT-VALUE"
+    },
+    "flowMessages": [
+      {
+        "type": "next",
+        "description": "Moving to Payment stage",
+        "timestamp": 1795009486265,
+        "targetStage": "Payment"
+      }
+    ],
+    "next": {
+      "id": "payment",
+      "runtimeStageId": "payment#1",
+      "name": "Payment",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "readSourceCounts": {
+        "observed": 0,
+        "retained": 0,
+        "kinds": {
+          "base": 0,
+          "committed": 0,
+          "staged": 0,
+          "unavailable": 0
+        }
+      },
+      "readSourceInvocations": 0,
+      "stageReads": {
+        "amount": 99
+      },
+      "subflowId": "payment",
+      "flowMessages": [
+        {
+          "type": "subflow",
+          "description": "Entering Payment subflow",
+          "timestamp": 1795009486266,
+          "targetStage": "payment"
+        },
+        {
+          "type": "subflow",
+          "description": "Exiting Payment subflow",
+          "timestamp": 1795009486268,
+          "targetStage": "payment"
+        }
+      ],
+      "next": {
+        "id": "ship",
+        "runtimeStageId": "ship#3",
+        "name": "Ship",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "readSourceCounts": {
+          "observed": 1,
+          "retained": 1,
+          "kinds": {
+            "base": 0,
+            "committed": 1,
+            "staged": 0,
+            "unavailable": 0
+          }
+        },
+        "readSourceInvocations": 1,
+        "stageWrites": {
+          "shipped": true
+        },
+        "stageReads": {
+          "receipt": "TXN-99"
+        }
+      }
+    }
+  },
+  "initialState": {},
+  "commitLog": [
+    {
+      "overwrite": {
+        "amount": 99,
+        "txnId": "UNRELATED-PARENT-VALUE"
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "amount",
+          "verb": "set",
+          "readKeys": []
+        },
+        {
+          "path": "txnId",
+          "verb": "set",
+          "readKeys": []
+        }
+      ],
+      "stage": "Seed",
+      "stageId": "seed",
+      "runtimeStageId": "seed#0",
+      "idx": 0
+    },
+    {
+      "overwrite": {
+        "receipt": "TXN-99"
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "receipt",
+          "verb": "set",
+          "readKeys": [
+            "amount"
+          ]
+        }
+      ],
+      "stage": "Payment",
+      "stageId": "payment",
+      "runtimeStageId": "payment#1",
+      "idx": 1
+    },
+    {
+      "overwrite": {},
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [],
+      "stage": "Payment",
+      "stageId": "payment",
+      "runtimeStageId": "payment#1",
+      "phase": "exit",
+      "idx": 2
+    },
+    {
+      "overwrite": {
+        "shipped": true
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "shipped",
+          "verb": "set",
+          "readKeys": [
+            "receipt"
+          ]
+        }
+      ],
+      "stage": "Ship",
+      "stageId": "ship",
+      "runtimeStageId": "ship#3",
+      "idx": 3
+    }
+  ],
+  "logAddress": {
+    "logRunId": "1795009486263-0000000001",
+    "drillPath": []
+  },
+  "commitValues": "full",
+  "writeProvenance": "reads-prefix",
+  "captureOutputHandoff": true,
+  "nestedReadTracking": true,
+  "readSources": {
+    "version": 2,
+    "ownership": {
+      "version": 1,
+      "runId": "1795009486263-0000000001",
+      "logAddress": {
+        "logRunId": "1795009486263-0000000001",
+        "drillPath": []
+      },
+      "segment": 1,
+      "commits": {
+        "from": 0,
+        "to": 4
+      },
+      "status": "captured",
+      "limitations": [],
+      "executions": [
+        {
+          "runtimeStageId": "seed#0",
+          "stateAddress": [],
+          "firstCommit": 0,
+          "attemptIds": [
+            "seed#0@1"
+          ]
+        },
+        {
+          "runtimeStageId": "payment#1",
+          "stateAddress": [],
+          "firstCommit": 1,
+          "attemptIds": []
+        },
+        {
+          "runtimeStageId": "ship#3",
+          "stateAddress": [],
+          "firstCommit": 3,
+          "attemptIds": [
+            "ship#3@1"
+          ]
+        }
+      ]
+    },
+    "runId": "1795009486263-0000000001",
+    "persistence": "memory-only",
+    "commits": {
+      "from": 0,
+      "to": 4
+    },
+    "status": "partial",
+    "limitations": [
+      "untracked-read"
+    ],
+    "record": {
+      "version": 1,
+      "address": {
+        "logRunId": "1795009486263-0000000001",
+        "drillPath": []
+      },
+      "segment": 1,
+      "status": "captured",
+      "occurrences": [
+        {
+          "ordinal": 1,
+          "runtimeStageId": "ship#3",
+          "attemptId": "ship#3@1",
+          "attemptStatus": "known",
+          "frame": 3,
+          "key": "receipt",
+          "stateAddress": [],
+          "source": {
+            "kind": "committed",
+            "commitIdx": 1
+          },
+          "disposition": "released"
+        }
+      ],
+      "gaps": [],
+      "limits": {
+        "maxOccurrences": 4096,
+        "maxPerExecution": 1024,
+        "maxBytes": 1048576,
+        "maxOrigins": 4096,
+        "maxStaging": 2048
+      }
+    }
+  },
+  "runId": "1795009486263-0000000001",
+  "subflowResults": {
+    "payment": {
+      "subflowId": "payment",
+      "subflowName": "Payment",
+      "treeContext": {
+        "globalContext": {
+          "chargedAmount": 99,
+          "txnId": "TXN-99"
+        },
+        "stageContexts": {
+          "id": "payment/charge",
+          "runtimeStageId": "payment/charge#2",
+          "name": "payment/Charge",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "readSourceCounts": {
+            "observed": 1,
+            "retained": 1,
+            "kinds": {
+              "base": 0,
+              "committed": 1,
+              "staged": 0,
+              "unavailable": 0
+            }
+          },
+          "readSourceInvocations": 1,
+          "stageWrites": {
+            "txnId": "TXN-99"
+          },
+          "stageReads": {
+            "chargedAmount": 99
+          }
+        },
+        "history": [
+          {
+            "overwrite": {
+              "chargedAmount": 99
+            },
+            "updates": {},
+            "redactedPaths": [],
+            "trace": [
+              {
+                "path": "chargedAmount",
+                "verb": "set",
+                "readKeys": []
+              }
+            ],
+            "stage": "Payment",
+            "stageId": "payment",
+            "runtimeStageId": "payment#1",
+            "idx": 0
+          },
+          {
+            "overwrite": {
+              "txnId": "TXN-99"
+            },
+            "updates": {},
+            "redactedPaths": [],
+            "trace": [
+              {
+                "path": "txnId",
+                "verb": "set",
+                "readKeys": [
+                  "chargedAmount"
+                ]
+              }
+            ],
+            "stage": "payment/Charge",
+            "stageId": "payment/charge",
+            "runtimeStageId": "payment/charge#2",
+            "idx": 1
+          }
+        ],
+        "readSources": {
+          "version": 2,
+          "ownership": {
+            "version": 1,
+            "runId": "1795009486263-0000000001",
+            "logAddress": {
+              "logRunId": "1795009486263-0000000001",
+              "drillPath": [
+                "payment#1"
+              ]
+            },
+            "segment": 1,
+            "commits": {
+              "from": 0,
+              "to": 2
+            },
+            "status": "captured",
+            "limitations": [],
+            "executions": [
+              {
+                "runtimeStageId": "payment/charge#2",
+                "stateAddress": [],
+                "firstCommit": 1,
+                "attemptIds": [
+                  "payment/charge#2@1"
+                ]
+              }
+            ]
+          },
+          "runId": "1795009486263-0000000001",
+          "persistence": "memory-only",
+          "commits": {
+            "from": 0,
+            "to": 2
+          },
+          "status": "captured",
+          "limitations": [],
+          "record": {
+            "version": 1,
+            "address": {
+              "logRunId": "1795009486263-0000000001",
+              "drillPath": [
+                "payment#1"
+              ]
+            },
+            "segment": 1,
+            "status": "captured",
+            "occurrences": [
+              {
+                "ordinal": 1,
+                "runtimeStageId": "payment/charge#2",
+                "attemptId": "payment/charge#2@1",
+                "attemptStatus": "known",
+                "frame": 2,
+                "key": "chargedAmount",
+                "stateAddress": [],
+                "source": {
+                  "kind": "committed",
+                  "commitIdx": 0
+                },
+                "disposition": "released"
+              }
+            ],
+            "gaps": [],
+            "limits": {
+              "maxOccurrences": 4096,
+              "maxPerExecution": 1024,
+              "maxBytes": 1048576,
+              "maxOrigins": 4096,
+              "maxStaging": 2048
+            }
+          }
+        },
+        "logAddress": {
+          "logRunId": "1795009486263-0000000001",
+          "drillPath": [
+            "payment#1"
+          ]
+        },
+        "initialState": {}
+      },
+      "parentStageId": "Payment",
+      "outputHandoff": {
+        "version": 1,
+        "attribution": "observed-read-prefix",
+        "parent": {
+          "address": {
+            "logRunId": "1795009486263-0000000001",
+            "drillPath": []
+          },
+          "runtimeStageId": "payment#1",
+          "commitIdx": 1
+        },
+        "child": {
+          "address": {
+            "logRunId": "1795009486263-0000000001",
+            "drillPath": [
+              "payment#1"
+            ]
+          },
+          "beforeCommitIdx": 2
+        },
+        "writes": [
+          {
+            "path": "receipt",
+            "reads": [
+              "txnId"
+            ]
+          }
+        ],
+        "status": "captured",
+        "limitations": []
+      },
+      "inputHandoff": {
+        "version": 1,
+        "attribution": "observed-read-prefix",
+        "parent": {
+          "address": {
+            "logRunId": "1795009486263-0000000001",
+            "drillPath": []
+          },
+          "beforeCommitIdx": 1
+        },
+        "child": {
+          "address": {
+            "logRunId": "1795009486263-0000000001",
+            "drillPath": [
+              "payment#1"
+            ]
+          },
+          "runtimeStageId": "payment#1",
+          "commitIdx": 0
+        },
+        "writes": [
+          {
+            "path": "chargedAmount",
+            "reads": [
+              "amount"
+            ]
+          }
+        ],
+        "status": "captured",
+        "limitations": []
+      }
+    },
+    "payment#1": {
+      "subflowId": "payment",
+      "subflowName": "Payment",
+      "treeContext": {
+        "globalContext": {
+          "chargedAmount": 99,
+          "txnId": "TXN-99"
+        },
+        "stageContexts": {
+          "id": "payment/charge",
+          "runtimeStageId": "payment/charge#2",
+          "name": "payment/Charge",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "readSourceCounts": {
+            "observed": 1,
+            "retained": 1,
+            "kinds": {
+              "base": 0,
+              "committed": 1,
+              "staged": 0,
+              "unavailable": 0
+            }
+          },
+          "readSourceInvocations": 1,
+          "stageWrites": {
+            "txnId": "TXN-99"
+          },
+          "stageReads": {
+            "chargedAmount": 99
+          }
+        },
+        "history": [
+          {
+            "overwrite": {
+              "chargedAmount": 99
+            },
+            "updates": {},
+            "redactedPaths": [],
+            "trace": [
+              {
+                "path": "chargedAmount",
+                "verb": "set",
+                "readKeys": []
+              }
+            ],
+            "stage": "Payment",
+            "stageId": "payment",
+            "runtimeStageId": "payment#1",
+            "idx": 0
+          },
+          {
+            "overwrite": {
+              "txnId": "TXN-99"
+            },
+            "updates": {},
+            "redactedPaths": [],
+            "trace": [
+              {
+                "path": "txnId",
+                "verb": "set",
+                "readKeys": [
+                  "chargedAmount"
+                ]
+              }
+            ],
+            "stage": "payment/Charge",
+            "stageId": "payment/charge",
+            "runtimeStageId": "payment/charge#2",
+            "idx": 1
+          }
+        ],
+        "readSources": {
+          "version": 2,
+          "ownership": {
+            "version": 1,
+            "runId": "1795009486263-0000000001",
+            "logAddress": {
+              "logRunId": "1795009486263-0000000001",
+              "drillPath": [
+                "payment#1"
+              ]
+            },
+            "segment": 1,
+            "commits": {
+              "from": 0,
+              "to": 2
+            },
+            "status": "captured",
+            "limitations": [],
+            "executions": [
+              {
+                "runtimeStageId": "payment/charge#2",
+                "stateAddress": [],
+                "firstCommit": 1,
+                "attemptIds": [
+                  "payment/charge#2@1"
+                ]
+              }
+            ]
+          },
+          "runId": "1795009486263-0000000001",
+          "persistence": "memory-only",
+          "commits": {
+            "from": 0,
+            "to": 2
+          },
+          "status": "captured",
+          "limitations": [],
+          "record": {
+            "version": 1,
+            "address": {
+              "logRunId": "1795009486263-0000000001",
+              "drillPath": [
+                "payment#1"
+              ]
+            },
+            "segment": 1,
+            "status": "captured",
+            "occurrences": [
+              {
+                "ordinal": 1,
+                "runtimeStageId": "payment/charge#2",
+                "attemptId": "payment/charge#2@1",
+                "attemptStatus": "known",
+                "frame": 2,
+                "key": "chargedAmount",
+                "stateAddress": [],
+                "source": {
+                  "kind": "committed",
+                  "commitIdx": 0
+                },
+                "disposition": "released"
+              }
+            ],
+            "gaps": [],
+            "limits": {
+              "maxOccurrences": 4096,
+              "maxPerExecution": 1024,
+              "maxBytes": 1048576,
+              "maxOrigins": 4096,
+              "maxStaging": 2048
+            }
+          }
+        },
+        "logAddress": {
+          "logRunId": "1795009486263-0000000001",
+          "drillPath": [
+            "payment#1"
+          ]
+        },
+        "initialState": {}
+      },
+      "parentStageId": "Payment",
+      "outputHandoff": {
+        "version": 1,
+        "attribution": "observed-read-prefix",
+        "parent": {
+          "address": {
+            "logRunId": "1795009486263-0000000001",
+            "drillPath": []
+          },
+          "runtimeStageId": "payment#1",
+          "commitIdx": 1
+        },
+        "child": {
+          "address": {
+            "logRunId": "1795009486263-0000000001",
+            "drillPath": [
+              "payment#1"
+            ]
+          },
+          "beforeCommitIdx": 2
+        },
+        "writes": [
+          {
+            "path": "receipt",
+            "reads": [
+              "txnId"
+            ]
+          }
+        ],
+        "status": "captured",
+        "limitations": []
+      },
+      "inputHandoff": {
+        "version": 1,
+        "attribution": "observed-read-prefix",
+        "parent": {
+          "address": {
+            "logRunId": "1795009486263-0000000001",
+            "drillPath": []
+          },
+          "beforeCommitIdx": 1
+        },
+        "child": {
+          "address": {
+            "logRunId": "1795009486263-0000000001",
+            "drillPath": [
+              "payment#1"
+            ]
+          },
+          "runtimeStageId": "payment#1",
+          "commitIdx": 0
+        },
+        "writes": [
+          {
+            "path": "chargedAmount",
+            "reads": [
+              "amount"
+            ]
+          }
+        ],
+        "status": "captured",
+        "limitations": []
+      }
+    }
+  },
+  "capture": {
+    "version": 2,
+    "runId": "1795009486263-0000000001",
+    "scope": "root-log",
+    "logAddress": {
+      "logRunId": "1795009486263-0000000001",
+      "drillPath": []
+    },
+    "commits": {
+      "from": 0,
+      "to": 4
+    },
+    "boundary": {
+      "status": "completed"
+    },
+    "modes": {
+      "readTracking": "full",
+      "writeTracking": "full",
+      "commitValues": "full",
+      "writeProvenance": "reads-prefix"
+    },
+    "channels": {
+      "reads": "captured",
+      "writes": "captured",
+      "attention": "captured",
+      "control": "unknown",
+      "readSources": "partial"
+    },
+    "persistence": "memory-only",
+    "limitations": [
+      "tracked-state-only",
+      "final-attempt-views",
+      "child-scopes-not-attested",
+      "storage-not-attested"
+    ]
+  }
+}

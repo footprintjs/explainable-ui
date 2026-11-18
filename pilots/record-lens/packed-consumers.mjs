@@ -66,7 +66,7 @@ export function installConsumer({ fixture, archive, repo, env, graph = false, ve
         ? 'const ui=require("footprint-explainable-ui"), chart=require("footprint-explainable-ui/flowchart");'
         : 'import * as ui from "footprint-explainable-ui"; import * as chart from "footprint-explainable-ui/flowchart";';
       const errorFromMissingPeer = `error => ['ERR_MODULE_NOT_FOUND', 'MODULE_NOT_FOUND'].includes(error.code) &&
-        ["'foottrace'", "'foottrace/paths'"].some(specifier => error.message.includes(specifier))`;
+        ["'foottrace'", "'foottrace/paths'", "'foottrace/cause'"].some(specifier => error.message.includes(specifier))`;
       const missingReader = mode === 'commonjs'
         ? `require("node:assert/strict").throws(() => require("footprint-explainable-ui/record"), ${errorFromMissingPeer});`
         : `import assert from "node:assert/strict"; await assert.rejects(import("footprint-explainable-ui/record"), ${errorFromMissingPeer});`;
@@ -74,7 +74,7 @@ export function installConsumer({ fixture, archive, repo, env, graph = false, ve
         'if(typeof ui.ExplainableShell!=="function" || !chart.TracedFlow) throw new Error("Missing graph API");' + missingReader], { cwd: fixture, env });
     }
   } else {
-    assert.equal(versions.foottrace, '2.0.0', 'Test the lowest supported Foottrace release');
+    assert.equal(versions.foottrace, '2.1.0', 'Test the lowest supported Foottrace release');
     assert.deepEqual(packages, [packageName, 'foottrace', 'react', '@types/react', 'csstype'].sort(),
       'The record-only React 19 installation must have exactly one physical copy of each declared package');
     assert.equal(createRequire(join(installed, 'package.json')).resolve('foottrace'),

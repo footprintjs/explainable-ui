@@ -1,5 +1,5 @@
 import type { Size } from "../types";
-import { rawDefaults } from "./tokens";
+import { rawDefaults } from "./rawDefaults";
 
 /**
  * Helper to resolve a CSS variable with a fallback.

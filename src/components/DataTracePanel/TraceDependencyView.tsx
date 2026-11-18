@@ -218,10 +218,10 @@ export function TraceDependencyView({
       </TraceViewLayer>
     </div>
     {active && sources.length > 0 && <div data-fp="trace-workflow-handoff" style={sx({ flexShrink: 0, padding: `${ui.spaceSm} ${ui.spaceLg}`, borderTop: `${ui.borderWidth} solid ${theme.border}`, fontSize: ui.body })}>
-      <div style={sx({ color: theme.textSecondary, marginBottom: ui.controlGap })}>Recorded child sources for this output:</div>
-      {sources.map(source => <FootprintButton unstyled={unstyled} densitySize={size} part="trace-child-source" key={`${source.mountRuntimeStageId}:${source.key}`} type="button"
+      <div style={sx({ color: theme.textSecondary, marginBottom: ui.controlGap })}>Recorded handoff sources</div>
+      {sources.map(source => <FootprintButton unstyled={unstyled} densitySize={size} part="trace-child-source" key={JSON.stringify([source.invocationPath, source.beforeCommitIdx, source.key])} type="button"
         disabled={!onFollowHandoff} onClick={() => onFollowHandoff?.(source)} defaultStyle={sx({ border: `${ui.borderWidth} solid ${theme.border}`, borderRadius: ui.radiusControl, background: theme.bgPrimary, color: theme.textPrimary, padding: ui.controlPadding, minHeight: ui.controlHeight, marginRight: ui.controlGap, cursor: "pointer", fontSize: ui.body, lineHeight: ui.lineHeight })}>
-        Open child source <FootprintCode unstyled={unstyled} densitySize={size} part="trace-child-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(source.key)}</FootprintCode>
+        Open {source.direction ?? "child"} source <FootprintCode unstyled={unstyled} densitySize={size} part="trace-child-variable" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(source.key)}</FootprintCode>
       </FootprintButton>)}
     </div>}
 

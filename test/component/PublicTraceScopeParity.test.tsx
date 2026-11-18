@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import {
@@ -11,6 +11,10 @@ import {
   projectTraceInvocation,
 } from "../../src/index";
 import { createTraceStructureRecorder } from "../../src/flowchart";
+
+// Graph-only consumers can use the synchronous public walk builder without installing
+// the optional record peer. Their copy artifact must still match the same evidence.
+vi.mock("../../src/scopedBacktrack/load", () => ({ loadScopedRecordGraph: async () => undefined }));
 
 type Props = React.ComponentProps<typeof ExplainableShell>;
 const nested = JSON.parse(
@@ -38,7 +42,7 @@ describe("public tool text equals the shell Copy story artifact", () => {
       expect(first.runtimeStageId).toBe("prepare#4");
     }
   });
-  it("matches Copy story at the root without supplying UI-only mount labels", () => {
+  it("matches Copy story at the root without supplying UI-only mount labels", async () => {
     const writeText=vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText}});
     render(React.createElement(ExplainableShell,{runtimeSnapshot:nested.runtimeSnapshot} as Props));
@@ -47,9 +51,10 @@ describe("public tool text equals the shell Copy story artifact", () => {
     fireEvent.click(screen.getByText("Data Trace"));
     const chip=[...document.querySelectorAll('[data-fp="trace-any-chip"]')].find(node=>node.textContent==="total");
     fireEvent.click(chip!);
+    await waitFor(() => expect(screen.queryByText("Reading recorded sources…")).toBeNull());
     fireEvent.click(screen.getByText("Copy story"));
     const log=nested.runtimeSnapshot.commitLog;
-    const expected=formatTraceWalk(buildTraceWalk(log,nested.runtimeSnapshot.executionTree,"total"),id=>{
+    const expected=formatTraceWalk(buildTraceWalk(log,nested.runtimeSnapshot.executionTree,"total",{runtimeSnapshot:nested.runtimeSnapshot}),id=>{
       const index=log.findIndex((row:any)=>row.runtimeStageId===id);return index<0?null:index+1;
     });
     expect(expected).toContain("subflow boundary:");
@@ -71,7 +76,7 @@ describe("public tool text equals the shell Copy story artifact", () => {
     ],
   ] as const)(
     "matches the public projector, builder and formatter: %s",
-    (_name, run, invocation, chain) => {
+    async (_name, run, invocation, chain) => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       Object.defineProperty(navigator, "clipboard", {
         configurable: true,
@@ -113,7 +118,8 @@ describe("public tool text equals the shell Copy story artifact", () => {
       ].find((node) => node.textContent === "total");
       expect(chip).toBeTruthy();
       fireEvent.click(chip!);
-      fireEvent.click(screen.getByText("Copy story"));
+      await waitFor(() => expect(screen.queryByText("Reading recorded sources…")).toBeNull());
+    fireEvent.click(screen.getByText("Copy story"));
       const stepNumberOf = (id: string) => {
         const index = projected.commitLog.findIndex(
           (row) => (row as { runtimeStageId: string }).runtimeStageId === id

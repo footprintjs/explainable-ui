@@ -153,7 +153,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         <QuestionTrail entries={questionTrail} onReturn={onReturnToQuestion} sx={sx} ui={ui} size={size} unstyled={unstyled} />
         {scopeSentence(presentation) && <div data-fp="trace-scope-note">{scopeSentence(presentation)}</div>}
         <div style={sx({ color: theme.textPrimary, marginTop: ui.spaceSm })}>
-          {walk.missing.reason === "evidence-unavailable" ? (
+          {walk.missing.gapMessages?.length ? walk.missing.gapMessages.map(message => <div key={message} data-fp="twc-gap">{message}</div>) : walk.missing.reason === "evidence-unavailable" ? (
             <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(walk.key)}</FootprintCode>: {walk.missing.unresolvedReason ? inputSentence(presentation, walk.key, walk.missing.unresolvedReason) : "write evidence is unavailable; value origin unknown"}.</>
           ) : walk.missing.reason === "never-written" ? (
             <><FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit", color: accent })}>{recordedPathLabel(walk.key)}</FootprintCode>: {inputLabel}.</>
@@ -329,7 +329,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
               ))}
             </div>
           </>
-        ) : walk.readsAvailable ? (
+        ) : current.gapMessages !== undefined ? null : walk.readsAvailable ? (
           <div data-fp="twc-origin" style={sx({ fontSize: ui.body, color: theme.textMuted, fontStyle: "italic" })}>
             No recorded state reads.
           </div>
@@ -340,16 +340,17 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         )}
       </div>
 
+      {current.gapMessages?.map(message => <div key={message} data-fp="twc-gap" style={sx({ marginTop: ui.spaceSm, color: theme.textSecondary })}>{message}</div>)}
       {!!current.handoffSources?.length && <div data-fp="twc-handoff" style={sx({ marginTop: `calc(${ui.spaceSm} + 2px)` })}>
         <div style={sx({ fontSize: ui.label, color: theme.textMuted })}>{handoffSentence(current.handoffSources)}</div>
         {onFollowHandoff && current.handoffSources.map(source => <FootprintButton {...controls}
-          key={source.key}
+          key={JSON.stringify([source.invocationPath, source.beforeCommitIdx, source.key])}
           type="button"
           data-fp="twc-handoff-source" part="trace-handoff"
-          aria-label={`Follow child source ${recordedPathLabel(source.key)} in ${source.mountRuntimeStageId}`}
+          aria-label={`Follow ${source.direction ?? "child"} source ${recordedPathLabel(source.key)} in ${source.mountRuntimeStageId}`}
           onClick={() => onFollowHandoff(source)}
           defaultStyle={sx({ marginTop: ui.controlGap, marginRight: ui.controlGap, border: `${ui.borderWidth} solid ${accent}`, borderRadius: ui.radiusBadge, background: "transparent", color: accent, padding: `calc(${ui.spaceXs} - 1px) calc(${ui.controlPaddingX} + 2px)`, minHeight: ui.controlHeight, cursor: "pointer", fontSize: ui.label })}
-        >Follow child source <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(source.key)}</FootprintCode></FootprintButton>)}
+        >Follow {source.direction ?? "child"} source <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(source.key)}</FootprintCode></FootprintButton>)}
       </div>}
 
       {/* ── Itinerary (the whole walk; current row highlighted) ── */}
@@ -501,7 +502,7 @@ function QuestionTrail({ entries, onReturn, sx, ui, size, unstyled }: {
     <FootprintButton {...controls} part="trace-question-back" type="button" onClick={() => onReturn?.(entries.length - 2)} disabled={!onReturn}
       defaultStyle={sx({ display: "block", marginTop: ui.spaceSm, border: "none", background: "transparent", color: theme.textPrimary, fontSize: ui.body, cursor: "pointer", padding: 0, minHeight: ui.controlHeight, fontWeight: ui.weightStrong })}>
       ← Back to <FootprintCode {...controls} part="trace-value" defaultStyle={sx({ fontFamily: theme.fontMono, fontSize: "inherit" })}>{recordedPathLabel(previous.key)}</FootprintCode>
-      {previous.invocationPath.length !== entries[entries.length - 1].invocationPath.length ? " in parent" : ""}
+      {previous.invocationPath.length < entries[entries.length - 1].invocationPath.length ? " in parent" : previous.invocationPath.length > entries[entries.length - 1].invocationPath.length ? " in child" : ""}
     </FootprintButton>
   </nav>;
 }

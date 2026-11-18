@@ -2,10 +2,10 @@ import { useId, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { StateKey, Stop } from "foottrace";
 import { theme } from "../theme/styles";
-import { buildRecordLensModel } from "./model";
+import { createRecordLensReader } from "./model";
+import { RecordExplanation } from "./RecordExplanation";
 import { previewValue } from "./preview";
-import { WriterNavigation } from "./WriterNavigation";
-import type { RecordLensInput, RecordLensReader } from "./types";
+import type { RecordBacktrackPosition, RecordLensInput, RecordLensReader } from "./types";
 
 type RecordSelection = (RecordLensInput & { readonly reader?: never }) | {
   readonly reader: RecordLensReader;
@@ -18,6 +18,10 @@ type RecordSelection = (RecordLensInput & { readonly reader?: never }) | {
 };
 
 export type RecordLensProps = RecordSelection & {
+  /** Exact runtime mount path for the host's selected stop. Omit for the root log. */
+  readonly invocationPath?: readonly string[];
+  /** Follow and return across scopes in one update to the host's shared cursor. */
+  readonly onPositionChange?: (next: RecordBacktrackPosition) => void;
   /** Read-only navigation intent. The host owns and updates the selected step. */
   readonly onStepChange?: (step: number) => void;
   /** Exact top-level key segments; a dotted property name stays a single key. */
@@ -96,13 +100,29 @@ function StepNumber({ id, current, total, revision, onStepChange }: {
   </>;
 }
 
+const rootPath: readonly string[] = [];
+
 /** Controlled view of one Foottrace recording and its selected historical question. */
 export function RecordLens(props: RecordLensProps) {
+  // Raw source props may change in place. Prepared readers are immutable revisions.
+  const root = props.reader ?? createRecordLensReader(props);
+  const path = props.invocationPath ?? rootPath;
+  const scoped = path.length ? root.forScope?.(path) : root;
+  if (!scoped) return <section style={{ ...panel, ...props.style }} className={props.className} role="status">
+    The selected subflow recording is unavailable.
+  </section>;
+  return <RecordLensView {...props} root={root} scoped={scoped} path={path} />;
+}
+
+type ViewProps = RecordLensProps & { root: RecordLensReader; scoped: RecordLensReader; path: readonly string[] };
+function RecordLensView(props: ViewProps) {
   const id = useId();
-  const pickerRevision = useMemo(() => ({}), [props.reader, props.source, props.strategy]);
-  const model = props.reader
-    ? props.reader.at(props.step, props.selectedKey)
-    : buildRecordLensModel(props);
+  const pickerRevision = useMemo(() => ({}), [props.reader, props.sourceId, props.source, props.reads, props.strategy]);
+  const model = props.scoped.at(props.step, props.selectedKey);
+  const { onPositionChange } = props;
+  const chooseKey = onPositionChange
+    ? (key: readonly string[]) => onPositionChange({ invocationPath: props.path, step: props.step, key })
+    : props.onKeyChange;
   const options = useMemo(() => model.stops.length > MAX_PICKER_OPTIONS ? null : model.stops.map(stop => (
     <option key={stop.step} value={stop.step}>
       {stop.step + 1}. {stop.label ?? stop.stageId} · {stop.kind}
@@ -125,7 +145,7 @@ export function RecordLens(props: RecordLensProps) {
         }}
       >
         <h2 style={{ margin: 0, fontSize: 20 }}>Record</h2>
-        <span style={{ color: theme.textSecondary }}>{model.sourceId}</span>
+        <span style={{ color: theme.textSecondary }}>{model.sourceId}{props.path.length > 0 && ` · ${props.path.join(" › ")}`}</span>
       </header>
       <nav
         aria-label="Recorded steps"
@@ -238,9 +258,9 @@ export function RecordLens(props: RecordLensProps) {
                         <button
                           type="button"
                           style={control}
-                          disabled={!props.onKeyChange}
+                          disabled={!chooseKey}
                           aria-label={`Explain ${key}`}
-                          onClick={() => props.onKeyChange?.([key])}
+                          onClick={() => chooseKey?.([key])}
                         >
                           Why?
                         </button>
@@ -272,8 +292,8 @@ export function RecordLens(props: RecordLensProps) {
                     <button
                       type="button"
                       style={control}
-                      disabled={!props.onKeyChange}
-                      onClick={() => props.onKeyChange?.([change.key])}
+                      disabled={!chooseKey}
+                      onClick={() => chooseKey?.([change.key])}
                     >
                       Explain {change.key}
                     </button>
@@ -283,25 +303,10 @@ export function RecordLens(props: RecordLensProps) {
             </ul>
           )}
           <h3>Recorded explanation</h3>
-          <WriterNavigation reader={props.reader} step={model.step}
-            currentKey={model.provenance?.status === "ready" ? model.provenance.slice.key : undefined}
-            segmentedKey={Array.isArray(props.selectedKey)}
-            writers={model.writerStops} onStepChange={props.onStepChange} onKeyChange={props.onKeyChange}
-            style={control} />
-          {!model.provenance ? (
-            <p>Select a key to inspect its recorded origin.</p>
-          ) : model.provenance.status === "unavailable" ? (
-            <p role="status">{model.provenance.message}</p>
-          ) : (
-            <>
-              <p role="status">
-                {model.provenance.reads === "unknown"
-                  ? "Separate read evidence is unavailable. Any write-time reads in the record are still used; unrecorded dependencies remain unknown."
-                  : "Using the supplied read evidence. Unrecorded reads are not proof of independence."}
-              </p>
-              <pre style={mono}>{model.provenance.prose}</pre>
-            </>
-          )}
+          <RecordExplanation model={model} root={props.root} reader={props.scoped} owner={pickerRevision}
+            path={props.path} segmentedKey={Array.isArray(props.selectedKey)}
+            onPositionChange={props.onPositionChange} onStepChange={props.onStepChange} onKeyChange={props.onKeyChange}
+            style={control} textStyle={mono} />
         </>
       )}
     </section>

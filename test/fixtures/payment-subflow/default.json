@@ -1,0 +1,298 @@
+{
+  "sharedState": {
+    "amount": 99,
+    "txnId": "UNRELATED-PARENT-VALUE",
+    "receipt": "TXN-99",
+    "shipped": true
+  },
+  "executionTree": {
+    "id": "seed",
+    "runtimeStageId": "seed#0",
+    "name": "Seed",
+    "isDecider": false,
+    "isFork": false,
+    "logs": {},
+    "errors": {},
+    "metrics": {},
+    "evals": {},
+    "stageWrites": {
+      "amount": 99,
+      "txnId": "UNRELATED-PARENT-VALUE"
+    },
+    "flowMessages": [
+      {
+        "type": "next",
+        "description": "Moving to Payment stage",
+        "timestamp": 1795009486269,
+        "targetStage": "Payment"
+      }
+    ],
+    "next": {
+      "id": "payment",
+      "runtimeStageId": "payment#1",
+      "name": "Payment",
+      "isDecider": false,
+      "isFork": false,
+      "logs": {},
+      "errors": {},
+      "metrics": {},
+      "evals": {},
+      "stageReads": {
+        "amount": 99
+      },
+      "subflowId": "payment",
+      "flowMessages": [
+        {
+          "type": "subflow",
+          "description": "Entering Payment subflow",
+          "timestamp": 1795009486269,
+          "targetStage": "payment"
+        },
+        {
+          "type": "subflow",
+          "description": "Exiting Payment subflow",
+          "timestamp": 1795009486269,
+          "targetStage": "payment"
+        }
+      ],
+      "next": {
+        "id": "ship",
+        "runtimeStageId": "ship#3",
+        "name": "Ship",
+        "isDecider": false,
+        "isFork": false,
+        "logs": {},
+        "errors": {},
+        "metrics": {},
+        "evals": {},
+        "stageWrites": {
+          "shipped": true
+        },
+        "stageReads": {
+          "receipt": "TXN-99"
+        }
+      }
+    }
+  },
+  "initialState": {},
+  "commitLog": [
+    {
+      "overwrite": {
+        "amount": 99,
+        "txnId": "UNRELATED-PARENT-VALUE"
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "amount",
+          "verb": "set"
+        },
+        {
+          "path": "txnId",
+          "verb": "set"
+        }
+      ],
+      "stage": "Seed",
+      "stageId": "seed",
+      "runtimeStageId": "seed#0",
+      "idx": 0
+    },
+    {
+      "overwrite": {
+        "receipt": "TXN-99"
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "receipt",
+          "verb": "set"
+        }
+      ],
+      "stage": "Payment",
+      "stageId": "payment",
+      "runtimeStageId": "payment#1",
+      "idx": 1
+    },
+    {
+      "overwrite": {},
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [],
+      "stage": "Payment",
+      "stageId": "payment",
+      "runtimeStageId": "payment#1",
+      "phase": "exit",
+      "idx": 2
+    },
+    {
+      "overwrite": {
+        "shipped": true
+      },
+      "updates": {},
+      "redactedPaths": [],
+      "trace": [
+        {
+          "path": "shipped",
+          "verb": "set"
+        }
+      ],
+      "stage": "Ship",
+      "stageId": "ship",
+      "runtimeStageId": "ship#3",
+      "idx": 3
+    }
+  ],
+  "logAddress": {
+    "logRunId": "1795009486269-0000000002",
+    "drillPath": []
+  },
+  "commitValues": "full",
+  "writeProvenance": "off",
+  "runId": "1795009486269-0000000002",
+  "subflowResults": {
+    "payment": {
+      "subflowId": "payment",
+      "subflowName": "Payment",
+      "treeContext": {
+        "globalContext": {
+          "chargedAmount": 99,
+          "txnId": "TXN-99"
+        },
+        "stageContexts": {
+          "id": "payment/charge",
+          "runtimeStageId": "payment/charge#2",
+          "name": "payment/Charge",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "txnId": "TXN-99"
+          },
+          "stageReads": {
+            "chargedAmount": 99
+          }
+        },
+        "history": [
+          {
+            "overwrite": {
+              "chargedAmount": 99
+            },
+            "updates": {},
+            "redactedPaths": [],
+            "trace": [
+              {
+                "path": "chargedAmount",
+                "verb": "set"
+              }
+            ],
+            "stage": "Payment",
+            "stageId": "payment",
+            "runtimeStageId": "payment#1",
+            "idx": 0
+          },
+          {
+            "overwrite": {
+              "txnId": "TXN-99"
+            },
+            "updates": {},
+            "redactedPaths": [],
+            "trace": [
+              {
+                "path": "txnId",
+                "verb": "set"
+              }
+            ],
+            "stage": "payment/Charge",
+            "stageId": "payment/charge",
+            "runtimeStageId": "payment/charge#2",
+            "idx": 1
+          }
+        ],
+        "logAddress": {
+          "logRunId": "1795009486269-0000000002",
+          "drillPath": [
+            "payment#1"
+          ]
+        },
+        "initialState": {}
+      },
+      "parentStageId": "Payment"
+    },
+    "payment#1": {
+      "subflowId": "payment",
+      "subflowName": "Payment",
+      "treeContext": {
+        "globalContext": {
+          "chargedAmount": 99,
+          "txnId": "TXN-99"
+        },
+        "stageContexts": {
+          "id": "payment/charge",
+          "runtimeStageId": "payment/charge#2",
+          "name": "payment/Charge",
+          "isDecider": false,
+          "isFork": false,
+          "logs": {},
+          "errors": {},
+          "metrics": {},
+          "evals": {},
+          "stageWrites": {
+            "txnId": "TXN-99"
+          },
+          "stageReads": {
+            "chargedAmount": 99
+          }
+        },
+        "history": [
+          {
+            "overwrite": {
+              "chargedAmount": 99
+            },
+            "updates": {},
+            "redactedPaths": [],
+            "trace": [
+              {
+                "path": "chargedAmount",
+                "verb": "set"
+              }
+            ],
+            "stage": "Payment",
+            "stageId": "payment",
+            "runtimeStageId": "payment#1",
+            "idx": 0
+          },
+          {
+            "overwrite": {
+              "txnId": "TXN-99"
+            },
+            "updates": {},
+            "redactedPaths": [],
+            "trace": [
+              {
+                "path": "txnId",
+                "verb": "set"
+              }
+            ],
+            "stage": "payment/Charge",
+            "stageId": "payment/charge",
+            "runtimeStageId": "payment/charge#2",
+            "idx": 1
+          }
+        ],
+        "logAddress": {
+          "logRunId": "1795009486269-0000000002",
+          "drillPath": [
+            "payment#1"
+          ]
+        },
+        "initialState": {}
+      },
+      "parentStageId": "Payment"
+    }
+  }
+}

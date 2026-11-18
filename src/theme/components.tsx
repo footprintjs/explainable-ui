@@ -76,7 +76,7 @@ function control(size: Size): CSSProperties {
     border: `${ui.borderWidth} solid ${theme.border}`, background: theme.bgPrimary, color: theme.textPrimary };
 }
 
-export const FootprintButton = forwardRef<HTMLButtonElement, FootprintButtonProps>(function FootprintButton(input, ref) {
+export const FootprintButton = /* @__PURE__ */ forwardRef<HTMLButtonElement, FootprintButtonProps>(function FootprintButton(input, ref) {
   const {
     unstyled, defaultStyle, style, part, densitySize = "default", type = "button", ...props
   } = input;
@@ -85,7 +85,7 @@ export const FootprintButton = forwardRef<HTMLButtonElement, FootprintButtonProp
   return <button {...props} type={type} ref={ref} style={paint(unstyled, fallback(input, () => control(densitySize)), style)} {...partProps(part)} />;
 });
 
-export const FootprintTab = forwardRef<HTMLButtonElement, FootprintButtonProps>(function FootprintTab(input, ref) {
+export const FootprintTab = /* @__PURE__ */ forwardRef<HTMLButtonElement, FootprintButtonProps>(function FootprintTab(input, ref) {
   const {
     unstyled, defaultStyle, style, part, densitySize = "default", type = "button", ...props
   } = input;
@@ -95,7 +95,7 @@ export const FootprintTab = forwardRef<HTMLButtonElement, FootprintButtonProps>(
   return <button {...props} type={type} ref={ref} style={paint(unstyled, fallback(input, () => control(densitySize)), style)} {...partProps(part)} />;
 });
 
-export const FootprintInput = forwardRef<HTMLInputElement, FootprintInputProps>(function FootprintInput(input, ref) {
+export const FootprintInput = /* @__PURE__ */ forwardRef<HTMLInputElement, FootprintInputProps>(function FootprintInput(input, ref) {
   const {
     unstyled, defaultStyle, style, part, densitySize = "default", ...props
   } = input;
@@ -104,7 +104,7 @@ export const FootprintInput = forwardRef<HTMLInputElement, FootprintInputProps>(
   return <input {...props} ref={ref} style={paint(unstyled, fallback(input, () => control(densitySize)), style)} {...partProps(part)} />;
 });
 
-export const FootprintCheckbox = forwardRef<HTMLInputElement, FootprintCheckboxProps>(function FootprintCheckbox(input, ref) {
+export const FootprintCheckbox = /* @__PURE__ */ forwardRef<HTMLInputElement, FootprintCheckboxProps>(function FootprintCheckbox(input, ref) {
   const {
     unstyled, defaultStyle, style, part, densitySize = "default", ...props
   } = input;
@@ -115,7 +115,7 @@ export const FootprintCheckbox = forwardRef<HTMLInputElement, FootprintCheckboxP
   return <input {...props} type="checkbox" ref={ref} style={paint(unstyled, fallback(input, () => ({ accentColor: theme.accent, width: ui.iconSize, height: ui.iconSize })), style)} {...partProps(part)} />;
 });
 
-export const FootprintBadge = forwardRef<HTMLSpanElement, FootprintBadgeProps>(function FootprintBadge(input, ref) {
+export const FootprintBadge = /* @__PURE__ */ forwardRef<HTMLSpanElement, FootprintBadgeProps>(function FootprintBadge(input, ref) {
   const {
     unstyled, defaultStyle, style, part, densitySize = "default", ...props
   } = input;
@@ -125,7 +125,7 @@ export const FootprintBadge = forwardRef<HTMLSpanElement, FootprintBadgeProps>(f
   return <span {...props} ref={ref} style={paint(unstyled, fallback(input, () => ({ fontSize: ui.small, borderRadius: ui.radiusBadge, padding: `${ui.spaceXs} ${ui.spaceSm}`, color: theme.textPrimary, background: theme.bgSecondary })), style)} {...partProps(part)} />;
 });
 
-export const FootprintCode = forwardRef<HTMLElement, FootprintCodeProps>(function FootprintCode(input, ref) {
+export const FootprintCode = /* @__PURE__ */ forwardRef<HTMLElement, FootprintCodeProps>(function FootprintCode(input, ref) {
   const {
     unstyled, defaultStyle, style, part, densitySize = "default", ...props
   } = input;
@@ -136,7 +136,7 @@ export const FootprintCode = forwardRef<HTMLElement, FootprintCodeProps>(functio
 });
 
 /** Native-title fallback; a host adapter may provide its own tooltip behavior. */
-export const FootprintTooltip = forwardRef<HTMLSpanElement, FootprintTooltipProps>(function FootprintTooltip(input, ref) {
+export const FootprintTooltip = /* @__PURE__ */ forwardRef<HTMLSpanElement, FootprintTooltipProps>(function FootprintTooltip(input, ref) {
   const {
     unstyled, defaultStyle, style, part, densitySize: _size, content, title, ...props
   } = input;
@@ -145,7 +145,7 @@ export const FootprintTooltip = forwardRef<HTMLSpanElement, FootprintTooltipProp
   return <span {...props} ref={ref} title={title ?? content} style={paint(unstyled, defaultStyle, style)} {...partProps(part)} />;
 });
 
-export const FootprintIcon = forwardRef<HTMLSpanElement, FootprintIconProps>(function FootprintIcon(input, ref) {
+export const FootprintIcon = /* @__PURE__ */ forwardRef<HTMLSpanElement, FootprintIconProps>(function FootprintIcon(input, ref) {
   const {
     unstyled, defaultStyle, style, part, densitySize = "default", name, ...props
   } = input;

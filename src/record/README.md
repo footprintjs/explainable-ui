@@ -65,5 +65,37 @@ edge, an ambiguous writer, or a grouped stop that folds later writes retains
 Foottrace's explanation. Returning restores the host's original step and key and
 focuses the Follow button. Changing reader revisions discards the return address.
 
+### Follow a write into a subflow
+
+Pass the native snapshot, including its child logs, to `createRecordLensReader`.
+A scope is the path of **runtime mount IDs**. A child and its parent can both
+have a step numbered 1. Keep the scope, step and selected key together when
+following a writer. The slider and diagram can read the same position:
+
+```tsx
+const [cursor, setCursor] = useState<RecordBacktrackPosition>({
+  invocationPath: [], step: 0, key: ["receipt"],
+});
+const scoped = cursor.invocationPath.length ? reader.forScope?.(cursor.invocationPath) : reader;
+const move = (step: number) => setCursor(current => ({ ...current, step }));
+
+return <>
+  {scoped && <RecordTimeSlider stops={scoped.stops} step={cursor.step} onStepChange={move} />}
+  <RecordLens reader={reader} step={cursor.step} invocationPath={cursor.invocationPath}
+    selectedKey={cursor.key} onStepChange={move} onPositionChange={setCursor} />
+</>;
+```
+
+`onPositionChange` receives the complete address for both Follow and Return.
+A headless host can call `await scoped.backtrack(step, key)` and map each returned
+writer to a replay stop with `reader.positionOf(writer)`. In recordings with
+subflows, `at()` gives the synchronous state and local slice. The scoped query
+supplies the navigation targets and gap messages.
+A covered payment recording can link the parent’s `receipt` to the `Charge`
+step that wrote the child’s `txnId`, even if the parent has its own `txnId`.
+A policy marked off reads “not collected”. A missing collection note reads
+“collection unknown”. Missing child data, redaction and incomplete evidence
+remain visible at the boundary.
+
 The [fixture and package checks](../../pilots/record-lens/README.md) exercise
 saved Flow and HCI records and both JavaScript module formats.

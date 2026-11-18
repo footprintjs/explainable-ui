@@ -8,6 +8,8 @@ import type {
   VariableSlice,
 } from "foottrace";
 
+import type { ScopedBacktrack, ScopedWriter } from "./scopedRecordGraph";
+
 /** One caller-selected Foottrace source and its captured evidence. */
 export interface RecordReaderInput<TMeta = unknown> {
   readonly sourceId: string;
@@ -24,10 +26,19 @@ export interface RecordLensInput<TMeta = unknown> extends RecordReaderInput<TMet
   readonly selectedKey?: StateKey;
 }
 
+export interface RecordBacktrackPosition {
+  readonly invocationPath: readonly string[];
+  readonly step: number;
+  readonly key: readonly string[];
+}
+
 /** Cursor data for one immutable revision. The host owns its selected stop. */
 export interface RecordLensReader<TMeta = unknown> {
   readonly sourceId: string;
   readonly stops: readonly Stop<TMeta>[];
+  readonly backtrack?: (step: number, key: StateKey, signal?: AbortSignal) => Promise<ScopedBacktrack>;
+  readonly forScope?: (invocationPath: readonly string[]) => RecordLensReader<TMeta> | undefined;
+  readonly positionOf?: (writer: ScopedWriter) => (RecordBacktrackPosition & { readonly value: unknown }) | undefined;
   readonly at: (step: number, selectedKey?: StateKey) => RecordLensModel<TMeta>;
 }
 

@@ -1,5 +1,7 @@
 import {
   commitStopsStrategy,
+  commitValueAtWithBasis,
+  findLastWriter,
   deepEqual,
   formatSlice,
   sliceForKey,
@@ -13,9 +15,11 @@ import type {
   TimeTravelStrategy,
   Stop,
 } from "foottrace";
-import { normaliseStateKey } from "foottrace/paths";
+import { normaliseStateKey, pathSegments } from "foottrace/paths";
 import { fitsReaderCache } from "./cacheBudget";
 import { createFoldWindow } from "./foldWindow";
+import { createScopedRecordGraph, type ScopedWriter } from "./scopedRecordGraph";
+import { ownDataField } from "../trace/safeRecordRead";
 import { directWriterStops } from "./writerStops";
 import type {
   RecordChange,
@@ -180,7 +184,60 @@ function modelAt<TMeta>(
 }
 
 /** Prepare one canonical axis per published revision. Reuse it while moving between stops. */
-export function createRecordLensReader<TMeta = unknown>({ sourceId, source, reads, strategy }: RecordReaderInput<TMeta>): RecordLensReader<TMeta> {
+export function createRecordLensReader<TMeta = unknown>(input: RecordReaderInput<TMeta>): RecordLensReader<TMeta> {
+  const rootReader = localReader(input);
+  if (!rootReader.stops.length) return rootReader;
+  const graph = createScopedRecordGraph(input.source);
+  if (!graph) return rootReader;
+  const hasObservations = ownDataField(input.source, "capture") !== undefined || ownDataField(input.source, "readSources") !== undefined;
+  if (!graph.hasSubflows && !hasObservations) return rootReader;
+  const readers = new Map<string, RecordLensReader<TMeta>>();
+  function forScope(path: readonly string[]): RecordLensReader<TMeta> | undefined {
+    const key = JSON.stringify(path), existing = readers.get(key);
+    if (existing) return existing;
+    const source = path.length ? graph?.source(path) : undefined;
+    if (path.length && !source) return undefined;
+    const reader = path.length && source ? localReader({ sourceId: input.sourceId, source, strategy: input.strategy }) : rootReader;
+    const scoped: RecordLensReader<TMeta> = {
+      ...reader, forScope, positionOf,
+      at(step, key) {
+        const model = reader.at(step, key);
+        if (!graph!.hasSubflows || model.status === "refused" || !model.writerStops) return model;
+        // A same-log slice can mix a mount's input reads with its output write.
+        // Leave writer navigation to backtrack(), which knows the mapper address.
+        const { writerStops: _localOnly, ...state } = model;
+        return state;
+      },
+      async backtrack(step, key, signal) {
+        const stop = reader.stops[step];
+        if (!stop) return { writers: [], gaps: [{ invocationPath: path, code: "invalid-step", message: "The requested step is unavailable." }] };
+        return graph!.read({ invocationPath: path, key: normaliseStateKey(key), beforeCommitIdx: stop.lastCommitIdx + 1, signal });
+      },
+    };
+    readers.set(key, scoped);
+    return scoped;
+  }
+  function positionOf(writer: ScopedWriter) {
+    const path = writer.invocationPath;
+    const recordedAddress = (input.source as { logAddress?: {logRunId?: string} }).logAddress;
+    if (writer.address.logRunId !== recordedAddress?.logRunId || JSON.stringify(path) !== JSON.stringify(writer.address.drillPath)) return undefined;
+    const source = graph!.source(path), reader = forScope(path);
+    if (!source?.commitLog || !reader) return undefined;
+    const log = source.commitLog as CommitBundle[], row = log[writer.commitIdx];
+    if (!row || row.runtimeStageId !== writer.runtimeStageId || !row.trace.some(write => write.path === writer.key)) return undefined;
+    const stops = reader.stops.filter(stop => (
+      (stop.runtimeStageId === writer.runtimeStageId && (stop.kind === "commit" || stop.kind === "mount")) ||
+      (stop.kind === "start" && !stop.prologue && writer.commitIdx === 0 && writer.runtimeStageId === path.at(-1))
+    ) && stop.commitIdx <= writer.commitIdx && writer.commitIdx <= stop.lastCommitIdx);
+    if (stops.length !== 1 || findLastWriter(log, writer.key, stops[0].lastCommitIdx + 1) !== row) return undefined;
+    const recorded = commitValueAtWithBasis(log, writer.commitIdx, writer.key, { initialState: source.initialState });
+    if (recorded.basis.length) return undefined;
+    return { invocationPath: path, key: pathSegments(writer.key), step: stops[0].step, value: recorded.value };
+  }
+  return forScope([])!;
+}
+
+function localReader<TMeta>({ sourceId, source, reads, strategy }: RecordReaderInput<TMeta>): RecordLensReader<TMeta> {
   if (typeof sourceId !== "string" || !sourceId.trim()) {
     return unavailableReader(typeof sourceId === "string" ? sourceId : "", "invalid-source-id", "A source label is required.");
   }

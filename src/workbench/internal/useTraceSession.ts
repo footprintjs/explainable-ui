@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
+import { useIsomorphicLayoutEffect } from "../../_internal/useIsomorphicLayoutEffect";
+import { needsScopedWalk, useScopedWalks, type WalkQuestion } from "./useScopedWalks";
 import type { StageSnapshot } from "../../types";
 import type { TracingRail } from "../../model/replayControls";
 import { createDataTraceReader, type DataTraceResult } from "../../trace/dataTrace";
@@ -16,6 +18,7 @@ interface TraceAnchor {
   /** A read question uses this visit's recorded window, not the later cursor. */
   readerCommitIdx?: number;
   readerRuntimeStageId?: string;
+  writerRuntimeStageId?: string;
 }
 
 export interface TraceQuestion extends TraceAnchor {
@@ -180,6 +183,8 @@ function questionProof(walk: TraceWalk): string | undefined {
       walk.inputTermini.map(name),
       walk.stops.map(stop => [name(stop.runtimeStageId), stop.commitIdx,
         stop.contributedKeys.map(name), stop.keysWritten.map(name),
+        stop.gapMessages?.map(name),
+        stop.handoffSources?.map(source => [name(source.key), source.invocationPath.map(name), source.beforeCommitIdx, name(source.writerRuntimeStageId ?? null)]),
         stop.ingredients.map(input => [name(input.key), name(input.writerRuntimeStageId), input.writerCommitIdx, input.unresolvedReason]),
         stop.ingredientsByKey === undefined ? null : Object.entries(stop.ingredientsByKey).map(([key, inputs]) =>
           [name(key), inputs.map(input => [name(input.key), name(input.writerRuntimeStageId), input.writerCommitIdx, input.unresolvedReason])]),
@@ -256,7 +261,7 @@ export function useTraceSessionController({
   }, [activeTraceScope]);
 
   // Scrubbing changes the position, never the question's recorded cutoff.
-  const traceWalk = useMemo<TraceWalk | null>(() => {
+  const localWalk = useMemo<TraceWalk | null>(() => {
     if (sourceChanged || !tracing || tracing.scope !== activeTraceKey || !activeTraceScope.availability.ok) return null;
     const anchor = tracing.via.at(-1) ?? tracing;
     if (!readerStillRecorded(anchor, activeTraceScope.commitLog)) return null;
@@ -266,43 +271,6 @@ export function useTraceSessionController({
       runtimeSnapshot,
     });
   }, [tracing, activeTraceScope, activeTraceKey, sourceChanged, runtimeSnapshot, readWalk]);
-
-  const traceStopIndices = useMemo(() => {
-    if (!traceWalk || traceWalk.missing) return [];
-    const indexById = new Map(activeSnapshots.map((snapshot, index) => [snapshot.runtimeStageId, index]));
-    return traceWalk.stops.map(stop => indexById.get(stop.runtimeStageId))
-      .filter((index): index is number => index !== undefined).sort((a, b) => a - b);
-  }, [traceWalk, activeSnapshots]);
-
-  const sliceCone = useMemo(() => {
-    // An active question may deliberately have no safe sources. The broader
-    // stage cone must not replace that absence with another set of writers.
-    if (tracing) return traceWalk && !traceWalk.missing && traceWalk.stops.length >= 2
-      ? dependencyCone(traceWalk.stops) : undefined;
-    if (!showDataTraceCone || shellDataTrace.frames.length < 2) return undefined;
-    return dependencyCone(shellDataTrace.frames);
-  }, [tracing, traceWalk, showDataTraceCone, shellDataTrace]);
-
-  const navigateToStage = useCallback((id: string) => {
-    const index = activeSnapshots.findIndex(snapshot => snapshot.runtimeStageId === id);
-    if (index >= 0) setSnapshotIdx(index);
-  }, [activeSnapshots, setSnapshotIdx]);
-  const jumpToAnchor = useCallback((walk: TraceWalk) => {
-    const anchor = walk.stops[0];
-    if (anchor) navigateToStage(anchor.runtimeStageId);
-  }, [navigateToStage]);
-
-  const handoffStillRecorded = useCallback((question: TraceQuestion): boolean => {
-    const link = question.handoff;
-    if (!link) return true;
-    return subflowHandoffSources({
-      snapshot: runtimeSnapshot, invocationPath: link.parentPath,
-      mountRuntimeStageId: link.mountRuntimeStageId, writtenKeys: link.writtenKeys,
-      beforeCommitIdx: link.beforeCommitIdx,
-    }).some(source => source.key === link.source.key &&
-      source.beforeCommitIdx === link.source.beforeCommitIdx &&
-      samePath(source.invocationPath, link.source.invocationPath));
-  }, [runtimeSnapshot]);
 
   const resolveRecordedScope = useCallback((invocationPath: readonly string[]) => {
     let log: unknown[], tree: unknown, scope: NonNullable<TraceWalk["scope"]>;
@@ -331,18 +299,86 @@ export function useTraceSessionController({
     return { log, tree, scope };
   }, [runtimeSnapshot, activeTraceScope]);
 
+  const questions = useMemo(() => {
+    const result = new Map<TraceQuestion, WalkQuestion>();
+    if (tracing && localWalk) result.set(tracing, { ...(tracing.via.at(-1) ?? tracing), local: localWalk });
+    if (!sourceChanged) for (const entry of history) {
+      if (entry.sourceIdentity !== sourceIdentity) continue;
+      const selected = resolveRecordedScope(entry.invocationPath);
+      if (!selected) continue;
+      const anchor = entry.question.via.at(-1) ?? entry.question;
+      if (!readerStillRecorded(anchor, selected.log) || (anchor.beforeCommitIdx ?? 0) > selected.log.length ||
+        !selected.log.some(row => ownDataField(row, "runtimeStageId") === entry.cursorRuntimeStageId)) continue;
+      result.set(entry.question, { ...anchor, local: buildTraceWalk(selected.log, selected.tree, anchor.key, {
+        beforeCommitIdx: anchor.beforeCommitIdx, readerCommitIdx: anchor.readerCommitIdx, scope: selected.scope, runtimeSnapshot,
+      }) });
+    }
+    return result;
+  }, [tracing, localWalk, sourceChanged, history, sourceIdentity, resolveRecordedScope, runtimeSnapshot]);
+  const scoped = useScopedWalks(runtimeSnapshot, questions);
+  const traceWalk = tracing ? scoped.walks.get(tracing) ?? null : null;
+  const traceStopIndices = useMemo(() => {
+    if (!traceWalk || traceWalk.missing) return [];
+    const indexById = new Map(activeSnapshots.map((snapshot, index) => [snapshot.runtimeStageId, index]));
+    return traceWalk.stops.map(stop => indexById.get(stop.runtimeStageId))
+      .filter((index): index is number => index !== undefined).sort((a, b) => a - b);
+  }, [traceWalk, activeSnapshots]);
+
+  const sliceCone = useMemo(() => {
+    // An active question may deliberately have no safe sources. The broader
+    // stage cone must not replace that absence with another set of writers.
+    if (tracing) return traceWalk && !traceWalk.missing && traceWalk.stops.length >= 2
+      ? dependencyCone(traceWalk.stops) : undefined;
+    if (!showDataTraceCone || shellDataTrace.frames.length < 2) return undefined;
+    return dependencyCone(shellDataTrace.frames);
+  }, [tracing, traceWalk, showDataTraceCone, shellDataTrace]);
+
+  const navigateToStage = useCallback((id: string) => {
+    const index = activeSnapshots.findIndex(snapshot => snapshot.runtimeStageId === id);
+    if (index >= 0) setSnapshotIdx(index);
+  }, [activeSnapshots, setSnapshotIdx]);
+  const jumpToAnchor = useCallback((walk: TraceWalk) => {
+    const anchor = walk.stops[0];
+    if (anchor) navigateToStage(anchor.runtimeStageId);
+  }, [navigateToStage]);
+
+  const pendingJump = useRef<{ question: TraceQuestion; cursor: number } | null>(null);
+  const startAtWriter = useCallback((question: TraceQuestion, local: TraceWalk, cursor: number) => {
+    if (needsScopedWalk(runtimeSnapshot, local)) pendingJump.current = { question, cursor };
+    else jumpToAnchor(local);
+  }, [runtimeSnapshot, jumpToAnchor]);
+  useIsomorphicLayoutEffect(() => {
+    const request = pendingJump.current;
+    if (!request || request.question !== tracing || scoped.pending) return;
+    pendingJump.current = null;
+    // Re-selecting the same tick would cancel a child-evidence load the user
+    // started while the graph was resolving this question.
+    if (traceWalk && request.cursor === safeIdx && traceWalk.stops[0]?.runtimeStageId !== activeSnapshots[safeIdx]?.runtimeStageId) {
+      jumpToAnchor(traceWalk);
+    }
+  }, [tracing, scoped.pending, traceWalk, safeIdx, activeSnapshots, jumpToAnchor]);
+
+  const handoffStillRecorded = useCallback((question: TraceQuestion): boolean => {
+    const link = question.handoff;
+    if (!link) return true;
+    const matches = (source: SubflowHandoffSource) => source.key === link.source.key &&
+      source.beforeCommitIdx === link.source.beforeCommitIdx && source.writerRuntimeStageId === link.source.writerRuntimeStageId &&
+      samePath(source.invocationPath, link.source.invocationPath);
+    if (link.source.writerRuntimeStageId !== undefined) {
+      return [...scoped.walks.values()].some(walk => samePath(walk.scope?.invocationPath ?? [], link.parentPath) &&
+        walk.stops.some(stop => stop.commitIdx + 1 === link.beforeCommitIdx &&
+          stop.contributedKeys.some(key => link.writtenKeys.includes(key)) &&
+          stop.handoffSources?.some(matches)));
+    }
+    return subflowHandoffSources({ snapshot: runtimeSnapshot, invocationPath: link.parentPath,
+      mountRuntimeStageId: link.mountRuntimeStageId, writtenKeys: link.writtenKeys, beforeCommitIdx: link.beforeCommitIdx,
+    }).some(matches);
+  }, [runtimeSnapshot, scoped]);
   const savedQuestionValid = useCallback((entry: SavedQuestion): boolean => {
-    if (sourceChanged || entry.sourceIdentity !== sourceIdentity || !handoffStillRecorded(entry.question)) return false;
-    const selected = resolveRecordedScope(entry.invocationPath);
-    if (!selected) return false;
-    const { log, tree, scope } = selected;
-    const anchor = entry.question.via.at(-1) ?? entry.question;
-    if (anchor.beforeCommitIdx !== undefined && anchor.beforeCommitIdx > log.length) return false;
-    if (!readerStillRecorded(anchor, log)) return false;
-    if (!log.some(commit => ownDataField(commit, "runtimeStageId") === entry.cursorRuntimeStageId)) return false;
-    return questionProof(buildTraceWalk(log, tree, anchor.key, { beforeCommitIdx: anchor.beforeCommitIdx,
-      readerCommitIdx: anchor.readerCommitIdx, scope })) === entry.proof;
-  }, [sourceChanged, sourceIdentity, resolveRecordedScope, handoffStillRecorded]);
+    const walk = scoped.walks.get(entry.question);
+    return !scoped.pending && !sourceChanged && entry.sourceIdentity === sourceIdentity && !!walk &&
+      handoffStillRecorded(entry.question) && questionProof(walk) === entry.proof;
+  }, [sourceChanged, sourceIdentity, scoped, handoffStillRecorded]);
 
   const activityOriginValid = useCallback((entry: SavedActivityOrigin): boolean => {
     if (sourceChanged || entry.sourceIdentity !== sourceIdentity) return false;
@@ -370,10 +406,10 @@ export function useTraceSessionController({
   const saveCurrentQuestion = useCallback((): SavedQuestion | undefined => {
     const cursorRuntimeStageId = activeSnapshots[safeIdx]?.runtimeStageId;
     const proof = traceWalk && questionProof(traceWalk);
-    if (!tracing || !proof || !cursorRuntimeStageId || history.length >= 128 || sourceChanged) return undefined;
+    if (scoped.pending || !tracing || !proof || !cursorRuntimeStageId || history.length >= 128 || sourceChanged) return undefined;
     return { question: tracing, invocationPath: [...activeTraceScope.invocationPath],
       cursorRuntimeStageId, proof, sourceIdentity };
-  }, [activeSnapshots, safeIdx, traceWalk, tracing, history.length, sourceChanged, activeTraceScope.invocationPath, sourceIdentity]);
+  }, [scoped.pending, activeSnapshots, safeIdx, traceWalk, tracing, history.length, sourceChanged, activeTraceScope.invocationPath, sourceIdentity]);
 
   const trailValid = useMemo(() => !sourceChanged && history.every(savedQuestionValid) &&
     (!tracing || handoffStillRecorded(tracing)), [sourceChanged, history, savedQuestionValid, tracing, handoffStillRecorded]);
@@ -414,17 +450,18 @@ export function useTraceSessionController({
     // Hand-built snapshots can name visits absent from the log. Preserve the
     // established whole-log question when no recorded cursor cutoff exists.
     const beforeCommitIdx = cursorCommitIndex >= 0 ? cursorCommitIndex + 1 : undefined;
-    dispatch({ type: "start", question: { scope: activeTraceKey, key, beforeCommitIdx, via: [] }, generation: {} });
+    const question = { scope: activeTraceKey, key, beforeCommitIdx, via: [] };
+    dispatch({ type: "start", question, generation: {} });
     onStartInspector();
-    jumpToAnchor(readWalk(key, { beforeCommitIdx }));
-  }, [activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, dispatch, onStartInspector, jumpToAnchor, readWalk]);
+    startAtWriter(question, readWalk(key, { beforeCommitIdx }), safeIdx);
+  }, [activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, dispatch, onStartInspector, startAtWriter, readWalk]);
 
   // Activity supplies an admitted read/write address, never a value. Read
   // questions use that visit's recorded look; write questions include its commit.
   const latestActivityTrace = useRef({ activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, stageActivity,
-    sourceChanged, sourceIdentity, onStartInspector, jumpToAnchor, readWalk });
+    sourceChanged, sourceIdentity, onStartInspector, startAtWriter, readWalk });
   latestActivityTrace.current = { activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, stageActivity,
-    sourceChanged, sourceIdentity, onStartInspector, jumpToAnchor, readWalk };
+    sourceChanged, sourceIdentity, onStartInspector, startAtWriter, readWalk };
   const handleTraceStageVariable = useCallback((target: StageActivityTraceTarget) => {
     const latest = latestActivityTrace.current;
     if (latest.sourceChanged || !latest.activeTraceScope.availability.ok || !latest.stageActivity?.availability.ok) return;
@@ -452,25 +489,29 @@ export function useTraceSessionController({
         if (!Array.isArray(writes) || !writes.some(write => ownDataField(write, "path") === key)) return;
       }
       const anchor: TraceAnchor = { key, beforeCommitIdx: cutoff,
-        ...(kind === "read" ? { readerCommitIdx: commitIdx, readerRuntimeStageId: runtimeStageId } : {}) };
+        ...(kind === "read" ? { readerCommitIdx: commitIdx, readerRuntimeStageId: runtimeStageId } : { writerRuntimeStageId: runtimeStageId }) };
       const walk = latest.readWalk(key, { beforeCommitIdx: cutoff, readerCommitIdx: anchor.readerCommitIdx });
-      dispatch({ type: "start", question: { scope: latest.activeTraceKey, ...anchor, via: [] },
+      const question = { scope: latest.activeTraceKey, ...anchor, via: [] };
+      dispatch({ type: "start", question,
         generation: {}, activityOrigin: { sourceIdentity: latest.sourceIdentity, address: {
           invocationPath: [...path], runtimeStageId, beforeCommitIdx: cutoff, key, kind,
           variableId: variable.id, stageLabel: latest.stageActivity.identity.stageLabel,
         } } });
       latest.onStartInspector();
-      latest.jumpToAnchor(walk);
+      latest.startAtWriter(question, walk, latest.safeIdx);
     } catch { /* A changed or unreadable address cannot start a new question. */ }
   }, [dispatch]);
 
+  const latestWalk = useRef(traceWalk);
+  useIsomorphicLayoutEffect(() => { latestWalk.current = traceWalk; }, [traceWalk]);
   const handleFollowIngredient = useCallback((ingredient: TraceIngredient) => {
+    if (latestWalk.current !== traceWalk) return;
     const previous = saveCurrentQuestion();
     if (!previous || !tracing || !activeTraceScope.availability.ok || ingredient.writerCommitIdx === null ||
       !traceWalk?.stops.some(stop => stop.ingredients.some(recorded =>
         recorded.key === ingredient.key && recorded.writerRuntimeStageId === ingredient.writerRuntimeStageId &&
         recorded.writerCommitIdx === ingredient.writerCommitIdx))) return;
-    const anchor = { key: ingredient.key, beforeCommitIdx: ingredient.writerCommitIdx + 1 };
+    const anchor = { key: ingredient.key, beforeCommitIdx: ingredient.writerCommitIdx + 1, writerRuntimeStageId: ingredient.writerRuntimeStageId ?? undefined };
     dispatch({ type: "follow", anchor, previous });
     jumpToAnchor(readWalk(anchor.key, {
       beforeCommitIdx: anchor.beforeCommitIdx,
@@ -478,9 +519,29 @@ export function useTraceSessionController({
   }, [tracing, activeTraceScope, traceWalk, dispatch, jumpToAnchor, saveCurrentQuestion, readWalk]);
 
   const handleFollowHandoff = useCallback((source: SubflowHandoffSource) => {
+    if (latestWalk.current !== traceWalk) return;
     const previous = saveCurrentQuestion();
     const parentStop = traceWalk?.stops.find(stop => stop.handoffSources?.includes(source));
-    if (!previous || sourceChanged || !openTraceSource || !parentStop) return;
+    if (!previous || sourceChanged || !parentStop) return;
+    if (source.writerRuntimeStageId !== undefined) {
+      const target = resolveRecordedScope(source.invocationPath);
+      if (!target || ownDataField(target.log[source.beforeCommitIdx - 1], "runtimeStageId") !== source.writerRuntimeStageId) return;
+      const question: TraceQuestion = {
+        scope: source.invocationPath.length ? JSON.stringify(source.invocationPath) : null,
+        key: source.key, beforeCommitIdx: source.beforeCommitIdx, writerRuntimeStageId: source.writerRuntimeStageId, via: [],
+        handoff: { parentPath: activeTraceScope.invocationPath, mountRuntimeStageId: source.mountRuntimeStageId,
+          writtenKeys: parentStop.contributedKeys, beforeCommitIdx: parentStop.commitIdx + 1, source },
+      };
+      if (!handoffStillRecorded(question)) return;
+      const moved = source.direction === "child" && openTraceSource
+        ? openTraceSource(source.mountRuntimeStageId, source.invocationPath, source.writerRuntimeStageId)
+        : restoreTraceQuestion?.(source.invocationPath, source.writerRuntimeStageId);
+      if (!moved) return;
+      dispatch({ type: "enter", history: [...history, previous], question, activityOrigin: savedActivityOrigin, generation });
+      onStartInspector();
+      return;
+    }
+    if (!openTraceSource) return;
     const child = projectTraceInvocation(runtimeSnapshot, source.mountRuntimeStageId, { invocationPath: source.invocationPath });
     if (!child.availability.ok || source.beforeCommitIdx > child.commitLog.length) return;
     const walk = buildTraceWalk(child.commitLog, child.executionTree, source.key, {
@@ -494,11 +555,11 @@ export function useTraceSessionController({
         writtenKeys: [...parentStop.contributedKeys],
         beforeCommitIdx: Math.min(parentStop.commitIdx + 1, anchor.beforeCommitIdx ?? activeTraceScope.commitLog.length), source },
     };
-    if (!handoffStillRecorded(question) || !openTraceSource(source.mountRuntimeStageId, source.invocationPath, walk.stops[0]?.runtimeStageId)) return;
+    if (!walk.stops[0] || !handoffStillRecorded(question) || !openTraceSource(source.mountRuntimeStageId, source.invocationPath, walk.stops[0].runtimeStageId)) return;
     dispatch({ type: "enter", history: [...history, previous], question, activityOrigin: savedActivityOrigin, generation });
     onStartInspector();
   }, [sourceChanged, openTraceSource, traceWalk, runtimeSnapshot, dispatch, onStartInspector, saveCurrentQuestion, tracing, history,
-    activeTraceScope, handoffStillRecorded, savedActivityOrigin, generation]);
+    activeTraceScope, handoffStillRecorded, savedActivityOrigin, generation, resolveRecordedScope, restoreTraceQuestion]);
 
   const handleShowAllIngredients = useCallback(() => {
     if (!tracing || !activeTraceScope.availability.ok) return;
