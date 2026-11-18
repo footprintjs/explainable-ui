@@ -19,7 +19,7 @@ import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { build as bundle } from "esbuild";
-import { archiveProof, compareInstalledFiles, installConsumer } from "./packed-consumers.mjs";
+import { archiveProof, compareInstalledFiles, installConsumer, verifyRejectedReader } from "./packed-consumers.mjs";
 import ts from "typescript";
 import { assertNoFoottraceRuntime, assertNoPilotSource } from "./shipping-boundary.mjs";
 
@@ -330,6 +330,14 @@ try {
   const graphFixture = join(scratch, "graph");
   evidence.gates.graphWithoutReader = installConsumer({ fixture: graphFixture, archive, repo, env, graph: true });
   compareInstalledFiles(unpacked, join(graphFixture, "node_modules", packageName));
+  evidence.gates.graphTypesTooling = Object.fromEntries(
+    ["typescript", "@types/react", "@types/react-dom"].map(name =>
+      [name, json(join(repo, "node_modules", name, "package.json")).version]),
+  );
+  evidence.gates.unsupportedReaderMajor = verifyRejectedReader({
+    directory: join(scratch, "unsupported-reader-major"), archive, env,
+    react: evidence.gates.graphWithoutReader.versions.react, version: "1.7.0", code: "ERESOLVE",
+  });
   const prerequisites = installConsumer({ fixture, archive, repo, env });
   compareInstalledFiles(unpacked, installed);
   const fixtureDirectory = join(repo, "pilots/record-lens/fixtures");
