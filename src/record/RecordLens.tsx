@@ -1,19 +1,30 @@
-import { useId } from "react";
+import { useId, useMemo } from "react";
 import type { CSSProperties } from "react";
-import type { StateKey } from "foottrace";
+import type { StateKey, Stop } from "foottrace";
 import { theme } from "../theme/styles";
 import { buildRecordLensModel } from "./model";
 import { previewValue } from "./preview";
-import type { RecordLensInput } from "./types";
+import { WriterNavigation } from "./WriterNavigation";
+import type { RecordLensInput, RecordLensReader } from "./types";
 
-export interface RecordLensProps extends RecordLensInput {
+type RecordSelection = (RecordLensInput & { readonly reader?: never }) | {
+  readonly reader: RecordLensReader;
+  readonly source?: never;
+  readonly sourceId?: never;
+  readonly strategy?: never;
+  readonly reads?: never;
+  readonly step: number;
+  readonly selectedKey?: StateKey;
+};
+
+export type RecordLensProps = RecordSelection & {
   /** Read-only navigation intent. The host owns and updates the selected step. */
   readonly onStepChange?: (step: number) => void;
   /** Exact top-level key segments; a dotted property name stays a single key. */
   readonly onKeyChange?: (key: StateKey) => void;
   readonly className?: string;
   readonly style?: CSSProperties;
-}
+};
 
 const panel: CSSProperties = {
   color: theme.textPrimary,
@@ -46,25 +57,31 @@ const mono: CSSProperties = {
   overflowWrap: "anywhere",
 };
 
-/** Experimental source-only facade. Not exported by the installed package. */
+function stopAddress(stop: Stop | null): string {
+  if (!stop) return "No recorded steps. Showing the available starting state.";
+  if (stop.kind === "end") return `Run end · through commit ${stop.lastCommitIdx}`;
+  if (stop.kind !== "start") return `${stop.runtimeStageId} · commits ${stop.commitIdx}–${stop.lastCommitIdx}`;
+  if (stop.lastCommitIdx < 0) return "Run start · before the first recorded commit";
+  const contents = stop.prologue ? "earlier stages" : "seed";
+  return `Run start · includes ${contents} through commit ${stop.lastCommitIdx}`;
+}
+
+/** Controlled view of one Foottrace recording and its selected historical question. */
 export function RecordLens(props: RecordLensProps) {
   const id = useId();
-  // Read afresh on every host render: recorders can append to an existing source.
-  const model = buildRecordLensModel(props);
+  const model = props.reader
+    ? props.reader.at(props.step, props.selectedKey)
+    : buildRecordLensModel(props);
+  const options = useMemo(() => model.stops.map(stop => (
+    <option key={stop.step} value={stop.step}>
+      {stop.step + 1}. {stop.label ?? stop.stageId} · {stop.kind}
+    </option>
+  )), [model.stops]);
   const available = model.status !== "refused";
   const selected = model.selected;
-  const address = !selected
-    ? "No recorded steps. Showing the available starting state."
-    : selected.kind === "start"
-    ? selected.lastCommitIdx < 0
-      ? "Run start · before the first recorded commit"
-      : `Run start · includes seed through commit ${selected.lastCommitIdx}`
-    : selected.kind === "end"
-    ? `Run end · through commit ${selected.lastCommitIdx}`
-    : `${selected.runtimeStageId} · commits ${selected.commitIdx}–${selected.lastCommitIdx}`;
   return (
     <section
-      aria-label={`Record: ${props.sourceId}`}
+      aria-label={`Record: ${model.sourceId}`}
       className={props.className}
       style={{ ...panel, ...props.style }}
     >
@@ -77,7 +94,7 @@ export function RecordLens(props: RecordLensProps) {
         }}
       >
         <h2 style={{ margin: 0, fontSize: 20 }}>Record</h2>
-        <span style={{ color: theme.textSecondary }}>{props.sourceId}</span>
+        <span style={{ color: theme.textSecondary }}>{model.sourceId}</span>
       </header>
       <nav
         aria-label="Recorded steps"
@@ -110,11 +127,7 @@ export function RecordLens(props: RecordLensProps) {
               {available ? "No recorded steps" : "Choose a valid step"}
             </option>
           )}
-          {model.stops.map((stop) => (
-            <option key={stop.step} value={stop.step}>
-              {stop.step + 1}. {stop.label ?? stop.stageId} · {stop.kind}
-            </option>
-          ))}
+          {options}
         </select>
         <button
           type="button"
@@ -133,7 +146,7 @@ export function RecordLens(props: RecordLensProps) {
         <p role="alert">{model.refusal.message}</p>
       ) : (
         <>
-          <p style={{ color: theme.textSecondary }}>{address}</p>
+          <p style={{ color: theme.textSecondary }}>{stopAddress(selected)}</p>
           {model.folded.basis === "log-only" && (
             <p role="status">
               Starting state not recorded. This is a log-only reconstruction,
@@ -233,6 +246,11 @@ export function RecordLens(props: RecordLensProps) {
             </ul>
           )}
           <h3>Recorded explanation</h3>
+          <WriterNavigation reader={props.reader} step={model.step}
+            currentKey={model.provenance?.status === "ready" ? model.provenance.slice.key : undefined}
+            segmentedKey={Array.isArray(props.selectedKey)}
+            writers={model.writerStops} onStepChange={props.onStepChange} onKeyChange={props.onKeyChange}
+            style={control} />
           {!model.provenance ? (
             <p>Select a key to inspect its recorded origin.</p>
           ) : model.provenance.status === "unavailable" ? (

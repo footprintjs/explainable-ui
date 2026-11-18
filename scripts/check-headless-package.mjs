@@ -1,4 +1,5 @@
 /** Built archive only: renderless/shared presentation SSR and strict public consumers. */
+import { graphConsumerPackages } from "./fixtures/graph-consumer-packages.mjs";
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -20,7 +21,7 @@ try {
   mkdirSync(destination, { recursive: true });
   run('tar', ['-xzf', join(scratch, packed[0].filename), '--strip-components=1', '-C', destination]);
   const manifest = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
-  for (const name of new Set([...Object.keys(manifest.peerDependencies), ...Object.keys(manifest.dependencies), '@types/react', '@types/react-dom', '@types/node', 'typescript'])) {
+  for (const name of new Set([...graphConsumerPackages(manifest), '@types/react', '@types/react-dom', '@types/node', 'typescript'])) {
     mkdirSync(dirname(join(modules, name)), { recursive: true });
     symlinkSync(join(repo, 'node_modules', name), join(modules, name), 'dir');
   }

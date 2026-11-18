@@ -178,12 +178,28 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
     );
   });
 
-  it("keeps the source pilot unpublished and the current consumer contract unchanged", () => {
+  it("adds only the record door and the reviewed per-entry install contract", () => {
     const manifest = JSON.parse(
       readFileSync(new URL("../../package.json", import.meta.url), "utf8")
     );
-    expect(consumerContract(manifest)).toEqual(consumerContract(ledger.packageContract));
-    expect(manifest.exports).not.toHaveProperty("./record");
+    const baseline = ledger.packageContract;
+    expect(consumerContract(manifest)).toEqual({
+      ...consumerContract(baseline),
+      exports: {
+        ...baseline.exports,
+        "./record": {
+          import: { types: "./dist/record.d.ts", default: "./dist/record.js" },
+          require: { types: "./dist/record.d.cts", default: "./dist/record.cjs" },
+        },
+      },
+      typesVersions: { "*": { ...baseline.typesVersions["*"], record: ["./dist/record.d.ts"] } },
+      dependencies: undefined,
+      peerDependencies: { ...baseline.peerDependencies, dagre: baseline.dependencies.dagre, foottrace: "^2.0.0" },
+    });
+    expect(manifest.peerDependenciesMeta).toEqual(Object.fromEntries(
+      ["@xyflow/react", "dagre", "foottrace", "react-dom"].map(name => [name, { optional: true }]),
+    ));
+    expect(manifest.optionalDependencies).toBeUndefined();
   });
 
   it.each(["0.40.0", "1.0.0"])("allows release bookkeeping version %s without changing the consumer contract", version => {

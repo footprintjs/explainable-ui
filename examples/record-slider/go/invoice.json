@@ -1,0 +1,49 @@
+{
+  "initialState": {
+    "deliveryFee": 5,
+    "quantity": 3,
+    "unitPrice": 10
+  },
+  "commitLog": [
+    {
+      "stage": "Subtotal",
+      "stageId": "subtotal",
+      "runtimeStageId": "subtotal#0",
+      "trace": [
+        {
+          "path": "subtotal",
+          "verb": "set",
+          "readKeys": [
+            "unitPrice",
+            "quantity"
+          ]
+        }
+      ],
+      "overwrite": {
+        "subtotal": 30
+      },
+      "updates": {},
+      "redactedPaths": []
+    },
+    {
+      "stage": "Invoice",
+      "stageId": "invoice",
+      "runtimeStageId": "invoice#1",
+      "trace": [
+        {
+          "path": "invoiceTotal",
+          "verb": "set",
+          "readKeys": [
+            "subtotal",
+            "deliveryFee"
+          ]
+        }
+      ],
+      "overwrite": {
+        "invoiceTotal": 35
+      },
+      "updates": {},
+      "redactedPaths": []
+    }
+  ]
+}

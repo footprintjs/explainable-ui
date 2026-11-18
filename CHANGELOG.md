@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Add consumer-owned drawings and attachment points to flat and isometric charts, with shared node and edge appearance for live and recorded activity, measured progress, and confirmed removal.
+- Read supported Foottrace 2 sources through a separate `/record` entry. Share one canonical stop across the state and causal reader, time slider and host diagram. The Pages example uses each source's own data and optional timing.
+
+### Breaking
+
+- Graph dependencies are now explicit peers for root and `/flowchart` consumers. Migration: install React, ReactDOM, `@xyflow/react@^12` and `dagre@^0.8.5` in graph applications. Record-only consumers install React and `foottrace@^2.0.0`. This change is intended for a major release.
 
 ## [1.1.1] - 2026-11-17
 

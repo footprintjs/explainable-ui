@@ -34,6 +34,7 @@ const README = readFileSync(join(root, "README.md"), "utf-8");
 const ENTRIES = [
   { name: "footprint-explainable-ui", file: "src/index.ts" },
   { name: "footprint-explainable-ui/flowchart", file: "src/flowchart.ts" },
+  { name: "footprint-explainable-ui/record", file: "src/record/index.ts" },
 ] as const;
 
 /**

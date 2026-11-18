@@ -88,6 +88,7 @@ export function Demo() {
         {" "}<a href="./deployment-shapes/">Deployment shapes and lazy server details</a>.
         {" "}<a href="./diagram-appearance/">Document handoff with live and saved diagram observations</a>.
         {" "}<a href="./headless-controller/">One controller with custom controls and a shared Shell</a>.
+        {" "}<a href="./record-slider/">Foottrace record slider for Go, HCI, Viz and pricing</a>.
       </p>
 
       {/* THE full shell on a REAL generated run (demo/generate-run.ts) —

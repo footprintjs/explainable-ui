@@ -1,4 +1,5 @@
 /** Offline public-package proof; the normal CI build must run first. */
+import { graphConsumerPackages } from "./fixtures/graph-consumer-packages.mjs";
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, symlinkSync, cpSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -21,7 +22,7 @@ try {
   mkdirSync(destination, { recursive: true });
   run('tar', ['-xzf', join(scratch, packed.filename), '--strip-components=1', '-C', destination]);
   const manifest = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'));
-  for (const name of new Set([...Object.keys(manifest.peerDependencies), ...Object.keys(manifest.dependencies), 'csstype'])) {
+  for (const name of new Set([...graphConsumerPackages(manifest), 'csstype'])) {
     mkdirSync(dirname(join(modules, name)), { recursive: true });
     symlinkSync(join(repo, 'node_modules', name), join(modules, name), 'dir');
   }

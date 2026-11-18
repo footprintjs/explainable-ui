@@ -4,7 +4,7 @@ import { theme } from "../../theme";
 import { useTimeTravelPlayback, type TimeTravelPlayback } from "../../replay/useTimeTravelPlayback";
 import type { TimeTravelControlsProps } from "./types";
 import { resolveReplayControlsOptions } from "../../model/replayControlsOptions";
-import { ReplayPosition } from "./ReplayPosition";
+import { ReplayPosition } from "../../replay/ReplayPosition";
 import { recordedPathLabel } from "../../trace/recordedValuePreview";
 export type { TimeTravelControlsProps, TracingRail, ReplayControlsOptions } from "./types";
 

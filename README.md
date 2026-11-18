@@ -31,24 +31,77 @@ Arrange or hide the optional panes with a [JSON layout](#arrange-the-full-lens-f
 
 ## Install
 
+The workflow Shell and shared headless controller are available together from version 1.1.0.
+The new `/record` entry and graph peer changes below target the next major release.
+To try this branch before release, use its built package archive.
+
+For the root or `/flowchart` entry, install these graph peers in your app:
+
 ```bash
-npm install footprint-explainable-ui
+npm install react react-dom @xyflow/react@^12 dagre@^0.8.5
 ```
 
-**Peer dependencies:** `react >= 18`, `react-dom >= 18`
-
-For flowchart components, also install:
+For `/record`, install the recording peers. The package-wide Node floor stays at 18 for graph applications. Foottrace 2 requires Node 22 or later when running the reader in Node. An engine-strict install enforces that requirement. Importing the recording entry without Foottrace produces the normal missing-peer module error.
 
 ```bash
-npm install @xyflow/react
+npm install react foottrace@^2.0.0
 ```
 
 ## Entry Points
 
 | Import path | What it provides |
 |---|---|
-| `footprint-explainable-ui` | Core components, themes, adapters |
-| `footprint-explainable-ui/flowchart` | Flowchart visualization (requires `@xyflow/react`) |
+| `footprint-explainable-ui` | Workflow components, themes and adapters |
+| `footprint-explainable-ui/flowchart` | Workflow diagrams and graph layout |
+| `footprint-explainable-ui/record` | A controlled slider and state/Backtrack reader for a Foottrace 2 recording |
+
+### Read a recording with your own diagram
+
+Prepare one reader per **recording revision**. The host keeps one selected stop
+and can use it for the slider, recorded state and its own diagram. A stop can
+cover several commits. Pass its canonical `step` when navigating.
+
+```tsx
+import { useCallback, useState } from 'react';
+import {
+  createRecordLensReader, RecordLens, RecordTimeSlider,
+} from 'footprint-explainable-ui/record';
+import type { StateKey, Stop, TimeTravelSource } from 'footprint-explainable-ui/record';
+
+function openRecording(sourceId: string, source: TimeTravelSource) {
+  return createRecordLensReader({ sourceId, source });
+}
+
+function RecordingView({ reader, timings }: {
+  reader: ReturnType<typeof openRecording>;
+  timings: ReadonlyMap<string, number>;
+}) {
+  const [step, setStep] = useState(0);
+  const [key, setKey] = useState<StateKey>();
+  const stop = reader.stops[step];
+  const durationForStop = useCallback((value: Stop) => timings.get(value.runtimeStageId), [timings]);
+  return <>
+    <RecordTimeSlider stops={reader.stops} step={step} onStepChange={setStep}
+      scale="log-duration" durationForStop={durationForStop} />
+    <output>{stop?.label}</output>
+    <RecordLens reader={reader} step={step} onStepChange={setStep}
+      selectedKey={key} onKeyChange={setKey} />
+  </>;
+}
+```
+
+Use the selected stop in place of the example's `<output>` to highlight your diagram.
+The host supplies measured milliseconds for each visit. With no usable timing,
+the weighted slider explains its equal-spacing fallback. Keep the timing callback
+stable across scrubs of a large recording and replace it when timing data changes.
+Examples of source-specific diagrams and read evidence are in the [record slider example](examples/record-slider/README.md).
+
+| Recording export | Purpose |
+|---|---|
+| `createRecordLensReader` | Prepare canonical stops and query state or causes on an immutable recording revision |
+| `buildRecordLensModel` | Read a single position from the current source, including appended data |
+| `RecordLens` | Inspect folded state, changes and recorded causes at the selected stop |
+| `RecordTimeSlider` | Request a stop with equal, linear-duration or logarithmic spacing and a range or segmented presentation |
 
 ## Which component do I mount?
 
@@ -60,6 +113,7 @@ and read the last column before you skip one.
 |---|---|---|---|
 | an **agentfootprint agent run** you recorded (`recordRun` → `{ snapshot, events, structure }`) | [`footprint-viewer`](https://www.npmjs.com/package/footprint-viewer) — a separate package | The whole experience with zero config: Story, Why, Flow, Skill Graph and Data as five tabs over **one shared cursor**, wired for you — or refused in a sentence that names what you passed | Three more packages (`agentfootprint`, `agentfootprint-lens`, and `agentthinkingui` for the Story tab), and a layout that is the viewer's rather than yours |
 | a **footprintjs pipeline run**, live in your app (`executor.getSnapshot()` + a `TraceGraph`) | `ExplainableShell` — this library | Chart + topology tree + details + timeline + the value-tracing rail, from two props. The details pane switches between Developer and Commentary | The separate agent Story / Why / Skill Graph readings. Commentary presents the recorded pipeline; it does not reconstruct agent reasoning |
+| a **Foottrace 2 recording**, with your own diagram or no diagram | `RecordLens` and `RecordTimeSlider` from `/record` | One selected stop across recorded state, causal evidence and your host view | The host supplies timing and domain geometry |
 | a **saved footprintjs run** on disk (`{ snapshot, structure }`) | `TraceViewer` | The same shell from one prop, with parse errors and honest gaps stated on screen instead of an empty frame | Nothing the shell has — it *is* the shell plus the file-reading |
 | a footprintjs run whose **full Lens layout must be yours** | `ExplainableShell` with `renderLayout`, optionally `unstyled` | Ready-made surfaces and actions for the same cursor, exact invocation, drill-down and backtracking | You supply the layout and, in unstyled mode, its presentation |
 | a saved run needing **basic composable panels** | `ExplainableProvider` + the surfaces (or `ExplainableView` with a `layout`) | Basic surfaces moving one cursor; presets, CSS-grid areas and per-surface `slots` | These surfaces do not re-implement the shell's richer topology, subflow drill-down and tracing chrome |

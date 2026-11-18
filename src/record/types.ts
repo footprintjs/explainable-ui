@@ -4,21 +4,42 @@ import type {
   StateKey,
   Stop,
   TimeTravelSource,
+  TimeTravelStrategy,
   VariableSlice,
 } from "foottrace";
 
-/** A caller-selected source. This pilot never discovers, joins or drills sources. */
-export interface RecordLensInput {
+/** One caller-selected Foottrace source and its captured evidence. */
+export interface RecordReaderInput<TMeta = unknown> {
   readonly sourceId: string;
   readonly source: TimeTravelSource;
-  /** A stop's numeric step, not its commit index. Empty sources accept only 0. */
-  readonly step: number;
   /** Must describe reads from this same source; absent evidence stays unknown. */
   readonly reads?: KeysReadSource;
+  /** Foottrace owns stop grouping and each stop's commit boundaries. */
+  readonly strategy?: TimeTravelStrategy<TMeta>;
+}
+
+export interface RecordLensInput<TMeta = unknown> extends RecordReaderInput<TMeta> {
+  /** Source-local numeric stop. Empty sources accept only zero. */
+  readonly step: number;
   readonly selectedKey?: StateKey;
 }
 
-/** Display projection only: Foottrace owns value equality and state reconstruction. */
+/** Cursor data for one immutable revision. The host owns its selected stop. */
+export interface RecordLensReader<TMeta = unknown> {
+  readonly sourceId: string;
+  readonly stops: readonly Stop<TMeta>[];
+  readonly at: (step: number, selectedKey?: StateKey) => RecordLensModel<TMeta>;
+}
+
+/** A direct recorded dependency whose producing stop shows this exact value. */
+export interface RecordWriterStop {
+  readonly step: number;
+  readonly key: readonly string[];
+  readonly stageName: string;
+  readonly value: unknown;
+}
+
+/** Top-level changes use Foottrace equality and state reconstruction. */
 export interface RecordChange {
   readonly key: string;
   readonly kind: "added" | "changed" | "removed";
@@ -46,25 +67,27 @@ export interface RecordRefusal {
   readonly message: string;
 }
 
-interface RecordLensPosition {
+interface RecordLensPosition<TMeta> {
   readonly sourceId: string;
   readonly step: number;
   /** Canonical source-local stops, including phase ranges and bookends. */
-  readonly stops: readonly Stop[];
+  readonly stops: readonly Stop<TMeta>[];
 }
 
-export type RecordLensModel =
-  | (RecordLensPosition & {
+export type RecordLensModel<TMeta = unknown> =
+  | (RecordLensPosition<TMeta> & {
       readonly status: "ready" | "empty";
       /** Empty sources expose their base without inventing a cursor stop. */
-      readonly selected: Stop | null;
+      readonly selected: Stop<TMeta> | null;
       readonly folded: FoldedState;
       /** Previous stop, or the raw base before the first stop (including seed commits). */
       readonly previous: FoldedState;
       readonly changes: readonly RecordChange[];
       readonly provenance?: RecordProvenance;
+      /** Direct writes with an exact, landable stop in this recording. */
+      readonly writerStops?: readonly RecordWriterStop[];
     })
-  | (RecordLensPosition & {
+  | (RecordLensPosition<TMeta> & {
       readonly status: "refused";
       readonly selected: null;
       readonly refusal: RecordRefusal;
