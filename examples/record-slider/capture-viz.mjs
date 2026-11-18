@@ -20,4 +20,10 @@ console.log(JSON.stringify({
   producer: { package: viz.name, version: viz.version, footprintjs: engine.version },
   sourceId: runId,
   source: { initialState, executionTree, commitLog },
+  plot: {
+    loadVisit: executionTree.runtimeStageId,
+    clusterVisit: executionTree.next.runtimeStageId,
+    amounts: snapshot.sharedState.amountVals,
+    assignments: snapshot.sharedState.cluster_id,
+  },
 }, null, 2));

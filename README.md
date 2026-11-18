@@ -41,7 +41,7 @@ For the root or `/flowchart` entry, install these graph peers in your app:
 npm install react react-dom @xyflow/react@^12 dagre@^0.8.5
 ```
 
-For `/record`, install the recording peers. Foottrace 2 requires Node 22 or later when running in Node.
+For `/record`, install the recording peers. The package-wide Node floor stays at 18 for graph applications. Foottrace 2 requires Node 22 or later when running the reader in Node. An engine-strict install enforces that requirement. Importing the recording entry without Foottrace produces the normal missing-peer module error.
 
 ```bash
 npm install react foottrace@^2.0.0

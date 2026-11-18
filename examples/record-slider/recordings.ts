@@ -53,3 +53,4 @@ export const recordings: Record<RecordingId, SourceView> = {
 
 export const operations = pricing.operations;
 export const transitions = hci.observation.transitions;
+export const vizPlot = viz.plot;

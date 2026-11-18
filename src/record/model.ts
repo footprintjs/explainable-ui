@@ -12,7 +12,9 @@ import type {
   StateKey,
   TimeTravelSource,
   TimeTravel,
+  Stop,
 } from "foottrace";
+import { directWriterStops } from "./writerStops";
 import type {
   RecordChange,
   RecordLensInput,
@@ -21,6 +23,7 @@ import type {
   RecordLensReader,
   RecordReaderInput,
   RecordRefusal,
+  RecordWriterStop,
 } from "./types";
 
 /** Missing reads are deliberately not inferred by walking a producer's tree. */
@@ -57,8 +60,9 @@ function provenanceAt(
   source: TimeTravelSource,
   throughCommitIdx: number,
   key: StateKey,
-  reads: KeysReadSource | undefined
-): RecordProvenance {
+  reads: KeysReadSource | undefined,
+  stops: readonly Stop[]
+): { provenance: RecordProvenance; writerStops?: readonly RecordWriterStop[] } {
   // Match the public source contract: commitLog takes precedence over history.
   // Slice, never filter: all commit indices retain their original addresses.
   const log = Array.isArray(source.commitLog)
@@ -70,12 +74,12 @@ function provenanceAt(
   for (let index = 0; index <= throughCommitIdx; index++) {
     const row: unknown = log[index];
     if (!isCommitBundle(row)) {
-      return {
+      return { provenance: {
         status: "unavailable",
         reason: "log-gap",
         message:
           "Causal explanation is unavailable because this recorded prefix contains unreadable rows.",
-      };
+      } };
     }
     // No rejected entry is ever skipped: this copy is still index-aligned.
     prefix.push(row);
@@ -84,20 +88,26 @@ function provenanceAt(
     const slice = sliceForKey(prefix, key, reads ?? unknownReads, {
       before: prefix.length,
     });
-    return {
+    const provenance: RecordProvenance = {
       status: "ready",
       slice,
       prose: formatSlice(slice),
-      reads:
-        !reads || reads.coverage?.stepsWithReads === 0 ? "unknown" : "provided",
+      reads: !reads || reads.coverage?.stepsWithReads === 0 ? "unknown" : "provided",
     };
+    // Link admission is narrower than causal reading. A failed address lookup
+    // must not suppress a canonical explanation that was successfully obtained.
+    try {
+      return { provenance, writerStops: directWriterStops(prefix, stops, slice) };
+    } catch {
+      return { provenance };
+    }
   } catch {
-    return {
+    return { provenance: {
       status: "unavailable",
       reason: "query-refused",
       message:
         "Foottrace could not read a causal explanation from the supplied record and read evidence.",
-    };
+    } };
   }
 }
 
@@ -137,9 +147,7 @@ function modelAt<TMeta>(
       sourceId, step, stops, selected, previous, folded,
       status: selected ? "ready" : "empty",
       changes: changesBetween(previous.state, folded.state),
-      ...(selectedKey !== undefined && {
-        provenance: provenanceAt(source, folded.throughCommitIdx, selectedKey, reads),
-      }),
+      ...(selectedKey !== undefined && provenanceAt(source, folded.throughCommitIdx, selectedKey, reads, stops)),
     };
   } catch {
     return refused(sourceId, step, stops, "read-refused", "Foottrace could not read the supplied source.");

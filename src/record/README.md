@@ -50,5 +50,15 @@ unavailable. A later gap cannot change an earlier answer. Foottrace owns the
 returned slice and its prose. Missing read evidence remains unknown.
 Top-level change detection uses Foottrace's equality operation.
 
+With a prepared reader and controlled step/key callbacks, a viewer can follow a
+recorded ingredient writer and return to the original question. For example, a
+recorded `total = 35` can point to the Items amount of 30 and the Delivery amount
+of 5. Link admission requires a direct Foottrace data edge, the queried write's
+own read evidence, one exact writer row, and a canonical stop showing its value.
+The host can also read these destinations from `model.writerStops`. A qualified
+edge, an ambiguous writer, or a grouped stop that folds later writes retains
+Foottrace's explanation. Returning restores the host's original step and key and
+focuses the Follow button. Changing reader revisions discards the return address.
+
 The [fixture and package checks](../../pilots/record-lens/README.md) exercise
 saved Flow and HCI records and both JavaScript module formats.

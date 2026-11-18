@@ -11,6 +11,7 @@ export type {
   RecordReaderInput,
   RecordLensModel,
   RecordChange,
+  RecordWriterStop,
   RecordProvenance,
   RecordRefusal,
 } from "./types";

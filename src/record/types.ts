@@ -31,7 +31,15 @@ export interface RecordLensReader<TMeta = unknown> {
   readonly at: (step: number, selectedKey?: StateKey) => RecordLensModel<TMeta>;
 }
 
-/** Display projection only: Foottrace owns value equality and state reconstruction. */
+/** A direct recorded dependency whose producing stop shows this exact value. */
+export interface RecordWriterStop {
+  readonly step: number;
+  readonly key: readonly string[];
+  readonly stageName: string;
+  readonly value: unknown;
+}
+
+/** Top-level changes use Foottrace equality and state reconstruction. */
 export interface RecordChange {
   readonly key: string;
   readonly kind: "added" | "changed" | "removed";
@@ -76,6 +84,8 @@ export type RecordLensModel<TMeta = unknown> =
       readonly previous: FoldedState;
       readonly changes: readonly RecordChange[];
       readonly provenance?: RecordProvenance;
+      /** Direct writes with an exact, landable stop in this recording. */
+      readonly writerStops?: readonly RecordWriterStop[];
     })
   | (RecordLensPosition<TMeta> & {
       readonly status: "refused";

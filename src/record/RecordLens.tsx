@@ -1,9 +1,10 @@
-import { useId } from "react";
+import { useId, useMemo } from "react";
 import type { CSSProperties } from "react";
 import type { StateKey, Stop } from "foottrace";
 import { theme } from "../theme/styles";
 import { buildRecordLensModel } from "./model";
 import { previewValue } from "./preview";
+import { WriterNavigation } from "./WriterNavigation";
 import type { RecordLensInput, RecordLensReader } from "./types";
 
 type RecordSelection = (RecordLensInput & { readonly reader?: never }) | {
@@ -71,6 +72,11 @@ export function RecordLens(props: RecordLensProps) {
   const model = props.reader
     ? props.reader.at(props.step, props.selectedKey)
     : buildRecordLensModel(props);
+  const options = useMemo(() => model.stops.map(stop => (
+    <option key={stop.step} value={stop.step}>
+      {stop.step + 1}. {stop.label ?? stop.stageId} · {stop.kind}
+    </option>
+  )), [model.stops]);
   const available = model.status !== "refused";
   const selected = model.selected;
   return (
@@ -121,11 +127,7 @@ export function RecordLens(props: RecordLensProps) {
               {available ? "No recorded steps" : "Choose a valid step"}
             </option>
           )}
-          {model.stops.map((stop) => (
-            <option key={stop.step} value={stop.step}>
-              {stop.step + 1}. {stop.label ?? stop.stageId} · {stop.kind}
-            </option>
-          ))}
+          {options}
         </select>
         <button
           type="button"
@@ -244,6 +246,11 @@ export function RecordLens(props: RecordLensProps) {
             </ul>
           )}
           <h3>Recorded explanation</h3>
+          <WriterNavigation reader={props.reader} step={model.step}
+            currentKey={model.provenance?.status === "ready" ? model.provenance.slice.key : undefined}
+            segmentedKey={Array.isArray(props.selectedKey)}
+            writers={model.writerStops} onStepChange={props.onStepChange} onKeyChange={props.onKeyChange}
+            style={control} />
           {!model.provenance ? (
             <p>Select a key to inspect its recorded origin.</p>
           ) : model.provenance.status === "unavailable" ? (

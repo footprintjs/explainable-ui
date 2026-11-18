@@ -28,7 +28,7 @@ function Viewer({ recording, scale, presentation }: { recording: RecordingId; sc
       <RecordTimeSlider stops={reader.stops} step={step} onStepChange={setStep}
         durationForStop={durationForStop} scale={scale} presentation={presentation} />
     </section>
-    {recording === 'viz' ? <VizDiagram reader={reader} step={step} onStepChange={setStep} /> :
+    {recording === 'viz' ? <VizDiagram stops={reader.stops} step={step} onStepChange={setStep} /> :
       <HostDiagram recording={recording} stops={reader.stops} step={step} onStepChange={setStep} />}
     <p className="hint">{hints[recording]}</p>
     <RecordLens reader={reader} step={step} selectedKey={selectedKey}
