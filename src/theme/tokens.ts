@@ -73,6 +73,8 @@ export interface ThemeTokens {
     /** Display value for the group header's recorded-state cue. Default none. */
     groupStatusDisplay?: string;
   };
+  /** Alpha applied to node and edge drawings after confirmed removal. */
+  diagram?: { removedOpacity?: string };
   motion?: { duration?: string; fastDuration?: string; easing?: string };
   controls?: { height?: string; paddingX?: string; gap?: string; iconSize?: string };
   fontFamily?: {
@@ -157,6 +159,7 @@ export function tokensToCSSVars(tokens: ThemeTokens): Record<string, string> {
     radius: "--fp-node-radius", shadow: "--fp-node-shadow", shapeShadow: "--fp-node-shape-shadow",
     badgeShadow: "--fp-node-badge-shadow", pulseOpacity: "--fp-node-pulse-opacity", groupStatusDisplay: "--fp-node-group-status-display",
   });
+  write(tokens.diagram, { removedOpacity: "--fp-diagram-removed-opacity" });
   write(tokens.motion, { duration: "--fp-motion-duration", fastDuration: "--fp-motion-fast-duration", easing: "--fp-motion-easing" });
   write(tokens.controls, { height: "--fp-control-height", paddingX: "--fp-control-padding-x", gap: "--fp-control-gap", iconSize: "--fp-icon-size" });
   if (tokens.fontFamily?.sans) vars["--fp-font-sans"] = tokens.fontFamily.sans;
@@ -209,6 +212,7 @@ export const rawDefaults = {
     borderColor: "initial", borderWidth: "initial", borderStyle: "initial", radius: "initial",
     shadow: "initial", shapeShadow: "initial", badgeShadow: "initial", pulseOpacity: "initial", groupStatusDisplay: "none",
   },
+  diagram: { removedOpacity: "0.4" },
   motion: { duration: "240ms", fastDuration: "120ms", easing: "ease" },
   controls: { height: "28px", paddingX: "8px", gap: "6px", iconSize: "14px" },
   fontFamily: {
@@ -286,6 +290,7 @@ export const defaultTokens: Required<{
     pulseOpacity: `var(--fp-node-pulse-opacity, ${rawDefaults.nodes.pulseOpacity})`,
     groupStatusDisplay: `var(--fp-node-group-status-display, ${rawDefaults.nodes.groupStatusDisplay})`,
   },
+  diagram: { removedOpacity: `var(--fp-diagram-removed-opacity, ${rawDefaults.diagram.removedOpacity})` },
   motion: { duration: `var(--fp-motion-duration, ${rawDefaults.motion.duration})`, fastDuration: `var(--fp-motion-fast-duration, ${rawDefaults.motion.fastDuration})`, easing: `var(--fp-motion-easing, ${rawDefaults.motion.easing})` },
   controls: { height: `var(--fp-control-height, ${rawDefaults.controls.height})`, paddingX: `var(--fp-control-padding-x, ${rawDefaults.controls.paddingX})`, gap: `var(--fp-control-gap, ${rawDefaults.controls.gap})`, iconSize: `var(--fp-icon-size, ${rawDefaults.controls.iconSize})` },
   fontFamily: {

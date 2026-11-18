@@ -11,8 +11,9 @@ export function useDrawingBoundary(enabled: boolean) {
 
 export function RemovedDrawingStyle({ boundary }: { boundary: string }) {
   // Only elements between this pair of siblings belong to the removed object.
-  // The annotation after them stays legible, and other objects retain their paint.
+  // A filter multiplies the existing painted alpha, including hidden ports and
+  // dimmed drawings. The annotation after these siblings stays legible.
   return <style id={boundary + "-begin"}>{`
-    #${boundary}-begin ~ :has(~ #${boundary}-end) { opacity: var(--fp-diagram-removed-opacity, 0.4) !important; }
+    #${boundary}-begin ~ :has(~ #${boundary}-end) { filter: opacity(var(--fp-diagram-removed-opacity, 0.4)); }
   `}</style>;
 }

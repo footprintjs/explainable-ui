@@ -678,6 +678,12 @@ what it wanted instead of rendering empty chrome.
 
 ### Draw a graph from code, live state or recorded steps
 
+| API | Purpose |
+| --- | --- |
+| `createDiagramAppearanceReader` | Read the latest supplied appearance for each node and edge at a replay step. |
+| `DiagramNodeAppearance` | Add activity, measured progress and confirmed-removal styling to a custom node. |
+| `DiagramEdgeAppearance` | Apply the same presentation to a custom edge using its routed SVG path. |
+
 A graph supplies stable node and edge IDs. Render it immediately with `TraceFlow`.
 An application can supply the current appearance directly when a job starts, reports
 progress or confirms removal. The same props work on flat and isometric charts.
@@ -700,6 +706,7 @@ const reader = createDiagramAppearanceReader([
 The reader indexes the observations you supply for one recording scope. Each
 change replaces one object's appearance, and `null` clears it. Keep the node
 or edge and its endpoints in the graph to show a confirmed-removal ghost.
+Set the `diagram.removedOpacity` theme token to adjust its faded appearance.
 An activity without a measured total shows its label without a percentage.
 FootPrintJS, Foottrace, or your own application can supply observations and
 the selected step. A static graph requires no recorder.

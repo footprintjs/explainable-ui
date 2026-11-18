@@ -39,6 +39,22 @@ describe("diagram object facts", () => {
       .toEqual({ progress: { completed: 0.25, total: 0.5, unit: "MB" } });
   });
 
+  it("keeps an invisible native handle hidden and compounds the alpha of a dimmed drawing", () => {
+    const view = (appearance?: DiagramObjectAppearance) => <div><DiagramNodeAppearance appearance={appearance}>
+      <span className="react-flow__handle" data-testid="handle" style={{ opacity: 0 }} />
+      <div data-testid="dimmed" style={{ opacity: 0.25 }}>Body</div>
+    </DiagramNodeAppearance></div>;
+    const { rerender } = render(view({ presence: "removed" }));
+    for (const [name, opacity] of [["handle", "0"], ["dimmed", "0.25"]]) {
+      const paint = getComputedStyle(screen.getByTestId(name));
+      expect(paint.opacity).toBe(opacity);
+      expect(paint.filter).toBe("opacity(var(--fp-diagram-removed-opacity, 0.4))");
+    }
+    rerender(view({ activity: "removing" }));
+    expect(getComputedStyle(screen.getByTestId("handle")).opacity).toBe("0");
+    expect(getComputedStyle(screen.getByTestId("dimmed")).filter).toBe("none");
+  });
+
   it("draws progress on the node, preserves stateful children through removal and rewind, and keeps ordinary markup", () => {
     const view = (appearance?: DiagramObjectAppearance, unstyled?: boolean) =>
       <div data-testid="footprint"><DiagramNodeAppearance appearance={appearance} unstyled={unstyled}>
