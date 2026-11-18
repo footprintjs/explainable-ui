@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type { StageSnapshot } from "../../types";
 import type { TracingRail } from "../../model/replayControls";
-import { buildDataTrace, type DataTraceResult } from "../../trace/dataTrace";
+import { createDataTraceReader, type DataTraceResult } from "../../trace/dataTrace";
 import type { TraceScope } from "../../trace/traceScope";
-import { buildTraceWalk, type TraceIngredient, type TraceWalk } from "../../trace/traceWalk";
+import { buildTraceWalk, createTraceWalkReader, type TraceIngredient, type TraceWalk } from "../../trace/traceWalk";
 import { subflowHandoffSources, type SubflowHandoffSource } from "../../trace/subflowHandoff";
 import { projectTraceInvocation } from "../../trace/projectTraceInvocation";
 import { ownDataField } from "../../trace/safeRecordRead";
@@ -224,12 +224,22 @@ export function useTraceSessionController({
   if (sourceToken.current.source !== source) sourceToken.current = { source, token: {} };
   const sourceIdentity = typeof source === "string" ? source : sourceToken.current.token;
   useEffect(() => { if (sourceChanged) dispatch({ type: "reset" }); }, [sourceChanged, dispatch]);
-  const shellDataTrace = useMemo<DataTraceResult>(() => {
-    const trace = activeTraceScope.availability.ok && traceHistoryAvailable
-      ? buildDataTrace(activeTraceScope.commitLog, activeTraceScope.executionTree, activeSnapshots[safeIdx]?.runtimeStageId ?? "", undefined, undefined, undefined, { nestedReadTracking: activeTraceScope.nestedReadTracking })
-      : { frames: [], readsAvailable: false };
-    return { ...trace, readsAvailable: activeTraceScope.readsAvailable };
-  }, [activeTraceScope, traceHistoryAvailable, activeSnapshots, safeIdx]);
+  const dataTraceReader = useMemo(() => activeTraceScope.availability.ok && traceHistoryAvailable
+    ? createDataTraceReader(activeTraceScope.commitLog, activeTraceScope.executionTree,
+      { nestedReadTracking: activeTraceScope.nestedReadTracking }) : undefined, [activeTraceScope, traceHistoryAvailable]);
+  const shellDataTrace = useMemo<DataTraceResult>(() => ({
+    frames: dataTraceReader?.at(activeSnapshots[safeIdx]?.runtimeStageId ?? "").frames ?? [],
+    readsAvailable: activeTraceScope.readsAvailable,
+  }), [dataTraceReader, activeTraceScope.readsAvailable, activeSnapshots, safeIdx]);
+  const readWalk = useMemo(() => {
+    type Reader = ReturnType<typeof createTraceWalkReader>;
+    let reader: Reader | undefined;
+    // Prepare only when someone asks the first question in this scope.
+    return (...question: Parameters<Reader>) => {
+      reader ??= createTraceWalkReader(activeTraceScope.commitLog, activeTraceScope.executionTree, walkScope(activeTraceScope));
+      return reader(...question);
+    };
+  }, [activeTraceScope]);
 
   // Include every recorded written key in first-write order. A key that is
   // not written at the cursor still has an honest, traceable missing state.
@@ -250,13 +260,12 @@ export function useTraceSessionController({
     if (sourceChanged || !tracing || tracing.scope !== activeTraceKey || !activeTraceScope.availability.ok) return null;
     const anchor = tracing.via.at(-1) ?? tracing;
     if (!readerStillRecorded(anchor, activeTraceScope.commitLog)) return null;
-    return buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, anchor.key, {
+    return readWalk(anchor.key, {
       beforeCommitIdx: anchor.beforeCommitIdx,
       readerCommitIdx: anchor.readerCommitIdx,
-      scope: walkScope(activeTraceScope),
       runtimeSnapshot,
     });
-  }, [tracing, activeTraceScope, activeTraceKey, sourceChanged, runtimeSnapshot]);
+  }, [tracing, activeTraceScope, activeTraceKey, sourceChanged, runtimeSnapshot, readWalk]);
 
   const traceStopIndices = useMemo(() => {
     if (!traceWalk || traceWalk.missing) return [];
@@ -355,8 +364,8 @@ export function useTraceSessionController({
     return !!restoreTraceQuestion || (samePath(origin.invocationPath, activeTraceScope.invocationPath) &&
       activeSnapshots.filter(snapshot => snapshot.runtimeStageId === origin.runtimeStageId).length === 1);
   }, [sourceChanged, sourceIdentity, resolveRecordedScope, restoreTraceQuestion, activeTraceScope.invocationPath, activeSnapshots]);
-  const activityOrigin = tracing && savedActivityOrigin && activityOriginValid(savedActivityOrigin)
-    ? savedActivityOrigin.address : null;
+  const activityOrigin = useMemo(() => tracing && savedActivityOrigin && activityOriginValid(savedActivityOrigin)
+    ? savedActivityOrigin.address : null, [tracing, savedActivityOrigin, activityOriginValid]);
 
   const saveCurrentQuestion = useCallback((): SavedQuestion | undefined => {
     const cursorRuntimeStageId = activeSnapshots[safeIdx]?.runtimeStageId;
@@ -407,16 +416,15 @@ export function useTraceSessionController({
     const beforeCommitIdx = cursorCommitIndex >= 0 ? cursorCommitIndex + 1 : undefined;
     dispatch({ type: "start", question: { scope: activeTraceKey, key, beforeCommitIdx, via: [] }, generation: {} });
     onStartInspector();
-    jumpToAnchor(buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, key, { beforeCommitIdx,
-      scope: walkScope(activeTraceScope) }));
-  }, [activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, dispatch, onStartInspector, jumpToAnchor]);
+    jumpToAnchor(readWalk(key, { beforeCommitIdx }));
+  }, [activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, dispatch, onStartInspector, jumpToAnchor, readWalk]);
 
   // Activity supplies an admitted read/write address, never a value. Read
   // questions use that visit's recorded look; write questions include its commit.
   const latestActivityTrace = useRef({ activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, stageActivity,
-    sourceChanged, sourceIdentity, onStartInspector, jumpToAnchor });
+    sourceChanged, sourceIdentity, onStartInspector, jumpToAnchor, readWalk });
   latestActivityTrace.current = { activeTraceScope, activeTraceKey, activeSnapshots, safeIdx, stageActivity,
-    sourceChanged, sourceIdentity, onStartInspector, jumpToAnchor };
+    sourceChanged, sourceIdentity, onStartInspector, jumpToAnchor, readWalk };
   const handleTraceStageVariable = useCallback((target: StageActivityTraceTarget) => {
     const latest = latestActivityTrace.current;
     if (latest.sourceChanged || !latest.activeTraceScope.availability.ok || !latest.stageActivity?.availability.ok) return;
@@ -445,8 +453,7 @@ export function useTraceSessionController({
       }
       const anchor: TraceAnchor = { key, beforeCommitIdx: cutoff,
         ...(kind === "read" ? { readerCommitIdx: commitIdx, readerRuntimeStageId: runtimeStageId } : {}) };
-      const walk = buildTraceWalk(log, latest.activeTraceScope.executionTree, key, { beforeCommitIdx: cutoff,
-        readerCommitIdx: anchor.readerCommitIdx, scope: walkScope(latest.activeTraceScope) });
+      const walk = latest.readWalk(key, { beforeCommitIdx: cutoff, readerCommitIdx: anchor.readerCommitIdx });
       dispatch({ type: "start", question: { scope: latest.activeTraceKey, ...anchor, via: [] },
         generation: {}, activityOrigin: { sourceIdentity: latest.sourceIdentity, address: {
           invocationPath: [...path], runtimeStageId, beforeCommitIdx: cutoff, key, kind,
@@ -465,11 +472,10 @@ export function useTraceSessionController({
         recorded.writerCommitIdx === ingredient.writerCommitIdx))) return;
     const anchor = { key: ingredient.key, beforeCommitIdx: ingredient.writerCommitIdx + 1 };
     dispatch({ type: "follow", anchor, previous });
-    jumpToAnchor(buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, anchor.key, {
+    jumpToAnchor(readWalk(anchor.key, {
       beforeCommitIdx: anchor.beforeCommitIdx,
-      scope: walkScope(activeTraceScope),
     }));
-  }, [tracing, activeTraceScope, traceWalk, dispatch, jumpToAnchor, saveCurrentQuestion]);
+  }, [tracing, activeTraceScope, traceWalk, dispatch, jumpToAnchor, saveCurrentQuestion, readWalk]);
 
   const handleFollowHandoff = useCallback((source: SubflowHandoffSource) => {
     const previous = saveCurrentQuestion();
@@ -497,12 +503,11 @@ export function useTraceSessionController({
   const handleShowAllIngredients = useCallback(() => {
     if (!tracing || !activeTraceScope.availability.ok) return;
     dispatch({ type: "show-all" });
-    jumpToAnchor(buildTraceWalk(activeTraceScope.commitLog, activeTraceScope.executionTree, tracing.key, {
+    jumpToAnchor(readWalk(tracing.key, {
       beforeCommitIdx: tracing.beforeCommitIdx,
       readerCommitIdx: tracing.readerCommitIdx,
-      scope: walkScope(activeTraceScope),
     }));
-  }, [tracing, activeTraceScope, dispatch, jumpToAnchor]);
+  }, [tracing, activeTraceScope, dispatch, jumpToAnchor, readWalk]);
   const exitContext = { generation, sourceIdentity, sourceChanged, savedActivityOrigin, activityOriginValid,
     restoreTraceQuestion, activeTraceScope, activeSnapshots, setSnapshotIdx, onReturnToActivity };
   const latestExit = useRef(exitContext);
