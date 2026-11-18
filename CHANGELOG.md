@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-17
+
 ### Added
 
 - Add consumer-owned drawings and attachment points to flat and isometric charts, with shared node and edge appearance for live and recorded activity, measured progress, and confirmed removal.
@@ -14,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Breaking
 
-- Graph dependencies are now explicit peers for root and `/flowchart` consumers. Migration: install React, ReactDOM, `@xyflow/react@^12` and `dagre@^0.8.5` in graph applications. Record-only consumers install React and `foottrace@^2.0.0`. This change is intended for a major release.
+- Graph dependencies are now explicit peers for root and `/flowchart` consumers. Migration: install React, ReactDOM, `@xyflow/react@^12` and `dagre@^0.8.5` in graph applications. Record-only consumers install React and `foottrace@^2.0.0`.
 
 ## [1.1.1] - 2026-11-17
 
