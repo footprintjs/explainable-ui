@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { keysReadFromExecutionTree } from "foottrace";
 import { createRecordLensReader } from "../../src/record/model";
 import { createScopedRecordGraph } from "../../src/record/scopedRecordGraph";
-import { paymentWithTwoStageReads } from "../fixtures/payment-subflow/twoStageReads";
+import { paymentWithStageReadDelta, paymentWithTwoStageReads } from "../fixtures/payment-subflow/twoStageReads";
 
 function payment(mode = "on") {
   return JSON.parse(readFileSync(`test/fixtures/payment-subflow/${mode}.json`, "utf8"));
@@ -14,6 +14,47 @@ function read(snapshot: unknown, key: string, beforeCommitIdx: number, invocatio
 const child = ["payment#1"];
 
 describe("scoped record graph", () => {
+  it("folds only the requested native commit, including a child log's seed", async () => {
+    const snapshot = paymentWithStageReadDelta("append");
+    const receipt = { invocationPath: [], runtimeStageId: "payment#1", key: "receipt" };
+    const graph = createScopedRecordGraph(snapshot)!;
+    expect(graph.valueAt({ ...receipt, commitIdx: 2 })).toHaveProperty("gap.code", "writer-address-unverified");
+    await graph.read({ ...receipt, beforeCommitIdx: 3 });
+    expect(graph.valueAt({ ...receipt, commitIdx: 2 })).toEqual({ value: ["original", "appended"] });
+    expect(graph.valueAt({ ...receipt, commitIdx: 1 })).toEqual({ value: ["original"] });
+    for (const [commitIdx, runtimeStageId, key, value] of [
+      [0, child[0], "chargedAmount", 99], [1, "payment/charge#2", "txnId", "TXN-99"],
+    ] as const) {
+      const query = { invocationPath: child, commitIdx, runtimeStageId, key };
+      await graph.read({ ...query, beforeCommitIdx: commitIdx + 1 });
+      expect(graph.valueAt(query)).toEqual({ value });
+    }
+    expect(graph.valueAt({ ...receipt, commitIdx: 3 })).toHaveProperty("gap.code", "writer-address-unverified");
+    expect(graph.valueAt({ ...receipt, commitIdx: -1 })).toHaveProperty("gap.code", "writer-address-unverified");
+    expect(graph.valueAt({ ...receipt, commitIdx: 1, address: { logRunId: "another-run", drillPath: [] } }))
+      .toHaveProperty("gap.code", "writer-address-unverified");
+  });
+
+  it("inspects an admitted merged receipt at its own commit and retains the earlier value", async () => {
+    const graph = createScopedRecordGraph(paymentWithStageReadDelta("merge"))!;
+    const { candidates } = await graph.read({ invocationPath: [], key: "shipped", beforeCommitIdx: 4 });
+    expect(candidates?.map(writer => graph.valueAt(writer))).toEqual([{ value: "TXN-99" }, { value: "TXN-REVISED" }]);
+  });
+
+  it("reports the fold's basis instead of a deleted or redacted value", async () => {
+    for (const code of ["deleted", "redacted"]) {
+      const snapshot = payment();
+      Object.assign(snapshot.commitLog[2], { trace: [{ path: "receipt", verb: code === "deleted" ? "delete" : "set" }],
+        overwrite: code === "deleted" ? {} : { receipt: "[REDACTED]" }, redactedPaths: code === "redacted" ? ["receipt"] : [] });
+      const graph = createScopedRecordGraph(snapshot)!;
+      const query = { invocationPath: [], commitIdx: 2, runtimeStageId: "payment#1", key: "receipt" };
+      await graph.read({ ...query, beforeCommitIdx: 3 });
+      const result = graph.valueAt(query);
+      expect(result).toHaveProperty("gap.code", code);
+      expect(result).not.toHaveProperty("value");
+    }
+  });
+
   it("keeps two admitted reads of receipt as candidates for the exact shipped write", async () => {
     const snapshot = paymentWithTwoStageReads();
 

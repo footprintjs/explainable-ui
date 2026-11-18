@@ -15,7 +15,7 @@ import { FootprintCode, FootprintButton, FootprintIcon, FootprintTooltip } from 
  */
 import { scopeSentence, START_SENTENCE, inputSentence, isInvocationStart, mountLabel } from "../../trace/tracePresentation";
 import { handoffSentence, type SubflowHandoffSource } from "../../trace/subflowHandoff";
-import { recordedPathLabel, recordedValuePreview } from "../../trace/recordedValuePreview";
+import { recordedPathLabel, recordedValuePreview, type InspectedStageRead } from "../../trace/recordedValuePreview";
 import { buildTraceDependencyGraph } from "../../trace/traceDependencyGraph";
 import { traceIngredientColor, traceNodeColors } from "../../trace/traceWorkflowOverlay";
 import { memo, useMemo, useState } from "react";
@@ -56,6 +56,7 @@ export interface TraceWalkCardProps extends BaseComponentProps {
   /** Value preview for a contributed key at the current stop (the shell
    *  reads snapshot.memory — state as of that moment). */
   previewValueOf?: (key: string) => unknown;
+  inspectedStageRead?: InspectedStageRead;
   /** Follow an ingredient: re-anchor the walk on ing.key before this stop. */
   onInspectStageRead?: (read: TraceStageRead) => void;
   onFollowIngredient?: (ing: TraceIngredient) => void;
@@ -90,6 +91,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
   onReturnToQuestion,
   stepNumberOf,
   previewValueOf,
+  inspectedStageRead,
   onInspectStageRead,
   onFollowIngredient,
   onFollowHandoff,
@@ -184,7 +186,8 @@ export const TraceWalkCard = memo(function TraceWalkCard({
 
   const ambiguousTermini = new Map(walk.stops.flatMap(stop => stop.ingredients.filter(input => input.unresolvedReason).map(input => [input.key, input.unresolvedReason] as const)));
   const step = stepNumberOf(current.runtimeStageId);
-  const preview = previewValueOf ? recordedValuePreview(previewValueOf(current.contributedKeys[0] ?? walk.key)) : null;
+  const inspected = currentIdx === 0 && inspectedStageRead?.key === walk.key ? inspectedStageRead : undefined;
+  const preview = recordedValuePreview(inspected ? inspected.value : previewValueOf?.(current.contributedKeys[0] ?? walk.key));
 
   return (
     <div
@@ -245,6 +248,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
         {preview !== null && (
           <span style={sx({ color: theme.textPrimary, fontWeight: ui.weightStrong })}> = {preview}</span>
         )}
+        {inspected?.gap && <div data-fp="twc-value-gap">{inspected.gap}</div>}
       </div>
 
       {/* ── Fork chooser (F2) — opened by the rail's walk-back control at a
@@ -378,7 +382,7 @@ export const TraceWalkCard = memo(function TraceWalkCard({
           return (
             <FootprintButton {...controls}
               type="button"
-              key={s.runtimeStageId}
+              key={s.commitIdx}
               data-fp="twc-itinerary-row" part="trace-itinerary-stop"
               data-current={isCurrent || undefined}
               onClick={() => onJumpToStop?.(s.runtimeStageId)}

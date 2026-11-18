@@ -37,7 +37,8 @@ export function TraceSessionPanel({ availability, scopeLabel, snapshot, selected
       cursorRuntimeStageId={snapshot?.runtimeStageId ?? null}
       viaKey={view.activeViaKey}
       stepNumberOf={view.stepNumberOf}
-      previewValueOf={key => view.inspectedStageRead?.key === key ? view.inspectedStageRead.value : recordedValueAtPath(snapshot?.memory, key)}
+      previewValueOf={key => recordedValueAtPath(snapshot?.memory, key)}
+      inspectedStageRead={view.inspectedStageRead}
       onInspectStageRead={view.handleInspectStageRead}
       onFollowIngredient={view.handleFollowIngredient}
       onFollowHandoff={view.handleFollowHandoff}

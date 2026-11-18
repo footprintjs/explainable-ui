@@ -1,3 +1,4 @@
+import type { TraceWorkflowStage } from "../../trace/traceWorkflowOverlay";
 import { memo, useEffect, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import { Position } from "@xyflow/react";
@@ -66,7 +67,7 @@ export interface StageNodeData {
   traceWorkflow?: {
     color: string;
     role: "question" | "input" | "upstream";
-    values: readonly { key: string; preview: string | null; color: string }[];
+    values: TraceWorkflowStage["values"];
   };
   /** Display membership only; makes no claim about execution or causal independence. */
   traceContext?: "displayed" | "outside";
@@ -537,7 +538,7 @@ export const StageNode = memo(function StageNode({
                     key={`${index}:${value.key}`}
                     data-fp="trace-workflow-value"
                     style={sx({ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: value.color, fontFamily: "ui-monospace, monospace", fontWeight: 600 })}
-                  >{traceText(recordedPathLabel(value.key), 32)}{value.preview === null ? " · preview unavailable" : ` = ${traceText(value.preview, 48)}`}</span>)}
+                  >{traceText(recordedPathLabel(value.key), 32)}{value.preview === null ? ` · ${value.gap ?? "preview unavailable"}` : ` = ${traceText(value.preview, 48)}`}</span>)}
                 </span>
                 {traceWorkflow.values.length > TRACE_VALUE_LIMIT && <span data-fp="trace-workflow-more" style={sx({ flexShrink: 0, color: theme.textSecondary })}>+{traceWorkflow.values.length - TRACE_VALUE_LIMIT} more</span>}
               </>}

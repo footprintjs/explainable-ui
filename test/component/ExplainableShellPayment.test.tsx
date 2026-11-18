@@ -1,16 +1,18 @@
 /** @vitest-environment jsdom */
-import { paymentWithTwoStageReads } from "../fixtures/payment-subflow/twoStageReads";
+import { paymentWithStageReadDelta, paymentWithTwoStageReads } from "../fixtures/payment-subflow/twoStageReads";
 import * as React from "react";
 import { readFileSync } from "node:fs";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ExplainableShell } from "../../src/components/ExplainableShell/ExplainableShell";
 
-function openAtShip(snapshot: unknown) {
-  render(<ExplainableShell runtimeSnapshot={snapshot as React.ComponentProps<typeof ExplainableShell>["runtimeSnapshot"]} renderFlowchart={() => null}/>);
+type ShellProps = React.ComponentProps<typeof ExplainableShell>;
+function openAtShip(snapshot: unknown, renderFlowchart: ShellProps["renderFlowchart"] = () => null) {
+  const ui = render(<ExplainableShell runtimeSnapshot={snapshot as ShellProps["runtimeSnapshot"]} renderFlowchart={renderFlowchart}/>);
   fireEvent.click(screen.getByRole("button", { name: "Inspector" }));
   fireEvent.click(screen.getByLabelText("Next stage"));
   fireEvent.click(screen.getByLabelText("Next stage"));
+  return ui;
 }
 
 function askAboutShipped(mode: "on" | "default") {
@@ -20,6 +22,13 @@ function askAboutShipped(mode: "on" | "default") {
 }
 
 const card = () => within(document.querySelector('[data-fp="trace-walk-card"]') as HTMLElement);
+
+async function inspectReceipt(commit: number) {
+  fireEvent.click(screen.getByText("Data Trace"));
+  fireEvent.click(within(document.querySelector('[data-fp="trace-any"]') as HTMLElement).getByRole("button", { name: "shipped" }));
+  fireEvent.click(await card().findByRole("button", { name: new RegExp(`Inspect stage read receipt.*commit ${commit}`) }));
+  await card().findByText(`Stage read · commit ${commit}`);
+}
 
 describe("Payment Backtrack on the Shell's shared replay cursor", () => {
   it("crosses the output and input mappings and returns to the exact Ship activity control", async () => {
@@ -58,6 +67,58 @@ describe("Payment Backtrack on the Shell's shared replay cursor", () => {
       await card().findByRole("group", { name: "Recorded stage reads" });
       expect(document.querySelector('[data-fp="twc-stop-headline"]')?.textContent).toContain("Ship");
     }
+  });
+
+  describe.each(["append", "merge"] as const)("inspecting a %s stage-read value", verb => {
+    it.each(["card", "variable graph"])("shows the folded value at commit 2 in the %s", async surface => {
+      openAtShip(paymentWithStageReadDelta(verb));
+      await inspectReceipt(2);
+
+      const value = verb === "append" ? '["original", "appended"]' : '"TXN-REVISED"';
+      if (surface === "card") {
+        expect(await card().findByText(`= ${value}`)).toBeTruthy();
+      } else {
+        fireEvent.click(screen.getByRole("button", { name: "Variables" }));
+        const node = await screen.findByRole("button", { name: "Show receipt at Payment" });
+        expect(within(node).getByText(value)).toBeTruthy();
+      }
+    });
+  });
+
+  it("refreshes an active inspected value when the same run supplies a new revision", async () => {
+    const snapshot = paymentWithStageReadDelta("merge");
+    const ui = openAtShip(snapshot);
+    await inspectReceipt(2);
+    expect(await card().findByText('= "TXN-REVISED"')).toBeTruthy();
+    const updated = { ...snapshot, commitLog: snapshot.commitLog.map((row, index) =>
+      index === 2 ? { ...row, updates: { receipt: "SECOND REVISION" } } : row) };
+    ui.rerender(<ExplainableShell runtimeSnapshot={updated} renderFlowchart={() => null}/>);
+    expect(card().queryByText('= "TXN-REVISED"')).toBeNull();
+    expect(await card().findByText('= "SECOND REVISION"')).toBeTruthy();
+  });
+
+  it("keeps the execution chart badge on the inspected receipt commit", async () => {
+    openAtShip(paymentWithTwoStageReads(), ({ traceWorkflow }) => {
+      const anchor = traceWorkflow?.stages.find(stage => stage.role === "question");
+      return <output aria-label="Execution chart value">{anchor?.values[0]?.preview}</output>;
+    });
+    await inspectReceipt(1);
+    expect(screen.getByLabelText("Execution chart value").textContent).toBe('"TXN-99"');
+  });
+
+  it("shows the fold's starting-value gap at both surfaces and withholds the partial value", async () => {
+    const recording = paymentWithStageReadDelta("append");
+    const snapshot = { ...recording, initialState: { receipt: ["starting value"] },
+      commitLog: recording.commitLog.map((row, index) => index === 1 ? { ...row, trace: [], overwrite: {} } : row) };
+    openAtShip(snapshot);
+    await inspectReceipt(2);
+    const gap = "The recorded changes depend on the starting value.";
+    expect(await card().findByText(gap)).toBeTruthy();
+    expect(card().queryByText(/= .*appended/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Variables" }));
+    const node = await screen.findByRole("button", { name: "Show receipt at Payment" });
+    expect(within(node).getByText(gap)).toBeTruthy();
+    expect(node.textContent).not.toContain("appended");
   });
 
   it.each([false, true])("keeps a redacted receipt at Ship's read cutoff when an older visible writer exists: %s", async older => {

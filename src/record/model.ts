@@ -19,6 +19,7 @@ import { normaliseStateKey, pathSegments } from "foottrace/paths";
 import { fitsReaderCache } from "./cacheBudget";
 import { createFoldWindow } from "./foldWindow";
 import { createScopedRecordGraph, type ScopedWriter } from "./scopedRecordGraph";
+import { foldedWriterValue } from "../scopedBacktrack/graph";
 import { ownDataField } from "../trace/safeRecordRead";
 import { directWriterStops } from "./writerStops";
 import type {
@@ -223,14 +224,13 @@ export function createRecordLensReader<TMeta = unknown>(input: RecordReaderInput
     const source = graph!.source(path), reader = forScope(path);
     if (!source?.commitLog || !reader) return undefined;
     const log = source.commitLog as CommitBundle[], row = log[writer.commitIdx];
-    if (!row || row.runtimeStageId !== writer.runtimeStageId || !row.trace.some(write => write.path === writer.key)) return undefined;
     const stops = reader.stops.filter(stop => (
       (stop.runtimeStageId === writer.runtimeStageId && (stop.kind === "commit" || stop.kind === "mount")) ||
       (stop.kind === "start" && !stop.prologue && writer.commitIdx === 0 && writer.runtimeStageId === path.at(-1))
     ) && stop.commitIdx <= writer.commitIdx && writer.commitIdx <= stop.lastCommitIdx);
-    if (stops.length !== 1 || findLastWriter(log, writer.key, stops[0].lastCommitIdx + 1) !== row) return undefined;
-    const recorded = commitValueAtWithBasis(log, writer.commitIdx, writer.key, { initialState: source.initialState });
-    if (recorded.basis.length) return undefined;
+    if (!row || stops.length !== 1 || findLastWriter(log, writer.key, stops[0].lastCommitIdx + 1) !== row) return undefined;
+    const recorded = foldedWriterValue(commitValueAtWithBasis, log, source.initialState, writer);
+    if ("gap" in recorded) return undefined;
     return { invocationPath: path, key: pathSegments(writer.key), step: stops[0].step, value: recorded.value };
   }
   return forScope([])!;

@@ -102,6 +102,7 @@ describe('scoped tracing against recorded FootprintJS 10.3.0 runs', () => {
     if (withoutReader) fireEvent.click(screen.getByLabelText('Earlier recorded step'));
     else fireEvent.click(within(card).getByRole('button', { name: /Inspect stage read subtotal from .*Child Sum/ }));
     await waitFor(() => expect(card.querySelector('[data-fp="twc-stop-headline"]')?.textContent).toMatch(/Child Sum/));
+    if (!withoutReader) expect(await within(card).findByText(`= ${expected / 2}`)).toBeTruthy();
     ui.drill(null);
     expect(screen.getByRole('toolbar').getAttribute('data-tracing')).toBeNull();
     expect(document.querySelector('[data-fp="trace-walk-card"]')).toBeNull();

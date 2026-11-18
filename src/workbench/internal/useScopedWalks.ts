@@ -10,6 +10,7 @@ export interface WalkQuestion {
   readonly beforeCommitIdx?: number;
   readonly readerCommitIdx?: number;
   readonly writerRuntimeStageId?: string;
+  readonly stageReadCommitIdx?: number;
 }
 
 /** A flat recording without scalar sources or coverage keeps its synchronous rail. */
@@ -27,7 +28,7 @@ export function useScopedWalks<Q>(snapshot: unknown, questions: ReadonlyMap<Q, W
     return () => pending ??= loadScopedRecordGraph(snapshot);
   }, [snapshot]);
   const completed = useMemo(() => new Map<string, TraceWalk>(), [snapshot]);
-  const [ready, setReady] = useState<{ questions: typeof questions; walks: Map<Q, TraceWalk> }>();
+  const [ready, setReady] = useState<{ questions: typeof questions; walks: Map<Q, TraceWalk>; graph?: ScopedRecordGraph }>();
   useEffect(() => {
     if (!addressed || !questions.size) return;
     const controller = new AbortController();
@@ -35,13 +36,13 @@ export function useScopedWalks<Q>(snapshot: unknown, questions: ReadonlyMap<Q, W
       const graph = await getGraph().catch(() => undefined);
       if (controller.signal.aborted) return;
       const walks = new Map<Q, TraceWalk>();
-      for (const [question, { local, beforeCommitIdx, readerCommitIdx, writerRuntimeStageId }] of questions) {
+      for (const [question, { local, beforeCommitIdx, readerCommitIdx, writerRuntimeStageId, stageReadCommitIdx }] of questions) {
         if (controller.signal.aborted) return;
-        const address = JSON.stringify([local.scope?.invocationPath, local.key, beforeCommitIdx, readerCommitIdx, writerRuntimeStageId]);
+        const address = JSON.stringify([local.scope?.invocationPath, local.key, beforeCommitIdx, readerCommitIdx, writerRuntimeStageId, stageReadCommitIdx]);
         const cached = completed.get(address);
         if (cached) { walks.set(question, cached); continue; }
         try {
-          const walk = graph ? await buildScopedWalk(graph, snapshot, local, beforeCommitIdx, readerCommitIdx, writerRuntimeStageId, controller.signal) : local;
+          const walk = graph ? await buildScopedWalk(graph, snapshot, local, beforeCommitIdx, readerCommitIdx, writerRuntimeStageId, controller.signal, stageReadCommitIdx) : local;
           if (controller.signal.aborted) return;
           walks.set(question, walk);
           completed.set(address, walk);
@@ -50,13 +51,13 @@ export function useScopedWalks<Q>(snapshot: unknown, questions: ReadonlyMap<Q, W
           walks.set(question, scopedWalkStatus(local, "Recorded evidence could not be read. Source collection unknown."));
         }
       }
-      if (!controller.signal.aborted) setReady({ questions, walks });
+      if (!controller.signal.aborted) setReady({ questions, walks, graph });
     }
     void load();
     return () => controller.abort();
   }, [addressed, questions, getGraph, snapshot, completed]);
   return useMemo(() => {
-    if (addressed && ready?.questions === questions) return { walks: ready.walks, pending: false };
+    if (addressed && ready?.questions === questions) return { walks: ready.walks, graph: ready.graph, pending: false };
     const walks = new Map<Q, TraceWalk>();
     for (const [question, { local, beforeCommitIdx, readerCommitIdx }] of questions) {
       walks.set(question, addressed ? scopedWalkStatus(local, "Reading recorded sources…", readerCommitIdx === undefined ? beforeCommitIdx : undefined) : local);

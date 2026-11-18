@@ -1,6 +1,13 @@
 import { isPlainRecord, ownDataField } from "./safeRecordRead";
 import { formatRecordedValue, nativeKind } from "../recordedValues";
 
+/** Display evidence for the exact commit selected by inspecting an observed read. */
+export interface InspectedStageRead {
+  readonly key: string;
+  readonly value: unknown;
+  readonly gap?: string;
+}
+
 /** Engine trace paths use UNIT SEPARATOR; dots inside a recorded key stay literal. */
 export function recordedValueAtPath(memory: unknown, key: string): unknown {
   if (key.length > 4_096) return undefined;

@@ -8,6 +8,12 @@ A query identifies one invocation path, state key and exclusive commit index. Th
 - [graph.ts](./graph.ts) asks Foottrace for the writer and its direct data parents. A local stage edge identifies a commit that supplied a read. It appears in `candidates` so a host can inspect the commit separately from write-specific sources. Across a subflow, `handoffs` exposes mapper reads with an exact source address at the recorded cutoff. These can be inspected under “Recorded handoff reads”. The caller owns replay navigation.
 - [load.ts](./load.ts) lets the Shell request the optional `foottrace` and `foottrace/cause` entries when a scoped question needs them. Hosts using the recording entry can call the reader directly. [Record reader usage](../record/README.md)
 
+## The value after a selected write
+
+Foottrace owns the meaning of set, merge, append and delete. When someone inspects a recorded stage read, use its writer address to choose the invocation, key and local commit. The writer search takes an **exclusive** cutoff. Once it finds commit `i`, pass **`i`** to Foottrace’s public `commitValueAtWithBasis` with that scope’s log and initial state. This yields the value immediately after the write, even when a later commit in the same slider stop overwrote it.
+
+RecordLens and the Shell use the same fold. A nonempty basis gives a named gap, with redaction taking priority. The Shell can inspect either of two writes in a grouped stop. RecordLens offers navigation when its stop can represent the selected writer. The legacy runtime adapter builds an end-of-stage memory summary for ordinary stage replay, which can include later writes. Backtrack reads the addressed commit directly when inspecting a stage read.
+
 ## Gap codes
 
 Each gap carries its invocation path, code and display sentence. A *bound note* here means a recognized v1 or v2 in-memory root capture note whose run ID, log address and full commit interval agree with the recorded root. Only that root can use its coverage. For example, default Payment records explicitly set write provenance to `off` and omit the output-handoff descriptor. At the mount, Backtrack therefore returns both `prefix-off` and `output-unknown`.
@@ -32,6 +38,9 @@ Each gap carries its invocation path, code and display sentence. A *bound note* 
 | `writes-failed` | Write capture failed. | The bound note marks writes failed. |
 | `sources-failed` | Read source capture failed. | The bound note or bound scalar-source observation marks read sources failed. |
 | `redacted` | Privacy settings withheld recorded evidence. | Foottrace reports redaction for the selected key at the query cutoff or for a mapper source at its own cutoff. A graph or capture limitation can also report privacy or redaction, including `privacy-active`, `redaction-active`, `redacted-export` and a bound `redacted-source-export`. |
+| `deleted` | The key was absent after this commit. | Foottrace’s value basis reports deletion at the selected commit. |
+| `from-initial-state` | The recorded changes depend on the starting value. | Foottrace qualifies the folded value with its initial-state basis. |
+| `never-written` | No write to this key was recorded by this commit. | Foottrace’s value basis reports no recorded write to the key through this commit. |
 | `budget` | Capture budget limit reached. | Capture reports `budget-exhausted` or `branches-truncated`, the adapter reaches its admission budget, or Foottrace reports `truncated`, `node-limit`, `edge-limit`, `depth-limit` or `call-limit`. |
 | `missing-child` | Missing child record at the subflow boundary. | The requested scope is absent, a recorded mount lacks a child history with the matching run and exact invocation path, or a collection reports `missing-child-record`. |
 | `output-unknown` | Output handoff collection unknown. | The child history is available but its mount has no output-handoff descriptor. |

@@ -175,10 +175,11 @@ context. StageNode's **VIEWING** badge marks the recorded cursor rather than
 live execution. This context treatment is separate from run status and does
 not assert completion for future steps on the selected rail.
 
-Value previews come from the `StageSnapshot.memory` associated with the named
-writer visit, not from whichever cursor moment is currently selected.
-`recordedValuePreview` keeps previews bounded and reads inert own data;
-missing or unavailable values remain labelled rather than inferred.
+When a user inspects a specific recorded stage read, the Shell asks the scoped
+Backtrack reader for the value after that exact write. Foottrace supplies the
+value or the reason it is unavailable. Stage-level context uses the named
+visit’s `StageSnapshot.memory`. `recordedValuePreview` formats available values
+for display within the preview’s size limit.
 The ordinary or consumer-supplied execution chart stays mounted when the reader
 switches views, preserving its local state without changing the question or
 cursor. Without a usable walk, that chart and the existing missing-evidence

@@ -1,4 +1,4 @@
-import type { commitValueAtWithBasis, findLastWriterWithBasis, findReadSources, LogAddress, TimeTravelSource } from "foottrace";
+import type { CommitBundle, commitValueAtWithBasis, findLastWriterWithBasis, findReadSources, LogAddress, TimeTravelSource } from "foottrace";
 import type { createRecordGraph, Gap, GraphContext, GraphEdge } from "foottrace/cause";
 import { rootMountLabels } from "../trace/traceScope";
 import { classifyAdmissionFailure, optionalOwnDataField as field, readOwnArray, WorkBudget } from "../trace/safeRecordRead";
@@ -34,6 +34,8 @@ export interface ScopedBacktrack {
 export interface ScopedRecordGraph {
   readonly hasSubflows: boolean;
   source(invocationPath: readonly string[]): TimeTravelSource | undefined;
+  /** Inspect one exact write in a scope already admitted by a successful graph load. */
+  valueAt(writer: Pick<ScopedWriter, "invocationPath" | "commitIdx" | "runtimeStageId" | "key"> & { readonly address?: LogAddress }): { value: unknown } | { gap: ScopedGap };
   read(query: {
     invocationPath: readonly string[];
     beforeCommitIdx: number;
@@ -54,6 +56,9 @@ const messages: Record<string, string> = {
   "missing-child": "Missing child record at the subflow boundary.",
   "budget": "Capture budget limit reached.",
   "redacted": "Privacy settings withheld recorded evidence.",
+  "deleted": "The key was absent after this commit.",
+  "from-initial-state": "The recorded changes depend on the starting value.",
+  "never-written": "No write to this key was recorded by this commit.",
   "failed": "Evidence capture failed.",
   "unavailable": "Some recorded sources are unavailable.",
   "invalid-data": "The recorded evidence could not be read.",
@@ -91,6 +96,19 @@ function gap(code: string, invocationPath: readonly string[]): ScopedGap {
   return { invocationPath, code, message: messages[code] ?? "Recorded evidence is incomplete." };
 }
 
+/** Both replay views display a value only when Foottrace finds an unqualified answer. */
+export function foldedWriterValue(fold: typeof commitValueAtWithBasis, log: CommitBundle[], initialState: TimeTravelSource["initialState"],
+  { invocationPath, commitIdx, runtimeStageId, key }: Parameters<ScopedRecordGraph["valueAt"]>[0]): ReturnType<ScopedRecordGraph["valueAt"]> {
+  try {
+    const row = log[commitIdx];
+    if (!Number.isSafeInteger(commitIdx) || !row || row.runtimeStageId !== runtimeStageId || !row.trace.some(write => write.path === key))
+      return { gap: gap("writer-address-unverified", invocationPath) };
+    const { value, basis } = fold(log, commitIdx, key, { initialState });
+    if (!basis.length) return { value };
+    return { gap: gap(basis.includes("redacted") ? "redacted" : basis[0], invocationPath) };
+  } catch { return { gap: gap("invalid-data", invocationPath) }; }
+}
+
 /** Match opaque graph IDs by the public nodeId constructor, never by parsing
  * Foottrace's private serialization, merging log ordinals or searching stage names. */
 type GraphAPI = {
@@ -107,7 +125,7 @@ function refusalCode(error: unknown) {
 }
 
 function refused(code: string): ScopedRecordGraph {
-  return { hasSubflows: true, source: () => undefined, read: async ({ invocationPath }) => ({
+  return { hasSubflows: true, source: () => undefined, valueAt: ({ invocationPath }) => ({ gap: gap(code, invocationPath) }), read: async ({ invocationPath }) => ({
     writers: [], gaps: [gap(code, invocationPath)],
   }) };
 }
@@ -126,6 +144,7 @@ export function createNativeGraph(snapshot: unknown, api: GraphAPI): ScopedRecor
       hasSubflows: Boolean(hasInventory || field(snapshot, "fanoutCollections") ||
         mounts && (!mounts.availability.ok || mounts.labels.size)),
       source: path => get().source(path),
+      valueAt: writer => get().valueAt(writer),
       read: query => get().read(query),
     };
   } catch (error) { return refused(refusalCode(error)); }
@@ -239,6 +258,7 @@ function prepareGraph(snapshot: unknown, api: GraphAPI): ScopedRecordGraph {
 function scopedReader(scopes: ScopeMap, api: GraphAPI): ScopedRecordGraph {
   const graph = api.createRecordGraph([...scopes.values()].map(scope => scope.record), { maxCommits: 4096, maxScopes: 256, maxFields: 250000 });
   const { writers, scopesWithRedactions } = indexWriters(scopes, graph);
+  const admitted = new Set<NativeScope>();
 
   // Interim until Foottrace gives a per-key privacy verdict at the query or mapper's exclusive source cutoff.
   function hiddenAt(scope: NativeScope, before: number, key: string) {
@@ -251,6 +271,7 @@ function scopedReader(scopes: ScopeMap, api: GraphAPI): ScopedRecordGraph {
     if (!Number.isSafeInteger(beforeCommitIdx) || beforeCommitIdx < 0 || beforeCommitIdx > scope.log.length) return "invalid-data";
     // Foottrace admits the log before its writer lookup sees any rows.
     await graph.openScope(scope.record.address, context);
+    admitted.add(scope);
     if (context.signal.aborted) return "cancelled";
     if (hiddenAt(scope, beforeCommitIdx, key)) return "redacted";
     const { writer: row, basis } = api.findLastWriterWithBasis(scope.log, key, beforeCommitIdx);
@@ -290,7 +311,11 @@ function scopedReader(scopes: ScopeMap, api: GraphAPI): ScopedRecordGraph {
       if (!samePath(target.invocationPath, writer.invocationPath)) {
         const loss = handoffGap(scope, writer, target);
         if (loss) codes.add(loss);
-        else handoffs.push(target);
+        else {
+          // Foottrace validated this source log before returning the foreign mapper edge.
+          admitted.add(scopes.get(JSON.stringify(target.invocationPath))!);
+          handoffs.push(target);
+        }
         continue;
       }
       const evidence = canFollow(edge, target, writer, scope, api);
@@ -311,6 +336,14 @@ function scopedReader(scopes: ScopeMap, api: GraphAPI): ScopedRecordGraph {
   return {
     hasSubflows: [...scopes.values()].some(scope => scope.mounts.size || scope.record.subflows?.collections.length),
     source: path => scopes.get(JSON.stringify(path))?.source,
+    valueAt(writer) {
+      const { invocationPath, address } = writer;
+      const scope = scopes.get(JSON.stringify(invocationPath));
+      if (!scope) return { gap: gap("missing-child", invocationPath) };
+      if (!admitted.has(scope) || address && (address.logRunId !== scope.record.address.logRunId || !samePath(address.drillPath, invocationPath)))
+        return { gap: gap("writer-address-unverified", invocationPath) };
+      return foldedWriterValue(api.commitValueAtWithBasis, scope.log, scope.source.initialState, writer);
+    },
     async read(query) {
       const { invocationPath } = query;
       const fail = (code: string): ScopedBacktrack => ({ writers: [], gaps: [gap(code, invocationPath)] });

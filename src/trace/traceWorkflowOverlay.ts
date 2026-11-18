@@ -3,7 +3,7 @@ import type { StageSnapshot } from "../types";
 import { theme, v } from "../theme";
 import { buildTraceDependencyGraph, type TraceDependencyGraph } from "./traceDependencyGraph";
 import type { TraceIngredient, TraceWalk } from "./traceWalk";
-import { recordedValueAtPath, recordedValuePreview } from "./recordedValuePreview";
+import { recordedValueAtPath, recordedValuePreview, type InspectedStageRead } from "./recordedValuePreview";
 import { ownDataField, TRACE_WORK_LIMIT } from "./safeRecordRead";
 
 export interface TraceWorkflowStage {
@@ -11,7 +11,7 @@ export interface TraceWorkflowStage {
   stageId: string;
   color: string;
   role: "question" | "input" | "upstream";
-  values: readonly { key: string; preview: string | null; color: string }[];
+  values: readonly { key: string; preview: string | null; gap?: string; color: string }[];
 }
 
 export interface TraceWorkflowRead {
@@ -70,7 +70,7 @@ export function buildTraceWorkflowOverlay(
 }
 
 /** Capture evidence once per walk and snapshot revision; cursor movement only selects its visit. */
-export function prepareTraceWorkflowOverlay(walk: TraceWalk | null, snapshots: StageSnapshot[]) {
+export function prepareTraceWorkflowOverlay(walk: TraceWalk | null, snapshots: StageSnapshot[], inspectedStageRead?: InspectedStageRead) {
   if (!walk || walk.missing) return null;
   const graph = buildTraceDependencyGraph(walk);
   const anchor = graph.nodes.find(node => node.isAnchor && node.runtimeStageId !== null);
@@ -116,9 +116,11 @@ export function prepareTraceWorkflowOverlay(walk: TraceWalk | null, snapshots: S
     if (role === "question" || (role === "input" && stage.role === "upstream")) {
       stage.role = role; stage.color = color;
     }
+    const inspected = node.isAnchor && inspectedStageRead?.key === node.key ? inspectedStageRead : undefined;
     stage.values = [...stage.values, {
       key: node.key,
-      preview: duplicateSnapshots.has(node.runtimeStageId) ? null
+      ...(inspected?.gap && { gap: inspected.gap }),
+      preview: inspected ? recordedValuePreview(inspected.value) : duplicateSnapshots.has(node.runtimeStageId) ? null
         : recordedValuePreview(recordedValueAtPath(memories.get(node.runtimeStageId), node.key)),
       color,
     }];

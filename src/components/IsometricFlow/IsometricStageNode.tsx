@@ -70,7 +70,7 @@ export function IsometricStageNode({ data: input, diagramGeometry, diagramArtwor
   const steps = data.stepNumbers?.filter(Number.isFinite) ?? [];
   const icon = typeof data.icon === "string" ? data.icon : isSubflow ? "agent" : isDecider ? "decision" : isFork ? "parallel" : "stage";
   const role = traceWorkflow?.role === "question" ? "Question" : traceWorkflow?.role === "input" ? "Recorded input" : "Upstream read";
-  const traceValues = traceWorkflow?.values.map(value => `${recordedPathLabel(value.key)}${value.preview === null ? " · preview unavailable" : ` = ${value.preview}`}`).join("; ");
+  const traceValues = traceWorkflow?.values.map(value => `${recordedPathLabel(value.key)}${value.preview === null ? ` · ${value.gap ?? "preview unavailable"}` : ` = ${value.preview}`}`).join("; ");
   const facts = [label, description, isSubflow && "Subflow", isDecider && "Decision step", isFork && "Parallel branch point",
     active && "Selected step", done && "Recorded executed step", error && "Recorded failure", retryLabel,
     steps.length > 0 && `Execution steps ${steps.join(", ")}`,

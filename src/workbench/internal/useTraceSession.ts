@@ -8,8 +8,8 @@ import type { TraceScope } from "../../trace/traceScope";
 import { buildTraceWalk, createTraceWalkReader, type TraceIngredient, type TraceStageRead, type TraceWalk } from "../../trace/traceWalk";
 import { subflowHandoffSources, type SubflowHandoffSource } from "../../trace/subflowHandoff";
 import { projectTraceInvocation } from "../../trace/projectTraceInvocation";
-import { recordedValueAtPath } from "../../trace/recordedValuePreview";
-import { ownDataField, optionalOwnDataField } from "../../trace/safeRecordRead";
+import type { InspectedStageRead } from "../../trace/recordedValuePreview";
+import { ownDataField } from "../../trace/safeRecordRead";
 import { rootMountLabels, runHasRecordedReads, sourceRunKey } from "../../trace/traceScope";
 import { projectStageActivity, type StageActivityTraceTarget, type StageActivityView } from "../../trace/stageActivity";
 
@@ -536,14 +536,19 @@ export function useTraceSessionController({
     dispatch({ type: "enter", question, history: [...history, previous], activityOrigin: savedActivityOrigin, generation });
   }, [traceWalk, saveCurrentQuestion, activeTraceScope, activeSnapshots, activeTraceKey, safeIdx, dispatch, history, savedActivityOrigin, generation]);
 
-  // Two observed reads can have the same key and runtime stage ID at different commits.
-  // The stage's final memory cannot supply a preview for an earlier occurrence.
-  const inspectedStageRead = tracing?.stageReadCommitIdx !== undefined && !tracing.via.length ? {
-    key: tracing.key,
-    value: !scoped.pending && traceWalk?.stops[0]?.commitIdx === (tracing.beforeCommitIdx ?? 0) - 1
-      ? recordedValueAtPath(optionalOwnDataField(activeTraceScope.commitLog[traceWalk.stops[0].commitIdx], "overwrite"), tracing.key)
-      : undefined,
-  } : undefined;
+  const inspectedStageRead = useMemo<InspectedStageRead | undefined>(() => {
+    if (tracing?.stageReadCommitIdx === undefined || tracing.via.length) return undefined;
+    const { key, writerRuntimeStageId, beforeCommitIdx, stageReadCommitIdx } = tracing;
+    if (scoped.pending) return { key, value: undefined };
+    const writer = traceWalk?.stops[0];
+    if (!scoped.graph || !writer || writer.runtimeStageId !== writerRuntimeStageId || writer.commitIdx + 1 !== beforeCommitIdx) {
+      return { key, value: undefined, gap: traceWalk?.missing?.gapMessages?.join(" ") || "The exact recorded writer address could not be verified." };
+    }
+    // The child rail hides its seed. The admitted read keeps the native commit index.
+    const answer = scoped.graph.valueAt({ invocationPath: activeTraceScope.invocationPath, commitIdx: stageReadCommitIdx,
+      runtimeStageId: writerRuntimeStageId, key });
+    return "gap" in answer ? { key, value: undefined, gap: answer.gap.message } : { key, value: answer.value };
+  }, [tracing, scoped.pending, scoped.graph, traceWalk, activeTraceScope.invocationPath]);
 
   const handleFollowHandoff = useCallback((source: SubflowHandoffSource) => {
     if (latestWalk.current !== traceWalk) return;

@@ -36,7 +36,7 @@ const MAX_QUERIES = 128;
 
 /** Materialize local stops on their existing rail. A foreign writer stays a navigation target. */
 export async function buildScopedWalk(graph: ScopedRecordGraph, snapshot: unknown, local: TraceWalk,
-  beforeCommitIdx: number | undefined, readerCommitIdx: number | undefined, writerRuntimeStageId: string | undefined, signal: AbortSignal): Promise<TraceWalk> {
+  beforeCommitIdx: number | undefined, readerCommitIdx: number | undefined, writerRuntimeStageId: string | undefined, signal: AbortSignal, stageReadCommitIdx?: number): Promise<TraceWalk> {
   const path = local.scope?.invocationPath ?? [];
   const { log, offset } = scopeLog(snapshot, path);
   const cutoff = readerCommitIdx === undefined
@@ -48,6 +48,8 @@ export async function buildScopedWalk(graph: ScopedRecordGraph, snapshot: unknow
     if (local.missing?.reason === "not-yet-written" && anchor.gaps.every(gap => gap.code === "untracked-input")) return local;
     return missingScopedWalk(local, anchor.gaps.map(gap => gap.message));
   }
+  if (stageReadCommitIdx !== undefined && anchor.writer.commitIdx !== stageReadCommitIdx)
+    return missingScopedWalk(local, ["The exact recorded writer address could not be verified."]);
   if (readerCommitIdx !== undefined && local.missing?.unresolvedReason) return local;
   if (anchor.writer.commitIdx < offset) return missingScopedWalk(local, [
     `${local.key} recorded at invocation start. Its seed is outside this timeline.`, ...anchor.gaps.map(gap => gap.message),
