@@ -229,4 +229,10 @@ it('jumps to any exact stop on a long recording without mounting every option', 
   expect(screen.getByRole('button', { name: 'Go to step' })).toHaveProperty('disabled', true);
   fireEvent.keyDown(field, { key: 'Enter' });
   expect(change).toHaveBeenCalledTimes(2);
+  fireEvent.change(field, { target: { value: '28' } });
+  const other = createRecordLensReader({ sourceId: reader.sourceId, source: { commitLog: history } });
+  view.rerender(<RecordLens reader={other} step={0} onStepChange={change} />);
+  expect(field.value).toBe('1');
+  fireEvent.keyDown(field, { key: 'Enter' });
+  expect(change).toHaveBeenLastCalledWith(0);
 });

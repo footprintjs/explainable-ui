@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import type { StateKey, Stop } from "foottrace";
 import { theme } from "../theme/styles";
@@ -70,22 +70,25 @@ function stopAddress(stop: Stop | null): string {
 // native option per visit. Small recordings keep their labelled dropdown.
 const MAX_PICKER_OPTIONS = 128;
 
-function StepNumber({ id, current, total, onStepChange }: {
+function StepNumber({ id, current, total, revision, onStepChange }: {
+  revision: object;
   id: string;
   current: number | undefined;
   total: number;
   onStepChange?: (step: number) => void;
 }) {
   const formatted = current === undefined ? '' : String(current + 1);
-  const [draft, setDraft] = useState(formatted);
-  useEffect(() => { setDraft(formatted); }, [formatted]);
+  const [edit, setEdit] = useState({ revision, current, value: formatted });
+  const moved = edit.revision !== revision || edit.current !== current;
+  const draft = moved ? formatted : edit.value;
+  if (moved) setEdit({ revision, current, value: formatted });
   const number = Number(draft);
   const valid = Number.isSafeInteger(number) && number >= 1 && number <= total;
   const commit = () => { if (valid) onStepChange?.(number - 1); };
   return <>
     <label htmlFor={id}>Step</label>
     <input id={id} type="number" min={1} max={total} step={1}
-      aria-describedby={id + '-count'} value={draft} onChange={event => setDraft(event.target.value)}
+      aria-describedby={id + '-count'} value={draft} onChange={event => setEdit({ revision, current, value: event.target.value })}
       onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); commit(); } }}
       disabled={!onStepChange} style={{ ...control, width: '10ch' }} />
     <span id={id + '-count'}>of {total}</span>
@@ -96,6 +99,7 @@ function StepNumber({ id, current, total, onStepChange }: {
 /** Controlled view of one Foottrace recording and its selected historical question. */
 export function RecordLens(props: RecordLensProps) {
   const id = useId();
+  const pickerRevision = useMemo(() => ({}), [props.reader, props.source, props.strategy]);
   const model = props.reader
     ? props.reader.at(props.step, props.selectedKey)
     : buildRecordLensModel(props);
@@ -142,7 +146,7 @@ export function RecordLens(props: RecordLensProps) {
           Previous
         </button>
         {options === null ? (
-          <StepNumber key={model.sourceId} id={`${id}-step`} current={selected?.step} total={model.stops.length} onStepChange={props.onStepChange} />
+          <StepNumber key={model.sourceId} revision={pickerRevision} id={`${id}-step`} current={selected?.step} total={model.stops.length} onStepChange={props.onStepChange} />
         ) : (
           <>
             <label htmlFor={`${id}-step`}>Step</label>
