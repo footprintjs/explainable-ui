@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Grouped diagram nodes can show a decision diamond, a parcel or a folded document. Recorded connections meet the selected outline.
+
 ## [1.1.1] - 2026-11-17
 
 ### Fixed

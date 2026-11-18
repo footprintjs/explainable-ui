@@ -3,6 +3,7 @@ import { Background, Controls, MarkerType, ReactFlow, type Edge } from "@xyflow/
 import { theme } from "../../theme";
 import { ChartAutoRefit } from "../FlowchartView/_internal/useChartAutoRefit";
 import { diagramNodeTypes, type DiagramReactNode } from "./DiagramNodes";
+import { shapedItemHandles } from "./ShapedItem";
 import { getFlowDiagramAncestors, projectGroupedFlowDiagram } from "./layout";
 import type { FlowDiagramDefinition, FlowDiagramHighlight, FlowDiagramObservation, FlowDiagramFocusRequest, FlowDiagramRecordedRelationship } from "./types";
 import { admitFocusRequest, projectRecordedRelationships } from "./relationships";
@@ -95,15 +96,21 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
     const route = routing?.routes.get(item.relationship.id); if (!route) continue;
     ports.set(item.source, [...ports.get(item.source) ?? [], route.sourcePort]); ports.set(item.target, [...ports.get(item.target) ?? [], route.targetPort]);
   }
-  const nodes: DiagramReactNode[] = model?.nodes.map(item => ({ id: item.node.id, type: item.expanded ? "flowDiagramGroup" : "flowDiagramItem",
-    parentId: item.parentId, position: item.position, width: item.width, height: item.height,
-    style: { width: item.width, height: item.height, pointerEvents: "all", ...(recordedFocus && !item.highlighted ? { opacity: .28 } : {}) }, draggable: false, selectable: false,
-    data: { item, caption: names.get(item.node.id) ?? "", selected: item.node.id === selected,
-      direction: model.direction, canToggle, recordedPorts: ports.get(item.node.id), onToggle: (id: string) => {
-        requestFocus(narrow ? [id] : undefined);
-        changeExpanded(model.expandedGroupIds.includes(id) ? model.expandedGroupIds.filter(value => value !== id) : [...model.expandedGroupIds, id]);
-      }, onSelect: select },
-  })) ?? [];
+  const nodes: DiagramReactNode[] = model?.nodes.map(item => {
+    const recordedPorts = ports.get(item.node.id);
+    const handles = shapedItemHandles(item, model.direction, recordedPorts);
+    return { id: item.node.id, type: item.expanded ? "flowDiagramGroup" : "flowDiagramItem",
+      parentId: item.parentId, position: item.position, width: item.width, height: item.height, handles,
+      // With declared ports XYFlow skips DOM remeasurement when the overlay changes.
+      ...(handles ? { measured: { width: item.width, height: item.height } } : {}),
+      style: { width: item.width, height: item.height, pointerEvents: handles ? "none" : "all", ...(recordedFocus && !item.highlighted ? { opacity: .28 } : {}) }, draggable: false, selectable: false,
+      data: { item, caption: names.get(item.node.id) ?? "", selected: item.node.id === selected,
+        direction: model.direction, canToggle, recordedPorts, shapeHandles: handles, onToggle: (id: string) => {
+          requestFocus(narrow ? [id] : undefined);
+          changeExpanded(model.expandedGroupIds.includes(id) ? model.expandedGroupIds.filter(value => value !== id) : [...model.expandedGroupIds, id]);
+        }, onSelect: select },
+    };
+  }) ?? [];
   const edges: Edge[] = model?.edges.map(item => {
     const color = item.highlighted ? theme.tracing : theme.textMuted;
     return { id: item.edge.id, source: item.source, target: item.target, type: "smoothstep", label: item.edge.label, ...(recordedFocus ? { hidden: true } : {}),

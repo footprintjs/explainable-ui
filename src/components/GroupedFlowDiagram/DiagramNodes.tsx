@@ -1,8 +1,9 @@
 import { useId, type CSSProperties } from "react";
-import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
+import { Handle, Position, type Node, type NodeHandle, type NodeProps } from "@xyflow/react";
 import { GroupContainerNode } from "../GroupContainerNode";
 import { theme } from "../../theme";
 import { DiagramIcon } from "./icons";
+import { ShapedItem } from "./ShapedItem";
 import type { PositionedFlowDiagramNode } from "./types";
 import type { RecordedPort } from "./recordedRouting";
 
@@ -15,6 +16,7 @@ export interface DiagramNodeData extends Record<string, unknown> {
   onSelect(id: string): void;
   canToggle: boolean;
   recordedPorts?: readonly RecordedPort[];
+  shapeHandles?: readonly NodeHandle[];
 }
 export type DiagramReactNode = Node<DiagramNodeData>;
 const statusText = { unknown: "Status unknown", running: "Running", completed: "Completed", failed: "Failed", "not-run": "Not run (recorded)" };
@@ -26,10 +28,13 @@ function DependencyHandles({ ports = [] }: { ports?: readonly RecordedPort[] }) 
     style={{ opacity: 0, pointerEvents: "none", ...(port.side === "top" || port.side === "bottom" ? { left: port.offset } : { top: port.offset }) }} />)}</>;
 }
 
-function CauseBadge({ item }: { item: PositionedFlowDiagramNode }) {
+function CauseBadge({ item, id }: { item: PositionedFlowDiagramNode; id?: string }) {
   if (!item.isRootCause && !item.containsRootCause) return null;
-  return <span style={{ position: "absolute", zIndex: 2, top: -12, left: 10, padding: "4px 9px", borderRadius: 7,
-    fontSize: 11, lineHeight: "16px", fontWeight: 700, color: item.isRootCause ? theme.bg : theme.textSecondary,
+  const placement: CSSProperties = item.node.shape
+    ? { right: "calc(50% + 8px)", padding: "4px 6px", fontSize: 10, whiteSpace: "nowrap" }
+    : { left: 10, padding: "4px 9px", fontSize: 11 };
+  return <span id={id} style={{ position: "absolute", zIndex: 2, top: -12, ...placement, borderRadius: 7,
+    lineHeight: "16px", fontWeight: 700, color: item.isRootCause ? theme.bg : theme.textSecondary,
     background: item.isRootCause ? theme.textPrimary : theme.bgElevated, border: `1px solid ${theme.tracing}`, pointerEvents: "none" }}>
     {item.isRootCause ? "Supported cause" : "Cause inside"}
   </span>;
@@ -57,9 +62,11 @@ export function DiagramItemNode({ data: d }: NodeProps<DiagramReactNode>) {
   const border = item.state === "failed" ? theme.error : item.highlighted ? theme.tracing : group ? theme.nodeMain : theme.border;
   const caption = d.caption ? ` · ${d.caption}` : "";
   const action = group ? `Expand ${node.label}${caption}` : `Select ${node.label}${caption}`;
-  return <div data-node-id={node.id} data-state={item.state} data-highlighted={item.highlighted} data-selected={d.selected}
+  const shape = group ? undefined : node.shape;
+  return <div data-node-id={node.id} data-node-shape={shape} data-state={item.state} data-highlighted={item.highlighted} data-selected={d.selected}
     style={{ position: "relative", width: item.width, height: item.height, color: theme.textPrimary,
       filter: item.highlighted ? "drop-shadow(0 0 9px color-mix(in srgb, var(--fp-tracing, #0d9488) 25%, transparent))" : undefined }}>
+    {shape ? <ShapedItem data={d} shape={shape} action={action} statusId={statusId} status={statusText[item.state]} /> : <>
     <Handle type="target" position={d.direction === "LR" ? Position.Left : Position.Top} isConnectable={false} />
     <button type="button" className="nodrag nopan" aria-label={action} aria-describedby={`${statusId}${decision ? ` ${statusId}-decision` : ""}`} aria-expanded={group ? false : undefined} aria-pressed={group ? undefined : d.selected}
       disabled={group && (!item.childCount || !d.canToggle)} title={node.description ? `${node.label}. ${node.description}` : node.label}
@@ -83,7 +90,8 @@ export function DiagramItemNode({ data: d }: NodeProps<DiagramReactNode>) {
     {item.state === "failed" && <span aria-hidden="true" style={{ position: "absolute", top: -9, right: -9, width: 26, height: 26, borderRadius: "50%", background: theme.error, color: "white", textAlign: "center", fontSize: 20 }}>×</span>}
     <Handle type="source" position={d.direction === "LR" ? Position.Right : Position.Bottom} isConnectable={false} />
     <DependencyHandles ports={d.recordedPorts} />
-    <CauseBadge item={item} />
+    </>}
+    <CauseBadge item={item} id={shape ? `${statusId}-cause` : undefined} />
   </div>;
 }
 
