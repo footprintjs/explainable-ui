@@ -66,6 +66,11 @@ export function buildTraceWorkflowOverlay(
   snapshots: StageSnapshot[],
   cursorRuntimeStageId: string | null,
 ): TraceWorkflowOverlay | null {
+  return prepareTraceWorkflowOverlay(walk, snapshots)?.(cursorRuntimeStageId) ?? null;
+}
+
+/** Capture evidence once per walk and snapshot revision; cursor movement only selects its visit. */
+export function prepareTraceWorkflowOverlay(walk: TraceWalk | null, snapshots: StageSnapshot[]) {
   if (!walk || walk.missing) return null;
   const graph = buildTraceDependencyGraph(walk);
   const anchor = graph.nodes.find(node => node.isAnchor && node.runtimeStageId !== null);
@@ -130,7 +135,14 @@ export function buildTraceWorkflowOverlay(
     reads.push({ key: edge.readKey, sourceRuntimeStageId: source.runtimeStageId,
       targetRuntimeStageId: target.runtimeStageId, color: colors.get(source.id) ?? theme.textMuted });
   }
-  return { questionKey: walk.key, scopeKey: JSON.stringify(walk.scope?.invocationPath ?? []),
-    focusRuntimeStageId: cursorRuntimeStageId && stages.has(cursorRuntimeStageId) ? cursorRuntimeStageId : anchor.runtimeStageId,
-    stages: [...stages.values()], reads };
+  const question = anchor.runtimeStageId;
+  let current: TraceWorkflowOverlay = {
+    questionKey: walk.key, scopeKey: JSON.stringify(walk.scope?.invocationPath ?? []),
+    focusRuntimeStageId: question, stages: [...stages.values()], reads,
+  };
+  return (cursor: string | null): TraceWorkflowOverlay => {
+    const focus = cursor && stages.has(cursor) ? cursor : question;
+    if (focus !== current.focusRuntimeStageId) current = { ...current, focusRuntimeStageId: focus };
+    return current;
+  };
 }

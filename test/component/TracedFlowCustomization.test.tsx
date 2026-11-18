@@ -33,6 +33,30 @@ function measure(store: ReturnType<typeof useStoreApi>, widths = [120, 120, 120]
 }
 
 describe("TracedFlow host customization", () => {
+  it.each(["flat", "isometric"] as const)("keeps unaffected %s graph entries stable across replay, rewind and recording replacement", renderer => {
+    let store!: ReturnType<typeof useStoreApi>;
+    function Probe() { store = useStoreApi(); return null; }
+    const repeated = { ...overlay, executionOrder: [...overlay.executionOrder, { ...overlay.executionOrder[0], runtimeStageId: "a#3" }] };
+    const chart = (index: number, run = repeated) => <TracedFlow graph={graph} overlay={run} scrubIndex={index}
+      renderer={renderer} layout="passthrough" autoFit={false}><Probe /></TracedFlow>;
+    const mounted = render(chart(1));
+    const first = store.getState();
+    mounted.rerender(chart(2));
+    const next = store.getState();
+    expect(next.nodes[0]).toBe(first.nodes[0]);
+    expect(next.edges[0]).toBe(first.edges[0]);
+    expect(next.nodes[1]).not.toBe(first.nodes[1]);
+    mounted.rerender(chart(3));
+    const steps = store.getState().nodes[0].data.stepNumbers as number[];
+    expect(steps).toEqual([1, 4]);
+    steps.reverse(); // a custom renderer must not corrupt the private search index
+    mounted.rerender(chart(1));
+    expect(store.getState().nodes[0].data.stepNumbers).toEqual([1]);
+    mounted.rerender(chart(1, { ...repeated, executionOrder: repeated.executionOrder.slice(1) }));
+    expect(store.getState().nodes[0].data.stepNumbers).toBeUndefined();
+    expect(store.getState().nodes[1].data.stepNumbers).toEqual([1]);
+  });
+
   it("themes real xyflow accessories locally, lets explicit host styles win, and leaves unstyled accessories alone", () => {
     const hostStyle = { "--xy-controls-button-background-color": "papayawhip", "--xy-controls-button-color": "#222" } as CSSProperties;
     const chart = (unstyled = false, style?: CSSProperties) => <TracedFlow graph={graph} layout="passthrough"

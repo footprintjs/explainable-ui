@@ -1,3 +1,5 @@
+import type { ReactFlowState } from "@xyflow/react";
+import { selectStepBend } from "../../src/components/SmartStepEdge/routingIndex";
 /**
  * Tests for `staggeredBendY` — the pure routing decision behind `SmartStepEdge`.
  *
@@ -154,4 +156,38 @@ describe("resolveStepBendY — fork-fan vs rank-skip precedence", () => {
   it("null (default midpoint) when neither applies", () => {
     expect(resolveStepBendY(null, null)).toBeNull();
   });
+});
+
+it("shares route geometry across edges and refreshes after in-place node measurements", () => {
+  const nodes = Array.from({ length: 27 }, (_, i) => ({
+    id: String(i), type: i === 1 ? "groupContainer" : "stage",
+    internals: { positionAbsolute: { y: (i * 17 % 19) * 10 - 70 } },
+    measured: { height: i * 19 % 43 },
+  }));
+  const nodeLookup = new Map(nodes.map(node => [node.id, node]));
+  const edges = nodes.map((node, i) => ({
+    source: String(i % 5), target: node.id, type: i === 9 ? "recordedRead" : "smartStep",
+    data: { kind: i === 8 ? "loop" : "next" },
+  }));
+  function verify() {
+    // XYFlow mutates nodeLookup in place; the Zustand state is the per-notification identity.
+    const state = { nodeLookup, edges } as unknown as ReactFlowState;
+    for (const src of nodes) {
+      const sourceBottom = src.internals.positionAbsolute.y + src.measured.height;
+      const children = edges.filter(edge => edge.source === src.id && edge.type !== "recordedRead" && edge.data.kind !== "loop")
+        .map(edge => nodeLookup.get(edge.target)!).filter(child => child.type !== "groupContainer");
+      const fan = forkFanBendY(sourceBottom, children.map(child => child.internals.positionAbsolute.y));
+      for (const tgt of nodes) {
+        const others = nodes.filter(node => node !== src && node !== tgt && node.type !== "groupContainer")
+          .map(node => ({ top: node.internals.positionAbsolute.y, bottom: node.internals.positionAbsolute.y + node.measured.height }));
+        const skip = staggeredBendY(sourceBottom, tgt.internals.positionAbsolute.y, others);
+        expect(selectStepBend(state, src.id, tgt.id)).toBe(skip ?? fan);
+      }
+    }
+  }
+  verify();
+  nodes[3].internals.positionAbsolute.y -= 73;
+  nodes[4].measured.height += 60;
+  edges.pop();
+  verify();
 });

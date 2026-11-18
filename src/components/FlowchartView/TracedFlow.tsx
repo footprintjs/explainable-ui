@@ -71,16 +71,18 @@ import { LoopBackEdge } from "../LoopBackEdge";
 import { SmartStepEdge } from "../SmartStepEdge";
 import { applyGroupLayout, wrapInMainChartBox } from "./_internal/groupLayout";
 import { MeasuredNodeSizes } from "./_internal/MeasuredNodeSizes";
-import type { TraceWorkflowOverlay } from "../../trace/traceWorkflowOverlay";
-import { projectTraceWorkflow } from "./_internal/traceWorkflowProjection";
+import type { TraceWorkflowOverlay, TraceWorkflowRead, TraceWorkflowStage } from "../../trace/traceWorkflowOverlay";
+import { projectTraceWorkflow, type VisibleWorkflowRead } from "./_internal/traceWorkflowProjection";
 import { RecordedReadEdge } from "./RecordedReadEdge";
 import { TRACE_MOTION_MS, useTraceMotion } from "../../_internal/useTraceMotion";
 import { resolveFlowchartRenderer, type FlowchartRenderer } from "../../model/flowchart";
 import { IsometricEdge, IsometricGrid } from "../IsometricFlow";
 import { RendererContext, DefaultStageNode } from "../IsometricFlow/RendererContext";
 import type { DiagramVisualProps } from "../../model/diagram";
+import { indexStageVisits, memoizeElement } from "./_internal/elementProjection";
 import { DiagramDrawingProvider, getDiagramNodeGeometry, prepareDiagramGeometry } from "../DiagramDrawing";
-import { applyDiagramAppearance, diagramNativeEdgeTypes } from "../DiagramAppearance";
+import { diagramNativeEdgeTypes } from "../DiagramAppearance";
+import { createDiagramAppearanceProjector } from "../DiagramAppearance/model";
 import { RendererGeometry } from "../IsometricFlow/RendererGeometry";
 import { createIsometricTraceLayout, ISOMETRIC_NODE_WIDTH, ISOMETRIC_NODE_HEIGHT } from "./_internal/isometricTraceLayout";
 
@@ -130,86 +132,25 @@ const ACCESSORY_THEME_STYLE = {
 // Per-node / per-edge styling (pure)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Derive overlay state fields for a single node from the current
- * scrub slice. Shared between the default `stageNode` path and the
- * custom-node pass-through path so custom renderers receive the same
- * `active`/`done`/`error`/`dimmed`/`stepNumbers`/`retryAttempts` shape the
- * bundled `<StageNode>` consumes.
- */
-/** Stable empty set so the nodes useMemo doesn't re-run when no co-active set is passed. */
-const EMPTY_SET: ReadonlySet<string> = new Set<string>();
-
-function deriveOverlayFields(
+function toStageNodeWithOverlay(
   node: TraceNode,
-  doneStageIds: ReadonlySet<string>,
-  activeStageId: string | null,
+  isDone: boolean,
+  isActive: boolean,
+  dimmed: boolean,
   errorMessage: string | undefined,
-  executedOrderIds: readonly string[],
-  coActiveStageIds: ReadonlySet<string>,
+  stepNumbers: number[] | undefined,
   retryAttempts: number | undefined,
-): {
-  active: boolean;
-  done: boolean;
-  error: boolean;
-  dimmed: boolean;
-  errorMessage?: string;
-  stepNumbers?: number[];
-  retryAttempts?: number;
-} {
-  const isDone = doneStageIds.has(node.id);
-  // `active` is the SINGLE cursor node OR any node in the co-active set — the
-  // latter lets a consumer light a whole parallel cohort (e.g. the lens lighting
-  // all branches of a fork) at one cursor. Applies to BOTH stage and custom
-  // nodes (custom nodes also OR consumer `data.active` below).
-  const isActive = activeStageId === node.id || coActiveStageIds.has(node.id);
-  const wasExecuted = isDone || isActive;
-  const hasError = !!errorMessage;
-  const dimmed = !wasExecuted && executedOrderIds.length > 0;
-
-  // Per-stage step number(s) — a loop may visit the same node multiple times.
-  let stepNumbers: number[] | undefined;
-  if (executedOrderIds.length > 0) {
-    const nums: number[] = [];
-    for (let i = 0; i < executedOrderIds.length; i++) {
-      if (executedOrderIds[i] === node.id) nums.push(i + 1);
-    }
-    if (nums.length > 0) stepNumbers = nums;
-  }
-
-  return {
+  suppressDimming: boolean,
+): Node {
+  const overlayFields = {
     active: isActive,
     done: isDone,
-    error: hasError,
+    error: !!errorMessage,
     dimmed,
     ...(errorMessage && { errorMessage }),
     ...(stepNumbers && { stepNumbers }),
-    // Attempts are only ever interesting above 1 — a stage that ran once is
-    // the silent default, and "×1" on every node would be noise, not truth.
     ...(retryAttempts !== undefined && retryAttempts > 1 && { retryAttempts }),
   };
-}
-
-function toStageNodeWithOverlay(
-  node: TraceNode,
-  doneStageIds: ReadonlySet<string>,
-  activeStageId: string | null,
-  errorMessage: string | undefined,
-  executedOrderIds: readonly string[],
-  coActiveStageIds: ReadonlySet<string>,
-  retryAttempts: number | undefined,
-  suppressDimming = false,
-): Node {
-  const overlayFields = deriveOverlayFields(
-    node,
-    doneStageIds,
-    activeStageId,
-    errorMessage,
-    executedOrderIds,
-    coActiveStageIds,
-    retryAttempts,
-  );
-  const { dimmed } = overlayFields;
 
   // Custom-node pass-through with overlay enrichment.
   //
@@ -290,29 +231,17 @@ function toStageNodeWithOverlay(
 
 function styleEdgeWithOverlay(
   edge: TraceEdge,
-  doneStageIds: ReadonlySet<string>,
-  activeStageId: string | null,
+  traversed: boolean,
+  carriesCursor: boolean,
+  isLeadingEdge: boolean,
+  hasError: boolean,
   colors: TracedFlowColors,
-  cursorStandIns: ReadonlySet<string>,
-  suppressMotion = false,
-  errors: ReadonlyMap<string, string> = new Map(),
-  unstyled = false,
-  errorColorEnabled = false,
-  renderer: FlowchartRenderer = "flat",
+  suppressMotion: boolean,
+  unstyled: boolean,
+  errorColorEnabled: boolean,
+  renderer: FlowchartRenderer,
 ): Edge {
   const kind = edge.data?.kind ?? "next";
-  const sourceExecuted = doneStageIds.has(edge.source) || activeStageId === edge.source;
-  const targetExecuted = doneStageIds.has(edge.target) || activeStageId === edge.target;
-  const traversed = sourceExecuted && targetExecuted;
-  // The cursor stands on a node this edge CONTRACTED THROUGH (collapse hid
-  // it): the edge is the only visible thing standing in for that node, so it
-  // takes the active colour and animates — the "you are here" a hidden node
-  // cannot show itself.
-  const carriesCursor = edgeCarriesCursor(edge.data?.via, cursorStandIns);
-  const isLeadingEdge =
-    carriesCursor || (activeStageId === edge.source && !doneStageIds.has(edge.target));
-  const hasError = !!errors.get(edge.source) || !!errors.get(edge.target);
-
   let color: string = colors.default;
   if (carriesCursor) color = colors.active;
   else if (errorColorEnabled && hasError) color = colors.error;
@@ -682,63 +611,79 @@ export function TracedFlow({
   }, [overlay, scrubIndex, effectiveGraph, drill.currentSubflowId]);
 
   // ── xyflow nodes + edges (re-run per scrub tick) ──────────────────
-  const reactFlowNodes = useMemo<Node[]>(
-    () =>
-      positioned.nodes.map((n) => {
-        const node = toStageNodeWithOverlay(
-          n,
-          slice.doneStageIds,
-          slice.activeStageId,
-          slice.errors.get(n.id),
-          slice.executedOrderIds,
-          coActiveStageIds ?? EMPTY_SET,
-          slice.retryAttempts?.get(n.id),
-          unstyled || !!traceWorkflow,
-        );
-        return { ...node, data: { ...node.data, ...(unstyled && { unstyled: true }), suppressMotion: suppressMotion || node.data.suppressMotion === true } };
-      }),
-    [positioned.nodes, slice, coActiveStageIds, suppressMotion, traceWorkflow, unstyled],
-  );
-  // The ids that stand for the cursor on this chart: the active id plus its
-  // path ancestors — what a contracted edge's `via` list is checked against.
-  const cursorStandIns = useMemo(() => cursorStandInIds(slice.activeStageId), [slice.activeStageId]);
-  const reactFlowEdges = useMemo<Edge[]>(
-    () =>
-      positioned.edges.map((e) =>
-        styleEdgeWithOverlay(e, slice.doneStageIds, slice.activeStageId, colors, cursorStandIns, suppressMotion, slice.errors, unstyled, errorColorEnabled, renderer),
-      ),
-    [positioned.edges, slice, colors, cursorStandIns, suppressMotion, unstyled, errorColorEnabled, renderer],
-  );
+  const suppressDimming = unstyled || !!traceWorkflow;
+  const executionOrder = overlay?.executionOrder;
+  const visitsAt = useMemo(() => indexStageVisits(executionOrder ?? []), [executionOrder]);
+  const projectNode = useMemo(() => memoizeElement((
+    source: TraceNode, done: boolean, active: boolean, dimmed: boolean,
+    error: string | undefined, numbers: number[] | undefined, attempts: number | undefined,
+  ) => {
+    const node = toStageNodeWithOverlay(source, done, active, dimmed, error, numbers, attempts, suppressDimming);
+    return { ...node, data: { ...node.data, ...(unstyled && { unstyled: true }),
+      suppressMotion: suppressMotion || node.data.suppressMotion === true } };
+  }), [unstyled, suppressDimming, suppressMotion]);
 
-  const workflowProjection = useMemo(() => projectTraceWorkflow(traceWorkflow, positioned.nodes), [traceWorkflow, positioned.nodes]);
-  const workflowNodes = useMemo<Node[]>(() => {
-    if (!traceWorkflow) return reactFlowNodes;
-    return reactFlowNodes.map(node => {
-      const stage = workflowProjection.stages.get(node.id);
-      return { ...node,
-        data: { ...node.data, dimmed: false, traceContext: stage ? "displayed" : "outside",
-          ...(stage ? { traceWorkflow: stage } : {}) },
-        // Inspection removes system fading, including group/pill dimming.
-        // Authored opacity remains a host choice, including for custom nodes.
-        style: unstyled ? node.style : { ...node.style, opacity: node.style?.opacity ?? 1,
-          transition: motionEnabled ? `opacity ${TRACE_MOTION_MS}ms ease` : "none", animation: "none" },
-      };
+  const reactFlowNodes = useMemo<Node[]>(() => positioned.nodes.map(node => {
+    const done = slice.doneStageIds.has(node.id);
+    const active = slice.activeStageId === node.id || coActiveStageIds?.has(node.id) === true;
+    const count = slice.executedOrderIds.length;
+    return projectNode(node, done, active, !done && !active && count > 0,
+      slice.errors.get(node.id), visitsAt(node.id, count), slice.retryAttempts?.get(node.id));
+  }), [positioned.nodes, slice, coActiveStageIds, visitsAt, projectNode]);
+
+  const projectEdge = useMemo(() => memoizeElement((
+    edge: TraceEdge, traversed: boolean, carriesCursor: boolean, leading: boolean, error: boolean,
+  ) => styleEdgeWithOverlay(edge, traversed, carriesCursor, leading, error, colors, suppressMotion,
+    unstyled, errorColorEnabled, renderer)), [colors, suppressMotion, unstyled, errorColorEnabled, renderer]);
+
+  const reactFlowEdges = useMemo<Edge[]>(() => {
+    const cursor = slice.activeStageId;
+    const standIns = cursorStandInIds(cursor);
+    return positioned.edges.map(edge => {
+      const targetDone = slice.doneStageIds.has(edge.target);
+      const traversed = (slice.doneStageIds.has(edge.source) || cursor === edge.source) &&
+        (targetDone || cursor === edge.target);
+      const carriesCursor = edgeCarriesCursor(edge.data?.via, standIns);
+      const leading = carriesCursor || (cursor === edge.source && !targetDone);
+      const error = errorColorEnabled && (!!slice.errors.get(edge.source) || !!slice.errors.get(edge.target));
+      return projectEdge(edge, traversed, carriesCursor, leading, error);
     });
-  }, [traceWorkflow, reactFlowNodes, workflowProjection, motionEnabled, unstyled]);
-  const workflowEdges = useMemo<Edge[]>(() => {
-    if (!traceWorkflow) return reactFlowEdges;
-    const execution = reactFlowEdges.map(edge => ({ ...edge, animated: false,
-      style: unstyled ? edge.style : { animation: "none", transition: motionEnabled ? `opacity ${TRACE_MOTION_MS}ms ease` : "none", opacity: 0.4, ...edge.style } }));
-    const reads: Edge[] = workflowProjection.reads.map((read, lane) => ({
-      id: `recorded-read:${JSON.stringify([traceWorkflow.scopeKey, read.key, read.sourceRuntimeStageId, read.targetRuntimeStageId])}`,
-      source: read.source, target: read.target, type: "recordedRead", animated: false, selectable: false,
-      zIndex: 2,
-      data: { kind: "recorded-read", ...read, lane, scopeKey: traceWorkflow.scopeKey, ...(unstyled && { unstyled: true }) },
-      ...(!unstyled && { style: { stroke: read.color, strokeWidth: 2, strokeDasharray: "6 4", animation: "none", transition: "none" },
-        markerEnd: { type: MarkerType.ArrowClosed, color: read.color, width: 14, height: 14 } }),
-    }));
-    return [...execution, ...reads];
-  }, [traceWorkflow, reactFlowEdges, workflowProjection, motionEnabled, unstyled]);
+  }, [positioned.edges, slice, projectEdge, errorColorEnabled]);
+
+  const projectRead = useMemo(() => memoizeElement((read: TraceWorkflowRead, source: string, target: string) =>
+    ({ ...read, source, target })), []);
+  const workflowProjection = useMemo(() => projectTraceWorkflow(traceWorkflow, positioned.nodes, projectRead),
+    [traceWorkflow, positioned.nodes, projectRead]);
+  const projectWorkflowNode = useMemo(() => memoizeElement((node: Node, stage: TraceWorkflowStage | undefined) => ({
+    ...node,
+    data: { ...node.data, dimmed: false, traceContext: stage ? "displayed" : "outside",
+      ...(stage ? { traceWorkflow: stage } : {}) },
+    // A Backtrack inspection removes system fading but preserves authored opacity.
+    style: unstyled ? node.style : { ...node.style, opacity: node.style?.opacity ?? 1,
+      transition: motionEnabled ? `opacity ${TRACE_MOTION_MS}ms ease` : "none", animation: "none" },
+  })), [motionEnabled, unstyled]);
+  const workflowNodes = useMemo<Node[]>(() => traceWorkflow
+    ? reactFlowNodes.map(node => projectWorkflowNode(node, workflowProjection.stages.get(node.id)))
+    : reactFlowNodes, [traceWorkflow, reactFlowNodes, workflowProjection, projectWorkflowNode]);
+
+  const projectWorkflowEdge = useMemo(() => memoizeElement((edge: Edge) => ({
+    ...edge, animated: false,
+    style: unstyled ? edge.style : { animation: "none", transition: motionEnabled ? `opacity ${TRACE_MOTION_MS}ms ease` : "none", opacity: 0.4, ...edge.style },
+  })), [motionEnabled, unstyled]);
+  const projectReadEdge = useMemo(() => memoizeElement((read: VisibleWorkflowRead, lane: number, scopeKey: string): Edge => ({
+    id: `recorded-read:${JSON.stringify([scopeKey, read.key, read.sourceRuntimeStageId, read.targetRuntimeStageId])}`,
+    source: read.source, target: read.target, type: "recordedRead", animated: false, selectable: false,
+    zIndex: 2, data: { kind: "recorded-read", ...read, lane, scopeKey, ...(unstyled && { unstyled: true }) },
+    ...(!unstyled && { style: { stroke: read.color, strokeWidth: 2, strokeDasharray: "6 4", animation: "none", transition: "none" },
+      markerEnd: { type: MarkerType.ArrowClosed, color: read.color, width: 14, height: 14 } }),
+  })), [unstyled]);
+  const scopeKey = traceWorkflow?.scopeKey;
+  const readEdges = useMemo<Edge[]>(() => scopeKey === undefined ? [] :
+    workflowProjection.reads.map((read, lane) => projectReadEdge(read, lane, scopeKey)),
+  [scopeKey, workflowProjection.reads, projectReadEdge]);
+  const workflowEdges = useMemo<Edge[]>(() => traceWorkflow
+    ? [...reactFlowEdges.map(edge => projectWorkflowEdge(edge)), ...readEdges]
+    : reactFlowEdges, [traceWorkflow, reactFlowEdges, readEdges, projectWorkflowEdge]);
 
   // ── Dependency-cone overlay (sliceCone) ────────────────────────────
   // Two-phase reveal: when the cone changes, everything renders at the
@@ -754,42 +699,30 @@ export function TracedFlow({
     return () => cancelAnimationFrame(raf);
   }, [sliceCone, traceWorkflow, unstyled]);
 
+  const projectConeNode = useMemo(() => memoizeElement((node: Node, depth: number | undefined) => ({
+    ...node, style: depth === undefined ? { ...node.style, opacity: 0.22, transition: "opacity 260ms ease" }
+      : { ...node.style, opacity: coneRevealed ? 1 : 0.22, transition: "opacity 320ms ease", transitionDelay: `${depth * 90}ms` },
+  })), [coneRevealed]);
   const conedNodes = useMemo<Node[]>(() => {
     if (traceWorkflow) return workflowNodes;
-    if (unstyled) return reactFlowNodes;
-    if (!sliceCone || sliceCone.size === 0) return reactFlowNodes;
-    return reactFlowNodes.map((n) => {
-      const depth = sliceCone.get(n.id);
-      if (depth === undefined) {
-        return { ...n, style: { ...n.style, opacity: 0.22, transition: "opacity 260ms ease" } };
-      }
-      return {
-        ...n,
-        style: {
-          ...n.style,
-          opacity: coneRevealed ? 1 : 0.22,
-          transition: "opacity 320ms ease",
-          transitionDelay: `${depth * 90}ms`,
-        },
-      };
-    });
-  }, [traceWorkflow, workflowNodes, reactFlowNodes, sliceCone, coneRevealed, unstyled]);
+    if (unstyled || !sliceCone?.size) return reactFlowNodes;
+    return reactFlowNodes.map(node => projectConeNode(node, sliceCone.get(node.id)));
+  }, [traceWorkflow, workflowNodes, reactFlowNodes, sliceCone, projectConeNode, unstyled]);
 
+  const dimConeEdge = useMemo(() => memoizeElement((edge: Edge) => ({
+    ...edge, style: { ...edge.style, opacity: 0.12, transition: "opacity 260ms ease" },
+  })), []);
   const conedEdges = useMemo<Edge[]>(() => {
     if (traceWorkflow) return workflowEdges;
-    if (unstyled) return reactFlowEdges;
-    if (!sliceCone || sliceCone.size === 0) return reactFlowEdges;
-    return reactFlowEdges.map((e) => {
-      const inCone = sliceCone.has(e.source) && sliceCone.has(e.target);
-      return inCone
-        ? e
-        : { ...e, style: { ...e.style, opacity: 0.12, transition: "opacity 260ms ease" } };
-    });
-  }, [traceWorkflow, workflowEdges, reactFlowEdges, sliceCone, unstyled]);
+    if (unstyled || !sliceCone?.size) return reactFlowEdges;
+    return reactFlowEdges.map(edge => sliceCone.has(edge.source) && sliceCone.has(edge.target) ? edge : dimConeEdge(edge));
+  }, [traceWorkflow, workflowEdges, reactFlowEdges, sliceCone, dimConeEdge, unstyled]);
 
   // Paint is applied after layout, drill filtering and Backtrack projection.
-  const nodes = useMemo(() => applyDiagramAppearance(conedNodes, diagramAppearance?.nodes), [conedNodes, diagramAppearance?.nodes]);
-  const edges = useMemo(() => applyDiagramAppearance(conedEdges, diagramAppearance?.edges), [conedEdges, diagramAppearance?.edges]);
+  const projectNodeAppearance = useMemo(createDiagramAppearanceProjector<Node>, []);
+  const projectEdgeAppearance = useMemo(createDiagramAppearanceProjector<Edge>, []);
+  const nodes = useMemo(() => projectNodeAppearance(conedNodes, diagramAppearance?.nodes), [projectNodeAppearance, conedNodes, diagramAppearance?.nodes]);
+  const edges = useMemo(() => projectEdgeAppearance(conedEdges, diagramAppearance?.edges), [projectEdgeAppearance, conedEdges, diagramAppearance?.edges]);
 
   // ── Click handling: drill on subflow mount click, propagate click ─
   const handleNodeClick = useCallback(
@@ -813,14 +746,16 @@ export function TracedFlow({
 
   // One measured-fit owner inside ReactFlow; overlay scrubbing is not a layout.
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const layoutKey = chartLayoutKey(positioned.nodes);
-  const refitKey = JSON.stringify([
+  const layoutKey = useMemo(() => chartLayoutKey(positioned.nodes), [positioned.nodes]);
+  const refitKey = useMemo(() => JSON.stringify([
     chartLayoutKey(filteredGraph.nodes), chartTopologyKey(positioned.nodes),
     // A custom layout is an authored layout. Default measured-layout settling
     // must not take camera ownership back after a manual pan/zoom.
     layoutProp !== undefined ? layoutKey : null,
     ...(renderer === "isometric" ? [renderer] : []),
-  ]);
+  ]), [filteredGraph.nodes, positioned.nodes, layoutProp, layoutKey, renderer]);
+
+  const nodeIds = useMemo(() => positioned.nodes.map(node => node.id), [positioned.nodes]);
 
   return (
     <div
@@ -863,7 +798,7 @@ export function TracedFlow({
             refitKey={refitKey} layoutKey={layoutKey} padding={typeof autoFit === "object" ? autoFit.padding ?? 0.18 : 0.18}
             maxAutoZoom={typeof autoFit === "object" ? autoFit.maxZoom : undefined}
             preserveViewport={investigationSeen.current} stages={workflowProjection.stages} reads={workflowProjection.reads} />}
-          <RendererGeometry renderer={renderer} nodeIds={positioned.nodes.map(node => node.id)} />
+          <RendererGeometry renderer={renderer} nodeIds={nodeIds} />
           <MeasuredNodeSizes onSizes={acceptMeasurements} />
           {background !== false && (!unstyled || background !== undefined) && (renderer === "isometric" && background === undefined
             ? <IsometricGrid /> : <Background variant={BackgroundVariant.Dots} gap={20} size={1} {...background} />)}
