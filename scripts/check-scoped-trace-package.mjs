@@ -22,8 +22,8 @@ const env = {
   CI: "true",
   npm_config_offline: "true",
 };
-function run(command, args, cwd) {
-  const result = spawnSync(command, args, { cwd, env, encoding: "utf8" });
+function run(command, args, cwd, commandEnv = env) {
+  const result = spawnSync(command, args, { cwd, env: commandEnv, encoding: "utf8" });
   if (result.status !== 0)
     throw Error(
       `${command} failed (${result.status})\n${result.stdout ?? ""}\n${
@@ -89,12 +89,15 @@ try {
     "ExplainableShellSubflowRecorded",
     "ExplainableShellSubflowRevision",
     "ExplainableShellNavigationReview",
-    "PublicTraceScopeParity",
   ];
-  for (const [suite, sourcePath] of [
-    ...componentSuites.map(name => [name, `test/component/${name}.test.tsx`]),
-    ["TraceWalkHandoff", "test/unit/traceWalkHandoff.test.ts"],
+  for (const [suite, sourcePath, group] of [
+    ...componentSuites.map(name => [name, `test/component/${name}.test.tsx`, "shared"]),
+    ["TraceWalkHandoff", "test/unit/traceWalkHandoff.test.ts", "shared"],
+    ["PublicTraceScopeParity", "test/component/PublicTraceScopeParity.test.tsx", "without-reader"],
+    ["ExplainableShellPayment", "test/component/ExplainableShellPayment.test.tsx", "with-reader"],
   ]) {
+    const groupDir = join(tests, group);
+    mkdirSync(groupDir, { recursive: true });
     const source = readFileSync(
       join(repo, sourcePath),
       "utf8"
@@ -120,7 +123,7 @@ try {
       ["cjs", "cjs"],
     ]) {
       writeFileSync(
-        join(tests, `${suite}-${format}.test.tsx`),
+        join(groupDir, `${suite}-${format}.test.tsx`),
         publicConsumer
           .replaceAll(
             '"__PACKED_SHELL__"',
@@ -139,24 +142,27 @@ try {
   );
   writeFileSync(
     join(scratch, "vitest.config.mjs"),
-    `export default {test:{include:['test/*.test.tsx'],setupFiles:['test/setup.ts'],maxWorkers:1,fileParallelism:false}};\n`
+    `export default {test:{include:['test/*/*.test.tsx'],setupFiles:['test/setup.ts'],maxWorkers:1,fileParallelism:false}};\n`
   );
-  const output = run(
-    process.execPath,
-    [
+  // Run the shared recordings in both installations. Each also exercises its own
+  // public contract: synchronous copy parity, or recorded cross-scope navigation.
+  for (const profile of ["without-reader", "with-reader"]) {
+    if (profile === "with-reader") {
+      symlinkSync(join(repo, "node_modules", "foottrace"), join(modules, "foottrace"), "dir");
+    }
+    console.log(`Packed replay: ${profile}`);
+    console.log(run(process.execPath, [
       join(repo, "node_modules/vitest/vitest.mjs"),
-      "run",
-      "--config",
-      join(scratch, "vitest.config.mjs"),
-    ],
-    scratch
-  );
-  console.log(output);
+      "run", "--config", join(scratch, "vitest.config.mjs"),
+      "test/shared/", `test/${profile}/`,
+    ], scratch, { ...env, SCOPED_REPLAY_FOOTTRACE: profile }));
+  }
   console.log(
     JSON.stringify({
       offline: true,
       installedPackedFiles: true,
       formats: ["esm", "cjs"],
+      foottrace: ["absent", "installed"],
       packageIntegrity: packed[0].integrity,
     })
   );

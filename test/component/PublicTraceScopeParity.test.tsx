@@ -14,7 +14,7 @@ import { createTraceStructureRecorder } from "../../src/flowchart";
 
 // Graph-only consumers can use the synchronous public walk builder without installing
 // the optional record peer. Their copy artifact must still match the same evidence.
-vi.mock("../../src/scopedBacktrack/load", () => ({ loadScopedRecordGraph: async () => undefined }));
+vi.mock("foottrace/cause", () => { throw new Error("Optional Foottrace reader unavailable"); });
 
 type Props = React.ComponentProps<typeof ExplainableShell>;
 const nested = JSON.parse(

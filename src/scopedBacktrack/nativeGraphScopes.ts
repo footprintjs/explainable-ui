@@ -22,8 +22,7 @@ function sameAddress(raw: unknown, address: LogAddress) {
 
 const baseLimits = ["tracked-state-only", "final-attempt-views", "child-scopes-not-attested", "storage-not-attested"];
 
-/** Restrict observations to their own segment. Future versions and a root note
- * copied onto a child carry no coverage assertion here. */
+/** Interim until Foottrace decodes the versioned capture note for a specific log address and commit interval. */
 function rootNote(raw: unknown, address: LogAddress, length: number, runId: unknown) {
   if (!isPlainRecord(raw) || address.drillPath.length) return undefined;
   const version = field(raw, "version"), interval = field(raw, "commits");
@@ -35,6 +34,7 @@ function rootNote(raw: unknown, address: LogAddress, length: number, runId: unkn
   return raw;
 }
 
+// Interim until Foottrace reports which channels covered this completed interval.
 function completedReads(note: unknown) {
   if (!note) return false;
   const version = field(note, "version"), modes = field(note, "modes"), channels = field(note, "channels");

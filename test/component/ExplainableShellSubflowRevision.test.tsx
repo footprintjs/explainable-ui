@@ -6,6 +6,8 @@ import { readFileSync } from "node:fs";
 import { ExplainableShell } from "../../src/components/ExplainableShell/ExplainableShell";
 import { createTraceStructureRecorder } from "../../src/components/FlowchartView/traceStructureRecorder";
 
+// The offline package replay also exercises the graph-only installation.
+const withoutReader = process.env.SCOPED_REPLAY_FOOTTRACE === "without-reader";
 type Props = React.ComponentProps<typeof ExplainableShell>;
 type Run = {
   runtimeSnapshot: NonNullable<Props["runtimeSnapshot"]>;
@@ -206,7 +208,10 @@ describe("recorded subflow review regressions", () => {
     ui.inspector();
     move(7);
     trace("total");
-    await waitFor(() => expect(card()?.textContent).toContain("The recorded evidence could not be read."));
+    const message = withoutReader
+      ? "write evidence is unavailable; value origin unknown."
+      : "The recorded evidence could not be read.";
+    await waitFor(() => expect(card()?.textContent).toContain(message));
   });
   it("shows a drawing failure for shared tree nodes without expanding the screen", () => {
     const ui=setup("repeated");
@@ -266,7 +271,11 @@ describe("recorded subflow review regressions", () => {
     move(3);
     trace("total");
     await waitFor(() => expect(card().textContent).not.toContain("Reading recorded sources"));
-    expect(card().textContent).toMatch(/collection unknown|not collected/i);
+    if (withoutReader) {
+      expect(card().textContent).toContain("reads were not recorded — dependencies are unknowable, not absent.");
+    } else {
+      expect(card().textContent).toMatch(/collection unknown|not collected/i);
+    }
     expect(card().textContent).not.toContain("this is an origin");
     expect(document.querySelector('[data-fp="trace-unavailable"]')).toBeNull();
   });

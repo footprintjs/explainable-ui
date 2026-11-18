@@ -13,6 +13,48 @@ function read(snapshot: unknown, key: string, beforeCommitIdx: number, invocatio
 const child = ["payment#1"];
 
 describe("scoped record graph", () => {
+  it("distinguishes a partial write from an unverified exact writer address", async () => {
+    const snapshot = payment();
+    const row = snapshot.commitLog[0];
+    const nestedKey = "config\u001fregion";
+    row.overwrite = { config: { region: "west" } };
+    row.trace = [{ path: nestedKey, verb: "set", readKeys: [] }];
+    const partial = await read(snapshot, "config", 1);
+    expect(partial.writer).toBeUndefined();
+    expect(partial.gaps).toEqual([{ invocationPath: [], code: "nested-rows", message: "This step wrote only part of the selected value." }]);
+
+    row.trace[0].path = "config";
+    const container = await read(snapshot, nestedKey, 1);
+    expect(container.writer).toBeUndefined();
+    expect(container.gaps).toEqual([{ invocationPath: [], code: "writer-address-unverified", message: "The exact recorded writer address could not be verified." }]);
+  });
+
+  it("withholds an unaddressable parent without calling it multiple possible writers", async () => {
+    const snapshot = payment();
+    delete snapshot.readSources;
+    snapshot.commitLog[0].trace = [{ path: "config\u001fregion", verb: "set", readKeys: [] }];
+    snapshot.commitLog[0].overwrite = { config: { region: "west" } };
+    snapshot.commitLog[3].trace[0].readKeys = ["config"];
+    snapshot.executionTree.next.next.stageReads = { config: { region: "west" } };
+    const result = await read(snapshot, "shipped", 4);
+    expect(result.writers).toEqual([]);
+    expect(result.gaps.map(g => g.code)).toContain("writer-address-unverified");
+    expect(result.gaps.map(g => g.code)).not.toContain("ambiguous");
+  });
+
+  it("names multiple possible writers when both wrote within reach of the read window", async () => {
+    const snapshot = payment();
+    delete snapshot.readSources;
+    snapshot.commitLog[1].trace = [{ path: "amount", verb: "set", readKeys: [] }];
+    snapshot.commitLog[1].overwrite = { amount: 17 };
+    Object.assign(snapshot.commitLog[3], { beganAt: 1, sawUntil: 2 });
+    snapshot.commitLog[3].trace[0].readKeys = ["amount"];
+    snapshot.executionTree.next.next.stageReads = { amount: 99 };
+    const result = await read(snapshot, "shipped", 4);
+    expect(result.writers).toEqual([]);
+    expect(result.gaps.map(g => g.code)).toContain("ambiguous");
+  });
+
   it("keeps a native capture gap visible on a flat record with no mounts", async () => {
     const snapshot = payment();
     delete snapshot.executionTree.next;
