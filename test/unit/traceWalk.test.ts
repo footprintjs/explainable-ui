@@ -20,7 +20,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildTraceWalk,
+  buildTraceWalk, createTraceWalkReader,
   formatTraceWalk,
 } from "../../src/components/ExplainableShell/_internal/traceWalk";
 
@@ -247,5 +247,29 @@ describe("formatTraceWalk — the parity artifact", () => {
     const text = formatTraceWalk(walk, stepOf);
     expect(text).toContain("earlier recorded state reads may be missing");
     expect(text).not.toContain("true origin");
+  });
+});
+
+describe("prepared trace evidence", () => {
+  it("keeps cutoffs and output objects independent across questions on the same visit", () => {
+    const log = [commit("Score", "score#same", ["points"]), commit("Score", "score#same", ["points"])];
+    const read = createTraceWalkReader(log, {});
+    const earlier = read("points", { beforeCommitIdx: 1 });
+    expect(earlier.stops.map(stop => stop.commitIdx)).toEqual([0]);
+    earlier.stops[0].keysWritten.push("unrecorded");
+    expect(read("points").stops[0]).toMatchObject({ commitIdx: 1, keysWritten: ["points"] });
+    expect(read("points", { beforeCommitIdx: 1 }).stops[0].keysWritten).toEqual(["points"]);
+  });
+
+  it("keeps read availability and writers at the selected historical anchor", () => {
+    const log = [
+      commit("Plan", "plan#0", ["plan"]),
+      { ...commit("Finish", "finish#1", []), trace: [{ path: "total", readKeys: ["plan"] }] },
+    ];
+    const read = createTraceWalkReader(log, {});
+    expect(read("plan").readsAvailable).toBe(false);
+    expect(read("total").readsAvailable).toBe(true);
+    expect(read("total").stops.map(stop => stop.commitIdx)).toEqual([1, 0]);
+    expect(read("total", { beforeCommitIdx: 1 }).missing?.reason).toBe("not-yet-written");
   });
 });

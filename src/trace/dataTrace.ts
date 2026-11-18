@@ -1,5 +1,5 @@
 import { emptyVisitPhase } from "./traceScope";
-import { readCommitTiming, indexReadWindows, type RecordedReadTiming, type ReadWindow } from "./readTiming";
+import { readCommitTiming, indexReadWindows, type RecordedReadTiming } from "./readTiming";
 /**
  * dataTrace — the REAL backward data slice behind the shell's "Data Trace"
  * tab, mirroring footprintjs' `causalChain` (thin backward slicing: BFS over
@@ -25,7 +25,7 @@ import { readCommitTiming, indexReadWindows, type RecordedReadTiming, type ReadW
  */
 
 import { optionalOwnDataField, readOwnArray, WorkBudget } from "./safeRecordRead";
-import { indexReadAddresses, indexTraceWrites, indexWriterCommits, readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, indexRelatedWrites, resolveReadWriter, type RelatedWriteIndex, type RecordedTraceWrite } from "./readProvenance";
+import { indexReadAddresses, indexTraceWrites, indexWriterCommits, readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, indexRelatedWrites, resolveReadWriter, type RecordedTraceWrite } from "./readProvenance";
 
 /** The frame shape DataTracePanel renders. New evidence fields are optional. */
 export interface DataTraceFrame {
@@ -59,9 +59,7 @@ interface CommitEntry extends RecordedReadTiming {
   stage: string;
   stageId: string;
   runtimeStageId: string;
-  /** Optional: present on every bundle the current engine writes, absent on
-   *  older or hand-assembled recordings. See `tracedPaths`. */
-  trace?: RecordedTraceWrite[];
+  trace: RecordedTraceWrite[];
 }
 
 /**
@@ -79,10 +77,15 @@ export function buildDataTrace(
   targetPath?: string,
   provenance?: DataTraceProvenanceOptions,
 ): DataTraceResult {
-  let log: CommitEntry[], reads: Map<string, string[]>, windows: ReadWindow[], related: RelatedWriteIndex;
+  return createDataTraceReader(commitLog, executionTree, provenance).at(targetRuntimeStageId, maxDepth, maxFrames, targetPath);
+}
+
+/** Prepared for a single immutable scope revision, shared by successive Shell positions. */
+export function createDataTraceReader(commitLog: unknown[], executionTree: unknown, provenance?: DataTraceProvenanceOptions) {
+  const budget = new WorkBudget();
+  let index: ReturnType<typeof indexTraceEvidence>;
   try {
-    const budget = new WorkBudget();
-    log = readOwnArray(commitLog ?? [], budget).map(entry => {
+    const log = readOwnArray(commitLog ?? [], budget).map(entry => {
       const trace = readTraceWrites(optionalOwnDataField(entry, "trace"), budget, true);
       const phase = emptyVisitPhase(entry, trace.length, budget);
       return { ...readCommitTiming(entry),
@@ -92,44 +95,52 @@ export function buildDataTrace(
         trace, ...(phase ? { phase } : {}),
       };
     });
-    reads = stageReadKeys(executionTree, budget);
-    windows = indexReadWindows(log); related = indexRelatedWrites(log);
-  } catch { return { frames: [], readsAvailable: false }; }
-  const readsAvailable = reads.size > 0 || log.some(commit => commit.trace?.some(write => write.readKeys !== undefined));
-  if (!log.length) return { frames: [], readsAvailable };
-
-  const idxOf = new Map<string, number>();
-  const ambiguous = new Set<string>();
-  // Only a proven value-free exit/repeat is bookkeeping. Other duplicate
-  // visits cannot date a stage question and must not silently choose a row.
-  for (let i = 0; i < log.length; i++) {
-    if (log[i].phase) continue;
-    if (idxOf.has(log[i].runtimeStageId)) ambiguous.add(log[i].runtimeStageId);
-    else idxOf.set(log[i].runtimeStageId, i);
+    index = indexTraceEvidence(log, stageReadKeys(executionTree, budget), provenance?.nestedReadTracking === true);
+  } catch {
+    return { at: (): DataTraceResult => ({ frames: [], readsAvailable: false }) };
   }
-  let startIdx = ambiguous.has(targetRuntimeStageId) && targetPath === undefined ? undefined : idxOf.get(targetRuntimeStageId);
-  if (targetPath !== undefined) {
-    startIdx = undefined;
-    for (let i = log.length - 1; i >= 0; i--) {
-      if (log[i].runtimeStageId === targetRuntimeStageId && log[i].trace?.some(write => write.path === targetPath)) {
-        startIdx = i; break;
+  const visits = new Map<string, number>();
+  index.log.forEach((commit, i) => {
+    if (!commit.phase) visits.set(commit.runtimeStageId, visits.has(commit.runtimeStageId) ? -1 : i);
+  });
+  return {
+    at(id: string, maxDepth = 10, maxFrames = 50, path?: string): DataTraceResult {
+      let start = visits.get(id) ?? -1;
+      if (path !== undefined) {
+        const writers = index.writers.get(path) ?? [];
+        start = -1;
+        for (let i = writers.length - 1; i >= 0; i--) {
+          const candidate = writers[i];
+          if (index.log[candidate].runtimeStageId === id) { start = candidate; break; }
+        }
       }
-    }
-  }
-  if (startIdx === undefined) return { frames: [], readsAvailable };
+      return sliceAtCommit(index, start, maxDepth, maxFrames, path);
+    },
+  };
+}
 
-  // `trace` is what the engine records per commit; a bundle that arrives
-  // without it (an older engine, a hand-assembled recording) means "wrote
-  // nothing traceable", not "crash the whole shell".
-  const tracedPaths = (entry: CommitEntry): RecordedTraceWrite[] =>
-    entry.trace ?? [];
-
-  const writesByKey = log.map(commit => indexTraceWrites(tracedPaths(commit)));
+/** Both readers use these lookups, after applying their own input admission rules. */
+export function indexTraceEvidence(log: CommitEntry[], reads: Map<string, string[]>, nestedReadTracking: boolean) {
+  const windows = indexReadWindows(log);
+  const related = indexRelatedWrites(log);
   const writers = indexWriterCommits(log);
+  const writesByKey = log.map(commit => indexTraceWrites(commit.trace));
   const stageReadNames = new Map([...reads].map(([id, keys]) => [id, new Set(keys)]));
   const noStageReads = new Set<string>();
-  const readAddresses = writesByKey.map((writes, index) => indexReadAddresses(writes, stageReadNames.get(log[index].runtimeStageId) ?? noStageReads, provenance?.nestedReadTracking === true));
+  const readAddresses = writesByKey.map((writes, i) =>
+    indexReadAddresses(writes, stageReadNames.get(log[i].runtimeStageId) ?? noStageReads, nestedReadTracking));
+  const firstRecordedRead = log.findIndex(commit => commit.trace.some(write => write.readKeys !== undefined));
+  return { log, reads, windows, related, writers, writesByKey, readAddresses, firstRecordedRead };
+}
 
+export function sliceAtCommit(
+  index: ReturnType<typeof indexTraceEvidence>, startIdx: number, maxDepth: number, maxFrames: number,
+  targetPath?: string, lastEvidenceIdx = index.log.length - 1,
+): DataTraceResult {
+  const { log, reads, windows, related, writers, writesByKey, readAddresses, firstRecordedRead } = index;
+  // A historical write cannot borrow read availability from a later commit.
+  const readsAvailable = reads.size > 0 || (firstRecordedRead >= 0 && firstRecordedRead <= lastEvidenceIdx);
+  if (startIdx < 0) return { frames: [], readsAvailable };
   const frames: DataTraceFrame[] = [];
   const frameAt = new Map<number, DataTraceFrame>();
   const frameReads = new Map<number, Set<string>>();
@@ -148,7 +159,7 @@ export function buildDataTrace(
     let frame = frameAt.get(idx);
     if (!frame) {
       frame = { runtimeStageId: commit.runtimeStageId, stageId: commit.stageId,
-        stageName: commit.stage, keysWritten: tracedPaths(commit).map(t => t.path),
+        stageName: commit.stage, keysWritten: commit.trace.map(t => t.path),
         linkedBy, depth, commitIdx: idx, readKeys: [] };
       frames.push(frame); frameAt.set(idx, frame); frameReads.set(idx, new Set());
     }

@@ -3,7 +3,7 @@ import type { StageSnapshot } from "../../src/types";
 import { theme } from "../../src/theme";
 import { buildTraceDependencyGraph } from "../../src/trace/traceDependencyGraph";
 import { buildTraceWalk, type TraceIngredient, type TraceStop, type TraceWalk } from "../../src/trace/traceWalk";
-import { buildTraceWorkflowOverlay, traceIngredientColor, traceNodeColors } from "../../src/trace/traceWorkflowOverlay";
+import { buildTraceWorkflowOverlay, prepareTraceWorkflowOverlay, traceIngredientColor, traceNodeColors } from "../../src/trace/traceWorkflowOverlay";
 
 function recording(steps: { id: string; writes: string[]; reads?: string[] }[], key = "total", canonical = false) {
   const log = steps.map(step => ({ stage: step.id, stageId: step.id.split("#")[0],
@@ -70,6 +70,17 @@ describe("shared trace colors", () => {
 });
 
 describe("buildTraceWorkflowOverlay", () => {
+  it("keeps evidence stable across cursor changes and leaves earlier selections untouched", () => {
+    const select = prepareTraceWorkflowOverlay(diamond(), [])!;
+    const left = select("left#1"), right = select("right#2");
+    expect(left.focusRuntimeStageId).toBe("left#1");
+    expect(right.focusRuntimeStageId).toBe("right#2");
+    expect(right.stages).toBe(left.stages);
+    expect(right.reads).toBe(left.reads);
+    expect(select("right#2")).toBe(right);
+    expect(select("other#9").focusRuntimeStageId).toBe("join#3");
+  });
+
   it("returns no overlay for no question or honest missing evidence", () => {
     expect(buildTraceWorkflowOverlay(null, [], null)).toBeNull();
     const walk = diamond(); walk.missing = { reason: "evidence-unavailable" };

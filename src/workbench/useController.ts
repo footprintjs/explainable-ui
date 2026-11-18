@@ -13,7 +13,7 @@ import { ownDataField } from '../trace/safeRecordRead';
 import { projectStageActivity, type StageActivityTraceTarget } from '../trace/stageActivity';
 import { overlayFromSnapshot } from '../adapters/overlayFromSnapshot';
 import { projectReplayAxis } from '../replay/replayAxis';
-import { buildTraceWorkflowOverlay } from '../trace/traceWorkflowOverlay';
+import { prepareTraceWorkflowOverlay } from '../trace/traceWorkflowOverlay';
 import type { LensController, LensControllerActions, LensControllerOptions, LensPresentationRequest, LensRecordingStatus } from './types';
 
 /** React state owner. There are no rendered surfaces, layout, theme or DOM effects here. */
@@ -83,8 +83,9 @@ export function useCreateController(input: LensControllerOptions) {
     setSnapshotIdx, onStartInspector, onReturnToActivity, runtimeSnapshot, recordingIdentity: source,
     openTraceSource: navigation.openTraceSource, restoreTraceQuestion: navigation.restoreTraceQuestion, stageActivity });
   const traceCursorRuntimeStageId = activeSnapshots[safeIdx]?.runtimeStageId ?? null;
-  const traceWorkflow = useMemo(() => buildTraceWorkflowOverlay(traceSession.traceWalk, activeSnapshots, traceCursorRuntimeStageId),
-    [traceSession.traceWalk, activeSnapshots, traceCursorRuntimeStageId]);
+  const focusWorkflow = useMemo(() => prepareTraceWorkflowOverlay(traceSession.traceWalk, activeSnapshots),
+    [traceSession.traceWalk, activeSnapshots]);
+  const traceWorkflow = focusWorkflow?.(traceCursorRuntimeStageId) ?? null;
   const activityIdentity = JSON.stringify([stageActivity.identity.invocationPath,
     stageActivity.identity.runtimeStageId, stageActivity.identity.commitIdx]);
   const selectedActivityVariableId = !navigation.sourceChanged && activityVariableSelection?.sourceToken === activitySource.current.token

@@ -1,4 +1,4 @@
-import type { TraceWorkflowOverlay, TraceWorkflowStage } from "../../../trace/traceWorkflowOverlay";
+import type { TraceWorkflowOverlay, TraceWorkflowRead, TraceWorkflowStage } from "../../../trace/traceWorkflowOverlay";
 import type { Rect } from "@xyflow/react";
 import type { DiagramGeometry } from "../../DiagramDrawing";
 import type { ChartFitNode } from "./chartFitGeometry";
@@ -49,6 +49,8 @@ export interface VisibleWorkflowRead {
 export function projectTraceWorkflow(
   overlay: TraceWorkflowOverlay | null | undefined,
   visible: readonly { id: string; hidden?: boolean }[],
+  projectRead: (read: TraceWorkflowRead, source: string, target: string) => VisibleWorkflowRead =
+    (read, source, target) => ({ ...read, source, target }),
 ): { stages: ReadonlyMap<string, TraceWorkflowStage>; reads: readonly VisibleWorkflowRead[] } {
   const stages = new Map<string, TraceWorkflowStage>();
   const reads: VisibleWorkflowRead[] = [];
@@ -85,7 +87,7 @@ export function projectTraceWorkflow(
     const id = JSON.stringify([read.key, read.sourceRuntimeStageId, read.targetRuntimeStageId]);
     if (seen.has(id)) continue;
     seen.add(id);
-    reads.push({ ...read, source, target });
+    reads.push(projectRead(read, source, target));
   }
   return { stages, reads };
 }

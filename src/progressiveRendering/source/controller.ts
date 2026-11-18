@@ -1,4 +1,4 @@
-import type { RecordingSource, RecordingSourceOptions, RecordingSourceSnapshot, PreparedSubflow, SubflowLoadRequest, SubflowLoadState } from '../types';
+import type { LiveRecordingSource, RecordingSourceUpdate, RecordingSourceOptions, RecordingSourceSnapshot, PreparedSubflow, SubflowLoadRequest, SubflowLoadState } from '../types';
 import type { RuntimeSnapshotInput } from '../../model/recording';
 import type { TraceGraph } from '../../components/FlowchartView/traceStructureRecorder';
 import { prepareSubflow } from '../prepare';
@@ -12,9 +12,16 @@ import { admitCohort, assertCumulativeChild, sameOwnedData, type LiveCohort } fr
 type Lease = { resolve(value: PreparedSubflow): void; reject(error: Error): void; clean(): void };
 type Job = { key: string; request: SubflowLoadRequest; controller: AbortController; leases: Set<Lease>; started: boolean; queuedBackground: boolean; cancelStart?: () => void; value?: PreparedSubflow };
 
+interface PendingRead {
+  read?: () => RecordingSourceUpdate;
+  promise: Promise<void>;
+  resolve(): void;
+  reject(error: unknown): void;
+}
+
 /** One creator-owned recording cohort. View unmount releases only its own
  * subscription and request signal; it must not dispose another view's source. */
-export function createRecordingSource(options: RecordingSourceOptions): RecordingSource {
+export function createRecordingSource(options: RecordingSourceOptions): LiveRecordingSource {
   let cohort = admitCohort(options), pendingRoot: LiveCohort | undefined;
   const loader = options.loadSubflow, hostPrepare = options.prepareSubflow;
   const max = options.maxCachedSubflows ?? 64;
@@ -25,6 +32,7 @@ export function createRecordingSource(options: RecordingSourceOptions): Recordin
   const graphs = new Map<string, { root: TraceGraph; layers: TraceGraph[]; value: TraceGraph }>();
   let disposed = false, revision = 0, rootRevision = 0;
   let snapshot = sourceView(cohort.fields, cohort.narrative, states, revision), cancelVisual: (() => void) | undefined;
+  let pendingRead: PendingRead | undefined;
   let publication: { cohort: LiveCohort; states: Map<string, SubflowLoadState>; view: RecordingSourceSnapshot; jobs: Job[]; rootChanged: boolean } | undefined;
   const alive = (job: Job) => !disposed && jobs.get(job.key) === job && !job.controller.signal.aborted;
   const emit = (dataChanged = false) => {
@@ -67,8 +75,15 @@ export function createRecordingSource(options: RecordingSourceOptions): Recordin
     }
     return result;
   }
-  function queuePublication(): void {
-    if (!pendingRoot && !ready.size) { publication = undefined; cancelVisual?.(); cancelVisual = undefined; return; }
+  function schedulePublication() {
+    if (!cancelVisual) cancelVisual = scheduleVisual(flush);
+  }
+  function queuePublication(inFrame = false): void {
+    if (!pendingRoot && !ready.size) {
+      publication = undefined;
+      if (!pendingRead) { cancelVisual?.(); cancelVisual = undefined; }
+      return;
+    }
     const target = pendingRoot ?? cohort, nextStates = candidateStates(target), complete: Job[] = [];
     for (const job of [...ready.values()]) if (alive(job)) {
       try {
@@ -86,15 +101,26 @@ export function createRecordingSource(options: RecordingSourceOptions): Recordin
     const rootChanged = pendingRoot !== undefined;
     publication = { cohort: target, states: nextStates,
       view: sourceView(target.fields, target.narrative, nextStates, revision + 1, undefined, rootRevision + Number(rootChanged)), jobs: complete, rootChanged };
-    if (!cancelVisual) cancelVisual = scheduleVisual(flush);
+    if (!inFrame) schedulePublication();
   }
   function flush(): void {
     cancelVisual = undefined;
+    const request = pendingRead;
+    pendingRead = undefined;
+    if (request?.read) {
+      try {
+        const value = request.read();
+        stageUpdate(value, true);
+      } catch (error) {
+        request.reject(error);
+      }
+    }
     const next = publication; publication = undefined; if (!next || disposed) return;
     cohort = next.cohort; pendingRoot = undefined; states = next.states;
     if (next.rootChanged) rootRevision++;
     snapshot = Object.freeze({ ...next.view, revision: ++revision, rootRevision });
     ready.clear();
+    request?.resolve();
     for (const job of next.jobs) { jobs.delete(job.key); settle(job); }
     for (const listener of [...listeners]) { try { listener(); } catch { /* Host subscription code is isolated. */ } }
   }
@@ -139,22 +165,38 @@ export function createRecordingSource(options: RecordingSourceOptions): Recordin
     job.leases.add(interest); signal?.addEventListener('abort', onAbort, { once: true });
     if (signal?.aborted) onAbort();
   });
-  const source: RecordingSource = {
+  function stageUpdate(value: RecordingSourceUpdate, inFrame = false): void {
+    if (disposed) throw new Error('The recording source was disposed.');
+    let target: LiveCohort, valid: Map<string, SubflowLoadState>;
+    try { target = admitCohort(value, pendingRoot ?? cohort); valid = candidateStates(target); }
+    catch { throw new Error('Live updates require a complete cumulative recording from the same run.'); }
+    // The source owns old child facts until one atomic new root cohort takes
+    // their place. Invalidate stale jobs before any old result can publish.
+    for (const job of [...jobs.values()]) {
+      const provided = own(target.fields.subflowResults, job.request.mountRuntimeStageId);
+      if (!valid.has(job.key) || (provided !== undefined && !sameOwnedData(provided, own(cohort.fields.subflowResults, job.request.mountRuntimeStageId)))) cancelJob(job, false);
+    }
+    pendingRoot = target; queuePublication(inFrame);
+  }
+  const source: LiveRecordingSource = {
     get rootSnapshot() { return cohort.fields as unknown as RuntimeSnapshotInput; },
     get rootGraph() { return cohort.graph; },
     canLoadSubflows: typeof loader === 'function',
     update(value) {
-      if (disposed) throw new Error('The recording source was disposed.');
-      let target: LiveCohort, valid: Map<string, SubflowLoadState>;
-      try { target = admitCohort(value, pendingRoot ?? cohort); valid = candidateStates(target); }
-      catch { throw new Error('Live updates require a complete cumulative recording from the same run.'); }
-      // The source owns old child facts until one atomic new root cohort takes
-      // their place. Invalidate stale jobs before any old result can publish.
-      for (const job of [...jobs.values()]) {
-        const provided = own(target.fields.subflowResults, job.request.mountRuntimeStageId);
-        if (!valid.has(job.key) || (provided !== undefined && !sameOwnedData(provided, own(cohort.fields.subflowResults, job.request.mountRuntimeStageId)))) cancelJob(job, false);
-      }
-      pendingRoot = target; queuePublication();
+      stageUpdate(value);
+      // A complete eager capture supersedes an earlier signal. Its shared
+      // promise settles when this newer cohort actually publishes.
+      if (pendingRead) pendingRead.read = undefined;
+    },
+    requestUpdate(read) {
+      if (disposed) return Promise.reject(abortError('Live recording update was cancelled.'));
+      if (typeof read !== 'function') return Promise.reject(new TypeError('A live recording update requires a reader.'));
+      if (pendingRead) { pendingRead.read = read; return pendingRead.promise; }
+      let resolve!: () => void, reject!: (error: unknown) => void;
+      const promise = new Promise<void>((done, fail) => { resolve = done; reject = fail; });
+      pendingRead = { read, promise, resolve, reject };
+      schedulePublication();
+      return promise;
     },
     getSnapshot: () => snapshot,
     subscribe(listener: () => void) { if (disposed) return () => undefined; listeners.add(listener); return () => { listeners.delete(listener); }; },
@@ -200,7 +242,7 @@ export function createRecordingSource(options: RecordingSourceOptions): Recordin
     dispose() {
       if (disposed) return; disposed = true; cancelVisual?.(); publication = undefined; pendingRoot = undefined; ready.clear(); listeners.clear(); graphs.clear();
       for (const job of jobs.values()) { job.cancelStart?.(); job.controller.abort(); settle(job, abortError()); }
-      jobs.clear();
+      jobs.clear(); pendingRead?.reject(abortError('Live recording update was cancelled.')); pendingRead = undefined;
     },
   };
   return Object.freeze(source);

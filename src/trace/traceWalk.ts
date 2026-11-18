@@ -1,4 +1,4 @@
-import { readCommitTiming, indexReadWindows, type RecordedReadTiming, type ReadWindow } from "./readTiming";
+import { readCommitTiming } from "./readTiming";
 /**
  * traceWalk — the SAME-RAIL REWIND walk: a variable-anchored backward slice,
  * linearized in REVERSE COMMIT ORDER so it can be driven by the existing
@@ -29,8 +29,8 @@ import { readCommitTiming, indexReadWindows, type RecordedReadTiming, type ReadW
 import { rootMountLabels } from "./traceScope";
 import { ownDataField, readOwnArray, WorkBudget } from "./safeRecordRead";
 import { snapshotWalkScope } from "./walkScope";
-import { buildDataTrace } from "./dataTrace";
-import { indexReadAddresses, indexTraceWrites, indexWriterCommits, readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, indexRelatedWrites, resolveReadWriter, type RelatedWriteIndex, type RecordedTraceWrite, type ReadPathUncertainty } from "./readProvenance";
+import { indexTraceEvidence, sliceAtCommit } from "./dataTrace";
+import { readPathUncertainty, readTraceWrites, readsForWrittenKey, stageReadKeys, resolveReadWriter, type ReadPathUncertainty } from "./readProvenance";
 import { handoffSentence, subflowHandoffSources, type SubflowHandoffSource } from "./subflowHandoff";
 import { recordedPathLabel } from "./recordedValuePreview";
 import {
@@ -128,14 +128,6 @@ export interface TraceWalk {
   truncated: boolean;
 }
 
-/** Duck-typed commit bundle (same stable snapshot shape dataTrace uses). */
-interface CommitEntry extends RecordedReadTiming {
-  stage: string;
-  stageId: string;
-  runtimeStageId: string;
-  trace: RecordedTraceWrite[];
-}
-
 const DEFAULT_MAX_DEPTH = 10;
 const DEFAULT_MAX_FRAMES = 50;
 
@@ -153,49 +145,49 @@ export function buildTraceWalk(
   key: string,
   opts?: TraceWalkOptions
 ): TraceWalk {
+  return createTraceWalkReader(commitLog, executionTree, opts?.scope)(key, opts);
+}
+
+/** Index the admitted evidence once per invocation and recording revision. */
+export function createTraceWalkReader(commitLog: unknown[], executionTree: unknown, explicitScope?: TraceWalkScope) {
+  let evidence: ReturnType<typeof indexTraceEvidence> | null;
   const root =
-    opts?.scope === undefined ? rootMountLabels(executionTree) : undefined;
+    explicitScope === undefined ? rootMountLabels(executionTree) : undefined;
   const inferred =
     root?.availability.ok && root.labels.size > 0
       ? { invocationPath: [], mountLabels: Object.fromEntries(root.labels) }
       : undefined;
-  const selectedScope = opts?.scope ?? inferred;
+  const selectedScope = explicitScope ?? inferred;
   const scope =
     selectedScope === undefined ? undefined : snapshotWalkScope(selectedScope);
-  const scoped = scope === undefined ? {} : { scope };
-  let log: CommitEntry[], readsOf: Map<string, string[]>, windows: ReadWindow[], related: RelatedWriteIndex;
   try {
     if (root && !root.availability.ok) throw new Error("Unavailable tree evidence");
     const budget = new WorkBudget();
-    log = readOwnArray(commitLog ?? [], budget).map((entry) => ({
+    const log = readOwnArray(commitLog ?? [], budget).map(entry => ({
       ...readCommitTiming(entry),
       stage: ownDataField(entry, "stage") as string,
       stageId: ownDataField(entry, "stageId") as string,
       runtimeStageId: ownDataField(entry, "runtimeStageId") as string,
       trace: readTraceWrites(ownDataField(entry, "trace"), budget),
     }));
-    readsOf = stageReadKeys(executionTree, budget);
-    windows = indexReadWindows(log); related = indexRelatedWrites(log);
+    evidence = indexTraceEvidence(log, stageReadKeys(executionTree, budget), scope?.nestedReadTracking === true);
   } catch {
-    return {
-      key,
-      stops: [],
-      missing: { reason: "evidence-unavailable" },
-      inputTermini: [],
-      readsAvailable: false,
-      truncated: false,
-      ...scoped,
-    };
+    evidence = null;
   }
+  return (key: string, opts?: Omit<TraceWalkOptions, "scope">): TraceWalk => walkFromEvidence(evidence, key, scope, opts);
+}
+
+function walkFromEvidence(
+  evidence: ReturnType<typeof indexTraceEvidence> | null, key: string, scope?: TraceWalkScope,
+  opts?: Omit<TraceWalkOptions, "scope">,
+): TraceWalk {
+  const scoped = scope === undefined ? {} : { scope };
+  if (!evidence) return { key, stops: [], missing: { reason: "evidence-unavailable" }, inputTermini: [],
+    readsAvailable: false, truncated: false, ...scoped };
+  const { log, reads: readsOf, writers, writesByKey, windows, related, readAddresses } = evidence;
   const cutoff = opts?.beforeCommitIdx ?? log.length;
   const maxDepth = opts?.maxDepth ?? DEFAULT_MAX_DEPTH;
   const maxFrames = opts?.maxFrames ?? DEFAULT_MAX_FRAMES;
-
-  const writers = indexWriterCommits(log);
-  const writesByKey = log.map(commit => indexTraceWrites(commit.trace));
-  const stageReadNames = new Map([...readsOf].map(([id, keys]) => [id, new Set(keys)]));
-  const noStageReads = new Set<string>();
-  const readAddresses = writesByKey.map((writes, index) => indexReadAddresses(writes, stageReadNames.get(log[index].runtimeStageId) ?? noStageReads, scope?.nestedReadTracking === true));
 
   // ── Anchor: the last writer of `key` within the cutoff ──
   let anchorIdx: number;
@@ -222,7 +214,7 @@ export function buildTraceWalk(
   if (anchorIdx < 0) {
     // Honest absence — distinguish "never" from "not yet" by checking the
     // FULL log: conflating them would assert a falsehood under a cutoff.
-    const firstEver = log.findIndex((c) => c.trace.some((t) => t.path === key));
+    const firstEver = writers.get(key)?.[0] ?? -1;
     const missing: TraceWalkMissing =
       firstEver < 0
         ? { reason: "never-written" }
@@ -246,15 +238,7 @@ export function buildTraceWalk(
   // ── Slice: reuse the shared read→write BFS, anchored at the writer.
   // Truncation detection: ask for one frame beyond the budget — if it comes
   // back full we know the budget bit (buildDataTrace stops AT maxFrames).
-  const slice = buildDataTrace(
-    log.slice(0, anchorIdx + 1),
-    executionTree,
-    log[anchorIdx].runtimeStageId,
-    maxDepth,
-    maxFrames + 1,
-    key,
-    { nestedReadTracking: scope?.nestedReadTracking },
-  );
+  const slice = sliceAtCommit(evidence, anchorIdx, maxDepth, maxFrames + 1, key, anchorIdx);
   const truncated = slice.frames.length > maxFrames;
   const frames = truncated ? slice.frames.slice(0, maxFrames) : slice.frames;
 

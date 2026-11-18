@@ -11,3 +11,5 @@ The same weights paint segments; their centers locate the thumb. Hit testing con
 The axis represents recorded stage sequence weighted by duration, not elapsed wall-clock runtime. Parallel stages can overlap. The library never infers execution time from bytes, arrival time or playback dwell. Live publication/coalescing remains with RecordingSource; this layer neither fetches nor executes workflows.
 
 The workflow transport and the Foottrace recording slider both render `ReplayPosition`. Its input is a list of labels and optional measured durations. Neither the control nor the axis owns the selected stop.
+
+Segmented rails paint up to 128 marks. For longer recordings, each mark covers consecutive stops and sums their original weights. The range input and keyboard navigation still address each original stop; Backtrack still navigates only to its recorded stops. In the recording inspector, more than 128 stops switch the step dropdown to a one-based number field. Enter or **Go to step** selects the exact stop.

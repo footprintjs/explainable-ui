@@ -26,6 +26,10 @@ export interface VerticalBounds {
   readonly bottom: number;
 }
 
+export function bendInGap(lowerBottom: number, nextTop: number, minGap = 8): number {
+  return Math.min((lowerBottom + nextTop) / 2, nextTop - minGap);
+}
+
 /**
  * The y at which a step edge should bend to clear every rank it SKIPS, or `null`
  * when it skips nothing (caller then uses the default midpoint bend == ordinary
@@ -50,7 +54,7 @@ export function staggeredBendY(
     }
   }
   if (lowestSkippedBottom === -Infinity) return null; // nothing skipped → default bend
-  return Math.min((lowestSkippedBottom + targetTop) / 2, targetTop - minGapFromTarget);
+  return bendInGap(lowestSkippedBottom, targetTop, minGapFromTarget);
 }
 
 /**
@@ -73,7 +77,7 @@ export function forkFanBendY(
   if (childTops.length < 2) return null;
   const nearestTop = Math.min(...childTops);
   // Midway to the nearest child, but kept a corner-radius above it.
-  return Math.min((sourceBottom + nearestTop) / 2, nearestTop - minGapFromTarget);
+  return bendInGap(sourceBottom, nearestTop, minGapFromTarget);
 }
 
 /**

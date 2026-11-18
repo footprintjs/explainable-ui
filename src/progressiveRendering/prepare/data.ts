@@ -2,7 +2,7 @@ import { optionalOwnDataField } from '../../trace/safeRecordRead';
 import { copyOwnedData } from '../../recordedValues';
 
 export function invalid(): Error { return new Error('Recorded subflow evidence could not be prepared.'); }
-export function abortError(): Error { const error = new Error('Recorded subflow request was cancelled.'); error.name = 'AbortError'; return error; }
+export function abortError(message = 'Recorded subflow request was cancelled.'): Error { const error = new Error(message); error.name = 'AbortError'; return error; }
 export function checkSignal(signal?: AbortSignal): void { if (signal?.aborted) throw abortError(); }
 export const own = optionalOwnDataField;
 

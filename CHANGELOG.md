@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Live recorder integrations can call `source.requestUpdate(readCohort)` to capture and publish the latest cumulative recording once per visual update.
+- Flat and isometric charts reuse unchanged nodes and edges during playback and index repeated stage visits and edge routes.
+- Backtrack reuses recording-scoped lookups for historical reads and retains a bounded set of recent Foottrace results.
+- Long recordings group the segmented slider into at most 128 visual marks and offer an exact step-number field in the inspector. Each recorded stop remains selectable.
+
 ## [2.0.0] - 2026-11-17
 
 ### Added

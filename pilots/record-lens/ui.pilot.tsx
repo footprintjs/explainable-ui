@@ -206,3 +206,33 @@ describe("bounded display previews, not serialization", () => {
     expect(previewValue(new WeakMap())).toBe("[Object preview unavailable]");
   });
 });
+
+it('jumps to any exact stop on a long recording without mounting every option', () => {
+  const history = Array.from({ length: 500 }, (_, i) => ({ ...write, runtimeStageId: 'calculate#' + i }));
+  const reader = createRecordLensReader({ sourceId: 'large', source: { commitLog: history } });
+  const change = vi.fn();
+  const view = render(<RecordLens reader={reader} step={10} onStepChange={change} />);
+  const field = screen.getByRole<HTMLInputElement>('spinbutton', { name: 'Step' });
+  expect(view.container.querySelectorAll('option')).toHaveLength(0);
+  expect(field.value).toBe('11');
+  fireEvent.change(field, { target: { value: '502' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Go to step' }));
+  expect(change).toHaveBeenLastCalledWith(501);
+  fireEvent.change(field, { target: { value: '39' } });
+  fireEvent.keyDown(field, { key: 'Enter' });
+  expect(change).toHaveBeenLastCalledWith(38);
+  view.rerender(<RecordLens reader={reader} step={38} onStepChange={change} />);
+  expect(field.value).toBe('39');
+  view.rerender(<RecordLens reader={reader} step={0} onStepChange={change} />);
+  expect(field.value).toBe('1');
+  fireEvent.change(field, { target: { value: '503' } });
+  expect(screen.getByRole('button', { name: 'Go to step' })).toHaveProperty('disabled', true);
+  fireEvent.keyDown(field, { key: 'Enter' });
+  expect(change).toHaveBeenCalledTimes(2);
+  fireEvent.change(field, { target: { value: '28' } });
+  const other = createRecordLensReader({ sourceId: reader.sourceId, source: { commitLog: history } });
+  view.rerender(<RecordLens reader={other} step={0} onStepChange={change} />);
+  expect(field.value).toBe('1');
+  fireEvent.keyDown(field, { key: 'Enter' });
+  expect(change).toHaveBeenLastCalledWith(0);
+});

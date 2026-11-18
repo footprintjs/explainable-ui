@@ -54,7 +54,7 @@ const progressiveRenderingExports = [
     "attachSubflowWorker", "resolveProgressiveRenderingOptions", "FootprintLoadStatus",
   ].map(name => ({ name, kind: "value" })),
   ...["ProgressiveRenderingOptions", "SubflowLoadRequest", "LoadedSubflow", "PreparedSubflow",
-    "SubflowLoadState", "RecordingSourceSnapshot", "RecordingSourceOptions", "RecordingSourceUpdate", "RecordingSource",
+    "SubflowLoadState", "RecordingSourceSnapshot", "RecordingSourceOptions", "RecordingSourceUpdate", "RecordingSource", "LiveRecordingSource",
     "PreparationWorker", "SubflowWorkerPreparation", "FootprintLoadStatusProps", "FootprintLoadStatusAdapterProps",
   ].map(name => ({ name, kind: "type" })),
 ];

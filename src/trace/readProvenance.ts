@@ -71,7 +71,7 @@ export function indexTraceWrites(writes: readonly RecordedTraceWrite[]): Readonl
 
 export type ReadPathUncertainty = "ambiguous-read-path" | "legacy-address-unknown" | "read-window-ambiguous" | "related-write";
 
-interface ReadAddressEvidence {
+export interface ReadAddressEvidence {
   nestedReadTracking: boolean;
   nestedWrites: boolean;
   canonicalReads: ReadonlySet<string>;

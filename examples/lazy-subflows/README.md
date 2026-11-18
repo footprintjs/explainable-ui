@@ -22,23 +22,21 @@ A source owns its complete recording/graph/narrative cohort; inline `runtimeSnap
 A child loader is optional. For a live run that already supplies its recording and graph, create a source with just `{ snapshot, graph }`. The following uses an existing `createTraceBundle()` attached to the executor before its events arrive:
 
 ```ts
-const readCohort = () => ({
-  snapshot: executor.getSnapshot(),
-  graph: bundle.structure.getGraph(),
-});
-const source = createRecordingSource(readCohort());
-const publish = () => source.update(readCohort());
-const unsubscribeCommits = bundle.commitFlow.subscribe(publish);
-const unsubscribeStructure = bundle.structure.subscribe(publish);
-// Mount consumers with this stable source; include narrativeEntries in the
-// cohort when your host supplies narrative separately from the snapshot.
-// Creator cleanup after those consumers unmount:
-unsubscribeCommits(); unsubscribeStructure(); source.dispose();
+import { connectLiveExample } from './LazySubflowExample';
+
+const live = connectLiveExample(bundle, () => executor.getSnapshot(), reportRecordingError);
+// Mount <ExplainableShell source={live.source} />.
+// After executor.run() settles, capture final recorder fields and await their publication.
+await live.capture();
+// After the last consumer unmounts:
+live.dispose();
 ```
 
-Each `update({ snapshot, graph, narrativeEntries })` supplies a complete cumulative cohort, preserving the prior commit-history prefix, values and order. Never pass only the latest event or truncate history to save rendering work. The source compares detached admitted own-data prefixes, including values, read keys and timing, against the latest pending cohort and retains previously recorded runtime visit IDs. Rewritten/shrinking history, removed visits and changed/appearing/disappearing recorded run IDs refuse, even within one frame. This verifies consistency of the supplied data, not semantic truth or completeness of the recording; the host still supplies the complete coherent same-run cohort.
+The example passes a callback to `source.requestUpdate(readCohort)` on each commit or structure notification. The source calls the latest reader once at the next frame (with a timer fallback) and publishes in the same callback. All notifications in the batch share a promise. The reader must return the complete same-run snapshot and graph, including every commit in its original order. Include `narrativeEntries` when your host supplies commentary separately. Transient information that the recorder omits from its cumulative snapshot must be recorded at the producer.
 
-Updates are admitted synchronously, then the latest full cohort is published together per frame with hidden-tab/timer fallback. Intermediate visual notifications can be coalesced because the final cohort retains all prior commits; recorded events are not dropped. The legacy root projection is cached once per published cohort, rather than once forever. Live arrival does not automatically advance the shared cursor while inspecting or using Backtrack.
+If a snapshot has already arrived (for example, from a transport), `source.update({ snapshot, graph, narrativeEntries })` still admits it synchronously and supersedes an earlier unread signal. Each capture is checked against the most recently admitted cohort for rewritten or shrinking history, missing runtime visits and changed run identity. Reader and admission failures reject the shared promise and leave previously admitted evidence available. Disposing the source cancels an unread capture. Use a new source for a different run.
+
+Root projection is cached once per published cohort. Live arrivals preserve the shared inspection and Backtrack cursor. One large complete capture can still take synchronous main-thread time.
 
 `source.canLoadSubflows` is false without a loader. Supply `loadSubflow` only when exact recorded child units need fetching; live updates and lazy child loading can share the same source.
 

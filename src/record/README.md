@@ -48,7 +48,12 @@ uses the selected fold boundary, validates each row in that prefix and retains
 the original commit addresses. A gap in that prefix makes the causal query
 unavailable. A later gap cannot change an earlier answer. Foottrace owns the
 returned slice and its prose. Missing read evidence remains unknown.
-Top-level change detection uses Foottrace's equality operation.
+A prepared reader retains a small window of canonical folds for reverse playback
+and recent compact answers keyed by stop and recorded path. Large causal
+graphs, large writer values and native payloads are returned directly from the
+canonical query and recomputed on the next request. A new reader starts with
+empty caches. An uncached historical question still uses the exact prefix at
+the selected stop. Top-level change detection uses Foottrace's equality operation.
 
 With a prepared reader and controlled step/key callbacks, a viewer can follow a
 recorded ingredient writer and return to the original question. For example, a

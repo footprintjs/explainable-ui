@@ -65,7 +65,8 @@ import { IsometricEdge, IsometricGrid } from "../IsometricFlow";
 import { RendererContext, DefaultStageNode } from "../IsometricFlow/RendererContext";
 import type { DiagramVisualProps } from "../../model/diagram";
 import { DiagramDrawingProvider, prepareDiagramGeometry } from "../DiagramDrawing";
-import { applyDiagramAppearance, diagramNativeEdgeTypes } from "../DiagramAppearance";
+import { diagramNativeEdgeTypes } from "../DiagramAppearance";
+import { createDiagramAppearanceProjector } from "../DiagramAppearance/model";
 import { RendererGeometry } from "../IsometricFlow/RendererGeometry";
 import { createIsometricTraceLayout } from "./_internal/isometricTraceLayout";
 import { MeasuredNodeSizes } from "./_internal/MeasuredNodeSizes";
@@ -469,10 +470,12 @@ export function TraceFlow(props: TraceFlowProps) {
     [positioned.edges, edgeColors, renderer, props.unstyled],
   );
 
-  const nodes = useMemo(() => applyDiagramAppearance(reactFlowNodes, props.diagramAppearance?.nodes),
-    [reactFlowNodes, props.diagramAppearance?.nodes]);
-  const edges = useMemo(() => applyDiagramAppearance(reactFlowEdges, props.diagramAppearance?.edges),
-    [reactFlowEdges, props.diagramAppearance?.edges]);
+  const projectNodeAppearance = useMemo(createDiagramAppearanceProjector<Node>, []);
+  const projectEdgeAppearance = useMemo(createDiagramAppearanceProjector<Edge>, []);
+  const nodes = useMemo(() => projectNodeAppearance(reactFlowNodes, props.diagramAppearance?.nodes),
+    [projectNodeAppearance, reactFlowNodes, props.diagramAppearance?.nodes]);
+  const edges = useMemo(() => projectEdgeAppearance(reactFlowEdges, props.diagramAppearance?.edges),
+    [projectEdgeAppearance, reactFlowEdges, props.diagramAppearance?.edges]);
 
   const onNodeClickRef = props.onNodeClick;
   const handleNodeClick = useCallback(
@@ -493,8 +496,10 @@ export function TraceFlow(props: TraceFlowProps) {
   );
 
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const geometryKey = chartLayoutKey(positioned.nodes);
+  const geometryKey = useMemo(() => chartLayoutKey(positioned.nodes), [positioned.nodes]);
   const refitKey = renderer === "isometric" ? JSON.stringify([renderer, geometryKey]) : geometryKey;
+
+  const nodeIds = useMemo(() => positioned.nodes.map(node => node.id), [positioned.nodes]);
 
   return (
     <div
@@ -519,7 +524,7 @@ export function TraceFlow(props: TraceFlowProps) {
         proOptions={{ hideAttribution: true }}
       >
         <ChartAutoRefit wrapperRef={wrapperRef} refitKey={refitKey} />
-        <RendererGeometry renderer={renderer} nodeIds={positioned.nodes.map(node => node.id)} />
+        <RendererGeometry renderer={renderer} nodeIds={nodeIds} />
         {renderer === "isometric" && props.layout === undefined && <MeasuredNodeSizes onSizes={acceptMeasurements} />}
         {!props.unstyled && (renderer === "isometric" ? <IsometricGrid /> : <Background variant={BackgroundVariant.Dots} gap={20} size={1} />)}
         {props.children}
