@@ -9,7 +9,7 @@ import { RecordedFocusContext } from "../../src/components/GroupedFlowDiagram/pr
 vi.mock("../../src/components/FlowchartView/_internal/useChartAutoRefit", () => ({ ChartAutoRefit: (props: any) => <output data-testid="camera-targets" data-focus={props.focusNodeIds?.join(" ") ?? "overview"} /> }));
 
 vi.mock("@xyflow/react", async original => ({ ...await original<typeof import("@xyflow/react")>(),
-  ReactFlow: ({ nodes, edges, nodeTypes, children }: any) => <div data-testid="canvas-model" data-model-nodes={JSON.stringify(nodes.map(({ id, position, width, height, parentId, handles }: any) => ({ id, position, width, height, parentId, handles })))}
+  ReactFlow: ({ nodes, edges, nodeTypes, children }: any) => <div data-testid="canvas-model" data-model-nodes={JSON.stringify(nodes.map(({ id, position, width, height, parentId, handles, measured }: any) => ({ id, position, width, height, parentId, handles, measured })))}
     data-model-edges={JSON.stringify(edges.map(({ id, source, target, sourceHandle, targetHandle, data, className, style, markerEnd, ariaLabel }: any) => ({ id, source, target, sourceHandle, targetHandle, data, className, style, markerEnd, ariaLabel })))}>{nodes.map((node: any) => {
     const Component = nodeTypes[node.type];
     return <div key={node.id}><Component id={node.id} data={node.data} /></div>;
@@ -259,6 +259,7 @@ it("keeps painted and declared handles aligned through a direction change and re
     const route = JSON.parse(model.getAttribute("data-model-edges")!).find((edge: { id: string }) => edge.id === "read").data.route;
     for (const node of nodes) {
       const root = document.querySelector(`[data-node-id="${node.id}"]`)!;
+      expect(node.measured).toEqual({ width: node.width, height: node.height });
       expect(root.querySelectorAll("[data-handle-type]")).toHaveLength(node.handles.length);
       for (const handle of node.handles) {
         const el = root.querySelector<HTMLElement>(handle.id ? `[data-recorded-port="${handle.id}"]` : `[data-handle-type="${handle.type}"]:not([data-recorded-port])`)!;

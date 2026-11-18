@@ -2517,6 +2517,8 @@ function GroupedFlowDiagram(props) {
       width: item.width,
       height: item.height,
       handles,
+      // With declared ports XYFlow skips DOM remeasurement when the overlay changes.
+      ...handles ? { measured: { width: item.width, height: item.height } } : {},
       style: { width: item.width, height: item.height, pointerEvents: handles ? "none" : "all", ...recordedFocus && !item.highlighted ? { opacity: 0.28 } : {} },
       draggable: false,
       selectable: false,

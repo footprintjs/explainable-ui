@@ -101,6 +101,8 @@ export function GroupedFlowDiagram(props: GroupedFlowDiagramProps) {
     const handles = shapedItemHandles(item, model.direction, recordedPorts);
     return { id: item.node.id, type: item.expanded ? "flowDiagramGroup" : "flowDiagramItem",
       parentId: item.parentId, position: item.position, width: item.width, height: item.height, handles,
+      // With declared ports XYFlow skips DOM remeasurement when the overlay changes.
+      ...(handles ? { measured: { width: item.width, height: item.height } } : {}),
       style: { width: item.width, height: item.height, pointerEvents: handles ? "none" : "all", ...(recordedFocus && !item.highlighted ? { opacity: .28 } : {}) }, draggable: false, selectable: false,
       data: { item, caption: names.get(item.node.id) ?? "", selected: item.node.id === selected,
         direction: model.direction, canToggle, recordedPorts, shapeHandles: handles, onToggle: (id: string) => {
