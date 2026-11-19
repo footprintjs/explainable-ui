@@ -2,7 +2,7 @@
  * generate-golden-fixtures.mjs — U2 golden-trace fixture generator.
  *
  * Runs 5 small but representative flowcharts through the REAL footprintjs
- * engine (exact devDependency, see package.json) and serializes the exact
+ * 9.15.1 engine (the footprintjs-golden devDependency) and serializes the exact
  * consumer-facing artifacts explainable-ui's pipeline consumes:
  *
  *   - structureEvents  — StructureRecorder events (build-time), in fire order.
@@ -38,7 +38,7 @@
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { flowChart, FlowChartExecutor, decide, select } from "footprintjs";
+import { flowChart, FlowChartExecutor, decide, select } from "footprintjs-golden";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, "..", "test", "fixtures", "golden");
@@ -493,7 +493,7 @@ async function generate(scenario) {
 }
 
 const footprintjsVersion = JSON.parse(
-  readFileSync(join(__dirname, "..", "node_modules", "footprintjs", "package.json"), "utf8"),
+  readFileSync(join(__dirname, "..", "node_modules", "footprintjs-golden", "package.json"), "utf8"),
 ).version;
 
 mkdirSync(OUT_DIR, { recursive: true });

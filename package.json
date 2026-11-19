@@ -1,6 +1,6 @@
 {
   "name": "footprint-explainable-ui",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "React components for inspecting FootPrint workflow execution, recorded state changes and time-travel debugging.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -108,7 +108,8 @@
     "@vitest/coverage-v8": "^4.1.12",
     "@xyflow/react": "^12.10.2",
     "dagre": "^0.8.5",
-    "footprintjs": "9.15.1",
+    "footprintjs": "14.0.0",
+    "footprintjs-golden": "npm:footprintjs@9.15.1",
     "foottrace": "2.1.0",
     "jsdom": "^29.1.1",
     "publint": "^0.3.0",
