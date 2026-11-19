@@ -7,10 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-11-18
+
 ### Changed
 
 - Backtrack in Shell and the record lens can follow a recorded output handoff to the exact write inside a local subflow. The slider follows the selected writer, and Return restores the original question. When the recording cannot identify the writer, Backtrack shows the reason at the boundary.
 - Record consumers use `foottrace@^2.1.0`. The peer remains optional for graph-only applications.
+- Live chart integration tests now use FootprintJS 14. The golden recording generator keeps FootprintJS 9.15.1 so older recordings remain covered.
 
 ## [2.1.0] - 2026-11-17
 
