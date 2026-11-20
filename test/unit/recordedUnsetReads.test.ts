@@ -121,4 +121,44 @@ describe("unset reads in live and saved recordings", () => {
     expect(stageReadKeys(node, new WorkBudget(3)).get("B")).toEqual(["config\u001fregion", "config.region"]);
     expect(() => stageReadKeys(node, new WorkBudget(2))).toThrow("too-large");
   });
+
+  it("charges the same budget live and after JSON and bounds duplicate list entries", () => {
+    const names = Array.from({ length: 100 }, (_, index) => `unset${index}`);
+    const stageReads = Object.fromEntries(names.map(name => [name, undefined]));
+    function longRun(stages: number) {
+      let next: object | undefined;
+      for (let index = stages - 1; index >= 0; index--) {
+        next = { runtimeStageId: `later${index}`, stageReads, undefinedReadKeys: names, next };
+      }
+      return {
+        commitLog: [commit("A", "x", 7), commit("B", "answer", 7)],
+        executionTree: { runtimeStageId: "A", next: { runtimeStageId: "B", stageReads: { x: 7 }, next } },
+      };
+    }
+    const reopen = <T>(run: T): T => JSON.parse(JSON.stringify(run));
+    const walkRun = (run: ReturnType<typeof longRun>) => buildTraceWalk(run.commitLog, run.executionTree, "answer");
+    for (const [stages, spent] of [[500, 50_503], [990, 99_993]] as const) {
+      const live = longRun(stages);
+      const restored = reopen(live);
+      for (const recording of [live, restored]) {
+        const budget = new WorkBudget();
+        expect(stageReadKeys(recording.executionTree, budget).get("later0")).toHaveLength(100);
+        expect(budget.items).toBe(spent);
+      }
+      expect(walkRun(live).stops.map(stop => stop.runtimeStageId)).toEqual(["B", "A"]);
+      expect(walkRun(restored)).toEqual(walkRun(live));
+    }
+    const tooLarge = longRun(991);
+    for (const recording of [tooLarge, reopen(tooLarge)]) {
+      expect(() => stageReadKeys(recording.executionTree, new WorkBudget())).toThrow("too-large");
+      expect(walkRun(recording)).toMatchObject({ stops: [], missing: { reason: "evidence-unavailable" } });
+    }
+
+    const repeats = { runtimeStageId: "repeat", undefinedReadKeys: ["missing", "missing", "missing"] };
+    const budget = new WorkBudget(4);
+    expect(stageReadKeys(repeats, budget).get("repeat")).toEqual(["missing"]);
+    expect(budget.items).toBe(4);
+    const repeatedList = { ...repeats, next: { ...repeats, runtimeStageId: "again" } };
+    expect(() => stageReadKeys(repeatedList, new WorkBudget(7))).toThrow("too-large");
+  });
 });

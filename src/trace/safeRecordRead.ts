@@ -35,9 +35,9 @@ export class WorkBudget {
   items = 0;
   constructor(readonly limit = TRACE_WORK_LIMIT) {}
   spend(count: number) {
-    this.items += count;
-    if (this.items > this.limit)
-      throw new TraceAdmissionError("too-large", this.items);
+    const items = (this.items += count);
+    if (items > this.limit)
+      throw new TraceAdmissionError("too-large", items);
   }
 }
 export function readOwnArray(value: unknown, budget: WorkBudget): unknown[] {

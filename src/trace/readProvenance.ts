@@ -35,13 +35,17 @@ export function unsetReadKeys(node: unknown, budget: WorkBudget): string[] {
 export function stageReadNames(node: unknown, budget: WorkBudget): string[] {
   const reads = optionalOwnDataField(node, "stageReads");
   if (reads !== undefined && !isPlainRecord(reads)) throw new TraceAdmissionError("malformed");
-  const ownKeys = Object.keys(reads ?? {});
-  budget.spend(ownKeys.length);
-  const keys = ownKeys.map(readName);
+  const keys = Object.keys(reads ?? {});
+  const before = budget.items;
   const unset = unsetReadKeys(node, budget);
   // Match the engine's sorted union when the list is present. Older
   // recordings retain their original stage-read order.
-  return unset.length ? [...new Set(keys.concat(unset))].sort() : keys;
+  const names = unset.length ? [...new Set(keys.concat(unset))].sort() : keys;
+  // The scan has already paid for each list entry, including repeats.
+  // Top up to the kept names so a live copy of a name costs nothing extra.
+  const extra = before + names.length - budget.items;
+  if (extra > 0) budget.spend(extra);
+  return names.map(readName);
 }
 
 /** Only keys are inspected; recorded values/accessors are never evaluated. */
@@ -56,7 +60,7 @@ export function stageReadKeys(tree: unknown, budget: WorkBudget): Map<string, st
     visited.add(node);
     const id = optionalOwnDataField(node, "runtimeStageId");
     const keys = stageReadNames(node, budget);
-    if (typeof id === "string" && id.length && keys.length) byStep.set(readName(id), keys);
+    if (typeof id === "string" && id && keys.length) byStep.set(readName(id), keys);
     const next = optionalOwnDataField(node, "next");
     if (next != null) stack.push(next);
     const children = optionalOwnDataField(node, "children");
