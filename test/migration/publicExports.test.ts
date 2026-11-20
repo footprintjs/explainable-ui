@@ -178,13 +178,14 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
     );
   });
 
-  it("adds only the record door and the reviewed per-entry install contract", () => {
+  it("adds the record door, the reviewed per-entry install contract and the Node 22 floor", () => {
     const manifest = JSON.parse(
       readFileSync(new URL("../../package.json", import.meta.url), "utf8")
     );
     const baseline = ledger.packageContract;
     expect(consumerContract(manifest)).toEqual({
       ...consumerContract(baseline),
+      engines: { node: ">=22" },
       exports: {
         ...baseline.exports,
         "./record": {

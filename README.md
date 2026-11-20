@@ -31,6 +31,8 @@ Arrange or hide the optional panes with a [JSON layout](#arrange-the-full-lens-f
 
 ## Install
 
+Requires Node 22 or newer.
+
 The workflow Shell and shared headless controller are available together from version 1.1.0.
 The new `/record` entry and graph peer changes below target the next major release.
 To try this branch before release, use its built package archive.
@@ -41,7 +43,7 @@ For the root or `/flowchart` entry, install these graph peers in your app:
 npm install react react-dom @xyflow/react@^12 dagre@^0.8.5
 ```
 
-For `/record`, install the recording peers. The package-wide Node floor stays at 18 for graph applications. Foottrace 2 requires Node 22 or later when running the reader in Node. An engine-strict install enforces that requirement. Importing the recording entry without Foottrace produces the normal missing-peer module error.
+For `/record`, install the recording peers. Importing the recording entry without Foottrace produces the normal missing-peer module error.
 
 ```bash
 npm install react foottrace@^2.1.0

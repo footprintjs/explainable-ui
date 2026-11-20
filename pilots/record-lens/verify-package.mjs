@@ -244,7 +244,7 @@ function verifyNormalPackage() {
     ["./dist/index.cjs", "./dist/index.js", "./dist/index.d.ts"]
   );
   assert.deepEqual(manifest.files, ["dist"]);
-  assert.deepEqual(manifest.engines, { node: ">=18" });
+  assert.deepEqual(manifest.engines, { node: ">=22" });
   const artifact = process.env.UI_PACKED_REVIEW;
   const packed = artifact
     ? json(resolve(repo, artifact))[0]
