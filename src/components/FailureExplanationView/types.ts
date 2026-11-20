@@ -37,6 +37,8 @@ export interface FailureExplanationDisplay {
 export interface FailureExplanationViewProps {
   /** Replace or clear this result whenever the selected recording/item changes. */
   readonly explanation?: FailureExplanationDisplay | null;
+  /** Host-authored statement for this selection's empty unknowns list. */
+  readonly emptyUnknownsText?: string;
   readonly className?: string;
   readonly style?: CSSProperties;
 }

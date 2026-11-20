@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import type { ExplanationText } from "../../displayAdmission/explanationText";
+import type { InvestigationRelationshipDisplay } from "./checkTypes";
 import type {
   AttentionListResult,
   CauseResult,
@@ -11,7 +12,7 @@ import type {
 /** Canonical display projection: unused graph edges stay with the host and may evolve independently. */
 export type InvestigationResult = Pick<CauseResult,
   "nodeId" | "attention" | "rootCause" | "path" | "alternatives" | "confidence" | "gaps"
-> & {
+> & Pick<InvestigationRelationshipDisplay, "backward"> & {
   readonly impact: Omit<ImpactResult, "edges">;
 };
 

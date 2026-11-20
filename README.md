@@ -1925,8 +1925,15 @@ recording failures. The latter two appear in separate visible sections, rather
 than disappearing from the explanation or being relabelled as causes. Complete
 cause codes and references remain available in the cause details.
 
-An empty `unknowns` list describes what was supplied. The verification
-disclaimer stays visible. Section text, configured guidance and finding
+When `unknowns` is empty, pass `emptyUnknownsText` to `FailureExplanationView`
+to describe what your application checked. The view labels it **Host statement**
+and keeps its evidence disclaimer beside it. Set or clear the prop with the
+selected explanation. An identically named field in the recording is ignored.
+The line is escaped plain text. A blank, non-string, or line exceeding 4,096
+UTF-16 code units or the remaining display budget leaves the usual empty message.
+A nonempty list shows its recorded unknowns.
+
+Section text, configured guidance and finding
 summaries keep their existing plain-string rendering. To quote the recording,
 supply a list such as `[{ text: "The tool reported " }, { text: excerpt, quote: true }]`
 for section text, guidance, a finding summary or an individual unknown. Each
@@ -2302,7 +2309,9 @@ changed binding, unmount or committed hidden view cancels outstanding work; a la
 answer cannot repaint a different selection. No explanation query runs during server
 rendering or ordinary mounting.
 
-The accompanying optional Foottrace `includeBackward` result supplies
+The public `InvestigationPort.explain` result accepts optional `backward` coverage
+with the same shape as the relationship display check. The text-only check
+continues to omit it. The accompanying Foottrace `includeBackward` result supplies
 `backward: {nodes, edges, confidence, gaps}`. The grouped view admits that data and
 optional `impact.edges` separately from the legacy text projection. A missing field
 means unavailable connections; an explicit empty list is kept distinct. A backward
