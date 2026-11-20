@@ -94,9 +94,14 @@ describe("used mark label resolution", () => {
   it.each([undefined, null, false, 0, "host", () => "host"])("falls back for nonobject labels %j", labels => {
     expect(resolveInvestigationMarkLabel(labels, "error")).toBe("Recorded error");
   });
-  it.each([undefined, null, 1, false, "", "x".repeat(513), new String("host")])("keeps fallback for an invalid used data value", value => {
+  it.each([undefined, null, 1, false, "", "x".repeat(513)])("keeps fallback for an invalid used scalar value", value => {
     expect(resolveInvestigationMarkLabel({ error: value }, "error")).toBe("Recorded error");
     expect(resolveInvestigationMarkLabel({ "future-kind": value }, "future-kind")).toBe("future-kind");
+  });
+  it.each([new String("host"), { text: "Host quotation", quote: true }])("adds a reason for an object supplied outside a parts list", value => {
+    expect(resolveInvestigationMarkLabel({ error: value }, "error")).toEqual({
+      fallback: "Recorded error", diagnostic: { code: "invalid-value", path: [] },
+    });
   });
   it("counts the 512-unit boundary as UTF-16 without trimming or truncating", () => {
     const exact = "😀".repeat(256);
@@ -132,7 +137,9 @@ describe("used mark label resolution", () => {
     const foreign = new Proxy({}, { get: inspect, getPrototypeOf: inspect, ownKeys: inspect, getOwnPropertyDescriptor: inspect });
     const labels = new Proxy({}, { getOwnPropertyDescriptor() { throw foreign; } });
     expect(resolveInvestigationMarkLabel(labels, "error")).toBe("Recorded error");
-    expect(resolveInvestigationMarkLabel({ error: foreign }, "error")).toBe("Recorded error");
+    expect(resolveInvestigationMarkLabel({ error: foreign }, "error")).toEqual({
+      fallback: "Recorded error", diagnostic: { code: "invalid-value", path: [] },
+    });
     const revoked = Proxy.revocable({}, {}); revoked.revoke();
     expect(resolveInvestigationMarkLabel(revoked.proxy, "future-kind")).toBe("future-kind");
     expect(inspect).not.toHaveBeenCalled();

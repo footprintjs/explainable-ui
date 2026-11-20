@@ -11,10 +11,10 @@ import type { InvestigationResult } from "./types";
 import { gapMessages } from "./wording";
 import type { VisualInvestigationResult, VisualInvestigationEdge } from "./visualTypes";
 import { admitsRecordedAttribution } from "../../recordedRelationships/attribution";
+import { readExplanationLabel } from "../../displayAdmission/explanationText";
 import {
   DisplayReader,
   investigationDisplayLimits,
-  readOwnField,
   runDisplayCheck,
   type DisplayCheckResult,
   type DisplayPath,
@@ -202,11 +202,6 @@ export function admitVisualExplanation(value: unknown, requested: string): Visua
   const result = checkInvestigationExplanation(value, requested, "relationships");
   return result.ok ? result.value : undefined;
 }
-export function displayLabel(labels: unknown, nodeId: string): string {
-  try {
-    const label = readOwnField(labels, nodeId);
-    return typeof label === "string" && label.length > 0 && label.length <= 512 ? label : nodeId;
-  } catch {
-    return nodeId;
-  }
+export function displayLabel(labels: unknown, nodeId: string) {
+  return readExplanationLabel(labels, nodeId, nodeId);
 }

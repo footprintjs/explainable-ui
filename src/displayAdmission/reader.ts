@@ -29,13 +29,17 @@ export class DisplayReader {
     return refuseDisplay(code, path, details);
   }
   text(value: unknown, path: DisplayPath, maximum: number, limit: DisplayLimitName): string {
+    if (typeof value !== 'string') this.fail('invalid-value', path);
+    this.countText(value.length, path, maximum, limit);
+    return value;
+  }
+  countText(length: number, path: DisplayPath, maximum: number, limit: DisplayLimitName): void {
     const at = checkedPath(path);
-    if (typeof value !== 'string' || value.length === 0) this.fail('invalid-value', at);
-    if (value.length > maximum) this.fail('limit-exceeded', at, { limit, maximum, observed: value.length });
-    this.textCodeUnits += value.length;
+    if (length === 0) this.fail('invalid-value', at);
+    if (length > maximum) this.fail('limit-exceeded', at, { limit, maximum, observed: length });
+    this.textCodeUnits += length;
     if (this.textCodeUnits > this.limits.maxTextCodeUnits)
       this.fail('limit-exceeded', at, { limit: 'maxTextCodeUnits', maximum: this.limits.maxTextCodeUnits, observed: this.textCodeUnits });
-    return value;
   }
   list<T>(value: unknown, path: DisplayPath, maximum: number, limit: DisplayLimitName,
     parse: (entry: unknown, entryPath: DisplayPath) => T): T[] {

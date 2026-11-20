@@ -19,21 +19,19 @@ explanation is structurally assignable without a runtime dependency on its produ
 Canonical text is always visible; configured wording does not replace evidence.
 Reference strings appear only in disclosure text, never as links or actions.
 
-An empty `unknowns` list means the supplied list is empty; it does not establish
-that everything is known, and the verification disclaimer stays visible. Section
-text, configured guidance and finding summaries use `white-space: pre-wrap`.
-These plain strings carry no substring-origin metadata, so a quoted source value
-can wrap into apparent body text; HTML escaping does not identify its origin.
-Keep untrusted quoted values in host-owned, clearly labelled presentation. If a
-formatter normalizes a display copy, label that change and preserve the original
-bound evidence; leave canonical IDs, references and recorded evidence unchanged.
-Whitespace collapse alone does not establish origin.
+An empty `unknowns` list describes what was supplied. The verification
+disclaimer stays visible. Section text, configured guidance, finding summaries
+and unknown items accept either a plain string or a list of parts. In a list,
+`{ text: excerpt, quote: true }` identifies a record quotation. The quotation
+has a visible boundary, an accessible name and its own whitespace and text
+direction. The exact excerpt stays in its DOM text as the browser collapses
+visual whitespace. Keep the bound evidence with its original IDs and references.
 
 The entire view is refused when a required field is missing, inconsistent,
-accessor-backed or over budget: 262,144 retained UTF-16 text code units total,
-1,024 entries per list, 4,096 total list items across nested findings/references,
-and 4,096 code units per reference/unknown. All finding strings count toward the
-same text allowance. Refusal keeps
+accessor-backed or over budget. The limits are 262,144 retained UTF-16 text code
+units total, 1,024 entries per list, 4,096 total list items across nested lists
+and 4,096 code units per reference or unknown. A parts list counts each slot
+and the original length of each part. Refusal keeps
 the cause and outcome unknown and tells the host to supply an admitted result.
 Every canonical finding code must match `/^[A-Z][A-Z0-9_]{1,79}$/`: 2–80 ASCII
 characters, beginning with an uppercase letter and continuing only with uppercase
