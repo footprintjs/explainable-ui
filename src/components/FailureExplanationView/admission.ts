@@ -93,9 +93,3 @@ export function checkFailureExplanationDisplay(value: unknown): DisplayCheckResu
     });
   });
 }
-
-/** Components and public preflight checks share the same parser and refusal behavior. */
-export function admitFailureExplanation(value: unknown): FailureExplanationDisplay | undefined {
-  const result = checkFailureExplanationDisplay(value);
-  return result.ok ? result.value : undefined;
-}

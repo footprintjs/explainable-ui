@@ -4,9 +4,7 @@ import type { FlowDiagramRecordedRelationship } from "../GroupedFlowDiagram/type
 export type VisualInvestigationEdge = Omit<FlowDiagramRecordedRelationship, "id" | "source" | "target" | "direction"> & {
   readonly from: string; readonly to: string;
 };
-/** Internal visualization projection. The published text port remains unchanged. */
-export type VisualInvestigationResult = Omit<InvestigationResult, "impact" | "backward"> & {
-  readonly backward?: { readonly nodes: readonly string[]; readonly edges: readonly VisualInvestigationEdge[];
-    readonly confidence: InvestigationResult["confidence"]; readonly gaps: InvestigationResult["gaps"] };
+/** The visualization can additionally retain bounded impact relationships. */
+export type VisualInvestigationResult = Omit<InvestigationResult, "impact"> & {
   readonly impact: InvestigationResult["impact"] & { readonly edges?: readonly VisualInvestigationEdge[] };
 };

@@ -1,12 +1,12 @@
-import type { InvestigationResult } from "./types";
+import type { CauseResult } from "foottrace/cause";
 import type { VisualInvestigationEdge } from "./visualTypes";
 
 // Only fields retained by UI admission. Do not expose unused external graph models.
-type DisplayAttention = Pick<InvestigationResult["attention"][number], "kind" | "reason" | "evidence">;
-type DisplayGap = Pick<InvestigationResult["gaps"][number], "code" | "nodeId" | "evidence">;
+type DisplayAttention = Pick<CauseResult["attention"][number], "kind" | "reason" | "evidence">;
+type DisplayGap = Pick<CauseResult["gaps"][number], "code" | "nodeId" | "evidence">;
 type DisplayEdge = Pick<VisualInvestigationEdge, "from" | "to" | "kind" | "attribution" | "evidence">;
 type DisplayCoverage = {
-  readonly confidence: InvestigationResult["confidence"];
+  readonly confidence: CauseResult["confidence"];
   readonly gaps: readonly DisplayGap[];
 };
 

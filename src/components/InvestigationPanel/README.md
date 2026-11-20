@@ -38,6 +38,12 @@ membership are unchanged. Labels and namespace basenames never determine identit
 
 ## Optional directional coverage
 
+Hosts can return optional `backward` evidence from `InvestigationPort.explain`
+synchronously or asynchronously. Its nodes, edges, confidence and gaps have the
+same type as `checkInvestigationExplanation` returns for `relationships`.
+For an object built before it is returned, use `satisfies InvestigationResult`
+so TypeScript checks its confidence, edge and gap literals at construction.
+
 `coverageMode` accepts `overall` (default) or `directional` on both investigation
 components. Standalone directional mode reuses relationships admission; overall
 keeps backward/impact-edge fields unread. Grouped already admits relationships.

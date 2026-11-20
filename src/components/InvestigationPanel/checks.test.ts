@@ -9,6 +9,7 @@ import {
   checkInvestigationExplanation,
 } from "./admission";
 import type { InvestigationRelationshipDisplay, InvestigationTextDisplay } from "./checkTypes";
+import type { InvestigationPort } from "./types";
 
 const edge = () => ({ from: "s", to: "r", kind: "data", attribution: "recorded-read", evidence: ["read"] });
 const value = () => ({
@@ -28,6 +29,12 @@ function refusal(result: DisplayCheckResult<unknown>, code: string, path: readon
 }
 
 describe("Investigation display check projections", () => {
+  it("types optional port backward evidence the same way as the relationship check", () => {
+    type PortResult = Awaited<ReturnType<InvestigationPort["explain"]>>;
+    expectTypeOf<PortResult["backward"]>().toEqualTypeOf<InvestigationRelationshipDisplay["backward"]>();
+    expectTypeOf<InvestigationTextDisplay>().not.toHaveProperty("backward");
+  });
+
   it("uses the legacy parser's detached attention value and exact retained-occurrence accounting", () => {
     const raw = {
       nodes: [{ nodeId: "n", attention: [{ kind: "err", reason: "ERROR_RECORDED", evidence: ["ref", "ref"] }] }],

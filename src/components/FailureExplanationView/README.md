@@ -19,8 +19,14 @@ explanation is structurally assignable without a runtime dependency on its produ
 Canonical text is always visible; configured wording does not replace evidence.
 Reference strings appear only in disclosure text, never as links or actions.
 
-An empty `unknowns` list describes what was supplied. The verification
-disclaimer stays visible. Section text, configured guidance, finding summaries
+On an empty `unknowns` list, the optional `emptyUnknownsText` component prop
+adds a visibly labelled **Host statement** beside the usual verification
+paragraph. Supply it for the current selection. The recording cannot supply
+this copy. It is escaped plain text. Blank or non-string input, a line longer
+than 4,096 UTF-16 code units, or a line exceeding the remaining 262,144-unit
+total budget leaves the usual paragraph intact. A nonempty list takes precedence.
+
+Section text, configured guidance, finding summaries
 and unknown items accept either a plain string or a list of parts. In a list,
 `{ text: excerpt, quote: true }` identifies a record quotation. The quotation
 has a visible boundary, an accessible name and its own whitespace and text
