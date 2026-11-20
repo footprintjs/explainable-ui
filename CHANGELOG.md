@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Investigation and failure explanation views can display record quotations as clearly marked text parts.
+
 ### Fixed
 
 - Backtrack keeps recorded reads of unset keys when a run is saved and reopened.

@@ -2,6 +2,7 @@ import { useId } from 'react';
 import type { CSSProperties } from 'react';
 import { theme } from '../../theme/styles';
 import { FootprintBadge } from '../../theme';
+import { renderExplanationText } from '../ExplanationText';
 import { admitFailureExplanation } from './admission';
 import type { FailureExplanationDisplayFinding, FailureExplanationViewProps } from './types';
 
@@ -25,7 +26,7 @@ function FindingList({ findings }: { findings: readonly FailureExplanationDispla
     <li key={index} style={{ marginBlock: 12 }}>
       <code style={{ color: theme.textSecondary, fontSize: 12 }}>{finding.code}</code>
       {finding.level !== undefined && <> <FootprintBadge part="failure-finding-level">{`Host level: ${finding.level}`}</FootprintBadge></>}
-      <p style={{ whiteSpace: 'pre-wrap', marginBlock: 6 }}>{finding.summary}</p>
+      <p style={{ whiteSpace: 'pre-wrap', marginBlock: 6 }}>{renderExplanationText(finding.summary)}</p>
       {finding.evidenceRefs.length > 0 && <details>
         <summary>Recorded references</summary>
         <ul>{finding.evidenceRefs.map((reference, number) => <li key={number}><code>{reference}</code></li>)}</ul>
@@ -50,11 +51,11 @@ export function FailureExplanationView(props: FailureExplanationViewProps) {
           const section = model[name];
           return <section key={name} data-section={name} aria-labelledby={`${id}-${index}`} style={card}>
             <h3 id={`${id}-${index}`} style={{ marginBlockStart: 0, fontSize: 16 }}>{titles[index]}</h3>
-            <p style={{ whiteSpace: 'pre-wrap' }}>{section.text}</p>
+            <p style={{ whiteSpace: 'pre-wrap' }}>{renderExplanationText(section.text)}</p>
             {section.configuredText !== undefined && (
               <div style={{ borderInlineStart: `3px solid ${theme.primary}`, paddingInlineStart: 12 }}>
                 <p style={{ color: theme.textSecondary, marginBlockEnd: 4, fontSize: 12 }}>Business guidance</p>
-                <p style={{ marginBlockStart: 0, whiteSpace: 'pre-wrap' }}>{section.configuredText}</p>
+                <p style={{ marginBlockStart: 0, whiteSpace: 'pre-wrap' }}>{renderExplanationText(section.configuredText)}</p>
               </div>
             )}
             {section.evidenceRefs.length > 0 && (
@@ -85,7 +86,7 @@ export function FailureExplanationView(props: FailureExplanationViewProps) {
       <section data-section="unknowns" aria-labelledby={`${id}-unknowns`} style={{ ...card, marginBlockStart: 12, borderInlineStart: `3px solid ${theme.warning}` }}>
         <h3 id={`${id}-unknowns`} style={{ marginBlockStart: 0, fontSize: 16 }}>Still unknown</h3>
         {model.unknowns.length > 0
-          ? <ul>{model.unknowns.map((unknown, index) => <li key={index}>{unknown}</li>)}</ul>
+          ? <ul>{model.unknowns.map((unknown, index) => <li key={index}>{renderExplanationText(unknown)}</li>)}</ul>
           : <p>The supplied list is empty. This does not establish that everything is known. This view does not verify the underlying evidence.</p>}
       </section>
     </section>
