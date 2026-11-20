@@ -1,5 +1,5 @@
 /** Names-only read evidence. Canonical paths stay opaque: no dot/prefix aliases. */
-import { isPlainRecord, optionalOwnDataField, readName, readOwnArray, WorkBudget } from "./safeRecordRead";
+import { isPlainRecord, optionalOwnDataField, ownDataField, readName, readOwnArray, TraceAdmissionError, WorkBudget } from "./safeRecordRead";
 import type { ReadWindow } from "./readTiming";
 
 export interface RecordedTraceWrite {
@@ -19,6 +19,18 @@ export function readTraceWrites(value: unknown, budget: WorkBudget, allowMissing
   });
 }
 
+/** JSON omits undefined values in stageReads. Read the optional list that retains their names. */
+function unsetReadKeys(node: object, budget: WorkBudget): string[] {
+  const value = ownDataField(node, "undefinedReadKeys");
+  if (!Array.isArray(value)) return [];
+  try {
+    return readOwnArray(value, budget).map(readName);
+  } catch (error) {
+    if (error instanceof TraceAdmissionError && error.reason === "malformed") return [];
+    throw error;
+  }
+}
+
 /** Only keys are inspected; recorded values/accessors are never evaluated. */
 export function stageReadKeys(tree: unknown, budget: WorkBudget): Map<string, string[]> {
   const byStep = new Map<string, string[]>();
@@ -32,9 +44,14 @@ export function stageReadKeys(tree: unknown, budget: WorkBudget): Map<string, st
     const id = optionalOwnDataField(node, "runtimeStageId");
     const reads = optionalOwnDataField(node, "stageReads");
     if (reads !== undefined && !isPlainRecord(reads)) throw new Error("Unavailable read evidence");
-    if (typeof id === "string" && id.length && reads !== undefined) {
-      const keys = Object.keys(reads as object); budget.spend(keys.length);
-      if (keys.length) byStep.set(readName(id), keys.map(readName));
+    if (typeof id === "string" && id.length) {
+      const keys = reads === undefined ? [] : Object.keys(reads as object);
+      budget.spend(keys.length);
+      const unset = unsetReadKeys(node, budget);
+      // Match the engine's sorted union when the list is present. Older
+      // recordings retain their original stage-read order.
+      const union = unset.length ? [...new Set([...keys, ...unset])].sort() : keys;
+      if (union.length) byStep.set(readName(id), union.map(readName));
     }
     const next = optionalOwnDataField(node, "next");
     if (next !== undefined && next !== null) stack.push(next);

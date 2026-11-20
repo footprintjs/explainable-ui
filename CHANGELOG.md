@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Backtrack keeps recorded reads of unset keys when a run is saved and reopened.
+
 ## [2.2.0] - 2026-11-18
 
 ### Changed
