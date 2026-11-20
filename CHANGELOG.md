@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Investigation and failure explanation views can display record quotations as clearly marked text parts.
+- `FailureExplanationView` accepts an optional `emptyUnknownsText` host statement beside its empty-list disclaimer. The `InvestigationPort.explain` result now types the backward coverage already rendered in directional mode.
 
 ### Fixed
 
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Requires Node 22 or newer.
 - `checkFailureExplanationDisplay` now returns `text`, `configuredText`, `summary`, and each `unknowns` item as a string or a list of text parts. Update TypeScript readers to handle both forms, or keep passing strings and narrow each returned value with `typeof value === 'string'`.
+- TypeScript now checks `backward` when a port returns it. If a separately constructed result inferred `string` for a confidence or gap code, declare it with `satisfies InvestigationResult` at construction.
 
 ## [2.2.0] - 2026-11-18
 

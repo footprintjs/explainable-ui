@@ -38,6 +38,21 @@ for (const key of ['DisplayReader','runDisplayCheck','readOwnField']) assert.equ
 const section = text => ({text,wordingSource:'default',evidenceRefs:[]});
 const value = {problem:section('P'),recordedCause:section('C'),suggestedNextStep:section('N'),unknowns:[],canonicalFindings:{causes:[],consequences:[],diagnosticFailures:[]}};
 const checked = api.checkFailureExplanationDisplay(value); assert.equal(checked.ok,true); assert.deepEqual(checked.usage,{textCodeUnits:3,listItems:0});
+const failureHtml = (explanation, emptyUnknownsText) =>
+  renderToStaticMarkup(React.createElement(api.FailureExplanationView, { explanation, emptyUnknownsText }));
+const oldHtml = failureHtml(value);
+assert(oldHtml.includes('The supplied list is empty. This does not establish that everything is known. This view does not verify the underlying evidence.'));
+const hostLine = '<Recorded check> & outcome';
+const hostHtml = failureHtml(value, hostLine);
+assert.match(hostHtml, /Host statement/);
+assert(hostHtml.includes('&lt;Recorded check&gt; &amp; outcome'));
+assert(!hostHtml.includes(hostLine));
+assert(hostHtml.includes('This view does not verify the underlying evidence.'));
+const withUnknown = {...value, unknowns: ['Result remains unknown']};
+assert.equal(failureHtml(withUnknown, hostLine), failureHtml(withUnknown));
+assert.equal(failureHtml({...value, emptyUnknownsText: hostLine}), oldHtml);
+assert.equal(failureHtml(value, ''), oldHtml);
+assert.equal(failureHtml(value, 'x'.repeat(api.failureExplanationDisplayLimits.maxReferenceOrUnknownCodeUnits + 1)), oldHtml);
 assert.match(renderToStaticMarkup(React.createElement(api.FailureExplanationView,{explanation:value})),/data-section="problem"/);
 const bad = {...value,canonicalFindings:{...value.canonicalFindings,causes:[{code:'PRIVATE lower code',summary:'PRIVATE SUMMARY',evidenceRefs:['PRIVATE REF']}]}};
 const denied = api.checkFailureExplanationDisplay(bad); assert.equal(denied.ok,false);
@@ -122,7 +137,12 @@ process.stdout.write(format+' actual packed display checks, fixed bounds, inert 
   process.stdout.write(run(process.execPath, ['consumer.cjs']));
   writeFileSync(join(scratch, 'consumer.mjs'), `import {createRequire} from 'node:module';const require=createRequire(import.meta.url);const format='ESM';const api=await import('footprint-explainable-ui');\n${consumer}`);
   process.stdout.write(run(process.execPath, ['consumer.mjs']));
-  const typeSource = `import {checkInvestigationAttention,checkInvestigationExplanation,checkFailureExplanationDisplay,investigationDisplayLimits,failureExplanationDisplayLimits,type InvestigationTextDisplay,type InvestigationRelationshipDisplay,type DisplayDiagnostic,type FailureExplanationDisplayFinding} from 'footprint-explainable-ui';
+  const typeSource = `import {checkInvestigationAttention,checkInvestigationExplanation,checkFailureExplanationDisplay,investigationDisplayLimits,failureExplanationDisplayLimits,type InvestigationTextDisplay,type InvestigationRelationshipDisplay,type DisplayDiagnostic,type FailureExplanationDisplayFinding,type FailureExplanationViewProps,type InvestigationPort,type InvestigationResult} from 'footprint-explainable-ui';
+const hostProps:FailureExplanationViewProps={emptyUnknownsText:'Operator checked the source reports.'};void hostProps;
+// @ts-expect-error Only a string is accepted as host wording.
+const callbackProps:FailureExplanationViewProps={emptyUnknownsText:()=> 'Host line'};void callbackProps;
+// @ts-expect-error Optional host wording remains readonly.
+hostProps.emptyUnknownsText='Changed';
 const legacyFinding:FailureExplanationDisplayFinding={code:'RECORDED',summary:'Recorded text',evidenceRefs:[]};void legacyFinding;
 const finding:FailureExplanationDisplayFinding={...legacyFinding,level:'HIGH'};
 const allowed:NonNullable<FailureExplanationDisplayFinding['level']>='UNVERIFIED';void allowed;
@@ -158,6 +178,19 @@ const attributions=['per-write','stage','recorded-control','recorded-read','reco
 const edges:readonly Edge[]=attributions.map(attribution=>({from:'one',to:'two',kind:attribution==='recorded-control'?'control':'data',attribution,evidence:[]}));void edges;
 // @ts-expect-error Unknown attribution remains outside the display relationship contract.
 const badAttribution:Edge['attribution']='invented';void badAttribution;
+const oldResult:InvestigationResult={
+  nodeId:'one',attention:[],path:['one'],alternatives:[],confidence:'complete',gaps:[],
+  impact:{nodes:[],confidence:'complete',gaps:[]},
+};
+const backward:NonNullable<InvestigationRelationshipDisplay['backward']>={
+  nodes:['one','two'],edges,confidence:'complete',gaps:[],
+};
+const richResult:InvestigationResult={...oldResult,backward};
+const oldPort:InvestigationPort['explain']=()=>oldResult;
+const syncPort:InvestigationPort['explain']=()=>richResult;
+const asyncPort:InvestigationPort['explain']=async()=>richResult;
+const projectedBackward:InvestigationRelationshipDisplay['backward']=richResult.backward;
+void [oldPort,syncPort,asyncPort,projectedBackward];
 // @ts-expect-error Only the two explicit existing projections are available.
 checkInvestigationExplanation(raw,'bound-id','guess');
 // @ts-expect-error Public fixed limits are readonly.
@@ -176,5 +209,6 @@ void [checkInvestigationAttention(raw),checkFailureExplanationDisplay(raw),failu
   }
   process.stdout.write(JSON.stringify({ package: manifest.name, version: manifest.version, candidateOnly: true,
     packedIntegrity: packed.integrity, publicDoor: '.', formats: ['CJS','ESM'], strictTypes: modes, foottraceInstalled: false,
-    privateReaderExported: false, wholeRefusalAndComponentParity: true, noBudgetOverride: true, hostFindingLevels: true, levelTextAccounting: true, privateLevelHelpersExported: false })+'\n');
+    privateReaderExported: false, wholeRefusalAndComponentParity: true, noBudgetOverride: true, hostFindingLevels: true,
+    levelTextAccounting: true, privateLevelHelpersExported: false, hostEmptyUnknownsText: true, portBackwardEvidence: true })+'\n');
 } finally { rmSync(scratch, { recursive: true, force: true }); }

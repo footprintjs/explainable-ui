@@ -3,7 +3,8 @@ import type { CSSProperties } from 'react';
 import { theme } from '../../theme/styles';
 import { FootprintBadge } from '../../theme';
 import { renderExplanationText } from '../ExplanationText';
-import { admitFailureExplanation } from './admission';
+import { failureExplanationDisplayLimits } from '../../displayAdmission';
+import { checkFailureExplanationDisplay } from './admission';
 import type { FailureExplanationDisplayFinding, FailureExplanationViewProps } from './types';
 
 const box: CSSProperties = {
@@ -17,6 +18,13 @@ const card: CSSProperties = {
 };
 const titles = ['Problem', 'Recorded cause', 'Suggested next step'] as const;
 const sectionNames = ['problem', 'recordedCause', 'suggestedNextStep'] as const;
+
+function hostStatement(line: unknown, retainedCodeUnits: number): string | undefined {
+  const { maxReferenceOrUnknownCodeUnits, maxTextCodeUnits } = failureExplanationDisplayLimits;
+  if (typeof line !== 'string' || line.length > maxReferenceOrUnknownCodeUnits ||
+      line.length > maxTextCodeUnits - retainedCodeUnits || !line.trim()) return undefined;
+  return line;
+}
 
 function FindingList({ findings }: { findings: readonly FailureExplanationDisplayFinding[] }) {
   return <>
@@ -38,12 +46,16 @@ function FindingList({ findings }: { findings: readonly FailureExplanationDispla
 /** Optional presentation only: no diagnosis, graph traversal, storage query or executable advice. */
 export function FailureExplanationView(props: FailureExplanationViewProps) {
   const id = useId();
-  const model = admitFailureExplanation(props.explanation);
-  if (!model) return (
+  const checked = checkFailureExplanationDisplay(props.explanation);
+  if (!checked.ok) return (
     <section data-fp="failure-explanation" aria-label="Recorded failure explanation" className={props.className} style={{ ...box, ...props.style }}>
       <p role="status">Explanation is unavailable. The cause and outcome remain unknown. Reload the recording or ask an administrator to check it.</p>
     </section>
   );
+  const model = checked.value;
+  const statement = model.unknowns.length === 0
+    ? hostStatement(props.emptyUnknownsText, checked.usage.textCodeUnits)
+    : undefined;
   return (
     <section data-fp="failure-explanation" aria-label="Recorded failure explanation" className={props.className} style={{ ...box, ...props.style }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 16rem), 1fr))', gap: 12 }}>
@@ -87,7 +99,10 @@ export function FailureExplanationView(props: FailureExplanationViewProps) {
         <h3 id={`${id}-unknowns`} style={{ marginBlockStart: 0, fontSize: 16 }}>Still unknown</h3>
         {model.unknowns.length > 0
           ? <ul>{model.unknowns.map((unknown, index) => <li key={index}>{renderExplanationText(unknown)}</li>)}</ul>
-          : <p>The supplied list is empty. This does not establish that everything is known. This view does not verify the underlying evidence.</p>}
+          : <>
+            {statement !== undefined && <p data-part="host-statement"><strong>Host statement</strong>{' '}<bdi>{statement}</bdi></p>}
+            <p>The supplied list is empty. This does not establish that everything is known. This view does not verify the underlying evidence.</p>
+          </>}
       </section>
     </section>
   );

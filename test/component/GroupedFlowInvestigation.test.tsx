@@ -74,7 +74,7 @@ it("keeps unavailable backward relationships distinct from an empty complete res
 });
 
 it("never promotes alternatives to the supported cause", async () => {
-  render(<GroupedFlowInvestigation definition={definition} observation={observation} port={port(vi.fn(async () => ({ ...result, rootCause: undefined, path: ["failed"], alternatives: ["root"], backward: { ...result.backward, confidence: "incomplete", gaps: [{ code: "ambiguous", evidence: [] }] } })))} />);
+  render(<GroupedFlowInvestigation definition={definition} observation={observation} port={port(vi.fn(async () => ({ ...result, rootCause: undefined, path: ["failed"], alternatives: ["root"], backward: { ...result.backward, confidence: "incomplete", gaps: [{ code: "ambiguous", evidence: [] }] } as const })))} />);
   selectFailure(); await screen.findByText("Root cause unknown"); expect(screen.queryByText("Supported root cause")).toBeNull();
 });
 
