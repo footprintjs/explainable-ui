@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Breaking
 
 - Requires Node 22 or newer.
+- `checkFailureExplanationDisplay` now returns `text`, `configuredText`, `summary`, and each `unknowns` item as a string or a list of text parts. Update TypeScript readers to handle both forms, or keep passing strings and narrow each returned value with `typeof value === 'string'`.
 
 ## [2.2.0] - 2026-11-18
 
