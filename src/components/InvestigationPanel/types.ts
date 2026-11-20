@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import type { ExplanationText } from "../../displayAdmission/explanationText";
 import type {
   AttentionListResult,
   CauseResult,
@@ -21,7 +22,7 @@ export interface InvestigationPort {
   /** Bounded canonical attention results, prepared by the host without an eager UI graph query. */
   readonly attention: AttentionListResult;
   /** Optional display names only; all selections and requests retain the opaque canonical node ID. */
-  readonly labels?: Readonly<Record<NodeId, string>>;
+  readonly labels?: Readonly<Record<NodeId, ExplanationText>>;
   /** Call Foottrace's canonical explain API; honor cancellation and enforce storage/query work limits here. */
   readonly explain: (
     nodeId: NodeId,
@@ -30,8 +31,8 @@ export interface InvestigationPort {
 }
 
 export interface InvestigationPanelProps {
-  /** Optional plain-text names for exact mark kinds; evidence and identity remain unchanged. */
-  readonly markLabels?: Readonly<Record<string, string>>;
+  /** Optional display names for exact mark kinds; evidence and identity remain unchanged. */
+  readonly markLabels?: Readonly<Record<string, ExplanationText>>;
   readonly port?: InvestigationPort | null;
   /** Explicit richer evidence presentation; overall preserves the legacy text projection. */
   readonly coverageMode?: "overall" | "directional";

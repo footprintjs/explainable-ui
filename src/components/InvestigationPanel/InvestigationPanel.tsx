@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import type { CauseResult, Gap } from "foottrace/cause";
 type Attention = CauseResult["attention"][number];
 import { theme } from "../../theme/styles";
+import { renderExplanationText } from "../ExplanationText";
 import { useIsomorphicLayoutEffect } from "../../_internal/useIsomorphicLayoutEffect";
 import {
   admitAttention,
@@ -57,7 +58,7 @@ function Badges({ marks, markLabels }: { marks: readonly Attention[]; markLabels
             background: theme.accentBg,
           }}
         >
-          {resolveInvestigationMarkLabel(markLabels, mark.kind)}
+          {renderExplanationText(resolveInvestigationMarkLabel(markLabels, mark.kind))}
         </span>
       ))}
     </>
@@ -179,7 +180,7 @@ export function InvestigationPanelView({ port, className, style, controller, mar
     // diagram gesture can keep focus at the card and announce its summary instead.
     focusIntent.current = { owner, kind: "explanation", request };
   };
-  const label = (nodeId: string) => displayLabel(port.labels, nodeId);
+  const label = (nodeId: string) => renderExplanationText(displayLabel(port.labels, nodeId));
   const item = (nodeId: string, index: number) => (
     <li key={`${index}:${nodeId}`} style={row}>
       <span>{label(nodeId)}</span>{" "}

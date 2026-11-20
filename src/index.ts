@@ -187,6 +187,7 @@ export { GroupedFlowInvestigation } from "./components/GroupedFlowInvestigation"
 export type { GroupedFlowInvestigationProps } from "./components/GroupedFlowInvestigation";
 export { FailureExplanationView } from "./components/FailureExplanationView";
 export type { FailureExplanationViewProps, FailureExplanationDisplay, FailureExplanationDisplaySection, FailureExplanationDisplayFinding } from "./components/FailureExplanationView";
+export type { ExplanationText, ExplanationTextPart } from "./displayAdmission/explanationText";
 export { checkInvestigationAttention, checkInvestigationExplanation, checkFailureExplanationDisplay, investigationDisplayLimits, failureExplanationDisplayLimits } from "./displayChecks";
 export type { DisplayCheckResult, DisplayDiagnostic, DisplayDiagnosticCode, DisplayLimitName, DisplayPath, DisplaySchemaField, DisplayUsage, InvestigationAttentionDisplay, InvestigationTextDisplay, InvestigationRelationshipDisplay } from "./displayChecks";
 

@@ -6,7 +6,7 @@ const schemaFields: ReadonlySet<string> = new Set<DisplaySchemaField>([
   'evidenceRefs', 'unknowns', 'canonicalFindings', 'causes', 'consequences', 'diagnosticFailures',
   'code', 'summary', 'level', 'nodes', 'nodeId', 'attention', 'kind', 'reason', 'evidence', 'confidence',
   'gaps', 'from', 'to', 'attribution', 'edges', 'backward', 'rootCause', 'path', 'alternatives',
-  'impact', 'projection', 'requestedNodeId', 'length',
+  'impact', 'projection', 'requestedNodeId', 'length', 'quote',
 ]);
 const codes: ReadonlySet<string> = new Set<DisplayDiagnosticCode>([
   'invalid-own-field', 'accessor-field', 'invalid-value', 'invalid-enum', 'invalid-code',

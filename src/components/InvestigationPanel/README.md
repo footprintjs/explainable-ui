@@ -63,16 +63,17 @@ that single bank. Root-only `investigationGapMessage(code)` returns its exact
 sentence or undefined; no mutable wording table is public.
 
 Both investigation props accept readonly `markLabels`, keyed by exact admitted
-mark kind. This is separate from node-ID names in `port.labels`. Used own data
-strings of 1–512 UTF16 units replace badge text; missing, inherited, accessor,
-invalid, overlong or unreadable entries preserve the built-in name or raw kind.
-No trimming, truncation, callbacks, HTML, map enumeration, mutation or retention.
-A label equal to the raw kind is still a valid override. Changing the map changes
-only text, leaving query/binding, selection, focus and canonical evidence intact.
+mark kind. Node names go in `port.labels`. Both maps accept a string or a list
+of text parts with optional `quote: true`. The original text totals 1–512 UTF-16
+units per label, and a list has at most 256 parts. A malformed object or
+over-limit parts list shows the default and a refusal reason. Missing, inherited, accessor
+and other unreadable entries use the existing default. A label equal to the
+raw kind is still a valid override. Labels change the display, and the query,
+binding, selection, focus and canonical evidence keep their existing values.
 
-The existing limits derive a conservative 16*(256+1) used-descriptor reads per
-render, normally reduced by pagination; accepted host text is additional display
-copy outside canonical parser usage. Readonly is a type contract: hosts replace
-the map for updates. Proxy descriptor traps can run/throw, so this is not a
-sandbox or a time guarantee. Failed lookups fall back without inspecting foreign
-errors. A host label never establishes verification, severity or a cause.
+Mark names are read only for displayed marks. Each lookup reads one map
+descriptor. A parts list adds a bounded number of slot and field reads, and
+the reader checks the part's own keys to refuse extra fields. Proxy reflection
+traps can run or throw. Hosts replace the map to update names. Failed lookups
+fall back without inspecting foreign errors. A host label never establishes
+verification, severity or a cause.

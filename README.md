@@ -1925,15 +1925,17 @@ recording failures. The latter two appear in separate visible sections, rather
 than disappearing from the explanation or being relabelled as causes. Complete
 cause codes and references remain available in the cause details.
 
-An empty `unknowns` list means the supplied list is empty; it does not establish
-that everything is known, and the verification disclaimer stays visible. Section
-text, configured guidance and finding summaries use `white-space: pre-wrap`.
-These plain strings carry no substring-origin metadata, so a quoted source value
-can wrap into apparent body text; HTML escaping does not identify its origin.
-Keep untrusted quoted values in host-owned, clearly labelled presentation. If a
-formatter normalizes a display copy, label that change and preserve the original
-bound evidence; leave canonical IDs, references and recorded evidence unchanged.
-Whitespace collapse alone does not establish origin.
+An empty `unknowns` list describes what was supplied. The verification
+disclaimer stays visible. Section text, configured guidance and finding
+summaries keep their existing plain-string rendering. To quote the recording,
+supply a list such as `[{ text: "The tool reported " }, { text: excerpt, quote: true }]`
+for section text, guidance, a finding summary or an individual unknown. Each
+quote has a visible boundary and a “Recorded quotation” accessible label.
+The browser collapses whitespace inside the quote while the original excerpt
+remains in its DOM text. Quoted content is escaped and isolated from neighboring
+text. Keep the original bound evidence and use the same canonical IDs and
+references. The existing text limits count the original UTF-16 length across
+all parts, and the existing list limits count the part slots.
 
 ```tsx
 import { FailureExplanationView, FootprintTheme, coolLight } from 'footprint-explainable-ui';
@@ -2122,11 +2124,13 @@ const markLabels = Object.freeze({ error: "Recorded failure", "domain-rule": "Re
 
 `GroupedFlowInvestigation` accepts the same `markLabels` prop through both its
 root and `/flowchart` entries. Labels match the exact mark kind; `port.labels`
-continues naming node IDs. The eight built-in names and unknown raw kinds remain
-the default. Only used own data strings of 1–512 UTF-16 units are accepted;
-missing, inherited, accessor, invalid, overlong or unreadable entries retain the
-default. Values render as escaped text, including a value equal to the raw kind.
-No label is a verification, severity or causal claim, and no evidence is altered.
+continues naming node IDs. Both accept plain strings and lists of text parts
+with optional `quote: true`. Each used own label is limited to 512 original
+UTF-16 code units, with up to 256 parts. Missing, inherited, accessor, invalid,
+overlong or unreadable entries retain the default. A refused object or parts list also
+shows the reason beside that default. Values render as escaped text, including
+a value equal to the raw kind. Labels are display names. Evidence and query IDs
+retain their original values.
 
 The map is readonly in types; replace it to update names. No host-map enumeration,
 mutation, getter invocation, callbacks or HTML is supported. Proxy descriptor
