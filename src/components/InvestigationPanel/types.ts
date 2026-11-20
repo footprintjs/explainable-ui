@@ -1,20 +1,14 @@
 import type { CSSProperties } from "react";
 import type { ExplanationText } from "../../displayAdmission/explanationText";
-import type { InvestigationRelationshipDisplay } from "./checkTypes";
+import type { InvestigationRelationshipDisplay, InvestigationTextDisplay } from "./checkTypes";
 import type {
   AttentionListResult,
-  CauseResult,
   GraphContext,
-  ImpactResult,
   NodeId,
 } from "foottrace/cause";
 
 /** Canonical display projection: unused graph edges stay with the host and may evolve independently. */
-export type InvestigationResult = Pick<CauseResult,
-  "nodeId" | "attention" | "rootCause" | "path" | "alternatives" | "confidence" | "gaps"
-> & Pick<InvestigationRelationshipDisplay, "backward"> & {
-  readonly impact: Omit<ImpactResult, "edges">;
-};
+export type InvestigationResult = InvestigationTextDisplay & Pick<InvestigationRelationshipDisplay, "backward">;
 
 /** The host binds authorization, run, tenant, storage, exact invocation/attempt/visit, and query budgets. */
 export interface InvestigationPort {

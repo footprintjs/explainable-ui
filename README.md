@@ -2157,6 +2157,7 @@ These display helpers and limits are exported from the root entry:
 | `investigationGapMessage` | Exact canonical sentence for a recognized gap code, otherwise undefined |
 | `checkInvestigationAttention` | Admit the same bounded attention projection used by the panel |
 | `checkInvestigationExplanation` | Check the default text or explicit relationship projection for one bound selected ID |
+| `fitInvestigationExplanation` | Fit evidence references to the display limits. The returned rows keep omission counts for the panel and retain every gap or its occurrence count. [Fitting order and limits](src/components/InvestigationPanel/README.md#fitting-a-large-explanation) |
 | `checkFailureExplanationDisplay` | Check the exact failure-explanation projection and its finding-code rules |
 | `investigationDisplayLimits` | Frozen primitive limits for attention and explanation display admission |
 | `failureExplanationDisplayLimits` | Frozen failure-display limits and finding-code pattern string |
