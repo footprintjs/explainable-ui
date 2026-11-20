@@ -228,6 +228,25 @@ console.log(JSON.stringify(verifyRealFixtures(lens, record)));
   }
 }
 
+function packPackage(directory, destination) {
+  return JSON.parse(execFileSync("npm", [
+    "pack", "--json", "--ignore-scripts", "--offline", "--pack-destination", destination,
+  ], { cwd: directory, env, encoding: "utf8" }))[0];
+}
+
+function verifyPublishStage(unpacked, expectedIdentity) {
+  const staging = join(scratch, "publish-stage");
+  execFileSync(process.execPath, [join(repo, "scripts/stage-package.mjs"), staging], { cwd: repo, env });
+  compareInstalledFiles(unpacked, staging);
+
+  const destination = join(scratch, "publish-archive");
+  mkdirSync(destination);
+  const packed = packPackage(staging, destination);
+  const identity = archiveProof(join(destination, packed.filename), packed);
+  assert.deepEqual(identity, expectedIdentity, "Publish stage must pack into the same archive as the verified build");
+  return { ...identity, files: packed.files.map((row) => row.path) };
+}
+
 function verifyNormalPackage() {
   const manifest = json(join(repo, "package.json"));
   const door = (name) => ({
@@ -244,13 +263,11 @@ function verifyNormalPackage() {
     ["./dist/index.cjs", "./dist/index.js", "./dist/index.d.ts"]
   );
   assert.deepEqual(manifest.files, ["dist", "CHANGELOG.md"]);
-  assert.deepEqual(manifest.engines, { node: ">=18" });
+  assert.deepEqual(manifest.engines, { node: ">=22" });
   const artifact = process.env.UI_PACKED_REVIEW;
   const packed = artifact
     ? json(resolve(repo, artifact))[0]
-    : JSON.parse(execFileSync("npm", [
-      "pack", "--json", "--ignore-scripts", "--offline", "--pack-destination", scratch,
-    ], { cwd: repo, env, encoding: "utf8" }))[0];
+    : packPackage(repo, scratch);
   assert.equal(packed.name, packageName);
   assert.equal(packed.version, manifest.version);
   assert.equal(packed.filename, `${packageName}-${manifest.version}.tgz`);
@@ -327,6 +344,7 @@ function verifyNormalPackage() {
     testedTree: execFileSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: repo, encoding: "utf8" }).trim(),
   };
   assert.deepEqual(json(join(unpacked, "package/package.json")), manifest);
+  evidence.gates.publishStage = verifyPublishStage(join(unpacked, "package"), identity);
   return { archive, unpacked: join(unpacked, "package") };
 }
 

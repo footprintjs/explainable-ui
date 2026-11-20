@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Backtrack keeps recorded reads of unset keys when a run is saved and reopened.
 
+## [3.0.0] - Unreleased
+
+### Breaking
+
+- Requires Node 22 or newer.
+
 ## [2.2.0] - 2026-11-18
 
 ### Changed

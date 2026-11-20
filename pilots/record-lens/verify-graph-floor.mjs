@@ -1,14 +1,14 @@
-/** An existing Node 18/20 host installs the exact archive tested by the Node 22 record-only job. */
+/** Each graph consumer installs the archive verified by the oldest supported test job. */
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { archiveProof, compareInstalledFiles, installConsumer, readJSON, verifyRejectedReader } from './packed-consumers.mjs';
+import { archiveProof, compareInstalledFiles, installConsumer, readJSON } from './packed-consumers.mjs';
 
 const [artifact, report] = process.argv.slice(2);
 const nodeMajor = Number(process.versions.node.split('.')[0]);
-assert([18, 20].includes(nodeMajor), 'Test the declared graph entry runtime floor');
+assert(nodeMajor >= 22, 'Use a supported Node runtime for the graph consumer');
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), 'graph-peer-floor-')));
 const env = { ...process.env, NODE_PATH: '', NODE_OPTIONS: '' };
 
@@ -32,7 +32,7 @@ try {
   const installed = join(modules, 'footprint-explainable-ui');
   compareInstalledFiles(join(scratch, 'package'), installed);
   const manifest = readJSON(join(installed, 'package.json'));
-  assert.equal(manifest.engines.node, '>=18');
+  assert.equal(manifest.engines.node, '>=22');
 
   const formats = [];
   for (const [resolution, extension] of [['NodeNext', 'mts'], ['NodeNext', 'cts'], ['Bundler', 'ts']]) {
@@ -52,11 +52,9 @@ export type HostModels = [InvestigationPort, TracedFlowProps];`);
     assert(!listing.includes('/node_modules/foottrace/'));
     formats.push(`${resolution} .${extension}`);
   }
-  const rejected = verifyRejectedReader({ directory: join(scratch, 'unsupported-engine'), archive,
-    env, installedNpm: true, react: consumer.versions.react, version: '2.1.0', code: 'EBADENGINE' });
   const proof = { node: process.versions.node, npm: execFileSync('npm', ['--version'], { encoding: 'utf8' }).trim(),
     testedCommit: gates.normalTarball.testedCommit, testedTree: gates.normalTarball.testedTree, archive: identity,
-    identicalInstalledFiles: Object.keys(gates.normalTarball.memberSha256).length, consumer, formats, rejected,
+    identicalInstalledFiles: Object.keys(gates.normalTarball.memberSha256).length, consumer, formats,
     runtime: ['CommonJS', 'ESM'], missingReaderPeerRejected: true };
   writeFileSync(report, JSON.stringify(proof, null, 2) + '\n');
   console.log(JSON.stringify(proof));

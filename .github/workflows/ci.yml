@@ -11,18 +11,26 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: test (${{ matrix.role }})
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        node-version: [20, 22]
+        include:
+          - role: oldest supported
+            node-version: '22.16.0'
+          - role: newest
+            node-version: '24.21.0'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ matrix.node-version }}
+
+      - name: Print Node.js version
+        run: node --version
 
       # Fresh resolution — no committed lockfile (library policy). `cache: npm` is dropped
       # because it keys off the (now absent) lockfile.
@@ -38,52 +46,67 @@ jobs:
       - name: Test audit evidence failure handling
         run: npm run test:dependency-audit
 
-      - run: npm run build
+      - name: Build and measure memory
+        run: |
+          awk '/^MemTotal:/ { print "Runner RAM capacity (KiB):", $2 }' /proc/meminfo
+          node -p '"Node V8 heap limit (KiB): " + require("node:v8").getHeapStatistics().heap_size_limit / 1024'
+          samples=$(mktemp)
+          sample_available_ram() { awk '/^MemAvailable:/ { print $2 }' /proc/meminfo; }
+          sample_available_ram > "$samples"
+          while sleep 1; do sample_available_ram; done >> "$samples" &
+          sampler=$!
+          trap 'kill "$sampler" 2>/dev/null || true; rm -f "$samples"' EXIT
+          build_status=0
+          /usr/bin/time -f 'Build peak RSS for the largest process (KiB): %M' npm run build || build_status=$?
+          kill "$sampler" 2>/dev/null || true
+          wait "$sampler" 2>/dev/null || true
+          awk 'NR == 1 || $1 < min { min = $1 } END { print "Minimum sampled available runner RAM (KiB):", min }' "$samples"
+          exit "$build_status"
       - run: npm test
 
       - name: Build seven-workflow preview
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: npx vite build --config examples/local-playground/vite.config.ts
 
       - name: Build deployment shapes example
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: |
           npx tsc -p examples/deployment-shapes/tsconfig.json
           npx vite build --config examples/deployment-shapes/vite.config.ts
 
       - name: Check and build diagram appearance example
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: |
           npx tsc -p examples/diagram-appearance/tsconfig.json
           npx vite build --config examples/diagram-appearance/vite.config.ts
 
       - name: Retain diagram appearance example for PR review
-        if: matrix.node-version == 22 && github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        if: matrix.role == 'oldest supported' && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: diagram-appearance-preview
           path: demo-dist/diagram-appearance/
           if-no-files-found: error
 
       - name: Check and build shared controller example
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: |
           npx tsc -p examples/headless-controller/tsconfig.json
           npx vite build --config examples/headless-controller/vite.config.ts
 
       - name: Verify the Go recording against the public Foottrace reader
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: node examples/record-slider/go/verify.mjs
 
       - name: Check and build Foottrace record slider example
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: |
           npx tsc -p examples/record-slider/tsconfig.json
           npx vite build --config examples/record-slider/vite.config.ts
 
       - name: Save the PR's record slider preview
-        if: matrix.node-version == 22 && github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        if: matrix.role == 'oldest supported' && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: record-slider-preview
           path: demo-dist/record-slider/
@@ -91,46 +114,46 @@ jobs:
           retention-days: 7
 
       - name: Save built package for independent verification
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: npm pack --ignore-scripts --json --pack-destination dependency-security > dependency-security/packed-review.json
 
-      # The optional recording reader uses Foottrace 2's Node 22 runtime.
+      # Check the recording reader, packed consumers and size on the supported floor.
       - name: Test the Foottrace reader and its isolated packed consumer
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         env:
           UI_PACKED_REVIEW: dependency-security/packed-review.json
         run: npm run test:record-pilot
 
       - name: Verify packed scoped trace consumers
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: node scripts/check-scoped-trace-package.mjs
 
       - name: Verify packed investigation consumers without a cause reader
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: node scripts/check-investigation-package.mjs
 
       - name: Verify packed isometric consumers
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: node scripts/check-isometric-package.mjs
 
       - name: Verify packed progressive rendering consumers
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: node scripts/check-progressive-package.mjs
 
       - name: Verify packed headless controller consumers
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: node scripts/check-headless-package.mjs
 
       - name: Verify packed display preflight consumers
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: node scripts/check-display-admission-package.mjs
 
       - name: Verify packed directional coverage consumers
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: node scripts/check-directional-coverage-package.mjs
 
       - name: Verify packed investigation wording and host labels
-        if: matrix.node-version == 22
+        if: matrix.role == 'oldest supported'
         run: node scripts/check-investigation-wording-package.mjs
 
       # Packaging-correctness gate on the would-be-published tarball (now that the dual
@@ -141,34 +164,41 @@ jobs:
 
       - name: Retain actual dependency graph and security reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: dependency-security-node-${{ matrix.node-version }}
+          name: dependency-security-${{ matrix.role == 'oldest supported' && 'oldest-supported' || 'newest' }}
           path: dependency-security/
           if-no-files-found: error
           retention-days: 7
 
   graph-consumer:
-    name: Graph consumer on Node ${{ matrix.node }}
+    name: consumer (${{ matrix.role }})
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
-        node: [18, 20]
+        include:
+          - role: oldest supported
+            node-version: '22.16.0'
+          - role: newest
+            node-version: '24.21.0'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: ${{ matrix.node }}
-      - uses: actions/download-artifact@v4
+          node-version: ${{ matrix.node-version }}
+      - name: Print Node.js version
+        run: node --version
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: dependency-security-node-22
+          name: dependency-security-oldest-supported
           path: packed-artifact
       - name: Install the tested archive and verify graph runtime and types without Foottrace
         run: node pilots/record-lens/verify-graph-floor.mjs packed-artifact graph-consumer.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: graph-consumer-node-${{ matrix.node }}
+          name: graph-consumer-node-${{ matrix.node-version }}
           path: graph-consumer.json
           if-no-files-found: error
           retention-days: 7

@@ -185,6 +185,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
     const baseline = ledger.packageContract;
     expect(consumerContract(manifest)).toEqual({
       ...consumerContract(baseline),
+      engines: { node: ">=22" },
       exports: {
         ...baseline.exports,
         "./record": {

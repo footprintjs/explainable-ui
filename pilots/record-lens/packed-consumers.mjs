@@ -86,7 +86,7 @@ export function installConsumer({ fixture, archive, repo, env, graph = false, ve
 const installFlags = ['install', '--engine-strict', '--strict-peer-deps', '--no-audit', '--no-fund'];
 
 function installer(installedNpm) {
-  // setup-node supplies a compatible npm on Node 18 and 20; npm 11 needs newer Node.
+  // The graph consumer uses npm supplied by setup-node. The producer pins npm.
   return installedNpm ? ['npm', installFlags] : ['npx', ['--yes', 'npm@11.21.0', ...installFlags]];
 }
 

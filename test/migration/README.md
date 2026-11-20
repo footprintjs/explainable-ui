@@ -99,7 +99,7 @@ unknown-read qualification preserve that distinction for the later adapter.
 
 ## Run
 
-Normal Node 20/22 suite (no Foottrace runtime imported by the new normal tests):
+Normal Node 22/24 suite (no Foottrace runtime imported by the new normal tests):
 
 ```sh
 npm run build

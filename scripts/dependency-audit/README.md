@@ -40,7 +40,7 @@ they never invoke npm audit or contact a registry.
 
 ## Toolchain update boundary
 
-Keep the existing Node 20/22 support. The tsup 8 override to exact esbuild 0.28.2
+Verify on Node 22 and 24. The tsup 8 override to exact esbuild 0.28.2
 is outside tsup's declared 0.27 range: acceptance requires the actual normal
 builder, CommonJS/ESM/declaration and installed-package gates, not an assumption
 of compatibility. jsdom's Undici `^7.30.2` override stays in its parent's 7.x
