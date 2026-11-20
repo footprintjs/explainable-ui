@@ -46,7 +46,22 @@ jobs:
       - name: Test audit evidence failure handling
         run: npm run test:dependency-audit
 
-      - run: npm run build
+      - name: Build and measure memory
+        run: |
+          awk '/^MemTotal:/ { print "Runner RAM capacity (KiB):", $2 }' /proc/meminfo
+          node -p '"Node V8 heap limit (KiB): " + require("node:v8").getHeapStatistics().heap_size_limit / 1024'
+          samples=$(mktemp)
+          sample_available_ram() { awk '/^MemAvailable:/ { print $2 }' /proc/meminfo; }
+          sample_available_ram > "$samples"
+          while sleep 1; do sample_available_ram; done >> "$samples" &
+          sampler=$!
+          trap 'kill "$sampler" 2>/dev/null || true; rm -f "$samples"' EXIT
+          build_status=0
+          /usr/bin/time -f 'Build peak RSS for the largest process (KiB): %M' npm run build || build_status=$?
+          kill "$sampler" 2>/dev/null || true
+          wait "$sampler" 2>/dev/null || true
+          awk 'NR == 1 || $1 < min { min = $1 } END { print "Minimum sampled available runner RAM (KiB):", min }' "$samples"
+          exit "$build_status"
       - run: npm test
 
       - name: Build seven-workflow preview
