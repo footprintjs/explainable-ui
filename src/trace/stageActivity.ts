@@ -1,6 +1,6 @@
 import type { NarrativeEntry, StageSnapshot } from "../types";
 import { indexReadAddresses, indexTraceWrites, indexWriterCommits, indexRelatedWrites,
-  readPathUncertainty, readTraceWrites, resolveReadWriter, type RecordedTraceWrite } from "./readProvenance";
+  readPathUncertainty, readTraceWrites, resolveReadWriter, stageReadNames, type RecordedTraceWrite } from "./readProvenance";
 import { readCommitTiming, indexReadWindows, type RecordedReadTiming } from "./readTiming";
 import { recordedPathLabel, recordedValuePreview } from "./recordedValuePreview";
 import { isPlainRecord, optionalOwnDataField, ownDataField, readName, readOwnArray, WorkBudget } from "./safeRecordRead";
@@ -229,15 +229,11 @@ export function projectStageActivity(input: StageActivityInput): StageActivityVi
       if (matches > 1) return fail("More than one execution-tree record names this runtime visit.");
       if (matches === 1) {
         treeFound = true;
-        const reads = optionalOwnDataField(match, "stageReads");
-        if (reads !== undefined && !isPlainRecord(reads)) throw new Error();
-        if (isPlainRecord(reads)) {
-          const keys = Object.keys(reads); treeBudget.spend(keys.length);
-          for (const key of keys) {
-            // Accessor keys are not captured read evidence.
-            optionalOwnDataField(reads, key);
-            readSources.set(readName(key), "stage-read");
-          }
+        const reads = ownDataField(match, "stageReads");
+        for (const key of stageReadNames(match, treeBudget)) {
+          // Accessor keys are not captured read evidence.
+          optionalOwnDataField(reads, key);
+          readSources.set(key, "stage-read");
         }
         const rawMessages = optionalOwnDataField(match, "flowMessages");
         if (rawMessages !== undefined) {
