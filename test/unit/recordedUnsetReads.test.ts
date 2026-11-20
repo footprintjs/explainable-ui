@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import { createScopedRecordGraph } from "../../src/record";
+import { stageReadKeys } from "../../src/trace/readProvenance";
+import { WorkBudget } from "../../src/trace/safeRecordRead";
+import { projectStageActivity } from "../../src/trace/stageActivity";
+import { childTraceScope, runHasRecordedReads } from "../../src/trace/traceScope";
 import { buildTraceWalk } from "../../src/trace/traceWalk";
 
 function commit(stage: string, key: string, value: number) {
@@ -87,5 +91,34 @@ describe("unset reads in live and saved recordings", () => {
     const stored = saved(recording({}, ["y", "y"]));
     Reflect.deleteProperty(stored.executionTree.next, "stageReads");
     expect(ingredientKeys(stored)).toEqual(["y"]);
+    expect(runHasRecordedReads(stored)).toBe(true);
+  });
+
+  it("keeps unset reads available in a saved child scope and Stage Activity", () => {
+    const stored = saved(recording({ y: undefined }, ["y"]));
+    const scope = childTraceScope({
+      treeContext: { history: stored.commitLog, stageContexts: stored.executionTree },
+    }, ["child"]);
+    expect(scope.availability).toEqual({ ok: true });
+    expect(scope.readsAvailable).toBe(true);
+    const walk = buildTraceWalk(scope.commitLog, scope.executionTree, "answer", {
+      scope: { invocationPath: scope.invocationPath, mountLabels: Object.fromEntries(scope.mountLabels) },
+    });
+    expect(walk.inputTermini).toEqual(["y"]);
+    const activity = projectStageActivity({
+      scope,
+      snapshots: stored.commitLog.map(row => ({
+        runtimeStageId: row.runtimeStageId,
+        stageName: row.stage, stageLabel: row.stage, memory: {}, narrative: "", startMs: 0, durationMs: 1,
+      })),
+      selectedIndex: 1,
+    });
+    expect(activity.reads[0]).toMatchObject({ key: "y", source: "stage-read" });
+  });
+
+  it("preserves printed paths and charges the existing read budget", () => {
+    const node = { runtimeStageId: "B", undefinedReadKeys: ["config.region", "config\u001fregion"] };
+    expect(stageReadKeys(node, new WorkBudget(3)).get("B")).toEqual(["config\u001fregion", "config.region"]);
+    expect(() => stageReadKeys(node, new WorkBudget(2))).toThrow("too-large");
   });
 });

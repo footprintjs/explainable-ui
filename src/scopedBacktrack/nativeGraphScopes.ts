@@ -54,20 +54,31 @@ function sameMembers(actual: readonly unknown[], expected: readonly string[]) {
   return actual.length === expected.length && expected.every(item => actual.includes(item));
 }
 
+function bindsReadObservations(owner: unknown, observations: unknown, address: LogAddress, length: number) {
+  return field(observations, "version") === 2 && field(owner, "version") === 1 &&
+    sameAddress(field(owner, "logAddress"), address) && [owner, observations].every(value => {
+    if (field(value, "runId") !== address.logRunId) return false;
+    const commits = field(value, "commits");
+    return field(commits, "from") === 0 && field(commits, "to") === length;
+  });
+}
+
+function hasRetainedEvidence(value: unknown) {
+  const status = field(value, "status");
+  return status === "captured" || status === "partial";
+}
+
 /** The cause reader owns occurrence/attempt admission. Bind its input to the
  * producer's own root-scoped ownership witness and matching full segment. */
 function rootSources(raw: unknown, address: LogAddress, length: number): RecordScope["readSources"] {
   if (!raw || address.drillPath.length) return undefined;
   const owner = field(raw, "ownership"), record = field(raw, "record");
-  if (field(raw, "version") !== 2 || field(owner, "version") !== 1 ||
-      field(owner, "segment") !== 1 || field(record, "segment") !== 1 ||
-      field(owner, "status") !== "captured" || !sameAddress(field(owner, "logAddress"), address) ||
-      ![owner, raw].every(value => field(value, "runId") === address.logRunId &&
-        field(field(value, "commits"), "from") === 0 && field(field(value, "commits"), "to") === length)) return undefined;
+  if (field(owner, "segment") !== 1 || field(record, "segment") !== 1 ||
+      field(owner, "status") !== "captured" || !bindsReadObservations(owner, raw, address, length)) return undefined;
   const executions = field(owner, "executions");
   if (!Array.isArray(executions) || !isPlainRecord(record) ||
       !sameAddress(field(record, "address"), address) || field(raw, "persistence") !== "memory-only" ||
-      (field(raw, "status") !== "captured" && field(raw, "status") !== "partial")) return undefined;
+      !hasRetainedEvidence(raw)) return undefined;
   return { record, executions } as unknown as NonNullable<RecordScope["readSources"]>;
 }
 
@@ -105,7 +116,7 @@ export function nativeGraphScopes(snapshot: unknown) {
     const tree = field(raw, child ? "stageContexts" : "executionTree");
     const mountLabels = rootMountLabels(tree);
     if (log.length > 4096) throw new TraceAdmissionError("too-large", log.length);
-    if (!mountLabels.availability.ok) throw new Error("unavailable scope");
+    if (!mountLabels.availability.ok) throw new TraceAdmissionError("malformed");
     const mountRecords: RecordSubflowMount[] = [], mounts = new Map<string, unknown>(), missing = new Set<string>();
     const children: { raw: unknown; address: LogAddress; complete: boolean }[] = [];
     for (const id of mountLabels.labels.keys()) {
@@ -131,8 +142,7 @@ export function nativeGraphScopes(snapshot: unknown) {
         field(cut, "beforeCommitIdx") === field(field(context, "history"), "length") });
     }
     const inventory = field(raw, "fanoutCollections");
-    const validInventory = field(inventory, "version") === 1 &&
-      (field(inventory, "status") === "captured" || field(inventory, "status") === "partial");
+    const validInventory = field(inventory, "version") === 1 && hasRetainedEvidence(inventory);
     const collections = validInventory ? readOwnArray(field(inventory, "collections"), budget) : [];
     const source = { commitLog: log, executionTree: tree, initialState: field(raw, "initialState") as TimeTravelSource["initialState"] };
     const note = rootNote(field(raw, "capture"), address, log.length, field(raw, "runId"));
@@ -141,23 +151,21 @@ export function nativeGraphScopes(snapshot: unknown) {
     const gaps = new Set<string>();
     if (inventory !== undefined && !validInventory) gaps.add("collection-unknown");
     const owner = field(observations, "ownership");
-    const boundObservation = field(observations, "version") === 2 && field(owner, "version") === 1 &&
-      sameAddress(field(owner, "logAddress"), address) &&
-      [owner, observations].every(part => field(part, "runId") === address.logRunId &&
-        field(field(part, "commits"), "from") === 0 && field(field(part, "commits"), "to") === log.length)
-        ? observations : undefined;
+    const boundObservation = bindsReadObservations(owner, observations, address, log.length)
+      ? observations : undefined;
     const status = field(boundObservation, "status"), channels = field(note, "channels");
     const readChannel = field(channels, "reads"), writeChannel = field(channels, "writes");
     const sourceChannel = field(channels, "readSources");
     if (readChannel === "disabled") gaps.add("reads-off");
     if (writeChannel === "disabled") gaps.add("writes-off");
-    if (sourceChannel === "disabled" || status === "disabled") gaps.add("sources-off");
+    const sourceStatusIs = (value: string) => sourceChannel === value || status === value;
+    if (sourceStatusIs("disabled")) gaps.add("sources-off");
     if (readChannel === "failed") gaps.add("failed");
     if (readChannel === "partial") gaps.add("reads-partial");
     if (writeChannel === "failed") gaps.add("writes-failed");
     if (writeChannel === "partial") gaps.add("writes-partial");
-    if (sourceChannel === "failed" || status === "failed") gaps.add("sources-failed");
-    else if (sourceChannel === "partial" || status === "partial") gaps.add("partial");
+    if (sourceStatusIs("failed")) gaps.add("sources-failed");
+    else if (sourceStatusIs("partial")) gaps.add("partial");
     if (observations && !sources && !child && status !== "disabled") gaps.add("collection-unknown");
     for (const observation of [note, boundObservation]) {
       const limits = field(observation, "limitations");

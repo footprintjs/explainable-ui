@@ -9,7 +9,7 @@ import {
   TraceAdmissionError,
   classifyAdmissionFailure,
 } from "./safeRecordRead";
-import { readTraceWrites } from "./readProvenance";
+import { readTraceWrites, stageReadNames, unsetReadKeys } from "./readProvenance";
 import { readCommitTiming, indexReadWindows } from "./readTiming";
 export type TraceAvailability =
   | { ok: true }
@@ -71,7 +71,7 @@ export function runHasRecordedReads(
       if (!isPlainRecord(node) || seen.has(node)) continue;
       seen.add(node);
       const reads = ownDataField(node, "stageReads");
-      if (isPlainRecord(reads) && Object.keys(reads).length > 0) return true;
+      if ((isPlainRecord(reads) && Object.keys(reads).length > 0) || unsetReadKeys(node, budget).length) return true;
       const next = ownDataField(node, "next");
       if (next) queue.push(next);
       const children = ownDataField(node, "children");
@@ -213,20 +213,8 @@ export function childTraceScope(
       if (runtimeIds.has(target.runtimeStageId))
         return unavailable("malformed");
       runtimeIds.add(target.runtimeStageId);
-      const readDescriptor = Object.getOwnPropertyDescriptor(
-        node,
-        "stageReads"
-      );
-      if (readDescriptor && !("value" in readDescriptor))
-        return unavailable("malformed");
-      const reads = ownDataField(node, "stageReads");
-      if (reads !== undefined && !isPlainRecord(reads))
-        return unavailable("malformed");
-      if (isPlainRecord(reads)) {
-        const keys = Object.keys(reads);
-        budget.spend(keys.length);
-        if (keys.some((key) => key.length > 4_096))
-          return unavailable("malformed");
+      const keys = stageReadNames(node, budget);
+      if (keys.length || ownDataField(node, "stageReads") !== undefined) {
         target.stageReads = Object.fromEntries(keys.map((key) => [key, true]));
         ownReads ||= keys.length > 0;
       }
@@ -284,14 +272,13 @@ export function rootMountLabels(
   const labels = new Map<string, string>();
   const budget = new WorkBudget();
   const seen = new Set<unknown>();
-  const queue: unknown[] = tree === undefined || tree === null ? [] : [tree];
+  const queue: unknown[] = tree == null ? [] : [tree];
   const runtimeIds = new Set<string>();
   try {
     for (let i = 0; i < queue.length; i++) {
       budget.spend(1);
       const node = queue[i];
-      if (!isPlainRecord(node)) throw new TraceAdmissionError("malformed");
-      if (seen.has(node)) throw new TraceAdmissionError("malformed");
+      if (!isPlainRecord(node) || seen.has(node)) throw new TraceAdmissionError("malformed");
       seen.add(node);
       const id = optionalOwnDataField(node, "runtimeStageId");
       if (typeof id === "string" && id.length > 0) {
@@ -310,7 +297,7 @@ export function rootMountLabels(
           readName(typeof name === "string" && name.length > 0 ? name : mount)
         );
       const next = optionalOwnDataField(node, "next");
-      if (next !== undefined && next !== null) queue.push(next);
+      if (next != null) queue.push(next);
       const children = optionalOwnDataField(node, "children");
       if (children !== undefined)
         for (const child of readOwnArray(children, budget)) queue.push(child);

@@ -20,41 +20,45 @@ export function readTraceWrites(value: unknown, budget: WorkBudget, allowMissing
 }
 
 /** JSON omits undefined values in stageReads. Read the optional list that retains their names. */
-function unsetReadKeys(node: object, budget: WorkBudget): string[] {
+export function unsetReadKeys(node: unknown, budget: WorkBudget): string[] {
   const value = ownDataField(node, "undefinedReadKeys");
-  if (!Array.isArray(value)) return [];
-  try {
-    return readOwnArray(value, budget).map(readName);
-  } catch (error) {
-    if (error instanceof TraceAdmissionError && error.reason === "malformed") return [];
-    throw error;
+  if (Array.isArray(value)) {
+    try {
+      return readOwnArray(value, budget).map(readName);
+    } catch (error) {
+      if (ownDataField(error, "reason") !== "malformed") throw error;
+    }
   }
+  return [];
+}
+
+export function stageReadNames(node: unknown, budget: WorkBudget): string[] {
+  const reads = optionalOwnDataField(node, "stageReads");
+  if (reads !== undefined && !isPlainRecord(reads)) throw new TraceAdmissionError("malformed");
+  const ownKeys = Object.keys(reads ?? {});
+  budget.spend(ownKeys.length);
+  const keys = ownKeys.map(readName);
+  const unset = unsetReadKeys(node, budget);
+  // Match the engine's sorted union when the list is present. Older
+  // recordings retain their original stage-read order.
+  return unset.length ? [...new Set(keys.concat(unset))].sort() : keys;
 }
 
 /** Only keys are inspected; recorded values/accessors are never evaluated. */
 export function stageReadKeys(tree: unknown, budget: WorkBudget): Map<string, string[]> {
   const byStep = new Map<string, string[]>();
   const visited = new Set<unknown>();
-  const stack: unknown[] = tree === undefined || tree === null ? [] : [tree];
+  const stack: unknown[] = tree == null ? [] : [tree];
   while (stack.length) {
     budget.spend(1);
     const node = stack.pop();
     if (!node || typeof node !== "object" || visited.has(node)) continue;
     visited.add(node);
     const id = optionalOwnDataField(node, "runtimeStageId");
-    const reads = optionalOwnDataField(node, "stageReads");
-    if (reads !== undefined && !isPlainRecord(reads)) throw new Error("Unavailable read evidence");
-    if (typeof id === "string" && id.length) {
-      const keys = reads === undefined ? [] : Object.keys(reads as object);
-      budget.spend(keys.length);
-      const unset = unsetReadKeys(node, budget);
-      // Match the engine's sorted union when the list is present. Older
-      // recordings retain their original stage-read order.
-      const union = unset.length ? [...new Set([...keys, ...unset])].sort() : keys;
-      if (union.length) byStep.set(readName(id), union.map(readName));
-    }
+    const keys = stageReadNames(node, budget);
+    if (typeof id === "string" && id.length && keys.length) byStep.set(readName(id), keys);
     const next = optionalOwnDataField(node, "next");
-    if (next !== undefined && next !== null) stack.push(next);
+    if (next != null) stack.push(next);
     const children = optionalOwnDataField(node, "children");
     if (children !== undefined) stack.push(...readOwnArray(children, budget));
   }
