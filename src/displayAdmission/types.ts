@@ -7,7 +7,7 @@ export type DisplaySchemaField =
   | 'consequences' | 'diagnosticFailures' | 'code' | 'summary' | 'level' | 'nodes' | 'nodeId'
   | 'attention' | 'kind' | 'reason' | 'evidence' | 'confidence' | 'gaps' | 'from'
   | 'to' | 'attribution' | 'edges' | 'backward' | 'rootCause' | 'path'
-  | 'alternatives' | 'impact' | 'projection' | 'requestedNodeId' | 'length';
+  | 'alternatives' | 'impact' | 'projection' | 'requestedNodeId' | 'length' | 'quote';
 export type DisplayPath = readonly (DisplaySchemaField | number)[];
 export type DisplayDiagnosticCode =
   | 'invalid-own-field' | 'accessor-field' | 'invalid-value' | 'invalid-enum'
