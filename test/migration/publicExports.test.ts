@@ -178,7 +178,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
     );
   });
 
-  it("adds the record door, the reviewed per-entry install contract and the Node 22 floor", () => {
+  it("matches the reviewed entry, install and archive contract", () => {
     const manifest = JSON.parse(
       readFileSync(new URL("../../package.json", import.meta.url), "utf8")
     );
@@ -194,6 +194,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
         },
       },
       typesVersions: { "*": { ...baseline.typesVersions["*"], record: ["./dist/record.d.ts"] } },
+      files: [...baseline.files, "CHANGELOG.md"],
       dependencies: undefined,
       peerDependencies: { ...baseline.peerDependencies, dagre: baseline.dependencies.dagre, foottrace: "^2.1.0" },
     });

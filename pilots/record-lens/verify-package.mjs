@@ -243,7 +243,7 @@ function verifyNormalPackage() {
     [manifest.main, manifest.module, manifest.types],
     ["./dist/index.cjs", "./dist/index.js", "./dist/index.d.ts"]
   );
-  assert.deepEqual(manifest.files, ["dist"]);
+  assert.deepEqual(manifest.files, ["dist", "CHANGELOG.md"]);
   assert.deepEqual(manifest.engines, { node: ">=22" });
   const artifact = process.env.UI_PACKED_REVIEW;
   const packed = artifact
@@ -259,13 +259,17 @@ function verifyNormalPackage() {
   const unpacked = join(scratch, "normal-package");
   mkdirSync(unpacked);
   execFileSync("tar", ["-xzf", archive, "-C", unpacked]);
+  assert.equal(
+    readFileSync(join(unpacked, "package/CHANGELOG.md"), "utf8"),
+    readFileSync(join(repo, "CHANGELOG.md"), "utf8")
+  );
   const shipped = walk(join(unpacked, "package"));
   const inspectedDistFiles = [];
   const verifiedSources = new Set();
   for (const path of shipped) {
     const rel = relative(join(unpacked, "package"), path);
     assert(
-      /^(?:dist\/[^/]+|package\.json|README\.md|LICENSE)$/.test(rel),
+      /^(?:dist\/[^/]+|package\.json|README\.md|CHANGELOG\.md|LICENSE)$/.test(rel),
       `Unexpected archive member: ${rel}`
     );
     if (rel.startsWith("dist/")) {

@@ -36,12 +36,11 @@ jobs:
       - run: npx publint
       - run: npx @arethetypeswrong/cli --pack
 
-      # Stage exactly the published files. package.json `files` is ["dist"]; npm always
-      # adds package.json + README (eui ships no LICENSE file).
+      # Stage the files listed in package.json and the package metadata.
       - name: Stage published package
         run: |
           mkdir -p pkg
-          cp -R dist package.json README.md pkg/
+          cp -R dist CHANGELOG.md package.json README.md pkg/
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
