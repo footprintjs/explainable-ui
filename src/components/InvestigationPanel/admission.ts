@@ -1,9 +1,7 @@
 import type {
   AttentionListResult,
   AttentionReason,
-  CauseResult,
   Confidence,
-  Gap,
   GapCode,
   MarkedNode,
 } from "foottrace/cause";
@@ -12,6 +10,7 @@ import { gapMessages } from "./wording";
 import type { VisualInvestigationResult, VisualInvestigationEdge } from "./visualTypes";
 import { admitsRecordedAttribution } from "../../recordedRelationships/attribution";
 import { readExplanationLabel } from "../../displayAdmission/explanationText";
+import { FitPolicy, addCount, displayCount, references } from "./fitPolicy";
 import {
   DisplayReader,
   investigationDisplayLimits,
@@ -20,11 +19,13 @@ import {
   type DisplayPath,
 } from "../../displayAdmission";
 import type {
+  FitInvestigationExplanationResult,
   InvestigationAttentionDisplay,
   InvestigationRelationshipDisplay,
   InvestigationTextDisplay,
 } from "./checkTypes";
-type Attention = CauseResult["attention"][number];
+type Attention = InvestigationTextDisplay["attention"][number];
+type Gap = InvestigationTextDisplay["gaps"][number];
 
 // Display admission only. Foottrace and the host own graph traversal, storage admission and causal claims.
 const reasons = {
@@ -42,7 +43,10 @@ const reasons = {
 const at = (path: DisplayPath, key: DisplayPath[number]): DisplayPath => [...path, key];
 
 class Admission {
-  constructor(readonly reader: DisplayReader) {}
+  private omittedReferences = 0;
+  private gapOccurrences = 0;
+
+  constructor(readonly reader: DisplayReader, readonly fit?: FitPolicy) {}
   field(value: unknown, key: string, path: DisplayPath): unknown {
     return this.reader.field(value, key, path);
   }
@@ -53,31 +57,63 @@ class Admission {
     if (value !== "complete" && value !== "incomplete") this.reader.fail("invalid-enum", path);
     return value;
   }
-  evidence(value: unknown, path: DisplayPath): string[] {
-    return this.reader.list(value, path, investigationDisplayLimits.maxReferencesPerList, "maxReferencesPerList", (entry, entryPath) => this.text(entry, entryPath));
+  private omittedCount(row: unknown, path: DisplayPath): number | undefined {
+    const omitted = displayCount(this.reader, row, "omittedReferences", path, 1);
+    if (omitted !== undefined)
+      this.omittedReferences = addCount(this.reader, this.omittedReferences, omitted, at(path, "omittedReferences"));
+    return omitted;
   }
-  attention = (value: unknown, path: DisplayPath): Attention => {
+  private gapCount(row: unknown, path: DisplayPath): number | undefined {
+    const occurrences = displayCount(this.reader, row, "occurrences", path, 2);
+    this.gapOccurrences = addCount(this.reader, this.gapOccurrences, occurrences ?? 1, at(path, "occurrences"));
+    return occurrences;
+  }
+  evidence(row: unknown, path: DisplayPath, preserveCount: boolean) {
+    const evidencePath = at(path, "evidence");
+    const value = this.field(row, "evidence", evidencePath);
+    if (this.fit)
+      return this.fit.evidence(value, evidencePath, this.omittedCount(row, path));
+    const evidence = this.reader.list(value, evidencePath, investigationDisplayLimits.maxReferencesPerList, "maxReferencesPerList",
+      (entry, entryPath) => this.text(entry, entryPath));
+    return references(evidence, preserveCount ? this.omittedCount(row, path) : undefined);
+  }
+  attention = (value: unknown, path: DisplayPath, preserveCount = false): Attention => {
     const reason = this.field(value, "reason", at(path, "reason"));
     if (typeof reason !== "string" || !Object.prototype.hasOwnProperty.call(reasons, reason))
       this.reader.fail("invalid-enum", at(path, "reason"));
     return {
       kind: this.text(this.field(value, "kind", at(path, "kind")), at(path, "kind")),
       reason: reason as AttentionReason,
-      evidence: this.evidence(this.field(value, "evidence", at(path, "evidence")), at(path, "evidence")),
+      ...this.evidence(value, path, preserveCount),
     };
   };
-  gaps(value: unknown, path: DisplayPath): Gap[] {
-    return this.reader.list(value, path, investigationDisplayLimits.maxGapsPerList, "maxGapsPerList", (entry, entryPath) => {
+  gaps(value: unknown, path: DisplayPath, preserveCounts = true): Gap[] {
+    const parse = (entry: unknown, entryPath: DisplayPath, chargeNode = true): Gap => {
       const code = this.field(entry, "code", at(entryPath, "code"));
       if (typeof code !== "string" || !Object.prototype.hasOwnProperty.call(gapMessages, code))
         this.reader.fail("invalid-enum", at(entryPath, "code"));
-      const nodeId = this.field(entry, "nodeId", at(entryPath, "nodeId"));
+      const nodePath = at(entryPath, "nodeId");
+      const nodeId = this.field(entry, "nodeId", nodePath);
+      const node = nodeId === undefined ? undefined : this.gapNode(nodeId, nodePath, chargeNode);
+      const evidence = this.evidence(entry, entryPath, preserveCounts);
+      const occurrences = preserveCounts ? this.gapCount(entry, entryPath) : undefined;
       return {
         code: code as GapCode,
-        ...(nodeId !== undefined && { nodeId: this.text(nodeId, at(entryPath, "nodeId")) }),
-        evidence: this.evidence(this.field(entry, "evidence", at(entryPath, "evidence")), at(entryPath, "evidence")),
+        ...(node !== undefined && { nodeId: node }),
+        ...evidence,
+        ...(occurrences !== undefined && { occurrences }),
       };
-    });
+    };
+    return this.fit ? this.fit.gaps(value, path, parse)
+      : this.reader.list(value, path, investigationDisplayLimits.maxGapsPerList, "maxGapsPerList", parse);
+  }
+  private gapNode(value: unknown, path: DisplayPath, charge: boolean): string {
+    if (charge) return this.text(value, path);
+    if (typeof value !== "string" || value.length === 0) this.reader.fail("invalid-value", path);
+    const maximum = investigationDisplayLimits.maxStringCodeUnits;
+    if (value.length > maximum)
+      this.reader.fail("limit-exceeded", path, { limit: "maxStringCodeUnits", maximum, observed: value.length });
+    return value;
   }
   edges(value: unknown, members: ReadonlySet<string>, path: DisplayPath): VisualInvestigationEdge[] {
     return this.reader.list(value, path, investigationDisplayLimits.maxEdgesPerList, "maxEdgesPerList", (entry, entryPath) => {
@@ -90,7 +126,7 @@ class Admission {
       if (kind !== "data" && kind !== "control") this.reader.fail("invalid-enum", at(entryPath, "kind"));
       if (!admitsRecordedAttribution(attribution, kind))
         this.reader.fail(attribution === "recorded-write" && kind === "control" ? "inconsistent-evidence" : "invalid-enum", at(entryPath, "attribution"));
-      return { from, to, kind, attribution: attribution as VisualInvestigationEdge["attribution"], evidence: this.evidence(this.field(entry, "evidence", at(entryPath, "evidence")), at(entryPath, "evidence")) };
+      return { from, to, kind, attribution: attribution as VisualInvestigationEdge["attribution"], ...this.evidence(entry, entryPath, true) };
     });
   }
   backward(value: unknown, selected: string, root: string | undefined, path: readonly string[], alternatives: readonly string[]): NonNullable<VisualInvestigationResult["backward"]> {
@@ -124,12 +160,11 @@ class Admission {
     const nodesPath: DisplayPath = ["impact", "nodes"];
     const nodes = this.reader.list(this.field(value, "nodes", nodesPath), nodesPath, investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => this.text(entry, entryPath));
     if (new Set(nodes).size !== nodes.length) this.reader.fail("duplicate-identity", nodesPath);
-    return {
-      nodes,
-      confidence: this.confidence(this.field(value, "confidence", ["impact", "confidence"]), ["impact", "confidence"]),
-      gaps: this.gaps(this.field(value, "gaps", ["impact", "gaps"]), ["impact", "gaps"]),
-      ...(visual && this.field(value, "edges", ["impact", "edges"]) !== undefined ? { edges: this.edges(this.field(value, "edges", ["impact", "edges"]), new Set([selected, ...nodes]), ["impact", "edges"]) } : {}),
-    };
+    const confidence = this.confidence(this.field(value, "confidence", ["impact", "confidence"]), ["impact", "confidence"]);
+    const gaps = this.gaps(this.field(value, "gaps", ["impact", "gaps"]), ["impact", "gaps"]);
+    const rawEdges = visual ? this.field(value, "edges", ["impact", "edges"]) : undefined;
+    const edges = rawEdges === undefined ? undefined : this.edges(rawEdges, new Set([selected, ...nodes]), ["impact", "edges"]);
+    return { nodes, confidence, gaps, ...(edges !== undefined && { edges }) };
   }
 }
 
@@ -142,13 +177,14 @@ function readAttention(value: unknown, reader: Admission): InvestigationAttentio
   return {
     nodes,
     confidence: reader.confidence(reader.field(value, "confidence", ["confidence"]), ["confidence"]),
-    gaps: reader.gaps(reader.field(value, "gaps", ["gaps"]), ["gaps"]),
+    gaps: reader.gaps(reader.field(value, "gaps", ["gaps"]), ["gaps"], false),
   };
 }
 
-function readExplanation(value: unknown, requested: string, visual: boolean, reader: Admission): VisualInvestigationResult {
+function readExplanation(value: unknown, requested: string | undefined, visual: boolean, reader: Admission): VisualInvestigationResult {
   const nodeId = reader.text(reader.field(value, "nodeId", ["nodeId"]), ["nodeId"]);
-  if (nodeId !== requested) reader.reader.fail("selection-mismatch", ["nodeId"]);
+  if (nodeId !== requested && (requested !== undefined || !reader.fit))
+    reader.reader.fail("selection-mismatch", ["nodeId"]);
   const path = reader.reader.list(reader.field(value, "path", ["path"]), ["path"], investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => reader.text(entry, entryPath));
   const alternatives = reader.reader.list(reader.field(value, "alternatives", ["alternatives"]), ["alternatives"], investigationDisplayLimits.maxItemsPerList, "maxItemsPerList", (entry, entryPath) => reader.text(entry, entryPath));
   if (path.length && path[0] !== nodeId) reader.reader.fail("inconsistent-evidence", ["path", 0]);
@@ -159,17 +195,19 @@ function readExplanation(value: unknown, requested: string, visual: boolean, rea
   const root = reader.field(value, "rootCause", ["rootCause"]);
   const rootCause = root === undefined ? undefined : reader.text(root, ["rootCause"]);
   if (rootCause !== undefined && (alternatives.length || path[path.length - 1] !== rootCause)) reader.reader.fail("inconsistent-evidence", ["rootCause"]);
-  return {
-    nodeId,
-    attention: reader.reader.list(reader.field(value, "attention", ["attention"]), ["attention"], investigationDisplayLimits.maxMarksPerItem, "maxMarksPerItem", reader.attention),
-    ...(rootCause !== undefined && { rootCause }),
-    path,
-    alternatives,
-    impact: reader.impact(reader.field(value, "impact", ["impact"]), nodeId, visual),
-    ...(visual && reader.field(value, "backward", ["backward"]) !== undefined ? { backward: reader.backward(reader.field(value, "backward", ["backward"]), nodeId, rootCause, path, alternatives) } : {}),
-    confidence,
-    gaps,
-  };
+  const attention = reader.reader.list(reader.field(value, "attention", ["attention"]), ["attention"],
+    investigationDisplayLimits.maxMarksPerItem, "maxMarksPerItem",
+    (entry, entryPath) => reader.attention(entry, entryPath, true));
+  const impact = reader.impact(reader.field(value, "impact", ["impact"]), nodeId, visual);
+  const rawBackward = visual ? reader.field(value, "backward", ["backward"]) : undefined;
+  const backward = rawBackward === undefined ? undefined : reader.backward(rawBackward, nodeId, rootCause, path, alternatives);
+  return { nodeId, attention, ...(rootCause !== undefined && { rootCause }), path, alternatives, impact,
+    ...(backward !== undefined && { backward }), confidence, gaps };
+}
+
+function readsRelationships(reader: DisplayReader, projection: unknown): boolean {
+  if (projection !== "text" && projection !== "relationships") reader.fail("invalid-enum", ["projection"]);
+  return projection === "relationships";
 }
 
 /** Check the same detached attention projection used by InvestigationPanel. */
@@ -182,10 +220,22 @@ export function checkInvestigationExplanation(value: unknown, requestedNodeId: s
 export function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection: "relationships"): DisplayCheckResult<InvestigationRelationshipDisplay>;
 export function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection?: "text" | "relationships"): DisplayCheckResult<InvestigationTextDisplay | InvestigationRelationshipDisplay>;
 export function checkInvestigationExplanation(value: unknown, requestedNodeId: string, projection: "text" | "relationships" = "text"): DisplayCheckResult<InvestigationTextDisplay | InvestigationRelationshipDisplay> {
-  return runDisplayCheck(investigationDisplayLimits, reader => {
-    if (projection !== "text" && projection !== "relationships") reader.fail("invalid-enum", ["projection"]);
-    return readExplanation(value, requestedNodeId, projection === "relationships", new Admission(reader));
+  return runDisplayCheck(investigationDisplayLimits, reader =>
+    readExplanation(value, requestedNodeId, readsRelationships(reader, projection), new Admission(reader)));
+}
+
+/** Fit an explicitly supplied display result without increasing its retained-data limits. */
+export function fitInvestigationExplanation(value: unknown, requestedNodeId?: string, projection?: "text"): FitInvestigationExplanationResult<InvestigationTextDisplay>;
+export function fitInvestigationExplanation(value: unknown, requestedNodeId: string | undefined, projection: "relationships"): FitInvestigationExplanationResult<InvestigationRelationshipDisplay>;
+export function fitInvestigationExplanation(value: unknown, requestedNodeId: string | undefined, projection: "text" | "relationships"): FitInvestigationExplanationResult<InvestigationTextDisplay | InvestigationRelationshipDisplay>;
+export function fitInvestigationExplanation(value: unknown, requestedNodeId?: string, projection: "text" | "relationships" = "text"): FitInvestigationExplanationResult<InvestigationTextDisplay | InvestigationRelationshipDisplay> {
+  const result = runDisplayCheck(investigationDisplayLimits, reader => {
+    const visual = readsRelationships(reader, projection);
+    const fit = new FitPolicy(reader);
+    const admitted = readExplanation(value, requestedNodeId, visual, new Admission(reader, fit));
+    return fit.finish(admitted, reader.usage());
   });
+  return result.ok ? Object.freeze({ ok: true, ...result.value }) : result;
 }
 
 export function admitAttention(value: unknown): AttentionListResult | undefined {

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import type { CauseResult, Gap } from "foottrace/cause";
+import type { CauseResult } from "foottrace/cause";
 type Attention = CauseResult["attention"][number];
 import { theme } from "../../theme/styles";
 import { renderExplanationText } from "../ExplanationText";
@@ -17,6 +17,8 @@ import type { VisualInvestigationResult } from "./visualTypes";
 import { useInvestigationQuery, type InvestigationController } from "./useInvestigationQuery";
 import { CoverageSection, supportsRecordedRoot } from "./coverage";
 import { resolveCoverageMode } from "./coverageMode";
+import type { InvestigationRelationshipDisplay } from "./checkTypes";
+import { omittedReferenceCount, ReferenceOmissionNotice, RelationshipOmissionNotices } from "./ReferenceOmissions";
 
 const box: CSSProperties = {
   color: theme.textPrimary,
@@ -64,12 +66,13 @@ function Badges({ marks, markLabels }: { marks: readonly Attention[]; markLabels
     </>
   );
 }
-function Gaps({ gaps }: { gaps: readonly Gap[] }) {
+function Gaps({ gaps }: { gaps: InvestigationRelationshipDisplay["gaps"] }) {
   return (
     <>
       {gaps.map((gap, index) => (
         <p key={index} role="status">
           {gapMessages[gap.code]}
+          {gap.occurrences !== undefined && <> <span>{gap.occurrences} supplied entries</span></>}
         </p>
       ))}
     </>
@@ -115,8 +118,8 @@ function BoundInvestigationPanel(props: InvestigationPanelProps & { port: NonNul
   return <InvestigationPanelView {...props} controller={controller} />;
 }
 /** Internal shared presentation; both standalone and grouped views use the same admitted request. */
-export function InvestigationPanelView({ port, className, style, controller, markLabels, coverageMode = "overall", showAttention = true, focusExternalRequests = true }: InvestigationPanelProps & {
-  port: NonNullable<InvestigationPanelProps["port"]>; controller: InvestigationController<VisualInvestigationResult>; showAttention?: boolean; focusExternalRequests?: boolean;
+export function InvestigationPanelView({ port, className, style, controller, markLabels, coverageMode = "overall", showAttention = true, focusExternalRequests = true, showRelationshipOmissions = true }: InvestigationPanelProps & {
+  port: NonNullable<InvestigationPanelProps["port"]>; controller: InvestigationController<VisualInvestigationResult>; showAttention?: boolean; focusExternalRequests?: boolean; showRelationshipOmissions?: boolean;
 }) {
   const attention = useMemo(
     () => showAttention ? admitAttention(port.attention) : undefined,
@@ -126,6 +129,12 @@ export function InvestigationPanelView({ port, className, style, controller, mar
   const candidates = selected?.status === "ready"
     ? otherCandidates(selected.result.nodeId, selected.result.alternatives)
     : undefined;
+  const evidenceRows = selected?.status === "ready" ? [
+    ...selected.result.attention,
+    ...selected.result.gaps,
+    ...selected.result.impact.gaps,
+    ...(coverageMode === "directional" ? selected.result.backward?.gaps ?? [] : []),
+  ] : [];
   const explanationElement = useRef<HTMLElement | null>(null);
   const attentionElements = useRef(new Map<string, HTMLButtonElement>());
   const returnTo = useRef<{ owner: object; nodeId: string } | null>(null);
@@ -325,24 +334,17 @@ export function InvestigationPanelView({ port, className, style, controller, mar
                   )}
                 </>
               )}
+              <ReferenceOmissionNotice count={omittedReferenceCount(evidenceRows)} />
               <details>
                 <summary>Recorded evidence references</summary>
                 <ul>
-                  {[
-                    ...selected.result.attention.flatMap(
-                      (mark) => mark.evidence
-                    ),
-                    ...selected.result.gaps.flatMap((gap) => gap.evidence),
-                    ...selected.result.impact.gaps.flatMap(
-                      (gap) => gap.evidence
-                    ),
-                    ...(coverageMode === "directional"
-                      ? selected.result.backward?.gaps.flatMap(gap => gap.evidence) ?? [] : []),
-                  ].map((reference, index) => (
+                  {evidenceRows.flatMap(row => row.evidence).map((reference, index) => (
                     <li key={index}>{reference}</li>
                   ))}
                 </ul>
               </details>
+              {coverageMode === "directional" && showRelationshipOmissions && <RelationshipOmissionNotices
+                backward={selected.result.backward?.edges} impact={selected.result.impact.edges} />}
               <button
                 type="button"
                 style={button}

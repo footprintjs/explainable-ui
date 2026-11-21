@@ -80,12 +80,12 @@ const traceWorkflowExports = [
 ];
 
 const displayPreflightExports = [
-  ...["checkInvestigationAttention", "checkInvestigationExplanation", "checkFailureExplanationDisplay",
+  ...["checkInvestigationAttention", "checkInvestigationExplanation", "fitInvestigationExplanation", "checkFailureExplanationDisplay",
     "investigationDisplayLimits", "failureExplanationDisplayLimits",
   ].map(name => ({ name, kind: "value" })),
   ...["DisplayCheckResult", "DisplayDiagnostic", "DisplayDiagnosticCode", "DisplayLimitName",
     "DisplayPath", "DisplaySchemaField", "DisplayUsage", "InvestigationAttentionDisplay",
-    "InvestigationTextDisplay", "InvestigationRelationshipDisplay",
+    "InvestigationTextDisplay", "InvestigationRelationshipDisplay", "FitInvestigationExplanationResult",
   ].map(name => ({ name, kind: "type" })),
 ];
 
