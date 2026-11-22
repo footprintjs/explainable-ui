@@ -83,6 +83,11 @@ assert.equal(api.checkInvestigationExplanation(textInput,'one','relationships').
 assert.deepEqual(api.checkInvestigationExplanation(base,'different').diagnostic,{code:'selection-mismatch',path:['nodeId']});
 const rich={...base,backward:{nodes:['one','two'],edges:[{from:'one',to:'two',kind:'data',attribution:'recorded-write',evidence:['ref']}],confidence:'complete',gaps:[]}};
 assert.equal(api.checkInvestigationExplanation(rich,'one','relationships').ok,true);
+const fitted=api.fitInvestigationExplanation({...base,attention:[{...attention.nodes[0].attention[0],evidence:Array(34).fill('ref')}]},'one');
+assert.equal(fitted.ok,true);
+assert.equal(fitted.omittedReferences,2);
+assert.equal(fitted.value.attention[0].omittedReferences,2);
+assert.deepEqual(api.fitInvestigationExplanation(fitted.value),fitted);
 const inconsistent={...rich,backward:{...rich.backward,confidence:'incomplete'}};
 assert.equal(api.checkInvestigationExplanation(inconsistent,'one','relationships').ok,false);
 const levels=['HIGH','MEDIUM','LOW','UNVERIFIED'];
@@ -137,7 +142,7 @@ process.stdout.write(format+' actual packed display checks, fixed bounds, inert 
   process.stdout.write(run(process.execPath, ['consumer.cjs']));
   writeFileSync(join(scratch, 'consumer.mjs'), `import {createRequire} from 'node:module';const require=createRequire(import.meta.url);const format='ESM';const api=await import('footprint-explainable-ui');\n${consumer}`);
   process.stdout.write(run(process.execPath, ['consumer.mjs']));
-  const typeSource = `import {checkInvestigationAttention,checkInvestigationExplanation,checkFailureExplanationDisplay,investigationDisplayLimits,failureExplanationDisplayLimits,type InvestigationTextDisplay,type InvestigationRelationshipDisplay,type DisplayDiagnostic,type FailureExplanationDisplayFinding,type FailureExplanationViewProps,type InvestigationPort,type InvestigationResult} from 'footprint-explainable-ui';
+  const typeSource = `import {fitInvestigationExplanation,checkInvestigationAttention,checkInvestigationExplanation,checkFailureExplanationDisplay,investigationDisplayLimits,failureExplanationDisplayLimits,type InvestigationTextDisplay,type InvestigationRelationshipDisplay,type DisplayDiagnostic,type FailureExplanationDisplayFinding,type FailureExplanationViewProps,type InvestigationPort,type InvestigationResult} from 'footprint-explainable-ui';
 const hostProps:FailureExplanationViewProps={emptyUnknownsText:'Operator checked the source reports.'};void hostProps;
 // @ts-expect-error Only a string is accepted as host wording.
 const callbackProps:FailureExplanationViewProps={emptyUnknownsText:()=> 'Host line'};void callbackProps;
@@ -159,6 +164,14 @@ if(failure.ok){const level:FailureExplanationDisplayFinding['level']=failure.val
 // @ts-expect-error Checker projections retain readonly finding levels.
 failure.value.canonicalFindings.causes[0]!.level='LOW';}
 const raw:unknown={};const text=checkInvestigationExplanation(raw,'bound-id');const visual=checkInvestigationExplanation(raw,'bound-id','relationships');
+const fitted=fitInvestigationExplanation(raw,'bound-id','relationships');
+if(fitted.ok){
+  const portResult:InvestigationResult=fitted.value;
+  const count:number=fitted.omittedReferences;
+  const edgeCount:number|undefined=fitted.value.backward?.edges[0]?.omittedReferences;
+  const gapCount:number|undefined=portResult.gaps[0]?.occurrences;
+  void [count,edgeCount,gapCount];
+}
 if(text.ok){const projected:InvestigationTextDisplay=text.value;void projected;
 // @ts-expect-error Text profile leaves backward relationships with the host.
 text.value.backward;

@@ -27,6 +27,54 @@ limits. No trimming, list deduplication or automatic logging is performed.
 not add an external graph/resolver type or duplicate the separate declaration
 boundary fix. The canonical gap bank lives behind `wording.ts`. Host node-label lookup
 keeps its prior node-ID fallback, separate from explanation refusal diagnostics.
+
+## Fitting a large explanation
+
+`fitInvestigationExplanation(result, requestedNodeId?, projection?)` prepares an
+optional bounded display copy. Supply the requested ID when binding a result
+to a selection. The default `text` profile returns overall evidence. Use
+`"relationships"` for the directional or grouped view to keep supplied edges
+and backward coverage.
+
+```ts
+const fitted = fitInvestigationExplanation(result, selectedId, "relationships");
+if (fitted.ok) {
+  // Return this value from the bound port. The panel reads its disclosure counts.
+  return fitted.value;
+}
+throw new Error(fitted.diagnostic.limit ?? fitted.diagnostic.code);
+```
+
+Success includes the retained `usage` and the total `omittedReferences` for
+the chosen profile. Each affected mark, gap or edge carries its own
+`omittedReferences` count so a saved fitted result still explains any cut.
+The panel shows the count beside the reference disclosure even when it is
+closed. The strict checker continues to refuse oversized raw results.
+
+The helper reserves room for all claims, IDs and coverage facts first.
+It keeps references in source order within each row, including duplicates,
+up to 32 per list. An individual reference longer than 2,048 UTF-16 units
+ends that row's prefix. Across rows, priority is attention marks, overall
+gaps, backward gaps, impact gaps, backward edges and impact edges. This
+preserves evidence about the selected item before relationship detail.
+When the next retained reference exceeds the remaining total text allowance,
+the rest of that priority sequence is counted as omitted.
+
+Only a gap list above 128 entries is grouped. Equal gap codes with the exact
+same item ID (or both IDs absent) in one coverage section share a row, in
+first-seen order. Its `occurrences` counts every supplied gap and its
+references describe the group. Distinct items and coverage sections stay
+separate. If the remaining groups or non-reference data exceed a display
+limit, fitting returns a diagnostic. A result already within the limits
+preserves its display facts and markup. Fitting its saved copy again gives
+the same counts.
+
+The fit examines at most 1,024 entries in an input evidence or gap list
+(`maxFitItemsPerList`) and 65,536 declared entries across all such lists in
+one call (`maxFitInputItems`). Larger inputs are refused. An accessor in a field being checked is refused without invoking
+the getter. Counts describe the visible projection supplied by the host.
+Fitting does not verify that an opaque reference resolves to evidence.
+
 # Other candidates
 
 The shared standalone/grouped view omits the selected item's exact ID only from

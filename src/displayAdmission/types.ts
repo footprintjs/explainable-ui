@@ -7,7 +7,7 @@ export type DisplaySchemaField =
   | 'consequences' | 'diagnosticFailures' | 'code' | 'summary' | 'level' | 'nodes' | 'nodeId'
   | 'attention' | 'kind' | 'reason' | 'evidence' | 'confidence' | 'gaps' | 'from'
   | 'to' | 'attribution' | 'edges' | 'backward' | 'rootCause' | 'path'
-  | 'alternatives' | 'impact' | 'projection' | 'requestedNodeId' | 'length' | 'quote';
+  | 'alternatives' | 'impact' | 'projection' | 'requestedNodeId' | 'length' | 'quote' | 'omittedReferences' | 'occurrences';
 export type DisplayPath = readonly (DisplaySchemaField | number)[];
 export type DisplayDiagnosticCode =
   | 'invalid-own-field' | 'accessor-field' | 'invalid-value' | 'invalid-enum'
@@ -15,7 +15,8 @@ export type DisplayDiagnosticCode =
   | 'inconsistent-evidence' | 'limit-exceeded' | 'unreadable-input';
 export type DisplayLimitName =
   | keyof typeof investigationDisplayLimits
-  | Exclude<keyof typeof failureExplanationDisplayLimits, 'findingCodePattern'>;
+  | Exclude<keyof typeof failureExplanationDisplayLimits, 'findingCodePattern'>
+  | 'maxFitItemsPerList' | 'maxFitInputItems';
 
 export type DisplayDiagnostic =
   | Readonly<{ code: 'limit-exceeded'; path: DisplayPath; limit?: DisplayLimitName; maximum?: number; observed?: number }>

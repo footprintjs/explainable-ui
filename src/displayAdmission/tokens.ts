@@ -6,7 +6,7 @@ const schemaFields: ReadonlySet<string> = new Set<DisplaySchemaField>([
   'evidenceRefs', 'unknowns', 'canonicalFindings', 'causes', 'consequences', 'diagnosticFailures',
   'code', 'summary', 'level', 'nodes', 'nodeId', 'attention', 'kind', 'reason', 'evidence', 'confidence',
   'gaps', 'from', 'to', 'attribution', 'edges', 'backward', 'rootCause', 'path', 'alternatives',
-  'impact', 'projection', 'requestedNodeId', 'length', 'quote',
+  'impact', 'projection', 'requestedNodeId', 'length', 'quote', 'omittedReferences', 'occurrences',
 ]);
 const codes: ReadonlySet<string> = new Set<DisplayDiagnosticCode>([
   'invalid-own-field', 'accessor-field', 'invalid-value', 'invalid-enum', 'invalid-code',
@@ -15,6 +15,7 @@ const codes: ReadonlySet<string> = new Set<DisplayDiagnosticCode>([
 const limitNames: ReadonlySet<string> = new Set([
   ...Object.keys(investigationDisplayLimits),
   ...Object.keys(failureExplanationDisplayLimits).filter(key => key !== 'findingCodePattern'),
+  'maxFitItemsPerList', 'maxFitInputItems',
 ]);
 const emptyPath: DisplayPath = Object.freeze([]);
 export const unreadableDiagnostic: DisplayDiagnostic = Object.freeze({ code: 'unreadable-input', path: emptyPath });
