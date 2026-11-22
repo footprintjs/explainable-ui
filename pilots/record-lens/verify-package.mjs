@@ -367,6 +367,10 @@ try {
     directory: join(scratch, "unsupported-reader-major"), archive, env,
     react: evidence.gates.graphWithoutReader.versions.react, version: "1.7.0", code: "ERESOLVE",
   });
+  evidence.gates.readerBelowBrowserReplayFix = verifyRejectedReader({
+    directory: join(scratch, "reader-below-browser-replay-fix"), archive, env,
+    react: evidence.gates.graphWithoutReader.versions.react, version: "2.3.0", code: "ERESOLVE",
+  });
   const prerequisites = installConsumer({ fixture, archive, repo, env });
   compareInstalledFiles(unpacked, installed);
   const fixtureDirectory = join(repo, "pilots/record-lens/fixtures");

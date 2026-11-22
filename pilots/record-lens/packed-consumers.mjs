@@ -74,7 +74,7 @@ export function installConsumer({ fixture, archive, repo, env, graph = false, ve
         'if(typeof ui.ExplainableShell!=="function" || !chart.TracedFlow) throw new Error("Missing graph API");' + missingReader], { cwd: fixture, env });
     }
   } else {
-    assert.equal(versions.foottrace, '2.1.0', 'Test the lowest supported Foottrace release');
+    assert.equal(versions.foottrace, '2.3.1', 'Test the lowest supported Foottrace release');
     assert.deepEqual(packages, [packageName, 'foottrace', 'react', '@types/react', 'csstype'].sort(),
       'The record-only React 19 installation must have exactly one physical copy of each declared package');
     assert.equal(createRequire(join(installed, 'package.json')).resolve('foottrace'),
