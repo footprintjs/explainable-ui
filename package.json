@@ -79,7 +79,7 @@
   "peerDependencies": {
     "@xyflow/react": "^12.0.0",
     "dagre": "^0.8.5",
-    "foottrace": "^2.1.0",
+    "foottrace": "^2.3.1",
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
   },
@@ -111,7 +111,7 @@
     "dagre": "^0.8.5",
     "footprintjs": "14.0.0",
     "footprintjs-golden": "npm:footprintjs@9.15.1",
-    "foottrace": "2.1.0",
+    "foottrace": "2.3.1",
     "jsdom": "^29.1.1",
     "publint": "^0.3.0",
     "react": "^19.2.5",

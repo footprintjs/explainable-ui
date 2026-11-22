@@ -42,12 +42,12 @@ For the root or `/flowchart` entry, install these graph peers in your app:
 npm install react react-dom @xyflow/react@^12 dagre@^0.8.5
 ```
 
-Scoped Backtrack through the root entry also requires `foottrace@^2.1.0`, loaded on demand.
+Scoped Backtrack through the root entry also requires `foottrace@^2.3.1`, loaded on demand.
 
 For `/record`, install the recording peers. Importing the recording entry without Foottrace produces the normal missing-peer module error.
 
 ```bash
-npm install react foottrace@^2.1.0
+npm install react foottrace@^2.3.1
 ```
 
 ## Entry Points

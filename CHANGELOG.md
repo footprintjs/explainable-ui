@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Breaking
 
+- Applications using `/record` or scoped Backtrack must install `foottrace@^2.3.1`, which includes the browser replay fix. Foottrace remains optional for graph-only applications.
 - Requires Node 22 or newer.
 - `checkFailureExplanationDisplay` now returns `text`, `configuredText`, `summary`, and each `unknowns` item as a string or a list of text parts. Update TypeScript readers to handle both forms, or keep passing strings and narrow each returned value with `typeof value === 'string'`.
 - TypeScript now checks `backward` when a port returns it. If a separately constructed result inferred `string` for a confidence or gap code, declare it with `satisfies InvestigationResult` at construction.

@@ -198,7 +198,7 @@ describe("M1 — preserve every existing public home and value/type kind", () =>
       typesVersions: { "*": { ...baseline.typesVersions["*"], record: ["./dist/record.d.ts"] } },
       files: [...baseline.files, "CHANGELOG.md"],
       dependencies: undefined,
-      peerDependencies: { ...baseline.peerDependencies, dagre: baseline.dependencies.dagre, foottrace: "^2.1.0" },
+      peerDependencies: { ...baseline.peerDependencies, dagre: baseline.dependencies.dagre, foottrace: "^2.3.1" },
     });
     expect(manifest.peerDependenciesMeta).toEqual(Object.fromEntries(
       ["@xyflow/react", "dagre", "foottrace", "react-dom"].map(name => [name, { optional: true }]),
