@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Backtrack keeps recorded reads of unset keys when a run is saved and reopened.
+- Large recorded runs can open in progressive replay. The root snapshot has a separate bounded copy budget for the execution tree, commit history, and shared state.
 
 ## [3.0.0] - Unreleased
 
