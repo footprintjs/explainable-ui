@@ -1,6 +1,6 @@
 {
   "name": "footprint-explainable-ui",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "React components for inspecting FootPrint workflow execution, recorded state changes and time-travel debugging.",
   "type": "module",
   "main": "./dist/index.cjs",

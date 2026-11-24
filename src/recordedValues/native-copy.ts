@@ -7,8 +7,8 @@ type Frame = { input: object; output: object; at: number } & (
 );
 
 /** Iterative data-only clone. Shared aliases survive; active ancestors are cycles. */
-export function copyOwnedData<T>(input: T): T {
-  const budget = new WorkBudget(), copied = new WeakMap<object, object>(), active = new Set<object>();
+export function copyOwnedData<T>(input: T, budget = new WorkBudget()): T {
+  const copied = new WeakMap<object, object>(), active = new Set<object>();
   const frames: Frame[] = [];
   function enter(value: unknown): unknown {
     budget.spend(1);

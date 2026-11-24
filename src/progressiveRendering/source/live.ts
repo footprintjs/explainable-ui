@@ -8,6 +8,10 @@ import { admitGraph, copyData, invalid, own, sameOwnedData } from '../prepare';
 export { sameOwnedData } from '../prepare';
 import { rootFields } from './views';
 
+// A recorded root admits the execution tree, history and shared state together.
+// Keep their combined copy bounded independently of a single trace or child.
+const ROOT_COPY_WORK_LIMIT = 200_000;
+
 export interface LiveCohort {
   readonly fields: Record<string, unknown>;
   readonly graph: TraceGraph;
@@ -48,7 +52,7 @@ export function assertCumulativeChild(before: unknown, after: unknown): void {
  * cannot be rewritten by mutation of a caller's previously supplied objects. */
 export function admitCohort(value: RecordingSourceUpdate, previous?: LiveCohort): LiveCohort {
   const original = own(value, 'snapshot') as RuntimeSnapshotInput;
-  const input = copyData(rootFields(original)), run = own(input, 'runId');
+  const input = copyData(rootFields(original), new WorkBudget(ROOT_COPY_WORK_LIMIT)), run = own(input, 'runId');
   if (run !== undefined && typeof run !== 'string') throw invalid();
   const history = input.commitLog;
   const inline = input.subflowResults;

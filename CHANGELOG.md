@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-11-23
+
+### Fixed
+
+- Large recorded runs can open in progressive replay. The root snapshot has a separate bounded copy budget for the execution tree, commit history, and shared state.
+
 ## [2.2.0] - 2026-11-18
 
 ### Changed

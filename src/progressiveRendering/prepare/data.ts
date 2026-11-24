@@ -1,4 +1,4 @@
-import { optionalOwnDataField } from '../../trace/safeRecordRead';
+import { optionalOwnDataField, type WorkBudget } from '../../trace/safeRecordRead';
 import { copyOwnedData } from '../../recordedValues';
 
 export function invalid(): Error { return new Error('Recorded subflow evidence could not be prepared.'); }
@@ -9,8 +9,8 @@ export const own = optionalOwnDataField;
 /** Detach supported plain/native data without caller getters, iterators or coercion.
  * Shared aliases survive; cycles/custom classes refuse. Native internals remain
  * mutable in JavaScript, so consumers must treat their detached leaves as readonly. */
-export function copyData<T>(input: T): T {
-  try { return copyOwnedData(input); } catch { throw invalid(); }
+export function copyData<T>(input: T, budget?: WorkBudget): T {
+  try { return copyOwnedData(input, budget); } catch { throw invalid(); }
 }
 
 /** A frozen read-only view, unlike Object.freeze(new Map()), has no mutator door. */
