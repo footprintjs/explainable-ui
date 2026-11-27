@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-27
+
 ### Added
 
 - Investigation and failure explanation views can display record quotations as clearly marked text parts.
@@ -16,9 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - Backtrack keeps recorded reads of unset keys when a run is saved and reopened.
-- Large recorded runs can open in progressive replay. The root snapshot has a separate bounded copy budget for the execution tree, commit history, and shared state.
-
-## [3.0.0] - Unreleased
 
 ### Breaking
 
@@ -27,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `checkFailureExplanationDisplay` now returns `text`, `configuredText`, `summary`, and each `unknowns` item as a string or a list of text parts. Update TypeScript readers to handle both forms, or keep passing strings and narrow each returned value with `typeof value === 'string'`.
 - TypeScript now checks `backward` when a port returns it. If a separately constructed result inferred `string` for a confidence or gap code, declare it with `satisfies InvestigationResult` at construction.
 - Explanation rows now recognize `omittedReferences`, and gap rows also recognize `occurrences`. Hosts already using those names for unrelated values should rename those fields. When supplied, they must be own data properties with positive safe integer counts (`occurrences` starts at two).
+
+## [2.2.1] - 2026-11-23
+
+### Fixed
+
+- Large recorded runs can open in progressive replay. The root snapshot has a separate bounded copy budget for the execution tree, commit history, and shared state.
 
 ## [2.2.0] - 2026-11-18
 
